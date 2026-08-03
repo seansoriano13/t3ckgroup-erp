@@ -7,10 +7,8 @@ import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { committeeTaskActivityService } from "../services/committeeTaskActivityService";
-import { salesActivityLogService } from "../services/sales/salesActivityLogService";
 import { taskService } from "../services/taskService";
 import { committeeTaskService } from "../services/committeeTaskService";
-import { salesService } from "../services/salesService";
 import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -332,13 +330,9 @@ export default function ComprehensiveChatModal({
     queryFn: () =>
       selectedChat?.entity_type === "TASK"
         ? taskActivityService.getActivityForTask(selectedChat.entity_id)
-        : selectedChat?.entity_type === "COMMITTEE_TASK"
-          ? committeeTaskActivityService.getActivityForTask(
-              selectedChat.entity_id,
-            )
-          : salesActivityLogService.getActivityForSalesActivity(
-              selectedChat.entity_id,
-            ),
+        : committeeTaskActivityService.getActivityForTask(
+            selectedChat.entity_id,
+          ),
     enabled: !!selectedChat && internalOpen,
   });
 
@@ -356,8 +350,6 @@ export default function ComprehensiveChatModal({
         return await committeeTaskService.getCommitteeTaskById(
           selectedChat.entity_id,
         );
-      } else if (selectedChat?.entity_type === "SALES") {
-        return await salesService.getSalesActivityById(selectedChat.entity_id);
       }
       return null;
     },
@@ -417,19 +409,12 @@ export default function ComprehensiveChatModal({
         attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
       return entityType === "TASK"
         ? taskActivityService.addComment(entityId, user.id, content, metadata)
-        : entityType === "COMMITTEE_TASK"
-          ? committeeTaskActivityService.addComment(
-              entityId,
-              user.id,
-              content,
-              metadata,
-            )
-          : salesActivityLogService.addComment(
-              entityId,
-              user.id,
-              content,
-              metadata,
-            );
+        : committeeTaskActivityService.addComment(
+            entityId,
+            user.id,
+            content,
+            metadata,
+          );
     },
     onSuccess: () => {
       setMessageContent("");
@@ -496,18 +481,6 @@ export default function ComprehensiveChatModal({
           queryClient.invalidateQueries({ queryKey: ["activeChats", user.id] });
         },
       )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "sales_activity_logs",
-          filter: "type=eq.COMMENT",
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["activeChats", user.id] });
-        },
-      )
       .subscribe();
 
     return () => {
@@ -534,40 +507,24 @@ export default function ComprehensiveChatModal({
             },
             "-modal",
           )
-        : selectedChat.entity_type === "COMMITTEE_TASK"
-          ? committeeTaskActivityService.subscribeToActivity(
-              selectedChat.entity_id,
-              () => {
-                queryClient.invalidateQueries({
-                  queryKey: [
-                    "chatMessages",
-                    selectedChat.entity_type,
-                    selectedChat.entity_id,
-                  ],
-                });
-              },
-              "-modal",
-            )
-          : salesActivityLogService.subscribeToActivity(
-              selectedChat.entity_id,
-              () => {
-                queryClient.invalidateQueries({
-                  queryKey: [
-                    "chatMessages",
-                    selectedChat.entity_type,
-                    selectedChat.entity_id,
-                  ],
-                });
-              },
-              "-modal",
-            );
+        : committeeTaskActivityService.subscribeToActivity(
+            selectedChat.entity_id,
+            () => {
+              queryClient.invalidateQueries({
+                queryKey: [
+                  "chatMessages",
+                  selectedChat.entity_type,
+                  selectedChat.entity_id,
+                ],
+              });
+            },
+            "-modal",
+          );
 
     return () => {
       if (selectedChat.entity_type === "TASK")
         taskActivityService.unsubscribeFromActivity(channel);
-      else if (selectedChat.entity_type === "COMMITTEE_TASK")
-        committeeTaskActivityService.unsubscribeFromActivity(channel);
-      else salesActivityLogService.unsubscribeFromActivity(channel);
+      else committeeTaskActivityService.unsubscribeFromActivity(channel);
     };
   }, [selectedChat, internalOpen, queryClient]);
 

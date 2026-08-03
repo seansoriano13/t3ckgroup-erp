@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
-import { salesService } from "../services/salesService";
 import { committeeTaskService } from "../services/committeeTaskService";
 import { employeeService } from "../services/employeeService";
 import TaskDetails from "./TaskDetails";
-import SalesTaskDetailsModal from "./SalesTaskDetailsModal";
 import CommitteeTaskDetailModal from "../pages/committee/components/CommitteeTaskDetailModal";
 import RateEmployeesModal from "../pages/committee/components/RateEmployeesModal";
 import { useAuth } from "../context/AuthContext";
@@ -14,7 +12,7 @@ import toast from "react-hot-toast";
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'SALES' | 'COMMITTEE_TASK' }
+  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'COMMITTEE_TASK' }
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
 
@@ -50,15 +48,7 @@ export default function GlobalDetailManager() {
     staleTime: 0,
   });
 
-  // 2. Sales Fetching
-  const { data: salesData, isLoading: isLoadingSales } = useQuery({
-    queryKey: ["globalSales", activeItem?.id],
-    queryFn: () => salesService.getSalesActivityById(activeItem.id),
-    enabled: activeItem?.type === "SALES" && !!activeItem?.id,
-    staleTime: 0,
-  });
-
-  // 3. Committee Task Fetching
+  // 2. Committee Task Fetching
   const { data: committeeTaskData, isLoading: isLoadingCommitteeTask } = useQuery({
     queryKey: ["globalCommitteeTask", activeItem?.id],
     queryFn: () => committeeTaskService.getCommitteeTaskById(activeItem.id),
@@ -70,13 +60,11 @@ export default function GlobalDetailManager() {
     if (activeItem) {
       if (activeItem.type === "TASK" && !isLoadingTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
-      } else if (activeItem.type === "SALES" && !isLoadingSales) {
-        window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       } else if (activeItem.type === "COMMITTEE_TASK" && !isLoadingCommitteeTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       }
     }
-  }, [activeItem, isLoadingTask, isLoadingSales, isLoadingCommitteeTask]);
+  }, [activeItem, isLoadingTask, isLoadingCommitteeTask]);
 
   // --- Task Mutations ---
   const editTaskMutation = useMutation({
@@ -222,15 +210,6 @@ export default function GlobalDetailManager() {
           task={taskData}
           onUpdateTask={(updated) => editTaskMutation.mutateAsync(updated)}
           onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
-        />
-      )}
-
-      {/* SALES MODAL */}
-      {activeItem.type === "SALES" && (
-        <SalesTaskDetailsModal
-          isOpen={true}
-          onClose={handleClose}
-          activity={salesData}
         />
       )}
 

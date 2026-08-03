@@ -13,7 +13,6 @@ export type Path =
   | `/approvals/components/CommitteeApprovalSection`
   | `/approvals/hr-verification`
   | `/approvals/hr-verification/components/BulkVerifyModal`
-  | `/approvals/sales`
   | `/approvals/tasks`
   | `/committee`
   | `/committee/components/CommitteeRoleManagerModal`
@@ -25,25 +24,6 @@ export type Path =
   | `/hr/management`
   | `/login`
   | `/profile`
-  | `/sales/daily`
-  | `/sales/daily/components/AddUnplannedForm`
-  | `/sales/daily/components/ChecklistItem`
-  | `/sales/daily/components/DailyCoverageTabs`
-  | `/sales/daily/components/DailyTaskMatrix`
-  | `/sales/log-sales`
-  | `/sales/records`
-  | `/sales/records/ActivitiesBoard`
-  | `/sales/records/ActivitiesTable`
-  | `/sales/records/EditRevenueModal`
-  | `/sales/records/Pagination`
-  | `/sales/records/RecordsHeader`
-  | `/sales/records/RevenueTable`
-  | `/sales/schedule`
-  | `/sales/schedule/components/ScheduleActivityRow`
-  | `/sales/schedule/components/ScheduleDayView`
-  | `/sales/schedule/components/ScheduleHeader`
-  | `/sales/schedule/components/ScheduleTabs`
-  | `/sales/schedule/components/TemplateModals`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`

@@ -6,7 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { salesService } from "../../services/salesService";
+import { appSettingsService } from "../../services/appSettingsService";
 import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
@@ -50,12 +50,12 @@ export default function SettingsPage() {
 
   const { data: appSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["appSettings"],
-    queryFn: () => salesService.getAppSettings(),
+    queryFn: () => appSettingsService.getAppSettings(),
     enabled: !!isSuperAdmin,
   });
 
   const mutation = useMutation({
-    mutationFn: (payload) => salesService.updateAppSettings(payload),
+    mutationFn: (payload) => appSettingsService.updateAppSettings(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appSettings"] });
       toast.success("Security configuration updated system-wide!");
@@ -148,24 +148,6 @@ export default function SettingsPage() {
               </h2>
             </div>
             <div className="divide-y divide-border relative z-10">
-              <SettingToggle
-                label="Enforce Sales Logging Verification"
-                description="Toggle whether sales personnel require an active Super Admin verification stamp upon logging sales before it affects metrics."
-                icon={Shield}
-                checked={!!appSettings?.require_revenue_verification}
-                onToggle={toggle("require_revenue_verification")}
-                isPending={mutation.isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Enable Sales Self-Approval"
-                description="Allow sales personnel to self-approve mapped activities that contain financial expenses (bypassing the Head Queue)."
-                icon={Shield}
-                checked={!!appSettings?.sales_self_approve_expenses}
-                onToggle={toggle("sales_self_approve_expenses")}
-                isPending={mutation.isPending}
-                isLoading={loadingSettings}
-              />
               <SettingToggle
                 label="Ops Manager Marketing Approvals"
                 description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."

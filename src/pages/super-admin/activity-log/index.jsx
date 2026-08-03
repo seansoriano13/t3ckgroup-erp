@@ -2,11 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import Dot from "../../../components/ui/Dot";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { taskActivityService } from "../../../services/tasks/taskActivityService";
-import { salesActivityLogService } from "../../../services/sales/salesActivityLogService";
 import { employeeService } from "../../../services/employeeService";
 import { committeeTaskActivityService } from "../../../services/committeeTaskActivityService";
 import { systemAuditLogService } from "../../../services/systemAuditLogService";
-import { revenueActivityLogService } from "../../../services/sales/revenueActivityLogService";
 import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
@@ -33,9 +31,7 @@ const PAGE_SIZE = 50;
 
 const TABS = [
   { id: "TASKS", label: "Task Logs" },
-  { id: "SALES", label: "Sales Logs" },
   { id: "COMMITTEE", label: "Group Task Logs" },
-  { id: "REVENUE", label: "Revenue Logs" },
   { id: "SYSTEM", label: "System Logs" },
 ];
 
@@ -217,12 +213,8 @@ export default function SuperAdminActivityLogPage() {
     let sub;
     if (activeTab === "TASKS")
       sub = taskActivityService.subscribeToAllActivity(handleNewEntry);
-    else if (activeTab === "SALES")
-      sub = salesActivityLogService.subscribeToAllActivity(handleNewEntry);
     else if (activeTab === "COMMITTEE")
       sub = committeeTaskActivityService.subscribeToAllActivity(handleNewEntry);
-    else if (activeTab === "REVENUE")
-      sub = revenueActivityLogService.subscribeToAllActivity(handleNewEntry);
     else if (activeTab === "SYSTEM")
       sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
 
@@ -230,12 +222,8 @@ export default function SuperAdminActivityLogPage() {
       if (sub) {
         if (activeTab === "TASKS")
           taskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "SALES")
-          salesActivityLogService.unsubscribeFromActivity(sub);
         else if (activeTab === "COMMITTEE")
           committeeTaskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "REVENUE")
-          revenueActivityLogService.unsubscribeFromActivity(sub);
         else if (activeTab === "SYSTEM")
           systemAuditLogService.unsubscribeFromActivity(sub);
       }
@@ -269,12 +257,8 @@ export default function SuperAdminActivityLogPage() {
         search: filters.search,
       };
 
-      if (activeTab === "SALES")
-        return salesActivityLogService.getRecentSalesActivity(params);
       if (activeTab === "COMMITTEE")
         return committeeTaskActivityService.getRecentCommitteeActivity(params);
-      if (activeTab === "REVENUE")
-        return revenueActivityLogService.getRecentRevenueActivity(params);
       if (activeTab === "SYSTEM")
         return systemAuditLogService.getRecentSystemActivity(params);
       return taskActivityService.getRecentTaskActivity(params);
@@ -283,7 +267,7 @@ export default function SuperAdminActivityLogPage() {
   });
 
   const filteredEntries = useMemo(() => {
-    const isDeptFiltered = activeTab !== "SYSTEM" && activeTab !== "REVENUE";
+    const isDeptFiltered = activeTab !== "SYSTEM";
 
     const raw = entries.filter((e) => {
       if (isDeptFiltered) {
@@ -298,8 +282,8 @@ export default function SuperAdminActivityLogPage() {
       return true;
     });
 
-    // Consolidate redundant logs (tasks/sales/committee only)
-    if (activeTab === "SYSTEM" || activeTab === "REVENUE") return raw;
+    // Consolidate redundant logs (tasks/committee only)
+    if (activeTab === "SYSTEM") return raw;
 
     const consolidated = [];
     for (let i = 0; i < raw.length; i++) {
@@ -384,9 +368,7 @@ export default function SuperAdminActivityLogPage() {
     if (activeTab === "SYSTEM") return;
     const typeMap = {
       TASKS: "TASK",
-      SALES: "SALES",
       COMMITTEE: "COMMITTEE_TASK",
-      REVENUE: "REVENUE_LOG",
     };
     if (!typeMap[activeTab] || !e.taskId) return;
     window.dispatchEvent(
@@ -471,7 +453,6 @@ export default function SuperAdminActivityLogPage() {
         <ActivityLogFilters
           filters={filters}
           setFilters={setFilters}
-          activeTab={activeTab}
           employees={employees}
         />
 
@@ -530,12 +511,7 @@ export default function SuperAdminActivityLogPage() {
         ) : (
           <div className="space-y-2">
             {filteredEntries.map((e) => {
-              const Icon =
-                activeTab === "SYSTEM"
-                  ? Settings
-                  : activeTab === "REVENUE"
-                    ? DollarSign
-                    : typeIcon(e.type);
+              const Icon = activeTab === "SYSTEM" ? Settings : typeIcon(e.type);
 
               const isClickable = activeTab !== "SYSTEM";
 

@@ -10,7 +10,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { Search, CheckCircle2, History, Users2 } from "lucide-react";
 import toast from "react-hot-toast";
 import Spinner from "@/components/ui/Spinner";
-import ExpenseApprovalQueue from "../../../components/ExpenseApprovalQueue.jsx";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
 
@@ -615,9 +614,6 @@ export default function TaskApprovalsPage() {
         />
 
         <>
-          {activeTab === "PENDING" && (
-            <ExpenseApprovalQueue isSuperAdmin={false} />
-          )}
           {filteredTasks.length > 0 ? (
             <div className="flex flex-col gap-4">
               {(searchQuery || priorityFilter !== "ALL") && (

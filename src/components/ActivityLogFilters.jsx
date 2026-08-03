@@ -31,7 +31,6 @@ function FieldBox({ label, children }) {
 export default function ActivityLogFilters({
   filters,
   setFilters,
-  activeTab,
   employees = [],
 }) {
   // ── Derived data ──────────────────────────────────────────────────────────
@@ -176,9 +175,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox
-          label={activeTab === "SALES" ? "Sales Status" : "Task Status"}
-        >
+        <FieldBox label="Task Status">
           <Dropdown
             usePortal
             className="w-full"
@@ -197,28 +194,17 @@ export default function ActivityLogFilters({
           >
             {({ close }) => (
               <FilterOptionList
-                options={
-                  activeTab === "SALES"
-                    ? [
-                        { value: "ALL", label: "All Statuses" },
-                        { value: "PENDING", label: "PENDING" },
-                        { value: "APPROVED", label: "APPROVED" },
-                        { value: "REJECTED", label: "REJECTED" },
-                        { value: "COMPLETED", label: "COMPLETED" },
-                        { value: "LOST", label: "LOST" },
-                      ]
-                    : [
-                        { value: "ALL", label: "All Statuses" },
-                        { value: "INCOMPLETE", label: "INCOMPLETE" },
-                        {
-                          value: "AWAITING APPROVAL",
-                          label: "AWAITING APPROVAL",
-                        },
-                        { value: "COMPLETE", label: "COMPLETE" },
-                        { value: "NOT APPROVED", label: "NOT APPROVED" },
-                        { value: "DELETED", label: "DELETED" },
-                      ]
-                }
+                options={[
+                  { value: "ALL", label: "All Statuses" },
+                  { value: "INCOMPLETE", label: "INCOMPLETE" },
+                  {
+                    value: "AWAITING APPROVAL",
+                    label: "AWAITING APPROVAL",
+                  },
+                  { value: "COMPLETE", label: "COMPLETE" },
+                  { value: "NOT APPROVED", label: "NOT APPROVED" },
+                  { value: "DELETED", label: "DELETED" },
+                ]}
                 value={filters.taskStatus}
                 onChange={(val) => {
                   setFilters((p) => ({ ...p, taskStatus: val }));
@@ -274,9 +260,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox
-          label={activeTab === "SALES" ? "Sales Rep" : "Task Owner"}
-        >
+        <FieldBox label="Task Owner">
           <Dropdown
             usePortal
             className="w-full"
