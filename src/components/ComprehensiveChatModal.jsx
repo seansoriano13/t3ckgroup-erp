@@ -306,9 +306,7 @@ export default function ComprehensiveChatModal({
             title:
               entityType === "TASK"
                 ? "New Task Thread"
-                : entityType === "COMMITTEE_TASK"
-                  ? "New Committee Thread"
-                  : "New Sales Thread",
+                : "New Committee Thread",
             is_placeholder: true,
           });
         }
@@ -1146,7 +1144,7 @@ export default function ComprehensiveChatModal({
               <div>
                 <h3 className="text-lg font-bold">Your Conversations</h3>
                 <p className="text-sm text-muted-foreground max-w-[280px]">
-                  Select a task or sales activity from the list to view its chat
+                  Select a task from the list to view its chat
                   history.
                 </p>
               </div>

@@ -15,7 +15,7 @@ import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
 /**
  * HRFilters
  * Filter bar for the Employee Management table.
- * Mirrors the pattern established in TaskFilters / SalesFilters.
+ * Mirrors the pattern established in TaskFilters.
  */
 export default function HRFilters({
   searchTerm,

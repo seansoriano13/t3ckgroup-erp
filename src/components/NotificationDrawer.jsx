@@ -90,24 +90,14 @@ const TYPE_ICONS = {
   TASK_COMPLETED: <Trophy size={18} className="text-green-9" />,
   NEW_TASK_SUBMITTED: <Clock size={18} className="text-amber-500" />,
   TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
-  REVENUE_LOCKED: <ShieldAlert size={18} className="text-green-500" />,
-  REVENUE_EDIT_REQUESTED: <Clock size={18} className="text-orange-500" />,
-  REVENUE_EDIT_RESULT: <TrendingUp size={18} className="text-primary" />,
-  SALES_PLAN_SUBMITTED: <Briefcase size={18} className="text-purple-500" />,
-  PLAN_AMENDMENT_RESULT: <CheckCircle2 size={18} className="text-blue-600" />,
-  SALES_DAY_CONQUERED: <CheckCheck size={18} className="text-green-500" />,
-  SALES_WEEK_CONQUERED: <Trophy size={18} className="text-yellow-500" />,
-  UNPLANNED_ACTIVITY: <FileText size={18} className="text-primary" />,
-  DAY_DELETE_REQUESTED: <XCircle size={18} className="text-red-600" />,
-  DAY_DELETE_RESULT: <Trash2 size={18} className="text-foreground" />,
   COMMITTEE_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
   COMMITTEE_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
   COMMITTEE_TASK_READY_FOR_HR: (
     <CheckCircle2 size={18} className="text-violet-10" />
   ),
   COMMITTEE_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
-  SALES_QUOTA_PUBLISHED: <Target size={18} className="text-green-9" />,
-  PLAN_AMENDMENT_REQUESTED: <Clock size={18} className="text-amber-500" />,
+  OPPORTUNITY_REGISTERED: <Target size={18} className="text-primary" />,
+  OPPORTUNITY_STAGE_CHANGED: <TrendingUp size={18} className="text-blue-600" />,
 };
 
 const getIconForType = (type) =>
@@ -121,7 +111,7 @@ const buildTabs = (user) => [
     ? [{ value: "TASKS", label: "TASKS" }]
     : []),
   ...(user?.has_sales_flow || user?.isHr || user?.isSuperAdmin
-    ? [{ value: "SALES", label: "SALES" }]
+    ? [{ value: "OPPORTUNITIES", label: "OPPORTUNITIES" }]
     : []),
 ];
 
@@ -131,13 +121,8 @@ const filterNotifs = (notifications, tab) => {
     return notifications.filter(
       (n) => n.type.includes("TASK") || n.type.includes("COMMITTEE"),
     );
-  if (tab === "SALES")
-    return notifications.filter(
-      (n) =>
-        n.type.includes("SALES") ||
-        n.type.includes("REVENUE") ||
-        n.type.includes("ACTIVITY"),
-    );
+  if (tab === "OPPORTUNITIES")
+    return notifications.filter((n) => n.type.startsWith("OPPORTUNITY_"));
   if (tab === "UNREAD") return notifications.filter((n) => !n.is_read);
   return notifications; // ALL
 };

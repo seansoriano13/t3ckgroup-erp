@@ -18,11 +18,7 @@ import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
-import {
-  TASK_STATUS,
-  REVENUE_STATUS,
-  SALES_PLAN_STATUS,
-} from "../../constants/status";
+import { TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 

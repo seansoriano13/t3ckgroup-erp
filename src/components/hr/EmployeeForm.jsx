@@ -179,10 +179,10 @@ export default function EmployeeForm({
             iconStrokeWidth={2.5}
           />
 
-          {/* Sales Flow */}
+          {/* Sales Opportunity access */}
           <AccessSwitch
-            label="Sales Flow"
-            description="Enable sales activity scheduling and monitoring"
+            label="Sales Opportunities"
+            description="Access to the Sales Opportunity Register"
             icon={Briefcase}
             checked={formData.has_sales_flow}
             onChange={(val) =>

@@ -9,9 +9,7 @@ import {
   ShieldCheck,
   Users,
   Crown,
-  CalendarDays,
-  CheckSquare,
-  DollarSign,
+  Target,
   X,
   ClipboardList,
   ChevronDown,
@@ -56,7 +54,7 @@ export default function SideNav() {
   const [expandedGroups, setExpandedGroups] = useState({
     main: true,
     approvals: true,
-    sales: true,
+    opportunities: true,
     management: true,
   });
 
@@ -112,7 +110,7 @@ export default function SideNav() {
   let groups = {
     main: { label: "Main", links: [] },
     approvals: { label: "Approvals", links: [] },
-    sales: { label: "Sales", links: [] },
+    opportunities: { label: "Sales Opportunities", links: [] },
     management: { label: "Management", links: [] },
   };
 
@@ -129,11 +127,9 @@ export default function SideNav() {
         link: "/approvals/hr-verification",
         icon: ShieldCheck,
       },
-      { label: "Sales Approval", link: "/approvals/sales", icon: ShieldCheck },
     ];
-    groups.sales.links = [
-      { label: "Log Sales", link: "/sales/log-sales", icon: DollarSign },
-      { label: "Sales Records", link: "/sales/records", icon: ListCheck },
+    groups.opportunities.links = [
+      { label: "Opportunity Register", link: "/opportunities", icon: Target },
     ];
     groups.management.links = [
       { label: "HR Management", link: "/hr/management", icon: Users },
@@ -155,46 +151,23 @@ export default function SideNav() {
     }
 
     if (hasSales) {
-      groups.sales.links.push(
-        { label: "Sales Planner", link: "/sales/schedule", icon: CalendarDays },
-        { label: "Daily Execution", link: "/sales/daily", icon: CheckSquare },
-        { label: "Log Sales", link: "/sales/log-sales", icon: DollarSign },
-        { label: "Sales Records", link: "/sales/records", icon: ListCheck },
-      );
+      groups.opportunities.links.push({
+        label: "Opportunity Register",
+        link: "/opportunities",
+        icon: Target,
+      });
     }
 
     if (user?.isHead || user?.is_head) {
       const userSubDept = user?.subDepartment || user?.sub_department;
       const isMasterHead = !userSubDept;
 
-      if (isMasterHead) {
-        groups.approvals.links.push(
-          {
-            label: "Task Approval",
-            link: "/approvals/tasks",
-            icon: ShieldCheck,
-          },
-          {
-            label: "Sales Approval",
-            link: "/approvals/sales",
-            icon: ShieldCheck,
-          },
-        );
-      } else {
-        if (hasTask) {
-          groups.approvals.links.push({
-            label: "Task Approval",
-            link: "/approvals/tasks",
-            icon: ShieldCheck,
-          });
-        }
-        if (hasSales) {
-          groups.approvals.links.push({
-            label: "Sales Approval",
-            link: "/approvals/sales",
-            icon: ShieldCheck,
-          });
-        }
+      if (isMasterHead || hasTask) {
+        groups.approvals.links.push({
+          label: "Task Approval",
+          link: "/approvals/tasks",
+          icon: ShieldCheck,
+        });
       }
     }
 
@@ -210,10 +183,10 @@ export default function SideNav() {
         icon: Users,
       });
       if (!hasSales) {
-        groups.sales.links.push({
-          label: "Sales Records",
-          link: "/sales/records",
-          icon: ListCheck,
+        groups.opportunities.links.push({
+          label: "Opportunity Register",
+          link: "/opportunities",
+          icon: Target,
         });
       }
     }

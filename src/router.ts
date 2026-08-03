@@ -23,6 +23,7 @@ export type Path =
   | `/hr-master-log`
   | `/hr/management`
   | `/login`
+  | `/opportunities`
   | `/profile`
   | `/settings`
   | `/settings/FAQEditor`

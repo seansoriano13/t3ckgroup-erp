@@ -62,7 +62,7 @@ function HistoryItem({ log, type = "TASK" }) {
   let icon = Zap
   let colorClass = "bg-blue-3 text-blue-10 border-blue-6"
 
-  if (type === "TASK" || type === "SALES") {
+  if (type === "TASK") {
     action = log.type === "SYSTEM" ? log.metadata?.event || "SYSTEM" : log.type
     details = log.metadata
     actorName = log.authorName || "System"

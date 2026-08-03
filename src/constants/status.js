@@ -11,31 +11,6 @@ export const TASK_STATUS = {
   DELETED: "DELETED",
 };
 
-export const REVENUE_STATUS = {
-  PENDING: "PENDING",
-  COMPLETED: "COMPLETED", // DB migrated: was "COMPLETED SALES" → now "COMPLETED"
-  LOST: "LOST", // DB migrated: was "LOST SALES" → now "LOST"
-  REJECTED: "REJECTED",
-  APPROVED: "APPROVED",
-  DONE: "APPROVED", // Alias for backward compatibility and UI filters
-};
-
-// Alias used in StatusBadge and sales-related UI components
-export const SALES_STATUS = REVENUE_STATUS;
-
-export const RECORD_TYPE = {
-  SALES_ORDER: "SALES_ORDER",
-  SALES_QUOTATION: "SALES_QUOTATION",
-};
-
-export const SALES_PLAN_STATUS = {
-  DRAFT: "DRAFT",
-  SUBMITTED: "SUBMITTED",
-  REVISION: "REVISION",
-  APPROVED: "APPROVED",
-  REJECTED: "REJECTED",
-};
-
 export const STATUS_THEME = {
   GREEN: "green",
   AMBER: "amber",
@@ -55,23 +30,32 @@ export const TASK_STATUS_THEME = {
   [TASK_STATUS.DELETED]: STATUS_THEME.MAUVE,
 };
 
-// Map each sales status to a consistent color theme
-export const SALES_STATUS_THEME = {
-  [SALES_STATUS.COMPLETED]: STATUS_THEME.GREEN,
-  [SALES_STATUS.LOST]: STATUS_THEME.RED,
-  [SALES_STATUS.PENDING]: STATUS_THEME.AMBER,
-  [SALES_STATUS.REJECTED]: STATUS_THEME.RED,
-  [SALES_STATUS.APPROVED]: STATUS_THEME.GREEN,
-  DONE: STATUS_THEME.GREEN, // Alias
+// Sales Opportunity Registration pipeline (Annex C.3).
+// Early discovery stages read as neutral, active pursuit as blue, secured work
+// as violet/orange, and terminal outcomes as green or red.
+export const OPPORTUNITY_STATUS_THEME = {
+  LEAD: STATUS_THEME.MAUVE,
+  QUALIFIED: STATUS_THEME.AMBER,
+  PROPOSAL_SUBMITTED: STATUS_THEME.BLUE,
+  BID_SUBMITTED: STATUS_THEME.BLUE,
+  NEGOTIATION: STATUS_THEME.VIOLET,
+  AWARDED: STATUS_THEME.GREEN,
+  PO_RECEIVED: STATUS_THEME.GREEN,
+  PROJECT_DELIVERY: STATUS_THEME.ORANGE,
+  COLLECTION: STATUS_THEME.ORANGE,
+  CLOSED_WON: STATUS_THEME.GREEN,
+  RETENTION: STATUS_THEME.VIOLET,
+  CLOSED_LOST: STATUS_THEME.RED,
 };
 
 // Helper function to get theme
 export const getStatusTheme = (status) => {
   const safeStatus = status?.toUpperCase() || "";
-  
+
   if (TASK_STATUS_THEME[safeStatus]) return TASK_STATUS_THEME[safeStatus];
-  if (SALES_STATUS_THEME[safeStatus]) return SALES_STATUS_THEME[safeStatus];
-  
+  if (OPPORTUNITY_STATUS_THEME[safeStatus])
+    return OPPORTUNITY_STATUS_THEME[safeStatus];
+
   // Legacy / Other supports
   switch (safeStatus) {
     case "WON": return STATUS_THEME.GREEN;

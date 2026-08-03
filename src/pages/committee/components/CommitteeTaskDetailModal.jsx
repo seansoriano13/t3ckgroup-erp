@@ -319,7 +319,7 @@ export default function CommitteeTaskDetailModal({
     );
   };
 
-  // Mark as read when opened (same pattern as TaskDetails & SalesTaskDetailsModal)
+  // Mark as read when opened (same pattern as TaskDetails)
   useEffect(() => {
     if (isOpen && task?.id && currentUserId) {
       activeChatService.markAsRead(currentUserId, "COMMITTEE_TASK", task.id);
