@@ -1,15 +1,17 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Plus, Search, Target } from "lucide-react";
+import { Plus, Search, Target, List, Kanban } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
+import TabGroup from "../../components/ui/TabGroup";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
 import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
+import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import { opportunityService } from "../../services/opportunityService";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -30,9 +32,17 @@ export default function OpportunitiesPage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("ALL");
   const [mineOnly, setMineOnly] = useState(false);
+  const [view, setView] = useState(
+    () => sessionStorage.getItem("opportunitiesView") || "list",
+  );
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+
+  const changeView = (next) => {
+    setView(next);
+    sessionStorage.setItem("opportunitiesView", next);
+  };
 
   const { data: opportunities = [], isLoading } = useQuery({
     queryKey: ["opportunities"],
@@ -148,6 +158,17 @@ export default function OpportunitiesPage() {
           >
             My Deals
           </button>
+          <TabGroup
+            tabs={[
+              { value: "list", label: "List", icon: List },
+              { value: "board", label: "Board", icon: Kanban },
+            ]}
+            activeTab={view}
+            onChange={changeView}
+            variant="pill"
+            size="sm"
+            className="shrink-0"
+          />
         </div>
 
         {/* Summary */}
@@ -162,16 +183,17 @@ export default function OpportunitiesPage() {
           </span>
         </div>
 
-        {/* Table */}
-        <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
-          {isLoading ? (
+        {isLoading ? (
+          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Spinner size="sm" />
               <span className="text-sm font-bold uppercase tracking-widest">
                 Loading register…
               </span>
             </div>
-          ) : filtered.length === 0 ? (
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
               <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground mb-3">
                 <Target size={18} />
@@ -187,7 +209,16 @@ export default function OpportunitiesPage() {
                   : "Try clearing the search or stage filter."}
               </p>
             </div>
-          ) : (
+          </div>
+        ) : view === "board" ? (
+          <div className="mt-4">
+            <OpportunityBoard
+              opportunities={filtered}
+              onCardClick={(o) => setSelectedId(o.id)}
+            />
+          </div>
+        ) : (
+          <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -253,8 +284,8 @@ export default function OpportunitiesPage() {
                 </tbody>
               </table>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </PageContainer>
 
       <OpportunityFormModal

@@ -60,7 +60,7 @@ createRoot(document.getElementById("root")).render(
           <AuthProvider>
             <ThemeApplier>
               <Toaster
-                position="bottom-center"
+                position="top-center"
                 reverseOrder={false}
                 gutter={12}
                 containerStyle={{ zIndex: 100000 }}

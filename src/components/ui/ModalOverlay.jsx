@@ -56,8 +56,10 @@ export default function ModalOverlay({
         onClick={onClose}
       />
 
-      {/* Content — rendered above backdrop via relative z-10 */}
-      <div className="relative z-10 contents">{children}</div>
+      {/* Content — rendered above backdrop via relative z-10.
+          `contents` would strip this box entirely, silently nullifying the
+          position/z-index set here — omitted deliberately. */}
+      <div className="relative z-10">{children}</div>
     </div>,
     document.body,
   );
