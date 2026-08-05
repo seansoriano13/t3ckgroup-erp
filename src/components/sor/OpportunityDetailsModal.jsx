@@ -39,6 +39,42 @@ function Person({ person }) {
   );
 }
 
+function ItemsList({ items }) {
+  if (!items.length) return null;
+  return (
+    <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+      <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+        <span className="col-span-6">Product</span>
+        <span className="col-span-2 text-right">Qty</span>
+        <span className="col-span-2 text-right">Unit Price</span>
+        <span className="col-span-2 text-right">Total</span>
+      </div>
+      {items.map((it) => (
+        <div
+          key={it.id}
+          className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm"
+        >
+          <span className="col-span-6 text-foreground font-medium truncate">
+            {it.product_name}
+            {it.unit && (
+              <span className="text-muted-foreground font-normal"> ({it.unit})</span>
+            )}
+          </span>
+          <span className="col-span-2 text-right text-muted-foreground">
+            {it.quantity}
+          </span>
+          <span className="col-span-2 text-right text-muted-foreground">
+            {formatPHP(it.unit_price)}
+          </span>
+          <span className="col-span-2 text-right font-bold text-foreground">
+            {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatWhen(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
@@ -67,6 +103,12 @@ export default function OpportunityDetailsModal({
   const { data: notes = [], isLoading: loadingNotes } = useQuery({
     queryKey: ["opportunityNotes", id],
     queryFn: () => opportunityService.getNotes(id),
+    enabled: !!id && isOpen,
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["opportunityItems", id],
+    queryFn: () => opportunityService.getItems(id),
     enabled: !!id && isOpen,
   });
 
@@ -210,6 +252,15 @@ export default function OpportunityDetailsModal({
               ) : null}
             </Detail>
           </div>
+
+          {items.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                Product List
+              </p>
+              <ItemsList items={items} />
+            </div>
+          )}
 
           {opportunity.lost_reason && (
             <div className="bg-red-500/5 border border-red-400/40 rounded-xl px-3 py-2.5">

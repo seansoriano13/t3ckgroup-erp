@@ -3,7 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Target } from "lucide-react";
 import HRFormModal from "../hr/HRFormModal";
 import { TextField, SelectField } from "./SorField";
+import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
+import { opportunityService } from "../../services/opportunityService";
 import { LEAD_SOURCES, PROJECT_TYPES } from "../../constants/sor";
 
 const FORM_ID = "opportunity-form";
@@ -16,7 +18,6 @@ const blankForm = () => ({
   contact_person: "",
   project_title: "",
   project_type: "SSP",
-  expected_value: "",
   expected_award_date: "",
   deal_owner_id: "",
   support_sales_1_id: "",
@@ -32,12 +33,18 @@ const fromRecord = (o) => ({
   contact_person: o.contact_person || "",
   project_title: o.project_title || "",
   project_type: o.project_type || "SSP",
-  expected_value: o.expected_value ?? "",
   expected_award_date: o.expected_award_date || "",
   deal_owner_id: o.deal_owner_id || "",
   support_sales_1_id: o.support_sales_1_id || "",
   support_sales_2_id: o.support_sales_2_id || "",
   sales_director_id: o.sales_director_id || "",
+});
+
+const toRow = (item) => ({
+  product_name: item.product_name || "",
+  unit: item.unit || "",
+  quantity: item.quantity ?? 1,
+  unit_price: item.unit_price ?? "",
 });
 
 export default function OpportunityFormModal({
@@ -70,6 +77,23 @@ export default function OpportunityFormModal({
     enabled: isOpen,
   });
 
+  const { data: existingItems } = useQuery({
+    queryKey: ["opportunityItems", opportunity?.id],
+    queryFn: () => opportunityService.getItems(opportunity.id),
+    enabled: isEdit && isOpen,
+  });
+
+  // Same render-phase sync as `form` above, but gated on the items query
+  // resolving first when editing — otherwise this would seed to [] before
+  // `existingItems` arrives and never re-sync once it does.
+  const [items, setItems] = useState([]);
+  const [itemsSeedKey, setItemsSeedKey] = useState(currentKey);
+
+  if (currentKey !== itemsSeedKey && (!isEdit || existingItems !== undefined)) {
+    setItemsSeedKey(currentKey);
+    setItems(isEdit ? (existingItems || []).map(toRow) : []);
+  }
+
   const employeeOptions = employees
     .filter((e) => !e.isSuperAdmin)
     .map((e) => ({
@@ -83,7 +107,7 @@ export default function OpportunityFormModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(form);
+    onSubmit({ ...form, items });
   };
 
   return (
@@ -162,21 +186,15 @@ export default function OpportunityFormModal({
             onChange={set("project_type")}
           />
           <TextField
-            label="Expected Value (PHP)"
-            type="number"
-            min="0"
-            step="0.01"
-            required
-            placeholder="0.00"
-            value={form.expected_value}
-            onChange={set("expected_value")}
-          />
-          <TextField
             label="Expected Award"
             type="date"
             value={form.expected_award_date}
             onChange={set("expected_award_date")}
           />
+        </div>
+
+        <div className="pt-2 border-t border-border/50">
+          <OpportunityItemsEditor items={items} onChange={setItems} />
         </div>
 
         <div className="pt-2 border-t border-border/50 space-y-3">

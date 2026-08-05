@@ -53,7 +53,6 @@ export const opportunityService = {
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: payload.project_type,
-        expected_value: Number(payload.expected_value) || 0,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -66,21 +65,27 @@ export const opportunityService = {
 
     if (error) throw error;
 
+    // expected_value is trigger-maintained from the product list — insert the
+    // items first, then re-read the row to pick up the computed total before
+    // it's quoted in the notes below.
+    await opportunityService.replaceItems(data.id, payload.items);
+    const final = await opportunityService.getOpportunityById(data.id);
+
     await opportunityService.addSystemNote(
-      data.id,
-      `Opportunity ${data.opportunity_no} registered — ${data.client_name}, ${formatPHP(data.expected_value)}.`,
+      final.id,
+      `Opportunity ${final.opportunity_no} registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
       { event: "OPPORTUNITY_REGISTERED", employeeId: actorId },
     );
 
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
-      data.id,
-      `Sales opportunity ${data.opportunity_no} registered for ${data.client_name} (${formatPHP(data.expected_value)}).`,
+      final.id,
+      `Sales opportunity ${final.opportunity_no} registered for ${final.client_name} (${formatPHP(final.expected_value)}).`,
       { event: "OPPORTUNITY_REGISTERED", employeeId: actorId },
       actorId,
     ).catch(console.error);
 
-    return data;
+    return final;
   },
 
   async updateOpportunity(id, payload, actorId) {
@@ -93,7 +98,6 @@ export const opportunityService = {
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: payload.project_type,
-        expected_value: Number(payload.expected_value) || 0,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -106,6 +110,9 @@ export const opportunityService = {
 
     if (error) throw error;
 
+    await opportunityService.replaceItems(id, payload.items);
+    const final = await opportunityService.getOpportunityById(id);
+
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       id,
@@ -114,7 +121,7 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
-    return data;
+    return final;
   },
 
   /**
@@ -184,6 +191,55 @@ export const opportunityService = {
     ).catch(console.error);
 
     return data;
+  },
+
+  // ── Product list / items ──────────────────────────────────────────────────
+
+  async getItems(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunity_items")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .order("sort_order", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Full replace-set: deletes all existing rows for the opportunity and
+   * inserts the given list. Items don't carry their own audit/dispute
+   * significance the way the opportunity record does, so unlike notes there's
+   * no need to track per-row history — this keeps the editor UI simple (no
+   * id-diffing) at the cost of not preserving item-level created_at across
+   * edits. A `sales_opportunities` trigger recomputes `expected_value` from
+   * whatever ends up in the table after this runs.
+   */
+  async replaceItems(opportunityId, items) {
+    const { error: delError } = await supabase
+      .from("sales_opportunity_items")
+      .delete()
+      .eq("opportunity_id", opportunityId);
+    if (delError) throw delError;
+
+    const rows = (items || [])
+      .filter((it) => (it.product_name || "").trim())
+      .map((it, idx) => ({
+        opportunity_id: opportunityId,
+        product_name: it.product_name.trim(),
+        unit: (it.unit || "").trim() || null,
+        quantity: Number(it.quantity) || 0,
+        unit_price: Number(it.unit_price) || 0,
+        sort_order: idx,
+      }));
+
+    if (rows.length > 0) {
+      const { error: insError } = await supabase
+        .from("sales_opportunity_items")
+        .insert(rows);
+      if (insError) throw insError;
+    }
   },
 
   // ── Notes / timeline ──────────────────────────────────────────────────────

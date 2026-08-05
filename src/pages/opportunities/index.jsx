@@ -53,8 +53,9 @@ export default function OpportunitiesPage() {
   const updateMutation = useMutation({
     mutationFn: (payload) =>
       opportunityService.updateOpportunity(editing.id, payload, user?.id),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+      queryClient.invalidateQueries({ queryKey: ["opportunityItems", updated.id] });
       setEditing(null);
       toast.success("Opportunity updated.");
     },
