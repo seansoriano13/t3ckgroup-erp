@@ -144,45 +144,17 @@ create trigger trg_sales_opportunities_guard
 -- ============================================================================
 -- OPTIONAL — Row Level Security
 --
--- Left OFF so these tables behave like every other table in this database,
--- where authorization is enforced in React (ProtectedRoute + SideNav gating).
--- Be aware that means any signed-in user can write these rows directly through
--- the anon key from the browser console.
+-- Left OFF here so these tables behave like every other table in this
+-- database, where authorization is enforced in React (ProtectedRoute +
+-- SideNav gating). Be aware that means any signed-in user can write these
+-- rows directly through the anon key from the browser console.
 --
--- To turn it on, run the block below. It maps the Supabase auth user to an
--- employee by e-mail, which works because login is Google OAuth — no schema
--- change and no application code change required.
---
---   create or replace function public.current_employee_id() returns uuid
---   language sql stable security definer set search_path = public as $$
---     select id from public.employees
---     where lower(email) = lower(auth.jwt() ->> 'email')
---       and coalesce(is_deleted, false) = false
---     limit 1
---   $$;
---
---   alter table public.sales_opportunities enable row level security;
---   alter table public.sales_opportunity_logs enable row level security;
---
---   -- Org-wide visibility is the point of the register: it is what prevents
---   -- two salespeople from unknowingly working the same deal.
---   create policy sor_read on public.sales_opportunities
---     for select to authenticated using (true);
---   create policy sor_insert on public.sales_opportunities
---     for insert to authenticated
---     with check (registered_by = public.current_employee_id());
---   create policy sor_update on public.sales_opportunities
---     for update to authenticated using (
---       registered_by  = public.current_employee_id()
---       or deal_owner_id = public.current_employee_id()
---       or exists (select 1 from public.employees e
---                  where e.id = public.current_employee_id()
---                    and (e.is_head or e.is_super_admin))
---     );
---
---   create policy sor_log_read on public.sales_opportunity_logs
---     for select to authenticated using (true);
---   create policy sor_log_insert on public.sales_opportunity_logs
---     for insert to authenticated
---     with check (author_id = public.current_employee_id() or author_id is null);
+-- To turn it on: run 0002_sales_opportunities_rls_fix.sql, NOT the block that
+-- used to be here. This project already has a working public.get_employee_id()
+-- helper that maps the Supabase auth session to an employees row — 0002 is
+-- written against that existing function. (An earlier draft of this comment
+-- shipped a self-contained current_employee_id() helper; if RLS is ever
+-- enabled on this table WITHOUT running 0002's policies first, every write
+-- fails with "new row violates row-level security policy" — enabling RLS via
+-- the Studio toggle does not create policies for you.)
 -- ============================================================================

@@ -22,9 +22,9 @@ function Detail({ label, children }) {
       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
         {label}
       </p>
-      <p className="text-sm font-semibold text-foreground break-words">
+      <div className="text-sm font-semibold text-foreground break-words">
         {children || <span className="text-muted-foreground/60">—</span>}
-      </p>
+      </div>
     </div>
   );
 }
