@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Plus, Search, Target, List, Kanban } from "lucide-react";
+import { Plus, Search, Target, List, Kanban, LayoutDashboard, X } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
@@ -12,6 +13,8 @@ import Avatar from "../../components/Avatar";
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
 import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
+import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
+import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import { opportunityService } from "../../services/opportunityService";
 import { useAuth } from "../../context/AuthContext";
 import {
@@ -28,16 +31,36 @@ const OPEN_STAGES = OPPORTUNITY_STAGES.filter(
 export default function OpportunitiesPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const isPrivileged =
+    user?.is_head || user?.isHead || user?.is_hr || user?.isHr || user?.isSuperAdmin;
 
   const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("ALL");
-  const [mineOnly, setMineOnly] = useState(false);
-  const [view, setView] = useState(
-    () => sessionStorage.getItem("opportunitiesView") || "list",
+  const [stageFilter, setStageFilter] = useState(
+    () => location.state?.filterStatus || "ALL",
   );
+  const [mineOnly, setMineOnly] = useState(false);
+  const [employeeFilter, setEmployeeFilter] = useState(
+    () => location.state?.filterEmployeeId || null,
+  );
+  const [view, setView] = useState(() => {
+    if (location.state?.filterEmployeeId) return "list";
+    return sessionStorage.getItem("opportunitiesView") || "list";
+  });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
+
+  // Clear nav state so back-navigation doesn't re-apply the deep-link filter
+  // (mirrors /tasks's handling of the same pattern).
+  useEffect(() => {
+    if (location.state?.filterEmployeeId || location.state?.filterStatus) {
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const changeView = (next) => {
     setView(next);
@@ -72,13 +95,19 @@ export default function OpportunitiesPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const employeeFilterName = useMemo(
+    () => opportunities.find((o) => o.deal_owner_id === employeeFilter)?.deal_owner?.name,
+    [opportunities, employeeFilter],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
+      if (employeeFilter && o.deal_owner_id !== employeeFilter) return false;
       if (stageFilter === "OPEN" && !OPEN_STAGES.includes(o.status)) return false;
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter)
         return false;
-      if (mineOnly) {
+      if (!employeeFilter && mineOnly) {
         const mine =
           o.deal_owner_id === user?.id ||
           o.support_sales_1_id === user?.id ||
@@ -97,7 +126,7 @@ export default function OpportunitiesPage() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [opportunities, search, stageFilter, mineOnly, user?.id]);
+  }, [opportunities, search, stageFilter, mineOnly, employeeFilter, user?.id]);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => OPEN_STAGES.includes(o.status));
@@ -162,6 +191,7 @@ export default function OpportunitiesPage() {
             tabs={[
               { value: "list", label: "List", icon: List },
               { value: "board", label: "Board", icon: Kanban },
+              { value: "overview", label: "Overview", icon: LayoutDashboard },
             ]}
             activeTab={view}
             onChange={changeView}
@@ -170,6 +200,16 @@ export default function OpportunitiesPage() {
             className="shrink-0"
           />
         </div>
+
+        {employeeFilter && (
+          <button
+            onClick={() => setEmployeeFilter(null)}
+            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary text-xs font-bold hover:bg-primary/15 transition-colors"
+          >
+            Filtered to {employeeFilterName || "employee"}
+            <X size={12} />
+          </button>
+        )}
 
         {/* Summary */}
         <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground font-semibold">
@@ -183,7 +223,30 @@ export default function OpportunitiesPage() {
           </span>
         </div>
 
-        {isLoading ? (
+        {view === "overview" ? (
+          <div className="mt-4">
+            {isLoading ? (
+              <div className="border border-border rounded-2xl overflow-hidden bg-card">
+                <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
+                  <Spinner size="sm" />
+                  <span className="text-sm font-bold uppercase tracking-widest">
+                    Loading overview…
+                  </span>
+                </div>
+              </div>
+            ) : isPrivileged ? (
+              opportunities.some((o) => o.deal_owner && !o.deal_owner.is_super_admin) ? (
+                <EmployeeOpportunityMatrix opportunities={opportunities} />
+              ) : (
+                <OverviewEmptyState />
+              )
+            ) : opportunities.some((o) => o.deal_owner_id === user?.id) ? (
+              <PersonalOpportunityOverview opportunities={opportunities} />
+            ) : (
+              <OverviewEmptyState />
+            )}
+          </div>
+        ) : isLoading ? (
           <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex items-center justify-center gap-2 py-16 text-muted-foreground">
               <Spinner size="sm" />
@@ -313,5 +376,21 @@ export default function OpportunitiesPage() {
         }}
       />
     </ProtectedRoute>
+  );
+}
+
+function OverviewEmptyState() {
+  return (
+    <div className="border border-border rounded-2xl overflow-hidden bg-card">
+      <div className="flex flex-col items-center justify-center py-16 text-center px-6">
+        <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center text-muted-foreground mb-3">
+          <LayoutDashboard size={18} />
+        </div>
+        <p className="text-sm font-bold text-foreground">Nothing to show yet</p>
+        <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+          The overview fills in once opportunities have a deal owner assigned.
+        </p>
+      </div>
+    </div>
   );
 }

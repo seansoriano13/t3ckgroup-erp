@@ -5,7 +5,7 @@ import { STAGE_LABELS, formatPHP } from "../constants/sor";
 const PARTICIPANT_SELECT = `
   *,
   registrar:employees!sales_opportunities_registered_by_fkey(id, name, avatar_path),
-  deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
+  deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path, department, sub_department, is_super_admin),
   support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
   support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
   sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)
