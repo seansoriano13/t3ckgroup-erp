@@ -25,9 +25,11 @@ dist-ssr
 *.sln
 *.sw?
 *.sql
-# ...but schema migrations are the record of how the database was built and
-# must be tracked. This blanket *.sql rule is why none were committed before.
-!supabase/migrations/*.sql
+# ...but anything deliberately organized under supabase/ (migrations,
+# one-off admin scripts, etc.) is a record of what was run against the
+# database and must be tracked. This blanket *.sql rule is why none were
+# committed before.
+!supabase/**/*.sql
 *.txt
 
 # TestSprite
