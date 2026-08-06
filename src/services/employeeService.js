@@ -66,6 +66,7 @@ export const employeeService = {
       dashboardQuote: data.dashboard_quote || null,
       has_sales_flow: data.has_sales_flow,
       has_task_flow: data.has_task_flow,
+      offset_hours_balance: data.offset_hours_balance || 0,
     };
   },
 
@@ -91,6 +92,7 @@ export const employeeService = {
       dashboardQuote: employee.dashboard_quote || null,
       has_sales_flow: employee.has_sales_flow,
       has_task_flow: employee.has_task_flow,
+      offset_hours_balance: employee.offset_hours_balance || 0,
     }));
   },
 

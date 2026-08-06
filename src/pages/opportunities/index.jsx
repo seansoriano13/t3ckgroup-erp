@@ -10,6 +10,8 @@ import Spinner from "../../components/ui/Spinner";
 import TabGroup from "../../components/ui/TabGroup";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
+import Dropdown from "../../components/ui/Dropdown";
+import { FilterTrigger, FilterOptionList } from "../../components/ui/FilterDropdown";
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
 import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
@@ -138,6 +140,15 @@ export default function OpportunitiesPage() {
 
   const selected = opportunities.find((o) => o.id === selectedId) || null;
 
+  const stageOptions = [
+    { value: "ALL", label: "All Stages" },
+    { value: "OPEN", label: "Open Only" },
+    ...OPPORTUNITY_STAGES.map((s) => ({ value: s.value, label: s.label })),
+  ];
+
+  const currentStageLabel =
+    stageOptions.find((o) => o.value === stageFilter)?.label || "All Stages";
+
   return (
     <ProtectedRoute>
       <PageContainer className="pt-4">
@@ -164,19 +175,26 @@ export default function OpportunitiesPage() {
               className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
             />
           </div>
-          <select
-            value={stageFilter}
-            onChange={(e) => setStageFilter(e.target.value)}
-            className="bg-muted/30 border border-border rounded-xl px-3 py-2.5 text-sm font-semibold text-foreground outline-none cursor-pointer focus:border-mauve-7"
+          <Dropdown
+            usePortal={true}
+            className="min-w-[150px] shrink-0"
+            trigger={({ isOpen }) => (
+              <FilterTrigger
+                label={currentStageLabel}
+                isActive={stageFilter !== "ALL"}
+                isOpen={isOpen}
+              />
+            )}
           >
-            <option value="ALL">All Stages</option>
-            <option value="OPEN">Open Only</option>
-            {OPPORTUNITY_STAGES.map((s) => (
-              <option key={s.value} value={s.value}>
-                {s.label}
-              </option>
-            ))}
-          </select>
+            {({ close }) => (
+              <FilterOptionList
+                options={stageOptions}
+                value={stageFilter}
+                onChange={setStageFilter}
+                close={close}
+              />
+            )}
+          </Dropdown>
           <button
             onClick={() => setMineOnly((v) => !v)}
             className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all shrink-0 ${

@@ -22,7 +22,9 @@ export type Path =
   | `/committee/components/RateEmployeesModal`
   | `/hr-master-log`
   | `/hr/management`
+  | `/hr/offsets`
   | `/login`
+  | `/offsets`
   | `/opportunities`
   | `/profile`
   | `/settings`

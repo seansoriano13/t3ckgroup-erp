@@ -39,6 +39,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import BroadcastModal from "./BroadcastModal";
 import RoleSwitcher from "./RoleSwitcher";
+import { Clock } from "lucide-react";
+import ApplyOffsetModal from "./offsets/ApplyOffsetModal";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -49,6 +51,7 @@ export default function SideNav() {
   const [isLogTaskOpen, setIsLogTaskOpen] = useState(false);
   const [isCreateCommitteeOpen, setIsCreateCommitteeOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
 
   // Accordion State
   const [expandedGroups, setExpandedGroups] = useState({
@@ -119,6 +122,7 @@ export default function SideNav() {
       { label: "Dashboard", link: "/", icon: LayoutList },
       { label: "Tasks", link: "/tasks", icon: ListCheck },
       { label: "Committee (Group) Tasks", link: "/committee", icon: UsersRound },
+      { label: "Offset & Overtime", link: "/offsets", icon: Clock },
     ];
     groups.approvals.links = [
       { label: "Task Approval", link: "/approvals/tasks", icon: ShieldCheck },
@@ -133,6 +137,7 @@ export default function SideNav() {
     ];
     groups.management.links = [
       { label: "HR Management", link: "/hr/management", icon: Users },
+      { label: "HR Offset Manager", link: "/hr/offsets", icon: Clock },
       { label: "Super Admin", link: "/super-admin", icon: Crown },
       {
         label: "Activity Log",
@@ -142,6 +147,7 @@ export default function SideNav() {
     ];
   } else {
     groups.main.links.push({ label: "Dashboard", link: "/", icon: LayoutList });
+    groups.main.links.push({ label: "Offset & Overtime", link: "/offsets", icon: Clock });
 
     if (hasTask) {
       groups.main.links.push(
@@ -181,6 +187,11 @@ export default function SideNav() {
         label: "HR Management",
         link: "/hr/management",
         icon: Users,
+      });
+      groups.management.links.push({
+        label: "HR Offset Manager",
+        link: "/hr/offsets",
+        icon: Clock,
       });
       if (!hasSales) {
         groups.opportunities.links.push({
@@ -307,7 +318,7 @@ export default function SideNav() {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                className="flex-1 flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all"
+                className="flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all"
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
@@ -356,7 +367,7 @@ export default function SideNav() {
                 usePortal={true}
                 trigger={({ isOpen }) => (
                   <button
-                    className={`relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${isOpen
+                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${isOpen
                       ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
                       : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
                       }`}
@@ -390,20 +401,64 @@ export default function SideNav() {
                       <UsersRound size={14} />
                       <span>Group Task</span>
                     </button>
+                    <button
+                      onClick={() => {
+                        close();
+                        setIsMobileOpen(false);
+                        setIsApplyOffsetOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                    >
+                      <Clock size={14} />
+                      <span>Offset / Overtime</span>
+                    </button>
                   </div>
                 )}
               </Dropdown>
             ) : (
-              <button
-                onClick={() => {
-                  setIsMobileOpen(false);
-                  setIsLogTaskOpen(true);
-                }}
-                className="flex-1 flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-primary/80 hover:text-sidebar-primary hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all"
-                title="Log new task"
+              <Dropdown
+                placement="bottom-end"
+                className="flex-1"
+                usePortal={true}
+                trigger={({ isOpen }) => (
+                  <button
+                    className={`w-full flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isOpen
+                      ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
+                      : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
+                      }`}
+                    title="Create new..."
+                  >
+                    <Plus size={15} strokeWidth={2.5} />
+                  </button>
+                )}
               >
-                <SquarePen size={15} strokeWidth={2.2} />
-              </button>
+                {({ close }) => (
+                  <div className="p-1.5 min-w-[180px] flex flex-col gap-0.5 bg-mauve-3 rounded-xl">
+                    <button
+                      onClick={() => {
+                        close();
+                        setIsMobileOpen(false);
+                        setIsLogTaskOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                    >
+                      <SquarePen size={14} />
+                      <span>Task</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        close();
+                        setIsMobileOpen(false);
+                        setIsApplyOffsetOpen(true);
+                      }}
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                    >
+                      <Clock size={14} />
+                      <span>Offset / Overtime</span>
+                    </button>
+                  </div>
+                )}
+              </Dropdown>
             )}
           </div>
         </div>
@@ -506,6 +561,13 @@ export default function SideNav() {
           isSubmitting={createCommitteeMutation.isPending}
         />
       )}
+      <ApplyOffsetModal
+        isOpen={isApplyOffsetOpen}
+        onClose={() => setIsApplyOffsetOpen(false)}
+        onSuccess={() => {
+          // You could optionally refetch globally here, or let the local pages handle their own refetch on mount/focus.
+        }}
+      />
     </>
   );
 }
