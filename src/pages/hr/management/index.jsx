@@ -204,6 +204,7 @@ export default function EmployeeManagement() {
                     <th className="p-4">Sub-Dept</th>
                     <th className="p-4">Role</th>
                     <th className="p-4">Status</th>
+                    <th className="p-4">Balances</th>
                     <th className="p-4">Role Flags</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
@@ -279,6 +280,16 @@ export default function EmployeeManagement() {
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
                           )}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                              SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
+                            </span>
+                            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                              OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
+                            </span>
+                          </div>
                         </td>
                         <td className="p-4 text-xs flex gap-1">
                           {emp.isSuperAdmin && (

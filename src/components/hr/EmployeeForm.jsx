@@ -1,8 +1,8 @@
-import { useState } from "react"
-import { Shield, Users, Briefcase, ListCheck } from "lucide-react"
+import { useState, useEffect, useMemo } from "react"
+import { Shield, Users, Briefcase, ListCheck, ChevronDown } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
-import { useMemo } from "react"
+import Dropdown from "../ui/Dropdown"
 
 export default function EmployeeForm({
   initialData,
@@ -26,6 +26,24 @@ export default function EmployeeForm({
     sil_hours_balance: 0,
     ...initialData,
   })
+
+  useEffect(() => {
+    setFormData({
+      name: "",
+      email: "",
+      department: "",
+      subDepartment: "",
+      role: "",
+      isHead: false,
+      isHr: false,
+      isSuperAdmin: false,
+      has_sales_flow: false,
+      has_task_flow: true,
+      employment_status: "",
+      sil_hours_balance: 0,
+      ...initialData,
+    })
+  }, [initialData])
 
   const uniqueDepts = useMemo(() => {
     const fromCategories = [
@@ -144,18 +162,39 @@ export default function EmployeeForm({
           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
             Employment Status
           </label>
-          <select
-            value={formData.employment_status || ""}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, employment_status: e.target.value }))
-            }
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium appearance-none"
+          <Dropdown
+            usePortal={true}
+            placement="bottom-start"
+            trigger={({ isOpen }) => (
+              <button
+                type="button"
+                className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
+              >
+                {formData.employment_status || <span className="text-muted-foreground/50">-- Select Status --</span>}
+                <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+              </button>
+            )}
           >
-            <option value="">-- Select Status --</option>
-            <option value="Regular">Regular</option>
-            <option value="Probationary">Probationary</option>
-            <option value="OJT">OJT</option>
-          </select>
+            {({ close }) => (
+              <div className="p-1 flex flex-col min-w-[150px]">
+                {["Regular", "Probationary", "OJT"].map(status => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => {
+                      setFormData(prev => ({ ...prev, employment_status: status }));
+                      close();
+                    }}
+                    className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                      formData.employment_status === status ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {status}
+                  </button>
+                ))}
+              </div>
+            )}
+          </Dropdown>
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
