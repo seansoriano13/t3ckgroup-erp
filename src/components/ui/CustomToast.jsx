@@ -140,3 +140,20 @@ export const confirmDeleteToast = (title, description, onConfirm) => {
     { duration: Infinity, id: "delete-confirm" }
   );
 };
+
+// Global utility for triggering generic action confirmations
+export const confirmActionToast = (title, description, confirmText, actionType, onConfirm) => {
+  toast.custom(
+    (t) => (
+      <CustomToast
+        t={t}
+        variant="confirm"
+        title={title}
+        description={description}
+        onConfirm={onConfirm}
+        confirmText={confirmText}
+      />
+    ),
+    { duration: Infinity, id: `action-confirm-${Date.now()}` }
+  );
+};

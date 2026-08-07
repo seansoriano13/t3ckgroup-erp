@@ -40,7 +40,7 @@ import toast from "react-hot-toast";
 import BroadcastModal from "./BroadcastModal";
 import RoleSwitcher from "./RoleSwitcher";
 import { Clock } from "lucide-react";
-import ApplyOffsetModal from "./offsets/ApplyOffsetModal";
+import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -122,7 +122,7 @@ export default function SideNav() {
       { label: "Dashboard", link: "/", icon: LayoutList },
       { label: "Tasks", link: "/tasks", icon: ListCheck },
       { label: "Committee (Group) Tasks", link: "/committee", icon: UsersRound },
-      { label: "Offset & Overtime", link: "/offsets", icon: Clock },
+      { label: "Leaves & Overtime", link: "/offsets", icon: Clock },
     ];
     groups.approvals.links = [
       { label: "Task Approval", link: "/approvals/tasks", icon: ShieldCheck },
@@ -137,7 +137,7 @@ export default function SideNav() {
     ];
     groups.management.links = [
       { label: "HR Management", link: "/hr/management", icon: Users },
-      { label: "HR Offset Manager", link: "/hr/offsets", icon: Clock },
+      { label: "HR Leaves Manager", link: "/hr/offsets", icon: Clock },
       { label: "Super Admin", link: "/super-admin", icon: Crown },
       {
         label: "Activity Log",
@@ -147,7 +147,7 @@ export default function SideNav() {
     ];
   } else {
     groups.main.links.push({ label: "Dashboard", link: "/", icon: LayoutList });
-    groups.main.links.push({ label: "Offset & Overtime", link: "/offsets", icon: Clock });
+    groups.main.links.push({ label: "Leaves & Overtime", link: "/offsets", icon: Clock });
 
     if (hasTask) {
       groups.main.links.push(
@@ -189,7 +189,7 @@ export default function SideNav() {
         icon: Users,
       });
       groups.management.links.push({
-        label: "HR Offset Manager",
+        label: "HR Leaves Manager",
         link: "/hr/offsets",
         icon: Clock,
       });
@@ -561,7 +561,7 @@ export default function SideNav() {
           isSubmitting={createCommitteeMutation.isPending}
         />
       )}
-      <ApplyOffsetModal
+      <ApplyLeaveModal
         isOpen={isApplyOffsetOpen}
         onClose={() => setIsApplyOffsetOpen(false)}
         onSuccess={() => {

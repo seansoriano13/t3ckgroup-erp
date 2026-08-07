@@ -2,24 +2,31 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
+import { silService } from '../../services/silService';
 import toast from 'react-hot-toast';
-import { X, Clock, Calendar, PlusCircle } from 'lucide-react';
+import { X, Calendar, PlusCircle } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
 
-export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
+export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'leave'
+  const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'offset' | 'sil'
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
   const [otHours, setOtHours] = useState('');
   const [otSubmitting, setOtSubmitting] = useState(false);
 
-  // Leave State
-  const [leaveDate, setLeaveDate] = useState('');
-  const [leaveHours, setLeaveHours] = useState('');
-  const [leaveSubmitting, setLeaveSubmitting] = useState(false);
+  // Offset Leave State
+  const [offsetDate, setOffsetDate] = useState('');
+  const [offsetHours, setOffsetHours] = useState('');
+  const [offsetSubmitting, setOffsetSubmitting] = useState(false);
+
+  // SIL Leave State
+  const [silDate, setSilDate] = useState('');
+  const [silHours, setSilHours] = useState('');
+  const [silReason, setSilReason] = useState('');
+  const [silSubmitting, setSilSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
@@ -52,32 +59,59 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplyOffsetLeave = async (e) => {
     e.preventDefault();
-    if (!leaveDate || !leaveHours) {
+    if (!offsetDate || !offsetHours) {
       toast.error('Please fill in all fields.');
       return;
     }
 
-    setLeaveSubmitting(true);
+    setOffsetSubmitting(true);
     try {
       await offsetService.applyOffsetLeave({
         employeeId: user.id,
-        date: leaveDate,
-        hours: leaveHours,
+        date: offsetDate,
+        hours: offsetHours,
         employeeName: user.name,
       });
       toast.success('Offset leave application submitted!');
-      setLeaveDate('');
-      setLeaveHours('');
+      setOffsetDate('');
+      setOffsetHours('');
       onSuccess?.();
       onClose();
     } catch (err) {
       toast.error(err.message || 'Failed to submit offset leave.');
     } finally {
-      setLeaveSubmitting(false);
+      setOffsetSubmitting(false);
     }
   };
 
-  if (!isOpen) return null;
+  const handleApplySilLeave = async (e) => {
+    e.preventDefault();
+    if (!silDate || !silHours || !silReason) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+
+    setSilSubmitting(true);
+    try {
+      await silService.applySilLeave({
+        employeeId: user.id,
+        date: silDate,
+        hours: silHours,
+        reason: silReason,
+        employeeName: user.name,
+      });
+      toast.success('SIL leave application submitted!');
+      setSilDate('');
+      setSilHours('');
+      setSilReason('');
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit SIL leave.');
+    } finally {
+      setSilSubmitting(false);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
@@ -86,11 +120,11 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
-            Offset & Overtime
+            Leaves & Overtime
           </h2>
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors"
+            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
           >
             <X size={18} strokeWidth={2.5} />
           </button>
@@ -102,14 +136,15 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
             variant="pill"
             tabs={[
               { value: 'overtime', label: 'Overtime' },
-              { value: 'leave', label: 'Offset Leave' },
+              { value: 'offset', label: 'Offset' },
+              { value: 'sil', label: 'SIL' },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
             size="sm"
           />
 
-          {activeTab === 'overtime' ? (
+          {activeTab === 'overtime' && (
             <form onSubmit={handleApplyOvertime} className="space-y-4 animate-in fade-in duration-300">
               <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
                 <PlusCircle size={16} className="text-primary" />
@@ -152,10 +187,12 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
                 {otSubmitting ? 'Submitting...' : 'Submit Request'}
               </Button>
             </form>
-          ) : (
+          )}
+
+          {activeTab === 'offset' && (
             <form onSubmit={handleApplyOffsetLeave} className="space-y-4 animate-in fade-in duration-300">
               <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
-                <Calendar size={16} className="text-green-11" />
+                <Calendar size={16} className="text-blue-11" />
                 <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
                   Request Offset Leave
                 </h3>
@@ -166,8 +203,8 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
                 </label>
                 <input
                   type="date"
-                  value={leaveDate}
-                  onChange={(e) => setLeaveDate(e.target.value)}
+                  value={offsetDate}
+                  onChange={(e) => setOffsetDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                   required
                 />
@@ -181,18 +218,76 @@ export default function ApplyOffsetModal({ isOpen, onClose, onSuccess }) {
                   step="0.5"
                   min="0.5"
                   placeholder="1.0"
-                  value={leaveHours}
-                  onChange={(e) => setLeaveHours(e.target.value)}
+                  value={offsetHours}
+                  onChange={(e) => setOffsetHours(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                   required
                 />
               </div>
               <Button
                 type="submit"
-                disabled={leaveSubmitting}
+                disabled={offsetSubmitting}
+                className="w-full h-11 rounded-xl font-bold bg-blue-9 hover:bg-blue-10 text-white shadow-md cursor-pointer mt-4"
+              >
+                {offsetSubmitting ? 'Submitting...' : 'Apply for Leave'}
+              </Button>
+            </form>
+          )}
+
+          {activeTab === 'sil' && (
+            <form onSubmit={handleApplySilLeave} className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
+                <Calendar size={16} className="text-green-11" />
+                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
+                  Request Service Incentive Leave
+                </h3>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Leave Date
+                </label>
+                <input
+                  type="date"
+                  value={silDate}
+                  onChange={(e) => setSilDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  SIL Hours to Use
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  placeholder="e.g. 8"
+                  value={silHours}
+                  onChange={(e) => setSilHours(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Reason
+                </label>
+                <textarea
+                  value={silReason}
+                  onChange={(e) => setSilReason(e.target.value)}
+                  placeholder="Reason for taking leave"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  required
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={silSubmitting}
                 className="w-full h-11 rounded-xl font-bold bg-green-9 hover:bg-green-10 text-white shadow-md cursor-pointer mt-4"
               >
-                {leaveSubmitting ? 'Submitting...' : 'Apply for Leave'}
+                {silSubmitting ? 'Submitting...' : 'Apply for Leave'}
               </Button>
             </form>
           )}

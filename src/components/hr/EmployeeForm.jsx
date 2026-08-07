@@ -22,6 +22,8 @@ export default function EmployeeForm({
     isSuperAdmin: false,
     has_sales_flow: false,
     has_task_flow: true,
+    employment_status: "",
+    sil_hours_balance: 0,
     ...initialData,
   })
 
@@ -135,6 +137,45 @@ export default function EmployeeForm({
         uniqueDepts={uniqueDepts}
         uniqueSubDepts={uniqueSubDepts}
       />
+
+      {/* Employment Status & SIL Balance */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
+        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+            Employment Status
+          </label>
+          <select
+            value={formData.employment_status || ""}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, employment_status: e.target.value }))
+            }
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium appearance-none"
+          >
+            <option value="">-- Select Status --</option>
+            <option value="Regular">Regular</option>
+            <option value="Probationary">Probationary</option>
+            <option value="OJT">OJT</option>
+          </select>
+        </div>
+
+        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
+            <span>SIL Hours Balance</span>
+            {initialData?.employment_status !== "Regular" && formData.employment_status === "Regular" && (
+              <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-grant</span>
+            )}
+          </label>
+          <input
+            type="number"
+            step="0.5"
+            value={formData.sil_hours_balance}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, sil_hours_balance: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+          />
+        </div>
+      </div>
 
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">

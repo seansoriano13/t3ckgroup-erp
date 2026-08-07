@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 
-export default function NotionOffsetCalendar({ 
-  approvedLeaves = [], 
+export default function NotionLeaveCalendar({ 
+  approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
   currentUserId = null,
   onWithdrawLeave = null,
   targetDate = null
@@ -53,6 +53,24 @@ export default function NotionOffsetCalendar({
 
   const MAX_VISIBLE_CARDS = 2;
 
+  const getLeaveColorStyles = (type) => {
+    if (type === 'SIL') {
+      return {
+        bg: 'bg-green-2',
+        border: 'border-green-6',
+        text: 'text-green-11',
+        hoverBorder: 'hover:border-green-8'
+      };
+    }
+    // Default Offset colors
+    return {
+      bg: 'bg-blue-2',
+      border: 'border-blue-6',
+      text: 'text-blue-11',
+      hoverBorder: 'hover:border-blue-8'
+    };
+  };
+
   return (
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden transition-all">
       {/* Calendar Header */}
@@ -66,7 +84,7 @@ export default function NotionOffsetCalendar({
               {monthNames[month]} {year}
             </h2>
             <p className="text-[11px] font-medium text-muted-foreground">
-              Overview of all approved employee offset leaves
+              Overview of all approved employee leaves
             </p>
           </div>
         </div>
@@ -121,7 +139,7 @@ export default function NotionOffsetCalendar({
                   {day}
                 </span>
                 {leaves.length > 0 && (
-                  <span className="text-[10px] font-black uppercase tracking-wider text-green-11 bg-green-2 border border-green-6 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md">
                     {leaves.length} {leaves.length === 1 ? 'leave' : 'leaves'}
                   </span>
                 )}
@@ -129,29 +147,32 @@ export default function NotionOffsetCalendar({
 
               {/* Leave Cards */}
               <div className="space-y-1.5 flex-1 overflow-hidden">
-                {leaves.slice(0, MAX_VISIBLE_CARDS).map((leave) => (
-                  <div
-                    key={leave.id}
-                    onClick={() => setSelectedLeave(leave)}
-                    className="p-1.5 bg-green-2 border border-green-6 rounded-lg hover:border-green-8 transition-all cursor-pointer shadow-2xs"
-                  >
-                    <div className="flex items-center space-x-1.5">
-                      <Avatar
-                        name={leave.employee?.name || 'E'}
-                        size="xs"
-                        className="w-5 h-5 rounded-full text-[9px]"
-                      />
-                      <div className="truncate">
-                        <p className="text-[11px] font-bold text-green-11 truncate">
-                          {leave.employee?.name || 'Employee'}
-                        </p>
-                        <p className="text-[9px] text-green-11 font-mono font-semibold">
-                          {leave.hours}h offset
-                        </p>
+                {leaves.slice(0, MAX_VISIBLE_CARDS).map((leave) => {
+                  const colors = getLeaveColorStyles(leave.type);
+                  return (
+                    <div
+                      key={leave.type + '-' + leave.id}
+                      onClick={() => setSelectedLeave(leave)}
+                      className={`p-1.5 ${colors.bg} border ${colors.border} rounded-lg ${colors.hoverBorder} transition-all cursor-pointer shadow-2xs`}
+                    >
+                      <div className="flex items-center space-x-1.5">
+                        <Avatar
+                          name={leave.employee?.name || 'E'}
+                          size="xs"
+                          className="w-5 h-5 rounded-full text-[9px]"
+                        />
+                        <div className="truncate">
+                          <p className={`text-[11px] font-bold ${colors.text} truncate`}>
+                            {leave.employee?.name || 'Employee'}
+                          </p>
+                          <p className={`text-[9px] ${colors.text} font-mono font-semibold`}>
+                            {leave.hours}h {leave.type}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
 
                 {/* Stacked Overflow Button */}
                 {overflowCount > 0 && (
@@ -160,7 +181,7 @@ export default function NotionOffsetCalendar({
                       const dateStr = new Date(year, month, day).toISOString().split('T')[0];
                       setSelectedDayLeaves({ dateStr, leaves, dayNum: day });
                     }}
-                    className="w-full py-1 bg-green-3 hover:bg-green-4 border border-green-7 text-green-12 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                    className="w-full py-1 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                   >
                     <Users size={11} />
                     <span>+{overflowCount} more...</span>
@@ -198,104 +219,101 @@ export default function NotionOffsetCalendar({
               </button>
             </div>
 
-            <div className="space-y-2 max-h-[300px] overflow-y-auto scrollbar-thin pr-1">
-              {selectedDayLeaves.leaves.map((leave) => (
-                <div
-                  key={leave.id}
-                  onClick={() => {
-                    setSelectedLeave(leave);
-                  }}
-                  className="p-3 bg-muted/50 border border-border rounded-xl hover:border-primary/40 transition-all cursor-pointer flex items-center justify-between"
-                >
-                  <div className="flex items-center space-x-3">
-                    <Avatar
-                      name={leave.employee?.name || 'E'}
-                      size="md"
-                      className="w-9 h-9 rounded-xl"
-                    />
-                    <div>
-                      <p className="text-xs font-bold text-foreground">
-                        {leave.employee?.name || 'Employee'}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground font-medium">
-                        {leave.employee?.department || 'Staff'}
-                      </p>
+            <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+              {selectedDayLeaves.leaves.map((leave) => {
+                const colors = getLeaveColorStyles(leave.type);
+                return (
+                  <div
+                    key={leave.type + '-' + leave.id}
+                    className={`p-3 ${colors.bg} border ${colors.border} rounded-xl flex items-center justify-between group cursor-pointer`}
+                    onClick={() => {
+                      setSelectedLeave(leave);
+                      setSelectedDayLeaves(null);
+                    }}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Avatar src={leave.employee?.avatar_path} name={leave.employee?.name} size="sm" />
+                      <div>
+                        <p className={`text-sm font-bold ${colors.text}`}>{leave.employee?.name}</p>
+                        <p className={`text-xs ${colors.text} font-medium`}>{leave.employee?.department || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className={`text-xs font-black ${colors.text} bg-white/40 px-2 py-0.5 rounded border border-white/20`}>
+                        {leave.hours} hrs {leave.type}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-xs font-black text-green-11 bg-green-2 border border-green-6 px-2 py-0.5 rounded-lg inline-block">
-                      {leave.hours} hrs
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-
-            <button
-              onClick={() => setSelectedDayLeaves(null)}
-              className="w-full py-2.5 bg-muted hover:bg-mauve-4 text-foreground rounded-xl text-xs font-bold border border-border transition-colors cursor-pointer"
-            >
-              Close
-            </button>
           </div>
         </div>
       )}
 
-      {/* Individual Leave Details Modal */}
+      {/* Individual Leave Detail Modal */}
       {selectedLeave && (
-        <div className="fixed inset-0 z-55 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-150">
-            <div className="flex items-center space-x-3 mb-4">
-              <Avatar
-                name={selectedLeave.employee?.name || 'E'}
-                size="md"
-                className="w-10 h-10 rounded-xl"
-              />
-              <div>
-                <h3 className="font-black text-foreground text-sm">
-                  {selectedLeave.employee?.name}
-                </h3>
-                <p className="text-xs text-muted-foreground font-medium">
-                  {selectedLeave.employee?.department || 'Employee'}
-                </p>
-              </div>
+        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-150 overflow-hidden">
+            <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/30">
+              <h3 className="font-black text-sm uppercase text-foreground">Leave Details</h3>
+              <button
+                onClick={() => setSelectedLeave(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
             </div>
-
-            <div className="space-y-2.5 bg-muted/60 p-3.5 rounded-xl border border-border mb-5 text-xs text-foreground font-medium">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <CalendarIcon size={14} /> Leave Date:
-                </span>
-                <span className="font-bold">
-                  {new Date(selectedLeave.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
-                </span>
+            
+            <div className="p-5 space-y-5">
+              <div className="flex items-center space-x-4">
+                <Avatar src={selectedLeave.employee?.avatar_path} name={selectedLeave.employee?.name} size="lg" />
+                <div>
+                  <h4 className="font-bold text-foreground">{selectedLeave.employee?.name}</h4>
+                  <p className="text-xs text-muted-foreground font-medium">{selectedLeave.employee?.department}</p>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-muted-foreground">
-                  <Clock size={14} /> Offset Used:
-                </span>
-                <span className="font-black text-green-11">{selectedLeave.hours} Hours</span>
-              </div>
-            </div>
 
-            <div className="space-y-2 pt-2 border-t border-border mt-4">
-              {currentUserId === selectedLeave.employee_id && onWithdrawLeave && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-muted/50 p-3 rounded-xl border border-border">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Date</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {new Date(selectedLeave.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                  </p>
+                </div>
+                <div className="bg-muted/50 p-3 rounded-xl border border-border">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Duration</p>
+                  <p className="text-sm font-bold text-foreground">{selectedLeave.hours} Hours</p>
+                </div>
+                <div className="col-span-2 bg-muted/50 p-3 rounded-xl border border-border">
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Type</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {selectedLeave.type} Leave
+                  </p>
+                </div>
+              </div>
+
+              {selectedLeave.reason && (
+                <div className="bg-muted/30 p-3 rounded-xl border border-border">
+                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
+                   <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
+                </div>
+              )}
+
+              {/* Action for Employee to Withdraw their own future leave */}
+              {currentUserId === selectedLeave.employee_id && 
+               new Date(selectedLeave.date) > new Date() && 
+               onWithdrawLeave && (
                 <button
                   onClick={() => {
                     onWithdrawLeave(selectedLeave.id, selectedLeave.status);
                     setSelectedLeave(null);
                   }}
-                  className="w-full py-2.5 bg-red-9 hover:bg-red-10 text-white rounded-xl text-xs font-bold border border-red-9 transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                  className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
                 >
-                  <X size={14} /> Withdraw Leave Request
+                  Withdraw Leave
                 </button>
               )}
-              <button
-                onClick={() => setSelectedLeave(null)}
-                className="w-full py-2.5 bg-muted hover:bg-mauve-4 text-foreground rounded-xl text-xs font-bold border border-border transition-colors cursor-pointer"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

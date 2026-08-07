@@ -203,6 +203,7 @@ export default function EmployeeManagement() {
                     <th className="p-4">Department</th>
                     <th className="p-4">Sub-Dept</th>
                     <th className="p-4">Role</th>
+                    <th className="p-4">Status</th>
                     <th className="p-4">Role Flags</th>
                     <th className="p-4 text-right">Actions</th>
                   </tr>
@@ -211,7 +212,7 @@ export default function EmployeeManagement() {
                   {isLoading ? (
                     <tr>
                       <td
-                        colSpan="6"
+                        colSpan="7"
                         className="p-10 text-center text-muted-foreground font-bold"
                       >
                         <Spinner size="md" />
@@ -266,6 +267,19 @@ export default function EmployeeManagement() {
                             search={searchTerm}
                           />
                         </td>
+                        <td className="p-4 text-sm">
+                          {emp.employment_status ? (
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${
+                              emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
+                              emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
+                              'bg-blue-100 text-blue-700'
+                            }`}>
+                              {emp.employment_status}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">-</span>
+                          )}
+                        </td>
                         <td className="p-4 text-xs flex gap-1">
                           {emp.isSuperAdmin && (
                             <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider">
@@ -309,7 +323,7 @@ export default function EmployeeManagement() {
                   ) : (
                     <tr>
                       <td
-                        colSpan="6"
+                        colSpan="7"
                         className="p-10 text-center text-muted-foreground font-bold italic text-sm"
                       >
                         No employees found.
@@ -352,13 +366,24 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
   });
 
   const mutation = useMutation({
-    mutationFn: (data) =>
-      isEditing
-        ? employeeService.updateEmployee(employee.id, data, user?.id || null)
+    mutationFn: (data) => {
+      const payload = { ...data };
+      if (
+        isEditing &&
+        employee?.employment_status !== "Regular" &&
+        payload.employment_status === "Regular"
+      ) {
+        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
+      } else if (!isEditing && payload.employment_status === "Regular") {
+        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
+      }
+      return isEditing
+        ? employeeService.updateEmployee(employee.id, payload, user?.id || null)
         : employeeService.createEmployee({
-            ...data,
+            ...payload,
             updatedBy: user?.id || null,
-          }),
+          });
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
       toast.success(isEditing ? "Employee updated!" : "Employee added!");

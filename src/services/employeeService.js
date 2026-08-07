@@ -67,6 +67,8 @@ export const employeeService = {
       has_sales_flow: data.has_sales_flow,
       has_task_flow: data.has_task_flow,
       offset_hours_balance: data.offset_hours_balance || 0,
+      employment_status: data.employment_status || null,
+      sil_hours_balance: data.sil_hours_balance || 0,
     };
   },
 
@@ -93,6 +95,8 @@ export const employeeService = {
       has_sales_flow: employee.has_sales_flow,
       has_task_flow: employee.has_task_flow,
       offset_hours_balance: employee.offset_hours_balance || 0,
+      employment_status: employee.employment_status || null,
+      sil_hours_balance: employee.sil_hours_balance || 0,
     }));
   },
 
@@ -202,6 +206,8 @@ export const employeeService = {
           is_super_admin: employeeData.isSuperAdmin,
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
+          employment_status: employeeData.employment_status || null,
+          sil_hours_balance: employeeData.sil_hours_balance || 0,
           updated_at: new Date().toISOString(),
           updated_by: employeeData?.updatedBy || null,
         },
@@ -235,6 +241,8 @@ export const employeeService = {
         is_super_admin: employeeData.isSuperAdmin,
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
+        employment_status: employeeData.employment_status || null,
+        sil_hours_balance: employeeData.sil_hours_balance !== undefined ? employeeData.sil_hours_balance : undefined,
         updated_at: new Date().toISOString(),
         updated_by: actorId || employeeData?.updatedBy || null,
       })

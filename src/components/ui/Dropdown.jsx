@@ -144,6 +144,7 @@ const Dropdown = forwardRef(
     return (
       <div
         className={`relative ${className}`}
+        data-state={isOpen ? "open" : "closed"}
         ref={(node) => {
           dropdownRef.current = node;
           if (typeof ref === "function") ref(node);
