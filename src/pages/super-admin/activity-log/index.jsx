@@ -6,6 +6,7 @@ import { taskActivityService } from "../../../services/tasks/taskActivityService
 import { employeeService } from "../../../services/employeeService";
 import { committeeTaskActivityService } from "../../../services/committeeTaskActivityService";
 import { systemAuditLogService } from "../../../services/systemAuditLogService";
+import { opportunityService } from "../../../services/opportunityService";
 import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
@@ -25,6 +26,7 @@ import {
   Square,
   Settings,
   DollarSign,
+  Target,
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +36,7 @@ const PAGE_SIZE = 50;
 const TABS = [
   { id: "TASKS", label: "Task Logs", saOnly: true },
   { id: "COMMITTEE", label: "Group Task Logs", saOnly: true },
+  { id: "SOR", label: "SOR Logs", saOnly: true },
   { id: "SYSTEM", label: "System Logs", saOnly: true },
   { id: "HR", label: "HR Logs" },
 ];
@@ -163,6 +166,7 @@ const ENTITY_TYPE_STYLES = {
   ANNOUNCEMENT: "bg-yellow-a2 text-yellow-11 border-yellow-a4",
   SETTINGS: "bg-purple-a2 text-purple-11 border-purple-a4",
   QUOTA: "bg-green-a2 text-green-11 border-green-a4",
+  OPPORTUNITY: "bg-cyan-a2 text-cyan-11 border-cyan-a4",
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -241,6 +245,12 @@ export default function SuperAdminActivityLogPage() {
     queryFn: () => employeeService.getAllEmployees(),
   });
 
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ["opportunities"],
+    queryFn: () => opportunityService.getOpportunities(),
+    enabled: activeTab === "SOR",
+  });
+
   const {
     data: entries = [],
     isLoading,
@@ -267,6 +277,8 @@ export default function SuperAdminActivityLogPage() {
         return committeeTaskActivityService.getRecentCommitteeActivity(params);
       if (activeTab === "SYSTEM")
         return systemAuditLogService.getRecentSystemActivity(params);
+      if (activeTab === "SOR")
+        return systemAuditLogService.getRecentSystemActivity({ ...params, entityType: "OPPORTUNITY" });
       return taskActivityService.getRecentTaskActivity(params);
     },
     enabled: activeTab !== "HR",
@@ -274,7 +286,7 @@ export default function SuperAdminActivityLogPage() {
   });
 
   const filteredEntries = useMemo(() => {
-    const isDeptFiltered = activeTab !== "SYSTEM";
+    const isDeptFiltered = activeTab !== "SYSTEM" && activeTab !== "SOR";
 
     const raw = entries.filter((e) => {
       if (isDeptFiltered) {
@@ -290,7 +302,7 @@ export default function SuperAdminActivityLogPage() {
     });
 
     // Consolidate redundant logs (tasks/committee only)
-    if (activeTab === "SYSTEM") return raw;
+    if (activeTab === "SYSTEM" || activeTab === "SOR") return raw;
 
     const consolidated = [];
     for (let i = 0; i < raw.length; i++) {
@@ -370,9 +382,9 @@ export default function SuperAdminActivityLogPage() {
       search: "",
     });
 
-  // Entity-details dispatch — SYSTEM logs are non-clickable
+  // Entity-details dispatch — SYSTEM and SOR logs are non-clickable
   const handleEntryClick = (e) => {
-    if (activeTab === "SYSTEM") return;
+    if (activeTab === "SYSTEM" || activeTab === "SOR") return;
     const typeMap = {
       TASKS: "TASK",
       COMMITTEE: "COMMITTEE_TASK",
@@ -524,9 +536,39 @@ export default function SuperAdminActivityLogPage() {
         ) : (
           <div className="space-y-2">
             {filteredEntries.map((e) => {
-              const Icon = activeTab === "SYSTEM" ? Settings : typeIcon(e.type);
+              const Icon =
+                activeTab === "SYSTEM"
+                  ? Settings
+                  : activeTab === "SOR"
+                  ? Target
+                  : typeIcon(e.type);
 
-              const isClickable = activeTab !== "SYSTEM";
+              const isClickable = activeTab !== "SYSTEM" && activeTab !== "SOR";
+
+              let displayTitle = e.taskDescription || `Task ${e.taskId}`;
+              let displayContent = e.content;
+
+              if ((activeTab === "SOR" || e.entityType === "OPPORTUNITY") && e.content) {
+                const oppMatch = e.content.match(/^Sales opportunity (S\d+)/);
+                if (oppMatch) {
+                  const oppNo = oppMatch[1];
+                  const opp = opportunities.find((o) => o.opportunity_no === oppNo);
+                  if (opp && opp.project_title) {
+                    displayTitle = `${opp.project_title} ${oppNo}`;
+                  } else {
+                    displayTitle = `Opportunity ${oppNo}`;
+                  }
+
+                  if (e.metadata && Array.isArray(e.metadata.changes) && e.metadata.changes.length > 0) {
+                    displayContent = JSON.stringify(
+                      e.metadata.changes.map((c) => ({ text: c, checked: true }))
+                    );
+                  } else {
+                    displayContent = e.content.replace(new RegExp(`^Sales opportunity ${oppNo}( details updated:?|:| registered for)?\\s*`), "");
+                    displayContent = displayContent.charAt(0).toUpperCase() + displayContent.slice(1);
+                  }
+                }
+              }
 
               return (
                 <button
@@ -557,7 +599,7 @@ export default function SuperAdminActivityLogPage() {
                             </span>
                           )}
                           {/* Entity type badge for SYSTEM logs */}
-                          {activeTab === "SYSTEM" && e.entityType && (
+                          {(activeTab === "SYSTEM" || activeTab === "SOR") && e.entityType && (
                             <span
                               className={`text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-sm border ${ENTITY_TYPE_STYLES[e.entityType] || "bg-mauve-a2 text-mauve-11 border-mauve-a4"}`}
                             >
@@ -575,7 +617,7 @@ export default function SuperAdminActivityLogPage() {
 
                       {/* Task / entity title */}
                       {(() => {
-                        const checklist = tryParseChecklist(e.taskDescription);
+                        const checklist = tryParseChecklist(displayTitle);
                         if (checklist) {
                           const displayItems = checklist.slice(0, 2);
                           const remaining = checklist.length - 2;
@@ -619,7 +661,7 @@ export default function SuperAdminActivityLogPage() {
                         return (
                           <p className="text-sm font-bold text-foreground line-clamp-1">
                             <HighlightText
-                              text={e.taskDescription || `Task ${e.taskId}`}
+                              text={displayTitle}
                               search={filters.search}
                             />
                           </p>
@@ -629,7 +671,7 @@ export default function SuperAdminActivityLogPage() {
                       {/* Content */}
                       <div className="text-xs text-muted-foreground mt-1">
                         <ContentDisplay
-                          content={e.content}
+                          content={displayContent}
                           search={filters.search}
                         />
                       </div>

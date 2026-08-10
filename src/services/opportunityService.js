@@ -90,6 +90,9 @@ export const opportunityService = {
   },
 
   async updateOpportunity(id, payload, actorId) {
+    const existing = await opportunityService.getOpportunityById(id);
+    const existingItems = await opportunityService.getItems(id);
+
     const { data, error } = await supabase
       .from("sales_opportunities")
       .update({
@@ -114,13 +117,90 @@ export const opportunityService = {
     await opportunityService.replaceItems(id, payload.items);
     const final = await opportunityService.getOpportunityById(id);
 
-    systemAuditLogService.addSystemEvent(
-      "OPPORTUNITY",
-      id,
-      `Sales opportunity ${data.opportunity_no} details updated.`,
-      { event: "OPPORTUNITY_UPDATED", employeeId: actorId },
-      actorId,
-    ).catch(console.error);
+    const changes = [];
+    const checkField = (field, label) => {
+      if (existing[field] !== final[field]) {
+        changes.push(`${label} changed from "${existing[field] || 'None'}" to "${final[field] || 'None'}"`);
+      }
+    };
+
+    checkField('lead_source', 'Lead Source');
+    checkField('lead_source_detail', 'Lead Source Detail');
+    checkField('client_name', 'Client');
+    checkField('contact_person', 'Contact Person');
+    checkField('project_title', 'Project');
+    checkField('project_type', 'Sales Division');
+    checkField('expected_award_date', 'Expected Award Date');
+
+    const checkEmployee = (idField, objField, label) => {
+      if (existing[idField] !== final[idField]) {
+        const oldName = existing[objField]?.name || 'None';
+        const newName = final[objField]?.name || 'None';
+        changes.push(`${label} changed from "${oldName}" to "${newName}"`);
+      }
+    };
+
+    checkEmployee('deal_owner_id', 'deal_owner', 'Deal Owner');
+    checkEmployee('sales_director_id', 'sales_director', 'Sales Director');
+    checkEmployee('support_sales_1_id', 'support_1', 'Support Sales 1');
+    checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
+
+    const newItems = payload.items || [];
+    const oldProducts = existingItems.map((i) => i.product_name?.trim()).filter(Boolean);
+    const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
+
+    const addedProducts = newProducts.filter((p) => !oldProducts.includes(p));
+    const removedProducts = oldProducts.filter((p) => !newProducts.includes(p));
+    const modifiedProducts = [];
+
+    newProducts.forEach((p) => {
+      const oldItem = existingItems.find((i) => i.product_name?.trim() === p);
+      const newItem = newItems.find((i) => i.product_name?.trim() === p);
+      if (oldItem && newItem) {
+        if (
+          Number(oldItem.quantity) !== Number(newItem.quantity) ||
+          Number(oldItem.unit_price) !== Number(newItem.unit_price) ||
+          (oldItem.unit || "") !== (newItem.unit || "").trim()
+        ) {
+          modifiedProducts.push(p);
+        }
+      }
+    });
+
+    if (addedProducts.length > 0) changes.push(`Added product(s): ${addedProducts.join(', ')}`);
+    if (removedProducts.length > 0) changes.push(`Removed product(s): ${removedProducts.join(', ')}`);
+    if (modifiedProducts.length > 0) changes.push(`Modified product(s): ${modifiedProducts.join(', ')}`);
+
+    if (Number(existing.expected_value) !== Number(final.expected_value)) {
+      changes.push(`Expected Value changed from ₱${Number(existing.expected_value).toLocaleString()} to ₱${Number(final.expected_value).toLocaleString()}`);
+    }
+
+    if (changes.length > 0) {
+      const diffString = changes.join(", ");
+      
+      await opportunityService.addSystemNote(
+        id,
+        `Details updated: ${diffString}`,
+        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
+        actorId,
+      );
+
+      systemAuditLogService.addSystemEvent(
+        "OPPORTUNITY",
+        id,
+        `Sales opportunity ${data.opportunity_no} details updated: ${diffString}`,
+        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
+        actorId,
+      ).catch(console.error);
+    } else {
+      systemAuditLogService.addSystemEvent(
+        "OPPORTUNITY",
+        id,
+        `Sales opportunity ${data.opportunity_no} items updated.`,
+        { event: "OPPORTUNITY_UPDATED", employeeId: actorId },
+        actorId,
+      ).catch(console.error);
+    }
 
     return final;
   },
