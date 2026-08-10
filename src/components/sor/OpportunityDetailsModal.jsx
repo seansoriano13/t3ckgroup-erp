@@ -360,7 +360,7 @@ export default function OpportunityDetailsModal({
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="text-[11px] text-muted-foreground font-semibold">
-                        {n.type === "SYSTEM" ? "System" : n.author?.name || "Unknown"}
+                        {n.author?.name || (n.type === "SYSTEM" ? "System" : "Unknown")}
                         <span className="font-normal text-muted-foreground/60">
                           {" · "}
                           {formatWhen(n.created_at)}

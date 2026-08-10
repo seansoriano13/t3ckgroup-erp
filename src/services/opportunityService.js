@@ -75,6 +75,7 @@ export const opportunityService = {
       final.id,
       `Opportunity ${final.opportunity_no} registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
       { event: "OPPORTUNITY_REGISTERED", employeeId: actorId },
+      actorId,
     );
 
     systemAuditLogService.addSystemEvent(
@@ -159,7 +160,7 @@ export const opportunityService = {
       from: existing.status,
       to: nextStatus,
       employeeId: actorId,
-    });
+    }, actorId);
 
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
@@ -275,12 +276,13 @@ export const opportunityService = {
     return data;
   },
 
-  /** System entries carry a null author_id. Fire-and-forget: a failed note must
-   *  never roll back the mutation that produced it. */
-  async addSystemNote(opportunityId, content, metadata = null) {
+  /** System-styled entries (stage moves, registration) attributed to the actor
+   *  who triggered them, when known. Fire-and-forget: a failed note must never
+   *  roll back the mutation that produced it. */
+  async addSystemNote(opportunityId, content, metadata = null, authorId = null) {
     const { error } = await supabase.from("sales_opportunity_logs").insert({
       opportunity_id: opportunityId,
-      author_id: null,
+      author_id: authorId,
       type: "SYSTEM",
       content,
       metadata,
