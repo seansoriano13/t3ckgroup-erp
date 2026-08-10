@@ -24,6 +24,7 @@ export default function EmployeeForm({
     has_task_flow: true,
     employment_status: "",
     sil_hours_balance: 0,
+    offset_hours_balance: 0,
     ...initialData,
   })
 
@@ -41,6 +42,7 @@ export default function EmployeeForm({
       has_task_flow: true,
       employment_status: "",
       sil_hours_balance: 0,
+      offset_hours_balance: 0,
       ...initialData,
     })
   }, [initialData])
@@ -156,8 +158,8 @@ export default function EmployeeForm({
         uniqueSubDepts={uniqueSubDepts}
       />
 
-      {/* Employment Status & SIL Balance */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
+      {/* Employment Status, SIL Balance & Offset Balance */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
             Employment Status
@@ -210,6 +212,21 @@ export default function EmployeeForm({
             value={formData.sil_hours_balance}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, sil_hours_balance: parseFloat(e.target.value) || 0 }))
+            }
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+          />
+        </div>
+
+        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+            Offset Hours Balance
+          </label>
+          <input
+            type="number"
+            step="0.5"
+            value={formData.offset_hours_balance}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, offset_hours_balance: parseFloat(e.target.value) || 0 }))
             }
             className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />

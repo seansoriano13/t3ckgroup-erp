@@ -133,7 +133,7 @@ export default function SideNav() {
       },
     ];
     groups.opportunities.links = [
-      { label: "Opportunity Register", link: "/opportunities", icon: Target },
+      { label: "Opportunity Registration", link: "/opportunities", icon: Target },
     ];
     groups.management.links = [
       { label: "HR Management", link: "/hr/management", icon: Users },
@@ -158,7 +158,7 @@ export default function SideNav() {
 
     if (hasSales) {
       groups.opportunities.links.push({
-        label: "Opportunity Register",
+        label: "Opportunity Registration",
         link: "/opportunities",
         icon: Target,
       });
@@ -193,9 +193,14 @@ export default function SideNav() {
         link: "/hr/offsets",
         icon: Clock,
       });
+      groups.management.links.push({
+        label: "Activity Log",
+        link: "/super-admin/activity-log",
+        icon: ClipboardList,
+      });
       if (!hasSales) {
         groups.opportunities.links.push({
-          label: "Opportunity Register",
+          label: "Opportunity Registration",
           link: "/opportunities",
           icon: Target,
         });

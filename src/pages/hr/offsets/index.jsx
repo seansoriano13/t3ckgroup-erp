@@ -2,8 +2,10 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Clock, Calendar, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
+import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
@@ -13,6 +15,7 @@ import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
 
 export default function HrLeavesManagerPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'history', 'balances'
   
   // Date Range State (for FloatingMonthPicker)
@@ -101,25 +104,14 @@ export default function HrLeavesManagerPage() {
     confirmActionToast(title, msg, actionLabel, actionType === 'reject' ? 'destructive' : 'default', async () => {
       try {
         if (isOT) {
-          if (actionType === 'approve') {
-            await offsetService.approveOvertime(request.id, request.employee_id, request.hours);
-          } else if (actionType === 'approve_paid') {
-            await offsetService.approveOvertimeAsPaid(request.id);
-          } else if (actionType === 'reject') {
-            await offsetService.rejectOvertime(request.id);
-          }
+          const status = actionType === 'approve' ? 'APPROVED_OFFSET' : actionType === 'approve_paid' ? 'APPROVED_PAID' : 'REJECTED';
+          await offsetService.handleOvertimeDecision({ requestId: request.id, status, hrId: user?.id });
         } else if (isOffset) {
-          if (actionType === 'approve') {
-             await offsetService.approveOffsetLeave(request.id, request.employee_id, request.hours);
-          } else if (actionType === 'reject') {
-             await offsetService.rejectOffsetLeave(request.id);
-          }
+          const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
+          await offsetService.handleOffsetLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
         } else if (isSIL) {
-          if (actionType === 'approve') {
-            await silService.approveSilLeave(request.id, request.employee_id, request.hours);
-         } else if (actionType === 'reject') {
-            await silService.rejectSilLeave(request.id);
-         }
+          const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
+          await silService.handleSilLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
         }
         toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
         loadData();
@@ -142,11 +134,11 @@ export default function HrLeavesManagerPage() {
       async () => {
         try {
           if (isOT) {
-            await offsetService.undoOvertimeDecision(request.id, request.employee_id, request.hours, request.status);
+            await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: user?.id });
           } else if (isOffset) {
-            await offsetService.undoOffsetLeaveDecision(request.id, request.employee_id, request.hours, request.status);
+            await offsetService.undoOffsetLeaveDecision({ leaveId: request.id, hrId: user?.id });
           } else if (isSIL) {
-            await silService.undoSilLeaveDecision(request.id, request.employee_id, request.hours, request.status);
+            await silService.undoSilLeaveDecision({ leaveId: request.id, hrId: user?.id });
           }
           toast.success('Decision undone successfully.');
           loadData();
@@ -217,6 +209,7 @@ export default function HrLeavesManagerPage() {
 
 
   return (
+    <ProtectedRoute requireHr={true}>
     <PageContainer className="pt-4 space-y-6 relative">
       <FloatingMonthPicker
         selectedRange={dateRange}
@@ -351,7 +344,7 @@ export default function HrLeavesManagerPage() {
                                   </button>
                                 </>
                              ) : (
-                                <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
                                     Approve
                                 </button>
                              )}
@@ -481,5 +474,6 @@ export default function HrLeavesManagerPage() {
 
       </div>
     </PageContainer>
+    </ProtectedRoute>
   );
 }

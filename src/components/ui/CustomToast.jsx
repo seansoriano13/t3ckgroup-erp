@@ -137,7 +137,7 @@ export const confirmDeleteToast = (title, description, onConfirm) => {
         confirmText="Confirm Deletion"
       />
     ),
-    { duration: Infinity, id: "delete-confirm" }
+    { duration: Infinity, id: "delete-confirm", position: "bottom-center" }
   );
 };
 
@@ -154,6 +154,6 @@ export const confirmActionToast = (title, description, confirmText, actionType, 
         confirmText={confirmText}
       />
     ),
-    { duration: Infinity, id: `action-confirm-${Date.now()}` }
+    { duration: Infinity, id: `action-confirm-${Date.now()}`, position: "bottom-center" }
   );
 };

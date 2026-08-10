@@ -1,5 +1,15 @@
 import { supabase } from "../lib/supabase";
 
+// Entity types considered part of the HR audit trail (employee/category config
+// changes, plus every OT/Offset/SIL apply, decision, undo, and withdrawal).
+export const HR_ENTITY_TYPES = [
+  "EMPLOYEE",
+  "CATEGORY",
+  "OVERTIME",
+  "OFFSET_LEAVE",
+  "SIL_LEAVE",
+];
+
 export const systemAuditLogService = {
   /**
    * Write a system-level admin action to the audit log
@@ -105,6 +115,75 @@ export const systemAuditLogService = {
       entityType: entry.entity_type,
       entityId: entry.entity_id,
       isSystemLog: true,
+    }));
+  },
+
+  /**
+   * Paginated feed for the HR-specific Logs tab — scoped to HR entity types only
+   * (employee/category config changes + OT/Offset/SIL applies, decisions, undos, withdrawals).
+   */
+  async getRecentHrActivity({
+    limit = 50,
+    offset = 0,
+    type = "ALL",
+    authorId = "ALL",
+    employeeId = "ALL",
+    entityType = "ALL",
+    dateFrom = null,
+    dateTo = null,
+    search = "",
+  } = {}) {
+    const safeLimit = Math.max(1, Math.min(200, Number(limit) || 50));
+    const safeOffset = Math.max(0, Number(offset) || 0);
+
+    let query = supabase
+      .from("system_audit_logs")
+      .select(
+        `*, author:employees(name, is_head, is_hr, is_super_admin, avatar_path)`,
+      )
+      .order("created_at", { ascending: false });
+
+    if (entityType && entityType !== "ALL") {
+      query = query.eq("entity_type", entityType);
+    } else {
+      query = query.in("entity_type", HR_ENTITY_TYPES);
+    }
+
+    if (type && type !== "ALL") query = query.eq("type", type);
+    if (authorId && authorId !== "ALL") {
+      if (authorId === "SYSTEM") query = query.is("author_id", null);
+      else query = query.eq("author_id", authorId);
+    }
+    if (employeeId && employeeId !== "ALL") {
+      query = query.eq("metadata->>employeeId", employeeId);
+    }
+    if (dateFrom) query = query.gte("created_at", dateFrom);
+    if (dateTo) query = query.lte("created_at", dateTo);
+
+    const trimmed = (search || "").trim();
+    if (trimmed) {
+      const esc = trimmed.replace(/%/g, "\\%").replace(/_/g, "\\_");
+      query = query.ilike("content", `%${esc}%`);
+    }
+
+    query = query.range(safeOffset, safeOffset + safeLimit - 1);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map((entry) => ({
+      id: entry.id,
+      type: entry.type,
+      content: entry.content,
+      metadata: entry.metadata,
+      createdAt: entry.created_at,
+      authorId: entry.author_id,
+      authorName: entry.author?.name || null,
+      authorIsHead: entry.author?.is_head || false,
+      authorIsHr: entry.author?.is_hr || false,
+      authorIsSuperAdmin: entry.author?.is_super_admin || false,
+      entityType: entry.entity_type,
+      entityId: entry.entity_id,
     }));
   },
 

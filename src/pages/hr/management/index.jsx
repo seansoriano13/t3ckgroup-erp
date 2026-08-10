@@ -18,6 +18,9 @@ import { Button } from "@/components/ui/button";
 import HRFormModal from "../../../components/hr/HRFormModal";
 import EmployeeForm from "../../../components/hr/EmployeeForm";
 import HRFilters from "../../../components/HRFilters";
+import { confirmActionToast } from "../../../components/ui/CustomToast";
+import { silService } from "../../../services/silService";
+import { offsetService } from "../../../services/offsetService";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -405,6 +408,58 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     },
   });
 
+  // Warn (non-blocking) if this save would leave already-approved future leave
+  // "unbacked" by the new balance/status — e.g. downgrading to Probationary or
+  // zeroing a balance while a future SIL/Offset leave is still APPROVED.
+  const handleSubmit = async (data) => {
+    if (isEditing && employee) {
+      const newSil = parseFloat(data.sil_hours_balance) || 0;
+      const newOffset = parseFloat(data.offset_hours_balance) || 0;
+      const oldSil = parseFloat(employee.sil_hours_balance) || 0;
+      const oldOffset = parseFloat(employee.offset_hours_balance) || 0;
+      const statusDowngraded =
+        employee.employment_status === "Regular" && data.employment_status !== "Regular";
+      const silReduced = newSil < oldSil;
+      const offsetReduced = newOffset < oldOffset;
+
+      if (statusDowngraded || silReduced || offsetReduced) {
+        try {
+          const [silLeaves, offsetLeaves] = await Promise.all([
+            silService.getMySilLeaves(employee.id),
+            offsetService.getMyOffsetLeaves(employee.id),
+          ]);
+          const today = new Date().toISOString().slice(0, 10);
+          const approvedFutureSil = silLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
+          const approvedFutureOffset = offsetLeaves.filter((l) => l.status === "APPROVED" && l.date >= today);
+
+          if (approvedFutureSil.length || approvedFutureOffset.length) {
+            const parts = [];
+            if (approvedFutureSil.length) {
+              const hrs = approvedFutureSil.reduce((s, l) => s + (parseFloat(l.hours) || 0), 0);
+              parts.push(`${approvedFutureSil.length} approved SIL leave${approvedFutureSil.length > 1 ? "s" : ""} (${hrs} hrs)`);
+            }
+            if (approvedFutureOffset.length) {
+              const hrs = approvedFutureOffset.reduce((s, l) => s + (parseFloat(l.hours) || 0), 0);
+              parts.push(`${approvedFutureOffset.length} approved offset leave${approvedFutureOffset.length > 1 ? "s" : ""} (${hrs} hrs)`);
+            }
+
+            confirmActionToast(
+              "Employee Has Upcoming Approved Leave",
+              `${employee.name} still has ${parts.join(" and ")} for a future date. This change won't cancel them — review the HR Offsets page if they should be rejected. Save anyway?`,
+              "Save Anyway",
+              "destructive",
+              () => mutation.mutate(data),
+            );
+            return;
+          }
+        } catch (err) {
+          console.error("Failed to check for conflicting approved leave:", err);
+        }
+      }
+    }
+    mutation.mutate(data);
+  };
+
   return (
     <HRFormModal
       isOpen={isOpen}
@@ -423,7 +478,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       <EmployeeForm
         key={employee ? employee.id : "new-employee"}
         initialData={employee}
-        onSubmit={(data) => mutation.mutate(data)}
+        onSubmit={handleSubmit}
         rawCategories={rawCategories}
         rawEmployees={employees}
       />

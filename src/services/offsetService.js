@@ -1,14 +1,19 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
+import { systemAuditLogService } from './systemAuditLogService';
 
 export const offsetService = {
   /**
    * Apply for Overtime (Employee)
    */
-  async applyOvertime({ employeeId, date, hours, employeeName }) {
+  async applyOvertime({ employeeId, date, hours, reason, employeeName }) {
     const parsedHours = parseFloat(hours);
     if (isNaN(parsedHours) || parsedHours <= 0) {
       throw new Error('Please enter a valid positive number of hours.');
+    }
+
+    if (!reason || reason.trim() === '') {
+      throw new Error('Please provide a reason for the overtime request.');
     }
 
     const { data, error } = await supabase
@@ -18,6 +23,7 @@ export const offsetService = {
           employee_id: employeeId,
           date,
           hours: parsedHours,
+          reason,
           status: 'PENDING',
         },
       ])
@@ -35,16 +41,28 @@ export const offsetService = {
       reference_id: data.id,
     });
 
+    systemAuditLogService.addSystemEvent(
+      'OVERTIME',
+      data.id,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs of overtime on ${date}.`,
+      { event: 'OVERTIME_APPLIED', employeeId },
+      employeeId,
+    ).catch(console.error);
+
     return data;
   },
 
   /**
    * Apply for Offset Leave (Employee)
    */
-  async applyOffsetLeave({ employeeId, date, hours, employeeName }) {
+  async applyOffsetLeave({ employeeId, date, hours, reason, employeeName }) {
     const parsedHours = parseFloat(hours);
     if (isNaN(parsedHours) || parsedHours <= 0) {
       throw new Error('Please enter a valid positive number of hours.');
+    }
+
+    if (!reason || reason.trim() === '') {
+      throw new Error('Please provide a reason for the offset leave.');
     }
 
     // Check Weekend
@@ -75,6 +93,7 @@ export const offsetService = {
           employee_id: employeeId,
           date,
           hours: parsedHours,
+          reason,
           status: 'PENDING',
         },
       ])
@@ -91,6 +110,14 @@ export const offsetService = {
       message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave on ${date}.`,
       reference_id: data.id,
     });
+
+    systemAuditLogService.addSystemEvent(
+      'OFFSET_LEAVE',
+      data.id,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave on ${date}.`,
+      { event: 'OFFSET_LEAVE_APPLIED', employeeId },
+      employeeId,
+    ).catch(console.error);
 
     return data;
   },
@@ -240,6 +267,14 @@ export const offsetService = {
       reference_id: requestId,
     });
 
+    systemAuditLogService.addApprovalEvent(
+      'OVERTIME',
+      requestId,
+      `Overtime request for ${request.hours} hrs on ${request.date} was ${statusLabel.toLowerCase()}.`,
+      { event: 'OVERTIME_DECISION', status, employeeId: request.employee_id },
+      hrId,
+    ).catch(console.error);
+
     return updatedReq;
   },
 
@@ -298,6 +333,14 @@ export const offsetService = {
       message: `HR has reverted the decision on your overtime request for ${request.date}. It is now PENDING again.`,
       reference_id: requestId,
     });
+
+    systemAuditLogService.addSystemEvent(
+      'OVERTIME',
+      requestId,
+      `Overtime decision for ${request.date} was reverted to PENDING (was ${request.status}).`,
+      { event: 'OVERTIME_DECISION_UNDONE', previousStatus: request.status, employeeId: request.employee_id },
+      hrId,
+    ).catch(console.error);
 
     return updatedReq;
   },
@@ -364,6 +407,14 @@ export const offsetService = {
       reference_id: leaveId,
     });
 
+    systemAuditLogService.addApprovalEvent(
+      'OFFSET_LEAVE',
+      leaveId,
+      `Offset leave application for ${leave.hours} hrs on ${leave.date} was ${status.toLowerCase()}.`,
+      { event: 'OFFSET_LEAVE_DECISION', status, employeeId: leave.employee_id },
+      hrId,
+    ).catch(console.error);
+
     return updatedLeave;
   },
 
@@ -423,6 +474,14 @@ export const offsetService = {
       reference_id: leaveId,
     });
 
+    systemAuditLogService.addSystemEvent(
+      'OFFSET_LEAVE',
+      leaveId,
+      `Offset leave decision for ${leave.date} was reverted to PENDING (was ${leave.status}).`,
+      { event: 'OFFSET_LEAVE_DECISION_UNDONE', previousStatus: leave.status, employeeId: leave.employee_id },
+      hrId,
+    ).catch(console.error);
+
     return updatedLeave;
   },
 
@@ -451,6 +510,15 @@ export const offsetService = {
       .single();
 
     if (error) throw new Error(error.message);
+
+    systemAuditLogService.addSystemEvent(
+      'OVERTIME',
+      requestId,
+      `Overtime request for ${request.date} was withdrawn by the employee.`,
+      { event: 'OVERTIME_WITHDRAWN', employeeId },
+      employeeId,
+    ).catch(console.error);
+
     return data;
   },
 
@@ -507,6 +575,15 @@ export const offsetService = {
       .single();
 
     if (error) throw new Error(error.message);
+
+    systemAuditLogService.addSystemEvent(
+      'OFFSET_LEAVE',
+      leaveId,
+      `Offset leave for ${leave.date} was withdrawn by the employee.`,
+      { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId },
+      employeeId,
+    ).catch(console.error);
+
     return data;
   }
 };

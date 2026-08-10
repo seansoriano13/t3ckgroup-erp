@@ -15,11 +15,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   // Overtime State
   const [otDate, setOtDate] = useState('');
   const [otHours, setOtHours] = useState('');
+  const [otReason, setOtReason] = useState('');
   const [otSubmitting, setOtSubmitting] = useState(false);
 
   // Offset Leave State
   const [offsetDate, setOffsetDate] = useState('');
   const [offsetHours, setOffsetHours] = useState('');
+  const [offsetReason, setOffsetReason] = useState('');
   const [offsetSubmitting, setOffsetSubmitting] = useState(false);
 
   // SIL Leave State
@@ -32,7 +34,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!otDate || !otHours) {
+    if (!otDate || !otHours || !otReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -43,11 +45,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         employeeId: user.id,
         date: otDate,
         hours: otHours,
+        reason: otReason,
         employeeName: user.name,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
       setOtHours('');
+      setOtReason('');
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -59,7 +63,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplyOffsetLeave = async (e) => {
     e.preventDefault();
-    if (!offsetDate || !offsetHours) {
+    if (!offsetDate || !offsetHours || !offsetReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -70,11 +74,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         employeeId: user.id,
         date: offsetDate,
         hours: offsetHours,
+        reason: offsetReason,
         employeeName: user.name,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
       setOffsetHours('');
+      setOffsetReason('');
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -179,6 +185,19 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Reason
+                </label>
+                <textarea
+                  value={otReason}
+                  onChange={(e) => setOtReason(e.target.value)}
+                  placeholder="Reason for the overtime request"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  required
+                />
+              </div>
               <Button
                 type="submit"
                 disabled={otSubmitting}
@@ -221,6 +240,19 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   value={offsetHours}
                   onChange={(e) => setOffsetHours(e.target.value)}
                   className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Reason
+                </label>
+                <textarea
+                  value={offsetReason}
+                  onChange={(e) => setOffsetReason(e.target.value)}
+                  placeholder="Reason for the offset leave"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
                   required
                 />
               </div>

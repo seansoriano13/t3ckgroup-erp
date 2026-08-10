@@ -153,7 +153,7 @@ export default function OpportunitiesPage() {
     <ProtectedRoute>
       <PageContainer className="pt-4">
         <PageHeader
-          title="Opportunity Register"
+          title="SOR Sales Opportunity Registration"
           description="Register every lead before bid, proposal, or quotation issuance. Registration date establishes deal ownership."
         >
           <button
@@ -197,11 +197,10 @@ export default function OpportunitiesPage() {
           </Dropdown>
           <button
             onClick={() => setMineOnly((v) => !v)}
-            className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all shrink-0 ${
-              mineOnly
-                ? "bg-primary/10 border-primary/40 text-primary"
-                : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
-            }`}
+            className={`px-4 py-2.5 rounded-xl text-sm font-bold border transition-all shrink-0 ${mineOnly
+              ? "bg-primary/10 border-primary/40 text-primary"
+              : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
+              }`}
           >
             My Deals
           </button>

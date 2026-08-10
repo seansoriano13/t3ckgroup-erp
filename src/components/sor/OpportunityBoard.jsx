@@ -96,7 +96,7 @@ function BoardCard({ opportunity, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="w-full text-left bg-card border border-border rounded-xl p-3 hover:border-primary/40 hover:shadow-md transition-all"
+      className="w-full text-left bg-card border border-border rounded-xl p-3 hover:border-gray-6 hover:shadow-md transition-all"
     >
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <span className="font-mono text-[10px] font-bold text-primary truncate">

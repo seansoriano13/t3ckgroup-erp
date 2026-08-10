@@ -208,6 +208,7 @@ export const employeeService = {
           has_task_flow: employeeData.has_task_flow,
           employment_status: employeeData.employment_status || null,
           sil_hours_balance: employeeData.sil_hours_balance || 0,
+          offset_hours_balance: employeeData.offset_hours_balance || 0,
           updated_at: new Date().toISOString(),
           updated_by: employeeData?.updatedBy || null,
         },
@@ -228,6 +229,14 @@ export const employeeService = {
 
   async updateEmployee(id, employeeData, actorId = null) {
     const cleanEmail = await prepareEmailForSave(employeeData.email, id);
+
+    const { data: before, error: beforeErr } = await supabase
+      .from("employees")
+      .select("employment_status, sil_hours_balance, offset_hours_balance")
+      .eq("id", id)
+      .single();
+    if (beforeErr) throw beforeErr;
+
     const { data, error } = await supabase
       .from("employees")
       .update({
@@ -243,6 +252,7 @@ export const employeeService = {
         has_task_flow: employeeData.has_task_flow,
         employment_status: employeeData.employment_status || null,
         sil_hours_balance: employeeData.sil_hours_balance !== undefined ? employeeData.sil_hours_balance : undefined,
+        offset_hours_balance: employeeData.offset_hours_balance !== undefined ? employeeData.offset_hours_balance : undefined,
         updated_at: new Date().toISOString(),
         updated_by: actorId || employeeData?.updatedBy || null,
       })
@@ -251,11 +261,25 @@ export const employeeService = {
       .single();
 
     if (error) throw error;
+
+    const diffs = [];
+    if ((before.employment_status || null) !== (data.employment_status || null)) {
+      diffs.push(`employment status changed from "${before.employment_status || "—"}" to "${data.employment_status || "—"}"`);
+    }
+    if (parseFloat(before.sil_hours_balance || 0) !== parseFloat(data.sil_hours_balance || 0)) {
+      diffs.push(`SIL balance changed from ${before.sil_hours_balance || 0} to ${data.sil_hours_balance || 0} hrs`);
+    }
+    if (parseFloat(before.offset_hours_balance || 0) !== parseFloat(data.offset_hours_balance || 0)) {
+      diffs.push(`offset balance changed from ${before.offset_hours_balance || 0} to ${data.offset_hours_balance || 0} hrs`);
+    }
+
     systemAuditLogService.addSystemEvent(
       "EMPLOYEE",
       id,
-      `Employee "${data.name}" profile was updated.`,
-      { event: "EMPLOYEE_UPDATED", employeeId: id },
+      diffs.length
+        ? `Employee "${data.name}" profile was updated: ${diffs.join("; ")}.`
+        : `Employee "${data.name}" profile was updated.`,
+      { event: "EMPLOYEE_UPDATED", employeeId: id, hasBalanceOrStatusChange: diffs.length > 0 },
       actorId || employeeData.updatedBy || null,
     ).catch(console.error);
     return data;

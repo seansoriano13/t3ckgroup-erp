@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Dot from "../../../components/ui/Dot";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
+import { useAuth } from "../../../context/AuthContext";
 import { taskActivityService } from "../../../services/tasks/taskActivityService";
 import { employeeService } from "../../../services/employeeService";
 import { committeeTaskActivityService } from "../../../services/committeeTaskActivityService";
@@ -9,6 +10,7 @@ import Avatar from "../../../components/Avatar.jsx";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import ActivityLogFilters from "../../../components/ActivityLogFilters";
+import HrLogsPanel from "../../../components/hr/HrLogsPanel";
 
 import {
   ShieldCheck,
@@ -30,9 +32,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 const PAGE_SIZE = 50;
 
 const TABS = [
-  { id: "TASKS", label: "Task Logs" },
-  { id: "COMMITTEE", label: "Group Task Logs" },
-  { id: "SYSTEM", label: "System Logs" },
+  { id: "TASKS", label: "Task Logs", saOnly: true },
+  { id: "COMMITTEE", label: "Group Task Logs", saOnly: true },
+  { id: "SYSTEM", label: "System Logs", saOnly: true },
+  { id: "HR", label: "HR Logs" },
 ];
 
 function typeIcon(type) {
@@ -167,7 +170,10 @@ const ENTITY_TYPE_STYLES = {
 // ═════════════════════════════════════════════════════════════════════════════
 export default function SuperAdminActivityLogPage() {
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("TASKS");
+  const { user } = useAuth();
+  const isSA = user?.isSuperAdmin || user?.is_super_admin;
+  const visibleTabs = useMemo(() => TABS.filter((t) => !t.saOnly || isSA), [isSA]);
+  const [activeTab, setActiveTab] = useState(() => (isSA ? "TASKS" : "HR"));
   const [page, setPage] = useState(0);
   const [liveAnim, setLiveAnim] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
@@ -263,6 +269,7 @@ export default function SuperAdminActivityLogPage() {
         return systemAuditLogService.getRecentSystemActivity(params);
       return taskActivityService.getRecentTaskActivity(params);
     },
+    enabled: activeTab !== "HR",
     staleTime: 15_000,
   });
 
@@ -379,7 +386,7 @@ export default function SuperAdminActivityLogPage() {
   };
 
   return (
-    <ProtectedRoute requireSuperAdmin={true}>
+    <ProtectedRoute requireHr={true}>
       <div className="max-w-6xl mx-auto space-y-5 px-2 pb-10">
         {/* ── Header ──────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-border/40 pb-5">
@@ -392,7 +399,7 @@ export default function SuperAdminActivityLogPage() {
             </p>
             {/* Tab bar */}
             <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl shrink-0 mt-4 max-w-fit border border-border/40 flex-wrap">
-              {TABS.map((tab) => (
+              {visibleTabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
@@ -408,47 +415,53 @@ export default function SuperAdminActivityLogPage() {
           </div>
 
           {/* Pagination + live indicator */}
-          <div className="flex flex-col items-end gap-3 shrink-0">
-            <div
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-300 ${liveAnim ? "bg-green-a2 border-green-a4 text-green-11" : "bg-transparent border-transparent text-muted-foreground/60"}`}
-            >
-              <Dot
-                size="w-1.5 h-1.5"
-                color={
-                  liveAnim
-                    ? "bg-green-9 shadow-[0_0_8px_var(--green-9)]"
-                    : "bg-muted-foreground/40"
-                }
-                className={liveAnim ? "animate-pulse" : ""}
-              />
-              <span className="text-[10px] font-bold uppercase tracking-wider">
-                {liveAnim ? "New Update" : "Live"}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+          {activeTab !== "HR" && (
+            <div className="flex flex-col items-end gap-3 shrink-0">
+              <div
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-300 ${liveAnim ? "bg-green-a2 border-green-a4 text-green-11" : "bg-transparent border-transparent text-muted-foreground/60"}`}
               >
-                <ChevronLeft size={14} /> Newer
-              </button>
-              {page > 0 && (
-                <span className="text-[11px] font-bold text-muted-foreground px-1">
-                  Page {page + 1}
+                <Dot
+                  size="w-1.5 h-1.5"
+                  color={
+                    liveAnim
+                      ? "bg-green-9 shadow-[0_0_8px_var(--green-9)]"
+                      : "bg-muted-foreground/40"
+                  }
+                  className={liveAnim ? "animate-pulse" : ""}
+                />
+                <span className="text-[10px] font-bold uppercase tracking-wider">
+                  {liveAnim ? "New Update" : "Live"}
                 </span>
-              )}
-              <button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={entries.length < PAGE_SIZE}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
-              >
-                Older <ChevronRight size={14} />
-              </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft size={14} /> Newer
+                </button>
+                {page > 0 && (
+                  <span className="text-[11px] font-bold text-muted-foreground px-1">
+                    Page {page + 1}
+                  </span>
+                )}
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={entries.length < PAGE_SIZE}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  Older <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
+        {activeTab === "HR" ? (
+          <HrLogsPanel />
+        ) : (
+        <>
         {/* ── Filter Panel ─────────────────────────────────────────── */}
         <ActivityLogFilters
           filters={filters}
@@ -668,6 +681,8 @@ export default function SuperAdminActivityLogPage() {
               Older <ChevronRight size={14} />
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
     </ProtectedRoute>

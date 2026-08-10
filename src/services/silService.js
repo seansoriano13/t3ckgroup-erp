@@ -1,5 +1,41 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
+import { systemAuditLogService } from './systemAuditLogService';
+
+/**
+ * Credits refunded SIL hours back onto an employee's balance, capped at the
+ * employee's CURRENT status-appropriate ceiling rather than blindly re-adding
+ * on top of whatever HR has set since the leave was approved. Only "Regular"
+ * employees are SIL-eligible, so a non-Regular employee's ceiling is 0 — the
+ * refund is withheld and flagged as an anomaly for HR to review, instead of
+ * silently re-granting hours to someone HR has since made ineligible.
+ */
+async function creditSilRefund(employeeId, hours, leaveId, actorId) {
+  const { data: emp, error: empErr } = await supabase
+    .from('employees')
+    .select('sil_hours_balance, employment_status, name')
+    .eq('id', employeeId)
+    .single();
+
+  if (empErr || !emp) return;
+
+  if (emp.employment_status === 'Regular') {
+    const newBalance = parseFloat(emp.sil_hours_balance || 0) + parseFloat(hours || 0);
+    await supabase
+      .from('employees')
+      .update({ sil_hours_balance: newBalance, updated_at: new Date().toISOString() })
+      .eq('id', employeeId);
+    return;
+  }
+
+  systemAuditLogService.addSystemEvent(
+    'SIL_LEAVE',
+    leaveId,
+    `SIL refund withheld: ${hours} hrs were NOT credited back to ${emp.name || 'the employee'} because their current employment status ("${emp.employment_status || '—'}") is not SIL-eligible. Review manually if this balance needs correcting.`,
+    { event: 'SIL_REFUND_ANOMALY', employeeId, hours, employmentStatus: emp.employment_status },
+    actorId,
+  ).catch(console.error);
+}
 
 export const silService = {
   /**
@@ -53,6 +89,14 @@ export const silService = {
       message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave on ${date}.`,
       reference_id: data.id,
     });
+
+    systemAuditLogService.addSystemEvent(
+      'SIL_LEAVE',
+      data.id,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave on ${date}.`,
+      { event: 'SIL_LEAVE_APPLIED', employeeId },
+      employeeId,
+    ).catch(console.error);
 
     return data;
   },
@@ -173,6 +217,14 @@ export const silService = {
       reference_id: leaveId,
     });
 
+    systemAuditLogService.addApprovalEvent(
+      'SIL_LEAVE',
+      leaveId,
+      `SIL leave application for ${leave.hours} hrs on ${leave.date} was ${status.toLowerCase()}.`,
+      { event: 'SIL_LEAVE_DECISION', status, employeeId: leave.employee_id },
+      hrId,
+    ).catch(console.error);
+
     return updatedLeave;
   },
 
@@ -191,21 +243,9 @@ export const silService = {
     if (leaveErr) throw new Error(leaveErr.message);
     if (leave.status === 'PENDING') throw new Error('Leave is already pending.');
 
-    // If it was APPROVED, refund the balance
+    // If it was APPROVED, refund the balance (capped — see creditSilRefund)
     if (leave.status === 'APPROVED') {
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('sil_hours_balance')
-        .eq('id', leave.employee_id)
-        .single();
-
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.sil_hours_balance || 0) + parseFloat(leave.hours || 0);
-        await supabase
-          .from('employees')
-          .update({ sil_hours_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', leave.employee_id);
-      }
+      await creditSilRefund(leave.employee_id, leave.hours, leaveId, hrId);
     }
 
     // Revert status
@@ -233,6 +273,14 @@ export const silService = {
       reference_id: leaveId,
     });
 
+    systemAuditLogService.addSystemEvent(
+      'SIL_LEAVE',
+      leaveId,
+      `SIL leave decision for ${leave.date} was reverted to PENDING (was ${leave.status}).`,
+      { event: 'SIL_LEAVE_DECISION_UNDONE', previousStatus: leave.status, employeeId: leave.employee_id },
+      hrId,
+    ).catch(console.error);
+
     return updatedLeave;
   },
 
@@ -250,21 +298,9 @@ export const silService = {
     if (leave.employee_id !== employeeId) throw new Error('Unauthorized');
     
     // Only pending or approved leaves in the future can be cancelled by employee
-    // To be safe, let's refund if it was approved
+    // To be safe, let's refund if it was approved (capped — see creditSilRefund)
     if (leave.status === 'APPROVED') {
-       const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('sil_hours_balance')
-        .eq('id', leave.employee_id)
-        .single();
-
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.sil_hours_balance || 0) + parseFloat(leave.hours || 0);
-        await supabase
-          .from('employees')
-          .update({ sil_hours_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', leave.employee_id);
-      }
+      await creditSilRefund(leave.employee_id, leave.hours, leaveId, employeeId);
     }
 
     const { data: updatedLeave, error: updateErr } = await supabase
@@ -286,6 +322,14 @@ export const silService = {
       message: `An employee cancelled their SIL leave for ${leave.hours} hrs on ${leave.date}.`,
       reference_id: leaveId,
     });
+
+    systemAuditLogService.addSystemEvent(
+      'SIL_LEAVE',
+      leaveId,
+      `SIL leave for ${leave.date} was cancelled by the employee.`,
+      { event: 'SIL_LEAVE_CANCELLED', employeeId },
+      employeeId,
+    ).catch(console.error);
 
     return updatedLeave;
   },
