@@ -52,7 +52,9 @@ export default function EmployeeOpportunityMatrix({ opportunities, title = "Team
 
     opportunities.forEach((o) => {
       const owner = o.deal_owner;
-      if (!owner || owner.is_super_admin) return;
+      // Super admins count like anyone else — they can own deals, and skipping
+      // them here would drop those deals out of the radar entirely.
+      if (!owner) return;
 
       // Head (not HR, not Super Admin) only tracks their own department.
       if (!isHr && isHead && owner.department !== userDepartment) return;

@@ -110,4 +110,54 @@ export const storageService = {
     const data = await response.json()
     return data.secure_url
   },
+
+  /**
+   * Upload any file — image or document — to Cloudinary, returning the
+   * descriptor shape stored in log metadata.
+   *
+   * Images reuse uploadToCloudinary() so they still get compressed; everything
+   * else goes to /auto/upload, which the same unsigned preset serves. Cloudinary
+   * mangles the public id of raw uploads, so the original filename is carried in
+   * the descriptor rather than parsed back out of the URL.
+   */
+  async uploadFileToCloudinary(file) {
+    if (!file) throw new Error("No file provided.")
+
+    if (file.type?.startsWith("image/")) {
+      const url = await this.uploadToCloudinary(file)
+      return { url, name: file.name, type: file.type, bytes: file.size }
+    }
+
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET
+
+    if (!cloudName || !uploadPreset) {
+      throw new Error("Missing Cloudinary configuration in .env")
+    }
+
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("upload_preset", uploadPreset)
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/auto/upload`,
+      {
+        method: "POST",
+        body: formData,
+      },
+    )
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null)
+      throw new Error(errorData?.error?.message || "Cloudinary upload failed")
+    }
+
+    const data = await response.json()
+    return {
+      url: data.secure_url,
+      name: file.name,
+      type: file.type || "",
+      bytes: data.bytes ?? file.size,
+    }
+  },
 }

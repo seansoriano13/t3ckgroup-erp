@@ -13,6 +13,7 @@ import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
+import { AttachmentList } from '../../../components/ui/Attachments';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -299,6 +300,7 @@ export default function HrLeavesManagerPage() {
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
+                      <th className="p-4">Files</th>
                       <th className="p-4 text-right">Actions</th>
                     </tr>
                   </thead>
@@ -332,6 +334,13 @@ export default function HrLeavesManagerPage() {
                           </td>
                           <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
                              {req.reason || '-'}
+                          </td>
+                          <td className="p-4">
+                             {req.attachments?.length ? (
+                               <AttachmentList attachments={req.attachments} compact />
+                             ) : (
+                               <span className="text-xs text-muted-foreground/50">-</span>
+                             )}
                           </td>
                           <td className="p-4 text-right space-x-2">
                              {req.type === 'OVERTIME' ? (
@@ -376,6 +385,7 @@ export default function HrLeavesManagerPage() {
                       <th className="p-4">Type</th>
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
+                      <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
                       <th className="p-4">Processed Date</th>
                       <th className="p-4 text-right">Actions</th>
@@ -403,6 +413,13 @@ export default function HrLeavesManagerPage() {
                           </td>
                           <td className="p-4 font-black text-sm text-foreground">
                             {req.hours} hrs
+                          </td>
+                          <td className="p-4">
+                             {req.attachments?.length ? (
+                               <AttachmentList attachments={req.attachments} compact />
+                             ) : (
+                               <span className="text-xs text-muted-foreground/50">-</span>
+                             )}
                           </td>
                           <td className="p-4">
                             {getStatusBadge(req.status)}

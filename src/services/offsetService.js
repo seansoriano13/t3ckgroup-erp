@@ -2,11 +2,20 @@ import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 
+/**
+ * Keeps only usable Cloudinary descriptors, and stores null rather than an
+ * empty array so "no attachments" reads the same on old and new rows.
+ */
+export function cleanAttachments(attachments) {
+  const files = (attachments || []).filter((a) => a?.url);
+  return files.length > 0 ? files : null;
+}
+
 export const offsetService = {
   /**
    * Apply for Overtime (Employee)
    */
-  async applyOvertime({ employeeId, date, hours, reason, employeeName }) {
+  async applyOvertime({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
     const parsedHours = parseFloat(hours);
     if (isNaN(parsedHours) || parsedHours <= 0) {
       throw new Error('Please enter a valid positive number of hours.');
@@ -25,6 +34,7 @@ export const offsetService = {
           hours: parsedHours,
           reason,
           status: 'PENDING',
+          attachments: cleanAttachments(attachments),
         },
       ])
       .select()
@@ -55,7 +65,7 @@ export const offsetService = {
   /**
    * Apply for Offset Leave (Employee)
    */
-  async applyOffsetLeave({ employeeId, date, hours, reason, employeeName }) {
+  async applyOffsetLeave({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
     const parsedHours = parseFloat(hours);
     if (isNaN(parsedHours) || parsedHours <= 0) {
       throw new Error('Please enter a valid positive number of hours.');
@@ -95,6 +105,7 @@ export const offsetService = {
           hours: parsedHours,
           reason,
           status: 'PENDING',
+          attachments: cleanAttachments(attachments),
         },
       ])
       .select()

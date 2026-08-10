@@ -7,6 +7,8 @@ import toast from 'react-hot-toast';
 import { X, Calendar, PlusCircle } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
+import { AttachmentField } from '../ui/Attachments';
+import { useFileAttachments } from '../../hooks/useFileAttachments';
 
 export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const { user } = useAuth();
@@ -17,18 +19,21 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const [otHours, setOtHours] = useState('');
   const [otReason, setOtReason] = useState('');
   const [otSubmitting, setOtSubmitting] = useState(false);
+  const otFiles = useFileAttachments();
 
   // Offset Leave State
   const [offsetDate, setOffsetDate] = useState('');
   const [offsetHours, setOffsetHours] = useState('');
   const [offsetReason, setOffsetReason] = useState('');
   const [offsetSubmitting, setOffsetSubmitting] = useState(false);
+  const offsetFiles = useFileAttachments();
 
   // SIL Leave State
   const [silDate, setSilDate] = useState('');
   const [silHours, setSilHours] = useState('');
   const [silReason, setSilReason] = useState('');
   const [silSubmitting, setSilSubmitting] = useState(false);
+  const silFiles = useFileAttachments();
 
   if (!isOpen) return null;
 
@@ -41,17 +46,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
     setOtSubmitting(true);
     try {
+      // Uploaded first so a failed upload aborts before the request row exists,
+      // rather than leaving an application that silently lost its evidence.
+      const attachments = await otFiles.upload();
       await offsetService.applyOvertime({
         employeeId: user.id,
         date: otDate,
         hours: otHours,
         reason: otReason,
         employeeName: user.name,
+        attachments,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
       setOtHours('');
       setOtReason('');
+      otFiles.clear();
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -70,17 +80,20 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
     setOffsetSubmitting(true);
     try {
+      const attachments = await offsetFiles.upload();
       await offsetService.applyOffsetLeave({
         employeeId: user.id,
         date: offsetDate,
         hours: offsetHours,
         reason: offsetReason,
         employeeName: user.name,
+        attachments,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
       setOffsetHours('');
       setOffsetReason('');
+      offsetFiles.clear();
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -99,17 +112,20 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
     setSilSubmitting(true);
     try {
+      const attachments = await silFiles.upload();
       await silService.applySilLeave({
         employeeId: user.id,
         date: silDate,
         hours: silHours,
         reason: silReason,
         employeeName: user.name,
+        attachments,
       });
       toast.success('SIL leave application submitted!');
       setSilDate('');
       setSilHours('');
       setSilReason('');
+      silFiles.clear();
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -198,12 +214,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
+              <AttachmentField
+                label="Supporting Files"
+                attachments={otFiles}
+                disabled={otSubmitting}
+                hint={`Optional — approval email, logbook photo, or similar. Up to ${otFiles.max} files, 10.0 MB each.`}
+              />
               <Button
                 type="submit"
                 disabled={otSubmitting}
                 className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer mt-4"
               >
-                {otSubmitting ? 'Submitting...' : 'Submit Request'}
+                {otSubmitting
+                  ? otFiles.isUploading
+                    ? 'Uploading files...'
+                    : 'Submitting...'
+                  : 'Submit Request'}
               </Button>
             </form>
           )}
@@ -256,12 +282,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
+              <AttachmentField
+                label="Supporting Files"
+                attachments={offsetFiles}
+                disabled={offsetSubmitting}
+                hint={`Optional — up to ${offsetFiles.max} files, 10.0 MB each. Images, PDFs and documents.`}
+              />
               <Button
                 type="submit"
                 disabled={offsetSubmitting}
                 className="w-full h-11 rounded-xl font-bold bg-blue-9 hover:bg-blue-10 text-white shadow-md cursor-pointer mt-4"
               >
-                {offsetSubmitting ? 'Submitting...' : 'Apply for Leave'}
+                {offsetSubmitting
+                  ? offsetFiles.isUploading
+                    ? 'Uploading files...'
+                    : 'Submitting...'
+                  : 'Apply for Leave'}
               </Button>
             </form>
           )}
@@ -314,12 +350,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
+              <AttachmentField
+                label="Supporting Files"
+                attachments={silFiles}
+                disabled={silSubmitting}
+                hint={`Optional — medical certificate or similar. Up to ${silFiles.max} files, 10.0 MB each.`}
+              />
               <Button
                 type="submit"
                 disabled={silSubmitting}
                 className="w-full h-11 rounded-xl font-bold bg-green-9 hover:bg-green-10 text-white shadow-md cursor-pointer mt-4"
               >
-                {silSubmitting ? 'Submitting...' : 'Apply for Leave'}
+                {silSubmitting
+                  ? silFiles.isUploading
+                    ? 'Uploading files...'
+                    : 'Submitting...'
+                  : 'Apply for Leave'}
               </Button>
             </form>
           )}

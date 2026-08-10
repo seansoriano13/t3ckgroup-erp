@@ -1,12 +1,19 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { Target } from "lucide-react";
 import HRFormModal from "../hr/HRFormModal";
 import { TextField, SelectField } from "./SorField";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
-import { LEAD_SOURCES, PROJECT_TYPES } from "../../constants/sor";
+import {
+  LEAD_SOURCES,
+  PROJECT_TYPES,
+  isValidSalesReference,
+  normalizeSalesReference,
+  SALES_REFERENCE_HINT,
+} from "../../constants/sor";
 
 const FORM_ID = "opportunity-form";
 
@@ -18,6 +25,7 @@ const blankForm = () => ({
   contact_person: "",
   project_title: "",
   project_type: "SSP",
+  sales_reference: "",
   expected_award_date: "",
   deal_owner_id: "",
   support_sales_1_id: "",
@@ -33,6 +41,7 @@ const fromRecord = (o) => ({
   contact_person: o.contact_person || "",
   project_title: o.project_title || "",
   project_type: o.project_type || "SSP",
+  sales_reference: o.sales_reference || "",
   expected_award_date: o.expected_award_date || "",
   deal_owner_id: o.deal_owner_id || "",
   support_sales_1_id: o.support_sales_1_id || "",
@@ -94,8 +103,9 @@ export default function OpportunityFormModal({
     setItems(isEdit ? (existingItems || []).map(toRow) : []);
   }
 
+  // Super admins are selectable: some of them carry deals of their own, and
+  // excluding them made those opportunities impossible to attribute correctly.
   const employeeOptions = employees
-    .filter((e) => !e.isSuperAdmin)
     .map((e) => ({
       value: e.id,
       label: e.subDepartment ? `${e.name} — ${e.subDepartment}` : e.name,
@@ -107,7 +117,12 @@ export default function OpportunityFormModal({
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit({ ...form, items });
+    const sales_reference = normalizeSalesReference(form.sales_reference);
+    if (sales_reference && !isValidSalesReference(sales_reference)) {
+      toast.error(SALES_REFERENCE_HINT);
+      return;
+    }
+    onSubmit({ ...form, sales_reference, items });
   };
 
   return (
@@ -191,7 +206,19 @@ export default function OpportunityFormModal({
             value={form.expected_award_date}
             onChange={set("expected_award_date")}
           />
+          <TextField
+            label="Sales Reference"
+            placeholder="e.g. S01237"
+            value={form.sales_reference}
+            onChange={set("sales_reference")}
+            className="sm:col-span-2"
+          />
         </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          The Odoo sales quotation number. It confirms a quotation has been
+          issued, and is required before this opportunity can move from Lead to
+          Qualified — leave it blank until the quotation exists.
+        </p>
 
         <div className="pt-2 border-t border-border/50">
           <OpportunityItemsEditor items={items} onChange={setItems} />

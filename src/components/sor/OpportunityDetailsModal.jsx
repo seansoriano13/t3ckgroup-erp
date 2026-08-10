@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { X, Target, Send, Pencil, Trash2, Sparkles } from "lucide-react";
+import { X, Target, Send, Pencil, Trash2, Sparkles, Paperclip } from "lucide-react";
 import ModalOverlay from "../ui/ModalOverlay";
 import Spinner from "../ui/Spinner";
 import Avatar from "../Avatar";
@@ -9,11 +9,18 @@ import StatusBadge from "../StatusBadge";
 import { opportunityService } from "../../services/opportunityService";
 import { useAuth } from "../../context/AuthContext";
 import { confirmDeleteToast } from "../ui/CustomToast";
+import { AttachmentPreviews, AttachmentList } from "../ui/Attachments";
+import { useFileAttachments } from "../../hooks/useFileAttachments";
+import { MAX_ATTACHMENT_BYTES, formatBytes } from "../../utils/attachments";
 import {
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
   formatLeadSource,
   formatPHP,
+  isValidSalesReference,
+  normalizeSalesReference,
+  requiresSalesReference,
+  SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 
 function Detail({ label, children }) {
@@ -97,8 +104,28 @@ export default function OpportunityDetailsModal({
   const [note, setNote] = useState("");
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
+  const [salesRef, setSalesRef] = useState("");
+  const attachments = useFileAttachments();
+  const { files, isUploading } = attachments;
+  const fileInputRef = useRef(null);
 
   const id = opportunity?.id;
+
+  // This component stays mounted while only the Dialog content unmounts, so
+  // without this the draft note, its pending files, and a half-answered stage
+  // prompt would carry over to the next opportunity opened. Render-phase sync
+  // rather than an effect, matching OpportunityFormModal.
+  const currentKey = `${id || "none"}:${isOpen}`;
+  const [draftKey, setDraftKey] = useState(currentKey);
+
+  if (currentKey !== draftKey) {
+    setDraftKey(currentKey);
+    setNote("");
+    setPendingStage("");
+    setLostReason("");
+    setSalesRef("");
+    attachments.clear();
+  }
 
   const { data: notes = [], isLoading: loadingNotes } = useQuery({
     queryKey: ["opportunityNotes", id],
@@ -118,20 +145,23 @@ export default function OpportunityDetailsModal({
   };
 
   const addNoteMutation = useMutation({
-    mutationFn: (content) => opportunityService.addNote(id, user?.id, content),
+    mutationFn: ({ content, attachments }) =>
+      opportunityService.addNote(id, user?.id, content, attachments),
     onSuccess: () => {
       setNote("");
+      attachments.clear();
       invalidate();
     },
     onError: (err) => toast.error(err.message),
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason }) =>
-      opportunityService.updateStatus(id, next, user?.id, reason),
+    mutationFn: ({ next, reason, salesReference }) =>
+      opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
     onSuccess: () => {
       setPendingStage("");
       setLostReason("");
+      setSalesRef("");
       invalidate();
       toast.success("Stage updated.");
     },
@@ -148,18 +178,52 @@ export default function OpportunityDetailsModal({
     onError: (err) => toast.error(err.message),
   });
 
+  const handlePostNote = async () => {
+    const content = note.trim();
+    if (!content && files.length === 0) return;
+    if (isUploading || addNoteMutation.isPending) return;
+
+    let uploaded = [];
+    try {
+      uploaded = await attachments.upload();
+    } catch (err) {
+      toast.error(`Upload failed: ${err.message}`);
+      return;
+    }
+
+    addNoteMutation.mutate({ content, attachments: uploaded });
+  };
+
   if (!opportunity) return null;
 
   const isLostPending = pendingStage === "CLOSED_LOST";
+  const needsSalesRef =
+    !!pendingStage &&
+    requiresSalesReference(opportunity.status, pendingStage) &&
+    !opportunity.sales_reference;
+  const salesRefValid = isValidSalesReference(salesRef);
 
   const handleStageChange = (next) => {
     if (!next || next === opportunity.status) return;
-    if (next === "CLOSED_LOST") {
+    // Both branches need something typed before the move can be written, so
+    // they park the choice in `pendingStage` and prompt for it inline.
+    if (
+      next === "CLOSED_LOST" ||
+      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
+    ) {
       setPendingStage(next);
       return;
     }
-    stageMutation.mutate({ next, reason: null });
+    stageMutation.mutate({ next, reason: null, salesReference: null });
   };
+
+  const cancelPendingStage = () => {
+    setPendingStage("");
+    setLostReason("");
+    setSalesRef("");
+  };
+
+  const isPosting = isUploading || addNoteMutation.isPending;
 
   return (
     <ModalOverlay isOpen={isOpen} onClose={onClose}>
@@ -227,6 +291,15 @@ export default function OpportunityDetailsModal({
             </Detail>
             <Detail label="Expected Value">
               {formatPHP(opportunity.expected_value)}
+            </Detail>
+            <Detail label="Sales Reference">
+              {opportunity.sales_reference ? (
+                <span className="font-mono">{opportunity.sales_reference}</span>
+              ) : opportunity.status === "LEAD" ? (
+                <span className="text-amber-11 font-medium text-xs">
+                  Required to qualify
+                </span>
+              ) : null}
             </Detail>
             <Detail label="Registered">{opportunity.registration_date}</Detail>
             <Detail label="Expected Award">
@@ -312,6 +385,7 @@ export default function OpportunityDetailsModal({
                     stageMutation.mutate({
                       next: "CLOSED_LOST",
                       reason: lostReason.trim(),
+                      salesReference: null,
                     })
                   }
                   className="h-10 px-4 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-[13px] transition-all disabled:opacity-50"
@@ -319,14 +393,64 @@ export default function OpportunityDetailsModal({
                   Confirm
                 </button>
                 <button
-                  onClick={() => {
-                    setPendingStage("");
-                    setLostReason("");
-                  }}
+                  onClick={cancelPendingStage}
                   className="h-10 px-3 rounded-xl text-muted-foreground hover:text-foreground font-bold text-[13px]"
                 >
                   Cancel
                 </button>
+              </div>
+            )}
+
+            {needsSalesRef && (
+              <div className="mt-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 bg-muted/30 border border-border rounded-xl p-3 focus-within:border-mauve-7">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+                      Sales Reference
+                      <span className="text-red-500 ml-0.5">*</span>
+                    </label>
+                    <input
+                      autoFocus
+                      value={salesRef}
+                      onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
+                      placeholder="e.g. S01237"
+                      className="w-full bg-transparent text-sm text-foreground outline-none font-medium font-mono uppercase"
+                    />
+                  </div>
+                  <button
+                    disabled={!salesRefValid || stageMutation.isPending}
+                    onClick={() =>
+                      stageMutation.mutate({
+                        next: pendingStage,
+                        reason: null,
+                        salesReference: normalizeSalesReference(salesRef),
+                      })
+                    }
+                    className="h-10 px-4 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-[13px] transition-all disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={cancelPendingStage}
+                    className="h-10 px-3 rounded-xl text-muted-foreground hover:text-foreground font-bold text-[13px]"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p
+                  className={`text-[11px] mt-1.5 leading-relaxed ${
+                    salesRef && !salesRefValid
+                      ? "text-red-500 font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {salesRef && !salesRefValid
+                    ? SALES_REFERENCE_HINT
+                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${
+                        OPPORTUNITY_STAGES.find((s) => s.value === pendingStage)?.label ||
+                        pendingStage
+                      }.`}
+                </p>
               </div>
             )}
           </div>
@@ -366,15 +490,21 @@ export default function OpportunityDetailsModal({
                           {formatWhen(n.created_at)}
                         </span>
                       </p>
-                      <p
-                        className={`text-sm break-words ${
-                          n.type === "SYSTEM"
-                            ? "text-muted-foreground italic"
-                            : "text-foreground"
-                        }`}
-                      >
-                        {n.content}
-                      </p>
+                      {n.content && (
+                        <p
+                          className={`text-sm break-words ${
+                            n.type === "SYSTEM"
+                              ? "text-muted-foreground italic"
+                              : "text-foreground"
+                          }`}
+                        >
+                          {n.content}
+                        </p>
+                      )}
+                      <AttachmentList
+                        attachments={n.metadata?.attachments}
+                        className={n.content ? "mt-2" : "mt-1"}
+                      />
                     </div>
                   </li>
                 ))}
@@ -382,33 +512,66 @@ export default function OpportunityDetailsModal({
             )}
 
             <form
-              className="mt-4 flex items-end gap-2"
+              className="mt-4"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (note.trim()) addNoteMutation.mutate(note);
+                handlePostNote();
               }}
             >
-              <div className="flex-1 bg-muted/30 border border-border rounded-xl p-3 focus-within:border-mauve-7">
-                <textarea
-                  rows={2}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="Add a note — client meeting, bid status, follow-up…"
-                  className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium resize-none"
-                />
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  attachments.addFiles(e.target.files);
+                  e.target.value = "";
+                }}
+              />
+
+              {files.length > 0 && (
+                <div className="mb-2">
+                  <AttachmentPreviews
+                    files={files}
+                    onRemove={attachments.removeFile}
+                    disabled={isPosting}
+                  />
+                </div>
+              )}
+
+              <div className="flex items-end gap-2">
+                <div className="flex-1 bg-muted/30 border border-border rounded-xl p-3 focus-within:border-mauve-7">
+                  <textarea
+                    rows={2}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    onPaste={attachments.addFromPaste}
+                    placeholder="Add a note — client meeting, bid status, follow-up…"
+                    className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium resize-none"
+                  />
+                </div>
+                <button
+                  type="button"
+                  title={`Attach files (max ${attachments.max})`}
+                  disabled={isPosting || files.length >= attachments.max}
+                  onClick={() => fileInputRef.current?.click()}
+                  className="h-10 w-10 rounded-xl border border-border bg-muted/30 text-muted-foreground hover:text-foreground hover:border-mauve-7 transition-all disabled:opacity-50 flex items-center justify-center shrink-0"
+                >
+                  <Paperclip size={15} />
+                </button>
+                <button
+                  type="submit"
+                  disabled={(!note.trim() && files.length === 0) || isPosting}
+                  className="h-10 px-4 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-[13px] transition-all disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
+                  {isUploading ? "Uploading" : "Post"}
+                </button>
               </div>
-              <button
-                type="submit"
-                disabled={!note.trim() || addNoteMutation.isPending}
-                className="h-10 px-4 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground font-bold text-[13px] transition-all disabled:opacity-50 flex items-center gap-1.5"
-              >
-                {addNoteMutation.isPending ? (
-                  <Spinner size="sm" />
-                ) : (
-                  <Send size={13} />
-                )}
-                Post
-              </button>
+              <p className="text-[10px] text-muted-foreground/70 mt-1.5">
+                Attach or paste up to {attachments.max} files —{" "}
+                {formatBytes(MAX_ATTACHMENT_BYTES)} each.
+              </p>
             </form>
           </div>
         </div>

@@ -1,6 +1,13 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { STAGE_LABELS, formatPHP } from "../constants/sor";
+import {
+  STAGE_LABELS,
+  formatPHP,
+  isValidSalesReference,
+  normalizeSalesReference,
+  requiresSalesReference,
+  SALES_REFERENCE_HINT,
+} from "../constants/sor";
 
 const PARTICIPANT_SELECT = `
   *,
@@ -10,6 +17,18 @@ const PARTICIPANT_SELECT = `
   support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
   sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)
 `;
+
+/**
+ * Trims/uppercases a Sales Reference and rejects anything that isn't an Odoo
+ * quotation number. Empty is allowed here — the stage gate is what makes it
+ * mandatory, not the field itself.
+ */
+function cleanSalesReference(value) {
+  const ref = normalizeSalesReference(value);
+  if (!ref) return null;
+  if (!isValidSalesReference(ref)) throw new Error(SALES_REFERENCE_HINT);
+  return ref;
+}
 
 export const opportunityService = {
   async getOpportunities() {
@@ -53,6 +72,7 @@ export const opportunityService = {
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: payload.project_type,
+        sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -102,6 +122,7 @@ export const opportunityService = {
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: payload.project_type,
+        sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -130,6 +151,7 @@ export const opportunityService = {
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
+    checkField('sales_reference', 'Sales Reference');
     checkField('expected_award_date', 'Expected Award Date');
 
     const checkEmployee = (idField, objField, label) => {
@@ -207,29 +229,63 @@ export const opportunityService = {
 
   /**
    * Moves an opportunity to a new pipeline stage and records the move on its
-   * timeline. `lostReason` is required when moving to CLOSED_LOST.
+   * timeline. `lostReason` is required when moving to CLOSED_LOST;
+   * `salesReference` is required when leaving Lead and none is on record yet
+   * (mirrored by a trigger — see migration 0011).
    */
-  async updateStatus(id, nextStatus, actorId, lostReason = null) {
+  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, opportunity_no, status")
+      .select("id, opportunity_no, status, sales_reference")
       .eq("id", id)
       .single();
     if (readError) throw readError;
 
     if (existing.status === nextStatus) return existing;
 
+    const providedRef = cleanSalesReference(salesReference);
+
+    if (
+      requiresSalesReference(existing.status, nextStatus) &&
+      !(providedRef || existing.sales_reference)
+    ) {
+      throw new Error(
+        "A Sales Reference is required before this opportunity can leave Lead — enter the Odoo sales quotation number (e.g. S01237).",
+      );
+    }
+
+    const patch = {
+      status: nextStatus,
+      lost_reason: nextStatus === "CLOSED_LOST" ? lostReason : null,
+    };
+    const recordsRef = providedRef && providedRef !== existing.sales_reference;
+    if (recordsRef) patch.sales_reference = providedRef;
+
     const { data, error } = await supabase
       .from("sales_opportunities")
-      .update({
-        status: nextStatus,
-        lost_reason: nextStatus === "CLOSED_LOST" ? lostReason : null,
-      })
+      .update(patch)
       .eq("id", id)
       .select(PARTICIPANT_SELECT)
       .single();
 
     if (error) throw error;
+
+    if (recordsRef) {
+      await opportunityService.addSystemNote(
+        id,
+        `Sales Reference recorded: ${providedRef}`,
+        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
+        actorId,
+      );
+
+      systemAuditLogService.addSystemEvent(
+        "OPPORTUNITY",
+        id,
+        `Sales opportunity ${existing.opportunity_no}: Sales Reference recorded as ${providedRef}.`,
+        { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
+        actorId,
+      ).catch(console.error);
+    }
 
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
@@ -337,9 +393,17 @@ export const opportunityService = {
     return data || [];
   },
 
-  async addNote(opportunityId, authorId, content) {
+  /**
+   * `attachments` are Cloudinary descriptors ({ url, name, type, bytes }) —
+   * uploaded by the caller before the note is written, and stored on the log's
+   * existing `metadata` column the same way task comments store theirs. A note
+   * carrying files needs no text.
+   */
+  async addNote(opportunityId, authorId, content, attachments = []) {
     const trimmed = (content || "").trim();
-    if (!trimmed) throw new Error("Note cannot be empty.");
+    const files = (attachments || []).filter((a) => a?.url);
+    if (!trimmed && files.length === 0)
+      throw new Error("Add a note or attach a file.");
 
     const { data, error } = await supabase
       .from("sales_opportunity_logs")
@@ -348,6 +412,7 @@ export const opportunityService = {
         author_id: authorId,
         type: "COMMENT",
         content: trimmed,
+        metadata: files.length > 0 ? { attachments: files } : null,
       })
       .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
       .single();

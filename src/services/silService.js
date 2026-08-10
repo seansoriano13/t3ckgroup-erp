@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
+import { cleanAttachments } from './offsetService';
 
 /**
  * Credits refunded SIL hours back onto an employee's balance, capped at the
@@ -41,7 +42,7 @@ export const silService = {
   /**
    * Apply for SIL Leave (Employee)
    */
-  async applySilLeave({ employeeId, date, hours, reason, employeeName }) {
+  async applySilLeave({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
     const parsedHours = parseFloat(hours);
     if (isNaN(parsedHours) || parsedHours <= 0) {
       throw new Error('Please enter a valid positive number of hours.');
@@ -74,6 +75,7 @@ export const silService = {
           hours: parsedHours,
           reason,
           status: 'PENDING',
+          attachments: cleanAttachments(attachments),
         },
       ])
       .select()

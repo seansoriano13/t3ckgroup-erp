@@ -120,6 +120,7 @@ export default function OpportunitiesPage() {
       if (!q) return true;
       return [
         o.opportunity_no,
+        o.sales_reference,
         o.client_name,
         o.project_title,
         o.deal_owner?.name,
@@ -252,7 +253,7 @@ export default function OpportunitiesPage() {
                 </div>
               </div>
             ) : isPrivileged ? (
-              opportunities.some((o) => o.deal_owner && !o.deal_owner.is_super_admin) ? (
+              opportunities.some((o) => o.deal_owner) ? (
                 <EmployeeOpportunityMatrix opportunities={opportunities} />
               ) : (
                 <OverviewEmptyState />
@@ -304,6 +305,7 @@ export default function OpportunitiesPage() {
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
                     <th className="text-left font-bold px-4 py-3">No.</th>
+                    <th className="text-left font-bold px-4 py-3">Sales Ref.</th>
                     <th className="text-left font-bold px-4 py-3">Date</th>
                     <th className="text-left font-bold px-4 py-3">Lead Source</th>
                     <th className="text-left font-bold px-4 py-3">Client</th>
@@ -323,6 +325,11 @@ export default function OpportunitiesPage() {
                     >
                       <td className="px-4 py-3 font-mono text-xs font-bold text-primary whitespace-nowrap">
                         {o.opportunity_no}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
+                        {o.sales_reference || (
+                          <span className="text-muted-foreground/50">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
                         {o.registration_date}

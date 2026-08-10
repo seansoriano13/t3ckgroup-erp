@@ -84,6 +84,32 @@ export const PROJECT_TYPE_SHORT = {
   STRATEGIC: "Strategic",
 };
 
+// ── Sales Reference (Odoo sales quotation no.) ──────────────────────────────
+// The "S" number Odoo issues when the quotation is created, e.g. S01237. It is
+// the evidence a quotation exists, which is what makes a lead qualified.
+// Kept permissive on width to match the DB CHECK in migration 0011.
+
+export const SALES_REFERENCE_PATTERN = /^S\d+$/;
+
+export const SALES_REFERENCE_HINT =
+  'Sales Reference must be the Odoo quotation number — "S" followed by digits, e.g. S01237.';
+
+export const normalizeSalesReference = (value) =>
+  (value || "").trim().toUpperCase();
+
+export const isValidSalesReference = (value) =>
+  SALES_REFERENCE_PATTERN.test(normalizeSalesReference(value));
+
+/**
+ * Whether a stage move requires a Sales Reference to already be on record.
+ * Only moves *out of* Lead are gated: rows registered before this field
+ * existed keep advancing, and a lead can still be lost before it is quoted.
+ */
+export const requiresSalesReference = (fromStatus, toStatus) =>
+  fromStatus === OPPORTUNITY_STATUS.LEAD &&
+  toStatus !== OPPORTUNITY_STATUS.LEAD &&
+  toStatus !== OPPORTUNITY_STATUS.CLOSED_LOST;
+
 /** Formats a PHP amount for display. */
 export const formatPHP = (amount) =>
   `₱${Number(amount || 0).toLocaleString("en-PH", {

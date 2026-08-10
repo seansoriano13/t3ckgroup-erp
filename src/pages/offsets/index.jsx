@@ -13,6 +13,7 @@ import FloatingMonthPicker from '../../components/FloatingMonthPicker';
 import NotionLeaveCalendar from '../../components/hr/NotionLeaveCalendar';
 import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
+import { AttachmentList } from '../../components/ui/Attachments';
 
 export default function EmployeeLeavesPage() {
   const { user } = useAuth();
@@ -261,6 +262,7 @@ export default function EmployeeLeavesPage() {
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Date Worked</th>
                       <th className="p-4">Hours</th>
+                      <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
                       <th className="p-4">HR Notes</th>
                       <th className="p-4 text-right">Actions</th>
@@ -279,6 +281,13 @@ export default function EmployeeLeavesPage() {
                           <span className="font-black text-primary bg-primary/10 px-2 py-0.5 rounded text-xs border border-primary/20">
                             {req.hours} hrs
                           </span>
+                        </td>
+                        <td className="p-4">
+                          {req.attachments?.length ? (
+                            <AttachmentList attachments={req.attachments} compact />
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">-</span>
+                          )}
                         </td>
                         <td className="p-4">
                           {getStatusBadge(req.status)}
@@ -349,6 +358,7 @@ export default function EmployeeLeavesPage() {
                       <th className="p-4">Leave Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
+                      <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
                       <th className="p-4">HR Notes</th>
                       <th className="p-4 text-right">Actions</th>
@@ -375,6 +385,13 @@ export default function EmployeeLeavesPage() {
                         </td>
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
                           {req.reason || '-'}
+                        </td>
+                        <td className="p-4">
+                          {req.attachments?.length ? (
+                            <AttachmentList attachments={req.attachments} compact />
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">-</span>
+                          )}
                         </td>
                         <td className="p-4">
                           {getStatusBadge(req.status)}
