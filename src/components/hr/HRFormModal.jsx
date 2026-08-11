@@ -12,6 +12,8 @@ export default function HRFormModal({
   subtitle,
   icon: Icon,
   iconColor = "text-mauve-9",
+  /** Short text (1-3 chars) for the header chip instead of an icon — e.g. "OPP". */
+  badge,
   formId,
   isPending,
   submitLabel = "Save Changes",
@@ -26,12 +28,18 @@ export default function HRFormModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-border/60 shrink-0">
           <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
-            {Icon && (
-              <div
-                className={`w-[18px] h-[18px] rounded flex items-center justify-center bg-primary/10 ${iconColor} shrink-0`}
-              >
-                <Icon size={11} strokeWidth={2.5} />
+            {badge ? (
+              <div className="w-[18px] h-[18px] rounded flex items-center justify-center bg-primary text-[9px] font-bold text-primary-foreground shrink-0">
+                {badge.toUpperCase()}
               </div>
+            ) : (
+              Icon && (
+                <div
+                  className={`w-[18px] h-[18px] rounded flex items-center justify-center bg-primary/10 ${iconColor} shrink-0`}
+                >
+                  <Icon size={11} strokeWidth={2.5} />
+                </div>
+              )
             )}
             <ChevronDown
               size={11}

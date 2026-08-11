@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Target, Download, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import HRFormModal from "../hr/HRFormModal";
 import { TextField, SelectField } from "./SorField";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
@@ -170,8 +170,7 @@ export default function OpportunityFormModal({
       isOpen={isOpen}
       onClose={onClose}
       title={isEdit ? `Opportunity ${opportunity.opportunity_no}` : "Register Opportunity"}
-      subtitle={isEdit ? "Edit" : "New"}
-      icon={Target}
+      badge="OPP"
       formId={FORM_ID}
       isPending={isPending}
       submitLabel={isEdit ? "Save Changes" : "Register"}
