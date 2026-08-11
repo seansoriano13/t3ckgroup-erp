@@ -371,7 +371,7 @@ export default function OpportunityDetailsModal({
       if (!result?.success) {
         toast.error(
           result?.message ||
-            "Could not fetch items from Odoo — enter them manually.",
+          "Could not fetch items from Odoo — enter them manually.",
         );
         return;
       }
@@ -469,7 +469,7 @@ export default function OpportunityDetailsModal({
   const stageControl = (
     <div className="relative w-full">
       <div ref={scrollRef} className="overflow-x-auto pb-2">
-        <ul className="flex h-11 min-w-full w-max gap-[2px]">
+        <ul className="flex h-11 min-w-full w-max gap-[2px] mb-2">
           {OPPORTUNITY_STAGES.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -739,10 +739,9 @@ export default function OpportunityDetailsModal({
                 >
                   {salesRef && !salesRefValid
                     ? SALES_REFERENCE_HINT
-                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${
-                        OPPORTUNITY_STAGES.find((s) => s.value === pendingStage)?.label ||
-                        pendingStage
-                      }.`}
+                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${OPPORTUNITY_STAGES.find((s) => s.value === pendingStage)?.label ||
+                    pendingStage
+                    }.`}
                 </p>
               </div>
             )}
@@ -762,491 +761,491 @@ export default function OpportunityDetailsModal({
             {/* LEFT COLUMN */}
             <div className="flex flex-col gap-6 lg:col-span-1">
               {/* Left Box: Estimated Value */}
-            <div className="flex min-w-0 flex-col justify-center rounded-xl border border-border bg-muted/30 p-6 ">
-              <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Estimated Value
-              </p>
-              {isEditing ? (
-                <div className="flex items-center text-3xl font-black tracking-tight text-foreground lg:text-4xl">
-                  <span className="mr-2 text-muted-foreground/50">₱</span>
-                  <input
-                    type="text"
-                    value={(() => {
-                      const val = editForm.expected_value;
-                      if (!val) return "";
-                      const parts = val.toString().split(".");
-                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-                      return parts.join(".");
-                    })()}
-                    onChange={(e) => {
-                      let raw = e.target.value.replace(/[^0-9.]/g, '');
-                      const parts = raw.split('.');
-                      if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
-                      setEditForm(f => ({ ...f, expected_value: raw }));
-                    }}
-                    className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
-                    placeholder="0.00"
-                  />
-                </div>
-              ) : (
-                <p className="text-3xl font-black tracking-tight break-words text-foreground tabular-nums lg:text-4xl">
-                  {formatPHP(opportunity.expected_value)}
+              <div className="flex min-w-0 flex-col justify-center rounded-xl border border-border bg-muted/30 p-6 ">
+                <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  Estimated Value
                 </p>
-              )}
-            </div>
+                {isEditing ? (
+                  <div className="flex items-center text-3xl font-black tracking-tight text-foreground lg:text-4xl">
+                    <span className="mr-2 text-muted-foreground/50">₱</span>
+                    <input
+                      type="text"
+                      value={(() => {
+                        const val = editForm.expected_value;
+                        if (!val) return "";
+                        const parts = val.toString().split(".");
+                        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                        return parts.join(".");
+                      })()}
+                      onChange={(e) => {
+                        let raw = e.target.value.replace(/[^0-9.]/g, '');
+                        const parts = raw.split('.');
+                        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+                        setEditForm(f => ({ ...f, expected_value: raw }));
+                      }}
+                      className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
+                      placeholder="0.00"
+                    />
+                  </div>
+                ) : (
+                  <p className="text-3xl font-black tracking-tight break-words text-foreground tabular-nums lg:text-4xl">
+                    {formatPHP(opportunity.expected_value)}
+                  </p>
+                )}
+              </div>
               {/* Left Box 2: People Roster */}
-            <div className="rounded-xl border border-border/50 p-6 ">
-              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                People
-              </p>
-              {isEditing ? (
-                <div className="space-y-4">
-                  <Detail
-                    label="Deal Owner"
-                    isEditing={isEditing}
-                    control={
-                      <Dropdown
-                        usePortal
-                        className="w-full"
-                        trigger={({ isOpen }) => (
-                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                            <span className={editForm.deal_owner_id ? "text-foreground" : "text-muted-foreground/50"}>
-                              {editForm.deal_owner_id ? employees.find(e => e.id === editForm.deal_owner_id)?.name : "Unassigned"}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <FilterOptionList
-                            options={employees.map(e => ({ value: e.id, label: e.name }))}
-                            value={editForm.deal_owner_id}
-                            onChange={(val) => setEditForm(f => ({ ...f, deal_owner_id: val }))}
-                            close={close}
-                          />
-                        )}
-                      </Dropdown>
-                    }
-                  />
-                  <Detail
-                    label="Sales Director"
-                    isEditing={isEditing}
-                    control={
-                      <Dropdown
-                        usePortal
-                        className="w-full"
-                        trigger={({ isOpen }) => (
-                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                            <span className={editForm.sales_director_id ? "text-foreground" : "text-muted-foreground/50"}>
-                              {editForm.sales_director_id ? employees.find(e => e.id === editForm.sales_director_id)?.name : "Unassigned"}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <FilterOptionList
-                            options={employees.map(e => ({ value: e.id, label: e.name }))}
-                            value={editForm.sales_director_id}
-                            onChange={(val) => setEditForm(f => ({ ...f, sales_director_id: val }))}
-                            close={close}
-                          />
-                        )}
-                      </Dropdown>
-                    }
-                  />
-                  <Detail
-                    label="Support Sales 1"
-                    isEditing={isEditing}
-                    control={
-                      <Dropdown
-                        usePortal
-                        className="w-full"
-                        trigger={({ isOpen }) => (
-                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                            <span className={editForm.support_sales_1_id ? "text-foreground" : "text-muted-foreground/50"}>
-                              {editForm.support_sales_1_id ? employees.find(e => e.id === editForm.support_sales_1_id)?.name : "Unassigned"}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <FilterOptionList
-                            options={employees.map(e => ({ value: e.id, label: e.name }))}
-                            value={editForm.support_sales_1_id}
-                            onChange={(val) => setEditForm(f => ({ ...f, support_sales_1_id: val }))}
-                            close={close}
-                          />
-                        )}
-                      </Dropdown>
-                    }
-                  />
-                  <Detail
-                    label="Support Sales 2"
-                    isEditing={isEditing}
-                    control={
-                      <Dropdown
-                        usePortal
-                        className="w-full"
-                        trigger={({ isOpen }) => (
-                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                            <span className={editForm.support_sales_2_id ? "text-foreground" : "text-muted-foreground/50"}>
-                              {editForm.support_sales_2_id ? employees.find(e => e.id === editForm.support_sales_2_id)?.name : "Unassigned"}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <FilterOptionList
-                            options={employees.map(e => ({ value: e.id, label: e.name }))}
-                            value={editForm.support_sales_2_id}
-                            onChange={(val) => setEditForm(f => ({ ...f, support_sales_2_id: val }))}
-                            close={close}
-                          />
-                        )}
-                      </Dropdown>
-                    }
-                  />
-                </div>
-              ) : (
-                <PeopleRoster opportunity={opportunity} />
-              )}
-            </div>
+              <div className="rounded-xl border border-border/50 p-6 ">
+                <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  People
+                </p>
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <Detail
+                      label="Deal Owner"
+                      isEditing={isEditing}
+                      control={
+                        <Dropdown
+                          usePortal
+                          className="w-full"
+                          trigger={({ isOpen }) => (
+                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                              <span className={editForm.deal_owner_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                {editForm.deal_owner_id ? employees.find(e => e.id === editForm.deal_owner_id)?.name : "Unassigned"}
+                              </span>
+                            </div>
+                          )}
+                        >
+                          {({ close }) => (
+                            <FilterOptionList
+                              options={employees.map(e => ({ value: e.id, label: e.name }))}
+                              value={editForm.deal_owner_id}
+                              onChange={(val) => setEditForm(f => ({ ...f, deal_owner_id: val }))}
+                              close={close}
+                            />
+                          )}
+                        </Dropdown>
+                      }
+                    />
+                    <Detail
+                      label="Sales Director"
+                      isEditing={isEditing}
+                      control={
+                        <Dropdown
+                          usePortal
+                          className="w-full"
+                          trigger={({ isOpen }) => (
+                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                              <span className={editForm.sales_director_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                {editForm.sales_director_id ? employees.find(e => e.id === editForm.sales_director_id)?.name : "Unassigned"}
+                              </span>
+                            </div>
+                          )}
+                        >
+                          {({ close }) => (
+                            <FilterOptionList
+                              options={employees.map(e => ({ value: e.id, label: e.name }))}
+                              value={editForm.sales_director_id}
+                              onChange={(val) => setEditForm(f => ({ ...f, sales_director_id: val }))}
+                              close={close}
+                            />
+                          )}
+                        </Dropdown>
+                      }
+                    />
+                    <Detail
+                      label="Support Sales 1"
+                      isEditing={isEditing}
+                      control={
+                        <Dropdown
+                          usePortal
+                          className="w-full"
+                          trigger={({ isOpen }) => (
+                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                              <span className={editForm.support_sales_1_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                {editForm.support_sales_1_id ? employees.find(e => e.id === editForm.support_sales_1_id)?.name : "Unassigned"}
+                              </span>
+                            </div>
+                          )}
+                        >
+                          {({ close }) => (
+                            <FilterOptionList
+                              options={employees.map(e => ({ value: e.id, label: e.name }))}
+                              value={editForm.support_sales_1_id}
+                              onChange={(val) => setEditForm(f => ({ ...f, support_sales_1_id: val }))}
+                              close={close}
+                            />
+                          )}
+                        </Dropdown>
+                      }
+                    />
+                    <Detail
+                      label="Support Sales 2"
+                      isEditing={isEditing}
+                      control={
+                        <Dropdown
+                          usePortal
+                          className="w-full"
+                          trigger={({ isOpen }) => (
+                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                              <span className={editForm.support_sales_2_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                {editForm.support_sales_2_id ? employees.find(e => e.id === editForm.support_sales_2_id)?.name : "Unassigned"}
+                              </span>
+                            </div>
+                          )}
+                        >
+                          {({ close }) => (
+                            <FilterOptionList
+                              options={employees.map(e => ({ value: e.id, label: e.name }))}
+                              value={editForm.support_sales_2_id}
+                              onChange={(val) => setEditForm(f => ({ ...f, support_sales_2_id: val }))}
+                              close={close}
+                            />
+                          )}
+                        </Dropdown>
+                      }
+                    />
+                  </div>
+                ) : (
+                  <PeopleRoster opportunity={opportunity} />
+                )}
+              </div>
             </div>
 
             {/* RIGHT COLUMN */}
             <div className="flex flex-col gap-6 lg:col-span-2">
               {/* Right Box: Deal Details */}
-            <div className="rounded-xl border border-border/50 p-6 ">
-              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Deal Details
-              </p>
-              <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
-                <Detail
-                  label="Lead Source"
-                  isEditing={isEditing}
-                  control={
-                    <Dropdown
-                      usePortal
-                      className="w-full"
-                      trigger={({ isOpen }) => (
-                        <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
-                          <span className={`truncate ${editForm.lead_source ? "text-foreground" : "text-muted-foreground/50"}`}>
-                            {editForm.lead_source ? activeLeadSources.find(l => l.value === editForm.lead_source)?.label || editForm.lead_source : "Select..."}
-                          </span>
-                        </div>
-                      )}
-                    >
-                      {({ close }) => (
-                        <FilterOptionList
-                          options={activeLeadSources.map(s => ({ value: s.value, label: s.label }))}
-                          value={editForm.lead_source}
-                          onChange={(val) => setEditForm(f => ({ ...f, lead_source: val }))}
-                          close={close}
-                        />
-                      )}
-                    </Dropdown>
-                  }
-                >
-                  {formatLeadSource(opportunity.lead_source, opportunity.lead_source_detail, activeLeadSources)}
-                </Detail>
-
-                {editForm.lead_source === "OTHERS" && isEditing && (
+              <div className="rounded-xl border border-border/50 p-6 ">
+                <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  Deal Details
+                </p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
                   <Detail
-                    label="Lead Source Detail"
+                    label="Lead Source"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
+                            <span className={`truncate ${editForm.lead_source ? "text-foreground" : "text-muted-foreground/50"}`}>
+                              {editForm.lead_source ? activeLeadSources.find(l => l.value === editForm.lead_source)?.label || editForm.lead_source : "Select..."}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={activeLeadSources.map(s => ({ value: s.value, label: s.label }))}
+                            value={editForm.lead_source}
+                            onChange={(val) => setEditForm(f => ({ ...f, lead_source: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  >
+                    {formatLeadSource(opportunity.lead_source, opportunity.lead_source_detail, activeLeadSources)}
+                  </Detail>
+
+                  {editForm.lead_source === "OTHERS" && isEditing && (
+                    <Detail
+                      label="Lead Source Detail"
+                      isEditing={isEditing}
+                      control={
+                        <input
+                          type="text"
+                          value={editForm.lead_source_detail}
+                          onChange={(e) => setEditForm(f => ({ ...f, lead_source_detail: e.target.value }))}
+                          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                          placeholder="Specify..."
+                        />
+                      }
+                    />
+                  )}
+
+                  <Detail
+                    label="Sales Division"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
+                            <span className={`truncate ${editForm.project_type ? "text-foreground" : "text-muted-foreground/50"}`}>
+                              {editForm.project_type ? PROJECT_TYPES.find(pt => pt.value === editForm.project_type)?.label : "Select..."}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={PROJECT_TYPES}
+                            value={editForm.project_type}
+                            onChange={(val) => setEditForm(f => ({ ...f, project_type: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  >
+                    <span className="block truncate" title={PROJECT_TYPE_LABELS[opportunity.project_type]}>
+                      {PROJECT_TYPE_LABELS[opportunity.project_type]}
+                    </span>
+                  </Detail>
+                  <Detail
+                    label="Date Registered"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        placement="bottom-start"
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.registration_date ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.registration_date || "Select date..."}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <div className="p-1">
+                            <DatePicker
+                              selected={editForm.registration_date ? new Date(editForm.registration_date) : null}
+                              onChange={(date) => {
+                                if (!date) {
+                                  setEditForm(f => ({ ...f, registration_date: "" }));
+                                } else {
+                                  const y = date.getFullYear();
+                                  const m = String(date.getMonth() + 1).padStart(2, "0");
+                                  const d = String(date.getDate()).padStart(2, "0");
+                                  setEditForm(f => ({ ...f, registration_date: `${y}-${m}-${d}` }));
+                                }
+                                close();
+                              }}
+                              inline
+                            />
+                          </div>
+                        )}
+                      </Dropdown>
+                    }
+                  >
+                    {opportunity.registration_date}
+                  </Detail>
+                  <Detail
+                    label="Expected Award"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        placement="bottom-start"
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.expected_award_date ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.expected_award_date || "Select date..."}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <div className="p-1">
+                            <DatePicker
+                              selected={editForm.expected_award_date ? new Date(editForm.expected_award_date) : null}
+                              onChange={(date) => {
+                                if (!date) {
+                                  setEditForm(f => ({ ...f, expected_award_date: "" }));
+                                } else {
+                                  const y = date.getFullYear();
+                                  const m = String(date.getMonth() + 1).padStart(2, "0");
+                                  const d = String(date.getDate()).padStart(2, "0");
+                                  setEditForm(f => ({ ...f, expected_award_date: `${y}-${m}-${d}` }));
+                                }
+                                close();
+                              }}
+                              inline
+                            />
+                          </div>
+                        )}
+                      </Dropdown>
+                    }
+                  >
+                    {opportunity.expected_award_date}
+                  </Detail>
+                  <Detail
+                    label="Contact Person"
                     isEditing={isEditing}
                     control={
                       <input
                         type="text"
-                        value={editForm.lead_source_detail}
-                        onChange={(e) => setEditForm(f => ({ ...f, lead_source_detail: e.target.value }))}
+                        value={editForm.contact_person}
+                        onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
                         className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
-                        placeholder="Specify..."
+                        placeholder="e.g. Juan Dela Cruz"
                       />
                     }
-                  />
-                )}
-
-                <Detail
-                  label="Sales Division"
-                  isEditing={isEditing}
-                  control={
-                    <Dropdown
-                      usePortal
-                      className="w-full"
-                      trigger={({ isOpen }) => (
-                        <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
-                          <span className={`truncate ${editForm.project_type ? "text-foreground" : "text-muted-foreground/50"}`}>
-                            {editForm.project_type ? PROJECT_TYPES.find(pt => pt.value === editForm.project_type)?.label : "Select..."}
-                          </span>
-                        </div>
-                      )}
-                    >
-                      {({ close }) => (
-                        <FilterOptionList
-                          options={PROJECT_TYPES}
-                          value={editForm.project_type}
-                          onChange={(val) => setEditForm(f => ({ ...f, project_type: val }))}
-                          close={close}
-                        />
-                      )}
-                    </Dropdown>
-                  }
-                >
-                  <span className="block truncate" title={PROJECT_TYPE_LABELS[opportunity.project_type]}>
-                    {PROJECT_TYPE_LABELS[opportunity.project_type]}
-                  </span>
-                </Detail>
-                <Detail
-                  label="Date Registered"
-                  isEditing={isEditing}
-                  control={
-                    <Dropdown
-                      usePortal
-                      placement="bottom-start"
-                      className="w-full"
-                      trigger={({ isOpen }) => (
-                        <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
-                          <span className={editForm.registration_date ? "text-foreground" : "text-muted-foreground/50"}>
-                            {editForm.registration_date || "Select date..."}
-                          </span>
-                        </div>
-                      )}
-                    >
-                      {({ close }) => (
-                        <div className="p-1">
-                          <DatePicker
-                            selected={editForm.registration_date ? new Date(editForm.registration_date) : null}
-                            onChange={(date) => {
-                              if (!date) {
-                                setEditForm(f => ({ ...f, registration_date: "" }));
-                              } else {
-                                const y = date.getFullYear();
-                                const m = String(date.getMonth() + 1).padStart(2, "0");
-                                const d = String(date.getDate()).padStart(2, "0");
-                                setEditForm(f => ({ ...f, registration_date: `${y}-${m}-${d}` }));
-                              }
-                              close();
-                            }}
-                            inline
-                          />
-                        </div>
-                      )}
-                    </Dropdown>
-                  }
-                >
-                  {opportunity.registration_date}
-                </Detail>
-                <Detail
-                  label="Expected Award"
-                  isEditing={isEditing}
-                  control={
-                    <Dropdown
-                      usePortal
-                      placement="bottom-start"
-                      className="w-full"
-                      trigger={({ isOpen }) => (
-                        <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
-                          <span className={editForm.expected_award_date ? "text-foreground" : "text-muted-foreground/50"}>
-                            {editForm.expected_award_date || "Select date..."}
-                          </span>
-                        </div>
-                      )}
-                    >
-                      {({ close }) => (
-                        <div className="p-1">
-                          <DatePicker
-                            selected={editForm.expected_award_date ? new Date(editForm.expected_award_date) : null}
-                            onChange={(date) => {
-                              if (!date) {
-                                setEditForm(f => ({ ...f, expected_award_date: "" }));
-                              } else {
-                                const y = date.getFullYear();
-                                const m = String(date.getMonth() + 1).padStart(2, "0");
-                                const d = String(date.getDate()).padStart(2, "0");
-                                setEditForm(f => ({ ...f, expected_award_date: `${y}-${m}-${d}` }));
-                              }
-                              close();
-                            }}
-                            inline
-                          />
-                        </div>
-                      )}
-                    </Dropdown>
-                  }
-                >
-                  {opportunity.expected_award_date}
-                </Detail>
-                <Detail
-                  label="Contact Person"
-                  isEditing={isEditing}
-                  control={
-                    <input
-                      type="text"
-                      value={editForm.contact_person}
-                      onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
-                      className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
-                      placeholder="e.g. Juan Dela Cruz"
-                    />
-                  }
-                >
-                  {opportunity.contact_person}
-                </Detail>
-
-                {isEditing ? (
-                  <div className="flex gap-2 items-stretch col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 xl:col-span-1 2xl:col-span-2">
-                    <Detail
-                      label="Sales Reference"
-                      isEditing={true}
-                      wrapperClass="flex-1"
-                      control={
-                        <input
-                          type="text"
-                          value={editForm.sales_reference}
-                          onChange={(e) => setEditForm(f => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
-                          className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
-                          placeholder="e.g. S01237"
-                        />
-                      }
-                    />
-                    <button
-                      type="button"
-                      disabled={fetchingOdoo || !editForm.sales_reference}
-                      onClick={handleFetchFromOdoo}
-                      className="h-full min-h-[66px] px-4 rounded-xl border border-border flex items-center gap-2 text-[13px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
-                    >
-                      {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
-                      <span className="hidden sm:inline">Fetch Items</span>
-                    </button>
-                  </div>
-                ) : (
-                  <Detail label="Sales Reference">
-                    {opportunity.sales_reference ? (
-                      <span className="font-mono">{opportunity.sales_reference}</span>
-                    ) : opportunity.status === "LEAD" ? (
-                      <span className="text-xs font-medium text-amber-11">Required to qualify</span>
-                    ) : null}
+                  >
+                    {opportunity.contact_person}
                   </Detail>
-                )}
-              </div>
-            </div>
-              {/* Right Box 2: Log Notes */}
-            <div className="flex flex-col rounded-xl border border-border/50 p-6 ">
-              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Log Notes
-              </p>
 
-              <div className="min-h-[120px] flex-1 overflow-y-auto">
-                {loadingNotes ? (
-                  <Spinner size="sm" />
-                ) : notes.length === 0 ? (
-                  <p className="text-xs text-muted-foreground/70 italic">No notes yet.</p>
-                ) : (
-                  <ul className="space-y-3">
-                    {notes.map((n) => (
-                      <li key={n.id} className="flex gap-2.5">
-                        {n.type === "SYSTEM" ? (
-                          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                            <Sparkles size={12} />
-                          </div>
-                        ) : (
-                          <Avatar name={n.author?.name} src={n.author?.avatar_path} size="sm" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-semibold text-muted-foreground">
-                            {n.author?.name || (n.type === "SYSTEM" ? "System" : "Unknown")}
-                            <span className="font-normal text-muted-foreground/60">
-                              {" · "}
-                              {formatWhen(n.created_at)}
-                            </span>
-                          </p>
-                          {n.content && (
-                            <p
-                              className={cn(
-                                "text-sm break-words",
-                                n.type === "SYSTEM"
-                                  ? "text-muted-foreground italic"
-                                  : "text-foreground",
-                              )}
-                            >
-                              {n.content}
-                            </p>
-                          )}
-                          <AttachmentList
-                            attachments={n.metadata?.attachments}
-                            className={n.content ? "mt-2" : "mt-1"}
+                  {isEditing ? (
+                    <div className="flex gap-2 items-stretch col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 xl:col-span-1 2xl:col-span-2">
+                      <Detail
+                        label="Sales Reference"
+                        isEditing={true}
+                        wrapperClass="flex-1"
+                        control={
+                          <input
+                            type="text"
+                            value={editForm.sales_reference}
+                            onChange={(e) => setEditForm(f => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
+                            className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
+                            placeholder="e.g. S01237"
                           />
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="mt-4">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    handlePostNote();
-                  }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      attachments.addFiles(e.target.files);
-                      e.target.value = "";
-                    }}
-                  />
-
-                  {files.length > 0 && (
-                    <div className="mb-2">
-                      <AttachmentPreviews
-                        files={files}
-                        onRemove={attachments.removeFile}
-                        disabled={isPosting}
+                        }
                       />
+                      <button
+                        type="button"
+                        disabled={fetchingOdoo || !editForm.sales_reference}
+                        onClick={handleFetchFromOdoo}
+                        className="h-full min-h-[66px] px-4 rounded-xl border border-border flex items-center gap-2 text-[13px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
+                      >
+                        {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
+                        <span className="hidden sm:inline">Fetch Items</span>
+                      </button>
                     </div>
+                  ) : (
+                    <Detail label="Sales Reference">
+                      {opportunity.sales_reference ? (
+                        <span className="font-mono">{opportunity.sales_reference}</span>
+                      ) : opportunity.status === "LEAD" ? (
+                        <span className="text-xs font-medium text-amber-11">Required to qualify</span>
+                      ) : null}
+                    </Detail>
                   )}
-
-                  <div className="flex items-end gap-2">
-                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3.5 focus-within:border-mauve-7">
-                      <textarea
-                        rows={2}
-                        value={note}
-                        onChange={(e) => setNote(e.target.value)}
-                        onPaste={attachments.addFromPaste}
-                        placeholder="Add a note — client meeting, bid status, follow-up…"
-                        className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      title={`Attach files (max ${attachments.max})`}
-                      disabled={isPosting || files.length >= attachments.max}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30 text-muted-foreground transition-all hover:border-mauve-7 hover:text-foreground disabled:opacity-50"
-                    >
-                      <Paperclip size={15} />
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={(!note.trim() && files.length === 0) || isPosting}
-                      className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
-                    >
-                      {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
-                      {isUploading ? "Uploading" : "Post"}
-                    </button>
-                  </div>
-                  <p className="mt-1.5 text-[10px] text-muted-foreground/70">
-                    Attach or paste up to {attachments.max} files —{" "}
-                    {formatBytes(MAX_ATTACHMENT_BYTES)} each.
-                  </p>
-                </form>
+                </div>
               </div>
-            </div>
+              {/* Right Box 2: Log Notes */}
+              <div className="flex flex-col rounded-xl border border-border/50 p-6 ">
+                <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                  Log Notes
+                </p>
 
-          </div>
+                <div className="min-h-[120px] flex-1 overflow-y-auto">
+                  {loadingNotes ? (
+                    <Spinner size="sm" />
+                  ) : notes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground/70 italic">No notes yet.</p>
+                  ) : (
+                    <ul className="space-y-3">
+                      {notes.map((n) => (
+                        <li key={n.id} className="flex gap-2.5">
+                          {n.type === "SYSTEM" ? (
+                            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                              <Sparkles size={12} />
+                            </div>
+                          ) : (
+                            <Avatar name={n.author?.name} src={n.author?.avatar_path} size="sm" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[11px] font-semibold text-muted-foreground">
+                              {n.author?.name || (n.type === "SYSTEM" ? "System" : "Unknown")}
+                              <span className="font-normal text-muted-foreground/60">
+                                {" · "}
+                                {formatWhen(n.created_at)}
+                              </span>
+                            </p>
+                            {n.content && (
+                              <p
+                                className={cn(
+                                  "text-sm break-words",
+                                  n.type === "SYSTEM"
+                                    ? "text-muted-foreground italic"
+                                    : "text-foreground",
+                                )}
+                              >
+                                {n.content}
+                              </p>
+                            )}
+                            <AttachmentList
+                              attachments={n.metadata?.attachments}
+                              className={n.content ? "mt-2" : "mt-1"}
+                            />
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handlePostNote();
+                    }}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        attachments.addFiles(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+
+                    {files.length > 0 && (
+                      <div className="mb-2">
+                        <AttachmentPreviews
+                          files={files}
+                          onRemove={attachments.removeFile}
+                          disabled={isPosting}
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex items-end gap-2">
+                      <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3.5 focus-within:border-mauve-7">
+                        <textarea
+                          rows={2}
+                          value={note}
+                          onChange={(e) => setNote(e.target.value)}
+                          onPaste={attachments.addFromPaste}
+                          placeholder="Add a note — client meeting, bid status, follow-up…"
+                          className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        title={`Attach files (max ${attachments.max})`}
+                        disabled={isPosting || files.length >= attachments.max}
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30 text-muted-foreground transition-all hover:border-mauve-7 hover:text-foreground disabled:opacity-50"
+                      >
+                        <Paperclip size={15} />
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={(!note.trim() && files.length === 0) || isPosting}
+                        className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+                      >
+                        {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
+                        {isUploading ? "Uploading" : "Post"}
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground/70">
+                      Attach or paste up to {attachments.max} files —{" "}
+                      {formatBytes(MAX_ATTACHMENT_BYTES)} each.
+                    </p>
+                  </form>
+                </div>
+              </div>
+
+            </div>
           </div>
 
           {(items.length > 0 || isEditing) && (

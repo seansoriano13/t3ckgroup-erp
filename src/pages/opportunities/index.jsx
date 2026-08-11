@@ -601,7 +601,13 @@ export default function OpportunitiesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                        {o.registration_date}
+                        {o.registration_date
+                          ? new Date(o.registration_date).toLocaleDateString("en-US", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                            })
+                          : "—"}
                       </td>
                       <td className="px-4 py-3 text-xs">
                         <HighlightText text={formatLeadSource(o.lead_source, o.lead_source_detail, activeLeadSources)} search={search} />
