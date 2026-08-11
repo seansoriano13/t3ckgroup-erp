@@ -324,7 +324,7 @@ export default function OpportunitiesPage() {
                       className="border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                        {o.opportunity_no}
+                        {o.serial_no}
                       </td>
                       <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
                         {o.sales_reference || (
