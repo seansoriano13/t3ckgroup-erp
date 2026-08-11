@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Target } from "lucide-react";
+import { Target, Download, Loader2 } from "lucide-react";
 import HRFormModal from "../hr/HRFormModal";
 import { TextField, SelectField } from "./SorField";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
+import { odooService } from "../../services/odooService";
 import {
   LEAD_SOURCES,
   PROJECT_TYPES,
@@ -115,6 +116,45 @@ export default function OpportunityFormModal({
   const set = (key) => (e) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
+  const [fetchingOdoo, setFetchingOdoo] = useState(false);
+
+  const handleFetchFromOdoo = async () => {
+    const ref = normalizeSalesReference(form.sales_reference);
+    if (!isValidSalesReference(ref)) {
+      toast.error(SALES_REFERENCE_HINT);
+      return;
+    }
+    const hasItems = items.some((it) => (it.product_name || "").trim());
+    if (
+      hasItems &&
+      !window.confirm(
+        "This replaces the current Product List with the items from Odoo. Continue?",
+      )
+    ) {
+      return;
+    }
+
+    setFetchingOdoo(true);
+    try {
+      const result = await odooService.fetchOrderLines(ref);
+      if (!result?.success) {
+        toast.error(
+          result?.message ||
+            "Could not fetch items from Odoo — enter them manually.",
+        );
+        return;
+      }
+      setItems(result.items.map(toRow));
+      toast.success(
+        `Pulled ${result.items.length} item(s) from ${result.order?.name || ref}.`,
+      );
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo — enter items manually.");
+    } finally {
+      setFetchingOdoo(false);
+    }
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const sales_reference = normalizeSalesReference(form.sales_reference);
@@ -206,18 +246,36 @@ export default function OpportunityFormModal({
             value={form.expected_award_date}
             onChange={set("expected_award_date")}
           />
-          <TextField
-            label="Sales Reference"
-            placeholder="e.g. S01237"
-            value={form.sales_reference}
-            onChange={set("sales_reference")}
-            className="sm:col-span-2"
-          />
+          <div className="sm:col-span-2 flex gap-2">
+            <TextField
+              label="Sales Reference"
+              placeholder="e.g. S01237"
+              value={form.sales_reference}
+              onChange={set("sales_reference")}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleFetchFromOdoo}
+              disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
+              title="Pull the product list from this quotation in Odoo"
+              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
+            >
+              {fetchingOdoo ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              Fetch Items
+            </button>
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
           The Odoo sales quotation number. It confirms a quotation has been
           issued, and is required before this opportunity can move from Lead to
-          Qualified — leave it blank until the quotation exists.
+          Qualified — leave it blank until the quotation exists. Use{" "}
+          <strong>Fetch Items</strong> to pull the Product List straight from
+          the quotation, or enter it manually below.
         </p>
 
         <div className="pt-2 border-t border-border/50">
