@@ -13,6 +13,7 @@ export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'COMMITTEE_TASK' }
+  const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
 
@@ -23,9 +24,12 @@ export default function GlobalDetailManager() {
 
   useEffect(() => {
     const handleOpenDetails = (e) => {
-      const { id, type } = e.detail;
+      const { id, type, isNew } = e.detail;
       if (id && type) {
         setActiveItem({ id, type });
+        if (isNew) {
+          setHighlightIdOnClose(id);
+        }
       }
     };
 
@@ -194,6 +198,12 @@ export default function GlobalDetailManager() {
   });
 
   const handleClose = () => {
+    if (highlightIdOnClose) {
+      window.dispatchEvent(
+        new CustomEvent("HIGHLIGHT_TASK", { detail: { id: highlightIdOnClose } })
+      );
+      setHighlightIdOnClose(null);
+    }
     setActiveItem(null);
     setIsRateOpen(false);
   };

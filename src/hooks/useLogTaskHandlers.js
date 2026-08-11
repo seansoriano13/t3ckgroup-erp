@@ -261,7 +261,7 @@ export function useLogTaskHandlers({
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] })
       queryClient.invalidateQueries({ queryKey: ["tasks"] })
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Task created successfully!")
       // Clear any saved draft — task was submitted successfully
       try {
@@ -288,6 +288,13 @@ export function useLogTaskHandlers({
         setCategorySearch("")
       } else {
         onClose()
+        setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent("OPEN_ENTITY_DETAILS", {
+              detail: { id: data.id, type: "TASK", isNew: true },
+            })
+          )
+        }, 100)
       }
     },
   })

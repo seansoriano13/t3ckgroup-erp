@@ -1,4 +1,4 @@
-import { useState, memo } from "react"
+import { useState, memo, useEffect, useRef } from "react"
 import {
   Clock,
   CheckCircle2,
@@ -50,6 +50,22 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
   const { user } = useAuth()
   const avatarMap = useEmployeeAvatarMap()
   const [isExpanded, setIsExpanded] = useState(false)
+  const [isHighlighted, setIsHighlighted] = useState(false)
+  const cardRef = useRef(null)
+
+  useEffect(() => {
+    const handleHighlight = (e) => {
+      if (e.detail.id === task.id) {
+        setIsHighlighted(true)
+        if (cardRef.current) {
+          cardRef.current.scrollIntoView({ behavior: "smooth", block: "center" })
+        }
+        setTimeout(() => setIsHighlighted(false), 3000)
+      }
+    }
+    window.addEventListener("HIGHLIGHT_TASK", handleHighlight)
+    return () => window.removeEventListener("HIGHLIGHT_TASK", handleHighlight)
+  }, [task.id])
 
   const isHr =
     user?.is_hr === true ||
@@ -193,11 +209,16 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
 
   return (
     <div
+      ref={cardRef}
       onClick={onView}
-      className={`bg-card p-5 rounded-2xl border shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all duration-300 group flex flex-col h-full cursor-pointer relative ${
+      className={`bg-card p-5 rounded-2xl border hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-1 transition-all group flex flex-col h-full cursor-pointer relative ${
         isOwnerOverdue
           ? "border-amber-500/40 ring-1 ring-amber-500/20"
           : "border-border"
+      } ${
+        isHighlighted
+          ? "ring-2 ring-mauve-8 bg-mauve-3/50 shadow-lg shadow-mauve-5/20 duration-200"
+          : "ring-0 ring-transparent shadow-sm duration-[3000ms]"
       }`}
     >
       {/* Row 1: The Eyebrow (Context) */}
