@@ -41,7 +41,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
 
       {items.length === 0 ? (
         <p className="text-xs text-muted-foreground/70 italic bg-muted/30 border border-border rounded-xl px-3 py-2.5">
-          No items yet — Expected Value will show ₱0.00 until at least one is added.
+          No items yet — Product Line Total will show ₱0.00 until at least one is added.
         </p>
       ) : (
         <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
@@ -104,7 +104,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
       {items.length > 0 && (
         <div className="flex items-center justify-end gap-2 pt-1 pr-1">
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            Expected Value
+            Product Line Total
           </span>
           <span className="text-sm font-black text-foreground">
             {formatPHP(total)}

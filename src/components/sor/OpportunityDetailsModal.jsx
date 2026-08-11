@@ -11,6 +11,7 @@ import {
   Target,
   Trash2,
   X,
+  Download,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -19,14 +20,23 @@ import Avatar from "../Avatar";
 import StatusBadge from "../StatusBadge";
 import { opportunityService } from "../../services/opportunityService";
 import { useAuth } from "../../context/AuthContext";
-import { confirmDeleteToast } from "../ui/CustomToast";
+import { confirmDeleteToast, confirmActionToast } from "../ui/CustomToast";
 import { AttachmentPreviews, AttachmentList } from "../ui/Attachments";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes } from "../../utils/attachments";
 import { getStatusTheme } from "../../constants/status";
+import Dropdown from "../ui/Dropdown";
+import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import { employeeService } from "../../services/employeeService";
+import { odooService } from "../../services/odooService";
+import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import {
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
+  PROJECT_TYPES,
+  LEAD_SOURCES,
   formatLeadSource,
   formatPHP,
   isValidSalesReference,
@@ -45,7 +55,17 @@ const TONE_CLASSES = {
   mauve: { current: "bg-mauve-9 text-white", completed: "bg-mauve-9/20 text-mauve-11 hover:bg-mauve-9/30" },
 };
 
-function Detail({ label, children }) {
+function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }) {
+  if (isEditing) {
+    return (
+      <div className={`bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all ${wrapperClass}`}>
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+          {label}
+        </label>
+        {control}
+      </div>
+    );
+  }
   return (
     <div>
       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">
@@ -121,6 +141,7 @@ function PeopleRoster({ opportunity }) {
 
 function ItemsList({ items }) {
   if (!items.length) return null;
+  const total = items.reduce((sum, it) => sum + ((Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
   return (
     <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
       <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -151,6 +172,12 @@ function ItemsList({ items }) {
           </span>
         </div>
       ))}
+      <div className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-sm bg-muted/10 border-t border-border">
+        <span className="col-span-10 text-right font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Product Line Total</span>
+        <span className="col-span-2 text-right font-black text-foreground">
+          {formatPHP(total)}
+        </span>
+      </div>
     </div>
   );
 }
@@ -165,6 +192,13 @@ function formatWhen(iso) {
     minute: "2-digit",
   });
 }
+
+const toRow = (item) => ({
+  product_name: item.product_name || "",
+  unit: item.unit || "",
+  quantity: item.quantity ?? 1,
+  unit_price: item.unit_price ?? "",
+});
 
 /**
  * Layout ported from the ERP CRM's OpportunityDetailsModal — Dialog/DialogContent
@@ -191,6 +225,9 @@ export default function OpportunityDetailsModal({
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({});
+  const [fetchingOdoo, setFetchingOdoo] = useState(false);
   const attachments = useFileAttachments();
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
@@ -213,6 +250,8 @@ export default function OpportunityDetailsModal({
     setLostReason("");
     setSalesRef("");
     setIsExpanded(false);
+    setIsEditing(false);
+    setEditForm({});
     attachments.clear();
   }
 
@@ -228,6 +267,12 @@ export default function OpportunityDetailsModal({
     enabled: !!id && isOpen,
   });
 
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+    enabled: isOpen,
+  });
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
@@ -240,6 +285,18 @@ export default function OpportunityDetailsModal({
       setNote("");
       attachments.clear();
       invalidate();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data) =>
+      opportunityService.updateOpportunity(id, data, user?.id),
+    onSuccess: () => {
+      setIsEditing(false);
+      setEditForm({});
+      invalidate();
+      toast.success("Opportunity updated.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -297,6 +354,74 @@ export default function OpportunityDetailsModal({
     }
 
     addNoteMutation.mutate({ content, attachments: uploaded });
+  };
+
+  const executeOdooFetch = async (ref) => {
+    setFetchingOdoo(true);
+    try {
+      const result = await odooService.fetchOrderLines(ref);
+      if (!result?.success) {
+        toast.error(
+          result?.message ||
+            "Could not fetch items from Odoo — enter them manually.",
+        );
+        return;
+      }
+      setEditForm(f => ({ ...f, items: result.items.map(toRow) }));
+      toast.success(
+        `Pulled ${result.items.length} item(s) from ${result.order?.name || ref}.`,
+      );
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo — enter items manually.");
+    } finally {
+      setFetchingOdoo(false);
+    }
+  };
+
+  const handleFetchFromOdoo = () => {
+    const ref = normalizeSalesReference(editForm.sales_reference);
+    if (!isValidSalesReference(ref)) {
+      toast.error(SALES_REFERENCE_HINT);
+      return;
+    }
+    const hasItems = editForm.items?.some((it) => (it.product_name || "").trim());
+    if (hasItems) {
+      confirmActionToast(
+        "Overwrite Products?",
+        "This replaces the current Product List with the items from Odoo. Continue?",
+        "Continue",
+        "warning",
+        () => executeOdooFetch(ref)
+      );
+    } else {
+      executeOdooFetch(ref);
+    }
+  };
+
+  const handleEditToggle = () => {
+    if (isEditing) {
+      setIsEditing(false);
+      setEditForm({});
+    } else {
+      setIsEditing(true);
+      setEditForm({
+        project_title: opportunity.project_title || "",
+        client_name: opportunity.client_name || "",
+        expected_value: opportunity.expected_value || "",
+        lead_source: opportunity.lead_source || "",
+        lead_source_detail: opportunity.lead_source_detail || "",
+        project_type: opportunity.project_type || "SSP",
+        registration_date: opportunity.registration_date || "",
+        expected_award_date: opportunity.expected_award_date || "",
+        contact_person: opportunity.contact_person || "",
+        sales_reference: opportunity.sales_reference || "",
+        deal_owner_id: opportunity.deal_owner_id || "",
+        sales_director_id: opportunity.sales_director_id || "",
+        support_sales_1_id: opportunity.support_sales_1_id || "",
+        support_sales_2_id: opportunity.support_sales_2_id || "",
+        items: items.map(toRow)
+      });
+    }
   };
 
   if (!opportunity) return null;
@@ -426,47 +551,87 @@ export default function OpportunityDetailsModal({
               </span>
               <StatusBadge status={opportunity.status} />
             </div>
-            <h2 className="truncate text-lg font-black text-foreground">
-              {opportunity.project_title}
-            </h2>
-            <p className="truncate text-xs font-medium text-muted-foreground">
-              {opportunity.client_name}
-            </p>
+            {isEditing ? (
+              <div className="space-y-2 mt-2 max-w-xl">
+                <input
+                  value={editForm.project_title}
+                  onChange={(e) => setEditForm(f => ({ ...f, project_title: e.target.value }))}
+                  className="w-full text-lg font-black text-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                  placeholder="Project Title"
+                  autoFocus
+                />
+                <input
+                  value={editForm.client_name}
+                  onChange={(e) => setEditForm(f => ({ ...f, client_name: e.target.value }))}
+                  className="w-full text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                  placeholder="Client Name"
+                />
+              </div>
+            ) : (
+              <>
+                <h2 className="truncate text-lg font-black text-foreground">
+                  {opportunity.project_title}
+                </h2>
+                <p className="truncate text-xs font-medium text-muted-foreground">
+                  {opportunity.client_name}
+                </p>
+              </>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button
-              onClick={() => onEdit(opportunity)}
-              title="Edit"
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              onClick={() =>
-                confirmDeleteToast(
-                  `Delete ${opportunity.opportunity_no}?`,
-                  "The record is archived, not erased.",
-                  () => deleteMutation.mutate(),
-                )
-              }
-              title="Delete"
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-red-500"
-            >
-              <Trash2 size={14} />
-            </button>
-            <button
-              onClick={() => setIsExpanded((v) => !v)}
-              title={isExpanded ? "Collapse" : "Expand"}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            >
-              {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-            </button>
-            <button
-              onClick={onClose}
-              className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-            >
-              <X size={15} />
-            </button>
+            {isEditing ? (
+              <>
+                <button
+                  onClick={handleEditToggle}
+                  className="rounded-md px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => updateMutation.mutate(editForm)}
+                  disabled={updateMutation.isPending}
+                  className="rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {updateMutation.isPending ? "Saving..." : "Save"}
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleEditToggle}
+                  title="Edit"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  <Pencil size={14} />
+                </button>
+                <button
+                  onClick={() =>
+                    confirmDeleteToast(
+                      `Delete ${opportunity.opportunity_no}?`,
+                      "The record is archived, not erased.",
+                      () => deleteMutation.mutate(),
+                    )
+                  }
+                  title="Delete"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-red-500"
+                >
+                  <Trash2 size={14} />
+                </button>
+                <button
+                  onClick={() => setIsExpanded((v) => !v)}
+                  title={isExpanded ? "Collapse" : "Expand"}
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                </button>
+                <button
+                  onClick={onClose}
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  <X size={15} />
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -584,52 +749,379 @@ export default function OpportunityDetailsModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-            {/* Left Box: Estimated Value */}
-            <div className="flex min-w-0 flex-col justify-center rounded-xl border border-border bg-muted/30 p-6 lg:col-span-1">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+
+            {/* LEFT COLUMN */}
+            <div className="flex flex-col gap-6 lg:col-span-1">
+              {/* Left Box: Estimated Value */}
+            <div className="flex min-w-0 flex-col justify-center rounded-xl border border-border bg-muted/30 p-6 ">
               <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                 Estimated Value
               </p>
-              <p className="text-3xl font-black tracking-tight break-words text-foreground tabular-nums lg:text-4xl">
-                {formatPHP(opportunity.expected_value)}
+              {isEditing ? (
+                <div className="flex items-center text-3xl font-black tracking-tight text-foreground lg:text-4xl">
+                  <span className="mr-2 text-muted-foreground/50">₱</span>
+                  <input
+                    type="text"
+                    value={(() => {
+                      const val = editForm.expected_value;
+                      if (!val) return "";
+                      const parts = val.toString().split(".");
+                      parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                      return parts.join(".");
+                    })()}
+                    onChange={(e) => {
+                      let raw = e.target.value.replace(/[^0-9.]/g, '');
+                      const parts = raw.split('.');
+                      if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
+                      setEditForm(f => ({ ...f, expected_value: raw }));
+                    }}
+                    className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
+                    placeholder="0.00"
+                  />
+                </div>
+              ) : (
+                <p className="text-3xl font-black tracking-tight break-words text-foreground tabular-nums lg:text-4xl">
+                  {formatPHP(opportunity.expected_value)}
+                </p>
+              )}
+            </div>
+              {/* Left Box 2: People Roster */}
+            <div className="rounded-xl border border-border/50 p-6 ">
+              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                People
               </p>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <Detail
+                    label="Deal Owner"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.deal_owner_id ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.deal_owner_id ? employees.find(e => e.id === editForm.deal_owner_id)?.name : "Unassigned"}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={employees.map(e => ({ value: e.id, label: e.name }))}
+                            value={editForm.deal_owner_id}
+                            onChange={(val) => setEditForm(f => ({ ...f, deal_owner_id: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  />
+                  <Detail
+                    label="Sales Director"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.sales_director_id ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.sales_director_id ? employees.find(e => e.id === editForm.sales_director_id)?.name : "Unassigned"}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={employees.map(e => ({ value: e.id, label: e.name }))}
+                            value={editForm.sales_director_id}
+                            onChange={(val) => setEditForm(f => ({ ...f, sales_director_id: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  />
+                  <Detail
+                    label="Support Sales 1"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.support_sales_1_id ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.support_sales_1_id ? employees.find(e => e.id === editForm.support_sales_1_id)?.name : "Unassigned"}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={employees.map(e => ({ value: e.id, label: e.name }))}
+                            value={editForm.support_sales_1_id}
+                            onChange={(val) => setEditForm(f => ({ ...f, support_sales_1_id: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  />
+                  <Detail
+                    label="Support Sales 2"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        className="w-full"
+                        trigger={({ isOpen }) => (
+                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.support_sales_2_id ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.support_sales_2_id ? employees.find(e => e.id === editForm.support_sales_2_id)?.name : "Unassigned"}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <FilterOptionList
+                            options={employees.map(e => ({ value: e.id, label: e.name }))}
+                            value={editForm.support_sales_2_id}
+                            onChange={(val) => setEditForm(f => ({ ...f, support_sales_2_id: val }))}
+                            close={close}
+                          />
+                        )}
+                      </Dropdown>
+                    }
+                  />
+                </div>
+              ) : (
+                <PeopleRoster opportunity={opportunity} />
+              )}
+            </div>
             </div>
 
-            {/* Right Box: Deal Details */}
-            <div className="rounded-xl border border-border/50 p-6 lg:col-span-2">
+            {/* RIGHT COLUMN */}
+            <div className="flex flex-col gap-6 lg:col-span-2">
+              {/* Right Box: Deal Details */}
+            <div className="rounded-xl border border-border/50 p-6 ">
               <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                 Deal Details
               </p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
-                <Detail label="Lead Source">
+                <Detail
+                  label="Lead Source"
+                  isEditing={isEditing}
+                  control={
+                    <Dropdown
+                      usePortal
+                      className="w-full"
+                      trigger={({ isOpen }) => (
+                        <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
+                          <span className={`truncate ${editForm.lead_source ? "text-foreground" : "text-muted-foreground/50"}`}>
+                            {editForm.lead_source ? LEAD_SOURCES.find(l => l.value === editForm.lead_source)?.label : "Select..."}
+                          </span>
+                        </div>
+                      )}
+                    >
+                      {({ close }) => (
+                        <FilterOptionList
+                          options={LEAD_SOURCES}
+                          value={editForm.lead_source}
+                          onChange={(val) => setEditForm(f => ({ ...f, lead_source: val }))}
+                          close={close}
+                        />
+                      )}
+                    </Dropdown>
+                  }
+                >
                   {formatLeadSource(opportunity.lead_source, opportunity.lead_source_detail)}
                 </Detail>
-                <Detail label="Sales Division">
-                  {PROJECT_TYPE_LABELS[opportunity.project_type]}
+
+                {editForm.lead_source === "OTHERS" && isEditing && (
+                  <Detail
+                    label="Lead Source Detail"
+                    isEditing={isEditing}
+                    control={
+                      <input
+                        type="text"
+                        value={editForm.lead_source_detail}
+                        onChange={(e) => setEditForm(f => ({ ...f, lead_source_detail: e.target.value }))}
+                        className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                        placeholder="Specify..."
+                      />
+                    }
+                  />
+                )}
+
+                <Detail
+                  label="Sales Division"
+                  isEditing={isEditing}
+                  control={
+                    <Dropdown
+                      usePortal
+                      className="w-full"
+                      trigger={({ isOpen }) => (
+                        <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
+                          <span className={`truncate ${editForm.project_type ? "text-foreground" : "text-muted-foreground/50"}`}>
+                            {editForm.project_type ? PROJECT_TYPES.find(pt => pt.value === editForm.project_type)?.label : "Select..."}
+                          </span>
+                        </div>
+                      )}
+                    >
+                      {({ close }) => (
+                        <FilterOptionList
+                          options={PROJECT_TYPES}
+                          value={editForm.project_type}
+                          onChange={(val) => setEditForm(f => ({ ...f, project_type: val }))}
+                          close={close}
+                        />
+                      )}
+                    </Dropdown>
+                  }
+                >
+                  <span className="block truncate" title={PROJECT_TYPE_LABELS[opportunity.project_type]}>
+                    {PROJECT_TYPE_LABELS[opportunity.project_type]}
+                  </span>
                 </Detail>
-                <Detail label="Date Registered">{opportunity.registration_date}</Detail>
-                <Detail label="Expected Award">{opportunity.expected_award_date}</Detail>
-                <Detail label="Contact Person">{opportunity.contact_person}</Detail>
-                <Detail label="Sales Reference">
-                  {opportunity.sales_reference ? (
-                    <span className="font-mono">{opportunity.sales_reference}</span>
-                  ) : opportunity.status === "LEAD" ? (
-                    <span className="text-xs font-medium text-amber-11">Required to qualify</span>
-                  ) : null}
+                <Detail
+                  label="Date Registered"
+                  isEditing={isEditing}
+                  control={
+                    <Dropdown
+                      usePortal
+                      placement="bottom-start"
+                      className="w-full"
+                      trigger={({ isOpen }) => (
+                        <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+                          <span className={editForm.registration_date ? "text-foreground" : "text-muted-foreground/50"}>
+                            {editForm.registration_date || "Select date..."}
+                          </span>
+                        </div>
+                      )}
+                    >
+                      {({ close }) => (
+                        <div className="p-1">
+                          <DatePicker
+                            selected={editForm.registration_date ? new Date(editForm.registration_date) : null}
+                            onChange={(date) => {
+                              if (!date) {
+                                setEditForm(f => ({ ...f, registration_date: "" }));
+                              } else {
+                                const y = date.getFullYear();
+                                const m = String(date.getMonth() + 1).padStart(2, "0");
+                                const d = String(date.getDate()).padStart(2, "0");
+                                setEditForm(f => ({ ...f, registration_date: `${y}-${m}-${d}` }));
+                              }
+                              close();
+                            }}
+                            inline
+                          />
+                        </div>
+                      )}
+                    </Dropdown>
+                  }
+                >
+                  {opportunity.registration_date}
                 </Detail>
+                <Detail
+                  label="Expected Award"
+                  isEditing={isEditing}
+                  control={
+                    <Dropdown
+                      usePortal
+                      placement="bottom-start"
+                      className="w-full"
+                      trigger={({ isOpen }) => (
+                        <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+                          <span className={editForm.expected_award_date ? "text-foreground" : "text-muted-foreground/50"}>
+                            {editForm.expected_award_date || "Select date..."}
+                          </span>
+                        </div>
+                      )}
+                    >
+                      {({ close }) => (
+                        <div className="p-1">
+                          <DatePicker
+                            selected={editForm.expected_award_date ? new Date(editForm.expected_award_date) : null}
+                            onChange={(date) => {
+                              if (!date) {
+                                setEditForm(f => ({ ...f, expected_award_date: "" }));
+                              } else {
+                                const y = date.getFullYear();
+                                const m = String(date.getMonth() + 1).padStart(2, "0");
+                                const d = String(date.getDate()).padStart(2, "0");
+                                setEditForm(f => ({ ...f, expected_award_date: `${y}-${m}-${d}` }));
+                              }
+                              close();
+                            }}
+                            inline
+                          />
+                        </div>
+                      )}
+                    </Dropdown>
+                  }
+                >
+                  {opportunity.expected_award_date}
+                </Detail>
+                <Detail
+                  label="Contact Person"
+                  isEditing={isEditing}
+                  control={
+                    <input
+                      type="text"
+                      value={editForm.contact_person}
+                      onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
+                      className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                      placeholder="e.g. Juan Dela Cruz"
+                    />
+                  }
+                >
+                  {opportunity.contact_person}
+                </Detail>
+
+                {isEditing ? (
+                  <div className="flex gap-2 items-stretch col-span-1 sm:col-span-2 md:col-span-1 lg:col-span-2 xl:col-span-1 2xl:col-span-2">
+                    <Detail
+                      label="Sales Reference"
+                      isEditing={true}
+                      wrapperClass="flex-1"
+                      control={
+                        <input
+                          type="text"
+                          value={editForm.sales_reference}
+                          onChange={(e) => setEditForm(f => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
+                          className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
+                          placeholder="e.g. S01237"
+                        />
+                      }
+                    />
+                    <button
+                      type="button"
+                      disabled={fetchingOdoo || !editForm.sales_reference}
+                      onClick={handleFetchFromOdoo}
+                      className="h-full min-h-[66px] px-4 rounded-xl border border-border flex items-center gap-2 text-[13px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
+                    >
+                      {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
+                      <span className="hidden sm:inline">Fetch Items</span>
+                    </button>
+                  </div>
+                ) : (
+                  <Detail label="Sales Reference">
+                    {opportunity.sales_reference ? (
+                      <span className="font-mono">{opportunity.sales_reference}</span>
+                    ) : opportunity.status === "LEAD" ? (
+                      <span className="text-xs font-medium text-amber-11">Required to qualify</span>
+                    ) : null}
+                  </Detail>
+                )}
               </div>
             </div>
-
-            {/* Left Box 2: People Roster */}
-            <div className="rounded-xl border border-border/50 p-6 lg:col-span-1">
-              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                People
-              </p>
-              <PeopleRoster opportunity={opportunity} />
-            </div>
-
-            {/* Right Box 2: Log Notes */}
-            <div className="flex flex-col rounded-xl border border-border/50 p-6 lg:col-span-2">
+              {/* Right Box 2: Log Notes */}
+            <div className="flex flex-col rounded-xl border border-border/50 p-6 ">
               <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                 Log Notes
               </p>
@@ -745,14 +1237,25 @@ export default function OpportunityDetailsModal({
                 </form>
               </div>
             </div>
+
+          </div>
           </div>
 
-          {items.length > 0 && (
+          {(items.length > 0 || isEditing) && (
             <div className="rounded-xl border border-border/50 p-6">
-              <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                Product List
-              </p>
-              <ItemsList items={items} />
+              {isEditing ? (
+                <OpportunityItemsEditor
+                  items={editForm.items || []}
+                  onChange={(newItems) => setEditForm(f => ({ ...f, items: newItems }))}
+                />
+              ) : (
+                <>
+                  <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    Product List
+                  </p>
+                  <ItemsList items={items} />
+                </>
+              )}
             </div>
           )}
         </div>

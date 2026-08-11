@@ -12,19 +12,25 @@ import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import Dropdown from "../../components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../../components/ui/FilterDropdown";
+import FilterBar from "../../components/ui/FilterBar";
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
 import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import { opportunityService } from "../../services/opportunityService";
+import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
+  LEAD_SOURCES,
+  PROJECT_TYPES,
 } from "../../constants/sor";
+import HighlightText from "../../components/HighlightText";
+import { Building2, Users, Layers, Tag } from "lucide-react";
 
 const OPEN_STAGES = OPPORTUNITY_STAGES.filter(
   (s) => s.value !== "CLOSED_WON" && s.value !== "CLOSED_LOST",
@@ -43,9 +49,14 @@ export default function OpportunitiesPage() {
   const [stageFilter, setStageFilter] = useState(
     () => location.state?.filterStatus || "ALL",
   );
+  const [leadSourceFilter, setLeadSourceFilter] = useState("ALL");
+  const [projectTypeFilter, setProjectTypeFilter] = useState("ALL");
+  const [departmentFilter, setDepartmentFilter] = useState("ALL");
+  const [subDeptFilter, setSubDeptFilter] = useState("ALL");
+  const [ownershipRole, setOwnershipRole] = useState("ALL");
   const [mineOnly, setMineOnly] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState(
-    () => location.state?.filterEmployeeId || null,
+    () => location.state?.filterEmployeeId || "ALL",
   );
   const [view, setView] = useState(() => {
     if (location.state?.filterEmployeeId) return "list";
@@ -72,6 +83,11 @@ export default function OpportunitiesPage() {
   const { data: opportunities = [], isLoading } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
+  });
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
   });
 
   const createMutation = useMutation({
@@ -105,11 +121,29 @@ export default function OpportunitiesPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
-      if (employeeFilter && o.deal_owner_id !== employeeFilter) return false;
       if (stageFilter === "OPEN" && !OPEN_STAGES.includes(o.status)) return false;
-      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter)
-        return false;
-      if (!employeeFilter && mineOnly) {
+      if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
+      if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
+      if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
+      
+      const dealOwner = employees.find(e => e.id === o.deal_owner_id);
+      if (departmentFilter !== "ALL" && dealOwner?.department !== departmentFilter) return false;
+      if (subDeptFilter !== "ALL" && dealOwner?.subDepartment !== subDeptFilter) return false;
+      
+      if (ownershipRole !== "ALL" && employeeFilter !== "ALL") {
+        if (o[ownershipRole] !== employeeFilter) return false;
+      } else if (employeeFilter !== "ALL" && employeeFilter !== null) {
+        if (
+          o.deal_owner_id !== employeeFilter &&
+          o.support_sales_1_id !== employeeFilter &&
+          o.support_sales_2_id !== employeeFilter &&
+          o.sales_director_id !== employeeFilter
+        ) {
+          return false;
+        }
+      }
+
+      if (mineOnly && employeeFilter === "ALL") {
         const mine =
           o.deal_owner_id === user?.id ||
           o.support_sales_1_id === user?.id ||
@@ -129,7 +163,20 @@ export default function OpportunitiesPage() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [opportunities, search, stageFilter, mineOnly, employeeFilter, user?.id]);
+  }, [
+    opportunities,
+    employees,
+    search,
+    stageFilter,
+    leadSourceFilter,
+    projectTypeFilter,
+    departmentFilter,
+    subDeptFilter,
+    ownershipRole,
+    mineOnly,
+    employeeFilter,
+    user?.id,
+  ]);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => OPEN_STAGES.includes(o.status));
@@ -150,6 +197,76 @@ export default function OpportunitiesPage() {
   const currentStageLabel =
     stageOptions.find((o) => o.value === stageFilter)?.label || "All Stages";
 
+  const leadSourceOptions = [
+    { value: "ALL", label: "All Lead Sources" },
+    ...LEAD_SOURCES.map((s) => ({ value: s.value, label: s.label })),
+  ];
+
+  const currentLeadSourceLabel =
+    leadSourceOptions.find((o) => o.value === leadSourceFilter)?.label || "All Lead Sources";
+
+  const projectTypeOptions = [
+    { value: "ALL", label: "All Types" },
+    ...PROJECT_TYPES.map((s) => ({ value: s.value, label: s.label })),
+  ];
+
+  const currentProjectTypeLabel =
+    projectTypeOptions.find((o) => o.value === projectTypeFilter)?.label || "All Types";
+
+  const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
+  const subDepartments = [...new Set(employees.map(e => e.subDepartment).filter(Boolean))];
+
+  const departmentOptions = [
+    { value: "ALL", label: "All Departments" },
+    ...departments.map(d => ({ value: d, label: d })),
+  ];
+
+  const subDepartmentOptions = [
+    { value: "ALL", label: "All Sub-Departments" },
+    ...subDepartments.map(d => ({ value: d, label: d })),
+  ];
+
+  const ownershipRoleOptions = [
+    { value: "ALL", label: "Any Role" },
+    { value: "deal_owner_id", label: "Deal Owner" },
+    { value: "sales_director_id", label: "Sales Director" },
+    { value: "support_sales_1_id", label: "Supporting Salesperson 1" },
+    { value: "support_sales_2_id", label: "Supporting Salesperson 2" },
+  ];
+
+  const employeeOptions = [
+    { value: "ALL", label: "All Employees" },
+    ...employees.map((e) => ({ value: e.id, label: e.name })),
+  ];
+
+  const currentDepartmentLabel = departmentOptions.find(o => o.value === departmentFilter)?.label || "All Departments";
+  const currentSubDeptLabel = subDepartmentOptions.find(o => o.value === subDeptFilter)?.label || "All Sub-Departments";
+  const currentRoleLabel = ownershipRoleOptions.find(o => o.value === ownershipRole)?.label || "Any Role";
+  const currentEmployeeLabel = employeeOptions.find(o => o.value === employeeFilter)?.label || "All Employees";
+
+  const hasActiveFilters =
+    search !== "" ||
+    stageFilter !== "ALL" ||
+    leadSourceFilter !== "ALL" ||
+    projectTypeFilter !== "ALL" ||
+    departmentFilter !== "ALL" ||
+    subDeptFilter !== "ALL" ||
+    ownershipRole !== "ALL" ||
+    employeeFilter !== "ALL" ||
+    mineOnly;
+
+  const handleClearAll = () => {
+    setSearch("");
+    setStageFilter("ALL");
+    setLeadSourceFilter("ALL");
+    setProjectTypeFilter("ALL");
+    setDepartmentFilter("ALL");
+    setSubDeptFilter("ALL");
+    setOwnershipRole("ALL");
+    setMineOnly(false);
+    setEmployeeFilter("ALL");
+  };
+
   return (
     <ProtectedRoute>
       <PageContainer className="pt-4">
@@ -166,8 +283,163 @@ export default function OpportunitiesPage() {
         </PageHeader>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-2.5 mt-6">
-          <div className="flex-1 bg-muted/30 border border-border rounded-xl px-3 py-2.5 flex items-center gap-2 focus-within:border-mauve-7">
+        <FilterBar
+          className="mt-6"
+          hasActiveFilters={hasActiveFilters}
+          onClearAll={handleClearAll}
+          actions={
+            <TabGroup
+              tabs={[
+                { value: "list", label: "List", icon: List },
+                { value: "board", label: "Board", icon: Kanban },
+                { value: "overview", label: "Overview", icon: LayoutDashboard },
+              ]}
+              activeTab={view}
+              onChange={changeView}
+              variant="pill"
+              size="sm"
+              className="shrink-0"
+            />
+          }
+          advancedFilters={
+            <>
+              <Dropdown
+                usePortal={true}
+                className="min-w-[170px] flex-1"
+                trigger={({ isOpen }) => (
+                  <FilterTrigger
+                    icon={Building2}
+                    label={currentDepartmentLabel}
+                    isActive={departmentFilter !== "ALL"}
+                    isOpen={isOpen}
+                  />
+                )}
+              >
+                {({ close }) => (
+                  <FilterOptionList
+                    options={departmentOptions}
+                    value={departmentFilter}
+                    onChange={setDepartmentFilter}
+                    close={close}
+                  />
+                )}
+              </Dropdown>
+
+              <Dropdown
+                usePortal={true}
+                className="min-w-[170px] flex-1"
+                trigger={({ isOpen }) => (
+                  <FilterTrigger
+                    icon={Building2}
+                    label={currentSubDeptLabel}
+                    isActive={subDeptFilter !== "ALL"}
+                    isOpen={isOpen}
+                    disabled={departmentFilter === "ALL"}
+                  />
+                )}
+              >
+                {({ close }) => (
+                  <FilterOptionList
+                    options={subDepartmentOptions}
+                    value={subDeptFilter}
+                    onChange={setSubDeptFilter}
+                    close={close}
+                  />
+                )}
+              </Dropdown>
+
+              <div className="flex flex-1 min-w-[280px] rounded-lg border border-border bg-card">
+                <Dropdown
+                  usePortal={true}
+                  className="w-1/2"
+                  trigger={({ isOpen }) => (
+                    <FilterTrigger
+                      className="border-0 border-r border-border rounded-none rounded-l-lg hover:border-border/80"
+                      icon={Users}
+                      label={currentRoleLabel}
+                      isActive={ownershipRole !== "ALL"}
+                      isOpen={isOpen}
+                    />
+                  )}
+                >
+                  {({ close }) => (
+                    <FilterOptionList
+                      options={ownershipRoleOptions}
+                      value={ownershipRole}
+                      onChange={setOwnershipRole}
+                      close={close}
+                    />
+                  )}
+                </Dropdown>
+                <Dropdown
+                  usePortal={true}
+                  className="w-1/2"
+                  trigger={({ isOpen }) => (
+                    <FilterTrigger
+                      className="border-0 rounded-none rounded-r-lg hover:border-border/80"
+                      label={currentEmployeeLabel}
+                      isActive={employeeFilter !== "ALL"}
+                      isOpen={isOpen}
+                    />
+                  )}
+                >
+                  {({ close }) => (
+                    <FilterOptionList
+                      options={employeeOptions}
+                      value={employeeFilter}
+                      onChange={setEmployeeFilter}
+                      close={close}
+                    />
+                  )}
+                </Dropdown>
+              </div>
+
+              <Dropdown
+                usePortal={true}
+                className="min-w-[150px] shrink-0"
+                trigger={({ isOpen }) => (
+                  <FilterTrigger
+                    icon={Layers}
+                    label={currentProjectTypeLabel}
+                    isActive={projectTypeFilter !== "ALL"}
+                    isOpen={isOpen}
+                  />
+                )}
+              >
+                {({ close }) => (
+                  <FilterOptionList
+                    options={projectTypeOptions}
+                    value={projectTypeFilter}
+                    onChange={setProjectTypeFilter}
+                    close={close}
+                  />
+                )}
+              </Dropdown>
+
+              <Dropdown
+                usePortal={true}
+                className="min-w-[150px] shrink-0"
+                trigger={({ isOpen }) => (
+                  <FilterTrigger
+                    label={currentLeadSourceLabel}
+                    isActive={leadSourceFilter !== "ALL"}
+                    isOpen={isOpen}
+                  />
+                )}
+              >
+                {({ close }) => (
+                  <FilterOptionList
+                    options={leadSourceOptions}
+                    value={leadSourceFilter}
+                    onChange={setLeadSourceFilter}
+                    close={close}
+                  />
+                )}
+              </Dropdown>
+            </>
+          }
+        >
+          <div className="flex-1 min-w-[200px] max-w-sm bg-muted/30 border border-border rounded-xl px-3 py-2.5 flex items-center gap-2 focus-within:border-mauve-7">
             <Search size={15} className="text-muted-foreground shrink-0" />
             <input
               value={search}
@@ -181,6 +453,7 @@ export default function OpportunitiesPage() {
             className="min-w-[150px] shrink-0"
             trigger={({ isOpen }) => (
               <FilterTrigger
+                icon={Tag}
                 label={currentStageLabel}
                 isActive={stageFilter !== "ALL"}
                 isOpen={isOpen}
@@ -205,23 +478,11 @@ export default function OpportunitiesPage() {
           >
             My Deals
           </button>
-          <TabGroup
-            tabs={[
-              { value: "list", label: "List", icon: List },
-              { value: "board", label: "Board", icon: Kanban },
-              { value: "overview", label: "Overview", icon: LayoutDashboard },
-            ]}
-            activeTab={view}
-            onChange={changeView}
-            variant="pill"
-            size="sm"
-            className="shrink-0"
-          />
-        </div>
+        </FilterBar>
 
-        {employeeFilter && (
+        {employeeFilter && employeeFilter !== "ALL" && (
           <button
-            onClick={() => setEmployeeFilter(null)}
+            onClick={() => setEmployeeFilter("ALL")}
             className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 border border-primary/30 text-primary text-xs font-bold hover:bg-primary/15 transition-colors"
           >
             Filtered to {employeeFilterName || "employee"}
@@ -295,6 +556,7 @@ export default function OpportunitiesPage() {
           <div className="mt-4">
             <OpportunityBoard
               opportunities={filtered}
+              search={search}
               onCardClick={(o) => setSelectedId(o.id)}
             />
           </div>
@@ -324,10 +586,12 @@ export default function OpportunitiesPage() {
                       className="border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
                     >
                       <td className="px-4 py-3 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                        {o.serial_no}
+                        <HighlightText text={o.serial_no} search={search} />
                       </td>
                       <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                        {o.sales_reference || (
+                        {o.sales_reference ? (
+                          <HighlightText text={o.sales_reference} search={search} />
+                        ) : (
                           <span className="text-muted-foreground/50">—</span>
                         )}
                       </td>
@@ -335,11 +599,13 @@ export default function OpportunitiesPage() {
                         {o.registration_date}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        {formatLeadSource(o.lead_source, o.lead_source_detail)}
+                        <HighlightText text={formatLeadSource(o.lead_source, o.lead_source_detail)} search={search} />
                       </td>
-                      <td className="px-4 py-3 font-semibold">{o.client_name}</td>
+                      <td className="px-4 py-3 font-semibold">
+                        <HighlightText text={o.client_name} search={search} />
+                      </td>
                       <td className="px-4 py-3 max-w-[220px] truncate">
-                        {o.project_title}
+                        <HighlightText text={o.project_title} search={search} />
                       </td>
                       <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
                         {formatPHP(o.expected_value)}
@@ -356,7 +622,7 @@ export default function OpportunitiesPage() {
                               size="xs"
                             />
                             <span className="text-xs font-semibold">
-                              {o.deal_owner.name}
+                              <HighlightText text={o.deal_owner.name} search={search} />
                             </span>
                           </span>
                         ) : (

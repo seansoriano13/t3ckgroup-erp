@@ -10,16 +10,17 @@ export function FilterTrigger({
   isOpen,
   icon: Icon,
   disabled,
+  className,
 }) {
   return (
     <div
-      className={`h-[40px] md:h-[46px] w-full flex items-center justify-between px-3 rounded-lg border transition-all cursor-pointer ${
+      className={`h-[40px] w-full flex items-center justify-between px-3 rounded-lg border transition-all cursor-pointer ${
         disabled ? "opacity-50 pointer-events-none" : ""
       } ${
         isOpen || isActive
           ? "ring-1 ring-mauve-4 bg-muted font-medium"
           : "bg-card border-border hover:border-border/80"
-      }`}
+      } ${className || ""}`}
     >
       <div className="flex items-center gap-2 overflow-hidden flex-1">
         {Icon && (
@@ -28,7 +29,7 @@ export function FilterTrigger({
             className={`shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`}
           />
         )}
-        <span className="text-[13px] text-foreground font-500 truncate block w-full text-left">
+        <span className="text-[13px] text-foreground font-semibold truncate block w-full text-left">
           {label}
         </span>
       </div>

@@ -6,6 +6,7 @@ import {
   formatPHP,
 } from "../../constants/sor";
 import { getStatusTheme } from "../../constants/status";
+import HighlightText from "../HighlightText";
 
 const THEME_DOT = {
   green: "bg-green-9",
@@ -24,7 +25,7 @@ const THEME_DOT = {
  * (Closed Lost requires a reason there — dragging a card wouldn't be able
  * to enforce that, so drag-and-drop is deliberately not offered here).
  */
-export default function OpportunityBoard({ opportunities, onCardClick }) {
+export default function OpportunityBoard({ opportunities, search, onCardClick }) {
   const columns = useMemo(() => {
     return OPPORTUNITY_STAGES.map((stage) => {
       const items = opportunities.filter((o) => o.status === stage.value);
@@ -42,6 +43,7 @@ export default function OpportunityBoard({ opportunities, onCardClick }) {
         <BoardColumn
           key={column.value}
           column={column}
+          search={search}
           onCardClick={onCardClick}
         />
       ))}
@@ -49,7 +51,7 @@ export default function OpportunityBoard({ opportunities, onCardClick }) {
   );
 }
 
-function BoardColumn({ column, onCardClick }) {
+function BoardColumn({ column, search, onCardClick }) {
   const theme = getStatusTheme(column.value);
   const dotClass = THEME_DOT[theme] || THEME_DOT.mauve;
 
@@ -82,6 +84,7 @@ function BoardColumn({ column, onCardClick }) {
             <BoardCard
               key={o.id}
               opportunity={o}
+              search={search}
               onClick={() => onCardClick(o)}
             />
           ))
@@ -91,7 +94,7 @@ function BoardColumn({ column, onCardClick }) {
   );
 }
 
-function BoardCard({ opportunity, onClick }) {
+function BoardCard({ opportunity, search, onClick }) {
   return (
     <button
       type="button"
@@ -100,17 +103,17 @@ function BoardCard({ opportunity, onClick }) {
     >
       <div className="flex items-center justify-between mb-1.5 gap-2">
         <span className="font-mono text-[10px] font-bold text-primary truncate">
-          {opportunity.opportunity_no}
+          <HighlightText text={opportunity.opportunity_no} search={search} />
         </span>
         <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide shrink-0">
           {PROJECT_TYPE_SHORT[opportunity.project_type] || opportunity.project_type}
         </span>
       </div>
       <p className="text-sm font-bold text-foreground truncate mb-0.5">
-        {opportunity.client_name}
+        <HighlightText text={opportunity.client_name} search={search} />
       </p>
       <p className="text-xs text-muted-foreground truncate mb-2.5">
-        {opportunity.project_title}
+        <HighlightText text={opportunity.project_title} search={search} />
       </p>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-black text-foreground truncate">
