@@ -26,9 +26,9 @@ import {
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
-  LEAD_SOURCES,
   PROJECT_TYPES,
 } from "../../constants/sor";
+import { leadSourceService } from "../../services/leadSourceService";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 
@@ -88,6 +88,11 @@ export default function OpportunitiesPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const { data: activeLeadSources = [] } = useQuery({
+    queryKey: ["leadSources", "active"],
+    queryFn: () => leadSourceService.getActiveLeadSources(),
   });
 
   const createMutation = useMutation({
@@ -199,7 +204,7 @@ export default function OpportunitiesPage() {
 
   const leadSourceOptions = [
     { value: "ALL", label: "All Lead Sources" },
-    ...LEAD_SOURCES.map((s) => ({ value: s.value, label: s.label })),
+    ...activeLeadSources.map((s) => ({ value: s.value, label: s.label })),
   ];
 
   const currentLeadSourceLabel =
@@ -599,7 +604,7 @@ export default function OpportunitiesPage() {
                         {o.registration_date}
                       </td>
                       <td className="px-4 py-3 text-xs">
-                        <HighlightText text={formatLeadSource(o.lead_source, o.lead_source_detail)} search={search} />
+                        <HighlightText text={formatLeadSource(o.lead_source, o.lead_source_detail, activeLeadSources)} search={search} />
                       </td>
                       <td className="px-4 py-3 font-semibold">
                         <HighlightText text={o.client_name} search={search} />

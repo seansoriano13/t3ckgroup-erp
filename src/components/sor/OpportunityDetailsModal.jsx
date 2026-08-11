@@ -36,7 +36,6 @@ import {
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPES,
-  LEAD_SOURCES,
   formatLeadSource,
   formatPHP,
   isValidSalesReference,
@@ -44,6 +43,7 @@ import {
   requiresSalesReference,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
+import { leadSourceService } from "../../services/leadSourceService";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -143,40 +143,42 @@ function ItemsList({ items }) {
   if (!items.length) return null;
   const total = items.reduce((sum, it) => sum + ((Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
   return (
-    <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-      <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-        <span className="col-span-6">Product</span>
-        <span className="col-span-2 text-right">Qty</span>
-        <span className="col-span-2 text-right">Unit Price</span>
-        <span className="col-span-2 text-right">Total</span>
-      </div>
-      {items.map((it) => (
-        <div
-          key={it.id}
-          className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm"
-        >
-          <span className="col-span-6 text-foreground font-medium truncate">
-            {it.product_name}
-            {it.unit && (
-              <span className="text-muted-foreground font-normal"> ({it.unit})</span>
-            )}
-          </span>
-          <span className="col-span-2 text-right text-muted-foreground">
-            {it.quantity}
-          </span>
-          <span className="col-span-2 text-right text-muted-foreground">
-            {formatPHP(it.unit_price)}
-          </span>
-          <span className="col-span-2 text-right font-bold text-foreground">
-            {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+    <div className="border border-border rounded-xl overflow-x-auto">
+      <div className="min-w-[500px] divide-y divide-border">
+        <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+          <span className="col-span-6">Product</span>
+          <span className="col-span-2 text-right">Qty</span>
+          <span className="col-span-2 text-right">Unit Price</span>
+          <span className="col-span-2 text-right">Total</span>
+        </div>
+        {items.map((it) => (
+          <div
+            key={it.id}
+            className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm"
+          >
+            <span className="col-span-6 text-foreground font-medium truncate">
+              {it.product_name}
+              {it.unit && (
+                <span className="text-muted-foreground font-normal"> ({it.unit})</span>
+              )}
+            </span>
+            <span className="col-span-2 text-right text-muted-foreground">
+              {it.quantity}
+            </span>
+            <span className="col-span-2 text-right text-muted-foreground">
+              {formatPHP(it.unit_price)}
+            </span>
+            <span className="col-span-2 text-right font-bold text-foreground">
+              {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+            </span>
+          </div>
+        ))}
+        <div className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-sm bg-muted/10 border-t border-border">
+          <span className="col-span-10 text-right font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Product Line Total</span>
+          <span className="col-span-2 text-right font-black text-foreground">
+            {formatPHP(total)}
           </span>
         </div>
-      ))}
-      <div className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-sm bg-muted/10 border-t border-border">
-        <span className="col-span-10 text-right font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Product Line Total</span>
-        <span className="col-span-2 text-right font-black text-foreground">
-          {formatPHP(total)}
-        </span>
       </div>
     </div>
   );
@@ -270,6 +272,12 @@ export default function OpportunityDetailsModal({
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeeService.getAllEmployees(),
+    enabled: isOpen,
+  });
+
+  const { data: activeLeadSources = [] } = useQuery({
+    queryKey: ["leadSources", "active"],
+    queryFn: () => leadSourceService.getActiveLeadSources(),
     enabled: isOpen,
   });
 
@@ -536,7 +544,7 @@ export default function OpportunityDetailsModal({
           "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] outline-none transition-all duration-300",
           isExpanded
             ? "!max-w-none !max-h-none !rounded-none !border-0"
-            : "w-[1024px] !max-w-[1024px] max-h-[90vh] rounded-2xl",
+            : "w-full max-w-[95vw] md:max-w-[1024px] max-h-[90vh] rounded-2xl",
         )}
       >
         {/* Header */}
@@ -922,14 +930,14 @@ export default function OpportunityDetailsModal({
                       trigger={({ isOpen }) => (
                         <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
                           <span className={`truncate ${editForm.lead_source ? "text-foreground" : "text-muted-foreground/50"}`}>
-                            {editForm.lead_source ? LEAD_SOURCES.find(l => l.value === editForm.lead_source)?.label : "Select..."}
+                            {editForm.lead_source ? activeLeadSources.find(l => l.value === editForm.lead_source)?.label || editForm.lead_source : "Select..."}
                           </span>
                         </div>
                       )}
                     >
                       {({ close }) => (
                         <FilterOptionList
-                          options={LEAD_SOURCES}
+                          options={activeLeadSources.map(s => ({ value: s.value, label: s.label }))}
                           value={editForm.lead_source}
                           onChange={(val) => setEditForm(f => ({ ...f, lead_source: val }))}
                           close={close}
@@ -938,7 +946,7 @@ export default function OpportunityDetailsModal({
                     </Dropdown>
                   }
                 >
-                  {formatLeadSource(opportunity.lead_source, opportunity.lead_source_detail)}
+                  {formatLeadSource(opportunity.lead_source, opportunity.lead_source_detail, activeLeadSources)}
                 </Detail>
 
                 {editForm.lead_source === "OTHERS" && isEditing && (

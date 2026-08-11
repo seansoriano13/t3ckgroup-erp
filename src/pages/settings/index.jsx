@@ -4,6 +4,7 @@ import FAQModal from "./FAQModal";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
+import LeadSourceManager from "../../components/settings/LeadSourceManager";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { appSettingsService } from "../../services/appSettingsService";
@@ -196,6 +197,8 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {isSuperAdmin && <LeadSourceManager />}
 
         {/* DANGER ZONE SECTION */}
         <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">

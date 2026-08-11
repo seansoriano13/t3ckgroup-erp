@@ -44,60 +44,62 @@ export default function OpportunityItemsEditor({ items, onChange }) {
           No items yet — Product Line Total will show ₱0.00 until at least one is added.
         </p>
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
-          <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-            <span className="col-span-5">Product</span>
-            <span className="col-span-2">Unit</span>
-            <span className="col-span-1">Qty</span>
-            <span className="col-span-2">Unit Price</span>
-            <span className="col-span-2 text-right">Total</span>
-          </div>
-          {items.map((item, idx) => (
-            <div
-              key={idx}
-              className="grid grid-cols-12 gap-2 px-3 py-2 items-center bg-muted/10"
-            >
-              <input
-                value={item.product_name}
-                onChange={(e) => updateRow(idx, "product_name", e.target.value)}
-                placeholder="e.g. Boom Lift"
-                className="col-span-5 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
-              />
-              <input
-                value={item.unit}
-                onChange={(e) => updateRow(idx, "unit", e.target.value)}
-                placeholder="Units"
-                className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={item.quantity}
-                onChange={(e) => updateRow(idx, "quantity", e.target.value)}
-                className="col-span-1 bg-transparent text-sm text-foreground outline-none font-medium min-w-0"
-              />
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={item.unit_price}
-                onChange={(e) => updateRow(idx, "unit_price", e.target.value)}
-                placeholder="0.00"
-                className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
-              />
-              <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
-                {formatPHP(lineTotal(item))}
-              </div>
-              <button
-                type="button"
-                onClick={() => removeRow(idx)}
-                className="col-span-1 flex justify-end text-muted-foreground hover:text-red-500 transition-colors"
-              >
-                <Trash2 size={14} />
-              </button>
+        <div className="border border-border rounded-xl overflow-x-auto">
+          <div className="min-w-[600px] divide-y divide-border">
+            <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
+              <span className="col-span-5">Product</span>
+              <span className="col-span-2">Unit</span>
+              <span className="col-span-1">Qty</span>
+              <span className="col-span-2">Unit Price</span>
+              <span className="col-span-2 text-right">Total</span>
             </div>
-          ))}
+            {items.map((item, idx) => (
+              <div
+                key={idx}
+                className="grid grid-cols-12 gap-2 px-3 py-2 items-center bg-muted/10"
+              >
+                <input
+                  value={item.product_name}
+                  onChange={(e) => updateRow(idx, "product_name", e.target.value)}
+                  placeholder="e.g. Boom Lift"
+                  className="col-span-5 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
+                />
+                <input
+                  value={item.unit}
+                  onChange={(e) => updateRow(idx, "unit", e.target.value)}
+                  placeholder="Units"
+                  className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.quantity}
+                  onChange={(e) => updateRow(idx, "quantity", e.target.value)}
+                  className="col-span-1 bg-transparent text-sm text-foreground outline-none font-medium min-w-0"
+                />
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={item.unit_price}
+                  onChange={(e) => updateRow(idx, "unit_price", e.target.value)}
+                  placeholder="0.00"
+                  className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
+                />
+                <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
+                  {formatPHP(lineTotal(item))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeRow(idx)}
+                  className="col-span-1 flex justify-end text-muted-foreground hover:text-red-500 transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

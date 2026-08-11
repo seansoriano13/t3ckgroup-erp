@@ -7,25 +7,8 @@
  * (see supabase/migrations/0001_sales_opportunities.sql).
  */
 
-// Annex D.2 — Approved Lead Sources
-export const LEAD_SOURCES = [
-  { value: "LGU", label: "LGU" },
-  { value: "NGA", label: "NGA" },
-  { value: "GOCC", label: "GOCC" },
-  { value: "BFP", label: "BFP" },
-  { value: "PNP", label: "PNP" },
-  { value: "MIL", label: "MIL" },
-  { value: "DRRM", label: "DRRM" },
-  { value: "CORPORATE", label: "Corporate" },
-  { value: "REFERRAL", label: "Referral" },
-  { value: "WEBSITE", label: "Website" },
-  { value: "FACEBOOK", label: "Facebook" },
-  { value: "TIKTOK", label: "TikTok" },
-  { value: "SHOPEE", label: "Shopee" },
-  { value: "LAZADA", label: "Lazada" },
-  { value: "EXHIBITION", label: "Exhibition" },
-  { value: "REPEAT_CLIENT", label: "Repeat Client" },
-];
+// Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
+// Previously, they were hardcoded here as LEAD_SOURCES.
 
 // The sheet's "Sales Division" column. Drives the commission split in a later phase.
 export const PROJECT_TYPES = [
@@ -69,9 +52,7 @@ export const STAGE_LABELS = Object.fromEntries(
   OPPORTUNITY_STAGES.map((s) => [s.value, s.label]),
 );
 
-export const LEAD_SOURCE_LABELS = Object.fromEntries(
-  LEAD_SOURCES.map((s) => [s.value, s.label]),
-);
+// Dynamic lead sources replaced LEAD_SOURCE_LABELS.
 
 export const PROJECT_TYPE_LABELS = Object.fromEntries(
   PROJECT_TYPES.map((s) => [s.value, s.label]),
@@ -117,8 +98,8 @@ export const formatPHP = (amount) =>
     maximumFractionDigits: 2,
   })}`;
 
-/** "LGU - Bayambang" from the stored category + detail pair. */
-export const formatLeadSource = (source, detail) => {
-  const label = LEAD_SOURCE_LABELS[source] || source || "—";
+export const formatLeadSource = (source, detail, leadSources = []) => {
+  const dynamicLabel = leadSources.find((s) => s.value === source)?.label;
+  const label = dynamicLabel || source || "—";
   return detail ? `${label} - ${detail}` : label;
 };

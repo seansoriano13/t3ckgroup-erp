@@ -9,12 +9,12 @@ import { employeeService } from "../../services/employeeService";
 import { opportunityService } from "../../services/opportunityService";
 import { odooService } from "../../services/odooService";
 import {
-  LEAD_SOURCES,
   PROJECT_TYPES,
   isValidSalesReference,
   normalizeSalesReference,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
+import { leadSourceService } from "../../services/leadSourceService";
 
 const FORM_ID = "opportunity-form";
 
@@ -87,6 +87,12 @@ export default function OpportunityFormModal({
     enabled: isOpen,
   });
 
+  const { data: activeLeadSources = [] } = useQuery({
+    queryKey: ["leadSources", "active"],
+    queryFn: () => leadSourceService.getActiveLeadSources(),
+    enabled: isOpen,
+  });
+
   const { data: existingItems } = useQuery({
     queryKey: ["opportunityItems", opportunity?.id],
     queryFn: () => opportunityService.getItems(opportunity.id),
@@ -112,6 +118,11 @@ export default function OpportunityFormModal({
       label: e.subDepartment ? `${e.name} — ${e.subDepartment}` : e.name,
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+
+  const leadSourceOptions = activeLeadSources.map((s) => ({
+    value: s.value,
+    label: s.label,
+  }));
 
   const set = (key) => (e) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
@@ -197,7 +208,7 @@ export default function OpportunityFormModal({
           <SelectField
             label="Lead Source"
             required
-            options={LEAD_SOURCES}
+            options={leadSourceOptions}
             value={form.lead_source}
             onChange={set("lead_source")}
           />
