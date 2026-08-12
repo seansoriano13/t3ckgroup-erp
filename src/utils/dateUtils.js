@@ -66,7 +66,12 @@ export function getYearBoundaries(year) {
 export function getMonthKeysInRange(startDate, endDate) {
   const keys = [];
   const [sy, sm] = startDate.split("-").map(Number);
-  const endD = new Date(endDate);
+  // Both ends must be built from local parts. `new Date("2026-04-01")` parses as
+  // UTC midnight, which in any zone ahead of UTC sits AFTER local April 1 — so
+  // the exclusive end month was being included, over-counting every quarterly
+  // and yearly quota by one month.
+  const [ey, em, ed] = endDate.split("-").map(Number);
+  const endD = new Date(ey, em - 1, ed);
   let cursor = new Date(sy, sm - 1, 1);
   while (cursor < endD) {
     keys.push(

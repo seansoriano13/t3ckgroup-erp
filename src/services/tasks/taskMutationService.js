@@ -365,6 +365,24 @@ export const taskMutationService = {
       updateData.edited_at = new Date().toISOString();
     }
 
+    // Detect resubmission (NOT APPROVED → INCOMPLETE). This has to be decided
+    // BEFORE the write: a resubmitted task goes back for a fresh evaluation, so
+    // the previous grade, evaluator, HR sign-off and remarks must be cleared in
+    // the same update rather than left on the record.
+    const isResubmission =
+      payload?.status === TASK_STATUS.INCOMPLETE &&
+      current?.status === TASK_STATUS.NOT_APPROVED;
+
+    if (isResubmission) {
+      updateData.grade = 0;
+      updateData.evaluated_by = null;
+      updateData.evaluated_at = null;
+      updateData.hr_verified = false;
+      updateData.hr_verified_at = null;
+      updateData.hr_remarks = "";
+      updateData.remarks = "";
+    }
+
     const { data, error } = await supabase
       .from("tasks")
       .update(updateData)
@@ -373,11 +391,6 @@ export const taskMutationService = {
       .single();
 
     if (error) throw error;
-
-    // Detect resubmission (NOT APPROVED → INCOMPLETE) before the activity/notification blocks
-    const isResubmission =
-      payload?.status === TASK_STATUS.INCOMPLETE &&
-      current?.status === TASK_STATUS.NOT_APPROVED;
 
     // ===========================
     // ACTIVITY TIMELINE ENTRIES
@@ -396,22 +409,12 @@ export const taskMutationService = {
         payload?.status === TASK_STATUS.AWAITING_APPROVAL &&
         current?.status !== TASK_STATUS.AWAITING_APPROVAL;
 
-      if (isResubmission) {
-        updateData.grade = 0;
-        updateData.evaluated_by = null;
-        updateData.evaluated_at = null;
-        updateData.hr_verified = false;
-        updateData.hr_verified_at = null;
-        updateData.hr_remarks = "";
-        updateData.remarks = "";
-      }
-
       if (isEmployeeSelfComplete) {
         // Detect if this is a re-submission by checking prior RESUBMITTED activity
         let submitVerb = "submitted";
         try {
           const { data: resubmitEvents } = await supabase
-            .from("task_activities")
+            .from("task_activity")
             .select("id")
             .eq("task_id", taskId)
             .eq("metadata->>event", "RESUBMITTED")

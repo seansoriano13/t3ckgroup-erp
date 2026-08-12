@@ -1,0 +1,322 @@
+import { beforeEach, describe, expect, it } from "vitest"
+import { employeeService } from "./employeeService"
+import { db } from "@/test/db/store"
+import { waitForNetworkIdle } from "@/test/network"
+import { makeCategory, makeEmployee, makeSuperAdmin, makeTask } from "@/test/factories"
+
+/**
+ * The employee directory is the app's identity source: it decides who is a
+ * head, who is HR, and what leave balances they carry. Email uniqueness is
+ * enforced in this service rather than by the table, which makes it the one
+ * thing standing between a rehire and two accounts answering to one address.
+ */
+describe("employeeService", () => {
+  let actor
+
+  beforeEach(() => {
+    actor = makeSuperAdmin({ name: "Boss" })
+  })
+
+  describe("reading the directory", () => {
+    it("maps a row onto the camelCase identity the app uses", async () => {
+      makeEmployee({
+        name: "Ana Reyes",
+        email: "ana@t3ckgroup.test",
+        department: "IT",
+        sub_department: "Infra",
+        is_head: true,
+        sil_hours_balance: 24,
+      })
+
+      const found = await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")
+
+      expect(found).toMatchObject({
+        name: "Ana Reyes",
+        department: "IT",
+        subDepartment: "Infra",
+        isHead: true,
+        isHr: false,
+        isSuperAdmin: false,
+        sil_hours_balance: 24,
+      })
+    })
+
+    it("returns null for an unknown address rather than throwing", async () => {
+      expect(await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).toBeNull()
+    })
+
+    it("refuses to sign in a deactivated account", async () => {
+      makeEmployee({ email: "gone@t3ckgroup.test", is_deleted: true })
+
+      expect(await employeeService.getEmployeeByEmail("gone@t3ckgroup.test")).toBeNull()
+    })
+
+    it("lists everyone except deactivated accounts", async () => {
+      makeEmployee({ name: "Ana Reyes" })
+      makeEmployee({ name: "Gone", is_deleted: true })
+
+      const everyone = await employeeService.getAllEmployees()
+
+      expect(everyone.map((e) => e.name).sort()).toEqual(["Ana Reyes", "Boss"])
+    })
+
+    it("substitutes zero for balances that were never set", async () => {
+      makeEmployee({ name: "New Hire", sil_hours_balance: null, offset_hours_balance: 0 })
+
+      const found = await employeeService.getAllEmployees()
+      const hire = found.find((e) => e.name === "New Hire")
+
+      expect(hire).toMatchObject({ sil_hours_balance: 0, offset_hours_balance: 0 })
+    })
+  })
+
+  describe("creating an employee", () => {
+    it("stores the new employee so they can sign in", async () => {
+      await employeeService.createEmployee({
+        name: "Ana Reyes",
+        email: "ana@t3ckgroup.test",
+        department: "IT",
+        subDepartment: "Infra",
+        role: "EMPLOYEE",
+        isHead: false,
+        isHr: false,
+        isSuperAdmin: false,
+        updatedBy: actor.id,
+      })
+
+      expect(await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")).toMatchObject({
+        name: "Ana Reyes",
+        department: "IT",
+      })
+    })
+
+    it("refuses an email an active employee already uses", async () => {
+      makeEmployee({ email: "ana@t3ckgroup.test" })
+
+      await expect(
+        employeeService.createEmployee({ name: "Impostor", email: "ana@t3ckgroup.test" }),
+      ).rejects.toThrow('An active employee with the email "ana@t3ckgroup.test" already exists.')
+    })
+
+    it("trims the address before checking it", async () => {
+      makeEmployee({ email: "ana@t3ckgroup.test" })
+
+      await expect(
+        employeeService.createEmployee({ name: "Impostor", email: "  ana@t3ckgroup.test  " }),
+      ).rejects.toThrow(/already exists/)
+    })
+
+    it("frees an address held by a deactivated account so a rehire can use it", async () => {
+      const old = makeEmployee({ name: "Ana Reyes (old)", email: "ana@t3ckgroup.test" })
+      await employeeService.deleteEmployee(old.id, actor.id)
+
+      await employeeService.createEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      expect(await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")).toMatchObject({
+        name: "Ana Reyes",
+      })
+    })
+
+    it("records the creation in the audit log", async () => {
+      await employeeService.createEmployee({
+        name: "Ana Reyes",
+        email: "ana@t3ckgroup.test",
+        department: "IT",
+        updatedBy: actor.id,
+      })
+      await waitForNetworkIdle()
+
+      const entry = db.rows("system_audit_logs").find((e) => e.entity_type === "EMPLOYEE")
+      expect(entry.content).toContain('Employee "Ana Reyes" was created')
+      expect(entry.author_id).toBe(actor.id)
+    })
+  })
+
+  describe("updating an employee", () => {
+    it("saves the change", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes-Cruz", email: "ana@t3ckgroup.test", department: "OPS" },
+        actor.id,
+      )
+
+      expect(await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")).toMatchObject({
+        name: "Ana Reyes-Cruz",
+        department: "OPS",
+      })
+    })
+
+    it("lets an employee keep their own email address", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      await expect(
+        employeeService.updateEmployee(
+          employee.id,
+          { name: "Ana Reyes", email: "ana@t3ckgroup.test" },
+          actor.id,
+        ),
+      ).resolves.toBeTruthy()
+    })
+
+    it("refuses to move an employee onto a colleague's address", async () => {
+      makeEmployee({ email: "ben@t3ckgroup.test" })
+      const employee = makeEmployee({ email: "ana@t3ckgroup.test" })
+
+      await expect(
+        employeeService.updateEmployee(
+          employee.id,
+          { name: "Ana", email: "ben@t3ckgroup.test" },
+          actor.id,
+        ),
+      ).rejects.toThrow(/already exists/)
+    })
+
+    it("spells out a leave-balance change in the audit log", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", sil_hours_balance: 40 })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes", email: null, sil_hours_balance: 16 },
+        actor.id,
+      )
+      await waitForNetworkIdle()
+
+      const entry = db.rows("system_audit_logs").at(-1)
+      expect(entry.content).toContain("SIL balance changed from 40 to 16 hrs")
+      expect(entry.metadata.hasBalanceOrStatusChange).toBe(true)
+    })
+
+    it("spells out an employment-status change in the audit log", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", employment_status: "Probationary" })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes", email: null, employment_status: "Regular" },
+        actor.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(db.rows("system_audit_logs").at(-1).content).toContain(
+        'employment status changed from "Probationary" to "Regular"',
+      )
+    })
+
+    it("leaves balances alone when the caller did not mention them", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", sil_hours_balance: 40 })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes-Cruz", email: null },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+  })
+
+  describe("deactivating an employee", () => {
+    it("keeps the record and marks it deleted", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      await employeeService.deleteEmployee(employee.id, actor.id)
+
+      const stored = db.rows("employees").find((e) => e.id === employee.id)
+      expect(stored.is_deleted).toBe(true)
+    })
+
+    it("archives the address so it can be reused", async () => {
+      const employee = makeEmployee({ email: "ana@t3ckgroup.test" })
+
+      await employeeService.deleteEmployee(employee.id, actor.id)
+
+      const stored = db.rows("employees").find((e) => e.id === employee.id)
+      expect(stored.email).toMatch(/^ana@t3ckgroup\.test#deleted_\d+$/)
+    })
+
+    it("does not stack archive suffixes when an account is deleted twice", async () => {
+      const employee = makeEmployee({ email: "ana@t3ckgroup.test" })
+      await employeeService.deleteEmployee(employee.id, actor.id)
+
+      await employeeService.deleteEmployee(employee.id, actor.id)
+
+      const stored = db.rows("employees").find((e) => e.id === employee.id)
+      expect(stored.email.match(/#deleted_/g)).toHaveLength(1)
+    })
+  })
+
+  describe("categories", () => {
+    it("lists categories in the shape the settings screen wants", async () => {
+      makeCategory({ category_id: "IT-01", description: "Support", department: "IT" })
+
+      const [category] = await employeeService.getAllCategories()
+
+      expect(category).toMatchObject({
+        categoryId: "IT-01",
+        description: "Support",
+        department: "IT",
+      })
+    })
+
+    it("reports a category as in use once a task references it", async () => {
+      const category = makeCategory({ category_id: "IT-01" })
+      expect(await employeeService.isCategoryInUse(category.category_id)).toBe(false)
+
+      makeTask({ category_id: category.category_id })
+
+      expect(await employeeService.isCategoryInUse(category.category_id)).toBe(true)
+    })
+
+    it("removes an unused category", async () => {
+      const category = makeCategory({ category_id: "IT-99" })
+
+      await employeeService.deleteCategory(category.id, actor.id)
+
+      expect(await employeeService.getAllCategories()).toEqual([])
+    })
+  })
+
+  describe("self-service preferences", () => {
+    it("saves the avatar without touching the other preferences", async () => {
+      const employee = makeEmployee({ dashboard_quote: "Keep going" })
+
+      await employeeService.updateSelfPreferences(employee.id, { avatarPath: "new-avatar.png" })
+
+      const stored = db.rows("employees").find((e) => e.id === employee.id)
+      expect(stored).toMatchObject({
+        avatar_path: "new-avatar.png",
+        dashboard_quote: "Keep going",
+      })
+    })
+
+    it("clears a preference when an empty value is saved", async () => {
+      const employee = makeEmployee({ dashboard_quote: "Keep going" })
+
+      await employeeService.updateSelfPreferences(employee.id, { dashboardQuote: "" })
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).dashboard_quote).toBeNull()
+    })
+
+    it("returns a usable shape even when the update matched no row", async () => {
+      const result = await employeeService.updateSelfPreferences(
+        "00000000-0000-4000-8000-000000009999",
+        { avatarPath: "x.png" },
+      )
+
+      expect(result).toMatchObject({ avatar_path: "x.png" })
+    })
+  })
+
+  describe("avatar paths", () => {
+    it("returns id and avatar for every active employee", async () => {
+      makeEmployee({ name: "Ana Reyes", avatar_path: "ana.png" })
+      makeEmployee({ name: "Gone", is_deleted: true, avatar_path: "gone.png" })
+
+      const paths = await employeeService.getEmployeeAvatarPaths()
+
+      expect(paths.map((p) => p.avatar_path)).not.toContain("gone.png")
+      expect(paths.map((p) => p.avatar_path)).toContain("ana.png")
+    })
+  })
+})

@@ -50,7 +50,9 @@ export const OPPORTUNITY_STATUS_THEME = {
 
 // Helper function to get theme
 export const getStatusTheme = (status) => {
-  const safeStatus = status?.toUpperCase() || "";
+  // Already guarded against null; a non-string (a stray grade or enum id) would
+  // otherwise throw and take the whole task list down with it.
+  const safeStatus = String(status ?? "").toUpperCase();
 
   if (TASK_STATUS_THEME[safeStatus]) return TASK_STATUS_THEME[safeStatus];
   if (OPPORTUNITY_STATUS_THEME[safeStatus])

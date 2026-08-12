@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { TASK_STATUS } from "../constants/status";
+import { formatDateToYMD } from "../utils/dateUtils";
 
 export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
   const {
@@ -86,7 +87,10 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
       let matchesDate = true;
       if (selectedDateFilter) {
         const taskDate = new Date(task.createdAt);
-        const taskDateStr = taskDate.toISOString().split("T")[0]; // YYYY-MM-DD
+        // Local YYYY-MM-DD, not the UTC one. The date picker hands us a local
+        // date, so deriving the task's day in UTC pushed anything logged before
+        // 08:00 in Manila onto the previous day and out of its own filter.
+        const taskDateStr = formatDateToYMD(taskDate);
 
         if (timeframe === "DAILY") {
           matchesDate = taskDateStr === selectedDateFilter;

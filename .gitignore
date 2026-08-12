@@ -8,11 +8,16 @@ pnpm-debug.log*
 lerna-debug.log*
 
 .env*
+# ...except the test environment, which holds no secrets — every value in it is
+# a placeholder pointing at the MSW fake. CI needs it, and without it Vite
+# leaves VITE_SUPABASE_URL undefined and the whole suite fails to boot.
+!.env.test
 
 node_modules
 dist
 dist-ssr
 *.local
+coverage
 
 # Editor directories and files
 .vscode/*
