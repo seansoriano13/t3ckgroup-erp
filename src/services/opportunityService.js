@@ -30,6 +30,14 @@ function cleanSalesReference(value) {
   return ref;
 }
 
+/**
+ * Strips a leading "[SKU-CODE] " prefix so change logs read as plain product
+ * names instead of raw catalog codes.
+ */
+function stripProductCode(name) {
+  return (name || "").replace(/^\[[^\]]*\]\s*/, "");
+}
+
 export const opportunityService = {
   async getOpportunities() {
     const { data, error } = await supabase
@@ -189,9 +197,13 @@ export const opportunityService = {
       }
     });
 
-    if (addedProducts.length > 0) changes.push(`Added product(s): ${addedProducts.join(', ')}`);
-    if (removedProducts.length > 0) changes.push(`Removed product(s): ${removedProducts.join(', ')}`);
-    if (modifiedProducts.length > 0) changes.push(`Modified product(s): ${modifiedProducts.join(', ')}`);
+    const addedNames = addedProducts.map(stripProductCode);
+    const removedNames = removedProducts.map(stripProductCode);
+    const modifiedNames = modifiedProducts.map(stripProductCode);
+
+    if (addedNames.length > 0) changes.push(`Added product(s): ${addedNames.join(', ')}`);
+    if (removedNames.length > 0) changes.push(`Removed product(s): ${removedNames.join(', ')}`);
+    if (modifiedNames.length > 0) changes.push(`Modified product(s): ${modifiedNames.join(', ')}`);
 
     if (Number(existing.expected_value) !== Number(final.expected_value)) {
       changes.push(`Expected Value changed from ₱${Number(existing.expected_value).toLocaleString()} to ₱${Number(final.expected_value).toLocaleString()}`);
@@ -199,11 +211,16 @@ export const opportunityService = {
 
     if (changes.length > 0) {
       const diffString = changes.join(", ");
-      
+      const productChanges = [
+        ...addedNames.map((name) => ({ type: "added", name })),
+        ...removedNames.map((name) => ({ type: "removed", name })),
+        ...modifiedNames.map((name) => ({ type: "modified", name })),
+      ];
+
       await opportunityService.addSystemNote(
         id,
         `Details updated: ${diffString}`,
-        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
+        { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes, productChanges },
         actorId,
       );
 

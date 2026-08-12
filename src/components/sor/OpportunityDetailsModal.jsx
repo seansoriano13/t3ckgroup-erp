@@ -184,6 +184,15 @@ function ItemsList({ items }) {
   );
 }
 
+function formatLongDate(dateString) {
+  if (!dateString) return "";
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 function formatWhen(iso) {
   if (!iso) return "";
   return new Date(iso).toLocaleString(undefined, {
@@ -1032,7 +1041,7 @@ export default function OpportunityDetailsModal({
                       </Dropdown>
                     }
                   >
-                    {opportunity.registration_date}
+                    {formatLongDate(opportunity.registration_date)}
                   </Detail>
                   <Detail
                     label="Expected Award"
@@ -1072,7 +1081,7 @@ export default function OpportunityDetailsModal({
                       </Dropdown>
                     }
                   >
-                    {opportunity.expected_award_date}
+                    {formatLongDate(opportunity.expected_award_date)}
                   </Detail>
                   <Detail
                     label="Contact Person"
@@ -1157,17 +1166,30 @@ export default function OpportunityDetailsModal({
                                 {formatWhen(n.created_at)}
                               </span>
                             </p>
-                            {n.content && (
-                              <p
-                                className={cn(
-                                  "text-sm break-words",
-                                  n.type === "SYSTEM"
-                                    ? "text-muted-foreground italic"
-                                    : "text-foreground",
-                                )}
-                              >
-                                {n.content}
-                              </p>
+                            {n.type === "SYSTEM" && n.metadata?.changes?.length > 0 ? (
+                              <ul className="mt-0.5 space-y-0.5">
+                                {n.metadata.changes.map((change, idx) => (
+                                  <li
+                                    key={idx}
+                                    className="text-sm text-muted-foreground italic break-words"
+                                  >
+                                    · {change}
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              n.content && (
+                                <p
+                                  className={cn(
+                                    "text-sm break-words",
+                                    n.type === "SYSTEM"
+                                      ? "text-muted-foreground italic"
+                                      : "text-foreground",
+                                  )}
+                                >
+                                  {n.content}
+                                </p>
+                              )
                             )}
                             <AttachmentList
                               attachments={n.metadata?.attachments}
