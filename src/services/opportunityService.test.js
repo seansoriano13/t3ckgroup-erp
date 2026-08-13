@@ -43,12 +43,14 @@ describe("opportunityService", () => {
       })
     })
 
-    it("takes its opportunity number from the database sequence", async () => {
-      const first = await opportunityService.createOpportunity(payload(), registrar.id)
-      const second = await opportunityService.createOpportunity(payload(), registrar.id)
+    it("no longer carries an opportunity number", async () => {
+      // Retired in migration 0012: it was minted as S0#### from a sequence
+      // running through the same range as Odoo's quotation numbers, so an
+      // opportunity showing S07233 sat beside a Sales Reference of S07189
+      // while S07233 in Odoo was somebody else's order entirely.
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
-      expect(first.opportunity_no).toBe("S07190")
-      expect(second.opportunity_no).toBe("S07191")
+      expect(created.opportunity_no).toBeNull()
     })
 
     it("values the opportunity from its product list", async () => {
@@ -71,9 +73,10 @@ describe("opportunityService", () => {
       const notes = await opportunityService.getNotes(created.id)
       expect(notes).toHaveLength(1)
       expect(notes[0]).toMatchObject({ type: "SYSTEM", author_id: registrar.id })
-      expect(notes[0].content).toBe(
-        "Opportunity S07190 registered — Quezon City Hall, ₱3,000.00.",
-      )
+      // No identifier: the note is displayed inside the opportunity it
+      // describes, and the retired opportunity_no read as an Odoo quotation
+      // number without being one (migration 0012).
+      expect(notes[0].content).toBe("Registered — Quezon City Hall, ₱3,000.00.")
     })
 
     it("attributes the registration to the actor, not the deal owner", async () => {

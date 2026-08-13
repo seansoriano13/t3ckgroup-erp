@@ -34,13 +34,9 @@ function nextval(name, start) {
 export const TRIGGERS = {
   sales_opportunities: {
     beforeInsert: [
-      // 0001 — sales_opportunities_set_no()
-      function assignOpportunityNo(row) {
-        if (row.opportunity_no == null) {
-          const n = nextval("sales_opportunity_no_seq", 7190)
-          row.opportunity_no = `S${String(n).padStart(5, "0")}`
-        }
-      },
+      // 0012 dropped sales_opportunities_set_no(): opportunity_no shared the
+      // S0#### format with Odoo's sales references while identifying an
+      // unrelated record, so it is no longer minted. New rows leave it null.
       // 0011 — sales_opportunities_require_sales_ref(), INSERT branch
       function requireSalesReferenceOnInsert(row) {
         row.sales_reference = row.sales_reference?.trim()
@@ -70,12 +66,10 @@ export const TRIGGERS = {
           )
         }
       },
-      // 0001 — sales_opportunities_guard(): ownership disputes are settled on
-      // these three columns, so they never change once the row exists.
+      // 0001 — sales_opportunities_guard(), as amended by 0012: ownership
+      // disputes are settled on these two columns, so they never change once
+      // the row exists. opportunity_no was released from the guard in 0012.
       function guardImmutableColumns(row, old) {
-        if (row.opportunity_no !== old.opportunity_no) {
-          raise(`opportunity_no is immutable (${old.opportunity_no} -> ${row.opportunity_no})`)
-        }
         if (row.registration_date !== old.registration_date) {
           raise("registration_date is immutable — it determines deal ownership")
         }

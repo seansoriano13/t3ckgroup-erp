@@ -38,6 +38,24 @@ function stripProductCode(name) {
   return (name || "").replace(/^\[[^\]]*\]\s*/, "");
 }
 
+/**
+ * How an opportunity is named in the GLOBAL audit log, which mixes records
+ * from every module and so needs to identify which one it is talking about.
+ *
+ * The Odoo Sales Reference is the only external number this product carries —
+ * the retired opportunity_no shared its S0#### format and pointed at unrelated
+ * Odoo orders (see migration 0012). A deal has no reference until it leaves
+ * the Lead stage, so before then it is named by client instead.
+ *
+ * Per-opportunity timeline notes deliberately carry no identifier at all:
+ * they are already displayed inside the record they describe.
+ */
+function auditLabel({ sales_reference, client_name }) {
+  return sales_reference
+    ? `Sales opportunity ${sales_reference}`
+    : `Sales opportunity for ${client_name}`;
+}
+
 export const opportunityService = {
   async getOpportunities() {
     const { data, error } = await supabase
@@ -101,7 +119,7 @@ export const opportunityService = {
 
     await opportunityService.addSystemNote(
       final.id,
-      `Opportunity ${final.opportunity_no} registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
+      `Registered — ${final.client_name}, ${formatPHP(final.expected_value)}.`,
       { event: "OPPORTUNITY_REGISTERED", employeeId: actorId },
       actorId,
     );
@@ -109,7 +127,7 @@ export const opportunityService = {
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       final.id,
-      `Sales opportunity ${final.opportunity_no} registered for ${final.client_name} (${formatPHP(final.expected_value)}).`,
+      `Sales opportunity registered for ${final.client_name} (${formatPHP(final.expected_value)}).`,
       { event: "OPPORTUNITY_REGISTERED", employeeId: actorId },
       actorId,
     ).catch(console.error);
@@ -227,7 +245,7 @@ export const opportunityService = {
       systemAuditLogService.addSystemEvent(
         "OPPORTUNITY",
         id,
-        `Sales opportunity ${data.opportunity_no} details updated: ${diffString}`,
+        `${auditLabel(data)} details updated: ${diffString}`,
         { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
         actorId,
       ).catch(console.error);
@@ -235,7 +253,7 @@ export const opportunityService = {
       systemAuditLogService.addSystemEvent(
         "OPPORTUNITY",
         id,
-        `Sales opportunity ${data.opportunity_no} items updated.`,
+        `${auditLabel(data)} items updated.`,
         { event: "OPPORTUNITY_UPDATED", employeeId: actorId },
         actorId,
       ).catch(console.error);
@@ -253,7 +271,7 @@ export const opportunityService = {
   async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, opportunity_no, status, sales_reference")
+      .select("id, client_name, status, sales_reference")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -298,7 +316,7 @@ export const opportunityService = {
       systemAuditLogService.addSystemEvent(
         "OPPORTUNITY",
         id,
-        `Sales opportunity ${existing.opportunity_no}: Sales Reference recorded as ${providedRef}.`,
+        `${auditLabel(existing)}: Sales Reference recorded as ${providedRef}.`,
         { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
         actorId,
       ).catch(console.error);
@@ -318,7 +336,9 @@ export const opportunityService = {
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       id,
-      `Sales opportunity ${existing.opportunity_no}: ${from} → ${to}${suffix}`,
+      // Uses the reference just recorded when there is one, so the audit line
+      // carries the Odoo number rather than falling back to the client name.
+      `${auditLabel({ ...existing, sales_reference: providedRef || existing.sales_reference })}: ${from} → ${to}${suffix}`,
       { event: "STAGE_CHANGED", from: existing.status, to: nextStatus, employeeId: actorId },
       actorId,
     ).catch(console.error);
@@ -331,7 +351,7 @@ export const opportunityService = {
       .from("sales_opportunities")
       .update({ is_deleted: true })
       .eq("id", id)
-      .select("opportunity_no")
+      .select("client_name, sales_reference")
       .single();
 
     if (error) throw error;
@@ -339,7 +359,7 @@ export const opportunityService = {
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       id,
-      `Sales opportunity ${data.opportunity_no} deleted.`,
+      `${auditLabel(data)} deleted.`,
       { event: "OPPORTUNITY_DELETED", employeeId: actorId },
       actorId,
     ).catch(console.error);

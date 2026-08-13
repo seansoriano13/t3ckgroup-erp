@@ -182,7 +182,11 @@ export default function OpportunityFormModal({
     <HRFormModal
       isOpen={isOpen}
       onClose={onClose}
-      title={isEdit ? `Opportunity ${opportunity.opportunity_no}` : "Register Opportunity"}
+      title={
+        isEdit
+          ? `Opportunity ${opportunity.sales_reference || opportunity.client_name}`
+          : "Register Opportunity"
+      }
       badge="OPP"
       formId={FORM_ID}
       isPending={isPending}

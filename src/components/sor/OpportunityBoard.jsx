@@ -102,8 +102,11 @@ function BoardCard({ opportunity, search, onClick }) {
       className="w-full text-left bg-card border border-border rounded-xl p-3 hover:border-gray-6 hover:shadow-md transition-all"
     >
       <div className="flex items-center justify-between mb-1.5 gap-2">
+        {/* The Odoo Sales Reference, not the retired opportunity_no — that
+            shared the same S0#### format while identifying a different record
+            entirely. Leads have no reference yet, so the slot stays empty. */}
         <span className="font-mono text-[10px] font-bold text-primary truncate">
-          <HighlightText text={opportunity.opportunity_no} search={search} />
+          <HighlightText text={opportunity.sales_reference || ""} search={search} />
         </span>
         <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-wide shrink-0">
           {PROJECT_TYPE_SHORT[opportunity.project_type] || opportunity.project_type}

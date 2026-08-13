@@ -70,8 +70,8 @@ export function makeTask(overrides = {}) {
 export function makeOpportunity(overrides = {}) {
   const registeredBy = overrides.registered_by ?? makeEmployee().id
   const n = next()
-  // opportunity_no is deliberately not set: the sequence trigger assigns it,
-  // the same way it does in production.
+  // opportunity_no is not set: migration 0012 retired it, so production leaves
+  // it null too. sales_reference is the only S0#### identifier now.
   return db.seed("sales_opportunities", {
     lead_source: "LGU",
     client_name: `Client ${n}`,

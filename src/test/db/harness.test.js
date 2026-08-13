@@ -431,18 +431,13 @@ describe("fake PostgREST: row triggers", () => {
       .select()
       .single()
 
-  it("assigns opportunity_no from the sequence when the caller omits it", async () => {
-    const first = await registerLead()
-    const second = await registerLead()
+  it("no longer mints an opportunity_no", async () => {
+    // 0012 dropped the sequence trigger. The number used the same S0#### shape
+    // as an Odoo sales reference but pointed at an unrelated record, so the
+    // Sales Reference is now the only S0 number in the product.
+    const { data } = await registerLead()
 
-    expect(first.data.opportunity_no).toBe("S07190")
-    expect(second.data.opportunity_no).toBe("S07191")
-  })
-
-  it("leaves a caller-supplied opportunity_no alone, for the sheet backfill", async () => {
-    const { data } = await registerLead({ opportunity_no: "S00042" })
-
-    expect(data.opportunity_no).toBe("S00042")
+    expect(data.opportunity_no).toBeNull()
   })
 
   it("refuses to register beyond Lead without a sales reference", async () => {

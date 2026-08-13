@@ -183,48 +183,48 @@ export default function EmployeeLeavesPage() {
       />
 
       {/* Header */}
-      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between p-6 bg-card border border-border rounded-2xl shadow-sm gap-4">
-        <div className="flex-1">
-          <PageHeader
-            title="Leaves & Overtime"
-            description="Manage your leave balances, apply for time off, and track your overtime."
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shrink-0">
-          <div className="bg-muted border border-border px-5 py-3 rounded-xl flex flex-col justify-center">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest text-blue-11/80">Available Offset Hours</p>
-            <p className="text-2xl font-black text-blue-11">{parseFloat(offsetBalance).toFixed(1)} <span className="text-xs font-medium text-muted-foreground">hrs</span></p>
-          </div>
-          
-          <div className="bg-muted border border-border px-5 py-3 rounded-xl flex flex-col justify-center">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest text-green-11/80">Available SIL Hours</p>
-            <p className="text-2xl font-black text-green-11">{parseFloat(silBalance).toFixed(1)} <span className="text-xs font-medium text-muted-foreground">hrs</span></p>
-          </div>
-
-          <Button
-            onClick={() => setIsApplyModalOpen(true)}
-            className="h-full min-h-[64px] px-6 rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2 cursor-pointer"
-          >
-            <PlusCircle size={18} />
-            Apply Leave / OT
-          </Button>
-        </div>
+      <div className="p-6 bg-card border border-border rounded-2xl shadow-sm">
+        <PageHeader
+          title="Leaves & Overtime"
+          description="Manage your leave balances, apply for time off, and track your overtime."
+        />
       </div>
 
-      {/* History Tabs & Table */}
+      {/* History Tabs & Actions */}
       <div className="space-y-4 pt-4">
-        <TabGroup
-          variant="pill"
-          tabs={[
-            { value: 'calendar', label: `Calendar` },
-            { value: 'overtime', label: `My Overtime (${overtimeHistory.length})` },
-            { value: 'leave', label: `My Leaves (${leaveHistory.length})` },
-          ]}
-          activeTab={activeTab}
-          onChange={setActiveTab}
-          size="md"
-        />
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+          <TabGroup
+            variant="pill"
+            tabs={[
+              { value: 'calendar', label: `Calendar` },
+              { value: 'overtime', label: `My Overtime (${overtimeHistory.length})` },
+              { value: 'leave', label: `My Leaves (${leaveHistory.length})` },
+            ]}
+            activeTab={activeTab}
+            onChange={setActiveTab}
+            size="md"
+          />
+
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shrink-0">
+            <div className="bg-muted border border-border px-5 py-3 rounded-xl flex flex-col justify-center">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest text-blue-11/80">Available Offset Hours</p>
+              <p className="text-2xl font-black text-blue-11">{parseFloat(offsetBalance).toFixed(1)} <span className="text-xs font-medium text-muted-foreground">hrs</span></p>
+            </div>
+            
+            <div className="bg-muted border border-border px-5 py-3 rounded-xl flex flex-col justify-center">
+              <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest text-green-11/80">Available SIL Hours</p>
+              <p className="text-2xl font-black text-green-11">{parseFloat(silBalance).toFixed(1)} <span className="text-xs font-medium text-muted-foreground">hrs</span></p>
+            </div>
+
+            <Button
+              onClick={() => setIsApplyModalOpen(true)}
+              className="h-full min-h-[64px] px-6 rounded-xl font-bold shadow-md shadow-primary/20 flex items-center gap-2 cursor-pointer"
+            >
+              <PlusCircle size={18} />
+              Apply Leave / OT
+            </Button>
+          </div>
+        </div>
 
         {activeTab === 'calendar' && (
           <div className="animate-in fade-in duration-300">

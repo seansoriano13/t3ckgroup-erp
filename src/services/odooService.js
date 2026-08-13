@@ -16,4 +16,20 @@ export const odooService = {
     if (error) throw new Error(error.message || "Odoo lookup failed.");
     return data;
   },
+
+  /**
+   * Returns the Odoo customer portal link for the given Sales Reference, so a
+   * salesperson can send the quotation as a URL instead of an attachment. The
+   * page shows the quotation with every product brochure listed beneath it.
+   *
+   * Follows the same contract as `fetchOrderLines`: a normal miss comes back
+   * as `{ success: false, message }` rather than throwing.
+   */
+  async fetchShareLink(salesReference) {
+    const { data, error } = await supabase.functions.invoke("odoo-quotation-link", {
+      body: { salesReference },
+    });
+    if (error) throw new Error(error.message || "Could not build the quotation link.");
+    return data;
+  },
 };

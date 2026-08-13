@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { PDFDocument } from "pdf-lib"
 import { githubService } from "./githubService"
 import { odooService } from "./odooService"
+import { quotationService } from "./quotationService"
 import { storageService } from "./storageService"
 import { aiService } from "./aiService"
 import { stubCloudinaryUpload, stubEdgeFunction, stubGithubCommits } from "@/test/msw/server"
@@ -99,6 +101,186 @@ describe("odooService", () => {
     await odooService.fetchOrderLines("S01237")
 
     expect(seen).toEqual([{ salesReference: "S01237" }])
+  })
+
+  describe("the customer share link", () => {
+    it("returns the portal URL for the quotation", async () => {
+      stubEdgeFunction("odoo-quotation-link", {
+        success: true,
+        found: true,
+        order: { id: 4718, name: "S04718", state: "sent" },
+        url: "https://odoo.test/my/orders/4718?access_token=tok-1",
+      })
+
+      const result = await odooService.fetchShareLink("S04718")
+
+      expect(result.url).toBe("https://odoo.test/my/orders/4718?access_token=tok-1")
+      expect(result.order).toMatchObject({ name: "S04718" })
+    })
+
+    it("asks the link function about the reference it was given", async () => {
+      const seen = []
+      stubEdgeFunction("odoo-quotation-link", (body) => {
+        seen.push(body)
+        return { success: true, url: "https://odoo.test/my/orders/1?access_token=t" }
+      })
+
+      await odooService.fetchShareLink("S04718")
+
+      expect(seen).toEqual([{ salesReference: "S04718" }])
+    })
+
+    it("passes a missing quotation back instead of throwing", async () => {
+      stubEdgeFunction("odoo-quotation-link", {
+        success: false,
+        found: false,
+        message: 'No Odoo quotation found matching "S09999".',
+      })
+
+      await expect(odooService.fetchShareLink("S09999")).resolves.toMatchObject({
+        success: false,
+        found: false,
+      })
+    })
+
+    it("passes back the ask-a-human fallback when Odoo refused a new token", async () => {
+      // access_token is generated lazily by Odoo and _portal_ensure_token is
+      // private, so the function writes one itself and reads it back. A
+      // rejected write has to reach the salesperson as an instruction, not a
+      // crash.
+      stubEdgeFunction("odoo-quotation-link", {
+        success: false,
+        found: true,
+        message:
+          "S04718 has no share token and Odoo would not accept a new one. " +
+          "Open the quotation in Odoo and click Share once, then try again.",
+      })
+
+      const result = await odooService.fetchShareLink("S04718")
+
+      expect(result.success).toBe(false)
+      expect(result.message).toMatch(/click Share once/)
+    })
+  })
+})
+
+describe("quotationService", () => {
+  /**
+   * Page size is the marker: each source PDF is built at a distinct width, so
+   * the merged document's page widths spell out the order the pages were
+   * assembled in. That is the whole point of the feature — Odoo puts the
+   * brochures first and this has to put them last.
+   */
+  const pdfOf = async (width, pages) => {
+    const doc = await PDFDocument.create()
+    for (let i = 0; i < pages; i++) doc.addPage([width, 500])
+    return doc.save()
+  }
+
+  const binary = (bytes) =>
+    new Response(bytes, { headers: { "Content-Type": "application/octet-stream" } })
+
+  const widthsOf = async (blob) => {
+    const doc = await PDFDocument.load(new Uint8Array(await blob.arrayBuffer()))
+    return doc.getPages().map((p) => Math.round(p.getWidth()))
+  }
+
+  it("puts the quotation first and the brochures behind it", async () => {
+    const quotation = await pdfOf(100, 2)
+    const brochureA = await pdfOf(200, 1)
+    const brochureB = await pdfOf(300, 2)
+
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 4718, name: "S04718" },
+      documents: [
+        { id: 11, name: "A.pdf", checksum: "a1" },
+        { id: 22, name: "B.pdf", checksum: "b2" },
+      ],
+    })
+    stubEdgeFunction("odoo-quotation-file", (body) =>
+      binary(
+        body.kind === "quotation" ? quotation : body.documentId === 11 ? brochureA : brochureB,
+      ),
+    )
+
+    const result = await quotationService.buildQuotationPdf("S04718")
+
+    expect(await widthsOf(result.blob)).toEqual([100, 100, 200, 300, 300])
+    expect(result.filename).toBe("Quotation S04718.pdf")
+    expect(result.warnings).toEqual([])
+    expect(result.documentCount).toBe(2)
+  })
+
+  it("skips a brochure it cannot parse rather than losing the whole download", async () => {
+    // One password-locked datasheet must not stop a salesperson sending
+    // anything at all — the quotation still goes out, and the skip is named.
+    const quotation = await pdfOf(100, 1)
+    const good = await pdfOf(200, 1)
+
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 1, name: "S00001" },
+      documents: [
+        { id: 11, name: "Broken.pdf", checksum: "x" },
+        { id: 22, name: "Good.pdf", checksum: "y" },
+      ],
+    })
+    stubEdgeFunction("odoo-quotation-file", (body) => {
+      if (body.kind === "quotation") return binary(quotation)
+      if (body.documentId === 11) return binary(new Uint8Array([1, 2, 3, 4]))
+      return binary(good)
+    })
+
+    const result = await quotationService.buildQuotationPdf("S00001")
+
+    expect(await widthsOf(result.blob)).toEqual([100, 200])
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toMatch(/^Broken\.pdf:/)
+    expect(result.documentCount).toBe(1)
+  })
+
+  it("still produces a document when the quotation has no brochures", async () => {
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 2, name: "S00002" },
+      documents: [],
+    })
+    const pdfBytes = await pdfOf(100, 3)
+    stubEdgeFunction("odoo-quotation-file", () => binary(pdfBytes))
+
+    const result = await quotationService.buildQuotationPdf("S00002")
+
+    expect(await widthsOf(result.blob)).toEqual([100, 100, 100])
+    expect(result.warnings).toEqual([])
+  })
+
+  it("reports each file as it lands", async () => {
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 3, name: "S00003" },
+      documents: [{ id: 11, name: "Datasheet.pdf", checksum: "z" }],
+    })
+    const bytes = await pdfOf(100, 1)
+    stubEdgeFunction("odoo-quotation-file", () => binary(bytes))
+
+    const labels = []
+    await quotationService.buildQuotationPdf("S00003", {
+      onProgress: ({ label }) => labels.push(label),
+    })
+
+    expect(labels).toContain("Datasheet.pdf")
+  })
+
+  it("surfaces a failed lookup as a readable error", async () => {
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: false,
+      message: 'No Odoo quotation found matching "S09999".',
+    })
+
+    await expect(quotationService.buildQuotationPdf("S09999")).rejects.toThrow(
+      /No Odoo quotation found/,
+    )
   })
 })
 

@@ -12,6 +12,9 @@ import {
   Trash2,
   X,
   Download,
+  Link2,
+  ExternalLink,
+  FileDown,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -31,6 +34,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { employeeService } from "../../services/employeeService";
 import { odooService } from "../../services/odooService";
+import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import {
   OPPORTUNITY_STAGES,
@@ -239,6 +243,9 @@ export default function OpportunityDetailsModal({
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
   const [fetchingOdoo, setFetchingOdoo] = useState(false);
+  const [buildingLink, setBuildingLink] = useState(false);
+  const [shareUrl, setShareUrl] = useState(null);
+  const [downloadStep, setDownloadStep] = useState(null);
   const attachments = useFileAttachments();
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
@@ -341,6 +348,12 @@ export default function OpportunityDetailsModal({
     onError: (err) => toast.error(err.message),
   });
 
+  // The modal is reused across opportunities, so a cached link would otherwise
+  // follow the previous one. Editing the reference invalidates it too.
+  useEffect(() => {
+    setShareUrl(null);
+  }, [opportunity?.id, opportunity?.sales_reference]);
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -412,6 +425,108 @@ export default function OpportunityDetailsModal({
       );
     } else {
       executeOdooFetch(ref);
+    }
+  };
+
+  // The portal page renders live from Odoo and its access_token is the whole
+  // credential, so the link is only ever handed to a signed-in employee to
+  // pass on deliberately.
+  //
+  // Resolved once per opportunity and kept — previewing and then copying is the
+  // normal sequence, and it shouldn't cost two Odoo round trips.
+  const ensureShareLink = async () => {
+    if (shareUrl) return shareUrl;
+    const result = await odooService.fetchShareLink(opportunity.sales_reference);
+    if (!result?.success) {
+      toast.error(result?.message || "Could not build the quotation link.");
+      return null;
+    }
+    setShareUrl(result.url);
+    return result.url;
+  };
+
+  const handlePreviewQuotation = async () => {
+    if (buildingLink) return;
+    // Opened synchronously — a window.open after the await reads as unrequested
+    // to the popup blocker. No "noopener" feature here: passing it makes
+    // window.open return null by spec, and we need the handle to navigate.
+    const tab = window.open("about:blank", "_blank");
+    setBuildingLink(true);
+    try {
+      const url = await ensureShareLink();
+      if (!url) {
+        tab?.close();
+        return;
+      }
+      if (tab) {
+        tab.opener = null; // the handle is only needed until it is pointed somewhere
+        tab.location.href = url;
+      } else {
+        toast.error(`Pop-up blocked. Link: ${url}`, { duration: 15000 });
+      }
+    } catch (err) {
+      tab?.close();
+      toast.error(err.message || "Could not reach Odoo.");
+    } finally {
+      setBuildingLink(false);
+    }
+  };
+
+  const handleCopyQuotationLink = async () => {
+    if (buildingLink) return;
+    setBuildingLink(true);
+    try {
+      const url = await ensureShareLink();
+      if (!url) return;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Customer link copied.");
+      } catch {
+        // Clipboard is unavailable outside a secure context — show the link so
+        // it can still be copied by hand rather than losing the lookup.
+        toast.error(`Copy failed. Link: ${url}`, { duration: 15000 });
+      }
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo.");
+    } finally {
+      setBuildingLink(false);
+    }
+  };
+
+  // Odoo's own PDF Quote puts the brochures ahead of the quotation and that
+  // order cannot be changed on Odoo Online, so the document is reassembled
+  // here with the quotation first.
+  const handleDownloadQuotation = async () => {
+    if (downloadStep) return;
+    setDownloadStep("Starting…");
+    try {
+      const { blob, filename, warnings, documentCount } =
+        await quotationService.buildQuotationPdf(opportunity.sales_reference, {
+          onProgress: ({ current, total, label }) =>
+            setDownloadStep(total ? `${current}/${total} — ${label}` : label),
+        });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      if (warnings.length) {
+        // A datasheet that will not parse is skipped rather than failing the
+        // download, but the salesperson has to know it is missing.
+        toast.error(
+          `Downloaded without ${warnings.length} brochure(s): ${warnings.join("; ")}`,
+          { duration: 15000 },
+        );
+      } else {
+        toast.success(`${filename} — quotation plus ${documentCount} brochure(s).`);
+      }
+    } catch (err) {
+      toast.error(err.message || "Could not build the quotation PDF.");
+    } finally {
+      setDownloadStep(null);
     }
   };
 
@@ -563,9 +678,18 @@ export default function OpportunityDetailsModal({
               <div className="flex size-[18px] shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
                 <Target size={11} strokeWidth={2.5} />
               </div>
-              <span className="font-mono text-xs font-bold text-primary">
-                {opportunity.opportunity_no}
-              </span>
+              {/* The Sales Reference is the only S0#### number shown anywhere.
+                  opportunity_no used to sit here and shared that exact format
+                  while pointing at unrelated Odoo orders — see migration 0012. */}
+              {opportunity.sales_reference ? (
+                <span className="font-mono text-xs font-bold text-primary">
+                  {opportunity.sales_reference}
+                </span>
+              ) : (
+                <span className="truncate text-xs font-bold text-muted-foreground">
+                  {opportunity.client_name}
+                </span>
+              )}
               <StatusBadge status={opportunity.status} />
             </div>
             {isEditing ? (
@@ -802,6 +926,50 @@ export default function OpportunityDetailsModal({
                   </p>
                 )}
               </div>
+              {/* Left Box 1b: Customer quotation link. Odoo's portal page shows
+                  the quotation with every product brochure beneath it, so this
+                  is what sales sends instead of an attachment. Needs a Sales
+                  Reference to resolve the order, so it stays hidden until
+                  there is one. */}
+              {!isEditing && opportunity.sales_reference && (
+                <div className="flex flex-col gap-2 rounded-xl border border-border/50 p-3">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={buildingLink}
+                      onClick={handlePreviewQuotation}
+                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-muted/50 px-4 py-3 text-[13px] font-bold text-foreground transition-all hover:bg-muted disabled:opacity-50"
+                    >
+                      {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={15} />}
+                      Preview Quotation
+                    </button>
+                    <button
+                      type="button"
+                      disabled={buildingLink}
+                      onClick={handleCopyQuotationLink}
+                      title="Copy the customer link"
+                      aria-label="Copy the customer link"
+                      className="flex items-center justify-center rounded-lg border border-border px-3 text-muted-foreground transition-all hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+                    >
+                      <Link2 size={15} />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!!downloadStep}
+                    onClick={handleDownloadQuotation}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-[13px] font-bold text-muted-foreground transition-all hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
+                  >
+                    {downloadStep ? <Spinner size="sm" /> : <FileDown size={15} />}
+                    Download Full PDF
+                  </button>
+                  {downloadStep && (
+                    <p className="truncate text-center text-[11px] text-muted-foreground">
+                      {downloadStep}
+                    </p>
+                  )}
+                </div>
+              )}
               {/* Left Box 2: People Roster */}
               <div className="rounded-xl border border-border/50 p-6 ">
                 <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">

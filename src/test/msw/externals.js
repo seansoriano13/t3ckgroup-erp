@@ -126,7 +126,11 @@ export const externalHandlers = [
       )
     }
     const body = await request.json().catch(() => ({}))
-    return HttpResponse.json(await stub(body))
+    const result = await stub(body)
+    // Some functions answer with bytes rather than JSON — odoo-quotation-file
+    // streams PDFs. A stub returning a Response passes straight through so it
+    // can set its own status and Content-Type.
+    return result instanceof Response ? result : HttpResponse.json(result)
   }),
 
   // ── Cloudinary ───────────────────────────────────────────────────────────

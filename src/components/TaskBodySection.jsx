@@ -174,14 +174,14 @@ export default function TaskBodySection({
           /* VIEW MODE */
           <div className="flex flex-col gap-6">
             {/* Show description if it exists */}
-            {task.taskDescription?.trim() && (
+            {formData.taskDescription?.trim() && (
               <div>
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
                   <Dot />
                   Description
                 </label>
                 <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
-                  <HighlightText text={task.taskDescription} search={searchTerm} />
+                  <HighlightText text={formData.taskDescription} search={searchTerm} />
                 </div>
               </div>
             )}
@@ -194,7 +194,7 @@ export default function TaskBodySection({
                   Checklist
                 </label>
                 <ChecklistTaskRenderer
-                  description={task.checklist}
+                  description={formData.checklist}
                   isOwner={isOwner}
                   disabled={!canEdit || !isOwner}
                   searchTerm={searchTerm}
@@ -217,7 +217,7 @@ export default function TaskBodySection({
             )}
             
             {/* Fallback if both are completely empty */}
-            {!task.taskDescription?.trim() && !hasChecklist && (
+            {!formData.taskDescription?.trim() && !hasChecklist && (
                <div className="text-sm text-muted-foreground italic px-4 py-2">
                  No description or checklist provided.
                </div>
