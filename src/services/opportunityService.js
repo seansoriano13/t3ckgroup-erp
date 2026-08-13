@@ -154,13 +154,13 @@ export const opportunityService = {
     };
 
     checkField('lead_source', 'Lead Source');
-    checkField('lead_source_detail', 'Lead Source Detail');
+    checkField('lead_source_detail', 'Referral');
     checkField('client_name', 'Client');
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
     checkField('sales_reference', 'Sales Reference');
-    checkField('expected_award_date', 'Expected Award Date');
+    checkField('expected_award_date', 'Purchase Date/Order');
 
     const checkEmployee = (idField, objField, label) => {
       if (existing[idField] !== final[idField]) {

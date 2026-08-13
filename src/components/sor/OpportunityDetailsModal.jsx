@@ -959,7 +959,7 @@ export default function OpportunityDetailsModal({
 
                   {editForm.lead_source === "OTHERS" && isEditing && (
                     <Detail
-                      label="Lead Source Detail"
+                      label="Referral"
                       isEditing={isEditing}
                       control={
                         <input
@@ -1044,7 +1044,7 @@ export default function OpportunityDetailsModal({
                     {formatLongDate(opportunity.registration_date)}
                   </Detail>
                   <Detail
-                    label="Expected Award"
+                    label="Purchase Date/Order"
                     isEditing={isEditing}
                     control={
                       <Dropdown
@@ -1089,6 +1089,7 @@ export default function OpportunityDetailsModal({
                     control={
                       <input
                         type="text"
+                        required
                         value={editForm.contact_person}
                         onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
                         className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"

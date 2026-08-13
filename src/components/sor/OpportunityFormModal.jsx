@@ -15,6 +15,7 @@ import {
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 import { leadSourceService } from "../../services/leadSourceService";
+import { useAuth } from "../../context/AuthContext";
 
 const FORM_ID = "opportunity-form";
 
@@ -31,7 +32,7 @@ const blankForm = () => ({
   deal_owner_id: "",
   support_sales_1_id: "",
   support_sales_2_id: "",
-  sales_director_id: "",
+  sales_director_id: "101",
 });
 
 const fromRecord = (o) => ({
@@ -64,6 +65,7 @@ export default function OpportunityFormModal({
   isPending,
   opportunity = null,
 }) {
+  const { user } = useAuth();
   const isEdit = !!opportunity;
 
   // Render-phase sync rather than an effect. `isOpen` is part of the key so the
@@ -213,7 +215,7 @@ export default function OpportunityFormModal({
             onChange={set("lead_source")}
           />
           <TextField
-            label="Lead Source Detail"
+            label="Referral"
             placeholder="e.g. Bayambang"
             value={form.lead_source_detail}
             onChange={set("lead_source_detail")}
@@ -227,6 +229,7 @@ export default function OpportunityFormModal({
           />
           <TextField
             label="Contact Person"
+            required
             placeholder="e.g. Juan Dela Cruz"
             value={form.contact_person}
             onChange={set("contact_person")}
@@ -245,13 +248,14 @@ export default function OpportunityFormModal({
           <SelectField
             label="Sales Division"
             required
+            disabled={!user?.is_super_admin}
             placeholder="Select project type…"
             options={PROJECT_TYPES}
             value={form.project_type}
             onChange={set("project_type")}
           />
           <TextField
-            label="Expected Award"
+            label="Purchase Date/Order"
             type="date"
             value={form.expected_award_date}
             onChange={set("expected_award_date")}
@@ -306,8 +310,9 @@ export default function OpportunityFormModal({
             />
             <SelectField
               label="Sales Director"
+              disabled
               options={employeeOptions}
-              value={form.sales_director_id}
+              value={form.sales_director_id || "101"}
               onChange={set("sales_director_id")}
             />
             <SelectField

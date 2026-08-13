@@ -41,6 +41,8 @@ import BroadcastModal from "./BroadcastModal";
 import RoleSwitcher from "./RoleSwitcher";
 import { Clock } from "lucide-react";
 import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
+import OpportunityFormModal from "./sor/OpportunityFormModal";
+import { opportunityService } from "../services/opportunityService";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -52,6 +54,7 @@ export default function SideNav() {
   const [isCreateCommitteeOpen, setIsCreateCommitteeOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
+  const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
 
   // Accordion State
   const [expandedGroups, setExpandedGroups] = useState({
@@ -102,6 +105,16 @@ export default function SideNav() {
       queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
       toast.success("Committee (Group) Task created!");
       setIsCreateCommitteeOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const createOpportunityMutation = useMutation({
+    mutationFn: (payload) => opportunityService.createOpportunity(payload, user?.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+      toast.success("Opportunity Registered!");
+      setIsOpportunityOpen(false);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -417,6 +430,19 @@ export default function SideNav() {
                       <Clock size={14} />
                       <span>Offset / Overtime</span>
                     </button>
+                    {(hasSales || user?.isSuperAdmin || user?.isHr) && (
+                      <button
+                        onClick={() => {
+                          close();
+                          setIsMobileOpen(false);
+                          setIsOpportunityOpen(true);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                      >
+                        <Target size={14} />
+                        <span>SOR</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </Dropdown>
@@ -461,6 +487,19 @@ export default function SideNav() {
                       <Clock size={14} />
                       <span>Offset / Overtime</span>
                     </button>
+                    {(hasSales || user?.isSuperAdmin || user?.isHr) && (
+                      <button
+                        onClick={() => {
+                          close();
+                          setIsMobileOpen(false);
+                          setIsOpportunityOpen(true);
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                      >
+                        <Target size={14} />
+                        <span>SOR</span>
+                      </button>
+                    )}
                   </div>
                 )}
               </Dropdown>
@@ -572,6 +611,12 @@ export default function SideNav() {
         onSuccess={() => {
           // You could optionally refetch globally here, or let the local pages handle their own refetch on mount/focus.
         }}
+      />
+      <OpportunityFormModal
+        isOpen={isOpportunityOpen}
+        onClose={() => setIsOpportunityOpen(false)}
+        onSubmit={(payload) => createOpportunityMutation.mutate(payload)}
+        isPending={createOpportunityMutation.isPending}
       />
     </>
   );

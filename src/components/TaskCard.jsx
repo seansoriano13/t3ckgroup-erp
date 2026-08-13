@@ -96,6 +96,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
   let totalItems = 0
   let checkedItems = 0
   let parsedDesc = null
+  let plainTextContent = ""
 
   // 1. Check native checklist field
   if (task.checklist) {
@@ -121,6 +122,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         (item) => item && typeof item === "object" && item.checked,
       ).length;
     }
+
+    if (typeof task.taskDescription === "string") {
+      plainTextContent = task.taskDescription.trim();
+    }
   } else if (task.taskDescription) {
     // 2. Fallback for legacy JSON strings
     const trimmed =
@@ -136,9 +141,11 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
           checkedItems = parsedDesc.filter(
             (item) => item && typeof item === "object" && item.checked,
           ).length
+        } else {
+          plainTextContent = trimmed;
         }
       } catch (e) {
-        /* empty */
+        plainTextContent = trimmed;
       }
     } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
       try {
@@ -149,8 +156,12 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
           checkedItems = parsedDesc.items.filter(
             (item) => item && typeof item === "object" && item.checked,
           ).length
+        } else {
+          plainTextContent = trimmed;
         }
-      } catch (e) { /* empty */ }
+      } catch (e) { 
+        plainTextContent = trimmed;
+      }
     } else if (Array.isArray(task.taskDescription)) {
       isChecklistFormat = true
       parsedDesc = task.taskDescription
@@ -158,6 +169,8 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       checkedItems = task.taskDescription.filter(
         (item) => item && typeof item === "object" && item.checked,
       ).length
+    } else {
+      plainTextContent = trimmed;
     }
   }
 
@@ -213,21 +226,13 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
 
   if (task.projectTitle) {
     displayTitle = task.projectTitle
-    if (!isChecklistFormat) {
-      displaySnippet =
-        typeof task.taskDescription === "string"
-          ? task.taskDescription.trim()
-          : ""
-    }
-  } else if (isChecklistFormat && checklistTitle) {
-    displayTitle = checklistTitle
-  } else if (!isChecklistFormat) {
-    const text = task.taskDescription || ""
-    const parts = text.split("\n")
-    displayTitle = parts[0] || ""
+    displaySnippet = plainTextContent
+  } else if (plainTextContent) {
+    const parts = plainTextContent.split("\n")
+    displayTitle = parts[0] || checklistTitle || ""
     displaySnippet = parts.slice(1).join("\n").trim()
-  } else {
-    displayTitle = checklistTitle || ""
+  } else if (checklistTitle) {
+    displayTitle = checklistTitle
   }
 
   return (
@@ -290,9 +295,9 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
 
       {/* Row 2: The Core (Action) */}
       <div className="flex-1">
-        {/* Plain-text task title */}
-        {!isChecklistFormat && (
-          <>
+        {/* Plain-text task title and snippet */}
+        {(displayTitle || displaySnippet) && (
+          <div className={isChecklistFormat && checklistItems.length > 0 ? "mb-3" : ""}>
             {displayTitle && (
               <h3 
                 onClick={(e) => {
@@ -313,24 +318,12 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                 <HighlightText text={displaySnippet} search={searchTerm} />
               </p>
             )}
-          </>
+          </div>
         )}
 
-        {/* Checklist task — always show title + preview items */}
-        {isChecklistFormat && (
+        {/* Checklist items */}
+        {isChecklistFormat && checklistItems.length > 0 && (
           <div onClick={(e) => e.stopPropagation()}>
-            {displayTitle && (
-              <h3 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (onView) onView(e)
-                }}
-                className="font-bold text-foreground truncate leading-snug group-hover:text-primary hover:underline cursor-pointer transition-colors mb-2"
-              >
-                <HighlightText text={displayTitle} search={searchTerm} />
-              </h3>
-            )}
-
             {/* Always-visible first 2 items */}
             <div className="space-y-1.5">
               {previewItems.map((item, i) => (
