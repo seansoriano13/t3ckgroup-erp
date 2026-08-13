@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { taskActivityService } from "./taskActivityService"
+import { db } from "@/test/db/store"
 import { makeCategory, makeEmployee, makeHead, makeTask } from "@/test/factories"
 
 /**
@@ -125,6 +126,17 @@ describe("taskActivityService", () => {
     })
 
     it("starts a new entry once the window has passed", async () => {
+      // windowMs=0 means "always expired": the service compares the stored
+      // entry's created_at against a fresh real-clock read on the SECOND
+      // call. The fake store's created_at is a seeded counter, not a live
+      // clock, so on a fast runner real time can fail to advance even 1ms
+      // between the two calls — letting the counter tie or outrun the real
+      // clock and wrongly fold the second call into the first. Backdating the
+      // store's clock before the first call removes the race entirely: the
+      // first entry's created_at is unambiguously in the past, so "now minus
+      // logTime" is seconds, never a coin flip on microseconds.
+      db.setClock("2020-01-01T00:00:00.000Z")
+
       await taskActivityService.upsertActivityEntry(
         task.id,
         head.id,
