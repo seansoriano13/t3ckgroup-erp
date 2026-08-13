@@ -72,10 +72,9 @@ describe("stage gating on sales reference", () => {
 })
 
 describe("pipeline definition", () => {
-  it("lists the twelve Annex C.3 stages in policy order", () => {
+  it("lists the eleven Annex C.3 stages in policy order", () => {
     expect(OPPORTUNITY_STAGES.map((s) => s.value)).toEqual([
       "LEAD",
-      "QUALIFIED",
       "PROPOSAL_SUBMITTED",
       "BID_SUBMITTED",
       "NEGOTIATION",

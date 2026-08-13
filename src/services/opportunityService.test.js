@@ -235,22 +235,22 @@ describe("opportunityService", () => {
     it("records the sales reference separately from the stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.map((n) => n.content)).toEqual([
         "Sales Reference recorded: S01237",
-        "Stage moved: Lead → Qualified",
+        "Stage moved: Lead → Proposal Submitted",
       ])
     })
 
     it("does not re-record a sales reference that is already the one on file", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237" })
 
-      await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
 
       const notes = await opportunityService.getNotes(lead.id)
-      expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Qualified"])
+      expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
     })
 
     it("rejects a malformed sales reference before touching the record", async () => {
