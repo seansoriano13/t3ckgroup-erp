@@ -25,11 +25,7 @@ export function resetSequences() {
   sequences.clear()
 }
 
-function nextval(name, start) {
-  const value = sequences.get(name) ?? start
-  sequences.set(name, value + 1)
-  return value
-}
+
 
 export const TRIGGERS = {
   sales_opportunities: {
