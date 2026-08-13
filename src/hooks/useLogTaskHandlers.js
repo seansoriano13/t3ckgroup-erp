@@ -24,6 +24,7 @@ export function useLogTaskHandlers({
     categoryId: "",
     projectTitle: "",
     taskDescription: "",
+    checklist: null,
     startAt: getCurrentLocalTime(),
     endAt: "",
     priority: "LOW",
@@ -36,14 +37,12 @@ export function useLogTaskHandlers({
   const [hrSubDeptFilter, setHrSubDeptFilter] = useState("")
   const [committeeRole, setCommitteeRole] = useState("")
   const [othersRemarks, setOthersRemarks] = useState("")
-  const [descriptionType, setDescriptionType] = useState("description")
+  const [showChecklist, setShowChecklist] = useState(false)
   const [openPopover, setOpenPopover] = useState(null)
   const [categorySearch, setCategorySearch] = useState("")
   const [isExpanded, setIsExpanded] = useState(false)
   const [createMore, setCreateMore] = useState(false)
 
-  // Backup ref: preserves plain-text description when switching to Checklist tab
-  const plainTextBackupRef = useRef("")
   // Track previous isOpen to only reset on false→true transition (not on refetches)
   const wasOpenRef = useRef(false)
   // Stable attachments ref – immune to React state resets (fixes tab-switch image loss)
@@ -101,7 +100,14 @@ export function useLogTaskHandlers({
             (typeof savedDraft.taskDescription === "string" &&
               savedDraft.taskDescription?.trim()) ||
             savedDraft.categoryId ||
-            savedDraft.attachments?.length > 0
+            savedDraft.attachments?.length > 0 ||
+            (savedDraft.checklist && (() => {
+              try {
+                const items = typeof savedDraft.checklist === "string"
+                  ? JSON.parse(savedDraft.checklist) : savedDraft.checklist;
+                return Array.isArray(items) && items.some(i => i.text?.trim());
+              } catch { return false; }
+            })())
 
           if (hasMeaningfulContent) {
             setFormData({
@@ -109,6 +115,7 @@ export function useLogTaskHandlers({
               categoryId: savedDraft.categoryId || "",
               projectTitle: savedDraft.projectTitle || "",
               taskDescription: savedDraft.taskDescription || "",
+              checklist: savedDraft.checklist || null,
               startAt: getCurrentLocalTime(),
               endAt: savedDraft.endAt || "",
               priority: savedDraft.priority || "LOW",
@@ -120,8 +127,8 @@ export function useLogTaskHandlers({
               setCommitteeRole(savedDraft.committeeRole)
             if (savedDraft.othersRemarks)
               setOthersRemarks(savedDraft.othersRemarks)
-            if (savedDraft.descriptionType)
-              setDescriptionType(savedDraft.descriptionType)
+            if (savedDraft.showChecklist)
+              setShowChecklist(savedDraft.showChecklist)
             localStorage.removeItem(DRAFT_KEY)
             toast("Draft restored", {
               duration: 3000,
@@ -134,7 +141,6 @@ export function useLogTaskHandlers({
                 ? user.sub_department || user.subDepartment || "HR"
                 : "",
             )
-            plainTextBackupRef.current = ""
             setOpenPopover(null)
             setCategorySearch("")
             setSelectedHead("")
@@ -150,6 +156,7 @@ export function useLogTaskHandlers({
           categoryId: "",
           projectTitle: "",
           taskDescription: "",
+          checklist: null,
           startAt: getCurrentLocalTime(),
           endAt: "",
           priority: "LOW",
@@ -158,12 +165,11 @@ export function useLogTaskHandlers({
         })
         setCommitteeRole("")
         setOthersRemarks("")
-        setDescriptionType("description")
+        setShowChecklist(false)
         setOpenPopover(null)
         setCategorySearch("")
         setSelectedHead("")
         setIsExpanded(false)
-        plainTextBackupRef.current = ""
         setHrDeptFilter(isHr && !isSuperAdmin ? user.department || "ADMIN" : "")
         setHrSubDeptFilter(
           isHr && !isSuperAdmin
@@ -275,6 +281,7 @@ export function useLogTaskHandlers({
           categoryId: "",
           projectTitle: "",
           taskDescription: "",
+          checklist: null,
           startAt: getCurrentLocalTime(),
           endAt: "",
           priority: "LOW",
@@ -283,7 +290,7 @@ export function useLogTaskHandlers({
         }))
         setCommitteeRole("")
         setOthersRemarks("")
-        setDescriptionType("description")
+        setShowChecklist(false)
         setOpenPopover(null)
         setCategorySearch("")
       } else {
@@ -305,29 +312,20 @@ export function useLogTaskHandlers({
   }
 
   /**
-   * Switch between description/checklist tabs without losing data.
-   * When going description → checklist: saves current text to backup ref.
-   * When going checklist → description: restores backup ref into formData.
+   * Check if the checklist has at least one non-empty item.
    */
-  const handleDescriptionTypeChange = (newType) => {
-    if (newType === "checklist") {
-      // Save current plain text before switching to checklist
-      const currentDesc = formData.taskDescription
-      const isJson =
-        typeof currentDesc === "string" &&
-        (currentDesc.trim().startsWith("[") ||
-          currentDesc.trim().startsWith("{"))
-      if (!isJson) {
-        plainTextBackupRef.current = currentDesc
+  const hasChecklistContent = (checklist) => {
+    if (!checklist) return false
+    try {
+      const items =
+        typeof checklist === "string" ? JSON.parse(checklist) : checklist
+      if (Array.isArray(items)) {
+        return items.some((item) => item.text?.trim())
       }
-    } else if (newType === "description") {
-      // Restore backed-up plain text when switching back
-      setFormData((prev) => ({
-        ...prev,
-        taskDescription: plainTextBackupRef.current,
-      }))
+    } catch {
+      /* not valid JSON */
     }
-    setDescriptionType(newType)
+    return false
   }
 
   const handleTogglePopover = (name) => {
@@ -345,6 +343,15 @@ export function useLogTaskHandlers({
       toast.error("Please select a Category before logging your task.")
       return
     }
+
+    // Validate: at least one of description or checklist must be filled
+    const hasDescription = formData.taskDescription?.trim()
+    const hasChecklist = hasChecklistContent(formData.checklist)
+    if (!hasDescription && !hasChecklist) {
+      toast.error("Please add a description or checklist items.")
+      return
+    }
+
     let mergedRemarks = ""
     if (isCommittee) {
       if (!committeeRole) {
@@ -386,7 +393,8 @@ export function useLogTaskHandlers({
       (typeof formData.taskDescription === "string" &&
         formData.taskDescription?.trim()) ||
       formData.categoryId ||
-      formData.attachments?.length > 0
+      formData.attachments?.length > 0 ||
+      hasChecklistContent(formData.checklist)
 
     if (hasMeaningfulContent) {
       try {
@@ -396,7 +404,7 @@ export function useLogTaskHandlers({
             ...formData,
             committeeRole,
             othersRemarks,
-            descriptionType,
+            showChecklist,
           }),
         )
       } catch {
@@ -419,8 +427,8 @@ export function useLogTaskHandlers({
     setCommitteeRole,
     othersRemarks,
     setOthersRemarks,
-    descriptionType,
-    setDescriptionType,
+    showChecklist,
+    setShowChecklist,
     openPopover,
     setOpenPopover,
     categorySearch,
@@ -428,7 +436,6 @@ export function useLogTaskHandlers({
     createMore,
     setCreateMore,
     handleChange,
-    handleDescriptionTypeChange,
     handleTogglePopover,
     handleSubmit,
     handleClose,

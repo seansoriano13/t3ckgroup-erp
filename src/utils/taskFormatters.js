@@ -1,41 +1,88 @@
-export const formatTaskPreview = (description) => {
-  if (!description) return "";
-  
-  if (typeof description !== 'string') {
-    if (Array.isArray(description)) {
-      return `Checklist: ${description.length} Items`;
-    } else if (description && Array.isArray(description.items)) {
-      return description.title 
-        ? `${description.title} (${description.items.length} Items)` 
-        : `Checklist: ${description.items.length} Items`;
-    }
-    return String(description);
-  }
+export const formatTaskPreview = (description, checklist = null) => {
+  let descText = "";
+  let checklistText = "";
 
-  const trimmed = description.trim();
-  if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return `Checklist: ${parsed.length} Items`;
-      }
-    } catch {
-      // Not valid JSON
+  // 1. Check explicit checklist
+  if (checklist) {
+    let items = [];
+    if (typeof checklist === "string") {
+      try {
+        const parsed = JSON.parse(checklist);
+        items = Array.isArray(parsed) ? parsed : parsed?.items || [];
+      } catch {}
+    } else {
+      items = Array.isArray(checklist) ? checklist : checklist?.items || [];
     }
-  } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && Array.isArray(parsed.items)) {
-        return parsed.title 
-          ? `${parsed.title} (${parsed.items.length} Items)` 
-          : `Checklist: ${parsed.items.length} Items`;
-      }
-    } catch {
-      // Not valid JSON
+    if (items.length > 0) {
+      checklistText = `Checklist: ${items.length} Items`;
     }
   }
 
-  return description;
+  // 2. Process description (which might be legacy JSON)
+  if (description) {
+    if (typeof description !== "string") {
+      if (Array.isArray(description)) {
+        if (!checklistText)
+          checklistText = `Checklist: ${description.length} Items`;
+      } else if (description && Array.isArray(description.items)) {
+        if (!checklistText) {
+          checklistText = description.title
+            ? `${description.title} (${description.items.length} Items)`
+            : `Checklist: ${description.items.length} Items`;
+        }
+      } else {
+        descText = String(description);
+      }
+    } else {
+      const trimmed = description.trim();
+      if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            if (!checklistText)
+              checklistText = `Checklist: ${parsed.length} Items`;
+          } else {
+            descText = description;
+          }
+        } catch {
+          descText = description;
+        }
+      } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (parsed && Array.isArray(parsed.items)) {
+            if (!checklistText) {
+              checklistText = parsed.title
+                ? `${parsed.title} (${parsed.items.length} Items)`
+                : `Checklist: ${parsed.items.length} Items`;
+            }
+          } else {
+            descText = description;
+          }
+        } catch {
+          descText = description;
+        }
+      } else {
+        descText = description;
+      }
+    }
+  }
+
+  // Combine
+  if (descText && checklistText) {
+    const maxLen = 40;
+    const truncatedDesc =
+      descText.length > maxLen
+        ? descText.substring(0, maxLen) + "..."
+        : descText;
+    return `${truncatedDesc} (${checklistText})`;
+  } else if (descText) {
+    return descText;
+  } else if (checklistText) {
+    return checklistText;
+  }
+
+  return "";
 };
 
 export const formatChecklistToString = (description) => {

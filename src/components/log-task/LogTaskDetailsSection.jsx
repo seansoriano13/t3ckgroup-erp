@@ -12,8 +12,9 @@ export default function LogTaskDetailsSection({
   handleChange,
   titleRef,
   selectedEmployeeInfo,
-  descriptionType,
-  onDescriptionTypeChange,
+  showChecklist,
+  onToggleChecklist,
+  onChecklistChange,
   isExpanded,
   onAttachmentsChange,
 }) {
@@ -122,58 +123,50 @@ export default function LogTaskDetailsSection({
         </div>
       )}
 
-      {/* 2. DESCRIPTION / CHECKLIST */}
+      {/* 2. DESCRIPTION & CHECKLIST (both visible) */}
       <div className="mb-4 animate-content-in stagger-2">
-        {/* Toggle tabs */}
-        <div className="flex gap-0.5 mb-2 bg-muted rounded-lg border border-mauve-3 p-0.5 w-fit">
-          <button
-            type="button"
-            onClick={() => onDescriptionTypeChange("description")}
-            className={`text-[11px] px-2.5 py-1 rounded-md font-semibold transition-all ${
-              descriptionType === "description"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-muted-foreground/80"
-            }`}
-          >
-            Description
-          </button>
-          <button
-            type="button"
-            onClick={() => onDescriptionTypeChange("checklist")}
-            className={`text-[11px] px-2.5 py-1 rounded-md font-semibold transition-all ${
-              descriptionType === "checklist"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-muted-foreground/80"
-            }`}
-          >
-            Checklist
-          </button>
-        </div>
+        {/* Description textarea — always visible */}
+        <textarea
+          name="taskDescription"
+          value={formData.taskDescription || ""}
+          onChange={handleChange}
+          placeholder="Add description…"
+          className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
+            isExpanded ? "h-48" : "h-24"
+          }`}
+        />
 
-        {descriptionType === "checklist" ? (
-          <div className="bg-card rounded-xl border border-mauve-3 p-4">
-            <ChecklistTaskInput
-              value={formData.taskDescription}
-              onChange={handleChange}
-            />
+        {/* Checklist section — collapsible */}
+        {showChecklist ? (
+          <div className="mt-2 animate-slide-down">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                Checklist
+              </span>
+              <button
+                type="button"
+                onClick={onToggleChecklist}
+                className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+              >
+                Hide
+              </button>
+            </div>
+            <div className="bg-card rounded-xl border border-mauve-3 p-4">
+              <ChecklistTaskInput
+                value={formData.checklist ? (typeof formData.checklist === "string" ? formData.checklist : JSON.stringify(formData.checklist)) : ""}
+                onChange={(e) => onChecklistChange(e.target.value)}
+                name="checklist"
+              />
+            </div>
           </div>
         ) : (
-          <textarea
-            name="taskDescription"
-            value={
-              typeof formData.taskDescription === "string" &&
-              (formData.taskDescription.trim().startsWith("[") ||
-                formData.taskDescription.trim().startsWith("{"))
-                ? ""
-                : formData.taskDescription
-            }
-            onChange={handleChange}
-            placeholder="Add description…"
-            className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
-              isExpanded ? "h-48" : "h-24"
-            }`}
-            required
-          />
+          <button
+            type="button"
+            onClick={onToggleChecklist}
+            className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+          >
+            <span className="text-base leading-none">+</span> Add checklist
+          </button>
         )}
       </div>
       {/* 3. IMAGE ATTACHMENTS */}

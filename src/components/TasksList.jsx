@@ -376,7 +376,7 @@ export default function TasksList({ selectedRange }) {
                             </span>
                           </p>
                           <p className="text-xs text-muted-foreground truncate mt-1">
-                            {formatTaskPreview(task.taskDescription)}
+                            {formatTaskPreview(task.taskDescription, task.checklist)}
                           </p>
                         </div>
                         {/* Inline: status dot(s) + date */}

@@ -43,33 +43,44 @@ export const taskMutationService = {
       evaluatedAt = new Date().toISOString();
     }
 
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert([
-        {
-          task_description: payload.taskDescription,
-          project_title: payload.projectTitle || null,
-          category_id: payload.categoryId,
-          logged_by: payload.loggedById,
-          start_at: payload.startAt
-            ? new Date(payload.startAt).toISOString()
-            : new Date().toISOString(),
-          end_at: payload.endAt ? new Date(payload.endAt).toISOString() : null,
-          status: initialStatus,
-          priority: payload.priority || "LOW",
-          remarks: payload.remarks || "",
-          hr_verified: hrVerified,
-          hr_verified_at: hrVerifiedAt,
-          evaluated_by: evaluatedBy,
-          evaluated_at: evaluatedAt,
-          payment_voucher: payload.paymentVoucher || null,
-          attachment_urls: payload.attachments || [],
-          reported_to: payload.reportedTo || null,
-        },
-      ])
-      .select();
+    const dbPayload = {
+      task_description: payload.taskDescription,
+      checklist: payload.checklist || null,
+      project_title: payload.projectTitle || null,
+      category_id: payload.categoryId,
+      logged_by: payload.loggedById,
+      start_at: payload.startAt
+        ? new Date(payload.startAt).toISOString()
+        : new Date().toISOString(),
+      end_at: payload.endAt ? new Date(payload.endAt).toISOString() : null,
+      status: initialStatus,
+      priority: payload.priority || "LOW",
+      remarks: payload.remarks || "",
+      hr_verified: hrVerified,
+      hr_verified_at: hrVerifiedAt,
+      evaluated_by: evaluatedBy,
+      evaluated_at: evaluatedAt,
+      payment_voucher: payload.paymentVoucher || null,
+      attachment_urls: payload.attachments || [],
+      reported_to: payload.reportedTo || null,
+    };
 
-    if (error) throw error;
+    let { data, error } = await supabase.from("tasks").insert([dbPayload]).select();
+
+    if (error && error.message?.includes("checklist")) {
+      delete dbPayload.checklist;
+      if (payload.checklist) {
+        dbPayload.task_description =
+          typeof payload.checklist === "string"
+            ? payload.checklist
+            : JSON.stringify(payload.checklist);
+      }
+      const retry = await supabase.from("tasks").insert([dbPayload]).select();
+      if (retry.error) throw retry.error;
+      data = retry.data;
+    } else if (error) {
+      throw error;
+    }
 
     const taskId = data[0].id;
 
@@ -100,14 +111,17 @@ export const taskMutationService = {
       .eq("id", payload.loggedById)
       .single();
 
-    if (creator) {
-      const notificationPayload = {
-        sender_id: payload.submittedById || payload.loggedById,
-        type: "NEW_TASK_SUBMITTED",
-        title: "New Task Submitted",
-        message: `${creator.name} submitted a new task: "${payload.taskDescription}".`,
-        reference_id: taskId,
-      };
+      const descSnippet = formatTaskDescription(
+        payload.taskDescription || payload.checklist,
+      );
+      if (creator) {
+        const notificationPayload = {
+          sender_id: payload.submittedById || payload.loggedById,
+          type: "NEW_TASK_SUBMITTED",
+          title: "New Task Submitted",
+          message: `${creator.name} submitted a new task: "${descSnippet}".`,
+          reference_id: taskId,
+        };
 
       // NEW: If reported_to is set, notify ONLY that specific head
       if (payload.reportedTo) {
@@ -129,14 +143,17 @@ export const taskMutationService = {
         payload.submittedById &&
         payload.submittedById !== payload.loggedById
       ) {
-        notificationService.createNotification({
-          recipient_id: payload.loggedById,
-          sender_id: payload.submittedById,
-          type: "TASK_ASSIGNED",
-          title: "New Task Assigned",
-          message: `${payload.submittedByName || "An administrator"} assigned you a new task: "${payload.taskDescription}".`,
-          reference_id: taskId,
-        });
+          const descSnippet2 = formatTaskDescription(
+            payload.taskDescription || payload.checklist,
+          );
+          notificationService.createNotification({
+            recipient_id: payload.loggedById,
+            sender_id: payload.submittedById,
+            type: "TASK_ASSIGNED",
+            title: "New Task Assigned",
+            message: `${payload.submittedByName || "An administrator"} assigned you a new task: "${descSnippet2}".`,
+            reference_id: taskId,
+          });
       }
     }
 
@@ -174,7 +191,7 @@ export const taskMutationService = {
     const { data: cur, error: curErr } = await supabase
       .from("tasks")
       .select(
-        "status, hr_verified, evaluated_by, logged_by, reported_to, task_description, project_title, category_id, priority, start_at, end_at, remarks, grade, payment_voucher, attachment_urls, category:categories(description), creator:employees!tasks_logged_by_fk(name, department, sub_department)",
+        "status, hr_verified, evaluated_by, logged_by, reported_to, task_description, checklist, project_title, category_id, priority, start_at, end_at, remarks, grade, payment_voucher, attachment_urls, category:categories(description), creator:employees!tasks_logged_by_fk(name, department, sub_department)",
       )
       .eq("id", taskId)
       .single();
@@ -287,6 +304,7 @@ export const taskMutationService = {
     if (current?.hr_verified === true && !isHrUndo) {
       const attemptedCoreEdits = [
         payload.taskDescription,
+        payload.checklist,
         payload.projectTitle,
         payload.categoryId,
         payload.priority,
@@ -334,6 +352,9 @@ export const taskMutationService = {
     }
     if (payload.paymentVoucher !== undefined) {
       updateData.payment_voucher = payload.paymentVoucher || null;
+    }
+    if (payload.checklist !== undefined) {
+      updateData.checklist = payload.checklist;
     }
 
     // Manager/HR Fields
@@ -383,14 +404,32 @@ export const taskMutationService = {
       updateData.remarks = "";
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("tasks")
       .update(updateData)
       .eq("id", taskId)
       .select()
       .single();
 
-    if (error) throw error;
+    if (error && error.message?.includes("checklist")) {
+      delete updateData.checklist;
+      if (payload.checklist !== undefined) {
+        updateData.task_description =
+          typeof payload.checklist === "string"
+            ? payload.checklist
+            : JSON.stringify(payload.checklist);
+      }
+      const retry = await supabase
+        .from("tasks")
+        .update(updateData)
+        .eq("id", taskId)
+        .select()
+        .single();
+      if (retry.error) throw retry.error;
+      data = retry.data;
+    } else if (error) {
+      throw error;
+    }
 
     // ===========================
     // ACTIVITY TIMELINE ENTRIES
@@ -573,100 +612,84 @@ export const taskMutationService = {
               : str
             : "(none)";
 
-        // Task description
+        // Task description (plain text — checklist now has its own field)
         if (
           payload.taskDescription !== undefined &&
           payload.taskDescription !== current.task_description
         ) {
-          const isChecklist = (val) => {
-            if (typeof val === "object" && val !== null) {
-              return Array.isArray(val) || Array.isArray(val.items);
-            }
-            if (typeof val !== "string") return false;
-            const trimmed = val.trim();
-            return (
-              (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-              (trimmed.startsWith("{") && trimmed.endsWith("}"))
-            );
-          };
-
-          if (
-            isChecklist(current.task_description) &&
-            isChecklist(payload.taskDescription)
-          ) {
-            let oldItems = [];
-            let newItems = [];
-            try {
-              const parsedOld =
-                typeof current.task_description === "string"
-                  ? JSON.parse(current.task_description)
-                  : current.task_description;
-              oldItems = Array.isArray(parsedOld)
-                ? parsedOld
-                : parsedOld?.items || [];
-
-              const parsedNew =
-                typeof payload.taskDescription === "string"
-                  ? JSON.parse(payload.taskDescription)
-                  : payload.taskDescription;
-              newItems = Array.isArray(parsedNew)
-                ? parsedNew
-                : parsedNew?.items || [];
-            } catch (e) {}
-
-            let checkedItemText = "";
-            let uncheckedItemText = "";
-            let editedItemText = "";
-
-            for (
-              let i = 0;
-              i < Math.max(oldItems.length, newItems.length);
-              i++
-            ) {
-              const oldItem = oldItems[i];
-              const newItem = newItems[i];
-
-              if (oldItem && newItem) {
-                if (!oldItem.checked && newItem.checked) {
-                  checkedItemText = newItem.text;
-                } else if (oldItem.checked && !newItem.checked) {
-                  uncheckedItemText = newItem.text;
-                } else if (oldItem.text !== newItem.text) {
-                  editedItemText = newItem.text;
-                }
-              }
-            }
-
-            let msg = `${editorName} updated the task checklist.`;
-            if (checkedItemText)
-              msg = `${editorName} completed a checklist item: "${truncate(checkedItemText)}"`;
-            else if (uncheckedItemText)
-              msg = `${editorName} unchecked a checklist item: "${truncate(uncheckedItemText)}"`;
-            else if (editedItemText)
-              msg = `${editorName} edited a checklist item: "${truncate(editedItemText)}"`;
-            else if (newItems.length > oldItems.length)
-              msg = `${editorName} added items to the checklist.`;
-            else if (newItems.length < oldItems.length)
-              msg = `${editorName} removed items from the checklist.`;
-
-            taskActivityService.upsertChecklistEvent(taskId, msg, {
-              event: "CHECKLIST_UPDATED",
+          taskActivityService.addSystemEvent(
+            taskId,
+            `${editorName} changed the task description.\n  From: "${truncate(current.task_description)}"\n  To: "${truncate(payload.taskDescription)}"`,
+            {
+              event: "TASK_EDITED",
               field: "task_description",
               old: current.task_description,
               new: payload.taskDescription,
-            });
-          } else {
-            taskActivityService.addSystemEvent(
-              taskId,
-              `${editorName} changed the task description.\n  From: "${truncate(current.task_description)}"\n  To: "${truncate(payload.taskDescription)}"`,
-              {
-                event: "TASK_EDITED",
-                field: "task_description",
-                old: current.task_description,
-                new: payload.taskDescription,
-              },
-            );
+            },
+          );
+        }
+
+        // Checklist (dedicated column)
+        if (
+          payload.checklist !== undefined &&
+          JSON.stringify(payload.checklist) !== JSON.stringify(current.checklist)
+        ) {
+          const parseItems = (val) => {
+            if (!val) return [];
+            if (Array.isArray(val)) return val;
+            if (typeof val === "string") {
+              try {
+                const parsed = JSON.parse(val);
+                return Array.isArray(parsed) ? parsed : parsed?.items || [];
+              } catch { return []; }
+            }
+            return val?.items || [];
+          };
+
+          const oldItems = parseItems(current.checklist);
+          const newItems = parseItems(payload.checklist);
+
+          let checkedItemText = "";
+          let uncheckedItemText = "";
+          let editedItemText = "";
+
+          for (
+            let i = 0;
+            i < Math.max(oldItems.length, newItems.length);
+            i++
+          ) {
+            const oldItem = oldItems[i];
+            const newItem = newItems[i];
+
+            if (oldItem && newItem) {
+              if (!oldItem.checked && newItem.checked) {
+                checkedItemText = newItem.text;
+              } else if (oldItem.checked && !newItem.checked) {
+                uncheckedItemText = newItem.text;
+              } else if (oldItem.text !== newItem.text) {
+                editedItemText = newItem.text;
+              }
+            }
           }
+
+          let msg = `${editorName} updated the task checklist.`;
+          if (checkedItemText)
+            msg = `${editorName} completed a checklist item: "${truncate(checkedItemText)}"`;
+          else if (uncheckedItemText)
+            msg = `${editorName} unchecked a checklist item: "${truncate(uncheckedItemText)}"`;
+          else if (editedItemText)
+            msg = `${editorName} edited a checklist item: "${truncate(editedItemText)}"`;
+          else if (newItems.length > oldItems.length)
+            msg = `${editorName} added items to the checklist.`;
+          else if (newItems.length < oldItems.length)
+            msg = `${editorName} removed items from the checklist.`;
+
+          taskActivityService.upsertChecklistEvent(taskId, msg, {
+            event: "CHECKLIST_UPDATED",
+            field: "checklist",
+            old: current.checklist,
+            new: payload.checklist,
+          });
         }
 
         // Project title

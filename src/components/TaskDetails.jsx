@@ -48,7 +48,7 @@ export default function TaskDetails({
   const [approvalGrade, setApprovalGrade] = useState(null)
   const [editGrade, setEditGrade] = useState(null)
   const [approvalRemarks, setApprovalRemarks] = useState("")
-  const [descriptionType, setDescriptionType] = useState("description")
+  const [showChecklist, setShowChecklist] = useState(false)
 
   // 🔥 FULL TASK FETCH: Fetch complete details ONLY when drawer is open
   // This allows the main Dashboard/Task list to be lightweight (no attachments/large remarks)
@@ -77,6 +77,7 @@ export default function TaskDetails({
     endAt: "",
     projectTitle: "",
     taskDescription: "",
+    checklist: null,
     grade: 0,
     remarks: "",
     attachments: [],
@@ -102,50 +103,40 @@ export default function TaskDetails({
         activeTask.sub_department ||
         ""
 
-      queueMicrotask(() => {
-        setApprovalGrade(null)
-        setEditGrade(activeTask?.grade ? Number(activeTask.grade) : null)
-        setApprovalRemarks("")
-        timelineMessageRef.current = ""
+        queueMicrotask(() => {
+          setApprovalGrade(null)
+          setEditGrade(activeTask?.grade ? Number(activeTask.grade) : null)
+          setApprovalRemarks("")
+          timelineMessageRef.current = ""
 
-        let initialDescriptionType = "description"
-        const desc = activeTask.taskDescription
-        if (desc) {
-          const trimmed = typeof desc === "string" ? desc.trim() : ""
-          if (
-            (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
-            (trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-            Array.isArray(desc)
-          ) {
-            initialDescriptionType = "checklist"
+          // Determine if we should show the checklist section
+          setShowChecklist(!!activeTask.checklist)
+
+          const newFormData = {
+            department: taskDept || user?.department || "",
+            subDepartment:
+              taskSubDept || user?.sub_department || user?.subDepartment || "",
+            loggedById: activeTask.loggedById || "",
+            categoryId: activeTask.categoryId || "",
+            priority: activeTask.priority || "LOW",
+            status: activeTask.status || "INCOMPLETE",
+            startAt: activeTask.startAt
+              ? toLocalDatetimeString(activeTask.startAt)
+              : "",
+            endAt: activeTask.endAt
+              ? toLocalDatetimeString(activeTask.endAt)
+              : "",
+            projectTitle: activeTask.projectTitle || "",
+            taskDescription: activeTask.taskDescription || "",
+            checklist: activeTask.checklist || null,
+            grade: activeTask.grade || 0,
+            remarks: activeTask.remarks || "",
+            attachments: activeTask.attachments || [],
+            paymentVoucher: activeTask.paymentVoucher || "",
           }
-        }
-        setDescriptionType(initialDescriptionType)
-
-        const newFormData = {
-          department: taskDept || user?.department || "",
-          subDepartment:
-            taskSubDept || user?.sub_department || user?.subDepartment || "",
-          loggedById: activeTask.loggedById || "",
-          categoryId: activeTask.categoryId || "",
-          priority: activeTask.priority || "LOW",
-          status: activeTask.status || "INCOMPLETE",
-          startAt: activeTask.startAt
-            ? toLocalDatetimeString(activeTask.startAt)
-            : "",
-          endAt: activeTask.endAt
-            ? toLocalDatetimeString(activeTask.endAt)
-            : "",
-          projectTitle: activeTask.projectTitle || "",
-          taskDescription: activeTask.taskDescription || "",
-          grade: activeTask.grade || 0,
-          remarks: activeTask.remarks || "",
-          attachments: activeTask.attachments || [],
-          paymentVoucher: activeTask.paymentVoucher || "",
-        }
-        setFormData(newFormData)
-        setInitialFormData(newFormData)
-      })
+          setFormData(newFormData)
+          setInitialFormData(newFormData)
+        })
     }
   }, [isOpen, activeTask, user])
 
@@ -206,42 +197,25 @@ export default function TaskDetails({
       task.status !== TASK_STATUS.COMPLETE &&
       task.status !== TASK_STATUS.AWAITING_APPROVAL)
 
-  let isChecklistFormat = false
+  // Checklist detection — now uses the dedicated checklist field
+  let hasChecklist = false
   let hasUncheckedItems = false
-  if (formData.taskDescription) {
-    const trimmed =
-      typeof formData.taskDescription === "string"
-        ? formData.taskDescription.trim()
-        : ""
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(trimmed)
-        if (Array.isArray(parsed)) {
-          isChecklistFormat = true
-          hasUncheckedItems = parsed.some(
-            (item) => item && typeof item === "object" && !item.checked,
-          )
-        }
-      } catch (e) {
-        console.error(e)
+  const checklistData = formData.checklist
+  if (checklistData) {
+    try {
+      const items =
+        typeof checklistData === "string"
+          ? JSON.parse(checklistData)
+          : checklistData
+      const arr = Array.isArray(items) ? items : items?.items || []
+      if (arr.length > 0) {
+        hasChecklist = true
+        hasUncheckedItems = arr.some(
+          (item) => item && typeof item === "object" && !item.checked,
+        )
       }
-    } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-      try {
-        const parsed = JSON.parse(trimmed)
-        if (parsed && Array.isArray(parsed.items)) {
-          isChecklistFormat = true
-          hasUncheckedItems = parsed.items.some(
-            (item) => item && typeof item === "object" && !item.checked,
-          )
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    } else if (Array.isArray(formData.taskDescription)) {
-      isChecklistFormat = true
-      hasUncheckedItems = formData.taskDescription.some(
-        (item) => item && typeof item === "object" && !item.checked,
-      )
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -588,9 +562,9 @@ export default function TaskDetails({
                   isEditing={isEditing}
                   formData={formData}
                   handleChange={handleChange}
-                  descriptionType={descriptionType}
-                  setDescriptionType={setDescriptionType}
-                  isChecklistFormat={isChecklistFormat}
+                  showChecklist={showChecklist}
+                  setShowChecklist={setShowChecklist}
+                  hasChecklist={hasChecklist}
                   isOthersGlobal={isOthersGlobal}
                   taskDept={taskDept}
                   isOwner={isOwner}

@@ -7,27 +7,46 @@ function parseDescriptionData(desc) {
     return { description: desc, items: [], title: "", isJson: false, isObjectFormat: false };
   }
 
-  try {
-    const trimmed = desc.trim();
-    if (trimmed.startsWith("[")) {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed)) {
-        return { description: desc, items: parsed, title: "", isJson: true, isObjectFormat: false };
+  // Handle already-parsed arrays (from Supabase JSONB or resolveChecklist)
+  if (Array.isArray(desc)) {
+    return { description: desc, items: desc, title: "", isJson: true, isObjectFormat: false };
+  }
+
+  // Handle already-parsed objects
+  if (typeof desc === "object" && Array.isArray(desc.items)) {
+    return {
+      description: desc,
+      items: desc.items,
+      title: desc.title || "",
+      isJson: true,
+      isObjectFormat: true,
+    };
+  }
+
+  // Handle JSON strings (legacy or from direct input)
+  if (typeof desc === "string") {
+    try {
+      const trimmed = desc.trim();
+      if (trimmed.startsWith("[")) {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return { description: desc, items: parsed, title: "", isJson: true, isObjectFormat: false };
+        }
+      } else if (trimmed.startsWith("{")) {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && Array.isArray(parsed.items)) {
+          return {
+            description: desc,
+            items: parsed.items,
+            title: parsed.title || "",
+            isJson: true,
+            isObjectFormat: true,
+          };
+        }
       }
-    } else if (trimmed.startsWith("{")) {
-      const parsed = JSON.parse(trimmed);
-      if (parsed && Array.isArray(parsed.items)) {
-        return {
-          description: desc,
-          items: parsed.items,
-          title: parsed.title || "",
-          isJson: true,
-          isObjectFormat: true,
-        };
-      }
+    } catch (e) {
+      console.error("Checklist parse error:", e);
     }
-  } catch (e) {
-    console.error(e);
   }
 
   return { description: desc, items: [], title: "", isJson: false, isObjectFormat: false };

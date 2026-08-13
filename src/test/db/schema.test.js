@@ -27,6 +27,27 @@ describe("schema registry", () => {
     ])
   })
 
+  it("infers the constraint name for an inline column-level REFERENCES", () => {
+    // 0001_sales_opportunities.sql declares this FK inline
+    // (`registered_by uuid not null references public.employees(id)`)
+    // rather than as a named table-level constraint. Postgres would name it
+    // this way itself, and the app's embedded selects assume that name.
+    expect(
+      schema.relationsByConstraint.sales_opportunities_registered_by_fkey,
+    ).toMatchObject({ fromTable: "sales_opportunities", fromColumn: "registered_by", toTable: "employees" })
+    expect(
+      schema.relationsByConstraint.sales_opportunities_deal_owner_id_fkey,
+    ).toMatchObject({ fromColumn: "deal_owner_id", toTable: "employees" })
+  })
+
+  it("parses an inline REFERENCES even when followed by ON DELETE", () => {
+    // 0003_sales_opportunity_items.sql:
+    // `opportunity_id uuid not null references public.sales_opportunities(id) on delete cascade`
+    expect(
+      schema.relationsByConstraint.sales_opportunity_items_opportunity_id_fkey,
+    ).toMatchObject({ toTable: "sales_opportunities", toColumn: "id" })
+  })
+
   it("indexes foreign keys by their constraint name so embeds can be resolved", () => {
     expect(schema.relationsByConstraint.tasks_logged_by_fk).toMatchObject({
       fromTable: "tasks",

@@ -92,7 +92,7 @@ describe("useLogTaskHandlers", () => {
 
     it("requires details when the committee role is Others", async () => {
       const { result } = await mount()
-      await fill(result, { categoryId: category.category_id })
+      await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
       await act(async () => result.current.setCommitteeRole("OTHERS"))
 
       await submit(result, { isCommittee: true, isOthersGlobal: false })
@@ -102,13 +102,38 @@ describe("useLogTaskHandlers", () => {
 
     it("requires details on a global Others task", async () => {
       const { result } = await mount()
-      await fill(result, { categoryId: category.category_id })
+      await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
 
       await submit(result, { isCommittee: false, isOthersGlobal: true })
 
       expect(toast.error).toHaveBeenCalledWith(
         "Please specify details for your 'Others' task.",
       )
+    })
+
+    it("requires a description or a checklist", async () => {
+      const { result } = await mount()
+      await fill(result, { categoryId: category.category_id, taskDescription: "" })
+
+      await submit(result)
+
+      expect(toast.error).toHaveBeenCalledWith(
+        "Please add a description or checklist items.",
+      )
+      expect(db.rows("tasks")).toEqual([])
+    })
+
+    it("accepts a checklist on its own, with no plain-text description", async () => {
+      const { result } = await mount()
+      await fill(result, {
+        categoryId: category.category_id,
+        taskDescription: "",
+        checklist: JSON.stringify([{ text: "Order the part", checked: false }]),
+      })
+
+      await submit(result)
+
+      await waitFor(() => expect(db.rows("tasks")).toHaveLength(1))
     })
   })
 
@@ -350,26 +375,29 @@ describe("useLogTaskHandlers", () => {
   })
 
   describe("the description / checklist tabs", () => {
-    it("brings the typed text back when switching away and back", async () => {
+    // taskDescription and checklist are now two independent form fields —
+    // showChecklist only decides which one the modal displays. Switching
+    // tabs no longer moves or clears data, unlike the old single-field
+    // approach this replaced.
+    it("toggles which tab is showing without touching either field's data", async () => {
       const { result } = await mount()
-      await fill(result, { taskDescription: "Plain prose the user typed" })
+      await fill(result, {
+        taskDescription: "Plain prose the user typed",
+        checklist: JSON.stringify([{ text: "An item" }]),
+      })
 
-      await act(async () => result.current.handleDescriptionTypeChange("checklist"))
-      await fill(result, { taskDescription: '[{"text":"An item"}]' })
-      await act(async () => result.current.handleDescriptionTypeChange("description"))
+      await act(async () => result.current.setShowChecklist(true))
+      await act(async () => result.current.setShowChecklist(false))
 
       expect(result.current.formData.taskDescription).toBe("Plain prose the user typed")
-      expect(result.current.descriptionType).toBe("description")
+      expect(result.current.formData.checklist).toBe(JSON.stringify([{ text: "An item" }]))
+      expect(result.current.showChecklist).toBe(false)
     })
 
-    it("does not mistake an existing checklist for prose worth backing up", async () => {
+    it("starts on the description tab", async () => {
       const { result } = await mount()
-      await fill(result, { taskDescription: '[{"text":"Already a checklist"}]' })
 
-      await act(async () => result.current.handleDescriptionTypeChange("checklist"))
-      await act(async () => result.current.handleDescriptionTypeChange("description"))
-
-      expect(result.current.formData.taskDescription).toBe("")
+      expect(result.current.showChecklist).toBe(false)
     })
   })
 

@@ -1,6 +1,47 @@
 import { supabase } from "../../lib/supabase";
 import { TASK_STATUS } from "../../constants/status";
 
+/**
+ * Backward-compatible field resolution for the checklist/description split.
+ *
+ * Pre-migration: checklist data lives as JSON in `task_description`.
+ * Post-migration: checklist data lives in the dedicated `checklist` column.
+ *
+ * These helpers ensure the UI works correctly at every stage.
+ */
+function isJsonString(str) {
+  if (typeof str !== "string") return false;
+  const trimmed = str.trim();
+  return (
+    (trimmed.startsWith("[") && trimmed.endsWith("]")) ||
+    (trimmed.startsWith("{") && trimmed.endsWith("}"))
+  );
+}
+
+function resolveChecklist(taskDescription, checklistColumn) {
+  // Prefer the dedicated column
+  if (checklistColumn) return checklistColumn;
+  // Fall back: legacy JSON stored in task_description
+  if (taskDescription && isJsonString(taskDescription)) {
+    try {
+      const parsed = JSON.parse(taskDescription.trim());
+      // Array format: [{text, checked}, ...]
+      if (Array.isArray(parsed)) return parsed;
+      // Object format: {title, items: [...]}
+      if (parsed && Array.isArray(parsed.items)) return parsed;
+    } catch { /* not valid JSON */ }
+  }
+  return null;
+}
+
+function resolveDescription(taskDescription, checklistColumn) {
+  // If the checklist column is populated, task_description is clean text
+  if (checklistColumn) return taskDescription || "";
+  // Pre-migration: if task_description is JSON, it's checklist data — not a description
+  if (taskDescription && isJsonString(taskDescription)) return "";
+  return taskDescription || "";
+}
+
 const extractSubmittedByName = (activityLogs = [], fallbackName = null) => {
   if (!Array.isArray(activityLogs) || activityLogs.length === 0) return fallbackName;
 
@@ -29,28 +70,7 @@ export const taskQueryService = {
       .from("tasks")
       .select(
         `
-        id,
-        created_at,
-        task_description,
-        project_title,
-        category_id,
-        logged_by,
-        reported_to,
-        start_at,
-        end_at,
-        status,
-        priority,
-        hr_verified,
-        hr_verified_at,
-        hr_remarks,
-        grade,
-        remarks,
-        evaluated_by,
-        evaluated_at,
-        edited_by,
-        edited_at,
-        payment_voucher,
-        attachment_urls,
+        *,
         creator:employees!tasks_logged_by_fk(name, department, sub_department, email, is_super_admin, avatar_path),
         editor:employees!tasks_edited_by_fk(name, avatar_path),
         evaluator:employees!tasks_evaluated_by_fkey(name, avatar_path),
@@ -71,7 +91,8 @@ export const taskQueryService = {
 
     return data.map((task) => ({
       id: task.id,
-      taskDescription: task.task_description,
+      taskDescription: resolveDescription(task.task_description, task.checklist),
+      checklist: resolveChecklist(task.task_description, task.checklist),
       projectTitle: task.project_title || null,
       categoryId: task.category_id,
       categoryDesc: task.categories?.description,
@@ -113,28 +134,7 @@ export const taskQueryService = {
       .from("tasks")
       .select(
         `
-        id,
-        created_at,
-        task_description,
-        project_title,
-        category_id,
-        logged_by,
-        reported_to,
-        start_at,
-        end_at,
-        status,
-        priority,
-        hr_verified,
-        hr_verified_at,
-        hr_remarks,
-        grade,
-        remarks,
-        evaluated_by,
-        evaluated_at,
-        edited_by,
-        edited_at,
-        payment_voucher,
-        attachment_urls,
+        *,
         creator:employees!tasks_logged_by_fk(name, department, sub_department, email, avatar_path),
         editor:employees!tasks_edited_by_fk(name, avatar_path),
         evaluator:employees!tasks_evaluated_by_fkey(name, avatar_path),
@@ -156,7 +156,8 @@ export const taskQueryService = {
 
     return data.map((task) => ({
       id: task.id,
-      taskDescription: task.task_description,
+      taskDescription: resolveDescription(task.task_description, task.checklist),
+      checklist: resolveChecklist(task.task_description, task.checklist),
       projectTitle: task.project_title || null,
       categoryId: task.category_id,
       categoryDesc: task.categories?.description,
@@ -225,7 +226,8 @@ export const taskQueryService = {
 
     return {
       id: data.id,
-      taskDescription: data.task_description,
+      taskDescription: resolveDescription(data.task_description, data.checklist),
+      checklist: resolveChecklist(data.task_description, data.checklist),
       projectTitle: data.project_title || null,
       categoryId: data.category_id,
       categoryDesc: data.categories?.description,

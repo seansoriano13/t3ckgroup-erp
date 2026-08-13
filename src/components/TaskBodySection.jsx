@@ -12,9 +12,9 @@ export default function TaskBodySection({
   isEditing,
   formData,
   handleChange,
-  descriptionType,
-  setDescriptionType,
-  isChecklistFormat,
+  showChecklist,
+  setShowChecklist,
+  hasChecklist,
   isOthersGlobal,
   taskDept,
   isOwner,
@@ -113,92 +113,115 @@ export default function TaskBodySection({
         </div>
       )}
 
+      {/* --- DESCRIPTION & CHECKLIST --- */}
       <div className="flex flex-col gap-1.5 pt-2">
         {isEditing ? (
-          <div className="flex items-center justify-between pl-1">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              Task Details
-            </label>
-            <div className="flex gap-1 bg-muted/50 p-0.5 rounded-lg border border-border">
-              <button
-                type="button"
-                onClick={() => setDescriptionType("description")}
-                className={`text-[10px] px-3 py-1 rounded-md font-bold transition-all ${
-                  descriptionType === "description"
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-muted-foreground/80"
-                }`}
-              >
+          <div className="flex flex-col gap-4">
+            {/* Description is always visible in edit mode */}
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1">
                 Description
-              </button>
-              <button
-                type="button"
-                onClick={() => setDescriptionType("checklist")}
-                className={`text-[10px] px-3 py-1 rounded-md font-bold transition-all ${
-                  descriptionType === "checklist"
-                    ? "bg-card text-muted-foreground00 shadow-sm"
-                    : "text-muted-foreground hover:text-slate-50000"
-                }`}
-              >
-                Checklist
-              </button>
+              </label>
+              <Textarea
+                name="taskDescription"
+                value={formData.taskDescription || ""}
+                onChange={handleChange}
+                className="w-full bg-card border border-border text-foreground rounded-xl p-4 outline-none transition-all h-32 resize-none text-[14px] shadow-sm"
+              />
+            </div>
+
+            {/* Checklist is collapsible in edit mode */}
+            <div>
+              {showChecklist ? (
+                <div className="animate-slide-down">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+                      Checklist
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowChecklist(false)}
+                      className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+                    >
+                      Hide
+                    </button>
+                  </div>
+                  <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
+                    <ChecklistTaskInput
+                      value={formData.checklist ? (typeof formData.checklist === "string" ? formData.checklist : JSON.stringify(formData.checklist)) : ""}
+                      onChange={(e) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          checklist: e.target.value,
+                        }))
+                      }
+                      name="checklist"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowChecklist(true)}
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+                >
+                  <span className="text-base leading-none">+</span> Add checklist
+                </button>
+              )}
             </div>
           </div>
         ) : (
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2">
-            <Dot />
-            Description
-          </label>
-        )}
+          /* VIEW MODE */
+          <div className="flex flex-col gap-6">
+            {/* Show description if it exists */}
+            {task.taskDescription?.trim() && (
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
+                  <Dot />
+                  Description
+                </label>
+                <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
+                  <HighlightText text={task.taskDescription} search={searchTerm} />
+                </div>
+              </div>
+            )}
 
-        {isEditing ? (
-          descriptionType === "checklist" ? (
-            <ChecklistTaskInput
-              value={formData.taskDescription}
-              onChange={handleChange}
-            />
-          ) : (
-            <Textarea
-              name="taskDescription"
-              value={
-                typeof formData.taskDescription === "string" &&
-                (formData.taskDescription.trim().startsWith("[") ||
-                  formData.taskDescription.trim().startsWith("{"))
-                  ? ""
-                  : formData.taskDescription
-              }
-              onChange={handleChange}
-              required
-              className="w-full bg-card border border-border text-foreground rounded-xl p-4 outline-none transition-all h-32 resize-none text-[14px] shadow-sm"
-            />
-          )
-        ) : isChecklistFormat ? (
-          <ChecklistTaskRenderer
-            description={task.taskDescription}
-            isOwner={isOwner}
-            disabled={!canEdit || !isOwner}
-            searchTerm={searchTerm}
-            onInlineCheck={(newDesc) => {
-              setFormData((prev) => ({
-                ...prev,
-                taskDescription: newDesc,
-              }))
-              executeUpdate(
-                {
-                  id: task.id,
-                  taskDescription: newDesc,
-                  editedBy: user.id,
-                },
-                true,
-              )
-            }}
-          />
-        ) : (
-          <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
-            <HighlightText
-              text={task.taskDescription}
-              search={searchTerm}
-            />
+            {/* Show checklist if it exists */}
+            {hasChecklist && (
+              <div>
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
+                  <Dot />
+                  Checklist
+                </label>
+                <ChecklistTaskRenderer
+                  description={task.checklist}
+                  isOwner={isOwner}
+                  disabled={!canEdit || !isOwner}
+                  searchTerm={searchTerm}
+                  onInlineCheck={(newChecklist) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      checklist: newChecklist,
+                    }))
+                    executeUpdate(
+                      {
+                        id: task.id,
+                        checklist: newChecklist,
+                        editedBy: user.id,
+                      },
+                      true,
+                    )
+                  }}
+                />
+              </div>
+            )}
+            
+            {/* Fallback if both are completely empty */}
+            {!task.taskDescription?.trim() && !hasChecklist && (
+               <div className="text-sm text-muted-foreground italic px-4 py-2">
+                 No description or checklist provided.
+               </div>
+            )}
           </div>
         )}
       </div>

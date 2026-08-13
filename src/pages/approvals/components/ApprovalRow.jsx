@@ -275,7 +275,7 @@ export function ApprovalRow({
 
             <h4 className="text-xs md:text-sm font-semibold text-foreground line-clamp-1 group-hover:text-primary transition-colors leading-tight">
               <HighlightText
-                text={formatTaskPreview(task.taskDescription)}
+                text={formatTaskPreview(task.taskDescription, task.checklist)}
                 search={searchTerm}
               />
             </h4>
@@ -367,7 +367,7 @@ export function ApprovalRow({
               ) : (
                 <div className="bg-muted/30 p-3 md:p-4 rounded-xl border border-transparent text-xs md:text-sm text-foreground whitespace-pre-wrap leading-relaxed">
                   <HighlightText
-                    text={formatTaskPreview(task.taskDescription)}
+                    text={formatTaskPreview(task.taskDescription, task.checklist)}
                     search={searchTerm}
                   />
                 </div>

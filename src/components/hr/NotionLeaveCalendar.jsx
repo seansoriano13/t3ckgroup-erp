@@ -56,18 +56,14 @@ export default function NotionLeaveCalendar({
   const getLeaveColorStyles = (type) => {
     if (type === 'SIL') {
       return {
-        bg: 'bg-green-2',
-        border: 'border-green-6',
-        text: 'text-green-11',
-        hoverBorder: 'hover:border-green-8'
+        dot: 'bg-green-9',
+        hoverBg: 'hover:bg-green-a3'
       };
     }
     // Default Offset colors
     return {
-      bg: 'bg-blue-2',
-      border: 'border-blue-6',
-      text: 'text-blue-11',
-      hoverBorder: 'hover:border-blue-8'
+      dot: 'bg-blue-9',
+      hoverBg: 'hover:bg-blue-a3'
     };
   };
 
@@ -153,22 +149,21 @@ export default function NotionLeaveCalendar({
                     <div
                       key={leave.type + '-' + leave.id}
                       onClick={() => setSelectedLeave(leave)}
-                      className={`p-1.5 ${colors.bg} border ${colors.border} rounded-lg ${colors.hoverBorder} transition-all cursor-pointer shadow-2xs`}
+                      className={`flex items-center gap-1.5 px-1 py-1 rounded-md ${colors.hoverBg} transition-colors cursor-pointer`}
                     >
-                      <div className="flex items-center space-x-1.5">
-                        <Avatar
-                          name={leave.employee?.name || 'E'}
-                          size="xs"
-                          className="w-5 h-5 rounded-full text-[9px]"
-                        />
-                        <div className="truncate">
-                          <p className={`text-[11px] font-bold ${colors.text} truncate`}>
-                            {leave.employee?.name || 'Employee'}
-                          </p>
-                          <p className={`text-[9px] ${colors.text} font-mono font-semibold`}>
-                            {leave.hours}h {leave.type}
-                          </p>
-                        </div>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${colors.dot}`} />
+                      <Avatar
+                        name={leave.employee?.name || 'E'}
+                        size="xs"
+                        className="w-4 h-4 rounded-full text-[8px] shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-semibold text-foreground truncate leading-tight">
+                          {leave.employee?.name || 'Employee'}
+                        </p>
+                        <p className="text-[9px] text-muted-foreground font-mono truncate leading-tight">
+                          {leave.hours}h {leave.type}
+                        </p>
                       </div>
                     </div>
                   );
@@ -225,24 +220,23 @@ export default function NotionLeaveCalendar({
                 return (
                   <div
                     key={leave.type + '-' + leave.id}
-                    className={`p-3 ${colors.bg} border ${colors.border} rounded-xl flex items-center justify-between group cursor-pointer`}
+                    className="flex items-center justify-between gap-3 p-2.5 rounded-xl hover:bg-muted/60 transition-colors cursor-pointer"
                     onClick={() => {
                       setSelectedLeave(leave);
                       setSelectedDayLeaves(null);
                     }}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${colors.dot}`} />
                       <Avatar src={leave.employee?.avatar_path} name={leave.employee?.name} size="sm" />
-                      <div>
-                        <p className={`text-sm font-bold ${colors.text}`}>{leave.employee?.name}</p>
-                        <p className={`text-xs ${colors.text} font-medium`}>{leave.employee?.department || '-'}</p>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{leave.employee?.name}</p>
+                        <p className="text-xs text-muted-foreground font-medium truncate">{leave.employee?.department || '-'}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <span className={`text-xs font-black ${colors.text} bg-white/40 px-2 py-0.5 rounded border border-white/20`}>
-                        {leave.hours} hrs {leave.type}
-                      </span>
-                    </div>
+                    <span className="text-xs font-mono font-semibold text-muted-foreground shrink-0">
+                      {leave.hours} hrs {leave.type}
+                    </span>
                   </div>
                 );
               })}

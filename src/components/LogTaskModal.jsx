@@ -40,8 +40,8 @@ export default function LogTaskModal({ isOpen, onClose }) {
     setCommitteeRole,
     othersRemarks,
     setOthersRemarks,
-    descriptionType,
-    setDescriptionType,
+    showChecklist,
+    setShowChecklist,
     openPopover,
     setOpenPopover,
     categorySearch,
@@ -49,7 +49,6 @@ export default function LogTaskModal({ isOpen, onClose }) {
     createMore,
     setCreateMore,
     handleChange,
-    handleDescriptionTypeChange,
     handleTogglePopover,
     handleSubmit,
     handleClose,
@@ -233,8 +232,11 @@ export default function LogTaskModal({ isOpen, onClose }) {
             handleChange={handleChange}
             titleRef={titleRef}
             selectedEmployeeInfo={selectedEmployeeInfo}
-            descriptionType={descriptionType}
-            onDescriptionTypeChange={handleDescriptionTypeChange}
+            showChecklist={showChecklist}
+            onToggleChecklist={() => setShowChecklist(!showChecklist)}
+            onChecklistChange={(value) =>
+              setFormData((prev) => ({ ...prev, checklist: value }))
+            }
             isExpanded={isExpanded}
             onAttachmentsChange={(urls) =>
               setFormData((prev) => ({ ...prev, attachments: urls }))

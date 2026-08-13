@@ -150,33 +150,23 @@ describe("TaskCard", () => {
       expect(screen.getByText("[URGENT] Fix the printer")).toBeInTheDocument()
     })
 
-    it("collapses items past the first two behind a toggle", async () => {
+    it("collapses the whole list behind a toggle naming the item count", async () => {
+      // WIP note: the card currently shows nothing "always visible" — every
+      // item, however many, sits behind one collapse/expand toggle.
       const many = checklist([{ text: "First" }, { text: "Second" }, { text: "Third" }])
       renderCard({ task: task({ taskDescription: many }) })
 
-      const toggle = screen.getByRole("button", { name: /1 more item/i })
+      const toggle = screen.getByRole("button", { name: /3 items/i })
 
       await userEvent.click(toggle)
 
       expect(screen.getByRole("button", { name: /see less/i })).toBeInTheDocument()
     })
 
-    it("pluralises the toggle for several hidden items", () => {
-      const many = checklist([
-        { text: "First" },
-        { text: "Second" },
-        { text: "Third" },
-        { text: "Fourth" },
-      ])
-      renderCard({ task: task({ taskDescription: many }) })
-
-      expect(screen.getByRole("button", { name: /2 more items/i })).toBeInTheDocument()
-    })
-
-    it("offers no toggle when everything already fits", () => {
+    it("still shows a toggle for a single-item checklist", () => {
       renderCard({ task: task({ taskDescription: checklist([{ text: "Only one" }]) }) })
 
-      expect(screen.queryByRole("button", { name: /more item/i })).not.toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /^1 item$/i })).toBeInTheDocument()
     })
   })
 
@@ -187,13 +177,16 @@ describe("TaskCard", () => {
     ])
 
     it("saves the change straight away for the owner", async () => {
+      // The write always lands on `checklist`, even when the card read the
+      // items off the legacy `taskDescription` JSON string — ticking an item
+      // migrates that task onto the new field.
       const { onSilentUpdate } = renderCard({ as: owner, task: task({ taskDescription: items }) })
 
       await userEvent.click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).toHaveBeenCalledWith({
         id: "task-1",
-        taskDescription: checklist([
+        checklist: checklist([
           { text: "Order the part", checked: true },
           { text: "Swap the unit", checked: false },
         ]),
@@ -210,7 +203,7 @@ describe("TaskCard", () => {
 
       await userEvent.click(screen.getByText("Swap the unit"))
 
-      expect(JSON.parse(onSilentUpdate.mock.calls[0][0].taskDescription)).toEqual([
+      expect(JSON.parse(onSilentUpdate.mock.calls[0][0].checklist)).toEqual([
         { text: "Order the part", checked: true },
         { text: "Swap the unit", checked: true },
       ])
@@ -224,7 +217,7 @@ describe("TaskCard", () => {
 
       await userEvent.click(screen.getByText("Order the part"))
 
-      expect(onSilentUpdate.mock.calls[0][0].taskDescription).toEqual([
+      expect(onSilentUpdate.mock.calls[0][0].checklist).toEqual([
         { text: "Order the part", checked: true },
       ])
     })

@@ -179,7 +179,16 @@ function emptyTable(name) {
   }
 }
 
-function parseColumn(table, part) {
+/**
+ * Matches Postgres' own default naming for an unnamed column-level
+ * constraint: `<table>_<column>_fkey`. This project's migrations lean on
+ * inline `references` rather than a named table-level FOREIGN KEY constraint
+ * (see 0001, 0003, 0008), and the application queries embed against exactly
+ * that generated name — e.g. `!sales_opportunities_registered_by_fkey` — so a
+ * parser that only understood named constraints would silently drop these
+ * relationships.
+ */
+function parseColumn(table, part, registry) {
   const match = part.match(/^"?([a-z_0-9]+)"?\s+([\s\S]+)$/i)
   if (!match) return
   const [, name, rest] = match
@@ -190,6 +199,9 @@ function parseColumn(table, part) {
 
   const defaultMatch = modifiers.match(/\bdefault\s+([\s\S]+?)(?=\s+(?:not\s+null|null|unique|primary\s+key|check|references|generated|collate)\b|$)/i)
   const checkMatch = modifiers.match(/\bcheck\s*\(([\s\S]*)\)\s*$/i)
+  const referencesMatch = modifiers.match(
+    /\breferences\s+(?:public\.)?"?([a-z_0-9]+)"?\s*\(\s*"?([a-z_0-9]+)"?\s*\)/i,
+  )
 
   table.columns[name] = {
     name,
@@ -208,6 +220,19 @@ function parseColumn(table, part) {
   }
   if (/\bunique\b/i.test(modifiers)) table.unique.push([name])
   if (checkMatch) table.checks.push(parseCheck(`${table.name}_${name}_check`, checkMatch[1]))
+
+  if (referencesMatch && registry) {
+    const constraintName = `${table.name}_${name}_fkey`
+    const relation = {
+      constraint: constraintName,
+      fromTable: table.name,
+      fromColumn: name,
+      toTable: referencesMatch[1],
+      toColumn: referencesMatch[2],
+    }
+    table.foreignKeys[constraintName] = relation
+    registry.relationsByConstraint[constraintName] = relation
+  }
 }
 
 function parseConstraint(table, part, registry) {
@@ -265,7 +290,7 @@ function applyCreateTable(sql, registry) {
       if (/^(constraint|primary\s+key|foreign\s+key|check|unique)\b/i.test(part)) {
         parseConstraint(table, part, registry)
       } else {
-        parseColumn(table, part)
+        parseColumn(table, part, registry)
       }
     }
 
@@ -311,7 +336,7 @@ function applyAlterTable(sql, registry) {
     if (!table) continue
 
     if (statement.kind === "addColumn") {
-      parseColumn(table, statement.payload.trim())
+      parseColumn(table, statement.payload.trim(), registry)
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
     } else {

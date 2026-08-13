@@ -97,7 +97,32 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
   let checkedItems = 0
   let parsedDesc = null
 
-  if (task.taskDescription) {
+  // 1. Check native checklist field
+  if (task.checklist) {
+    isChecklistFormat = true;
+    if (typeof task.checklist === "string") {
+      try {
+        parsedDesc = JSON.parse(task.checklist);
+      } catch {
+        parsedDesc = task.checklist;
+      }
+    } else {
+      parsedDesc = task.checklist;
+    }
+
+    if (Array.isArray(parsedDesc)) {
+      totalItems = parsedDesc.length;
+      checkedItems = parsedDesc.filter(
+        (item) => item && typeof item === "object" && item.checked,
+      ).length;
+    } else if (parsedDesc && Array.isArray(parsedDesc.items)) {
+      totalItems = parsedDesc.items.length;
+      checkedItems = parsedDesc.items.filter(
+        (item) => item && typeof item === "object" && item.checked,
+      ).length;
+    }
+  } else if (task.taskDescription) {
+    // 2. Fallback for legacy JSON strings
     const trimmed =
       typeof task.taskDescription === "string"
         ? task.taskDescription.trim()
@@ -112,7 +137,6 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
             (item) => item && typeof item === "object" && item.checked,
           ).length
         }
-        // eslint-disable-next-line no-unused-vars
       } catch (e) {
         /* empty */
       }
@@ -126,7 +150,6 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
             (item) => item && typeof item === "object" && item.checked,
           ).length
         }
-        // eslint-disable-next-line no-unused-vars
       } catch (e) { /* empty */ }
     } else if (Array.isArray(task.taskDescription)) {
       isChecklistFormat = true
@@ -142,7 +165,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
     if (onSilentUpdate) {
       onSilentUpdate({
         id: task.id,
-        taskDescription: newDesc,
+        checklist: newDesc,
         editedBy: user?.id,
       })
     }
@@ -185,8 +208,8 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       : parsedDesc?.items || []
     : []
   const checklistTitle = isChecklistFormat ? parsedDesc?.title || null : null
-  const previewItems = checklistItems.slice(0, 2)
-  const hiddenItems = checklistItems.slice(2)
+  const previewItems = []
+  const hiddenItems = checklistItems
 
   if (task.projectTitle) {
     displayTitle = task.projectTitle
@@ -276,7 +299,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                   e.stopPropagation()
                   if (onView) onView(e)
                 }}
-                className="font-bold text-foreground line-clamp-2 leading-snug group-hover:text-primary hover:underline cursor-pointer transition-colors"
+                className="font-bold text-foreground truncate leading-snug group-hover:text-primary hover:underline cursor-pointer transition-colors"
               >
                 <HighlightText text={displayTitle} search={searchTerm} />
               </h3>
@@ -302,7 +325,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                   e.stopPropagation()
                   if (onView) onView(e)
                 }}
-                className="font-bold text-foreground leading-snug group-hover:text-primary hover:underline cursor-pointer transition-colors mb-2"
+                className="font-bold text-foreground truncate leading-snug group-hover:text-primary hover:underline cursor-pointer transition-colors mb-2"
               >
                 <HighlightText text={displayTitle} search={searchTerm} />
               </h3>
@@ -362,8 +385,8 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                 <div className="space-y-1.5">
                   {hiddenItems.map((item, i) => (
                     <div
-                      key={i + 2}
-                      onClick={(e) => handleItemClick(e, i + 2)}
+                      key={i + previewItems.length}
+                      onClick={(e) => handleItemClick(e, i + previewItems.length)}
                       className={`flex items-center gap-2.5 py-1.5 px-3 rounded-xl transition-all duration-300 border text-[12px] ${
                         isDisabled
                           ? "cursor-not-allowed"
@@ -419,8 +442,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                     </>
                   ) : (
                     <>
-                      <ChevronDown size={12} /> {hiddenItems.length} more item
-                      {hiddenItems.length > 1 ? "s" : ""}
+                      <ChevronDown size={12} /> {hiddenItems.length} {previewItems.length > 0 ? "more item" : "item"}{hiddenItems.length !== 1 ? "s" : ""}
                     </>
                   )}
                 </button>

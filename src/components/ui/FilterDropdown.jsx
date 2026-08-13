@@ -14,13 +14,11 @@ export function FilterTrigger({
 }) {
   return (
     <div
-      className={`h-[40px] w-full flex items-center justify-between px-3 rounded-lg border transition-all cursor-pointer ${
-        disabled ? "opacity-50 pointer-events-none" : ""
-      } ${
-        isOpen || isActive
+      className={`h-[46px] w-full flex items-center justify-between px-3 rounded-lg border transition-all cursor-pointer ${disabled ? "opacity-50 pointer-events-none" : ""
+        } ${isOpen || isActive
           ? "ring-1 ring-mauve-4 bg-muted font-medium"
           : "bg-card border-border hover:border-border/80"
-      } ${className || ""}`}
+        } ${className || ""}`}
     >
       <div className="flex items-center gap-2 overflow-hidden flex-1">
         {Icon && (
@@ -35,9 +33,8 @@ export function FilterTrigger({
       </div>
       <ChevronDown
         size={14}
-        className={`ml-1 shrink-0 text-muted-foreground transition-transform ${
-          isOpen ? "rotate-180" : ""
-        }`}
+        className={`ml-1 shrink-0 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""
+          }`}
       />
     </div>
   );
@@ -52,8 +49,8 @@ export function FilterOptionList({ options, value, onChange, close }) {
 
   const filtered = query.trim()
     ? options.filter((opt) =>
-        opt.label.toLowerCase().includes(query.trim().toLowerCase()),
-      )
+      opt.label.toLowerCase().includes(query.trim().toLowerCase()),
+    )
     : options;
 
   return (
@@ -86,11 +83,10 @@ export function FilterOptionList({ options, value, onChange, close }) {
                 onChange(opt.value);
                 if (close) close();
               }}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
-                value === opt.value
-                  ? "bg-muted/80 text-foreground font-bold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              }`}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${value === opt.value
+                ? "bg-muted/80 text-foreground font-bold"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
             >
               {opt.label}
             </button>
