@@ -61,10 +61,10 @@ export default function TasksPage() {
   );
 
   // Date Filter State
-  const [timeframe, setTimeframe] = useState("MONTHLY");
+  const [timeframe, setTimeframe] = useState("YEARLY");
   const [selectedDateFilter, setSelectedDateFilter] = useState(() => {
     const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    return `${today.getFullYear()}`;
   });
 
   // 2. Filter State (Management Cascading)
@@ -108,7 +108,7 @@ export default function TasksPage() {
       setSubDeptFilter(userSubDept || "ALL");
       setEmployeeFilter(user.id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // deliberately exclude isManagement — roles don't change mid-session
 
   // Explicit handler for HR tab toggle — this is the ONLY place management
@@ -198,7 +198,7 @@ export default function TasksPage() {
               .then((task) => {
                 if (task) setViewTask(task);
               })
-              .catch(() => {});
+              .catch(() => { });
           },
         );
         navigate(location.pathname, { replace: true, state: {} });
@@ -543,13 +543,12 @@ export default function TasksPage() {
                                 });
                             }
                           }}
-                          className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${
-                            p === currentGroupPage
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : p === "..."
-                                ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
-                                : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
-                          }`}
+                          className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${p === currentGroupPage
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : p === "..."
+                              ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
+                              : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
+                            }`}
                         >
                           {p}
                         </button>
