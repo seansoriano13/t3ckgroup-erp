@@ -3,7 +3,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown";
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
-import { parseChecklist } from "../utils/checklist";
+import { resolveAssignment } from "../utils/checklist";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
@@ -38,8 +38,10 @@ export default function GroupTaskMemberPanel({
   }
 
   const employeeId = member.employeeId ?? member.employee_id ?? null;
-  const description = member.taskDescription ?? member.task_description ?? "";
-  const checklistItems = parseChecklist(member.checklist);
+  // Read through resolveAssignment so a row predating the 0016 backfill — its
+  // checklist still serialised inside task_description — does not show raw JSON
+  // in the description box.
+  const { description, checklist: checklistItems } = resolveAssignment(member);
   const showChecklist = checklistItems.length > 0 || member.showChecklist;
   const role = member.role || "";
   const customRole = member.customRole ?? member.custom_role ?? "";

@@ -1,6 +1,6 @@
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
-import { countChecklist } from "../utils/checklist";
+import { resolveAssignment } from "../utils/checklist";
 
 /**
  * GroupTaskMemberRail — the master half of the group task master/detail layout.
@@ -41,10 +41,12 @@ export default function GroupTaskMemberRail({
           const isMe =
             currentUserId && (member.employeeId ?? member.employee_id) === currentUserId;
 
-          const { total, checked } = countChecklist(member.checklist);
-          const hasDescription = !!(
-            member.taskDescription ?? member.task_description
-          )?.trim?.();
+          // Resolved so pre-0016 rows, whose checklist still lives in
+          // task_description, show a real progress count instead of 0.
+          const { description, checklist } = resolveAssignment(member);
+          const total = checklist.length;
+          const checked = checklist.filter((i) => i?.checked).length;
+          const hasDescription = !!description?.trim();
           // In create mode a row is only submittable once it has an assignee
           // and something for them to do; flag the gap here rather than letting
           // handleSubmit silently drop the row later.

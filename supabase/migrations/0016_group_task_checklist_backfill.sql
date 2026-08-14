@@ -1,32 +1,32 @@
 -- ==============================================================================
--- 0015_group_task_checklist.sql
+-- 0016_group_task_checklist_backfill.sql
 --
--- Gives group task members a description AND a checklist, matching how regular
--- tasks already work (tasks.task_description + tasks.checklist).
+-- Moves serialised checklists out of committee_task_members.task_description
+-- and into the checklist column added by 0015.
 --
--- Until now committee_task_members.task_description held EITHER plain text OR a
--- serialised JSON checklist array, and the UI switched between them with a
--- throwaway toggle. Every read site had to sniff whether the string started
--- with '[' or '{' to know which it was. This splits them apart.
+-- ⚠ RUN THIS ONLY AFTER THE NEW GROUP TASK FRONTEND IS DEPLOYED EVERYWHERE.
+--
+-- This is the half that rewrites existing rows. A client still running the
+-- pre-split build reads checklists out of task_description by sniffing for a
+-- leading '['. Once this migration empties that column, such a client renders
+-- those assignments as blank — in the task card, the detail modal and the
+-- rating modal alike. Nothing is lost (the items move to `checklist`), but the
+-- old build cannot see them.
+--
+-- The current frontend reads through resolveAssignment() in
+-- src/pages/group-tasks/utils/checklist.js, which checks the checklist column
+-- and falls back to task_description. It therefore renders correctly both
+-- before and after this migration, so there is no rush to run it — and no
+-- window where the app is wrong.
 --
 -- Mirrors migrate_checklist.sql, which did the same for the tasks table.
 -- Idempotent: safe to re-run.
--- Runs as one transaction, so a failure part-way through the conversion below
--- cannot leave some assignments moved and others not.
---
--- REQUIRED BEFORE DEPLOY: groupTaskService selects this column, so the group
--- task list returns an error until this migration has run.
+-- Runs as one transaction, so a failure part-way cannot leave some assignments
+-- moved and others not.
 -- ==============================================================================
 
 begin;
 
--- ── 1. Add the checklist column ──────────────────────────────────────────────
--- Nullable with no default, so this is a catalog-only change: no table rewrite,
--- no lengthy lock.
-alter table public.committee_task_members
-  add column if not exists checklist jsonb;
-
--- ── 2. Move JSON checklists out of task_description ──────────────────────────
 -- migrate_checklist.sql cast task_description::jsonb directly and noted in a
 -- comment that a malformed string starting with '[' or '{' would abort the
 -- whole UPDATE. Rather than inherit that, each row is converted inside its own
@@ -38,6 +38,7 @@ declare
   parsed jsonb;
   is_json boolean;
   moved int := 0;
+  skipped int := 0;
 begin
   for r in
     select id, task_description
@@ -59,6 +60,7 @@ begin
     end;
 
     if not is_json then
+      skipped := skipped + 1;
       continue;
     end if;
 
@@ -82,7 +84,9 @@ begin
     end if;
   end loop;
 
-  raise notice 'Moved % checklist(s) out of task_description into the checklist column.', moved;
+  raise notice
+    'Moved % checklist(s) into the checklist column; left % row(s) as plain text.',
+    moved, skipped;
 end $$;
 
 commit;

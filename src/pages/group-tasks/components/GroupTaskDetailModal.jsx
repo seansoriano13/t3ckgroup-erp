@@ -46,7 +46,11 @@ import { groupRoleService } from "@/services/groupRoleService";
 import GroupRoleManagerModal from "./GroupRoleManagerModal";
 import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
-import { parseChecklist, hasChecklistContent } from "../utils/checklist";
+import {
+  parseChecklist,
+  hasChecklistContent,
+  resolveAssignment,
+} from "../utils/checklist";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -106,12 +110,16 @@ export default function GroupTaskDetailModal({
   });
 
   const handleEditClick = (member) => {
+    // Resolved rather than read raw, so editing a row that predates the 0016
+    // backfill does not drop its serialised checklist into the description box
+    // and then save it back as prose.
+    const { description, checklist } = resolveAssignment(member);
     setDraft({
       id: member.id,
       employeeId: member.employee_id,
-      taskDescription: member.task_description || "",
-      checklist: member.checklist ?? null,
-      showChecklist: parseChecklist(member.checklist).length > 0,
+      taskDescription: description,
+      checklist: checklist.length > 0 ? checklist : null,
+      showChecklist: checklist.length > 0,
       role: member.role || "",
       customRole: member.custom_role || "",
     });
@@ -652,7 +660,13 @@ export default function GroupTaskDetailModal({
                       const showGrade =
                         isCompletedOrBeyond && canSeeGrade && member.grade > 0;
 
-                      const checklistItems = parseChecklist(member.checklist);
+                      // resolveAssignment so rows predating the 0016 backfill,
+                      // whose checklist is still inside task_description, render
+                      // as a checklist rather than as a wall of JSON.
+                      const {
+                        description: memberDescription,
+                        checklist: checklistItems,
+                      } = resolveAssignment(member);
                       const hasUncheckedItems = checklistItems.some(
                         (i) => !i.checked,
                       );
@@ -711,13 +725,13 @@ export default function GroupTaskDetailModal({
                           </div>
 
                           {/* Description */}
-                          {member.task_description?.trim() && (
+                          {memberDescription?.trim() && (
                             <div className="flex flex-col gap-1.5">
                               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                 Specific Task
                               </label>
                               <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
-                                {member.task_description}
+                                {memberDescription}
                               </div>
                             </div>
                           )}
@@ -739,7 +753,7 @@ export default function GroupTaskDetailModal({
                               </div>
                               <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
                                 <ChecklistTaskRenderer
-                                  description={member.checklist}
+                                  description={checklistItems}
                                   isOwner={isMe}
                                   disabled={!isMe || isDone}
                                   searchTerm={searchTerm}
@@ -762,7 +776,7 @@ export default function GroupTaskDetailModal({
                             </div>
                           )}
 
-                          {!member.task_description?.trim() &&
+                          {!memberDescription?.trim() &&
                             checklistItems.length === 0 && (
                               <p className="text-[13px] text-muted-foreground italic">
                                 No assignment details recorded.

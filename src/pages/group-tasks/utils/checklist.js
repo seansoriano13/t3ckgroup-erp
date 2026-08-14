@@ -44,3 +44,39 @@ export function countChecklist(value) {
 export function hasChecklistContent(value) {
   return parseChecklist(value).some((i) => i?.text?.trim());
 }
+
+/** True when a string is really a serialised checklist rather than prose. */
+function looksLikeJson(value) {
+  if (typeof value !== "string") return false;
+  const t = value.trim();
+  return (t.startsWith("[") || t.startsWith("{")) && parseChecklist(t).length > 0;
+}
+
+/**
+ * Reads an assignment's description and checklist regardless of which side of
+ * the 0016 backfill the row is on.
+ *
+ * Rows created after the split keep prose in task_description and items in
+ * checklist. Rows predating it still have the serialised checklist sitting in
+ * task_description with nothing in the checklist column. Reading through this
+ * means the app works before, during and after the backfill, so the migration
+ * and the deploy do not have to be ordered against each other.
+ */
+export function resolveAssignment(member) {
+  if (!member) return { description: "", checklist: [] };
+
+  const rawDescription = member.taskDescription ?? member.task_description ?? "";
+  const items = parseChecklist(member.checklist);
+
+  if (items.length > 0) {
+    return { description: rawDescription, checklist: items };
+  }
+
+  // Nothing in the checklist column — the description may be a pre-split
+  // checklist, in which case it is not prose and must not be shown as such.
+  if (looksLikeJson(rawDescription)) {
+    return { description: "", checklist: parseChecklist(rawDescription) };
+  }
+
+  return { description: rawDescription, checklist: [] };
+}
