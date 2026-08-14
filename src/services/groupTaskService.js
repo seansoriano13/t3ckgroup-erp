@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { groupTaskActivityService } from "./groupTaskActivityService";
+import { formatTaskPreview } from "../utils/taskFormatters";
 
 const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
@@ -74,10 +75,17 @@ export const groupTaskService = {
 
     if (groupError) throw groupError;
 
+    // role/custom_role used to be dropped here even though the create form
+    // collected them and the columns exist, which is why roles picked at
+    // creation time never showed up again. addMemberToTask has always written
+    // them; this brings create in line.
     const memberPayloads = members.map((m) => ({
       committee_task_id: groupTask.id,
       employee_id: m.employeeId,
-      task_description: m.taskDescription,
+      task_description: m.taskDescription || "",
+      checklist: m.checklist || null,
+      role: m.role || null,
+      custom_role: m.customRole || null,
       status: "PENDING",
     }));
 
@@ -111,7 +119,10 @@ export const groupTaskService = {
         sender_id: createdBy,
         type: "GROUP_ASSIGNED",
         title: "Assigned to Group Task",
-        message: `${creator?.name || "A Head"} assigned you to "${title}": ${member.taskDescription}`,
+        // An assignment can now be checklist-only, which would leave this
+        // message trailing off after the colon. formatTaskPreview falls back
+        // to an item count when there is no description text.
+        message: `${creator?.name || "A Head"} assigned you to "${title}": ${formatTaskPreview(member.taskDescription, member.checklist)}`,
         reference_id: groupTask.id,
       });
     }
@@ -127,7 +138,7 @@ export const groupTaskService = {
         *,
         creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
         members:committee_task_members(
-          id, employee_id, task_description, status, grade, grade_remarks, rated_at, rated_by, role, custom_role,
+          id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role,
           employee:employees!committee_task_members_employee_id_fkey(name, avatar_path)
         )
       `)
@@ -153,7 +164,7 @@ export const groupTaskService = {
         *,
         creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
         members:committee_task_members(
-          id, employee_id, task_description, status, grade, grade_remarks, rated_at, rated_by,
+          id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role,
           employee:employees!committee_task_members_employee_id_fkey(name, avatar_path, department)
         )
       `)
@@ -351,16 +362,64 @@ export const groupTaskService = {
     return true;
   },
 
-  async updateMemberAssignment(memberId, groupTaskId, payload, actorId) {
-    const { taskDescription, role, customRole } = payload;
-    
+  /**
+   * Ticks/unticks checklist items on a member's assignment.
+   *
+   * Only the assignee may do this, and only before they mark the assignment
+   * DONE — the same rule the DONE button itself follows. DONE is what opens a
+   * member up to being graded, so the checklist has to stop being editable at
+   * the same moment, otherwise the evidence could change after submission.
+   */
+  async updateMemberChecklist(memberId, checklist, groupTaskId = null, actorId = null) {
+    const { data: member, error: readError } = await supabase
+      .from("committee_task_members")
+      .select("employee_id, status")
+      .eq("id", memberId)
+      .single();
+
+    if (readError) throw readError;
+    if (actorId && member.employee_id !== actorId) {
+      throw new Error("Only the assigned member can update this checklist.");
+    }
+    if (member.status === "DONE") {
+      throw new Error(
+        "This assignment is already marked done and can no longer be edited.",
+      );
+    }
+
     const { error } = await supabase
       .from("committee_task_members")
-      .update({
-        task_description: taskDescription,
-        role: role || null,
-        custom_role: customRole || null,
-      })
+      .update({ checklist: checklist || null })
+      .eq("id", memberId);
+    if (error) throw error;
+
+    if (groupTaskId && actorId) {
+      await upsertGroupChecklistActivity(
+        groupTaskId,
+        memberId,
+        typeof checklist === "string" ? checklist : JSON.stringify(checklist),
+        actorId,
+      );
+    }
+
+    return true;
+  },
+
+  async updateMemberAssignment(memberId, groupTaskId, payload, actorId) {
+    const { taskDescription, checklist, role, customRole } = payload;
+
+    const updates = {
+      task_description: taskDescription ?? "",
+      role: role || null,
+      custom_role: customRole || null,
+    };
+    // Only touch checklist when the caller actually supplied it, so an edit
+    // that leaves the checklist alone does not wipe it.
+    if (checklist !== undefined) updates.checklist = checklist || null;
+
+    const { error } = await supabase
+      .from("committee_task_members")
+      .update(updates)
       .eq("id", memberId);
 
     if (error) throw error;
@@ -480,14 +539,15 @@ export const groupTaskService = {
 
   // ADD MEMBER ON THE FLY
   async addMemberToTask(groupTaskId, payload, actorId) {
-    const { employeeId, taskDescription, role, customRole } = payload;
-    
+    const { employeeId, taskDescription, checklist, role, customRole } = payload;
+
     const { error } = await supabase
       .from("committee_task_members")
       .insert({
         committee_task_id: groupTaskId,
         employee_id: employeeId,
-        task_description: taskDescription,
+        task_description: taskDescription || "",
+        checklist: checklist || null,
         role: role || null,
         custom_role: customRole || null,
         status: "PENDING"
@@ -519,7 +579,7 @@ export const groupTaskService = {
       sender_id: actorId,
       type: "GROUP_ASSIGNED",
       title: "Added to Active Group Task",
-      message: `${ct?.creator?.name || "A Head"} added you to "${ct?.title}": ${taskDescription}`,
+      message: `${ct?.creator?.name || "A Head"} added you to "${ct?.title}": ${formatTaskPreview(taskDescription, checklist)}`,
       reference_id: groupTaskId,
     });
 

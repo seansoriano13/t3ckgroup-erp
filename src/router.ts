@@ -19,6 +19,8 @@ export type Path =
   | `/group-tasks/components/GroupRoleManagerModal`
   | `/group-tasks/components/GroupTaskCard`
   | `/group-tasks/components/GroupTaskDetailModal`
+  | `/group-tasks/components/GroupTaskMemberPanel`
+  | `/group-tasks/components/GroupTaskMemberRail`
   | `/group-tasks/components/RateEmployeesModal`
   | `/hr-master-log`
   | `/hr/management`
