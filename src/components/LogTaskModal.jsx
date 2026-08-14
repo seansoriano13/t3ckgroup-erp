@@ -36,8 +36,8 @@ export default function LogTaskModal({ isOpen, onClose }) {
     setFormData,
     selectedHead,
     setSelectedHead,
-    committeeRole,
-    setCommitteeRole,
+    groupRole,
+    setGroupRole,
     othersRemarks,
     setOthersRemarks,
     showChecklist,
@@ -125,9 +125,9 @@ export default function LogTaskModal({ isOpen, onClose }) {
   const selectedCategoryObj = categories.find(
     (c) => c.category_id === formData.categoryId,
   );
-  const isCommittee = selectedCategoryObj?.description
+  const isGroup = selectedCategoryObj?.description
     ?.toUpperCase()
-    .includes("COMMITTEE");
+    .includes("GROUP");
   const isOthersGlobal =
     selectedCategoryObj?.category_id?.toUpperCase().includes("OTHERS") ||
     selectedCategoryObj?.description?.toUpperCase().includes("OTHERS");
@@ -181,10 +181,10 @@ export default function LogTaskModal({ isOpen, onClose }) {
     const catId = cat.category_id?.toUpperCase() || "";
     const desc = cat.description?.toUpperCase() || "";
     if (
-      catId.includes("COMMITTEE") ||
+      catId.includes("GROUP") ||
       catId.includes("OTHERS") ||
       catId.includes("CHECKLIST") ||
-      desc.includes("COMMITTEE") ||
+      desc.includes("GROUP") ||
       desc.includes("OTHERS") ||
       desc.includes("CHECKLIST") ||
       cat.sub_department === "ALL"
@@ -224,7 +224,7 @@ export default function LogTaskModal({ isOpen, onClose }) {
         <form
           id="log-task-form"
           ref={scrollContainerRef}
-          onSubmit={(e) => handleSubmit(e, { isCommittee, isOthersGlobal })}
+          onSubmit={(e) => handleSubmit(e, { isGroup, isOthersGlobal })}
           className={`flex-1 overflow-y-auto px-5 py-3 flex flex-col min-h-0 transition-all duration-300 ${openPopover ? "pb-[300px]" : "pb-6"}`}
         >
           <LogTaskDetailsSection
@@ -251,25 +251,25 @@ export default function LogTaskModal({ isOpen, onClose }) {
             categoryRef={categoryRef}
             priorityRef={priorityRef}
             endTimeRef={endTimeRef}
-            setCommitteeRole={setCommitteeRole}
+            setGroupRole={setGroupRole}
             setOthersRemarks={setOthersRemarks}
             openPopover={openPopover}
             onTogglePopover={togglePopoverWithScroll}
           />
 
-          {/* Committee / Others details */}
-          {(isCommittee || isOthersGlobal) && (
+          {/* Group / Others details */}
+          {(isGroup || isOthersGlobal) && (
             <div className="py-3 animate-slide-down">
-              {!isCommittee && (
+              {!isGroup && (
                 <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                   Others Details
                 </label>
               )}
 
-              {isCommittee && (
+              {isGroup && (
                 <div className="bg-mauve-4/80 /40 p-4 rounded-xl border border-mauve-5/60 /50 mb-3">
                   <label className="block text-[10px] font-extrabold text-foreground  uppercase tracking-widest mb-3">
-                    SELECT COMMITTEE ROLE
+                    SELECT GROUP ROLE
                   </label>
                   <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
@@ -279,10 +279,10 @@ export default function LogTaskModal({ isOpen, onClose }) {
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
-                            setCommitteeRole(role);
+                            setGroupRole(role);
                           }}
                           className={`px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
-                            committeeRole === role
+                            groupRole === role
                               ? "bg-primary text-primary-foreground border-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
                               : "bg-card text-mauve-11 border-mauve-5 hover:border-mauve-5 hover:bg-mauve-2   dark:text-muted-foreground dark:hover:bg-muted shadow-sm"
                           }`}
@@ -295,9 +295,9 @@ export default function LogTaskModal({ isOpen, onClose }) {
                 </div>
               )}
 
-              {(isOthersGlobal || committeeRole === "OTHERS") && (
+              {(isOthersGlobal || groupRole === "OTHERS") && (
                 <div className="animate-slide-down">
-                  {isCommittee && committeeRole === "OTHERS" && (
+                  {isGroup && groupRole === "OTHERS" && (
                     <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                       Others Details
                     </label>

@@ -1,26 +1,26 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
-import { committeeTaskActivityService } from "./committeeTaskActivityService";
+import { groupTaskActivityService } from "./groupTaskActivityService";
 
-const logCommitteeTaskActivity = async (committeeTaskId, action, details = {}, actorId = null) => {
+const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
     await supabase.from("committee_task_logs").insert({
-      committee_task_id: committeeTaskId,
+      committee_task_id: groupTaskId,
       action,
       details,
       actor_id: actorId,
     });
   } catch (err) {
-    console.error("Failed to log committee task activity", err);
+    console.error("Failed to log group task activity", err);
   }
 };
 
-const upsertCommitteeChecklistActivity = async (committeeTaskId, memberId, taskDescription, actorId = null) => {
+const upsertGroupChecklistActivity = async (groupTaskId, memberId, taskDescription, actorId = null) => {
   try {
     const { data: existingLogs } = await supabase
       .from("committee_task_logs")
       .select("id, details")
-      .eq("committee_task_id", committeeTaskId)
+      .eq("committee_task_id", groupTaskId)
       .eq("action", "CHECKLIST_UPDATED")
       .eq("details->>memberId", memberId)
       .order("created_at", { ascending: false })
@@ -38,27 +38,27 @@ const upsertCommitteeChecklistActivity = async (committeeTaskId, memberId, taskD
         .eq("id", existingLog.id);
     } else {
       await supabase.from("committee_task_logs").insert({
-        committee_task_id: committeeTaskId,
+        committee_task_id: groupTaskId,
         action: "CHECKLIST_UPDATED",
         details: { memberId, taskDescription },
         actor_id: actorId,
       });
     }
   } catch (err) {
-    console.error("Failed to upsert committee task activity", err);
+    console.error("Failed to upsert group task activity", err);
   }
 };
 
-export const committeeTaskService = {
+export const groupTaskService = {
   // CREATE
-  async createCommitteeTask(payload) {
+  async createGroupTask(payload) {
     const { title, description, dueDate, createdBy, members } = payload;
 
     if (!members || members.length === 0) {
-      throw new Error("Add at least one member to the committee task");
+      throw new Error("Add at least one member to the group task");
     }
 
-    const { data: committeeTask, error: committeeError } = await supabase
+    const { data: groupTask, error: groupError } = await supabase
       .from("committee_tasks")
       .insert([
         {
@@ -72,10 +72,10 @@ export const committeeTaskService = {
       .select()
       .single();
 
-    if (committeeError) throw committeeError;
+    if (groupError) throw groupError;
 
     const memberPayloads = members.map((m) => ({
-      committee_task_id: committeeTask.id,
+      committee_task_id: groupTask.id,
       employee_id: m.employeeId,
       task_description: m.taskDescription,
       status: "PENDING",
@@ -87,14 +87,14 @@ export const committeeTaskService = {
 
     if (membersError) {
       // rollback if needed
-      await supabase.from("committee_tasks").delete().eq("id", committeeTask.id);
+      await supabase.from("committee_tasks").delete().eq("id", groupTask.id);
       throw membersError;
     }
 
-    await logCommitteeTaskActivity(committeeTask.id, "CREATED", { title }, createdBy);
-    committeeTaskActivityService.addSystemEvent(
-      committeeTask.id,
-      `Committee task created: "${title}" by ${(await supabase.from("employees").select("name").eq("id", createdBy).single()).data?.name || "a manager"}.`,
+    await logGroupTaskActivity(groupTask.id, "CREATED", { title }, createdBy);
+    groupTaskActivityService.addSystemEvent(
+      groupTask.id,
+      `Group task created: "${title}" by ${(await supabase.from("employees").select("name").eq("id", createdBy).single()).data?.name || "a manager"}.`,
       { event: "CREATED", title },
     ).catch(console.error);
 
@@ -109,18 +109,18 @@ export const committeeTaskService = {
       notificationService.createNotification({
         recipient_id: member.employeeId,
         sender_id: createdBy,
-        type: "COMMITTEE_ASSIGNED",
-        title: "Assigned to Committee Task",
+        type: "GROUP_ASSIGNED",
+        title: "Assigned to Group Task",
         message: `${creator?.name || "A Head"} assigned you to "${title}": ${member.taskDescription}`,
-        reference_id: committeeTask.id,
+        reference_id: groupTask.id,
       });
     }
 
-    return committeeTask;
+    return groupTask;
   },
 
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)
-  async getCommitteeTasks(userId, isHead, isSuperAdmin) {
+  async getGroupTasks(userId, isHead, isSuperAdmin) {
     let query = supabase
       .from("committee_tasks")
       .select(`
@@ -146,7 +146,7 @@ export const committeeTaskService = {
     });
   },
 
-  async getCommitteeTaskById(id) {
+  async getGroupTaskById(id) {
     const { data, error } = await supabase
       .from("committee_tasks")
       .select(`
@@ -184,13 +184,13 @@ export const committeeTaskService = {
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(
+    await logGroupTaskActivity(
       member.committee_task_id,
       status === "DONE" ? "MEMBER_DONE" : "MEMBER_PENDING",
       { memberId, employeeId: member.employee_id, taskDescription: member.task_description },
       userId
     );
-    committeeTaskActivityService.addSystemEvent(
+    groupTaskActivityService.addSystemEvent(
       member.committee_task_id,
       status === "DONE"
         ? `Member marked their assignment as done: "${member.task_description || ""}".`
@@ -211,9 +211,9 @@ export const committeeTaskService = {
         notificationService.createNotification({
           recipient_id: creatorId,
           sender_id: userId,
-          type: "COMMITTEE_MEMBER_DONE",
+          type: "GROUP_MEMBER_DONE",
           title: "Member Completed Their Task",
-          message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in committee task "${member.committee_tasks?.title || "a committee task"}".`,
+          message: `${employee?.name || "A member"} marked their assignment as done: "${member.task_description || "assignment"}" in group task "${member.committee_tasks?.title || "a group task"}".`,
           reference_id: member.committee_task_id,
         });
       }
@@ -228,7 +228,7 @@ export const committeeTaskService = {
 
       const allDone = allMembers.every((m) => m.status === "DONE");
       if (allDone) {
-        await this.markCommitteeTaskComplete(member.committee_task_id, userId);
+        await this.markGroupTaskComplete(member.committee_task_id, userId);
       }
     }
 
@@ -236,11 +236,11 @@ export const committeeTaskService = {
   },
 
   // UPDATE - Mark Complete manually
-  async markCommitteeTaskComplete(committeeTaskId, actorId) {
+  async markGroupTaskComplete(groupTaskId, actorId) {
     const { data, error } = await supabase
       .from("committee_tasks")
       .update({ status: "COMPLETED", hr_remarks: null })
-      .eq("id", committeeTaskId)
+      .eq("id", groupTaskId)
       .select()
       .single();
 
@@ -249,10 +249,10 @@ export const committeeTaskService = {
     // Any pending members are auto-marked as skipped or just leave them? Let's leave them or mark DONE.
     // For now, if head forces complete, they remain what they are, but head can rate them.
 
-    await logCommitteeTaskActivity(committeeTaskId, "COMPLETED", {}, actorId);
-    committeeTaskActivityService.addSystemEvent(
-      committeeTaskId,
-      "Committee task marked as completed.",
+    await logGroupTaskActivity(groupTaskId, "COMPLETED", {}, actorId);
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
+      "Group task marked as completed.",
       { event: "COMPLETED" },
     ).catch(console.error);
 
@@ -260,7 +260,7 @@ export const committeeTaskService = {
   },
 
   // RATE EMPLOYEES
-  async rateMembers(committeeTaskId, ratings, actorId) {
+  async rateMembers(groupTaskId, ratings, actorId) {
     // ratings = [{ memberId, grade, gradeRemarks }]
     for (const r of ratings) {
       await supabase
@@ -274,22 +274,22 @@ export const committeeTaskService = {
         .eq("id", r.memberId);
     }
 
-    // Once rated, move the committee task to HR_PENDING (clear any previous HR rejection remarks)
+    // Once rated, move the group task to HR_PENDING (clear any previous HR rejection remarks)
     const { error } = await supabase
       .from("committee_tasks")
       .update({ status: "HR_PENDING", hr_remarks: null })
-      .eq("id", committeeTaskId);
+      .eq("id", groupTaskId);
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(
-      committeeTaskId,
+    await logGroupTaskActivity(
+      groupTaskId,
       "RATED",
       { ratings: ratings.map(r => ({ memberId: r.memberId, grade: r.grade })) },
       actorId
     );
-    committeeTaskActivityService.addApprovalEntry(
-      committeeTaskId,
+    groupTaskActivityService.addApprovalEntry(
+      groupTaskId,
       actorId,
       `Members graded. Submitted to HR for verification.`,
       { event: "RATED", ratings: ratings.map(r => ({ memberId: r.memberId, grade: r.grade })) },
@@ -299,15 +299,15 @@ export const committeeTaskService = {
     const { data: ct } = await supabase
       .from("committee_tasks")
       .select("*, creator:employees!committee_tasks_created_by_fkey(name)")
-      .eq("id", committeeTaskId)
+      .eq("id", groupTaskId)
       .single();
 
     notificationService.broadcastToRole(["HR"], {
       sender_id: actorId,
-      type: "COMMITTEE_TASK_READY_FOR_HR",
-      title: "Committee Task Ready",
-      message: `Committee task "${ct.title}" by ${ct.creator?.name} has been completed and graded. Ready for Verification.`,
-      reference_id: committeeTaskId,
+      type: "GROUP_TASK_READY_FOR_HR",
+      title: "Group Task Ready",
+      message: `Group task "${ct.title}" by ${ct.creator?.name} has been completed and graded. Ready for Verification.`,
+      reference_id: groupTaskId,
       excludeSuperAdmin: true,
     });
 
@@ -315,33 +315,33 @@ export const committeeTaskService = {
   },
 
   // CANCEL / DELETE
-  async cancelCommitteeTask(id, actorId) {
+  async cancelGroupTask(id, actorId) {
     const { error } = await supabase
       .from("committee_tasks")
       .update({ status: "CANCELLED" })
       .eq("id", id);
     if (error) throw error;
 
-    await logCommitteeTaskActivity(id, "CANCELLED", {}, actorId);
-    committeeTaskActivityService.addSystemEvent(
+    await logGroupTaskActivity(id, "CANCELLED", {}, actorId);
+    groupTaskActivityService.addSystemEvent(
       id,
-      "Committee task was cancelled.",
+      "Group task was cancelled.",
       { event: "CANCELLED" },
     ).catch(console.error);
 
     return true;
   },
 
-  async updateMemberTaskDescription(memberId, taskDescription, committeeTaskId = null, actorId = null) {
+  async updateMemberTaskDescription(memberId, taskDescription, groupTaskId = null, actorId = null) {
     const { error } = await supabase
       .from("committee_task_members")
       .update({ task_description: taskDescription })
       .eq("id", memberId);
     if (error) throw error;
 
-    if (committeeTaskId && actorId) {
-      await upsertCommitteeChecklistActivity(
-        committeeTaskId,
+    if (groupTaskId && actorId) {
+      await upsertGroupChecklistActivity(
+        groupTaskId,
         memberId,
         taskDescription,
         actorId
@@ -351,7 +351,7 @@ export const committeeTaskService = {
     return true;
   },
 
-  async updateMemberAssignment(memberId, committeeTaskId, payload, actorId) {
+  async updateMemberAssignment(memberId, groupTaskId, payload, actorId) {
     const { taskDescription, role, customRole } = payload;
     
     const { error } = await supabase
@@ -365,14 +365,14 @@ export const committeeTaskService = {
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(
-      committeeTaskId,
+    await logGroupTaskActivity(
+      groupTaskId,
       "MEMBER_UPDATED",
       { memberId, role: customRole || role, taskDescription },
       actorId
     );
-    committeeTaskActivityService.addSystemEvent(
-      committeeTaskId,
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
       `Member assignment updated.`,
       { event: "MEMBER_UPDATED", memberId, role: customRole || role },
     ).catch(console.error);
@@ -380,7 +380,7 @@ export const committeeTaskService = {
     return true;
   },
 
-  async removeMemberFromTask(memberId, committeeTaskId, actorId) {
+  async removeMemberFromTask(memberId, groupTaskId, actorId) {
     const { error } = await supabase
       .from("committee_task_members")
       .delete()
@@ -388,15 +388,15 @@ export const committeeTaskService = {
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(
-      committeeTaskId,
+    await logGroupTaskActivity(
+      groupTaskId,
       "MEMBER_REMOVED",
       { memberId },
       actorId
     );
-    committeeTaskActivityService.addSystemEvent(
-      committeeTaskId,
-      "A member was removed from the committee.",
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
+      "A member was removed from the group.",
       { event: "MEMBER_REMOVED", memberId },
     ).catch(console.error);
 
@@ -404,7 +404,7 @@ export const committeeTaskService = {
   },
 
   // HR VERIFICATION
-  async verifyCommitteeTask(id, actorId, remarks = "") {
+  async verifyGroupTask(id, actorId, remarks = "") {
     const { error } = await supabase
       .from("committee_tasks")
       .update({
@@ -418,18 +418,18 @@ export const committeeTaskService = {
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(id, "HR_VERIFIED", { remarks }, actorId);
-    committeeTaskActivityService.addHrEntry(
+    await logGroupTaskActivity(id, "HR_VERIFIED", { remarks }, actorId);
+    groupTaskActivityService.addHrEntry(
       id,
       actorId,
-      remarks ? `HR verified. Remarks: ${remarks}` : "HR verified the committee task.",
+      remarks ? `HR verified. Remarks: ${remarks}` : "HR verified the group task.",
       { event: "HR_VERIFIED", remarks },
     ).catch(console.error);
 
     return true;
   },
 
-  async rejectCommitteeTask(id, actorId, remarks) {
+  async rejectGroupTask(id, actorId, remarks) {
     // Reset member statuses to PENDING so they can resubmit
     const { data: members } = await supabase
       .from("committee_task_members")
@@ -456,8 +456,8 @@ export const committeeTaskService = {
       
     if (error) throw error;
 
-    await logCommitteeTaskActivity(id, "HR_REJECTED", { remarks }, actorId);
-    committeeTaskActivityService.addSystemEvent(
+    await logGroupTaskActivity(id, "HR_REJECTED", { remarks }, actorId);
+    groupTaskActivityService.addSystemEvent(
       id,
       remarks ? `HR rejected — task returned for revision. Remarks: ${remarks}` : "HR rejected — task returned for revision.",
       { event: "HR_REJECTED", remarks },
@@ -467,7 +467,7 @@ export const committeeTaskService = {
   },
 
   // GET HISTORY
-  async getCommitteeTaskHistory(taskId) {
+  async getGroupTaskHistory(taskId) {
     const { data, error } = await supabase
       .from("committee_task_logs")
       .select("*, actor:employees!committee_task_logs_actor_id_fkey(name, avatar_path)")
@@ -479,13 +479,13 @@ export const committeeTaskService = {
   },
 
   // ADD MEMBER ON THE FLY
-  async addMemberToTask(committeeTaskId, payload, actorId) {
+  async addMemberToTask(groupTaskId, payload, actorId) {
     const { employeeId, taskDescription, role, customRole } = payload;
     
     const { error } = await supabase
       .from("committee_task_members")
       .insert({
-        committee_task_id: committeeTaskId,
+        committee_task_id: groupTaskId,
         employee_id: employeeId,
         task_description: taskDescription,
         role: role || null,
@@ -495,15 +495,15 @@ export const committeeTaskService = {
 
     if (error) throw error;
 
-    await logCommitteeTaskActivity(
-      committeeTaskId,
+    await logGroupTaskActivity(
+      groupTaskId,
       "MEMBER_ADDED",
       { addedEmployeeId: employeeId, role: customRole || role },
       actorId
     );
-    committeeTaskActivityService.addSystemEvent(
-      committeeTaskId,
-      `New member added to the committee.`,
+    groupTaskActivityService.addSystemEvent(
+      groupTaskId,
+      `New member added to the group.`,
       { event: "MEMBER_ADDED", employeeId, role: customRole || role },
     ).catch(console.error);
 
@@ -511,16 +511,16 @@ export const committeeTaskService = {
     const { data: ct } = await supabase
       .from("committee_tasks")
       .select("*, creator:employees!committee_tasks_created_by_fkey(name, avatar_path)")
-      .eq("id", committeeTaskId)
+      .eq("id", groupTaskId)
       .single();
 
     notificationService.createNotification({
       recipient_id: employeeId,
       sender_id: actorId,
-      type: "COMMITTEE_ASSIGNED",
-      title: "Added to Active Committee Task",
+      type: "GROUP_ASSIGNED",
+      title: "Added to Active Group Task",
       message: `${ct?.creator?.name || "A Head"} added you to "${ct?.title}": ${taskDescription}`,
-      reference_id: committeeTaskId,
+      reference_id: groupTaskId,
     });
 
     return true;

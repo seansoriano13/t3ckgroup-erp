@@ -37,8 +37,8 @@ import Select from "react-select";
 import { LOG_TASK_SELECT_STYLES } from "../../../constants/task";
 import { formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { committeeTaskActivityService } from "@/services/committeeTaskActivityService";
-import { committeeTaskService } from "@/services/committeeTaskService";
+import { groupTaskActivityService } from "@/services/groupTaskActivityService";
+import { groupTaskService } from "@/services/groupTaskService";
 import { storageService } from "@/services/storageService";
 import { MessageCircle } from "lucide-react";
 import HistoryTimeline from "@/components/HistoryTimeline";
@@ -47,9 +47,9 @@ import Avatar from "@/components/Avatar";
 import { useEmployeeAvatarMap } from "@/hooks/useEmployeeAvatarMap";
 import { cn } from "@/lib/utils";
 
-const COMMITTEE_ROLES = ["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"];
+const GROUP_ROLES = ["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"];
 
-export default function CommitteeTaskDetailModal({
+export default function GroupTaskDetailModal({
   isOpen,
   onClose,
   task,
@@ -149,8 +149,8 @@ export default function CommitteeTaskDetailModal({
   };
 
   const { data: logs = [], isLoading: isLoadingLogs } = useQuery({
-    queryKey: ["committeeHistory", task?.id],
-    queryFn: () => committeeTaskService.getCommitteeTaskHistory(task.id),
+    queryKey: ["groupHistory", task?.id],
+    queryFn: () => groupTaskService.getGroupTaskHistory(task.id),
     enabled: !!task?.id && isOpen && activeTab === "history",
   });
 
@@ -182,8 +182,8 @@ export default function CommitteeTaskDetailModal({
 
   // --- Inline chat: fetch messages ---
   const { data: chatMessages = [], isLoading: isLoadingChat } = useQuery({
-    queryKey: ["chatMessages", "COMMITTEE_TASK", task?.id],
-    queryFn: () => committeeTaskActivityService.getActivityForTask(task.id),
+    queryKey: ["chatMessages", "GROUP_TASK", task?.id],
+    queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
 
@@ -197,17 +197,17 @@ export default function CommitteeTaskDetailModal({
   // Real-time subscription for inline chat
   useEffect(() => {
     if (!isSplitScreen || !task?.id || !isOpen) return;
-    const channel = committeeTaskActivityService.subscribeToActivity(
+    const channel = groupTaskActivityService.subscribeToActivity(
       task.id,
       () => {
         queryClient.invalidateQueries({
-          queryKey: ["chatMessages", "COMMITTEE_TASK", task.id],
+          queryKey: ["chatMessages", "GROUP_TASK", task.id],
         });
       },
       "-split",
     );
     return () => {
-      committeeTaskActivityService.unsubscribeFromActivity(channel);
+      groupTaskActivityService.unsubscribeFromActivity(channel);
     };
   }, [isSplitScreen, task?.id, isOpen]);
 
@@ -215,13 +215,13 @@ export default function CommitteeTaskDetailModal({
   const sendMessageMutation = useMutation({
     mutationFn: ({ content, attachmentUrls = [] }) => {
       const metadata = attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
-      return committeeTaskActivityService.addComment(task.id, user.id, content, metadata);
+      return groupTaskActivityService.addComment(task.id, user.id, content, metadata);
     },
     onSuccess: () => {
       setMessageContent("");
       setAttachments([]);
       queryClient.invalidateQueries({
-        queryKey: ["chatMessages", "COMMITTEE_TASK", task?.id],
+        queryKey: ["chatMessages", "GROUP_TASK", task?.id],
       });
       queryClient.invalidateQueries({ queryKey: ["activeChats", user?.id] });
     },
@@ -322,7 +322,7 @@ export default function CommitteeTaskDetailModal({
   // Mark as read when opened (same pattern as TaskDetails)
   useEffect(() => {
     if (isOpen && task?.id && currentUserId) {
-      activeChatService.markAsRead(currentUserId, "COMMITTEE_TASK", task.id);
+      activeChatService.markAsRead(currentUserId, "GROUP_TASK", task.id);
     }
   }, [isOpen, task?.id, currentUserId]);
 
@@ -358,8 +358,8 @@ export default function CommitteeTaskDetailModal({
 
   const handleDelete = () => {
     confirmDeleteToast(
-      "Delete Committee (Group) Task",
-      "Are you sure you want to delete this committee (group) task? This action cannot be undone.",
+      "Delete Group Task",
+      "Are you sure you want to delete this group task? This action cannot be undone.",
       () => {
         onDelete();
       },
@@ -429,7 +429,7 @@ export default function CommitteeTaskDetailModal({
                 onClick={() => {
                   window.dispatchEvent(
                     new CustomEvent("OPEN_CHAT_MODAL", {
-                      detail: { entityId: task.id, entityType: "COMMITTEE_TASK" },
+                      detail: { entityId: task.id, entityType: "GROUP_TASK" },
                     }),
                   );
                 }}
@@ -517,7 +517,7 @@ export default function CommitteeTaskDetailModal({
               <div className="animate-content-in stagger-2 flex-1">
                 <div className="flex items-center justify-between mb-4 pl-1">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                    Committee (Group) Members ({members.length})
+                    Group (Group) Members ({members.length})
                   </label>
                 </div>
 
@@ -568,7 +568,7 @@ export default function CommitteeTaskDetailModal({
                                 Role (Optional)
                               </label>
                               <div className="flex flex-wrap gap-2">
-                                {COMMITTEE_ROLES.map((r) => (
+                                {GROUP_ROLES.map((r) => (
                                   <button
                                     key={r}
                                     type="button"
@@ -754,7 +754,7 @@ export default function CommitteeTaskDetailModal({
                                       if (onInlineCheck) {
                                         onInlineCheck(member.id, newDesc);
                                       } else {
-                                        committeeTaskService
+                                        groupTaskService
                                           .updateMemberTaskDescription(
                                             member.id,
                                             newDesc,
@@ -897,7 +897,7 @@ export default function CommitteeTaskDetailModal({
                           Role (Optional)
                         </label>
                         <div className="flex flex-wrap gap-2">
-                          {COMMITTEE_ROLES.map((r) => (
+                          {GROUP_ROLES.map((r) => (
                             <button
                               key={r}
                               type="button"
@@ -1071,7 +1071,7 @@ export default function CommitteeTaskDetailModal({
                   };
                 })}
                 isLoading={isLoadingLogs}
-                type="COMMITTEE"
+                type="GROUP"
               />
             </div>
           )}
@@ -1088,7 +1088,7 @@ export default function CommitteeTaskDetailModal({
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="text-sm font-black truncate">Conversation</h3>
-                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Committee Task Chat</p>
+                <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Group Task Chat</p>
               </div>
             </div>
 

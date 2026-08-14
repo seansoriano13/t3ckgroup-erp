@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { committeeTaskService } from "../../services/committeeTaskService";
+import { groupTaskService } from "../../services/groupTaskService";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { employeeService } from "../../services/employeeService";
@@ -10,15 +10,15 @@ import { Users, Plus, Search } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 
-import CommitteeTaskCard from "./components/CommitteeTaskCard";
-import CreateCommitteeTaskModal from "./components/CreateCommitteeTaskModal";
-import CommitteeTaskDetailModal from "./components/CommitteeTaskDetailModal";
+import GroupTaskCard from "./components/GroupTaskCard";
+import CreateGroupTaskModal from "./components/CreateGroupTaskModal";
+import GroupTaskDetailModal from "./components/GroupTaskDetailModal";
 import RateEmployeesModal from "./components/RateEmployeesModal";
-import CommitteeTaskFilters from "../../components/CommitteeTaskFilters";
-import { useCommitteeTaskFilters } from "../../hooks/useCommitteeTaskFilters";
+import GroupTaskFilters from "../../components/GroupTaskFilters";
+import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useMemo } from "react";
 
-export default function CommitteeTasksPage() {
+export default function GroupTasksPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -59,10 +59,10 @@ export default function CommitteeTasksPage() {
   const canManage = isHead || isSuperAdmin;
 
   // --- Data Fetching ---
-  const { data: committeeTasks = [], isLoading } = useQuery({
-    queryKey: ["committeeTasks", user?.id],
+  const { data: groupTasks = [], isLoading } = useQuery({
+    queryKey: ["groupTasks", user?.id],
     queryFn: () =>
-      committeeTaskService.getCommitteeTasks(user?.id, isHead, isSuperAdmin),
+      groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin),
     enabled: !!user?.id,
   });
 
@@ -81,14 +81,14 @@ export default function CommitteeTasksPage() {
 
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const selectedTask = useMemo(() => {
-    return committeeTasks.find((t) => t.id === selectedTaskId) || null;
-  }, [committeeTasks, selectedTaskId]);
+    return groupTasks.find((t) => t.id === selectedTaskId) || null;
+  }, [groupTasks, selectedTaskId]);
 
   const [isRateOpen, setIsRateOpen] = useState(false);
 
   // --- Filtering ---
-  const { filteredTasks, uniqueCreators } = useCommitteeTaskFilters(
-    committeeTasks,
+  const { filteredTasks, uniqueCreators } = useGroupTaskFilters(
+    groupTasks,
     {
       searchTerm,
       statusFilter,
@@ -101,9 +101,9 @@ export default function CommitteeTasksPage() {
 
   const markDoneMutation = useMutation({
     mutationFn: (memberId) =>
-      committeeTaskService.updateMemberStatus(memberId, "DONE", user.id),
+      groupTaskService.updateMemberStatus(memberId, "DONE", user.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Task marked as done!");
       // If the selected task was auto-completed, let's close or refresh it
       setSelectedTaskId(null);
@@ -113,9 +113,9 @@ export default function CommitteeTasksPage() {
 
   const revertDoneMutation = useMutation({
     mutationFn: (memberId) =>
-      committeeTaskService.updateMemberStatus(memberId, "PENDING", user.id),
+      groupTaskService.updateMemberStatus(memberId, "PENDING", user.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Task reverted to pending.");
     },
     onError: (err) => toast.error(err.message),
@@ -123,9 +123,9 @@ export default function CommitteeTasksPage() {
 
   const rateMutation = useMutation({
     mutationFn: (ratings) =>
-      committeeTaskService.rateMembers(selectedTask.id, ratings, user.id),
+      groupTaskService.rateMembers(selectedTask.id, ratings, user.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Ratings submitted and task completed!");
       setIsRateOpen(false);
       setSelectedTaskId(null);
@@ -134,10 +134,10 @@ export default function CommitteeTasksPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => committeeTaskService.cancelCommitteeTask(id, user.id),
+    mutationFn: (id) => groupTaskService.cancelGroupTask(id, user.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
-      toast.success("Committee (Group) Task deleted.");
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task deleted.");
       setSelectedTaskId(null);
     },
     onError: (err) => toast.error(err.message),
@@ -145,9 +145,9 @@ export default function CommitteeTasksPage() {
 
   const addMemberMutation = useMutation({
     mutationFn: (payload) =>
-      committeeTaskService.addMemberToTask(selectedTask.id, payload, user.id),
+      groupTaskService.addMemberToTask(selectedTask.id, payload, user.id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Member added successfully!");
     },
     onError: (err) => toast.error(err.message),
@@ -155,14 +155,14 @@ export default function CommitteeTasksPage() {
 
   const updateMemberMutation = useMutation({
     mutationFn: ({ memberId, payload }) =>
-      committeeTaskService.updateMemberAssignment(
+      groupTaskService.updateMemberAssignment(
         memberId,
         selectedTask.id,
         payload,
         user.id,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Member task updated!");
     },
     onError: (err) => toast.error(err.message),
@@ -170,13 +170,13 @@ export default function CommitteeTasksPage() {
 
   const removeMemberMutation = useMutation({
     mutationFn: (memberId) =>
-      committeeTaskService.removeMemberFromTask(
+      groupTaskService.removeMemberFromTask(
         memberId,
         selectedTask.id,
         user.id,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Member removed from task.");
     },
     onError: (err) => toast.error(err.message),
@@ -184,23 +184,23 @@ export default function CommitteeTasksPage() {
 
   const updateMemberTaskDescMutation = useMutation({
     mutationFn: ({ memberId, description }) =>
-      committeeTaskService.updateMemberTaskDescription(
+      groupTaskService.updateMemberTaskDescription(
         memberId,
         description,
         selectedTask?.id,
         user?.id,
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
     },
   });
 
   const verifyMutation = useMutation({
     mutationFn: ({ id, remarks }) =>
-      committeeTaskService.verifyCommitteeTask(id, user.id, remarks),
+      groupTaskService.verifyGroupTask(id, user.id, remarks),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
-      toast.success("Committee (Group) Task verified!");
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task verified!");
       setSelectedTaskId(null);
     },
     onError: (err) => toast.error(err.message),
@@ -208,10 +208,10 @@ export default function CommitteeTasksPage() {
 
   const rejectMutation = useMutation({
     mutationFn: ({ id, remarks }) =>
-      committeeTaskService.rejectCommitteeTask(id, user.id, remarks),
+      groupTaskService.rejectGroupTask(id, user.id, remarks),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
-      toast.success("Committee (Group) Task rejected and sent back.");
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task rejected and sent back.");
       setSelectedTaskId(null);
     },
     onError: (err) => toast.error(err.message),
@@ -222,7 +222,7 @@ export default function CommitteeTasksPage() {
       <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
         <Spinner size="md" />
         <p className="font-bold animate-pulse tracking-wider uppercase text-sm">
-          Loading Committee (Group) Tasks...
+          Loading Group Tasks...
         </p>
       </div>
     );
@@ -231,17 +231,17 @@ export default function CommitteeTasksPage() {
   return (
     <PageContainer maxWidth="7xl" className="pt-4">
       <PageHeader
-        title="Committee (Group) Tasks"
+        title="Group Tasks"
         description={
           canManage
-            ? "Create and manage committee (group) task assignments."
-            : "View your committee (group) task assignments and update progress."
+            ? "Create and manage group task assignments."
+            : "View your group task assignments and update progress."
         }
       />
 
       {/* TOOLBAR */}
       <div className="mb-6">
-        <CommitteeTaskFilters
+        <GroupTaskFilters
           searchTerm={searchTerm}
           setSearchTerm={setSearchTerm}
           statusFilter={statusFilter}
@@ -258,7 +258,7 @@ export default function CommitteeTasksPage() {
       {filteredTasks.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filteredTasks.map((task, index) => (
-            <CommitteeTaskCard
+            <GroupTaskCard
               key={task.id}
               task={task}
               currentUserId={user?.id}
@@ -273,19 +273,19 @@ export default function CommitteeTasksPage() {
         <div className="py-20 text-center bg-card border border-border border-dashed rounded-2xl">
           <Users size={32} className="mx-auto text-muted-foreground/50 mb-3" />
           <h3 className="text-lg font-bold text-foreground">
-            No Committee (Group) Tasks Found
+            No Group Tasks Found
           </h3>
           <p className="text-sm text-muted-foreground mt-1">
             {searchTerm
               ? "Try adjusting your search criteria."
-              : "There are no active committee (group) tasks at the moment."}
+              : "There are no active group tasks at the moment."}
           </p>
         </div>
       )}
 
       {/* MODALS */}
 
-      <CommitteeTaskDetailModal
+      <GroupTaskDetailModal
         isOpen={!!selectedTaskId}
         onClose={() => setSelectedTaskId(null)}
         task={selectedTask}

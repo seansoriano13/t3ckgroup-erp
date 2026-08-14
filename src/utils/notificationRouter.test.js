@@ -107,46 +107,46 @@ describe("handleNotificationRoute", () => {
     })
   })
 
-  describe("committee notifications", () => {
-    it("opens the chat modal for a committee comment", () => {
+  describe("group notifications", () => {
+    it("opens the chat modal for a group comment", () => {
       handleNotificationRoute(
-        { type: "COMMITTEE_TASK_COMMENT", reference_id: "ct-1" },
+        { type: "GROUP_TASK_COMMENT", reference_id: "ct-1" },
         employee,
         navigate,
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/committee")
+      expect(navigate).toHaveBeenCalledWith("/group-tasks")
       expect(dispatched).toEqual([
         {
           type: "OPEN_CHAT_MODAL",
-          detail: { entityId: "ct-1", entityType: "COMMITTEE_TASK" },
+          detail: { entityId: "ct-1", entityType: "GROUP_TASK" },
         },
       ])
     })
 
     it("opens the task details for an assignment", () => {
       handleNotificationRoute(
-        { type: "COMMITTEE_ASSIGNED", reference_id: "ct-2" },
+        { type: "GROUP_ASSIGNED", reference_id: "ct-2" },
         employee,
         navigate,
         onClose,
       )
 
       expect(dispatched).toEqual([
-        { type: "OPEN_ENTITY_DETAILS", detail: { id: "ct-2", type: "COMMITTEE_TASK" } },
+        { type: "OPEN_ENTITY_DETAILS", detail: { id: "ct-2", type: "GROUP_TASK" } },
       ])
     })
 
     it("opens the task details when a member finishes or HR is needed", () => {
       handleNotificationRoute(
-        { type: "COMMITTEE_MEMBER_DONE", reference_id: "ct-3" },
+        { type: "GROUP_MEMBER_DONE", reference_id: "ct-3" },
         employee,
         navigate,
         onClose,
       )
       handleNotificationRoute(
-        { type: "COMMITTEE_TASK_READY_FOR_HR", reference_id: "ct-4" },
+        { type: "GROUP_TASK_READY_FOR_HR", reference_id: "ct-4" },
         hr,
         navigate,
         onClose,

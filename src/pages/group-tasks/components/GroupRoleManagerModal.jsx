@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { committeeRoleService } from "../../../services/committeeRoleService";
+import { groupRoleService } from "../../../services/groupRoleService";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,7 @@ import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 
-export default function CommitteeRoleManagerModal({ isOpen, onClose }) {
+export default function GroupRoleManagerModal({ isOpen, onClose }) {
   const queryClient = useQueryClient();
   const [newRole, setNewRole] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -41,15 +41,15 @@ export default function CommitteeRoleManagerModal({ isOpen, onClose }) {
   }, [isOpen, onClose]);
 
   const { data: roles = [], isLoading } = useQuery({
-    queryKey: ["committeeRoles"],
-    queryFn: committeeRoleService.getRoles,
+    queryKey: ["groupRoles"],
+    queryFn: groupRoleService.getRoles,
     enabled: isOpen,
   });
 
   const addMutation = useMutation({
-    mutationFn: (name) => committeeRoleService.addRole(name),
+    mutationFn: (name) => groupRoleService.addRole(name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeRoles"] });
+      queryClient.invalidateQueries({ queryKey: ["groupRoles"] });
       setNewRole("");
       toast.success("Role added.");
     },
@@ -57,9 +57,9 @@ export default function CommitteeRoleManagerModal({ isOpen, onClose }) {
   });
 
   const editMutation = useMutation({
-    mutationFn: ({ id, name }) => committeeRoleService.updateRole(id, name),
+    mutationFn: ({ id, name }) => groupRoleService.updateRole(id, name),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeRoles"] });
+      queryClient.invalidateQueries({ queryKey: ["groupRoles"] });
       setEditingId(null);
       toast.success("Role updated.");
     },
@@ -67,9 +67,9 @@ export default function CommitteeRoleManagerModal({ isOpen, onClose }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id) => committeeRoleService.deleteRole(id),
+    mutationFn: (id) => groupRoleService.deleteRole(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeRoles"] });
+      queryClient.invalidateQueries({ queryKey: ["groupRoles"] });
       toast.success("Role deleted.");
     },
     onError: (err) => toast.error(err.message),
@@ -140,7 +140,7 @@ export default function CommitteeRoleManagerModal({ isOpen, onClose }) {
               Group Roles
             </h3>
             <p className="text-xs text-muted-foreground mb-4">
-              Add or modify standard roles for committee (group) task assignments. Changes
+              Add or modify standard roles for group task assignments. Changes
               apply globally.
             </p>
 

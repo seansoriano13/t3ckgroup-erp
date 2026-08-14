@@ -9,7 +9,7 @@ import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 
 
-export default function CommitteeTaskCard({
+export default function GroupTaskCard({
   task,
   onView,
   currentUserId,

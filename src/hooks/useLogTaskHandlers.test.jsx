@@ -61,7 +61,7 @@ describe("useLogTaskHandlers", () => {
     })
   }
 
-  const submit = async (result, options = { isCommittee: false, isOthersGlobal: false }) => {
+  const submit = async (result, options = { isGroup: false, isOthersGlobal: false }) => {
     await act(async () => {
       result.current.handleSubmit({ preventDefault: vi.fn() }, options)
     })
@@ -80,22 +80,22 @@ describe("useLogTaskHandlers", () => {
       expect(db.rows("tasks")).toEqual([])
     })
 
-    it("requires a committee role on a committee task", async () => {
+    it("requires a group role on a group task", async () => {
       const { result } = await mount()
       await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
 
-      await submit(result, { isCommittee: true, isOthersGlobal: false })
+      await submit(result, { isGroup: true, isOthersGlobal: false })
 
-      expect(toast.error).toHaveBeenCalledWith("Please select a specific Committee Role.")
+      expect(toast.error).toHaveBeenCalledWith("Please select a specific Group Role.")
       expect(db.rows("tasks")).toEqual([])
     })
 
-    it("requires details when the committee role is Others", async () => {
+    it("requires details when the group role is Others", async () => {
       const { result } = await mount()
       await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
-      await act(async () => result.current.setCommitteeRole("OTHERS"))
+      await act(async () => result.current.setGroupRole("OTHERS"))
 
-      await submit(result, { isCommittee: true, isOthersGlobal: false })
+      await submit(result, { isGroup: true, isOthersGlobal: false })
 
       expect(toast.error).toHaveBeenCalledWith("Please specify details for 'Others'.")
     })
@@ -104,7 +104,7 @@ describe("useLogTaskHandlers", () => {
       const { result } = await mount()
       await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
 
-      await submit(result, { isCommittee: false, isOthersGlobal: true })
+      await submit(result, { isGroup: false, isOthersGlobal: true })
 
       expect(toast.error).toHaveBeenCalledWith(
         "Please specify details for your 'Others' task.",
@@ -160,29 +160,29 @@ describe("useLogTaskHandlers", () => {
       })
     })
 
-    it("tags a committee task with its role in the remarks", async () => {
+    it("tags a group task with its role in the remarks", async () => {
       const { result } = await mount()
       await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
-      await act(async () => result.current.setCommitteeRole("SAFETY"))
+      await act(async () => result.current.setGroupRole("SAFETY"))
 
-      await submit(result, { isCommittee: true, isOthersGlobal: false })
+      await submit(result, { isGroup: true, isOthersGlobal: false })
       await waitFor(() => expect(db.rows("tasks")).toHaveLength(1))
 
-      expect(db.rows("tasks")[0].remarks).toBe("[COMMITTEE - SAFETY]")
+      expect(db.rows("tasks")[0].remarks).toBe("[GROUP - SAFETY]")
     })
 
-    it("appends the free text for a committee Others task", async () => {
+    it("appends the free text for a group Others task", async () => {
       const { result } = await mount()
       await fill(result, { categoryId: category.category_id, taskDescription: "Minutes" })
       await act(async () => {
-        result.current.setCommitteeRole("OTHERS")
+        result.current.setGroupRole("OTHERS")
         result.current.setOthersRemarks("  Budget review  ")
       })
 
-      await submit(result, { isCommittee: true, isOthersGlobal: false })
+      await submit(result, { isGroup: true, isOthersGlobal: false })
       await waitFor(() => expect(db.rows("tasks")).toHaveLength(1))
 
-      expect(db.rows("tasks")[0].remarks).toBe("[COMMITTEE - OTHERS] Budget review")
+      expect(db.rows("tasks")[0].remarks).toBe("[GROUP - OTHERS] Budget review")
     })
 
     it("tags a global Others task", async () => {
@@ -190,7 +190,7 @@ describe("useLogTaskHandlers", () => {
       await fill(result, { categoryId: category.category_id, taskDescription: "Site visit" })
       await act(async () => result.current.setOthersRemarks("Client site visit"))
 
-      await submit(result, { isCommittee: false, isOthersGlobal: true })
+      await submit(result, { isGroup: false, isOthersGlobal: true })
       await waitFor(() => expect(db.rows("tasks")).toHaveLength(1))
 
       expect(db.rows("tasks")[0].remarks).toBe("[OTHERS] Client site visit")
@@ -239,7 +239,7 @@ describe("useLogTaskHandlers", () => {
 
       act(() => {
         result.current.handleSubmit({ preventDefault: vi.fn() }, {
-          isCommittee: false,
+          isGroup: false,
           isOthersGlobal: false,
         })
       })

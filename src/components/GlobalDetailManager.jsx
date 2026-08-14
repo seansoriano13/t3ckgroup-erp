@@ -1,18 +1,18 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
-import { committeeTaskService } from "../services/committeeTaskService";
+import { groupTaskService } from "../services/groupTaskService";
 import { employeeService } from "../services/employeeService";
 import TaskDetails from "./TaskDetails";
-import CommitteeTaskDetailModal from "../pages/committee/components/CommitteeTaskDetailModal";
-import RateEmployeesModal from "../pages/committee/components/RateEmployeesModal";
+import GroupTaskDetailModal from "../pages/group-tasks/components/GroupTaskDetailModal";
+import RateEmployeesModal from "../pages/group-tasks/components/RateEmployeesModal";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'COMMITTEE_TASK' }
+  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'GROUP_TASK' }
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -37,9 +37,9 @@ export default function GlobalDetailManager() {
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
   }, []);
 
-  // Fetch employees for committee task management (add member, etc.)
+  // Fetch employees for group task management (add member, etc.)
   useEffect(() => {
-    if (canManage && activeItem?.type === "COMMITTEE_TASK") {
+    if (canManage && activeItem?.type === "GROUP_TASK") {
       employeeService.getAllEmployees().then(setEmployees);
     }
   }, [canManage, activeItem?.type]);
@@ -52,11 +52,11 @@ export default function GlobalDetailManager() {
     staleTime: 0,
   });
 
-  // 2. Committee Task Fetching
-  const { data: committeeTaskData, isLoading: isLoadingCommitteeTask } = useQuery({
-    queryKey: ["globalCommitteeTask", activeItem?.id],
-    queryFn: () => committeeTaskService.getCommitteeTaskById(activeItem.id),
-    enabled: activeItem?.type === "COMMITTEE_TASK" && !!activeItem?.id,
+  // 2. Group Task Fetching
+  const { data: groupTaskData, isLoading: isLoadingGroupTask } = useQuery({
+    queryKey: ["globalGroupTask", activeItem?.id],
+    queryFn: () => groupTaskService.getGroupTaskById(activeItem.id),
+    enabled: activeItem?.type === "GROUP_TASK" && !!activeItem?.id,
     staleTime: 0,
   });
 
@@ -64,11 +64,11 @@ export default function GlobalDetailManager() {
     if (activeItem) {
       if (activeItem.type === "TASK" && !isLoadingTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
-      } else if (activeItem.type === "COMMITTEE_TASK" && !isLoadingCommitteeTask) {
+      } else if (activeItem.type === "GROUP_TASK" && !isLoadingGroupTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       }
     }
-  }, [activeItem, isLoadingTask, isLoadingCommitteeTask]);
+  }, [activeItem, isLoadingTask, isLoadingGroupTask]);
 
   // --- Task Mutations ---
   const editTaskMutation = useMutation({
@@ -92,62 +92,62 @@ export default function GlobalDetailManager() {
     },
   });
 
-  // --- Committee Task Mutations ---
-  const invalidateCommittee = () => {
-    queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
-    queryClient.invalidateQueries({ queryKey: ["globalCommitteeTask", activeItem?.id] });
+  // --- Group Task Mutations ---
+  const invalidateGroup = () => {
+    queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+    queryClient.invalidateQueries({ queryKey: ["globalGroupTask", activeItem?.id] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
   };
 
-  const deleteCommitteeTaskMutation = useMutation({
-    mutationFn: (id) => committeeTaskService.cancelCommitteeTask(id, user?.id),
+  const deleteGroupTaskMutation = useMutation({
+    mutationFn: (id) => groupTaskService.cancelGroupTask(id, user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       setActiveItem(null);
-      toast.success("Committee Task deleted.");
+      toast.success("Group Task deleted.");
     },
   });
 
   const markDoneMutation = useMutation({
-    mutationFn: (memberId) => committeeTaskService.updateMemberStatus(memberId, "DONE", user?.id),
+    mutationFn: (memberId) => groupTaskService.updateMemberStatus(memberId, "DONE", user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Task marked as done!");
     },
     onError: (err) => toast.error(err.message),
   });
 
   const revertDoneMutation = useMutation({
-    mutationFn: (memberId) => committeeTaskService.updateMemberStatus(memberId, "PENDING", user?.id),
+    mutationFn: (memberId) => groupTaskService.updateMemberStatus(memberId, "PENDING", user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Task reverted to pending.");
     },
     onError: (err) => toast.error(err.message),
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: (payload) => committeeTaskService.addMemberToTask(activeItem.id, payload, user?.id),
+    mutationFn: (payload) => groupTaskService.addMemberToTask(activeItem.id, payload, user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Member added successfully!");
     },
     onError: (err) => toast.error(err.message),
   });
 
   const updateMemberMutation = useMutation({
-    mutationFn: ({ memberId, payload }) => committeeTaskService.updateMemberAssignment(memberId, activeItem.id, payload, user?.id),
+    mutationFn: ({ memberId, payload }) => groupTaskService.updateMemberAssignment(memberId, activeItem.id, payload, user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Member task updated!");
     },
     onError: (err) => toast.error(err.message),
   });
 
   const removeMemberMutation = useMutation({
-    mutationFn: (memberId) => committeeTaskService.removeMemberFromTask(memberId, activeItem.id, user?.id),
+    mutationFn: (memberId) => groupTaskService.removeMemberFromTask(memberId, activeItem.id, user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Member removed from task.");
     },
     onError: (err) => toast.error(err.message),
@@ -155,22 +155,22 @@ export default function GlobalDetailManager() {
 
   const updateMemberTaskDescMutation = useMutation({
     mutationFn: ({ memberId, description }) =>
-      committeeTaskService.updateMemberTaskDescription(
+      groupTaskService.updateMemberTaskDescription(
         memberId,
         description,
         activeItem?.id,
         user?.id
       ),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
     },
     onError: (err) => toast.error(err.message),
   });
 
   const rateMutation = useMutation({
-    mutationFn: (ratings) => committeeTaskService.rateMembers(activeItem.id, ratings, user?.id),
+    mutationFn: (ratings) => groupTaskService.rateMembers(activeItem.id, ratings, user?.id),
     onSuccess: () => {
-      invalidateCommittee();
+      invalidateGroup();
       toast.success("Ratings submitted and task completed!");
       setIsRateOpen(false);
     },
@@ -178,20 +178,20 @@ export default function GlobalDetailManager() {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: ({ id, remarks }) => committeeTaskService.verifyCommitteeTask(id, user?.id, remarks),
+    mutationFn: ({ id, remarks }) => groupTaskService.verifyGroupTask(id, user?.id, remarks),
     onSuccess: () => {
-      invalidateCommittee();
-      toast.success("Committee Task verified!");
+      invalidateGroup();
+      toast.success("Group Task verified!");
       setActiveItem(null);
     },
     onError: (err) => toast.error(err.message),
   });
 
   const rejectMutation = useMutation({
-    mutationFn: ({ id, remarks }) => committeeTaskService.rejectCommitteeTask(id, user?.id, remarks),
+    mutationFn: ({ id, remarks }) => groupTaskService.rejectGroupTask(id, user?.id, remarks),
     onSuccess: () => {
-      invalidateCommittee();
-      toast.success("Committee Task rejected and sent back.");
+      invalidateGroup();
+      toast.success("Group Task rejected and sent back.");
       setActiveItem(null);
     },
     onError: (err) => toast.error(err.message),
@@ -223,13 +223,13 @@ export default function GlobalDetailManager() {
         />
       )}
 
-      {/* COMMITTEE TASK MODAL */}
-      {activeItem.type === "COMMITTEE_TASK" && (
+      {/* GROUP TASK MODAL */}
+      {activeItem.type === "GROUP_TASK" && (
         <>
-          <CommitteeTaskDetailModal
+          <GroupTaskDetailModal
             isOpen={true}
             onClose={handleClose}
-            task={committeeTaskData}
+            task={groupTaskData}
             currentUserId={user?.id}
             isSuperAdmin={isSuperAdmin}
             isHr={isHr}
@@ -237,7 +237,7 @@ export default function GlobalDetailManager() {
             onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
             onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
             onOpenRateModal={() => setIsRateOpen(true)}
-            onDelete={() => deleteCommitteeTaskMutation.mutate(activeItem.id)}
+            onDelete={() => deleteGroupTaskMutation.mutate(activeItem.id)}
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}
@@ -246,7 +246,7 @@ export default function GlobalDetailManager() {
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
             isMarkingDone={markDoneMutation.isPending}
             isReverting={revertDoneMutation.isPending}
-            isDeleting={deleteCommitteeTaskMutation.isPending}
+            isDeleting={deleteGroupTaskMutation.isPending}
             isAddingMember={addMemberMutation.isPending}
             isUpdatingMember={updateMemberMutation.isPending}
             isRemovingMember={removeMemberMutation.isPending}
@@ -254,11 +254,11 @@ export default function GlobalDetailManager() {
             isRejecting={rejectMutation.isPending}
           />
 
-          {committeeTaskData && canManage && (
+          {groupTaskData && canManage && (
             <RateEmployeesModal
               isOpen={isRateOpen}
               onClose={() => setIsRateOpen(false)}
-              task={committeeTaskData}
+              task={groupTaskData}
               onSubmit={(ratings) => rateMutation.mutateAsync(ratings)}
               isSubmitting={rateMutation.isPending}
             />

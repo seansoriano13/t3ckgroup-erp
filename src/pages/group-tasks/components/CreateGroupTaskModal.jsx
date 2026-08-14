@@ -20,10 +20,10 @@ import Dropdown from "../../../components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../../../components/ui/FilterDropdown";
 import Spinner from "@/components/ui/Spinner";
 import { useQuery } from "@tanstack/react-query";
-import { committeeRoleService } from "../../../services/committeeRoleService";
-import CommitteeRoleManagerModal from "./CommitteeRoleManagerModal";
+import { groupRoleService } from "../../../services/groupRoleService";
+import GroupRoleManagerModal from "./GroupRoleManagerModal";
 
-export default function CreateCommitteeTaskModal({
+export default function CreateGroupTaskModal({
   isOpen,
   onClose,
   user,
@@ -78,8 +78,8 @@ export default function CreateCommitteeTaskModal({
   }, [employees]);
 
   const { data: roles = [], isLoading: isRolesLoading } = useQuery({
-    queryKey: ["committeeRoles"],
-    queryFn: committeeRoleService.getRoles,
+    queryKey: ["groupRoles"],
+    queryFn: groupRoleService.getRoles,
     enabled: isOpen,
   });
 
@@ -156,7 +156,7 @@ export default function CreateCommitteeTaskModal({
             </div>
             <ChevronDown size={11} className="text-mauve-6 rotate-[-90deg]" />
             <span className="font-medium text-muted-foreground/80">
-              New Committee (Group) Task
+              New Group Task
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -180,7 +180,7 @@ export default function CreateCommitteeTaskModal({
 
         {/* CONTENT */}
         <form
-          id="create-committee-form"
+          id="create-group-form"
           onSubmit={handleSubmit}
           className="flex-1 overflow-y-auto px-6 py-5 flex flex-col min-h-0 custom-scrollbar"
         >
@@ -190,7 +190,7 @@ export default function CreateCommitteeTaskModal({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Committee (Group) Task Title"
+              placeholder="Group Task Title"
               className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-3"
               autoComplete="off"
             />
@@ -200,7 +200,7 @@ export default function CreateCommitteeTaskModal({
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide an overview of the committee (group) task objective..."
+              placeholder="Provide an overview of the group task objective..."
               className={`w-full bg-transparent border-none outline-none transition-all resize-y text-[13px] text-foreground placeholder:text-mauve-6 ${
                 isExpanded ? "h-32" : "h-16"
               }`}
@@ -472,7 +472,7 @@ export default function CreateCommitteeTaskModal({
             </Button>
             <Button
               type="submit"
-              form="create-committee-form"
+              form="create-group-form"
               disabled={isSubmitting}
               className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20"
             >
@@ -484,7 +484,7 @@ export default function CreateCommitteeTaskModal({
               ) : (
                 <>
                   <Check size={16} strokeWidth={3} className="mr-1.5" />
-                  <span>Create Committee (Group) Task</span>
+                  <span>Create Group Task</span>
                 </>
               )}
             </Button>
@@ -492,7 +492,7 @@ export default function CreateCommitteeTaskModal({
         </div>
       </DialogContent>
       </Dialog>
-      <CommitteeRoleManagerModal
+      <GroupRoleManagerModal
         isOpen={isRoleManagerOpen}
         onClose={() => setIsRoleManagerOpen(false)}
       />

@@ -6,9 +6,9 @@ import { activeChatService } from "../services/tasks/activeChatService";
 import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { taskActivityService } from "../services/tasks/taskActivityService";
-import { committeeTaskActivityService } from "../services/committeeTaskActivityService";
+import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { taskService } from "../services/taskService";
-import { committeeTaskService } from "../services/committeeTaskService";
+import { groupTaskService } from "../services/groupTaskService";
 import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -306,7 +306,7 @@ export default function ComprehensiveChatModal({
             title:
               entityType === "TASK"
                 ? "New Task Thread"
-                : "New Committee Thread",
+                : "New Group Thread",
             is_placeholder: true,
           });
         }
@@ -328,7 +328,7 @@ export default function ComprehensiveChatModal({
     queryFn: () =>
       selectedChat?.entity_type === "TASK"
         ? taskActivityService.getActivityForTask(selectedChat.entity_id)
-        : committeeTaskActivityService.getActivityForTask(
+        : groupTaskActivityService.getActivityForTask(
             selectedChat.entity_id,
           ),
     enabled: !!selectedChat && internalOpen,
@@ -344,8 +344,8 @@ export default function ComprehensiveChatModal({
     queryFn: async () => {
       if (selectedChat?.entity_type === "TASK") {
         return await taskService.getTaskById(selectedChat.entity_id);
-      } else if (selectedChat?.entity_type === "COMMITTEE_TASK") {
-        return await committeeTaskService.getCommitteeTaskById(
+      } else if (selectedChat?.entity_type === "GROUP_TASK") {
+        return await groupTaskService.getGroupTaskById(
           selectedChat.entity_id,
         );
       }
@@ -407,7 +407,7 @@ export default function ComprehensiveChatModal({
         attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
       return entityType === "TASK"
         ? taskActivityService.addComment(entityId, user.id, content, metadata)
-        : committeeTaskActivityService.addComment(
+        : groupTaskActivityService.addComment(
             entityId,
             user.id,
             content,
@@ -505,7 +505,7 @@ export default function ComprehensiveChatModal({
             },
             "-modal",
           )
-        : committeeTaskActivityService.subscribeToActivity(
+        : groupTaskActivityService.subscribeToActivity(
             selectedChat.entity_id,
             () => {
               queryClient.invalidateQueries({
@@ -522,7 +522,7 @@ export default function ComprehensiveChatModal({
     return () => {
       if (selectedChat.entity_type === "TASK")
         taskActivityService.unsubscribeFromActivity(channel);
-      else committeeTaskActivityService.unsubscribeFromActivity(channel);
+      else groupTaskActivityService.unsubscribeFromActivity(channel);
     };
   }, [selectedChat, internalOpen, queryClient]);
 
@@ -822,7 +822,7 @@ export default function ComprehensiveChatModal({
                     >
                       {chat.entity_type === "TASK" ? (
                         <ListCheck size={16} />
-                      ) : chat.entity_type === "COMMITTEE_TASK" ? (
+                      ) : chat.entity_type === "GROUP_TASK" ? (
                         <Users size={16} />
                       ) : (
                         <Target size={16} />
@@ -836,17 +836,17 @@ export default function ComprehensiveChatModal({
                               "text-[10px] font-black uppercase tracking-tighter opacity-70",
                               chat.entity_type === "TASK"
                                 ? "text-foreground"
-                                : chat.entity_type === "COMMITTEE_TASK"
+                                : chat.entity_type === "GROUP_TASK"
                                   ? "text-violet-9"
                                   : "text-green-10",
                             )}
                           >
-                            {chat.entity_type === "COMMITTEE_TASK"
-                              ? "COMMITTEE"
+                            {chat.entity_type === "GROUP_TASK"
+                              ? "GROUP"
                               : chat.entity_type}
                           </span>
                           {chat.is_deleted &&
-                            chat.entity_type !== "COMMITTEE_TASK" && (
+                            chat.entity_type !== "GROUP_TASK" && (
                               <span className="flex items-center gap-1 text-[9px] font-bold text-red-11 bg-red-3/50 px-1.5 py-0.5 rounded uppercase">
                                 <Dot color="bg-destructive" className="block" />{" "}
                                 Deleted

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
-import { committeeTaskActivityService } from "../services/committeeTaskActivityService";
+import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
@@ -216,8 +216,8 @@ export default function TaskActivityTimeline({
   const { data: activity = [], isLoading } = useQuery({
     queryKey: ["taskActivity", taskId, entityType],
     queryFn: () =>
-      entityType === "COMMITTEE_TASK"
-        ? committeeTaskActivityService.getActivityForTask(taskId)
+      entityType === "GROUP_TASK"
+        ? groupTaskActivityService.getActivityForTask(taskId)
         : taskActivityService.getActivityForTask(taskId),
     enabled: !!taskId,
     staleTime: 30_000,
@@ -229,8 +229,8 @@ export default function TaskActivityTimeline({
   // Post comment mutation
   const postCommentMutation = useMutation({
     mutationFn: ({ taskId, authorId, content, metadata }) =>
-      entityType === "COMMITTEE_TASK"
-        ? committeeTaskActivityService.addComment(taskId, authorId, content, metadata)
+      entityType === "GROUP_TASK"
+        ? groupTaskActivityService.addComment(taskId, authorId, content, metadata)
         : taskActivityService.addComment(taskId, authorId, content, metadata),
     onSuccess: () => {
       queryClient.invalidateQueries({
@@ -247,8 +247,8 @@ export default function TaskActivityTimeline({
 
     const suffix = instanceId.current;
     const channel =
-      entityType === "COMMITTEE_TASK"
-        ? committeeTaskActivityService.subscribeToActivity(
+      entityType === "GROUP_TASK"
+        ? groupTaskActivityService.subscribeToActivity(
             taskId,
             () => {
               queryClient.invalidateQueries({
@@ -268,8 +268,8 @@ export default function TaskActivityTimeline({
           );
 
     return () => {
-      if (entityType === "COMMITTEE_TASK") {
-        committeeTaskActivityService.unsubscribeFromActivity(channel);
+      if (entityType === "GROUP_TASK") {
+        groupTaskActivityService.unsubscribeFromActivity(channel);
       } else {
         taskActivityService.unsubscribeFromActivity(channel);
       }

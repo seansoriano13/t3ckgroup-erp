@@ -35,7 +35,7 @@ export function useLogTaskHandlers({
   const [selectedHead, setSelectedHead] = useState("")
   const [hrDeptFilter, setHrDeptFilter] = useState("")
   const [hrSubDeptFilter, setHrSubDeptFilter] = useState("")
-  const [committeeRole, setCommitteeRole] = useState("")
+  const [groupRole, setGroupRole] = useState("")
   const [othersRemarks, setOthersRemarks] = useState("")
   const [showChecklist, setShowChecklist] = useState(false)
   const [openPopover, setOpenPopover] = useState(null)
@@ -123,8 +123,8 @@ export function useLogTaskHandlers({
               attachments: savedDraft.attachments || [],
             })
             attachmentsPersistRef.current = savedDraft.attachments || []
-            if (savedDraft.committeeRole)
-              setCommitteeRole(savedDraft.committeeRole)
+            if (savedDraft.groupRole)
+              setGroupRole(savedDraft.groupRole)
             if (savedDraft.othersRemarks)
               setOthersRemarks(savedDraft.othersRemarks)
             if (savedDraft.showChecklist)
@@ -163,7 +163,7 @@ export function useLogTaskHandlers({
           paymentVoucher: "",
           attachments: [],
         })
-        setCommitteeRole("")
+        setGroupRole("")
         setOthersRemarks("")
         setShowChecklist(false)
         setOpenPopover(null)
@@ -288,7 +288,7 @@ export function useLogTaskHandlers({
           paymentVoucher: "",
           attachments: [],
         }))
-        setCommitteeRole("")
+        setGroupRole("")
         setOthersRemarks("")
         setShowChecklist(false)
         setOpenPopover(null)
@@ -336,7 +336,7 @@ export function useLogTaskHandlers({
     })
   }
 
-  const handleSubmit = (e, { isCommittee, isOthersGlobal }) => {
+  const handleSubmit = (e, { isGroup, isOthersGlobal }) => {
     e.preventDefault()
 
     if (!formData.categoryId) {
@@ -353,13 +353,13 @@ export function useLogTaskHandlers({
     }
 
     let mergedRemarks = ""
-    if (isCommittee) {
-      if (!committeeRole) {
-        toast.error("Please select a specific Committee Role.")
+    if (isGroup) {
+      if (!groupRole) {
+        toast.error("Please select a specific Group Role.")
         return
       }
-      mergedRemarks = `[COMMITTEE - ${committeeRole}]`
-      if (committeeRole === "OTHERS") {
+      mergedRemarks = `[GROUP - ${groupRole}]`
+      if (groupRole === "OTHERS") {
         if (!othersRemarks.trim()) {
           toast.error("Please specify details for 'Others'.")
           return
@@ -402,7 +402,7 @@ export function useLogTaskHandlers({
           DRAFT_KEY,
           JSON.stringify({
             ...formData,
-            committeeRole,
+            groupRole,
             othersRemarks,
             showChecklist,
           }),
@@ -423,8 +423,8 @@ export function useLogTaskHandlers({
     setFormData,
     selectedHead,
     setSelectedHead,
-    committeeRole,
-    setCommitteeRole,
+    groupRole,
+    setGroupRole,
     othersRemarks,
     setOthersRemarks,
     showChecklist,

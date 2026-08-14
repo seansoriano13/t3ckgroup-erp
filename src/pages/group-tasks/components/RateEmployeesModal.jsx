@@ -89,7 +89,7 @@ export default function RateEmployeesModal({
               </span>
             </div>
             <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
-              Rate Committee Members
+              Rate Group Members
             </h2>
             <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
               <span className="truncate max-w-[400px]">For: {task.title}</span>

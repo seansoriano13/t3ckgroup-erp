@@ -15,7 +15,7 @@ export default function LogTaskPropertyBar({
   categoryRef,
   priorityRef,
   endTimeRef,
-  setCommitteeRole,
+  setGroupRole,
   setOthersRemarks,
   openPopover,
   onTogglePopover,
@@ -38,7 +38,7 @@ export default function LogTaskPropertyBar({
           disabled={!formData.loggedById}
           triggerClassName={`property-pill ${openPopover === "category" || formData.categoryId ? "active" : ""}`}
           onResetOthers={() => {
-            setCommitteeRole("");
+            setGroupRole("");
             setOthersRemarks("");
           }}
         />

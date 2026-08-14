@@ -10,7 +10,7 @@
  *  className  - optional extra class on the wrapper
  *
  * Variants:
- *  pill      → bg-muted wrapper, bg-card active (committee / approvals / broadcast)
+ *  pill      → bg-muted wrapper, bg-card active (group / approvals / broadcast)
  *  primary   → bg-card+border wrapper, bg-primary active (tasks, HR management)
  *  underline → no wrapper bg, border-b-2 active (notification drawer)
  */

@@ -11,7 +11,7 @@ import toast from "react-hot-toast"
 import Spinner from "@/components/ui/Spinner"
 import TaskDetails from "../../../components/TaskDetails.jsx"
 import TaskFilters from "../../../components/TaskFilters.jsx"
-import CommitteeApprovalSection from "../components/CommitteeApprovalSection.jsx"
+import GroupTaskApprovalSection from "../components/GroupTaskApprovalSection.jsx"
 import { ApprovalHeader } from "../components/ApprovalHeader"
 import { ApprovalRow } from "../components/ApprovalRow"
 import BulkVerifyModal from "./components/BulkVerifyModal"
@@ -399,8 +399,8 @@ export default function HrVerificationPage() {
                 badge: verifiedTasks.length || undefined,
               },
               {
-                value: "COMMITTEE",
-                label: "Committee (Group) Tasks",
+                value: "GROUP",
+                label: "Group Tasks",
                 icon: Users,
               },
             ]}
@@ -410,9 +410,9 @@ export default function HrVerificationPage() {
           />
         </div>
 
-        {/* COMMITTEE TAB */}
-        {activeTab === "COMMITTEE" ? (
-          <CommitteeApprovalSection />
+        {/* GROUP TAB */}
+        {activeTab === "GROUP" ? (
+          <GroupTaskApprovalSection />
         ) : (
           <>
             <TaskFilters

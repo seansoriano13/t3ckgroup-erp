@@ -1,7 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 
-export const committeeTaskActivityService = {
+export const groupTaskActivityService = {
   async getActivityForTask(taskId) {
     if (!taskId) return [];
 
@@ -80,8 +80,8 @@ export const committeeTaskActivityService = {
           notificationService.createNotification({
             recipient_id: recipientId,
             sender_id: authorId,
-            type: "COMMITTEE_TASK_COMMENT",
-            title: "New Comment on Committee Task",
+            type: "GROUP_TASK_COMMENT",
+            title: "New Comment on Group Task",
             message: `${author?.name || "Someone"} commented: "${snippet}"`,
             reference_id: taskId,
           });
@@ -106,12 +106,12 @@ export const committeeTaskActivityService = {
     };
   },
 
-  async getRecentCommitteeActivity({
+  async getRecentGroupActivity({
     limit = 50,
     offset = 0,
     type = "ALL",
     authorId = "ALL",
-    employeeId = "ALL", // Note: committee tasks don't have logged_by in the same way, maybe created_by or member
+    employeeId = "ALL", // Note: group tasks don't have logged_by in the same way, maybe created_by or member
     taskStatus = "ALL", // HR_PENDING, COMPLETED, etc.
     dateFrom = null,
     dateTo = null,
@@ -194,7 +194,7 @@ export const committeeTaskActivityService = {
       authorIsHead: entry.author?.is_head || false,
       authorIsHr: entry.author?.is_hr || false,
       authorIsSuperAdmin: entry.author?.is_super_admin || false,
-      isCommittee: true,
+      isGroup: true,
     }));
   },
 
@@ -209,7 +209,7 @@ export const committeeTaskActivityService = {
         metadata,
       });
     } catch (err) {
-      console.error("Failed to log committee system event:", err);
+      console.error("Failed to log group system event:", err);
     }
   },
 
@@ -224,7 +224,7 @@ export const committeeTaskActivityService = {
         metadata,
       });
     } catch (err) {
-      console.error("Failed to log committee approval entry:", err);
+      console.error("Failed to log group approval entry:", err);
     }
   },
 
@@ -239,14 +239,14 @@ export const committeeTaskActivityService = {
         metadata,
       });
     } catch (err) {
-      console.error("Failed to log committee HR entry:", err);
+      console.error("Failed to log group HR entry:", err);
     }
   },
 
   subscribeToActivity(taskId, onNewEntry, channelSuffix = "") {
     if (!taskId) return null;
 
-    const channelName = `committee-task-activity-${taskId}${channelSuffix}`;
+    const channelName = `group-task-activity-${taskId}${channelSuffix}`;
     return supabase
       .channel(channelName)
       .on(
@@ -289,7 +289,7 @@ export const committeeTaskActivityService = {
   },
 
   subscribeToAllActivity(onNewEntry) {
-    const channelName = `committee-task-activity-all-${Math.random().toString(36).substring(7)}`;
+    const channelName = `group-task-activity-all-${Math.random().toString(36).substring(7)}`;
     return supabase
       .channel(channelName)
       .on(

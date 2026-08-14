@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { committeeTaskService } from "../services/committeeTaskService";
+import { groupTaskService } from "../services/groupTaskService";
 import {
   Users,
   Search,
@@ -12,10 +12,10 @@ import {
 import { Link } from "react-router";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import CommitteeTaskCard from "../pages/committee/components/CommitteeTaskCard";
+import GroupTaskCard from "../pages/group-tasks/components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
 
-export default function CommitteeTasksList({ selectedRange }) {
+export default function GroupTasksList({ selectedRange }) {
   const { user } = useAuth();
   const isSuperAdmin =
     user?.is_super_admin === true || user?.isSuperAdmin === true;
@@ -24,15 +24,15 @@ export default function CommitteeTasksList({ selectedRange }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [layoutMode, setLayoutMode] = useState("row"); // "row" | "stack" | "grid"
 
-  const { data: committeeTasks = [], isLoading } = useQuery({
-    queryKey: ["committeeTasks", user?.id],
+  const { data: groupTasks = [], isLoading } = useQuery({
+    queryKey: ["groupTasks", user?.id],
     queryFn: () =>
-      committeeTaskService.getCommitteeTasks(user?.id, isHead, isSuperAdmin),
+      groupTaskService.getGroupTasks(user?.id, isHead, isSuperAdmin),
     enabled: !!user?.id,
   });
 
   const activeTasks = useMemo(() => {
-    const tasks = committeeTasks.filter(
+    const tasks = groupTasks.filter(
       (t) =>
         t.status === "ACTIVE" ||
         t.status === "PENDING" ||
@@ -46,16 +46,16 @@ export default function CommitteeTasksList({ selectedRange }) {
         t.title.toLowerCase().includes(lower) ||
         t.description?.toLowerCase().includes(lower),
     );
-  }, [committeeTasks, searchTerm]);
+  }, [groupTasks, searchTerm]);
 
   if (isLoading) return null;
-  if (committeeTasks.length === 0) return null;
+  if (groupTasks.length === 0) return null;
 
   return (
     <section className="space-y-6 mt-8 w-full min-w-0">
       <SectionHeader
         icon={Users}
-        title="Committee (Group) Tasks"
+        title="Group Tasks"
         description="Active group assignments"
         rangeLabel={selectedRange?.label || "This Range"}
       >
@@ -112,7 +112,7 @@ export default function CommitteeTasksList({ selectedRange }) {
             className="text-muted-foreground font-bold uppercase tracking-widest text-[10px] h-9"
             asChild
           >
-            <Link to="/committee">View All</Link>
+            <Link to="/group-tasks">View All</Link>
           </Button>
         </div>
       </SectionHeader>
@@ -136,7 +136,7 @@ export default function CommitteeTasksList({ selectedRange }) {
                     : "w-[300px] sm:w-[340px] max-w-[85vw] snap-start shrink-0"
                 }`}
               >
-                <CommitteeTaskCard
+                <GroupTaskCard
                   task={task}
                   currentUserId={user?.id}
                   isSuperAdmin={isSuperAdmin}
@@ -144,7 +144,7 @@ export default function CommitteeTasksList({ selectedRange }) {
                   onView={() => {
                     window.dispatchEvent(
                       new CustomEvent("OPEN_ENTITY_DETAILS", {
-                        detail: { id: task.id, type: "COMMITTEE_TASK" },
+                        detail: { id: task.id, type: "GROUP_TASK" },
                       }),
                     );
                   }}

@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 
-export function useCommitteeTaskFilters(rawTasks = [], filters = {}) {
+export function useGroupTaskFilters(rawTasks = [], filters = {}) {
   const {
     searchTerm = "",
     statusFilter = "ALL", // ALL, ACTIVE, COMPLETED
