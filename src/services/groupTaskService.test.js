@@ -291,15 +291,100 @@ describe("groupTaskService", () => {
       const task = await createTask()
       const [assignment] = await membersOf(task.id)
 
-      await groupTaskService.updateMemberTaskDescription(
+      await groupTaskService.updateMemberAssignment(
         assignment.id,
-        "Count aisles A and C",
         task.id,
+        { taskDescription: "Count aisles A and C" },
         creator.id,
       )
 
       const updated = (await membersOf(task.id)).find((m) => m.id === assignment.id)
       expect(updated.task_description).toBe("Count aisles A and C")
+    })
+
+    it("leaves the checklist alone when an edit does not mention it", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: false }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberAssignment(
+        assignment.id,
+        task.id,
+        { taskDescription: "Count aisle A twice" },
+        creator.id,
+      )
+
+      const updated = (await membersOf(task.id)).find((m) => m.id === assignment.id)
+      expect(updated.checklist).toEqual([{ text: "Shelf 1", checked: false }])
+    })
+
+    it("lets the assignee tick their own checklist items", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: false }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberChecklist(
+        assignment.id,
+        [{ text: "Shelf 1", checked: true }],
+        task.id,
+        alice.id,
+      )
+
+      const updated = (await membersOf(task.id)).find((m) => m.id === assignment.id)
+      expect(updated.checklist).toEqual([{ text: "Shelf 1", checked: true }])
+    })
+
+    it("refuses a checklist tick from anyone but the assignee", async () => {
+      const task = await createTask()
+      const [assignment] = await membersOf(task.id)
+
+      await expect(
+        groupTaskService.updateMemberChecklist(
+          assignment.id,
+          [{ text: "Shelf 1", checked: true }],
+          task.id,
+          bob.id,
+        ),
+      ).rejects.toThrow("Only the assigned member can update this checklist.")
+    })
+
+    it("freezes the checklist once the assignment is marked done", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: true }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+      await groupTaskService.updateMemberStatus(assignment.id, "DONE", alice.id)
+      await waitForNetworkIdle()
+
+      // Grading keys off DONE, so the evidence must stop moving at that point.
+      await expect(
+        groupTaskService.updateMemberChecklist(
+          assignment.id,
+          [{ text: "Shelf 1", checked: false }],
+          task.id,
+          alice.id,
+        ),
+      ).rejects.toThrow("already marked done")
     })
 
     it("removes a member from the task", async () => {

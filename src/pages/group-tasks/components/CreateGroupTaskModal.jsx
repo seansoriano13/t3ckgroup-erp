@@ -154,7 +154,9 @@ export default function CreateGroupTaskModal({
           showCloseButton={false}
           className={`p-0 gap-0 z-[70] shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] flex flex-col transition-all duration-300 overflow-hidden ${
             isExpanded
-              ? "top-0 left-0 translate-x-0 translate-y-0 w-screen h-screen max-w-none sm:max-w-none max-h-none rounded-none"
+              ? // Same override set the detail modal already uses — the bare
+                // utilities lose to DialogContent's own centering classes.
+                "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
               : "w-[1120px] max-w-[95vw] sm:max-w-none max-h-[90vh] rounded-2xl"
           }`}
         >

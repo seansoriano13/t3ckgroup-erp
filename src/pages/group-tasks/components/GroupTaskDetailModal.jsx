@@ -11,7 +11,6 @@ import {
   Check,
   Trash2,
   Clock,
-  PlusCircle,
   Plus,
   User,
   Edit3,
@@ -29,12 +28,9 @@ import StatusBadge from "../../../components/StatusBadge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
-import ChecklistTaskInput from "../../../components/ChecklistTaskInput";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { activeChatService } from "../../../services/tasks/activeChatService";
-import Select from "react-select";
-import { LOG_TASK_SELECT_STYLES } from "../../../constants/task";
 import { formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
@@ -46,8 +42,11 @@ import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/Avatar";
 import { useEmployeeAvatarMap } from "@/hooks/useEmployeeAvatarMap";
 import { cn } from "@/lib/utils";
-
-const GROUP_ROLES = ["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"];
+import { groupRoleService } from "@/services/groupRoleService";
+import GroupRoleManagerModal from "./GroupRoleManagerModal";
+import GroupTaskMemberRail from "./GroupTaskMemberRail";
+import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
+import { parseChecklist, hasChecklistContent } from "../utils/checklist";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -93,49 +92,76 @@ export default function GroupTaskDetailModal({
   const [isUploading, setIsUploading] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
 
-  const [showAddMember, setShowAddMember] = useState(false);
-  const [newMemberId, setNewMemberId] = useState(null);
-  const [newMemberRole, setNewMemberRole] = useState("");
-  const [newMemberCustomRole, setNewMemberCustomRole] = useState("");
-  const [newMemberDescType, setNewMemberDescType] = useState("description");
-  const [newMemberDesc, setNewMemberDesc] = useState("");
+  const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
+  // Holds the in-progress edit for the selected member, or a brand new member
+  // when `id` is null. One shape covers both so the shared panel does not need
+  // to know which case it is rendering.
+  const [draft, setDraft] = useState(null);
 
-  const [editingMemberId, setEditingMemberId] = useState(null);
-  const [editMemberRole, setEditMemberRole] = useState("");
-  const [editMemberCustomRole, setEditMemberCustomRole] = useState("");
-  const [editMemberDescType, setEditMemberDescType] = useState("description");
-  const [editMemberDesc, setEditMemberDesc] = useState("");
+  const { data: roles = [], isLoading: isRolesLoading } = useQuery({
+    queryKey: ["groupRoles"],
+    queryFn: groupRoleService.getRoles,
+    enabled: isOpen,
+  });
 
   const handleEditClick = (member) => {
-    setEditingMemberId(member.id);
-    setEditMemberRole(member.role || "");
-    setEditMemberCustomRole(member.custom_role || "");
-
-    const isChecklist =
-      typeof member.task_description === "string" &&
-      (member.task_description.trim().startsWith("[") ||
-        member.task_description.trim().startsWith("{"));
-
-    setEditMemberDescType(isChecklist ? "checklist" : "description");
-    setEditMemberDesc(member.task_description || "");
-  };
-
-  const handleCancelEdit = () => {
-    setEditingMemberId(null);
-    setEditMemberRole("");
-    setEditMemberCustomRole("");
-    setEditMemberDescType("description");
-    setEditMemberDesc("");
-  };
-
-  const handleUpdateMember = async () => {
-    if (!editingMemberId || !editMemberDesc.trim()) return;
-    await onUpdateMember(editingMemberId, {
-      taskDescription: editMemberDesc,
-      role: editMemberRole,
-      customRole: editMemberCustomRole,
+    setDraft({
+      id: member.id,
+      employeeId: member.employee_id,
+      taskDescription: member.task_description || "",
+      checklist: member.checklist ?? null,
+      showChecklist: parseChecklist(member.checklist).length > 0,
+      role: member.role || "",
+      customRole: member.custom_role || "",
     });
-    handleCancelEdit();
+  };
+
+  const handleStartAddMember = () => {
+    setSelectedMemberId(null);
+    setDraft({
+      id: null,
+      employeeId: null,
+      taskDescription: "",
+      checklist: null,
+      showChecklist: false,
+      role: "",
+      customRole: "",
+    });
+  };
+
+  const handleCancelEdit = () => setDraft(null);
+
+  const handleDraftChange = (field, value) =>
+    setDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
+
+  const normaliseDraftChecklist = (value) => {
+    const items = parseChecklist(value).filter((i) => i?.text?.trim());
+    return items.length > 0 ? items : null;
+  };
+
+  const handleSaveDraft = async () => {
+    if (!draft) return;
+    // An assignment is valid with description text OR checklist items — the
+    // old code required description text, which would now reject a
+    // checklist-only assignment.
+    if (!draft.taskDescription.trim() && !hasChecklistContent(draft.checklist))
+      return;
+
+    const payload = {
+      taskDescription: draft.taskDescription.trim(),
+      checklist: normaliseDraftChecklist(draft.checklist),
+      role: draft.role,
+      customRole: draft.customRole,
+    };
+
+    if (draft.id) {
+      await onUpdateMember(draft.id, payload);
+    } else {
+      if (!draft.employeeId) return;
+      await onAddMember({ employeeId: draft.employeeId, ...payload });
+    }
+    setDraft(null);
   };
 
   const handleRemoveMember = (memberId) => {
@@ -166,12 +192,7 @@ export default function GroupTaskDetailModal({
       setIsExpanded(false);
       setIsSplitScreen(false);
       setActiveTab("overview");
-      setShowAddMember(false);
-      setNewMemberId(null);
-      setNewMemberRole("");
-      setNewMemberCustomRole("");
-      setNewMemberDescType("description");
-      setNewMemberDesc("");
+      setSelectedMemberId(null);
       setShowRejectForm(false);
       setRejectRemarks("");
       setMessageContent("");
@@ -339,6 +360,38 @@ export default function GroupTaskDetailModal({
     return "Unknown";
   };
 
+  // These two must sit above the `!task` early return below — hooks cannot be
+  // called conditionally, so they read through `task?.` instead.
+  // Memoised so the `|| []` fallback does not hand orderedMembers a fresh
+  // array identity on every render.
+  const members = useMemo(() => task?.members || [], [task?.members]);
+
+  // The row a member opens this modal for is almost always their own, so it
+  // goes first and starts selected rather than being hunted for in a list.
+  const orderedMembers = useMemo(() => {
+    const mine = members.filter((m) => m.employee_id === currentUserId);
+    const others = members.filter((m) => m.employee_id !== currentUserId);
+    return [...mine, ...others];
+  }, [members, currentUserId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // Select self on open, falling back to the first member for a viewer who
+    // is not assigned to this task (a head or HR, say).
+    if (!selectedMemberId && orderedMembers.length > 0) {
+      setSelectedMemberId(orderedMembers[0].id);
+      return;
+    }
+    // Keep the selection valid if the selected member is removed.
+    if (
+      selectedMemberId &&
+      !draft &&
+      !orderedMembers.some((m) => m.id === selectedMemberId)
+    ) {
+      setSelectedMemberId(orderedMembers[0]?.id ?? null);
+    }
+  }, [isOpen, orderedMembers, selectedMemberId, draft]);
+
   if (!task) return null;
 
   const isCreator = task.created_by === currentUserId;
@@ -351,10 +404,12 @@ export default function GroupTaskDetailModal({
   // Map display status: COMPLETED/HR_PENDING/HR_VERIFIED → "COMPLETED"
   const displayStatus = isCompletedOrBeyond ? "COMPLETED" : task.status;
 
-  const members = task.members || [];
   const myMember = members.find((m) => m.employee_id === currentUserId);
   const allMembersDone =
     members.length > 0 && members.every((m) => m.status === "DONE");
+
+  const selectedMember =
+    orderedMembers.find((m) => m.id === selectedMemberId) || null;
 
   const handleDelete = () => {
     confirmDeleteToast(
@@ -376,7 +431,9 @@ export default function GroupTaskDetailModal({
             ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
             : isSplitScreen
               ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:w-[1400px] rounded-2xl"
-              : "max-h-[90vh] sm:max-w-none w-[960px] max-w-[95vw] rounded-2xl",
+              : // Widened from 960px: the member area is a master/detail pair
+                // now, and a 240px rail off 960px left the panel too narrow.
+                "max-h-[90vh] sm:max-w-none w-[1120px] max-w-[95vw] rounded-2xl",
         )}
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
@@ -513,503 +570,265 @@ export default function GroupTaskDetailModal({
                 </div>
               )}
 
-              {/* Members List */}
-              <div className="animate-content-in stagger-2 flex-1">
-                <div className="flex items-center justify-between mb-4 pl-1">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest">
-                    Group (Group) Members ({members.length})
-                  </label>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  {members.map((member) => {
-                    const isMe = member.employee_id === currentUserId;
-                    const canSeeGrade = isCreator || isSuperAdmin || isMe;
-                    const showGrade =
-                      isCompletedOrBeyond && canSeeGrade && member.grade > 0;
-
-                    const isChecklist =
-                      typeof member.task_description === "string" &&
-                      (member.task_description.trim().startsWith("[") ||
-                        member.task_description.trim().startsWith("{"));
-
-                    let hasUncheckedItems = false;
-                    if (isChecklist) {
-                      try {
-                        const parsed = JSON.parse(
-                          member.task_description.trim(),
-                        );
-                        if (Array.isArray(parsed)) {
-                          hasUncheckedItems = parsed.some((i) => !i.checked);
-                        } else if (parsed && Array.isArray(parsed.items)) {
-                          hasUncheckedItems = parsed.items.some(
-                            (i) => !i.checked,
-                          );
-                        }
-                      } catch (e) {}
+              {/* MEMBERS — master / detail */}
+              <div className="animate-content-in stagger-2 flex-1 flex min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
+                <div className="w-[240px] shrink-0 min-h-0">
+                  <GroupTaskMemberRail
+                    members={orderedMembers}
+                    selectedId={draft && !draft.id ? null : selectedMemberId}
+                    onSelect={(id) => {
+                      setDraft(null);
+                      setSelectedMemberId(id);
+                    }}
+                    onAdd={
+                      task.status === "ACTIVE" ? handleStartAddMember : undefined
                     }
-
-                    return (
-                      <div
-                        key={member.id}
-                        className={`p-5 border rounded-2xl flex flex-col gap-4 shadow-sm hover:shadow-md transition-all duration-300 transform origin-center ${isMe ? "border-primary/10 bg-primary/1" : "border-border bg-card"}`}
-                      >
-                        {editingMemberId === member.id ? (
-                          // EDIT MODE
-                          <div className="flex flex-col gap-4 animate-in fade-in">
-                            <div className="flex items-center justify-between">
-                              <h4 className="text-xs font-bold text-foreground uppercase tracking-widest">
-                                Edit Assignment: {member.employee?.name}
-                              </h4>
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-                                Role (Optional)
-                              </label>
-                              <div className="flex flex-wrap gap-2">
-                                {GROUP_ROLES.map((r) => (
-                                  <button
-                                    key={r}
-                                    type="button"
-                                    onClick={() =>
-                                      setEditMemberRole(
-                                        editMemberRole === r ? "" : r,
-                                      )
-                                    }
-                                    className={`px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${
-                                      editMemberRole === r
-                                        ? "bg-primary text-primary-foreground shadow-sm"
-                                        : "bg-card text-foreground border border-border hover:border-mauve-5"
-                                    }`}
-                                  >
-                                    {r}
-                                  </button>
-                                ))}
-                              </div>
-                              {editMemberRole === "OTHERS" && (
-                                <div className="animate-slide-down mt-1">
-                                  <input
-                                    type="text"
-                                    value={editMemberCustomRole}
-                                    onChange={(e) =>
-                                      setEditMemberCustomRole(e.target.value)
-                                    }
-                                    placeholder="Specify custom role..."
-                                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
-                                  />
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                              <div className="flex justify-between items-end">
-                                <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-                                  Specific Task
-                                </label>
-                                <div className="flex gap-0.5 bg-muted rounded border border-border p-0.5 w-fit">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setEditMemberDescType("description")
-                                    }
-                                    className={`text-[9px] px-2 py-0.5 rounded font-bold transition-all ${
-                                      editMemberDescType === "description"
-                                        ? "bg-card text-foreground shadow-sm"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    Text
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setEditMemberDescType("checklist")
-                                    }
-                                    className={`text-[9px] px-2 py-0.5 rounded font-bold transition-all ${
-                                      editMemberDescType === "checklist"
-                                        ? "bg-card text-foreground shadow-sm"
-                                        : "text-muted-foreground"
-                                    }`}
-                                  >
-                                    Checklist
-                                  </button>
-                                </div>
-                              </div>
-
-                              {editMemberDescType === "checklist" ? (
-                                <div className="bg-card rounded-lg border border-border p-1.5 flex-1 min-h-[96px]">
-                                  <ChecklistTaskInput
-                                    value={editMemberDesc}
-                                    onChange={(e) =>
-                                      setEditMemberDesc(e.target.value)
-                                    }
-                                  />
-                                </div>
-                              ) : (
-                                <textarea
-                                  value={editMemberDesc}
-                                  onChange={(e) =>
-                                    setEditMemberDesc(e.target.value)
-                                  }
-                                  placeholder="What exactly are they responsible for?"
-                                  className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-24 resize-none flex-1"
-                                />
-                              )}
-                            </div>
-
-                            <div className="flex justify-end pt-2 gap-2">
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                onClick={handleCancelEdit}
-                                disabled={isUpdatingMember}
-                                className="h-9 px-4 rounded-xl text-xs"
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                type="button"
-                                disabled={
-                                  !editMemberDesc.trim() || isUpdatingMember
-                                }
-                                onClick={handleUpdateMember}
-                                className="h-9 px-6 rounded-xl text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
-                              >
-                                {isUpdatingMember
-                                  ? "Saving..."
-                                  : "Save Changes"}
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          // VIEW MODE
-                          <>
-                            <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-3">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="font-extrabold text-sm text-foreground tracking-tight">
-                                  {member.employee?.name}
-                                </span>
-                                {isMe && (
-                                  <span className="text-[9px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded shadow-sm uppercase tracking-wider">
-                                    You
-                                  </span>
-                                )}
-
-                                {member.role && (
-                                  <span className="text-[9px] font-bold bg-mauve-4  text-mauve-11 dark:text-muted-foreground px-2 py-0.5 rounded shadow-sm uppercase tracking-wider border border-mauve-5 ">
-                                    {member.custom_role || member.role}
-                                  </span>
-                                )}
-
-                                <span
-                                  className={`text-[9px] font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider ${
-                                    member.status === "DONE"
-                                      ? "bg-green-9/10 text-green-10 border border-green-500/20"
-                                      : "bg-warning/10 text-amber-10 border border-amber-500/20"
-                                  }`}
-                                >
-                                  {member.status}
-                                </span>
-                              </div>
-
-                              {/* Head/Admin Controls (Temporarily Accessible to All) */}
-                              {task.status === "ACTIVE" && (
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleEditClick(member)}
-                                      className="p-1.5 text-muted-foreground hover:text-violet-10 hover:bg-violet-2 rounded-lg transition-colors"
-                                      title="Edit Assignment"
-                                    >
-                                      <Edit3 size={14} />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        handleRemoveMember(member.id)
-                                      }
-                                      disabled={isRemovingMember}
-                                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
-                                      title="Remove Member"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
-                                  </div>
-                                )}
-                            </div>
-
-                            <div className="flex-1 flex flex-col gap-2 relative">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                Specific Task
-                              </label>
-                              {isChecklist ? (
-                                <div className="bg-muted/30 rounded-xl p-3 border border-border/50 min-h-[80px]">
-                                  <ChecklistTaskRenderer
-                                    description={member.task_description}
-                                    isOwner={isMe}
-                                    disabled={!isMe || member.status === "DONE"}
-                                    searchTerm={searchTerm}
-                                    onInlineCheck={(newDesc) => {
-                                      if (onInlineCheck) {
-                                        onInlineCheck(member.id, newDesc);
-                                      } else {
-                                        groupTaskService
-                                          .updateMemberTaskDescription(
-                                            member.id,
-                                            newDesc,
-                                            task.id,
-                                            currentUserId,
-                                          )
-                                          .catch(console.error);
-                                      }
-                                    }}
-                                  />
-                                </div>
-                              ) : (
-                                <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed min-h-[80px] whitespace-pre-wrap">
-                                  {member.task_description}
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex items-center justify-between gap-4 pt-1">
-                              {/* Grades */}
-                              {showGrade ? (
-                                <div className="flex-1">
-                                  <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
-                                    Grade
-                                  </div>
-                                  <div className="flex flex-col gap-1.5">
-                                    <GradeSelector
-                                      grade={member.grade}
-                                      finalized
-                                    />
-                                    {member.grade_remarks && (
-                                      <div className="text-xs text-muted-foreground bg-card border border-border/50 p-2 rounded-lg italic">
-                                        "{member.grade_remarks}"
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                              ) : (
-                                <div /> /* Spacer */
-                              )}
-
-                              {/* Action for the logged-in member */}
-                              {isMe &&
-                                member.status === "PENDING" &&
-                                task.status === "ACTIVE" && (
-                                  <button
-                                    onClick={() => onMarkDone(member.id)}
-                                    disabled={
-                                      isMarkingDone ||
-                                      (isChecklist && hasUncheckedItems)
-                                    }
-                                    title={
-                                      isChecklist && hasUncheckedItems
-                                        ? "Check all items first"
-                                        : ""
-                                    }
-                                    className="flex items-center gap-1.5 px-4 py-2 bg-green-9 text-primary-foreground rounded-lg text-xs font-bold hover:bg-green-9 transition-colors shadow-sm disabled:opacity-50 ml-auto"
-                                  >
-                                    <CheckCircle2 size={16} />
-                                    {isMarkingDone
-                                      ? "Marking..."
-                                      : "Submit for Review"}
-                                  </button>
-                                )}
-
-                              {/* Undo action for Heads/Admins (Temporarily Accessible to All) */}
-                              {member.status === "DONE" &&
-                                task.status === "ACTIVE" && (
-                                  <button
-                                    onClick={() => onRevertDone(member.id)}
-                                    disabled={isReverting}
-                                    className="flex items-center gap-1.5 px-4 py-2 bg-warning/10 text-amber-10 border border-amber-500/20 rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-warning/20 transition-colors ml-auto"
-                                  >
-                                    {isReverting ? "..." : "Revert"}
-                                  </button>
-                                )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
+                    currentUserId={currentUserId}
+                    avatarMap={avatarMap}
+                    resolveEmployee={(m) => ({
+                      id: m.employee_id,
+                      name: m.employee?.name,
+                    })}
+                    mode="detail"
+                  />
                 </div>
-              </div>
 
-              {/* ADD MEMBER FORM (Temporarily Accessible to All) */}
-              {task.status === "ACTIVE" && (
-                <div className="mt-4 pt-4 border-t border-border/50">
-                  {!showAddMember ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddMember(true)}
-                      className="flex items-center justify-center gap-2 w-full h-[60px] border-2 border-dashed border-primary/20 rounded-xl text-primary font-bold text-xs hover:bg-primary/5 hover:border-primary/40 transition-colors"
-                    >
-                      <Plus size={16} /> Add Another Member
-                    </button>
-                  ) : (
-                    <div className="p-5 border border-primary/20 rounded-xl bg-primary/5 flex flex-col gap-4 animate-in fade-in slide-in-from-top-4">
-                      <div className="flex items-center justify-between">
+                <div className="flex-1 flex flex-col min-w-0 min-h-0">
+                  {draft ? (
+                    <>
+                      <div className="px-6 pt-4 shrink-0">
                         <h4 className="text-xs font-bold text-foreground uppercase tracking-widest">
-                          Add New Member
+                          {draft.id ? "Edit Assignment" : "Add New Member"}
                         </h4>
-                        <button
+                      </div>
+
+                      <GroupTaskMemberPanel
+                        member={draft}
+                        employeeOptions={employeeOptions}
+                        roles={roles}
+                        isRolesLoading={isRolesLoading}
+                        onManageRoles={() => setIsRoleManagerOpen(true)}
+                        onChange={handleDraftChange}
+                        canEditAssignment={!draft.id}
+                      />
+
+                      <div className="px-6 py-3 border-t border-border flex justify-end gap-2 shrink-0">
+                        <Button
                           type="button"
-                          onClick={() => setShowAddMember(false)}
-                          className="p-1 text-muted-foreground hover:text-foreground hover:bg-card rounded-md"
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleCancelEdit}
+                          className="h-9 px-4 rounded-xl text-xs"
                         >
-                          <X size={14} />
-                        </button>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5 relative z-20">
-                        <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-                          Assignee
-                        </label>
-                        <Select
-                          className="w-full flex-1"
-                          options={employeeOptions}
-                          value={
-                            employeeOptions.find(
-                              (o) => o.value === newMemberId,
-                            ) || null
-                          }
-                          onChange={(opt) => setNewMemberId(opt?.value)}
-                          placeholder="Select Employee..."
-                          classNamePrefix="react-select"
-                          classNames={LOG_TASK_SELECT_STYLES}
-                          unstyled
-                          isClearable
-                          menuShouldBlockScroll={false}
-                          menuPortalTarget={document.body}
-                          styles={{
-                            menuPortal: (base) => ({ ...base, zIndex: 9999 }),
-                          }}
-                        />
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-                          Role (Optional)
-                        </label>
-                        <div className="flex flex-wrap gap-2">
-                          {GROUP_ROLES.map((r) => (
-                            <button
-                              key={r}
-                              type="button"
-                              onClick={() =>
-                                setNewMemberRole(newMemberRole === r ? "" : r)
-                              }
-                              className={`px-3 py-1.5 rounded-full text-[10px] font-bold tracking-wider transition-all ${
-                                newMemberRole === r
-                                  ? "bg-primary text-primary-foreground shadow-sm"
-                                  : "bg-card text-foreground border border-border hover:border-mauve-5"
-                              }`}
-                            >
-                              {r}
-                            </button>
-                          ))}
-                        </div>
-                        {newMemberRole === "OTHERS" && (
-                          <div className="animate-slide-down mt-1">
-                            <input
-                              type="text"
-                              value={newMemberCustomRole}
-                              onChange={(e) =>
-                                setNewMemberCustomRole(e.target.value)
-                              }
-                              placeholder="Specify custom role..."
-                              className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-2">
-                        <div className="flex justify-between items-end">
-                          <label className="block text-[10px] font-bold text-muted-foreground uppercase">
-                            Specific Task
-                          </label>
-                          <div className="flex gap-0.5 bg-muted rounded border border-border p-0.5 w-fit">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setNewMemberDescType("description")
-                              }
-                              className={`text-[9px] px-2 py-0.5 rounded font-bold transition-all ${
-                                newMemberDescType === "description"
-                                  ? "bg-card text-foreground shadow-sm"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              Text
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setNewMemberDescType("checklist")}
-                              className={`text-[9px] px-2 py-0.5 rounded font-bold transition-all ${
-                                newMemberDescType === "checklist"
-                                  ? "bg-card text-foreground shadow-sm"
-                                  : "text-muted-foreground"
-                              }`}
-                            >
-                              Checklist
-                            </button>
-                          </div>
-                        </div>
-
-                        {newMemberDescType === "checklist" ? (
-                          <div className="bg-card rounded-lg border border-border p-1.5 flex-1 min-h-[96px]">
-                            <ChecklistTaskInput
-                              value={newMemberDesc}
-                              onChange={(e) => setNewMemberDesc(e.target.value)}
-                            />
-                          </div>
-                        ) : (
-                          <textarea
-                            value={newMemberDesc}
-                            onChange={(e) => setNewMemberDesc(e.target.value)}
-                            placeholder="What exactly are they responsible for?"
-                            className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-24 resize-none flex-1"
-                          />
-                        )}
-                      </div>
-
-                      <div className="flex justify-end pt-2">
+                          Cancel
+                        </Button>
                         <Button
                           type="button"
                           disabled={
-                            !newMemberId ||
-                            !newMemberDesc.trim() ||
-                            isAddingMember
+                            isAddingMember ||
+                            isUpdatingMember ||
+                            (!draft.id && !draft.employeeId) ||
+                            (!draft.taskDescription.trim() &&
+                              !hasChecklistContent(draft.checklist))
                           }
-                          onClick={async () => {
-                            if (!newMemberId || !newMemberDesc.trim()) return;
-                            await onAddMember({
-                              employeeId: newMemberId,
-                              taskDescription: newMemberDesc,
-                              role: newMemberRole,
-                              customRole: newMemberCustomRole,
-                            });
-                            setShowAddMember(false);
-                            setNewMemberId(null);
-                            setNewMemberDesc("");
-                            setNewMemberRole("");
-                            setNewMemberCustomRole("");
-                          }}
+                          onClick={handleSaveDraft}
                           className="h-9 px-6 rounded-xl text-xs"
                         >
-                          {isAddingMember ? "Adding..." : "Add Member"}
+                          {draft.id
+                            ? isUpdatingMember
+                              ? "Saving…"
+                              : "Save Changes"
+                            : isAddingMember
+                              ? "Adding…"
+                              : "Add Member"}
                         </Button>
                       </div>
+                    </>
+                  ) : selectedMember ? (
+                    (() => {
+                      const member = selectedMember;
+                      const isMe = member.employee_id === currentUserId;
+                      const canSeeGrade = isCreator || isSuperAdmin || isMe;
+                      const showGrade =
+                        isCompletedOrBeyond && canSeeGrade && member.grade > 0;
+
+                      const checklistItems = parseChecklist(member.checklist);
+                      const hasUncheckedItems = checklistItems.some(
+                        (i) => !i.checked,
+                      );
+                      const isDone = member.status === "DONE";
+
+                      return (
+                        <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar px-6 py-5 flex flex-col gap-5">
+                          {/* Identity + controls */}
+                          <div className="flex items-start justify-between gap-2 border-b border-border/50 pb-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-extrabold text-sm text-foreground tracking-tight">
+                                {member.employee?.name}
+                              </span>
+                              {isMe && (
+                                <span className="text-[9px] font-bold bg-primary text-primary-foreground px-2 py-0.5 rounded shadow-sm uppercase tracking-wider">
+                                  You
+                                </span>
+                              )}
+                              {member.role && (
+                                <span className="text-[9px] font-bold bg-mauve-4 text-mauve-11 dark:text-muted-foreground px-2 py-0.5 rounded shadow-sm uppercase tracking-wider border border-mauve-5">
+                                  {member.custom_role || member.role}
+                                </span>
+                              )}
+                              <span
+                                className={`text-[9px] font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider ${
+                                  isDone
+                                    ? "bg-green-9/10 text-green-10 border border-green-500/20"
+                                    : "bg-warning/10 text-amber-10 border border-amber-500/20"
+                                }`}
+                              >
+                                {member.status}
+                              </span>
+                            </div>
+
+                            {task.status === "ACTIVE" && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditClick(member)}
+                                  className="p-1.5 text-muted-foreground hover:text-violet-10 hover:bg-violet-2 rounded-lg transition-colors"
+                                  title="Edit Assignment"
+                                >
+                                  <Edit3 size={14} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveMember(member.id)}
+                                  disabled={isRemovingMember}
+                                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                                  title="Remove Member"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Description */}
+                          {member.task_description?.trim() && (
+                            <div className="flex flex-col gap-1.5">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Specific Task
+                              </label>
+                              <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
+                                {member.task_description}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Checklist — the assignee ticks their own items, and
+                              only until they submit. DONE is what opens them to
+                              grading, so the list has to freeze at the same
+                              moment. */}
+                          {checklistItems.length > 0 && (
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  Checklist
+                                </label>
+                                <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
+                                  {checklistItems.filter((i) => i.checked).length}
+                                  /{checklistItems.length}
+                                </span>
+                              </div>
+                              <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
+                                <ChecklistTaskRenderer
+                                  description={member.checklist}
+                                  isOwner={isMe}
+                                  disabled={!isMe || isDone}
+                                  searchTerm={searchTerm}
+                                  onInlineCheck={(next) => {
+                                    if (onInlineCheck) {
+                                      onInlineCheck(member.id, next);
+                                    } else {
+                                      groupTaskService
+                                        .updateMemberChecklist(
+                                          member.id,
+                                          next,
+                                          task.id,
+                                          currentUserId,
+                                        )
+                                        .catch(console.error);
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {!member.task_description?.trim() &&
+                            checklistItems.length === 0 && (
+                              <p className="text-[13px] text-muted-foreground italic">
+                                No assignment details recorded.
+                              </p>
+                            )}
+
+                          {/* Grade + actions */}
+                          <div className="flex items-end justify-between gap-4 pt-1 mt-auto">
+                            {showGrade ? (
+                              <div className="flex-1">
+                                <div className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                                  Grade
+                                </div>
+                                <div className="flex flex-col gap-1.5">
+                                  <GradeSelector grade={member.grade} finalized />
+                                  {member.grade_remarks && (
+                                    <div className="text-xs text-muted-foreground bg-card border border-border/50 p-2 rounded-lg italic">
+                                      "{member.grade_remarks}"
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ) : (
+                              <div />
+                            )}
+
+                            {isMe &&
+                              member.status === "PENDING" &&
+                              task.status === "ACTIVE" && (
+                                <button
+                                  onClick={() => onMarkDone(member.id)}
+                                  disabled={isMarkingDone || hasUncheckedItems}
+                                  title={
+                                    hasUncheckedItems
+                                      ? "Check all items first"
+                                      : ""
+                                  }
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-green-9 text-primary-foreground rounded-lg text-xs font-bold hover:bg-green-9 transition-colors shadow-sm disabled:opacity-50 ml-auto"
+                                >
+                                  <CheckCircle2 size={16} />
+                                  {isMarkingDone
+                                    ? "Marking..."
+                                    : "Submit for Review"}
+                                </button>
+                              )}
+
+                            {isDone && task.status === "ACTIVE" && (
+                              <button
+                                onClick={() => onRevertDone(member.id)}
+                                disabled={isReverting}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-warning/10 text-amber-10 border border-amber-500/20 rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-warning/20 transition-colors ml-auto"
+                              >
+                                {isReverting ? "..." : "Revert"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-[13px] text-muted-foreground">
+                      No members on this group task yet.
                     </div>
                   )}
                 </div>
-              )}
+              </div>
 
               {/* HR Remarks */}
               {task.hr_remarks && (
@@ -1409,6 +1228,10 @@ export default function GroupTaskDetailModal({
           </div>
         </div>
       </DialogContent>
+      <GroupRoleManagerModal
+        isOpen={isRoleManagerOpen}
+        onClose={() => setIsRoleManagerOpen(false)}
+      />
     </Dialog>
   );
 }

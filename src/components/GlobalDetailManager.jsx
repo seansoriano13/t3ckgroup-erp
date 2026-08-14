@@ -153,11 +153,13 @@ export default function GlobalDetailManager() {
     onError: (err) => toast.error(err.message),
   });
 
-  const updateMemberTaskDescMutation = useMutation({
-    mutationFn: ({ memberId, description }) =>
-      groupTaskService.updateMemberTaskDescription(
+  // See the matching comment in pages/group-tasks/index.jsx: checklist ticks
+  // go to the checklist column, gated to the assignee before DONE.
+  const updateMemberChecklistMutation = useMutation({
+    mutationFn: ({ memberId, checklist }) =>
+      groupTaskService.updateMemberChecklist(
         memberId,
-        description,
+        checklist,
         activeItem?.id,
         user?.id
       ),
@@ -241,7 +243,7 @@ export default function GlobalDetailManager() {
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
             onUpdateMember={(memberId, payload) => updateMemberMutation.mutateAsync({ memberId, payload })}
             onRemoveMember={(memberId) => removeMemberMutation.mutateAsync(memberId)}
-            onInlineCheck={(memberId, description) => updateMemberTaskDescMutation.mutate({ memberId, description })}
+            onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutate({ memberId, checklist })}
             onVerify={() => verifyMutation.mutate({ id: activeItem.id, remarks: "" })}
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
             isMarkingDone={markDoneMutation.isPending}

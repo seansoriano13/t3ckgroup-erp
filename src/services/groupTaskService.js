@@ -343,25 +343,6 @@ export const groupTaskService = {
     return true;
   },
 
-  async updateMemberTaskDescription(memberId, taskDescription, groupTaskId = null, actorId = null) {
-    const { error } = await supabase
-      .from("committee_task_members")
-      .update({ task_description: taskDescription })
-      .eq("id", memberId);
-    if (error) throw error;
-
-    if (groupTaskId && actorId) {
-      await upsertGroupChecklistActivity(
-        groupTaskId,
-        memberId,
-        taskDescription,
-        actorId
-      );
-    }
-
-    return true;
-  },
-
   /**
    * Ticks/unticks checklist items on a member's assignment.
    *

@@ -182,17 +182,22 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message),
   });
 
-  const updateMemberTaskDescMutation = useMutation({
-    mutationFn: ({ memberId, description }) =>
-      groupTaskService.updateMemberTaskDescription(
+  // Ticking a checklist item writes the checklist column, not
+  // task_description — the two are separate fields now. The service refuses
+  // the write unless the actor is the assignee and the assignment is not yet
+  // marked DONE.
+  const updateMemberChecklistMutation = useMutation({
+    mutationFn: ({ memberId, checklist }) =>
+      groupTaskService.updateMemberChecklist(
         memberId,
-        description,
+        checklist,
         selectedTask?.id,
         user?.id,
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
     },
+    onError: (err) => toast.error(err.message),
   });
 
   const verifyMutation = useMutation({
@@ -304,8 +309,8 @@ export default function GroupTasksPage() {
         onRemoveMember={(memberId) =>
           removeMemberMutation.mutateAsync(memberId)
         }
-        onInlineCheck={(memberId, description) =>
-          updateMemberTaskDescMutation.mutate({ memberId, description })
+        onInlineCheck={(memberId, checklist) =>
+          updateMemberChecklistMutation.mutate({ memberId, checklist })
         }
         onVerify={() =>
           verifyMutation.mutate({ id: selectedTaskId, remarks: "" })
