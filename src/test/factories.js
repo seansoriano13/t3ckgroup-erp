@@ -130,10 +130,10 @@ export function makeOffsetLeave(overrides = {}) {
   })
 }
 
-export function makeCommitteeTask(overrides = {}) {
+export function makeGroupTask(overrides = {}) {
   const createdBy = overrides.created_by ?? makeEmployee().id
   return db.seed("committee_tasks", {
-    title: `Committee task ${next()}`,
+    title: `Group task ${next()}`,
     status: "ACTIVE",
     hr_verified: false,
     ...overrides,

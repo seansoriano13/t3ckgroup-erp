@@ -1,0 +1,325 @@
+import { useState, useMemo, useEffect, useRef } from "react";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Maximize2, Minimize2, X, ChevronDown, Check, Calendar } from "lucide-react";
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
+import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
+import Spinner from "@/components/ui/Spinner";
+import { useQuery } from "@tanstack/react-query";
+import { groupRoleService } from "../../../services/groupRoleService";
+import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
+import GroupRoleManagerModal from "./GroupRoleManagerModal";
+import GroupTaskMemberRail from "./GroupTaskMemberRail";
+import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
+import { parseChecklist, hasChecklistContent } from "../utils/checklist";
+
+const makeMember = () => ({
+  id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  employeeId: null,
+  taskDescription: "",
+  checklist: null,
+  showChecklist: false,
+  role: "",
+  customRole: "",
+  isRemoving: false,
+});
+
+export default function CreateGroupTaskModal({
+  isOpen,
+  onClose,
+  user,
+  employees,
+  onSubmit,
+  isSubmitting,
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState(null);
+  const [members, setMembers] = useState(() => [makeMember()]);
+  const [selectedMemberId, setSelectedMemberId] = useState(null);
+
+  const titleRef = useRef(null);
+  const avatarMap = useEmployeeAvatarMap();
+
+  useEffect(() => {
+    if (isOpen) {
+      const first = makeMember();
+      setTitle("");
+      setDescription("");
+      setDueDate(null);
+      setMembers([first]);
+      setSelectedMemberId(first.id);
+      setTimeout(() => titleRef.current?.focus(), 150);
+    }
+  }, [isOpen]);
+
+  const employeeOptions = useMemo(() => {
+    return employees
+      .filter((e) => !e.is_super_admin)
+      .map((e) => ({ value: e.id, label: e.name, department: e.department }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [employees]);
+
+  const { data: roles = [], isLoading: isRolesLoading } = useQuery({
+    queryKey: ["groupRoles"],
+    queryFn: groupRoleService.getRoles,
+    enabled: isOpen,
+  });
+
+  const selectedMember = members.find((m) => m.id === selectedMemberId) || null;
+
+  const handleAddMember = () => {
+    const next = makeMember();
+    setMembers((prev) => [...prev, next]);
+    setSelectedMemberId(next.id);
+  };
+
+  const handleRemoveMember = (id) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, isRemoving: true } : m)),
+    );
+    setTimeout(() => {
+      setMembers((prev) => {
+        const remaining = prev.filter((m) => m.id !== id);
+        // Keep something selected, otherwise the panel empties out and the
+        // modal looks broken after a delete.
+        if (id === selectedMemberId) {
+          setSelectedMemberId(remaining[0]?.id ?? null);
+        }
+        return remaining;
+      });
+    }, 250);
+  };
+
+  const handleMemberChange = (id, field, value) => {
+    setMembers((prev) =>
+      prev.map((m) => (m.id === id ? { ...m, [field]: value } : m)),
+    );
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!title.trim()) {
+      toast.error("Title is required.");
+      return;
+    }
+
+    // An assignment counts as filled in if it has description text OR at least
+    // one non-empty checklist item — the two are alternatives now, not a
+    // toggle between mutually exclusive fields.
+    const validMembers = members.filter(
+      (m) =>
+        m.employeeId &&
+        (m.taskDescription.trim() || hasChecklistContent(m.checklist)),
+    );
+
+    if (validMembers.length === 0) {
+      toast.error("Add at least one member with a task description or checklist.");
+      return;
+    }
+
+    const skipped = members.length - validMembers.length;
+    if (skipped > 0) {
+      toast(
+        `${skipped} incomplete member ${skipped === 1 ? "card was" : "cards were"} skipped.`,
+        { icon: "⚠️" },
+      );
+    }
+
+    onSubmit({
+      title,
+      description,
+      dueDate,
+      createdBy: user.id,
+      members: validMembers.map((m) => {
+        const items = parseChecklist(m.checklist).filter((i) => i?.text?.trim());
+        return {
+          employeeId: m.employeeId,
+          taskDescription: m.taskDescription.trim(),
+          checklist: items.length > 0 ? items : null,
+          role: m.role,
+          customRole: m.customRole,
+        };
+      }),
+    });
+  };
+
+  return (
+    <>
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          showCloseButton={false}
+          className={`p-0 gap-0 z-[70] shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] flex flex-col transition-all duration-300 overflow-hidden ${
+            isExpanded
+              ? // Same override set the detail modal already uses — the bare
+                // utilities lose to DialogContent's own centering classes.
+                "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
+              : "w-[1120px] max-w-[95vw] sm:max-w-none max-h-[90vh] rounded-2xl"
+          }`}
+        >
+          {/* HEADER */}
+          <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-mauve-3/40 shrink-0">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="w-[18px] h-[18px] rounded flex items-center justify-center bg-primary text-primary-foreground font-bold text-[9px] shrink-0">
+                {user?.department?.charAt(0)?.toUpperCase() || "G"}
+              </div>
+              <ChevronDown size={11} className="text-mauve-6 rotate-[-90deg]" />
+              <span className="font-medium text-muted-foreground/80">
+                New Group Task
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                title={isExpanded ? "Exit full screen" : "Full screen"}
+              >
+                {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </div>
+
+          <form
+            id="create-group-task-form"
+            onSubmit={handleSubmit}
+            className="flex-1 flex flex-col min-h-0"
+          >
+            {/* TASK-LEVEL FIELDS */}
+            <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border/60">
+              <input
+                ref={titleRef}
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Group Task Title"
+                className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
+                autoComplete="off"
+              />
+
+              <div className="flex items-start gap-6 flex-wrap">
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Provide an overview of the group task objective…"
+                  className={`flex-1 min-w-[260px] bg-transparent border-none outline-none transition-all resize-y text-[13px] text-foreground placeholder:text-mauve-6 ${
+                    isExpanded ? "h-20" : "h-14"
+                  }`}
+                />
+
+                <div className="flex flex-col shrink-0">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Target Due Date
+                  </span>
+                  <div className="relative">
+                    <DatePicker
+                      selected={dueDate}
+                      onChange={(date) => setDueDate(date)}
+                      showTimeSelect
+                      timeIntervals={15}
+                      dateFormat="MMMM d, yyyy h:mm aa"
+                      placeholderText="Optional due date & time"
+                      className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
+                    />
+                    <Calendar
+                      size={13}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* MASTER / DETAIL */}
+            <div className="flex-1 flex min-h-0">
+              <div className="w-[260px] shrink-0 min-h-0">
+                <GroupTaskMemberRail
+                  members={members}
+                  selectedId={selectedMemberId}
+                  onSelect={setSelectedMemberId}
+                  onAdd={handleAddMember}
+                  onRemove={handleRemoveMember}
+                  currentUserId={user?.id}
+                  avatarMap={avatarMap}
+                  resolveEmployee={(m) =>
+                    employees.find((e) => e.id === m.employeeId)
+                  }
+                  mode="create"
+                />
+              </div>
+
+              <div className="flex-1 flex flex-col min-h-0 min-w-0">
+                <GroupTaskMemberPanel
+                  member={selectedMember}
+                  employeeOptions={employeeOptions}
+                  roles={roles}
+                  isRolesLoading={isRolesLoading}
+                  onManageRoles={() => setIsRoleManagerOpen(true)}
+                  onChange={(field, value) =>
+                    handleMemberChange(selectedMemberId, field, value)
+                  }
+                />
+              </div>
+            </div>
+          </form>
+
+          {/* FOOTER */}
+          <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+            <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
+              <div className="flex items-center gap-1">
+                <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded text-muted-foreground font-sans text-[9px]">
+                  Esc
+                </kbd>
+                <span>to cancel</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 ml-auto">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={onClose}
+                className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                form="create-group-task-form"
+                disabled={isSubmitting}
+                className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Spinner size="sm" className="mr-2" />
+                    <span>Creating…</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} strokeWidth={3} className="mr-1.5" />
+                    <span>Create Group Task</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <GroupRoleManagerModal
+        isOpen={isRoleManagerOpen}
+        onClose={() => setIsRoleManagerOpen(false)}
+      />
+    </>
+  );
+}

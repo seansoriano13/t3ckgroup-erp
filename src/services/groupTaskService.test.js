@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { committeeTaskService } from "./committeeTaskService"
+import { groupTaskService } from "./groupTaskService"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
 
 /**
- * A committee task is one piece of work split across several people, each with
+ * A group task is one piece of work split across several people, each with
  * their own assignment and grade. It completes itself once every member is
  * done, and only the people involved should be able to see or move it.
  */
-describe("committeeTaskService", () => {
+describe("groupTaskService", () => {
   let creator
   let alice
   let bob
@@ -21,7 +21,7 @@ describe("committeeTaskService", () => {
   })
 
   const createTask = (overrides = {}) =>
-    committeeTaskService.createCommitteeTask({
+    groupTaskService.createGroupTask({
       title: "Year-end inventory",
       description: "Count everything in the warehouse",
       dueDate: "2026-04-30",
@@ -34,7 +34,7 @@ describe("committeeTaskService", () => {
     })
 
   const membersOf = async (taskId) => {
-    const task = await committeeTaskService.getCommitteeTaskById(taskId)
+    const task = await groupTaskService.getGroupTaskById(taskId)
     return task.members
   }
 
@@ -50,9 +50,9 @@ describe("committeeTaskService", () => {
       expect(members.every((m) => m.status === "PENDING")).toBe(true)
     })
 
-    it("refuses a committee task with nobody on it", async () => {
+    it("refuses a group task with nobody on it", async () => {
       await expect(createTask({ members: [] })).rejects.toThrow(
-        "Add at least one member to the committee task",
+        "Add at least one member to the group task",
       )
       expect(db.rows("committee_tasks")).toEqual([])
     })
@@ -71,23 +71,23 @@ describe("committeeTaskService", () => {
     it("opens the history with the creation", async () => {
       const task = await createTask()
 
-      const history = await committeeTaskService.getCommitteeTaskHistory(task.id)
+      const history = await groupTaskService.getGroupTaskHistory(task.id)
       expect(history.map((h) => h.action)).toContain("CREATED")
     })
   })
 
   describe("who can see it", () => {
-    it("shows a super admin every committee task", async () => {
+    it("shows a super admin every group task", async () => {
       const otherHead = makeHead({ name: "Other Head" })
       await createTask()
-      await committeeTaskService.createCommitteeTask({
+      await groupTaskService.createGroupTask({
         title: "Unrelated",
         createdBy: otherHead.id,
         members: [{ employeeId: otherHead.id, taskDescription: "Solo" }],
       })
       const boss = makeSuperAdmin({ name: "Boss" })
 
-      const visible = await committeeTaskService.getCommitteeTasks(boss.id, false, true)
+      const visible = await groupTaskService.getGroupTasks(boss.id, false, true)
 
       expect(visible).toHaveLength(2)
     })
@@ -95,7 +95,7 @@ describe("committeeTaskService", () => {
     it("shows a member the task they are on", async () => {
       const task = await createTask()
 
-      const visible = await committeeTaskService.getCommitteeTasks(alice.id, false, false)
+      const visible = await groupTaskService.getGroupTasks(alice.id, false, false)
 
       expect(visible.map((t) => t.id)).toEqual([task.id])
     })
@@ -104,23 +104,23 @@ describe("committeeTaskService", () => {
       await createTask()
       const outsider = makeEmployee({ name: "Outsider" })
 
-      expect(await committeeTaskService.getCommitteeTasks(outsider.id, false, false)).toEqual([])
+      expect(await groupTaskService.getGroupTasks(outsider.id, false, false)).toEqual([])
     })
 
     it("shows the creator their own task", async () => {
       const task = await createTask()
 
-      const visible = await committeeTaskService.getCommitteeTasks(creator.id, true, false)
+      const visible = await groupTaskService.getGroupTasks(creator.id, true, false)
 
       expect(visible.map((t) => t.id)).toEqual([task.id])
     })
 
     it("hides a cancelled task from everyone", async () => {
       const task = await createTask()
-      await committeeTaskService.cancelCommitteeTask(task.id, creator.id)
+      await groupTaskService.cancelGroupTask(task.id, creator.id)
       const boss = makeSuperAdmin({ name: "Boss" })
 
-      expect(await committeeTaskService.getCommitteeTasks(boss.id, false, true)).toEqual([])
+      expect(await groupTaskService.getGroupTasks(boss.id, false, true)).toEqual([])
     })
   })
 
@@ -131,7 +131,7 @@ describe("committeeTaskService", () => {
         (m) => m.employee_id === alice.id,
       )
 
-      await committeeTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
+      await groupTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
 
       const updated = (await membersOf(task.id)).find((m) => m.employee_id === alice.id)
       expect(updated.status).toBe("DONE")
@@ -144,7 +144,7 @@ describe("committeeTaskService", () => {
       )
 
       await expect(
-        committeeTaskService.updateMemberStatus(aliceAssignment.id, "DONE", creator.id),
+        groupTaskService.updateMemberStatus(aliceAssignment.id, "DONE", creator.id),
       ).resolves.toBe(true)
     })
 
@@ -155,7 +155,7 @@ describe("committeeTaskService", () => {
       )
 
       await expect(
-        committeeTaskService.updateMemberStatus(aliceAssignment.id, "DONE", bob.id),
+        groupTaskService.updateMemberStatus(aliceAssignment.id, "DONE", bob.id),
       ).rejects.toThrow("Unauthorized to update this task")
     })
 
@@ -165,9 +165,9 @@ describe("committeeTaskService", () => {
         (m) => m.employee_id === alice.id,
       )
 
-      await committeeTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
+      await groupTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
 
-      expect((await committeeTaskService.getCommitteeTaskById(task.id)).status).toBe("ACTIVE")
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
     })
 
     it("completes the task once the last member is done", async () => {
@@ -175,10 +175,10 @@ describe("committeeTaskService", () => {
       const members = await membersOf(task.id)
 
       for (const member of members) {
-        await committeeTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
+        await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
       }
 
-      expect((await committeeTaskService.getCommitteeTaskById(task.id)).status).toBe("COMPLETED")
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("COMPLETED")
     })
 
     it("tells the creator when a member finishes", async () => {
@@ -189,12 +189,12 @@ describe("committeeTaskService", () => {
         (m) => m.employee_id === alice.id,
       )
 
-      await committeeTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
+      await groupTaskService.updateMemberStatus(aliceAssignment.id, "DONE", alice.id)
       await waitForNetworkIdle()
 
       const added = db.rows("notifications").slice(before)
       expect(added.map((n) => n.recipient_id)).toEqual([creator.id])
-      expect(added[0].type).toBe("COMMITTEE_MEMBER_DONE")
+      expect(added[0].type).toBe("GROUP_MEMBER_DONE")
     })
 
     it("does not notify the creator about their own update", async () => {
@@ -205,7 +205,7 @@ describe("committeeTaskService", () => {
       const before = db.rows("notifications").length
       const [assignment] = await membersOf(task.id)
 
-      await committeeTaskService.updateMemberStatus(assignment.id, "DONE", creator.id)
+      await groupTaskService.updateMemberStatus(assignment.id, "DONE", creator.id)
       await waitForNetworkIdle()
 
       expect(db.rows("notifications")).toHaveLength(before)
@@ -217,7 +217,7 @@ describe("committeeTaskService", () => {
       const task = await createTask()
       const members = await membersOf(task.id)
 
-      await committeeTaskService.rateMembers(
+      await groupTaskService.rateMembers(
         task.id,
         members.map((m) => ({ memberId: m.id, grade: 4, gradeRemarks: "Thorough" })),
         creator.id,
@@ -232,28 +232,28 @@ describe("committeeTaskService", () => {
       const task = await createTask()
       const members = await membersOf(task.id)
 
-      await committeeTaskService.rateMembers(
+      await groupTaskService.rateMembers(
         task.id,
         members.map((m) => ({ memberId: m.id, grade: 3 })),
         creator.id,
       )
 
-      expect((await committeeTaskService.getCommitteeTaskById(task.id)).status).toBe("HR_PENDING")
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("HR_PENDING")
     })
 
     it("clears an earlier HR rejection when the task is graded again", async () => {
       const hr = makeHrEmployee({ name: "HR Officer" })
       const task = await createTask()
       const members = await membersOf(task.id)
-      await committeeTaskService.rejectCommitteeTask(task.id, hr.id, "Recount aisle B")
+      await groupTaskService.rejectGroupTask(task.id, hr.id, "Recount aisle B")
 
-      await committeeTaskService.rateMembers(
+      await groupTaskService.rateMembers(
         task.id,
         members.map((m) => ({ memberId: m.id, grade: 4 })),
         creator.id,
       )
 
-      expect((await committeeTaskService.getCommitteeTaskById(task.id)).hr_remarks).toBeNull()
+      expect((await groupTaskService.getGroupTaskById(task.id)).hr_remarks).toBeNull()
     })
   })
 
@@ -261,11 +261,11 @@ describe("committeeTaskService", () => {
     it("marks the task verified", async () => {
       const hr = makeHrEmployee({ name: "HR Officer" })
       const task = await createTask()
-      await committeeTaskService.markCommitteeTaskComplete(task.id, creator.id)
+      await groupTaskService.markGroupTaskComplete(task.id, creator.id)
 
-      await committeeTaskService.verifyCommitteeTask(task.id, hr.id, "Checked the counts")
+      await groupTaskService.verifyGroupTask(task.id, hr.id, "Checked the counts")
 
-      const verified = await committeeTaskService.getCommitteeTaskById(task.id)
+      const verified = await groupTaskService.getGroupTaskById(task.id)
       expect(verified.hr_verified).toBe(true)
       expect(verified.hr_verified_by).toBe(hr.id)
     })
@@ -275,12 +275,12 @@ describe("committeeTaskService", () => {
       const task = await createTask()
       const members = await membersOf(task.id)
       for (const member of members) {
-        await committeeTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
+        await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
       }
 
-      await committeeTaskService.rejectCommitteeTask(task.id, hr.id, "Recount aisle B")
+      await groupTaskService.rejectGroupTask(task.id, hr.id, "Recount aisle B")
 
-      const rejected = await committeeTaskService.getCommitteeTaskById(task.id)
+      const rejected = await groupTaskService.getGroupTaskById(task.id)
       expect(rejected.hr_verified).toBe(false)
       expect(rejected.hr_remarks).toBe("Recount aisle B")
     })
@@ -291,10 +291,10 @@ describe("committeeTaskService", () => {
       const task = await createTask()
       const [assignment] = await membersOf(task.id)
 
-      await committeeTaskService.updateMemberTaskDescription(
+      await groupTaskService.updateMemberAssignment(
         assignment.id,
-        "Count aisles A and C",
         task.id,
+        { taskDescription: "Count aisles A and C" },
         creator.id,
       )
 
@@ -302,11 +302,96 @@ describe("committeeTaskService", () => {
       expect(updated.task_description).toBe("Count aisles A and C")
     })
 
+    it("leaves the checklist alone when an edit does not mention it", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: false }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberAssignment(
+        assignment.id,
+        task.id,
+        { taskDescription: "Count aisle A twice" },
+        creator.id,
+      )
+
+      const updated = (await membersOf(task.id)).find((m) => m.id === assignment.id)
+      expect(updated.checklist).toEqual([{ text: "Shelf 1", checked: false }])
+    })
+
+    it("lets the assignee tick their own checklist items", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: false }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+
+      await groupTaskService.updateMemberChecklist(
+        assignment.id,
+        [{ text: "Shelf 1", checked: true }],
+        task.id,
+        alice.id,
+      )
+
+      const updated = (await membersOf(task.id)).find((m) => m.id === assignment.id)
+      expect(updated.checklist).toEqual([{ text: "Shelf 1", checked: true }])
+    })
+
+    it("refuses a checklist tick from anyone but the assignee", async () => {
+      const task = await createTask()
+      const [assignment] = await membersOf(task.id)
+
+      await expect(
+        groupTaskService.updateMemberChecklist(
+          assignment.id,
+          [{ text: "Shelf 1", checked: true }],
+          task.id,
+          bob.id,
+        ),
+      ).rejects.toThrow("Only the assigned member can update this checklist.")
+    })
+
+    it("freezes the checklist once the assignment is marked done", async () => {
+      const task = await createTask({
+        members: [
+          {
+            employeeId: alice.id,
+            taskDescription: "Count aisle A",
+            checklist: [{ text: "Shelf 1", checked: true }],
+          },
+        ],
+      })
+      const [assignment] = await membersOf(task.id)
+      await groupTaskService.updateMemberStatus(assignment.id, "DONE", alice.id)
+      await waitForNetworkIdle()
+
+      // Grading keys off DONE, so the evidence must stop moving at that point.
+      await expect(
+        groupTaskService.updateMemberChecklist(
+          assignment.id,
+          [{ text: "Shelf 1", checked: false }],
+          task.id,
+          alice.id,
+        ),
+      ).rejects.toThrow("already marked done")
+    })
+
     it("removes a member from the task", async () => {
       const task = await createTask()
       const [assignment] = await membersOf(task.id)
 
-      await committeeTaskService.removeMemberFromTask(assignment.id, task.id, creator.id)
+      await groupTaskService.removeMemberFromTask(assignment.id, task.id, creator.id)
 
       expect(await membersOf(task.id)).toHaveLength(1)
     })

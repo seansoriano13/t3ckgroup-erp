@@ -4,7 +4,7 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import { useAuth } from "../../../context/AuthContext";
 import { taskActivityService } from "../../../services/tasks/taskActivityService";
 import { employeeService } from "../../../services/employeeService";
-import { committeeTaskActivityService } from "../../../services/committeeTaskActivityService";
+import { groupTaskActivityService } from "../../../services/groupTaskActivityService";
 import { systemAuditLogService } from "../../../services/systemAuditLogService";
 import { opportunityService } from "../../../services/opportunityService";
 import Avatar from "../../../components/Avatar.jsx";
@@ -35,7 +35,7 @@ const PAGE_SIZE = 50;
 
 const TABS = [
   { id: "TASKS", label: "Task Logs", saOnly: true },
-  { id: "COMMITTEE", label: "Group Task Logs", saOnly: true },
+  { id: "GROUP", label: "Group Task Logs", saOnly: true },
   { id: "SOR", label: "SOR Logs", saOnly: true },
   { id: "SYSTEM", label: "System Logs", saOnly: true },
   { id: "HR", label: "HR Logs" },
@@ -223,8 +223,8 @@ export default function SuperAdminActivityLogPage() {
     let sub;
     if (activeTab === "TASKS")
       sub = taskActivityService.subscribeToAllActivity(handleNewEntry);
-    else if (activeTab === "COMMITTEE")
-      sub = committeeTaskActivityService.subscribeToAllActivity(handleNewEntry);
+    else if (activeTab === "GROUP")
+      sub = groupTaskActivityService.subscribeToAllActivity(handleNewEntry);
     else if (activeTab === "SYSTEM")
       sub = systemAuditLogService.subscribeToAllActivity(handleNewEntry);
 
@@ -232,8 +232,8 @@ export default function SuperAdminActivityLogPage() {
       if (sub) {
         if (activeTab === "TASKS")
           taskActivityService.unsubscribeFromActivity(sub);
-        else if (activeTab === "COMMITTEE")
-          committeeTaskActivityService.unsubscribeFromActivity(sub);
+        else if (activeTab === "GROUP")
+          groupTaskActivityService.unsubscribeFromActivity(sub);
         else if (activeTab === "SYSTEM")
           systemAuditLogService.unsubscribeFromActivity(sub);
       }
@@ -273,8 +273,8 @@ export default function SuperAdminActivityLogPage() {
         search: filters.search,
       };
 
-      if (activeTab === "COMMITTEE")
-        return committeeTaskActivityService.getRecentCommitteeActivity(params);
+      if (activeTab === "GROUP")
+        return groupTaskActivityService.getRecentGroupActivity(params);
       if (activeTab === "SYSTEM")
         return systemAuditLogService.getRecentSystemActivity(params);
       if (activeTab === "SOR")
@@ -301,7 +301,7 @@ export default function SuperAdminActivityLogPage() {
       return true;
     });
 
-    // Consolidate redundant logs (tasks/committee only)
+    // Consolidate redundant logs (tasks/group only)
     if (activeTab === "SYSTEM" || activeTab === "SOR") return raw;
 
     const consolidated = [];
@@ -387,7 +387,7 @@ export default function SuperAdminActivityLogPage() {
     if (activeTab === "SYSTEM" || activeTab === "SOR") return;
     const typeMap = {
       TASKS: "TASK",
-      COMMITTEE: "COMMITTEE_TASK",
+      GROUP: "GROUP_TASK",
     };
     if (!typeMap[activeTab] || !e.taskId) return;
     window.dispatchEvent(
@@ -593,9 +593,9 @@ export default function SuperAdminActivityLogPage() {
                           <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                             {e.type || "SYSTEM"}
                           </p>
-                          {e.isCommittee && (
+                          {e.isGroup && (
                             <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-sm bg-violet-3 text-violet-11 border border-violet-5">
-                              Committee Task
+                              Group Task
                             </span>
                           )}
                           {/* Entity type badge for SYSTEM logs */}

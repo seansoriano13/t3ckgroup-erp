@@ -31,9 +31,9 @@ import { Link, useNavigate, NavLink } from "react-router";
 import Avatar from "./Avatar";
 import { useState } from "react";
 import LogTaskModal from "./LogTaskModal";
-import CreateCommitteeTaskModal from "../pages/committee/components/CreateCommitteeTaskModal";
+import CreateGroupTaskModal from "../pages/group-tasks/components/CreateGroupTaskModal";
 import Dropdown from "./ui/Dropdown";
-import { committeeTaskService } from "../services/committeeTaskService";
+import { groupTaskService } from "../services/groupTaskService";
 import { employeeService } from "../services/employeeService";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -51,7 +51,7 @@ export default function SideNav() {
   // Mobile Toggle State
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isLogTaskOpen, setIsLogTaskOpen] = useState(false);
-  const [isCreateCommitteeOpen, setIsCreateCommitteeOpen] = useState(false);
+  const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
   const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
@@ -99,12 +99,12 @@ export default function SideNav() {
     enabled: !!user?.id && canManage,
   });
 
-  const createCommitteeMutation = useMutation({
-    mutationFn: (payload) => committeeTaskService.createCommitteeTask(payload),
+  const createGroupMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.createGroupTask(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["committeeTasks"] });
-      toast.success("Committee (Group) Task created!");
-      setIsCreateCommitteeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task created!");
+      setIsCreateGroupOpen(false);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -134,7 +134,7 @@ export default function SideNav() {
     groups.main.links = [
       { label: "Dashboard", link: "/", icon: LayoutList },
       { label: "Tasks", link: "/tasks", icon: ListCheck },
-      { label: "Committee (Group) Tasks", link: "/committee", icon: UsersRound },
+      { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
       { label: "Leaves & Overtime", link: "/offsets", icon: Clock },
     ];
     groups.approvals.links = [
@@ -165,7 +165,7 @@ export default function SideNav() {
     if (hasTask) {
       groups.main.links.push(
         { label: "Tasks", link: "/tasks", icon: ListCheck },
-        { label: "Committee (Group) Tasks", link: "/committee", icon: UsersRound },
+        { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
       );
     }
 
@@ -412,7 +412,7 @@ export default function SideNav() {
                       onClick={() => {
                         close();
                         setIsMobileOpen(false);
-                        setIsCreateCommitteeOpen(true);
+                        setIsCreateGroupOpen(true);
                       }}
                       className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
                     >
@@ -596,13 +596,13 @@ export default function SideNav() {
         onClose={() => setIsLogTaskOpen(false)}
       />
       {canManage && (
-        <CreateCommitteeTaskModal
-          isOpen={isCreateCommitteeOpen}
-          onClose={() => setIsCreateCommitteeOpen(false)}
+        <CreateGroupTaskModal
+          isOpen={isCreateGroupOpen}
+          onClose={() => setIsCreateGroupOpen(false)}
           user={user}
           employees={employees}
-          onSubmit={(payload) => createCommitteeMutation.mutateAsync(payload)}
-          isSubmitting={createCommitteeMutation.isPending}
+          onSubmit={(payload) => createGroupMutation.mutateAsync(payload)}
+          isSubmitting={createGroupMutation.isPending}
         />
       )}
       <ApplyLeaveModal

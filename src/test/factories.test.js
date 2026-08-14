@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   makeCategory,
-  makeCommitteeTask,
+  makeGroupTask,
   makeEmployee,
   makeHead,
   makeHrEmployee,
@@ -36,7 +36,7 @@ describe("fixture factories", () => {
       makeSilLeave()
       makeOvertimeRequest()
       makeOffsetLeave()
-      makeCommitteeTask()
+      makeGroupTask()
       makeLeadSource()
       makeNotification()
     }).not.toThrow()

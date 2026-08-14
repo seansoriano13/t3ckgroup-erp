@@ -88,7 +88,7 @@ describe("activeChatService", () => {
     it("archives several threads at once", async () => {
       await activeChatService.archiveChats(user.id, [
         { entityType: "TASK", entityId: "task-1" },
-        { entityType: "COMMITTEE_TASK", entityId: "ct-1" },
+        { entityType: "GROUP_TASK", entityId: "ct-1" },
       ])
 
       expect(db.rows("chat_user_archives")).toHaveLength(2)

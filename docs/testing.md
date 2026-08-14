@@ -100,7 +100,7 @@ covered in `src/context/AuthContext.test.jsx`.
 
 `makeEmployee`, `makeHrEmployee`, `makeHead`, `makeSuperAdmin`, `makeCategory`,
 `makeTask`, `makeOpportunity`, `makeOpportunityItem`, `makeSilLeave`,
-`makeOvertimeRequest`, `makeOffsetLeave`, `makeCommitteeTask`,
+`makeOvertimeRequest`, `makeOffsetLeave`, `makeGroupTask`,
 `makeLeadSource`, `makeNotification`.
 
 Each seeds the minimum its table's constraints require and creates its owning

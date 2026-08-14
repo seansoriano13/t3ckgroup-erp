@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 
-export const committeeRoleService = {
+export const groupRoleService = {
   getRoles: async () => {
     const { data, error } = await supabase
       .from("committee_roles")

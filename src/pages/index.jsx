@@ -13,7 +13,7 @@ import { opportunityService } from "../services/opportunityService.js";
 import FloatingMonthPicker from "../components/FloatingMonthPicker.jsx";
 import SystemUpdateBanner from "../components/SystemUpdateBanner.jsx";
 import PersonalizedHeroBanner from "../components/PersonalizedHeroBanner.jsx";
-import CommitteeTasksList from "../components/CommitteeTasksList.jsx";
+import GroupTasksList from "../components/GroupTasksList.jsx";
 import PageHeader from "../components/ui/PageHeader";
 import PageContainer from "../components/ui/PageContainer";
 
@@ -91,7 +91,7 @@ export default function Dashboard() {
             )}
 
             <TasksList selectedRange={globalRange} />
-            <CommitteeTasksList selectedRange={globalRange} />
+            <GroupTasksList selectedRange={globalRange} />
           </div>
         </div>
       </PageContainer>

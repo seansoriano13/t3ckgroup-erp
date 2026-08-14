@@ -10,16 +10,18 @@ export type Path =
   | `/approvals/components/ApprovalRow`
   | `/approvals/components/BulkDeclineModal`
   | `/approvals/components/BulkGradeModal`
-  | `/approvals/components/CommitteeApprovalSection`
+  | `/approvals/components/GroupTaskApprovalSection`
   | `/approvals/hr-verification`
   | `/approvals/hr-verification/components/BulkVerifyModal`
   | `/approvals/tasks`
-  | `/committee`
-  | `/committee/components/CommitteeRoleManagerModal`
-  | `/committee/components/CommitteeTaskCard`
-  | `/committee/components/CommitteeTaskDetailModal`
-  | `/committee/components/CreateCommitteeTaskModal`
-  | `/committee/components/RateEmployeesModal`
+  | `/group-tasks`
+  | `/group-tasks/components/CreateGroupTaskModal`
+  | `/group-tasks/components/GroupRoleManagerModal`
+  | `/group-tasks/components/GroupTaskCard`
+  | `/group-tasks/components/GroupTaskDetailModal`
+  | `/group-tasks/components/GroupTaskMemberPanel`
+  | `/group-tasks/components/GroupTaskMemberRail`
+  | `/group-tasks/components/RateEmployeesModal`
   | `/hr-master-log`
   | `/hr/management`
   | `/hr/offsets`

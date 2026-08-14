@@ -68,7 +68,7 @@ function HistoryItem({ log, type = "TASK" }) {
     actorName = log.authorName || "System"
     actorAvatar = log.authorAvatar
     createdAt = log.createdAt
-  } else if (type === "COMMITTEE") {
+  } else if (type === "GROUP") {
     action = log.action
     details = log.details
     actorName = log.actor?.name || "System"
@@ -262,7 +262,7 @@ function HistoryItem({ log, type = "TASK" }) {
       )
     }
 
-    // Ratings (Committee Task)
+    // Ratings (Group Task)
     if (details.ratings && Array.isArray(details.ratings)) {
       return (
         <div className="mt-3 space-y-2">
@@ -288,7 +288,7 @@ function HistoryItem({ log, type = "TASK" }) {
       )
     }
 
-    // Members (Committee Task)
+    // Members (Group Task)
     if (details.members && Array.isArray(details.members)) {
       return (
         <div className="mt-3 space-y-2">
@@ -387,7 +387,7 @@ function HistoryItem({ log, type = "TASK" }) {
           </div>
 
           <p className="text-sm text-muted-foreground leading-relaxed">
-            {log.content || (type === "COMMITTEE" ? "" : "")}
+            {log.content || (type === "GROUP" ? "" : "")}
           </p>
 
           {renderDiff()}

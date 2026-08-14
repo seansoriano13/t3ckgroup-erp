@@ -90,14 +90,23 @@ const TYPE_ICONS = {
   TASK_COMPLETED: <Trophy size={18} className="text-green-9" />,
   NEW_TASK_SUBMITTED: <Clock size={18} className="text-amber-500" />,
   TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
+  GROUP_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
+  GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
+  GROUP_TASK_READY_FOR_HR: (
+    <CheckCircle2 size={18} className="text-violet-10" />
+  ),
+  GROUP_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
+  OPPORTUNITY_REGISTERED: <Target size={18} className="text-primary" />,
+  OPPORTUNITY_STAGE_CHANGED: <TrendingUp size={18} className="text-blue-600" />,
+  // TODO: transition shim — drop with LEGACY_TYPE_ALIASES in notificationRouter.js.
+  // Pre-rename rows still carry COMMITTEE_*; without these they fall back to the
+  // generic bell icon.
   COMMITTEE_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
   COMMITTEE_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
   COMMITTEE_TASK_READY_FOR_HR: (
     <CheckCircle2 size={18} className="text-violet-10" />
   ),
   COMMITTEE_MEMBER_DONE: <CheckCircle2 size={18} className="text-green-500" />,
-  OPPORTUNITY_REGISTERED: <Target size={18} className="text-primary" />,
-  OPPORTUNITY_STAGE_CHANGED: <TrendingUp size={18} className="text-blue-600" />,
 };
 
 const getIconForType = (type) =>
@@ -119,7 +128,7 @@ const buildTabs = (user) => [
 const filterNotifs = (notifications, tab) => {
   if (tab === "TASKS")
     return notifications.filter(
-      (n) => n.type.includes("TASK") || n.type.includes("COMMITTEE"),
+      (n) => n.type.includes("TASK") || n.type.includes("GROUP"),
     );
   if (tab === "OPPORTUNITIES")
     return notifications.filter((n) => n.type.startsWith("OPPORTUNITY_"));

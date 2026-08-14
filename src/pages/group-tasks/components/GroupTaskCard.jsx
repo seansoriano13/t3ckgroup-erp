@@ -1,6 +1,6 @@
 import { CheckCircle2, Calendar, Clock, AlertTriangle } from "lucide-react";
 import StatusBadge from "../../../components/StatusBadge";
-import { formatChecklistToString } from "../../../utils/taskFormatters";
+import { formatChecklistToString, formatTaskPreview } from "../../../utils/taskFormatters";
 import GradeSelector from "../../../components/GradeSelector";
 import Avatar from "../../../components/Avatar";
 import AvatarGroup from "../../../components/AvatarGroup";
@@ -9,7 +9,7 @@ import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 
 
-export default function CommitteeTaskCard({
+export default function GroupTaskCard({
   task,
   onView,
   currentUserId,
@@ -117,7 +117,14 @@ export default function CommitteeTaskCard({
             )}
           </div>
           <p className="text-sm font-bold text-foreground line-clamp-2 break-words mb-3 leading-tight">
-            <HighlightText text={formatChecklistToString(myMember.task_description)} search={searchTerm} />
+            <HighlightText
+              text={
+                myMember.task_description?.trim()
+                  ? formatChecklistToString(myMember.task_description)
+                  : formatTaskPreview(myMember.task_description, myMember.checklist)
+              }
+              search={searchTerm}
+            />
           </p>
 
           <div className="flex items-center justify-between mt-2">

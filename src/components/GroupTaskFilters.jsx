@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
 
-export default function CommitteeTaskFilters({
+export default function GroupTaskFilters({
   searchTerm,
   setSearchTerm,
   statusFilter,
