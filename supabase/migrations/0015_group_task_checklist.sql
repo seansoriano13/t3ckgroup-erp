@@ -11,9 +11,18 @@
 --
 -- Mirrors migrate_checklist.sql, which did the same for the tasks table.
 -- Idempotent: safe to re-run.
+-- Runs as one transaction, so a failure part-way through the conversion below
+-- cannot leave some assignments moved and others not.
+--
+-- REQUIRED BEFORE DEPLOY: groupTaskService selects this column, so the group
+-- task list returns an error until this migration has run.
 -- ==============================================================================
 
+begin;
+
 -- ── 1. Add the checklist column ──────────────────────────────────────────────
+-- Nullable with no default, so this is a catalog-only change: no table rewrite,
+-- no lengthy lock.
 alter table public.committee_task_members
   add column if not exists checklist jsonb;
 
@@ -27,6 +36,8 @@ do $$
 declare
   r record;
   parsed jsonb;
+  is_json boolean;
+  moved int := 0;
 begin
   for r in
     select id, task_description
@@ -39,26 +50,39 @@ begin
         left(btrim(task_description), 1) = '{'
       )
   loop
+    is_json := true;
     begin
       parsed := r.task_description::jsonb;
     exception when others then
       -- Not valid JSON despite the leading bracket. Leave the row untouched.
-      continue;
+      is_json := false;
     end;
+
+    if not is_json then
+      continue;
+    end if;
 
     -- Legacy shape {title, items} stored the array under `items`; the newer
     -- shape is a bare array. ChecklistTaskInput already reads both, but only
     -- the array form is worth carrying forward into the new column.
+    -- task_description is NOT NULL in production, so the emptied value has to
+    -- be '' rather than NULL.
     if jsonb_typeof(parsed) = 'array' then
       update public.committee_task_members
       set checklist = parsed,
           task_description = ''
       where id = r.id;
+      moved := moved + 1;
     elsif jsonb_typeof(parsed) = 'object' and jsonb_typeof(parsed -> 'items') = 'array' then
       update public.committee_task_members
       set checklist = parsed -> 'items',
           task_description = ''
       where id = r.id;
+      moved := moved + 1;
     end if;
   end loop;
+
+  raise notice 'Moved % checklist(s) out of task_description into the checklist column.', moved;
 end $$;
+
+commit;
