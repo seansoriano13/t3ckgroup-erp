@@ -63,7 +63,7 @@ createRoot(document.getElementById("root")).render(
                 position="top-center"
                 reverseOrder={false}
                 gutter={12}
-                containerStyle={{ zIndex: 100000 }}
+                containerStyle={{ zIndex: 99999999 }}
                 toastOptions={{ duration: 3000 }}
               >
                 {(t) => <CustomToast t={t} />}
