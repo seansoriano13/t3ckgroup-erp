@@ -32,7 +32,7 @@ const blankForm = () => ({
   deal_owner_id: "",
   support_sales_1_id: "",
   support_sales_2_id: "",
-  sales_director_id: "101",
+  sales_director_id: "",
 });
 
 const fromRecord = (o) => ({
@@ -126,6 +126,14 @@ export default function OpportunityFormModal({
     label: s.label,
   }));
 
+  // The Sales Director is fixed by policy rather than picked per deal, so the
+  // field is locked. Resolved from the employee list by role: the column is a
+  // uuid FK, and hardcoding the account's display name ("101") made every
+  // registration fail with `invalid input syntax for type uuid`.
+  const salesDirectorId =
+    employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
+  const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
+
   const set = (key) => (e) =>
     setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
@@ -175,7 +183,12 @@ export default function OpportunityFormModal({
       toast.error(SALES_REFERENCE_HINT);
       return;
     }
-    onSubmit({ ...form, sales_reference, items });
+    onSubmit({
+      ...form,
+      sales_reference,
+      sales_director_id: effectiveSalesDirectorId,
+      items,
+    });
   };
 
   return (
@@ -316,7 +329,7 @@ export default function OpportunityFormModal({
               label="Sales Director"
               disabled
               options={employeeOptions}
-              value={form.sales_director_id || "101"}
+              value={effectiveSalesDirectorId}
               onChange={set("sales_director_id")}
             />
             <SelectField

@@ -33,9 +33,36 @@ export function SelectField({
   className = "",
   value,
   onChange,
-  ...props
+  disabled = false,
 }) {
   const selectedOption = options?.find((o) => o.value === value);
+
+  // Rendered without the Dropdown wrapper when disabled — passing `disabled`
+  // down to Dropdown does nothing, so a "locked" field stayed fully clickable.
+  const control = (isOpen = false) => (
+    <div
+      className={`${CONTROL} flex items-center justify-between ${
+        disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+      }`}
+    >
+      <span className={selectedOption ? "" : "text-muted-foreground/50"}>
+        {selectedOption ? selectedOption.label : placeholder}
+      </span>
+      <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+    </div>
+  );
+
+  if (disabled) {
+    return (
+      <div className={`${BOX} ${className}`}>
+        <label className={LABEL}>
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+        {control()}
+      </div>
+    );
+  }
 
   return (
     <div className={`${BOX} ${className}`}>
@@ -45,14 +72,7 @@ export function SelectField({
       </label>
       <Dropdown
         usePortal={true}
-        trigger={({ isOpen }) => (
-          <div className={`${CONTROL} cursor-pointer flex items-center justify-between`}>
-            <span className={selectedOption ? "" : "text-muted-foreground/50"}>
-              {selectedOption ? selectedOption.label : placeholder}
-            </span>
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
-          </div>
-        )}
+        trigger={({ isOpen }) => control(isOpen)}
       >
         {({ close }) => (
           <div className="flex flex-col max-h-[250px] overflow-y-auto">
