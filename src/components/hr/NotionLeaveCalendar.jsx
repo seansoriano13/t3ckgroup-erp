@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 
-export default function NotionLeaveCalendar({ 
+export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
   currentUserId = null,
   onWithdrawLeave = null,
-  targetDate = null
+  targetDate = null,
+  canViewAllReasons = false // Only HR sees other employees' leave reasons
 }) {
   const [selectedLeave, setSelectedLeave] = useState(null);
   const [selectedDayLeaves, setSelectedDayLeaves] = useState(null); // { dateStr, leaves }
@@ -287,7 +288,7 @@ export default function NotionLeaveCalendar({
                 </div>
               </div>
 
-              {selectedLeave.reason && (
+              {selectedLeave.reason && (canViewAllReasons || currentUserId === selectedLeave.employee_id) && (
                 <div className="bg-muted/30 p-3 rounded-xl border border-border">
                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
                    <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>

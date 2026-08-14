@@ -274,6 +274,7 @@ export default function HrLeavesManagerPage() {
              <NotionLeaveCalendar
               approvedLeaves={approvedLeaves}
               targetDate={dateRange.startDate}
+              canViewAllReasons
             />
           </div>
         )}
