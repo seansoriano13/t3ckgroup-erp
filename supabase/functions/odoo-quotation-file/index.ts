@@ -10,9 +10,13 @@
 //                       authenticated by the order's access_token. Odoo
 //                       prepends every 'inside' product document to this
 //                       render and NO entry point avoids that — the merge is a
-//                       model-level override, not a controller one. Documents
-//                       must be set to 'quotation' visibility instead; see
-//                       odoo-document-admin.
+//                       model-level override, not a controller one.
+//                       quotationService trims those pages back off client
+//                       side, but setting the documents to 'quotation'
+//                       visibility is still much better: it keeps Odoo from
+//                       merging (and re-rendering) the whole brochure set on
+//                       every download, which is both the slow part and the
+//                       expensive part. See odoo-document-admin.
 //   kind: "document"  — reads product.document.datas over RPC by id.
 //
 // Deploy with the default JWT verification ON — this hands out customer-facing
@@ -68,8 +72,16 @@ function base64ToBytes(b64) {
  * document in BEFORE the quotation pages, and switching entry points does not
  * avoid that — sale_pdf_quote_builder overrides
  * `_render_qweb_pdf_prepare_streams` on the ir.actions.report MODEL, so all
- * render paths go through it. The only lever is the data: documents set to
- * 'quotation' instead of 'inside' are not merged. See odoo-document-admin.
+ * render paths go through it. The only lever on the Odoo side is the data:
+ * documents set to 'quotation' instead of 'inside' are not merged. See
+ * odoo-document-admin.
+ *
+ * Two consequences worth knowing before touching this. The render is slow in
+ * proportion to what got merged — an order with forty brochures takes Odoo
+ * minutes, well past any default client timeout — and every merged byte is
+ * then shipped to the browser here and shipped *again* when quotationService
+ * fetches the same brochures individually to reorder them. Flipping the
+ * documents removes both costs at once.
  */
 async function fetchQuotation(uid, ref) {
   const order = await findOrder(uid, ref, ORDER_TOKEN_FIELDS);

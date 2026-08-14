@@ -8,16 +8,36 @@ const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 // Simple delay helper
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
+const DEFAULT_TIMEOUT_MS = 20000;
+
 /**
  * Custom fetch wrapper with retry logic and timeout handling.
  * Addresses "supabase not responding" by retrying transient network errors.
+ *
+ * A caller that brings its own AbortSignal is taken to be managing its own
+ * deadline, and is left to it: no default timeout on top, and no retry once it
+ * aborts. That exists for the quotation download. Odoo can legitimately spend
+ * minutes rendering a quotation that still has brochures merged into it, so the
+ * 20s default would abort it every time — and the retry below would then start
+ * a *second* render while the first was still running, which is how one slow
+ * request became three. See quotationService.
  */
 const customFetch = async (url, options, retries = 2) => {
-  const controller = new AbortController();
-  const timeoutDuration = 20000;
+  const callerSignal = options?.signal;
+  const callerOwnsDeadline = !!callerSignal;
 
-  const id = setTimeout(() => controller.abort(), timeoutDuration);
+  const controller = new AbortController();
+  const id = callerOwnsDeadline
+    ? null
+    : setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
   const startTime = Date.now();
+
+  // Compose rather than replace: supabase-js passes the caller's signal
+  // straight through to us, and overwriting it would strip the only means a
+  // caller has of cancelling.
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal?.aborted) controller.abort();
+  else callerSignal?.addEventListener("abort", onCallerAbort);
 
   try {
     const response = await fetch(url, {
@@ -46,10 +66,14 @@ const customFetch = async (url, options, retries = 2) => {
     return response;
   } catch (err) {
     const duration = Date.now() - startTime;
+    const aborted = err.name === "AbortError";
 
+    // A caller-owned deadline has already been given all the time it asked
+    // for. Retrying would start a second run of the same slow server-side work
+    // while the first is very likely still going.
     const isRetryableError =
-      err.name === "AbortError" || 
-      err instanceof TypeError || 
+      (aborted && !callerOwnsDeadline) ||
+      err instanceof TypeError ||
       err.message?.includes("Failed to fetch");
 
     if (isRetryableError && retries > 0) {
@@ -60,17 +84,20 @@ const customFetch = async (url, options, retries = 2) => {
       return customFetch(url, options, retries - 1);
     }
 
-    if (err.name === "AbortError") {
+    if (aborted) {
       console.error(`[Supabase] Timeout (${duration}ms) → ${url}`);
       throw new Error(
-        "Request timeout. The connection may be unstable. Please try again."
+        callerOwnsDeadline
+          ? `The server took longer than ${Math.round(duration / 1000)}s to answer and the request was given up on. Please try again.`
+          : "Request timeout. The connection may be unstable. Please try again."
       );
     }
 
     console.error(`[Supabase] Fetch Error (${duration}ms) → ${url}`, err);
     throw err;
   } finally {
-    clearTimeout(id);
+    if (id) clearTimeout(id);
+    callerSignal?.removeEventListener("abort", onCallerAbort);
   }
 };
 

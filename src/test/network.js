@@ -15,13 +15,19 @@
 
 import { server } from "./msw/server"
 
-let inFlight = 0
+/**
+ * Tracked by id rather than counted, because an aborted request never reaches
+ * `request:end`. A bare counter would stay above zero for the rest of the file
+ * and strand every test after the one that cancelled something.
+ */
+const open = new Set()
 
-server.events.on("request:start", () => {
-  inFlight += 1
+server.events.on("request:start", ({ request, requestId }) => {
+  open.add(requestId)
+  request.signal?.addEventListener("abort", () => open.delete(requestId), { once: true })
 })
-server.events.on("request:end", () => {
-  inFlight -= 1
+server.events.on("request:end", ({ requestId }) => {
+  open.delete(requestId)
 })
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
@@ -36,11 +42,11 @@ export async function waitForNetworkIdle({ quietTurns = 3, maxTurns = 200 } = {}
   let quiet = 0
   for (let turn = 0; turn < maxTurns && quiet < quietTurns; turn += 1) {
     await tick()
-    quiet = inFlight === 0 ? quiet + 1 : 0
+    quiet = open.size === 0 ? quiet + 1 : 0
   }
-  if (inFlight !== 0) {
-    throw new Error(`Gave up waiting for the network to settle: ${inFlight} request(s) still open`)
+  if (open.size !== 0) {
+    throw new Error(`Gave up waiting for the network to settle: ${open.size} request(s) still open`)
   }
 }
 
-export const pendingRequestCount = () => inFlight
+export const pendingRequestCount = () => open.size

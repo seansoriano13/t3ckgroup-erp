@@ -500,7 +500,7 @@ export default function OpportunityDetailsModal({
     if (downloadStep) return;
     setDownloadStep("Starting…");
     try {
-      const { blob, filename, warnings, documentCount } =
+      const { blob, filename, warnings, notices, documentCount } =
         await quotationService.buildQuotationPdf(opportunity.sales_reference, {
           onProgress: ({ current, total, label }) =>
             setDownloadStep(total ? `${current}/${total} — ${label}` : label),
@@ -522,6 +522,13 @@ export default function OpportunityDetailsModal({
         );
       } else {
         toast.success(`${filename} — quotation plus ${documentCount} brochure(s).`);
+      }
+
+      // Separate from the warning above on purpose: nothing is missing here,
+      // the brochures just could not be moved behind the quotation. Reporting
+      // it as a failed download would overstate it.
+      if (notices.length) {
+        toast(notices.join(" "), { duration: 12000 });
       }
     } catch (err) {
       toast.error(err.message || "Could not build the quotation PDF.");
