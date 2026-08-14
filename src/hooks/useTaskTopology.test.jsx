@@ -6,7 +6,7 @@ import { makeCategory, makeEmployee } from "@/test/factories"
 /**
  * Drives the cascading department → sub-department → employee → category
  * pickers on the log-task form. Each level narrows the next, and the category
- * list additionally always offers the universal group categories.
+ * list additionally always offers the universal committee categories.
  */
 describe("useTaskTopology", () => {
   beforeEach(() => {
@@ -18,7 +18,7 @@ describe("useTaskTopology", () => {
     makeCategory({ category_id: "IT-INF-1", department: "IT", sub_department: "Infra" })
     makeCategory({ category_id: "IT-APP-1", department: "IT", sub_department: "Apps" })
     makeCategory({ category_id: "SAL-1", department: "SALES", sub_department: "Field" })
-    makeCategory({ category_id: "GROUP-1", department: "ALL", sub_department: "ALL" })
+    makeCategory({ category_id: "COMMITTEE-1", department: "ALL", sub_department: "ALL" })
   })
 
   const load = async (formData = {}, { categoryId = null, isEditing = false } = {}) => {
@@ -73,7 +73,7 @@ describe("useTaskTopology", () => {
     const result = await load({ department: "IT", subDepartment: "Infra" }, { isEditing: true })
 
     expect(result.current.filteredCategories.map((c) => c.category_id).sort()).toEqual([
-      "GROUP-1",
+      "COMMITTEE-1",
       "IT-INF-1",
     ])
   })
@@ -87,7 +87,7 @@ describe("useTaskTopology", () => {
     })
 
     expect(result.current.filteredCategories.map((c) => c.category_id).sort()).toEqual([
-      "GROUP-1",
+      "COMMITTEE-1",
       "IT-APP-1",
     ])
   })
@@ -97,7 +97,7 @@ describe("useTaskTopology", () => {
       isEditing: true,
     })
 
-    expect(result.current.filteredCategories.map((c) => c.category_id)).toEqual(["GROUP-1"])
+    expect(result.current.filteredCategories.map((c) => c.category_id)).toEqual(["COMMITTEE-1"])
   })
 
   it("identifies the person the task is being logged for", async () => {

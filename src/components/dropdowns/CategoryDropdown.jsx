@@ -9,7 +9,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
   disabled = false,
   className = "",
   triggerClassName,
-  onResetOthers, // Optional callback to reset things like groupRole when category changes
+  onResetOthers, // Optional callback to reset things like committeeRole when category changes
   usePortal = false,
   onClose,
 }) {

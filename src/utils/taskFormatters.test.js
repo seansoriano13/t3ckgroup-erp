@@ -95,8 +95,8 @@ describe("extractOthersDetailsFromRemarks", () => {
     )
   })
 
-  it("pulls the detail out of a group variant", () => {
-    expect(extractOthersDetailsFromRemarks("[GROUP - OTHERS] Budget review")).toBe(
+  it("pulls the detail out of a committee variant", () => {
+    expect(extractOthersDetailsFromRemarks("[COMMITTEE - OTHERS] Budget review")).toBe(
       "Budget review",
     )
   })
@@ -122,8 +122,8 @@ describe("extractOthersDetailsFromRemarks", () => {
 describe("isCategoryMetadataRemarks", () => {
   it("recognises remarks that only carry category metadata", () => {
     expect(isCategoryMetadataRemarks("[OTHERS] Client site visit")).toBe(true)
-    expect(isCategoryMetadataRemarks("[GROUP - OTHERS] Budget review")).toBe(true)
-    expect(isCategoryMetadataRemarks("[GROUP - SAFETY]")).toBe(true)
+    expect(isCategoryMetadataRemarks("[COMMITTEE - OTHERS] Budget review")).toBe(true)
+    expect(isCategoryMetadataRemarks("[COMMITTEE - SAFETY]")).toBe(true)
   })
 
   it("does not treat a real remark as metadata", () => {

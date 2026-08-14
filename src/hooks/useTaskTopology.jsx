@@ -69,7 +69,7 @@ export function useTaskTopology(isOpen, formData, taskCategoryId, isEditing) {
       // 1. Does it match the currently selected sub-department?
       const isNormalMatch = cat.sub_department === targetSubDept;
       
-      // 2. Is it one of your universal group categories?
+      // 2. Is it one of your universal committee categories?
       const isUniversal = cat.department === "ALL" && cat.sub_department === "ALL";
 
       // Keep the category if it passes either test

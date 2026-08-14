@@ -130,10 +130,10 @@ export const extractOthersDetailsFromRemarks = (remarks) => {
   const globalOthersMatch = trimmed.match(/^\[OTHERS\]\s*(.+)$/i);
   if (globalOthersMatch?.[1]) return globalOthersMatch[1].trim();
 
-  const groupOthersMatch = trimmed.match(
-    /^\[GROUP\s*-\s*OTHERS\]\s*(.+)$/i,
+  const committeeOthersMatch = trimmed.match(
+    /^\[COMMITTEE\s*-\s*OTHERS\]\s*(.+)$/i,
   );
-  if (groupOthersMatch?.[1]) return groupOthersMatch[1].trim();
+  if (committeeOthersMatch?.[1]) return committeeOthersMatch[1].trim();
 
   return null;
 };
@@ -143,7 +143,7 @@ export const isCategoryMetadataRemarks = (remarks) => {
   const trimmed = remarks.trim();
   return (
     /^\[OTHERS\]\s+.+$/i.test(trimmed) ||
-    /^\[GROUP\s*-\s*OTHERS\]\s+.+$/i.test(trimmed) ||
-    /^\[GROUP\s*-\s*[A-Z\s]+\]$/i.test(trimmed)
+    /^\[COMMITTEE\s*-\s*OTHERS\]\s+.+$/i.test(trimmed) ||
+    /^\[COMMITTEE\s*-\s*[A-Z\s]+\]$/i.test(trimmed)
   );
 };
