@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, Star } from "lucide-react";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
-import { formatChecklistToString } from "../../../utils/taskFormatters";
+import { parseChecklist } from "../utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 
 export default function RateEmployeesModal({
@@ -23,6 +23,7 @@ export default function RateEmployeesModal({
           memberId: m.id,
           employeeName: m.employee?.name || "Unknown",
           taskDescription: m.task_description,
+          checklist: m.checklist,
           grade: m.grade || 0,
           gradeRemarks: m.grade_remarks || "",
           status: m.status,
@@ -143,21 +144,43 @@ export default function RateEmployeesModal({
                       <span className="font-bold uppercase tracking-widest text-[9px] text-muted-foreground block mb-1">
                         Assigned Task
                       </span>
+                      {/* Description and checklist are separate fields now, so
+                          an assignment can have either, both, or (for older
+                          rows) a checklist still sitting in task_description.
+                          parseChecklist covers all three. */}
                       {(() => {
-                        const isChecklist =
-                          typeof rating.taskDescription === "string" &&
-                          (rating.taskDescription.trim().startsWith("[") ||
-                            rating.taskDescription.trim().startsWith("{"));
-                        return isChecklist ? (
-                          <ChecklistTaskRenderer
-                            description={rating.taskDescription}
-                            isOwner={false}
-                            disabled={true}
-                          />
-                        ) : (
-                          <p className="text-[13px] text-foreground leading-relaxed line-clamp-3 whitespace-pre-wrap">
-                            {rating.taskDescription}
-                          </p>
+                        const items = parseChecklist(
+                          rating.checklist ?? rating.taskDescription,
+                        );
+                        const hasText = rating.taskDescription?.trim() &&
+                          !rating.taskDescription.trim().startsWith("[") &&
+                          !rating.taskDescription.trim().startsWith("{");
+
+                        if (!hasText && items.length === 0) {
+                          return (
+                            <p className="text-[13px] text-muted-foreground italic">
+                              No assignment details recorded.
+                            </p>
+                          );
+                        }
+
+                        return (
+                          <>
+                            {hasText && (
+                              <p className="text-[13px] text-foreground leading-relaxed line-clamp-3 whitespace-pre-wrap">
+                                {rating.taskDescription}
+                              </p>
+                            )}
+                            {items.length > 0 && (
+                              <div className={hasText ? "mt-2" : ""}>
+                                <ChecklistTaskRenderer
+                                  description={items}
+                                  isOwner={false}
+                                  disabled={true}
+                                />
+                              </div>
+                            )}
+                          </>
                         );
                       })()}
                     </div>
