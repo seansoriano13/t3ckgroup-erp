@@ -49,8 +49,11 @@ vi.mock("../../services/odooService", () => ({
   odooService: { fetchOrderLines: vi.fn() },
 }));
 
+// AuthContext spreads the record from employeeService, which is camelCased —
+// there is no `is_super_admin` on the auth user, only `isSuperAdmin`.
+const authUser = { id: OWNER_ID, isSuperAdmin: false };
 vi.mock("../../context/AuthContext", () => ({
-  useAuth: () => ({ user: { id: OWNER_ID, is_super_admin: false } }),
+  useAuth: () => ({ user: authUser }),
 }));
 
 function renderForm(props = {}) {
@@ -101,5 +104,29 @@ describe("OpportunityFormModal — Sales Director", () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].sales_director_id).toBe(OWNER_ID);
+  });
+});
+
+describe("OpportunityFormModal — Sales Division lock", () => {
+  it("stays editable for a super admin", async () => {
+    authUser.isSuperAdmin = true;
+    try {
+      renderForm();
+      // The locked rendering drops the Dropdown trigger, so a super admin
+      // seeing an interactive control is what proves the gate reads the right
+      // field: `user.is_super_admin` is always undefined on the auth user.
+      const division = await screen.findByText(
+        "SSP — Single Salesperson Project",
+      );
+      expect(division.closest("[class*='cursor-not-allowed']")).toBeNull();
+    } finally {
+      authUser.isSuperAdmin = false;
+    }
+  });
+
+  it("is locked for everyone else", async () => {
+    renderForm();
+    const division = await screen.findByText("SSP — Single Salesperson Project");
+    expect(division.closest("[class*='cursor-not-allowed']")).not.toBeNull();
   });
 });

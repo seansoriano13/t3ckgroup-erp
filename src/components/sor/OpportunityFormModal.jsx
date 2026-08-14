@@ -265,7 +265,7 @@ export default function OpportunityFormModal({
           <SelectField
             label="Sales Division"
             required
-            disabled={!user?.is_super_admin}
+            disabled={!(user?.isSuperAdmin || user?.is_super_admin)}
             placeholder="Select project type…"
             options={PROJECT_TYPES}
             value={form.project_type}
