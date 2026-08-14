@@ -13,7 +13,7 @@
  */
 
 import { getTable, pgrstError, schema } from "./schema"
-import { resetSequences, runAfterWrite, runBeforeInsert, runBeforeUpdate } from "./triggers"
+import { runAfterWrite, runBeforeInsert, runBeforeUpdate } from "./triggers"
 
 const state = {
   tables: new Map(),
@@ -280,7 +280,6 @@ export const db = {
     state.uuidCounter = 0
     state.identityCounters = new Map()
     state.clock = Date.now()
-    resetSequences()
   },
 
   /** Pins the clock so timestamp-sensitive assertions can use a known value. */

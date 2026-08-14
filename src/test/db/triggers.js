@@ -6,10 +6,11 @@
  * derived. Each one names the migration it comes from; if that migration
  * changes, this file has to change with it.
  *
- * They matter because the services lean on them: opportunityService never sends
- * `opportunity_no` (a sequence assigns it) and never computes `expected_value`
- * (a trigger sums the item rows). Without these, a service test would be
- * asserting against rows production would never produce.
+ * They matter because the services lean on them: opportunityService never
+ * computes `expected_value` (a trigger sums the item rows) and never sets
+ * `sales_reference` defaults (a trigger normalises and gates them). Without
+ * these, a service test would be asserting against rows production would never
+ * produce.
  */
 
 import { pgrstError } from "./schema"
@@ -18,13 +19,6 @@ import { pgrstError } from "./schema"
 function raise(message) {
   throw pgrstError("P0001", message, { status: 400 })
 }
-
-const sequences = new Map()
-
-export function resetSequences() {
-  sequences.clear()
-}
-
 
 
 export const TRIGGERS = {
