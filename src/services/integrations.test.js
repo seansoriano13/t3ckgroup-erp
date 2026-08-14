@@ -194,8 +194,8 @@ describe("quotationService", () => {
       success: true,
       order: { id: 4718, name: "S04718" },
       documents: [
-        { id: 11, name: "A.pdf", checksum: "a1" },
-        { id: 22, name: "B.pdf", checksum: "b2" },
+        { id: 11, name: "A.pdf", checksum: "a1", attached_on: "quotation" },
+        { id: 22, name: "B.pdf", checksum: "b2", attached_on: "quotation" },
       ],
     })
     stubEdgeFunction("odoo-quotation-file", (body) =>
@@ -222,8 +222,8 @@ describe("quotationService", () => {
       success: true,
       order: { id: 1, name: "S00001" },
       documents: [
-        { id: 11, name: "Broken.pdf", checksum: "x" },
-        { id: 22, name: "Good.pdf", checksum: "y" },
+        { id: 11, name: "Broken.pdf", checksum: "x", attached_on: "quotation" },
+        { id: 22, name: "Good.pdf", checksum: "y", attached_on: "quotation" },
       ],
     })
     stubEdgeFunction("odoo-quotation-file", (body) => {
@@ -259,7 +259,7 @@ describe("quotationService", () => {
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 3, name: "S00003" },
-      documents: [{ id: 11, name: "Datasheet.pdf", checksum: "z" }],
+      documents: [{ id: 11, name: "Datasheet.pdf", checksum: "z", attached_on: "quotation" }],
     })
     const bytes = await pdfOf(100, 1)
     stubEdgeFunction("odoo-quotation-file", () => binary(bytes))
@@ -270,6 +270,35 @@ describe("quotationService", () => {
     })
 
     expect(labels).toContain("Datasheet.pdf")
+  })
+
+  it("does not re-append brochures Odoo already merged, and says so", async () => {
+    // A document left on 'inside' is baked into Odoo's render ahead of the
+    // quotation. Appending it again is what produced
+    // brochures → quotation → brochures, so it is skipped and reported.
+    const quotation = await pdfOf(100, 1)
+    const brochure = await pdfOf(200, 1)
+
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 9, name: "S00009" },
+      documents: [
+        { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" },
+        { id: 22, name: "Flipped.pdf", checksum: "f", attached_on: "quotation" },
+      ],
+    })
+    stubEdgeFunction("odoo-quotation-file", (body) =>
+      binary(body.kind === "quotation" ? quotation : brochure),
+    )
+
+    const result = await quotationService.buildQuotationPdf("S00009")
+
+    // Only the flipped one is appended — no duplicate of StillInside.pdf.
+    expect(await widthsOf(result.blob)).toEqual([100, 200])
+    expect(result.documentCount).toBe(1)
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toMatch(/StillInside\.pdf/)
+    expect(result.warnings[0]).toMatch(/Quotation" visibility/)
   })
 
   it("surfaces a failed lookup as a readable error", async () => {

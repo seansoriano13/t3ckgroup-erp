@@ -6,15 +6,13 @@
 // browser (see quotationService); only the bytes pass through here.
 //
 // Two kinds:
-//   kind: "quotation" — renders via ir.actions.report (RPC), which outputs
-//                       only the quotation template pages with no product
-//                       document merge. Previously this used the portal route
-//                       (/my/orders/{id}?report_type=pdf), which Odoo's Python
-//                       merge prepends all 'inside' brochures to — making the
-//                       assembled PDF show: brochures → quotation → brochures.
-//                       The ir.actions.report path avoids that entirely.
-//                       Falls back to the portal route for Odoo 15 and below
-//                       where render_document_pdf does not exist.
+//   kind: "quotation" — the portal route (/my/orders/{id}?report_type=pdf),
+//                       authenticated by the order's access_token. Odoo
+//                       prepends every 'inside' product document to this
+//                       render and NO entry point avoids that — the merge is a
+//                       model-level override, not a controller one. Documents
+//                       must be set to 'quotation' visibility instead; see
+//                       odoo-document-admin.
 //   kind: "document"  — reads product.document.datas over RPC by id.
 //
 // Deploy with the default JWT verification ON — this hands out customer-facing
@@ -56,14 +54,29 @@ function base64ToBytes(b64) {
 }
 
 /**
- * Fallback: fetches the quotation PDF via the Odoo customer portal route.
+ * Fetches the quotation PDF via the Odoo customer portal route — the only way
+ * to get quotation bytes out of Odoo Online with an API key.
  *
- * WARNING: Odoo's portal render merges all `attached_on = 'inside'` product
- * documents BEFORE the quotation pages (hardcoded Python on Odoo Online).
- * Use this only when `ir.actions.report.render_document_pdf` is unavailable
- * (Odoo 15 and below).
+ * There is no RPC alternative. `ir.actions.report` exposes no public render
+ * method in 17.0 (only retrieve_attachment, get_wkhtmltopdf_state,
+ * get_paperformat, associated_view, create_action, unlink_action, barcode,
+ * get_available_barcode_masks, report_action), and `_render_qweb_pdf` is
+ * private, which execute_kw refuses. The report HTTP route is auth='user' and
+ * API keys cannot open a web session, so the portal token route is it.
+ *
+ * IMPORTANT: this render merges every `attached_on = 'inside'` product
+ * document in BEFORE the quotation pages, and switching entry points does not
+ * avoid that — sale_pdf_quote_builder overrides
+ * `_render_qweb_pdf_prepare_streams` on the ir.actions.report MODEL, so all
+ * render paths go through it. The only lever is the data: documents set to
+ * 'quotation' instead of 'inside' are not merged. See odoo-document-admin.
  */
-async function fetchQuotationViaPortal(uid, order) {
+async function fetchQuotation(uid, ref) {
+  const order = await findOrder(uid, ref, ORDER_TOKEN_FIELDS);
+  if (!order) {
+    return { error: `No Odoo quotation found matching "${ref}".`, found: false };
+  }
+
   const token = await ensureAccessToken(uid, order);
   if (!token) return { error: `${order.name} ${NO_TOKEN_MESSAGE}`, found: true };
 
@@ -82,55 +95,6 @@ async function fetchQuotationViaPortal(uid, order) {
   if (String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF") {
     return {
       error: `Odoo did not return a PDF for ${order.name} — the share token may have been revoked.`,
-      found: true,
-    };
-  }
-
-  return { bytes, filename: `Quotation ${order.name}.pdf` };
-}
-
-/**
- * Fetches the quotation PDF via `ir.actions.report.render_document_pdf`
- * (Odoo 16+). This renders only the `sale.report_saleorder` template —
- * the product.document merge step that prepends 'inside' brochures is
- * bypassed entirely, because that step only runs in the portal controller.
- *
- * Falls back to `fetchQuotationViaPortal` when the RPC method is unavailable.
- */
-async function fetchQuotation(uid, ref) {
-  const order = await findOrder(uid, ref, ORDER_TOKEN_FIELDS);
-  if (!order) {
-    return { error: `No Odoo quotation found matching "${ref}".`, found: false };
-  }
-
-  let pdfB64;
-  try {
-    // render_document_pdf returns [pdf_bytes_b64, "application/pdf"] on
-    // Odoo 16/17. On Odoo 15 and below the method does not exist and
-    // execute_kw throws, so we fall through to the portal route.
-    const result = await executeKw(
-      uid,
-      "ir.actions.report",
-      "render_document_pdf",
-      [["sale.report_saleorder"], [order.id]],
-    );
-    pdfB64 = Array.isArray(result) ? result[0] : result;
-  } catch (rpcErr) {
-    console.warn(
-      "ir.actions.report.render_document_pdf unavailable, falling back to portal route:",
-      rpcErr instanceof Error ? rpcErr.message : rpcErr,
-    );
-    return fetchQuotationViaPortal(uid, order);
-  }
-
-  if (!pdfB64) {
-    return { error: `Odoo returned no PDF bytes for ${order.name}.`, found: true };
-  }
-
-  const bytes = base64ToBytes(pdfB64);
-  if (String.fromCharCode(...bytes.slice(0, 4)) !== "%PDF") {
-    return {
-      error: `Odoo did not return a valid PDF for ${order.name}.`,
       found: true,
     };
   }

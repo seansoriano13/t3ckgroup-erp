@@ -132,9 +132,26 @@ export const quotationService = {
       throw new Error(manifest?.message || "Could not read the quotation.");
     }
 
-    const documents = manifest.documents || [];
+    // Odoo already merged every 'inside' document into the render below, ahead
+    // of the quotation pages. Appending those again is what produced
+    // brochures → quotation → brochures. They are left out here and reported
+    // instead, because the real fix is in Odoo's data, not in this merge:
+    // flip them to 'quotation' visibility (odoo-document-admin) and they stop
+    // being merged at the front.
+    const allDocuments = manifest.documents || [];
+    const documents = allDocuments.filter((d) => d.attached_on !== "inside");
+    const stillMerged = allDocuments.filter((d) => d.attached_on === "inside");
+
     const total = documents.length + 1;
     const warnings = [];
+
+    if (stillMerged.length) {
+      warnings.push(
+        `${stillMerged.length} brochure(s) still print before the quotation because Odoo ` +
+          `merges them: ${stillMerged.map((d) => d.name).join(", ")}. ` +
+          `Set them to "Quotation" visibility in Odoo to move them after.`,
+      );
+    }
 
     report("quotation", 1, total, "Fetching the quotation…");
     const quotationBytes = await fetchQuotationBytes(salesReference);
@@ -144,12 +161,14 @@ export const quotationService = {
 
     const cache = await openCache();
 
+    let appended = 0;
     for (let i = 0; i < documents.length; i++) {
       const doc = documents[i];
       report("document", i + 2, total, doc.name);
       try {
         const bytes = await fetchDocumentBytes(doc, cache);
         await appendPdf(target, bytes);
+        appended += 1;
       } catch (err) {
         warnings.push(`${doc.name}: ${err.message}`);
       }
@@ -162,7 +181,9 @@ export const quotationService = {
       blob: new Blob([merged], { type: "application/pdf" }),
       filename: `Quotation ${manifest.order?.name || salesReference}.pdf`,
       order: manifest.order,
-      documentCount: documents.length - warnings.length,
+      // Counted as they land, not derived from warnings — those now also carry
+      // the "still merged by Odoo" notice, which is not a failed document.
+      documentCount: appended,
       warnings,
     };
   },
