@@ -12,6 +12,9 @@ lerna-debug.log*
 # a placeholder pointing at the MSW fake. CI needs it, and without it Vite
 # leaves VITE_SUPABASE_URL undefined and the whole suite fails to boot.
 !.env.test
+# ...and the template for the brochure mirror, which is all empty keys and
+# comments. The real .env.mirror holds a live Odoo API key and stays ignored.
+!.env.mirror.example
 
 node_modules
 dist

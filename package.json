@@ -12,7 +12,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:ui": "vitest --ui",
-        "test:coverage": "vitest run --coverage"
+        "test:coverage": "vitest run --coverage",
+        "mirror:brochures": "node scripts/mirror-brochures.mjs"
     },
     "dependencies": {
         "@base-ui/react": "^1.4.0",
