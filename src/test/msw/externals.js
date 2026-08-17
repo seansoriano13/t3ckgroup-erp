@@ -9,6 +9,7 @@
  */
 
 import { http, HttpResponse } from "msw"
+import { brochurePublicId } from "@/lib/brochureUrl"
 import { stubs } from "./postgrest"
 
 const BASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -24,6 +25,7 @@ const defaults = {
 
 export const externalStubs = {
   cloudinary: null,
+  brochures: new Map(),
   githubCommits: null,
   gemini: null,
   authUsers: new Map(),
@@ -31,6 +33,7 @@ export const externalStubs = {
 
 export function resetExternalStubs() {
   externalStubs.cloudinary = null
+  externalStubs.brochures.clear()
   externalStubs.githubCommits = null
   externalStubs.gemini = null
   externalStubs.authUsers.clear()
@@ -39,6 +42,18 @@ export function resetExternalStubs() {
 /** Replaces the Cloudinary upload response. Pass an object or a function. */
 export function stubCloudinaryUpload(response) {
   externalStubs.cloudinary = typeof response === "function" ? response : () => response
+}
+
+/**
+ * Publishes a brochure at the Cloudinary address the app derives for `doc`.
+ *
+ * Deliberately keyed through brochurePublicId rather than a hand-written path:
+ * the whole design rests on the app and the mirror script agreeing on that name,
+ * so a test that hard-coded the URL could pass while the real thing 404s.
+ * Leaving a document unstubbed is how you test the refusal path.
+ */
+export function stubBrochure(doc, bytes) {
+  externalStubs.brochures.set(brochurePublicId(doc), bytes)
 }
 
 export function stubGithubCommits(commits) {
@@ -141,6 +156,25 @@ export const externalHandlers = [
       return HttpResponse.json({ error: { message: result.message } }, { status: result.__status })
     }
     return HttpResponse.json(result)
+  }),
+
+  // Cloudinary delivery — where brochures are read from now that they no longer
+  // come through the Supabase proxy. Anything not registered by stubBrochure()
+  // is a 404, which is not an oversight: an un-mirrored brochure is exactly what
+  // makes quotationService refuse a download, so the default IS the test case.
+  http.all("https://res.cloudinary.com/:cloud/raw/upload/*", ({ request }) => {
+    const key = new URL(request.url).pathname.replace(/^\/[^/]+\/raw\/upload\//, "")
+    const bytes = externalStubs.brochures.get(key)
+    if (!bytes) return new HttpResponse(null, { status: 404 })
+
+    // HEAD is how existence is proved before the expensive quotation render, so
+    // it has to answer with the headers and none of the body.
+    const headers = {
+      "Content-Type": "application/pdf",
+      "Content-Length": String(bytes.byteLength),
+    }
+    if (request.method === "HEAD") return new HttpResponse(null, { headers })
+    return new HttpResponse(bytes, { headers })
   }),
 
   // ── GitHub ───────────────────────────────────────────────────────────────

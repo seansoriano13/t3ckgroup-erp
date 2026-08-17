@@ -1,11 +1,18 @@
-// Streams one PDF back to the browser as binary — either the quotation itself
-// or a single product brochure.
+// Streams the rendered quotation PDF back to the browser as binary.
 //
-// This exists because Odoo sends no CORS headers on /my/orders or /web/content,
-// so the browser cannot fetch either directly. The merge still happens in the
-// browser (see quotationService); only the bytes pass through here.
+// This exists because Odoo sends no CORS headers on /my/orders, so the browser
+// cannot fetch it directly. The merge still happens in the browser (see
+// quotationService); only the bytes pass through here.
 //
-// Two kinds:
+// It used to serve product brochures too, via kind:"document". That branch is
+// deliberately gone: Supabase egress is metered, brochures are static per
+// product, and they are now mirrored to Cloudinary once by
+// scripts/mirror-brochures.mjs and served from there. Leaving the branch in
+// place would have meant one careless refactor could quietly route a gigabyte
+// back through a paid proxy, so the guarantee is structural rather than a
+// matter of discipline. Do not restore it.
+//
+// One kind:
 //   kind: "quotation" — the portal route (/my/orders/{id}?report_type=pdf),
 //                       authenticated by the order's access_token. Odoo
 //                       prepends every 'inside' product document to this
@@ -17,7 +24,6 @@
 //                       merging (and re-rendering) the whole brochure set on
 //                       every download, which is both the slow part and the
 //                       expensive part. See odoo-document-admin.
-//   kind: "document"  — reads product.document.datas over RPC by id.
 //
 // Deploy with the default JWT verification ON — this hands out customer-facing
 // documents and pricing.
@@ -26,7 +32,6 @@ import {
   authenticate,
   corsHeaders,
   ensureAccessToken,
-  executeKw,
   findOrder,
   isConfigured,
   jsonResponse,
@@ -48,13 +53,6 @@ function pdfResponse(bytes, filename) {
       "X-Document-Filename": encodeURIComponent(filename),
     },
   });
-}
-
-function base64ToBytes(b64) {
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
 }
 
 /**
@@ -114,21 +112,6 @@ async function fetchQuotation(uid, ref) {
   return { bytes, filename: `Quotation ${order.name}.pdf` };
 }
 
-async function fetchDocument(uid, documentId) {
-  const [doc] = await executeKw(
-    uid,
-    "product.document",
-    "read",
-    [[documentId], ["name", "datas", "mimetype"]],
-  );
-
-  if (!doc || !doc.datas) {
-    return { error: `Document ${documentId} has no file in Odoo.` };
-  }
-
-  return { bytes: base64ToBytes(doc.datas), filename: doc.name || `document-${documentId}.pdf` };
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -148,19 +131,25 @@ Deno.serve(async (req) => {
     return jsonResponse({ success: false, message: "Invalid request body." });
   }
 
-  const { kind, salesReference, documentId } = body || {};
+  const { kind, salesReference } = body || {};
+
+  // Answered explicitly rather than ignored, so an old cached app bundle still
+  // asking for brochures fails loudly instead of silently producing a quotation
+  // with none of them.
+  if (kind === "document") {
+    return jsonResponse(
+      {
+        success: false,
+        message:
+          "Brochures are served from Cloudinary, not from this function. " +
+          "Reload the page to pick up the current app.",
+      },
+      410,
+    );
+  }
 
   try {
     const uid = await authenticate();
-
-    if (kind === "document") {
-      if (!Number.isInteger(documentId)) {
-        return jsonResponse({ success: false, message: "A numeric documentId is required." });
-      }
-      const result = await fetchDocument(uid, documentId);
-      if (result.error) return jsonResponse({ success: false, message: result.error }, 404);
-      return pdfResponse(result.bytes, result.filename);
-    }
 
     const ref = normalizeReference(salesReference);
     if (!ref) {

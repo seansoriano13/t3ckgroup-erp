@@ -8,6 +8,7 @@ export { stubRpc, stubEdgeFunction, resetStubs } from "./postgrest"
 export {
   resetExternalStubs,
   stubAuthUser,
+  stubBrochure,
   stubCloudinaryUpload,
   stubGeminiResponse,
   stubGithubCommits,

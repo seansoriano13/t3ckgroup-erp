@@ -6,7 +6,13 @@ import { quotationService } from "./quotationService"
 import { storageService } from "./storageService"
 import { aiService } from "./aiService"
 import { supabase } from "@/lib/supabase"
-import { stubCloudinaryUpload, stubEdgeFunction, stubGithubCommits } from "@/test/msw/server"
+import {
+  server,
+  stubBrochure,
+  stubCloudinaryUpload,
+  stubEdgeFunction,
+  stubGithubCommits,
+} from "@/test/msw/server"
 
 /**
  * The third-party boundaries: GitHub for the changelog, an Odoo lookup edge
@@ -186,24 +192,23 @@ describe("quotationService", () => {
     return doc.getPages().map((p) => Math.round(p.getWidth()))
   }
 
+  /** The quotation render is the only thing still coming through Supabase. */
+  const stubQuotation = (bytes) =>
+    stubEdgeFunction("odoo-quotation-file", () => binary(bytes))
+
   it("puts the quotation first and the brochures behind it", async () => {
     const quotation = await pdfOf(100, 2)
-    const brochureA = await pdfOf(200, 1)
-    const brochureB = await pdfOf(300, 2)
+    const docA = { id: 11, name: "A.pdf", checksum: "a1", attached_on: "quotation" }
+    const docB = { id: 22, name: "B.pdf", checksum: "b2", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 4718, name: "S04718" },
-      documents: [
-        { id: 11, name: "A.pdf", checksum: "a1", attached_on: "quotation" },
-        { id: 22, name: "B.pdf", checksum: "b2", attached_on: "quotation" },
-      ],
+      documents: [docA, docB],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) =>
-      binary(
-        body.kind === "quotation" ? quotation : body.documentId === 11 ? brochureA : brochureB,
-      ),
-    )
+    stubQuotation(quotation)
+    stubBrochure(docA, await pdfOf(200, 1))
+    stubBrochure(docB, await pdfOf(300, 2))
 
     const result = await quotationService.buildQuotationPdf("S04718")
 
@@ -213,25 +218,68 @@ describe("quotationService", () => {
     expect(result.documentCount).toBe(2)
   })
 
+  it("refuses the whole download when a brochure is not mirrored", async () => {
+    // Deliberately not a fallback to the Supabase proxy. A silent fallback would
+    // mean a misconfigured mirror quietly bleeds egress until the bill arrives,
+    // so the download stops and names what to fix.
+    const docA = { id: 11, name: "Mirrored.pdf", checksum: "a1", attached_on: "quotation" }
+    const docB = { id: 22, name: "Missing.pdf", checksum: "b2", attached_on: "quotation" }
+
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 5, name: "S00005" },
+      documents: [docA, docB],
+    })
+    let quotationFetched = false
+    stubEdgeFunction("odoo-quotation-file", () => {
+      quotationFetched = true
+      return binary(new Uint8Array([1, 2, 3]))
+    })
+    stubBrochure(docA, await pdfOf(200, 1))
+    // docB is never stubbed — that is the un-mirrored document.
+
+    await expect(quotationService.buildQuotationPdf("S00005")).rejects.toThrow(
+      /Missing\.pdf.*id 22/,
+    )
+
+    // The refusal must land before Odoo is asked to render, because that render
+    // is the slow, expensive half of the download.
+    expect(quotationFetched).toBe(false)
+  })
+
+  it("names only the first few when a great many are unmirrored", async () => {
+    const documents = Array.from({ length: 9 }, (_, i) => ({
+      id: 100 + i,
+      name: `Doc${i}.pdf`,
+      checksum: `c${i}`,
+      attached_on: "quotation",
+    }))
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 6, name: "S00006" },
+      documents,
+    })
+    stubEdgeFunction("odoo-quotation-file", () => binary(new Uint8Array([1])))
+
+    // A toast carrying nine filenames is unreadable; it summarises instead.
+    await expect(quotationService.buildQuotationPdf("S00006")).rejects.toThrow(/and 6 more/)
+  })
+
   it("skips a brochure it cannot parse rather than losing the whole download", async () => {
-    // One password-locked datasheet must not stop a salesperson sending
-    // anything at all — the quotation still goes out, and the skip is named.
+    // A mirrored but unreadable datasheet is a different thing from a missing
+    // one: it is present, so the quotation still goes out and the skip is named.
     const quotation = await pdfOf(100, 1)
-    const good = await pdfOf(200, 1)
+    const broken = { id: 11, name: "Broken.pdf", checksum: "x", attached_on: "quotation" }
+    const good = { id: 22, name: "Good.pdf", checksum: "y", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 1, name: "S00001" },
-      documents: [
-        { id: 11, name: "Broken.pdf", checksum: "x", attached_on: "quotation" },
-        { id: 22, name: "Good.pdf", checksum: "y", attached_on: "quotation" },
-      ],
+      documents: [broken, good],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) => {
-      if (body.kind === "quotation") return binary(quotation)
-      if (body.documentId === 11) return binary(new Uint8Array([1, 2, 3, 4]))
-      return binary(good)
-    })
+    stubQuotation(quotation)
+    stubBrochure(broken, new Uint8Array([1, 2, 3, 4]))
+    stubBrochure(good, await pdfOf(200, 1))
 
     const result = await quotationService.buildQuotationPdf("S00001")
 
@@ -247,8 +295,7 @@ describe("quotationService", () => {
       order: { id: 2, name: "S00002" },
       documents: [],
     })
-    const pdfBytes = await pdfOf(100, 3)
-    stubEdgeFunction("odoo-quotation-file", () => binary(pdfBytes))
+    stubQuotation(await pdfOf(100, 3))
 
     const result = await quotationService.buildQuotationPdf("S00002")
 
@@ -257,13 +304,14 @@ describe("quotationService", () => {
   })
 
   it("reports each file as it lands", async () => {
+    const doc = { id: 11, name: "Datasheet.pdf", checksum: "z", attached_on: "quotation" }
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 3, name: "S00003" },
-      documents: [{ id: 11, name: "Datasheet.pdf", checksum: "z", attached_on: "quotation" }],
+      documents: [doc],
     })
-    const bytes = await pdfOf(100, 1)
-    stubEdgeFunction("odoo-quotation-file", () => binary(bytes))
+    stubQuotation(await pdfOf(100, 1))
+    stubBrochure(doc, await pdfOf(100, 1))
 
     const labels = []
     await quotationService.buildQuotationPdf("S00003", {
@@ -290,21 +338,17 @@ describe("quotationService", () => {
     // so the customer reads the quotation first either way.
     const quotation = await pdfOf(100, 1)
     const stillInside = await pdfOf(200, 1)
-    const flipped = await pdfOf(300, 1)
-    const rendered = await odooRenderOf(quotation, stillInside)
+    const inside = { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" }
+    const flipped = { id: 22, name: "Flipped.pdf", checksum: "f", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 9, name: "S00009" },
-      documents: [
-        { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" },
-        { id: 22, name: "Flipped.pdf", checksum: "f", attached_on: "quotation" },
-      ],
+      documents: [inside, flipped],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) => {
-      if (body.kind === "quotation") return binary(rendered)
-      return binary(body.documentId === 11 ? stillInside : flipped)
-    })
+    stubQuotation(await odooRenderOf(quotation, stillInside))
+    stubBrochure(inside, stillInside)
+    stubBrochure(flipped, await pdfOf(300, 1))
 
     const result = await quotationService.buildQuotationPdf("S00009")
 
@@ -319,22 +363,17 @@ describe("quotationService", () => {
     // nothing but quotation. Trimming on the page count alone would delete a
     // real page of pricing — so the render is left whole and the brochure is
     // not appended a second time.
-    const rendered = await pdfOf(100, 2)
-    const stillInside = await pdfOf(200, 1)
-    const flipped = await pdfOf(300, 1)
+    const inside = { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" }
+    const flipped = { id: 22, name: "Flipped.pdf", checksum: "f", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 9, name: "S00009" },
-      documents: [
-        { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" },
-        { id: 22, name: "Flipped.pdf", checksum: "f", attached_on: "quotation" },
-      ],
+      documents: [inside, flipped],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) => {
-      if (body.kind === "quotation") return binary(rendered)
-      return binary(body.documentId === 11 ? stillInside : flipped)
-    })
+    stubQuotation(await pdfOf(100, 2))
+    stubBrochure(inside, await pdfOf(200, 1))
+    stubBrochure(flipped, await pdfOf(300, 1))
 
     const result = await quotationService.buildQuotationPdf("S00009")
 
@@ -348,17 +387,15 @@ describe("quotationService", () => {
   it("refuses the trim when it would leave no quotation behind", async () => {
     // Brochure pages meet or exceed the whole render: the arithmetic cannot be
     // describing what we think it is.
-    const rendered = await pdfOf(100, 1)
-    const stillInside = await pdfOf(100, 2)
+    const inside = { id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 9, name: "S00009" },
-      documents: [{ id: 11, name: "StillInside.pdf", checksum: "m", attached_on: "inside" }],
+      documents: [inside],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) =>
-      binary(body.kind === "quotation" ? rendered : stillInside),
-    )
+    stubQuotation(await pdfOf(100, 1))
+    stubBrochure(inside, await pdfOf(100, 2))
 
     const result = await quotationService.buildQuotationPdf("S00009")
 
@@ -368,22 +405,17 @@ describe("quotationService", () => {
   })
 
   it("leaves the Odoo render intact if an inside brochure cannot be measured", async () => {
-    const quotation = await pdfOf(100, 1)
-    const goodPdf = await pdfOf(300, 1)
+    const bad = { id: 11, name: "Bad.pdf", checksum: "m", attached_on: "inside" }
+    const good = { id: 22, name: "Good.pdf", checksum: "f", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 9, name: "S00009" },
-      documents: [
-        { id: 11, name: "Bad.pdf", checksum: "m", attached_on: "inside" },
-        { id: 22, name: "Good.pdf", checksum: "f", attached_on: "quotation" },
-      ],
+      documents: [bad, good],
     })
-    stubEdgeFunction("odoo-quotation-file", (body) => {
-      if (body.kind === "quotation") return binary(quotation)
-      if (body.documentId === 11) return binary(new Uint8Array([1, 2, 3]))
-      return binary(goodPdf)
-    })
+    stubQuotation(await pdfOf(100, 1))
+    stubBrochure(bad, new Uint8Array([1, 2, 3]))
+    stubBrochure(good, await pdfOf(300, 1))
 
     const result = await quotationService.buildQuotationPdf("S00009")
 
@@ -411,20 +443,32 @@ describe("quotationService", () => {
       documents,
     })
 
+    stubQuotation(quotation)
+    // Width encodes position, so the assembled order is checkable.
+    for (const [i, doc] of documents.entries()) stubBrochure(doc, await pdfOf(200 + i, 1))
+
     let inFlight = 0
     let peak = 0
-    stubEdgeFunction("odoo-quotation-file", async (body) => {
-      if (body.kind === "quotation") return binary(quotation)
+    const onStart = ({ request }) => {
+      if (!request.url.includes("res.cloudinary.com")) return
       inFlight += 1
       peak = Math.max(peak, inFlight)
-      // Hold the request open so overlapping fetches are actually observable.
-      await new Promise((resolve) => setTimeout(resolve, 5))
-      inFlight -= 1
-      // Width encodes position, so the assembled order is checkable.
-      return binary(await pdfOf(200 + (body.documentId - 100), 1))
-    })
+    }
+    const onEnd = ({ request }) => {
+      if (request.url.includes("res.cloudinary.com")) inFlight -= 1
+    }
+    server.events.on("request:start", onStart)
+    server.events.on("request:end", onEnd)
 
-    const result = await quotationService.buildQuotationPdf("S07813")
+    let result
+    try {
+      result = await quotationService.buildQuotationPdf("S07813")
+    } finally {
+      // resetHandlers() does not clear event listeners, so leaving these
+      // attached would have them counting every later test's requests too.
+      server.events.removeListener("request:start", onStart)
+      server.events.removeListener("request:end", onEnd)
+    }
 
     expect(peak).toBeGreaterThan(1)
     expect(peak).toBeLessThanOrEqual(5)
@@ -432,20 +476,44 @@ describe("quotationService", () => {
     expect(result.documentCount).toBe(12)
   })
 
+  it("never asks Supabase for a brochure", async () => {
+    // The reason the whole change exists: brochure bytes must not touch a
+    // metered proxy. A regression here would be invisible except on the bill.
+    const doc = { id: 11, name: "A.pdf", checksum: "a", attached_on: "quotation" }
+    const kinds = []
+
+    stubEdgeFunction("odoo-quotation-manifest", {
+      success: true,
+      order: { id: 9, name: "S00009" },
+      documents: [doc],
+    })
+    stubEdgeFunction("odoo-quotation-file", (body) => {
+      kinds.push(body.kind)
+      return binary(quotationBytes)
+    })
+    const quotationBytes = await pdfOf(100, 1)
+    stubBrochure(doc, await pdfOf(200, 1))
+
+    await quotationService.buildQuotationPdf("S00009")
+
+    expect(kinds).toEqual(["quotation"])
+  })
+
   it("gives the Odoo fetches their own deadline rather than the 20s default", async () => {
     // The default in src/lib/supabase.js aborts a merged quotation render and
     // then retries it, starting a second render on top of the first. Bringing
     // an AbortSignal is what tells the wrapper to stand aside, so pin it here —
     // dropping it would quietly make S07813 undownloadable again.
-    const quotation = await pdfOf(100, 1)
     const invocations = []
+    const doc = { id: 11, name: "A.pdf", checksum: "a", attached_on: "quotation" }
 
     stubEdgeFunction("odoo-quotation-manifest", {
       success: true,
       order: { id: 9, name: "S00009" },
-      documents: [{ id: 11, name: "A.pdf", checksum: "a", attached_on: "quotation" }],
+      documents: [doc],
     })
-    stubEdgeFunction("odoo-quotation-file", () => binary(quotation))
+    stubQuotation(await pdfOf(100, 1))
+    stubBrochure(doc, await pdfOf(200, 1))
 
     const prototype = Object.getPrototypeOf(supabase)
     const realGetter = Object.getOwnPropertyDescriptor(prototype, "functions").get
@@ -466,7 +534,8 @@ describe("quotationService", () => {
     }
 
     const fileFetches = invocations.filter((c) => c.name === "odoo-quotation-file")
-    expect(fileFetches).toHaveLength(2) // the quotation and the one brochure
+    // One, not two: the brochure comes from Cloudinary now.
+    expect(fileFetches).toHaveLength(1)
     expect(fileFetches.every((c) => c.hasDeadline)).toBe(true)
   })
 

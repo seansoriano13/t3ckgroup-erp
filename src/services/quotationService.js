@@ -1,4 +1,5 @@
 import { PDFDocument } from "pdf-lib";
+import { brochureUrl } from "../lib/brochureUrl";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -7,10 +8,21 @@ import { supabase } from "../lib/supabase";
  *
  * Odoo's own "PDF Quote" puts the brochures first and the merge order is
  * hardcoded Python we cannot change on Odoo Online, so the document is
- * rebuilt here instead. The bytes come through the odoo-quotation-file proxy
- * because Odoo sends no CORS headers; the merge itself runs in the browser,
- * where memory is plentiful (measured: ~3.5x the input size, and a 105 MB set
- * merges in under half a second).
+ * rebuilt here instead. The merge runs in the browser, where memory is
+ * plentiful (measured: ~3.5x the input size, and a 105 MB set merges in under
+ * half a second).
+ *
+ * Brochures come from Cloudinary, NOT from the odoo-quotation-file proxy.
+ * Supabase is metered and a cold download of a large order was pushing ~125 MB
+ * through it; the brochures are static per product, so they are mirrored once by
+ * scripts/mirror-brochures.mjs and served from a CDN thereafter. Only the
+ * quotation render still crosses Supabase, because Odoo sends no CORS headers
+ * and there is no other route to it.
+ *
+ * A brochure missing from Cloudinary REFUSES the whole download rather than
+ * falling back to the proxy. That is deliberate: a silent fallback would mean a
+ * misconfigured mirror quietly bleeds egress and nobody notices until the bill.
+ * Refusing is loud, names the documents, and is fixed by re-running the mirror.
  *
  * Documents Odoo has already merged ('inside' visibility) are trimmed off the
  * front of its render and re-appended at the back — see the guard on
@@ -25,21 +37,21 @@ import { supabase } from "../lib/supabase";
 const CACHE_NAME = "odoo-brochures-v1";
 
 /**
- * Odoo renders the quotation live, and while brochures are still merged into
- * it that render is measured in minutes. The client's 20s default would abort
- * it — and then retry, starting a second render on top of the first.
- *
- * These are passed as an AbortSignal rather than left to the default: the
- * wrapper in lib/supabase.js treats a caller-supplied signal as "this caller
- * owns the deadline" and stands aside, retry included.
+ * Odoo renders the quotation live, and while brochures are still merged into it
+ * that render is measured in minutes. Passed as an AbortSignal rather than left
+ * to the default, because the wrapper in lib/supabase.js treats a
+ * caller-supplied signal as "this caller owns the deadline" and stands aside —
+ * its 20s default would abort the render and then retry, starting a second one
+ * on top of the first.
  */
 const QUOTATION_TIMEOUT_MS = 180000;
+
+/** A CDN read, so generous only to survive a bad connection rather than a slow render. */
 const DOCUMENT_TIMEOUT_MS = 60000;
 
 /**
- * Brochures are fetched a few at a time. The point is to overlap the waiting,
- * not to open forty connections to Odoo through the proxy at once — the byte
- * count and the invocation count are identical either way.
+ * Brochures are fetched a few at a time — enough to overlap the waiting without
+ * opening forty connections at once. Byte count is identical either way.
  */
 const FETCH_CONCURRENCY = 5;
 
@@ -101,6 +113,24 @@ async function fetchQuotationBytes(salesReference) {
   );
 }
 
+/**
+ * A brochure that has never been mirrored. Distinct from "downloaded but will
+ * not parse": the second is one skippable datasheet, this one means the mirror
+ * is out of date and the download must not proceed.
+ */
+class MissingBrochureError extends Error {
+  constructor(doc) {
+    super(`"${doc.name}" is not mirrored (document ${doc.id}).`);
+    this.name = "MissingBrochureError";
+    this.doc = doc;
+  }
+}
+
+const CLOUD = {
+  cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME,
+  folder: import.meta.env.VITE_CLOUDINARY_BROCHURE_FOLDER || "",
+};
+
 async function fetchDocumentBytes(doc, cache) {
   const key = cacheKeyFor(doc);
 
@@ -109,11 +139,17 @@ async function fetchDocumentBytes(doc, cache) {
     if (hit) return new Uint8Array(await hit.arrayBuffer());
   }
 
-  const bytes = await invokeForBytes(
-    { kind: "document", documentId: doc.id },
-    `Could not fetch "${doc.name}" from Odoo.`,
-    DOCUMENT_TIMEOUT_MS,
-  );
+  const response = await fetch(brochureUrl(doc, CLOUD), {
+    signal: AbortSignal.timeout(DOCUMENT_TIMEOUT_MS),
+  });
+  if (response.status === 404) throw new MissingBrochureError(doc);
+  if (!response.ok) {
+    throw new Error(`Could not fetch "${doc.name}" (HTTP ${response.status}).`);
+  }
+
+  const buffer = await response.arrayBuffer();
+  if (!buffer.byteLength) throw new MissingBrochureError(doc);
+  const bytes = new Uint8Array(buffer);
 
   if (cache) {
     try {
@@ -124,6 +160,38 @@ async function fetchDocumentBytes(doc, cache) {
   }
 
   return bytes;
+}
+
+/**
+ * Proves a brochure is mirrored without moving its bytes. A cached copy is
+ * proof enough; otherwise a HEAD costs nothing and a miss is a clean 404.
+ */
+async function brochureExists(doc, cache) {
+  if (cache && (await cache.match(cacheKeyFor(doc)))) return true;
+
+  const response = await fetch(brochureUrl(doc, CLOUD), {
+    method: "HEAD",
+    signal: AbortSignal.timeout(DOCUMENT_TIMEOUT_MS),
+  });
+  if (response.status === 404) return false;
+  if (!response.ok) {
+    throw new Error(`Could not reach "${doc.name}" (HTTP ${response.status}).`);
+  }
+  return true;
+}
+
+/**
+ * Names what is missing without pasting forty filenames into a toast, and says
+ * what to do about it — the fix is always the same command.
+ */
+function unavailableMessage(entries) {
+  const shown = entries.slice(0, 3).map(({ doc }) => `"${doc.name}" (id ${doc.id})`);
+  const rest = entries.length - shown.length;
+  const list = shown.join(", ") + (rest > 0 ? `, and ${rest} more` : "");
+  return (
+    `${entries.length} brochure(s) are not mirrored yet: ${list}. ` +
+    `Run "npm run mirror:brochures" and try again.`
+  );
 }
 
 /** Copies every page of `bytes` onto `target`. */
@@ -240,12 +308,18 @@ export const quotationService = {
    * Builds the assembled PDF. Resolves with
    * `{ blob, filename, order, documentCount, warnings, notices }`.
    *
-   * `warnings` names documents that are genuinely absent from the result — a
-   * brochure that will not parse is skipped rather than failing the whole
-   * download, because one bad datasheet should not stop a salesperson sending
-   * anything at all. `notices` is separate and means something milder: the
-   * brochures are all present but stayed where Odoo put them, in front of the
-   * quotation, because moving them could not be done safely.
+   * Three distinct outcomes, deliberately not collapsed into one:
+   *
+   * - **Throws** when a brochure is not mirrored to Cloudinary at all. The
+   *   mirror is stale and the fix is to re-run it; handing over a quotation
+   *   silently missing datasheets would be worse than refusing. This is checked
+   *   before the quotation render is fetched, so a refusal costs nothing.
+   * - **`warnings`** names documents that were fetched but could not be parsed
+   *   and so are absent from the result. One bad datasheet should not stop a
+   *   salesperson sending anything at all.
+   * - **`notices`** is milder still: every brochure is present, but they stayed
+   *   where Odoo put them — in front of the quotation — because moving them
+   *   could not be done safely.
    *
    * `onProgress({ step, current, total, label })` fires as each file lands.
    */
@@ -278,16 +352,24 @@ export const quotationService = {
       );
     }
 
-    // Odoo bakes every 'inside' document into the front of the render below,
-    // so their page geometry is what says how much of that render to drop. It
-    // has to be in hand before the quotation is even fetched.
+    // Every brochure is proved present before the quotation is fetched. Odoo's
+    // render of a large order takes minutes and tens of megabytes through the
+    // proxy, and spending that on a download that is going to refuse anyway is
+    // exactly the cost this whole change exists to avoid.
     const insideDocs = documents.filter((d) => d.attached_on === "inside");
+    const otherDocs = documents.filter((d) => d.attached_on !== "inside");
     const measured = new Map();
+    const unavailable = [];
     let trimBlockedBy = null;
 
-    if (insideDocs.length) {
-      report("brochures", 0, 0, `Checking ${insideDocs.length} merged brochure(s)…`);
+    if (documents.length) {
+      report("brochures", 0, 0, `Checking ${documents.length} brochure(s)…`);
+    }
 
+    // Odoo bakes every 'inside' document into the front of the render, so their
+    // page geometry is what says how much of it to drop. Those have to be
+    // fetched in full rather than merely confirmed.
+    if (insideDocs.length) {
       const loaded = await settleWithLimit(insideDocs, FETCH_CONCURRENCY, async (doc) => {
         const bytes = await fetchDocumentBytes(doc, cache);
         const pdf = await PDFDocument.load(bytes, { ignoreEncryption: true });
@@ -299,10 +381,27 @@ export const quotationService = {
       });
 
       loaded.forEach((result, i) => {
-        if (result.ok) measured.set(insideDocs[i].id, result.value);
-        else if (!trimBlockedBy) trimBlockedBy = insideDocs[i].name;
+        const doc = insideDocs[i];
+        if (result.ok) measured.set(doc.id, result.value);
+        else if (result.error instanceof MissingBrochureError) unavailable.push({ doc });
+        // Present but unreadable is a different thing entirely: Odoo's copy is
+        // still in the render, so the download proceeds without the rearrange.
+        else if (!trimBlockedBy) trimBlockedBy = doc.name;
       });
     }
+
+    // The rest only need to be proved present for now — they are streamed in
+    // and released one at a time during assembly.
+    if (otherDocs.length) {
+      const checks = await settleWithLimit(otherDocs, FETCH_CONCURRENCY, (doc) =>
+        brochureExists(doc, cache),
+      );
+      checks.forEach((result, i) => {
+        if (!result.ok || !result.value) unavailable.push({ doc: otherDocs[i] });
+      });
+    }
+
+    if (unavailable.length) throw new Error(unavailableMessage(unavailable));
 
     report("quotation", 1, total, "Fetching the quotation…");
     const quotationBytes = await fetchQuotationBytes(salesReference);
