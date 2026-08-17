@@ -20,6 +20,7 @@ export const PROJECT_TYPES = [
 // Annex C.3 — pipeline, in order. CLOSED_LOST is reachable from any stage.
 export const OPPORTUNITY_STATUS = {
   LEAD: "LEAD",
+  QUALIFIED: "QUALIFIED",
   PROPOSAL_SUBMITTED: "PROPOSAL_SUBMITTED",
   BID_SUBMITTED: "BID_SUBMITTED",
   NEGOTIATION: "NEGOTIATION",
@@ -34,6 +35,7 @@ export const OPPORTUNITY_STATUS = {
 
 export const OPPORTUNITY_STAGES = [
   { value: OPPORTUNITY_STATUS.LEAD, label: "Lead" },
+  { value: OPPORTUNITY_STATUS.QUALIFIED, label: "Qualified" },
   { value: OPPORTUNITY_STATUS.PROPOSAL_SUBMITTED, label: "Proposal Submitted" },
   { value: OPPORTUNITY_STATUS.BID_SUBMITTED, label: "Bid Submitted" },
   { value: OPPORTUNITY_STATUS.NEGOTIATION, label: "Negotiation" },
