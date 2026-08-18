@@ -44,8 +44,6 @@ export default function LogTaskModal({ isOpen, onClose }) {
     setShowChecklist,
     openPopover,
     setOpenPopover,
-    categorySearch,
-    setCategorySearch,
     createMore,
     setCreateMore,
     handleChange,
@@ -132,7 +130,7 @@ export default function LogTaskModal({ isOpen, onClose }) {
     selectedCategoryObj?.category_id?.toUpperCase().includes("OTHERS") ||
     selectedCategoryObj?.description?.toUpperCase().includes("OTHERS");
 
-  const { isHr, isHead, isSuperAdmin } = roles;
+  const { isHr } = roles;
 
   const uniqueDepts = [
     ...new Set(
@@ -195,14 +193,6 @@ export default function LogTaskModal({ isOpen, onClose }) {
     return cat.sub_department === selectedEmployeeInfo.sub_department;
   });
 
-  const searchedCategories = filteredCategories.filter((cat) => {
-    if (!categorySearch) return true;
-    const q = categorySearch.toLowerCase();
-    return (
-      cat.category_id.toLowerCase().includes(q) ||
-      cat.description.toLowerCase().includes(q)
-    );
-  });
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>

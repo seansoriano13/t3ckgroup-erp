@@ -49,7 +49,7 @@ export const storageService = {
     return this.uploadToCloudinary(file)
   },
 
-  async getSignedUrl(path, expiresIn = 3600) {
+  async getSignedUrl(path, _expiresIn = 3600) {
     if (!path) return null
 
     // Completely bypass Supabase to prevent Egress.

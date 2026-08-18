@@ -9,7 +9,9 @@ export const formatTaskPreview = (description, checklist = null) => {
       try {
         const parsed = JSON.parse(checklist);
         items = Array.isArray(parsed) ? parsed : parsed?.items || [];
-      } catch {}
+      } catch {
+        // Not JSON: fall through to the empty-items case below.
+      }
     } else {
       items = Array.isArray(checklist) ? checklist : checklist?.items || [];
     }

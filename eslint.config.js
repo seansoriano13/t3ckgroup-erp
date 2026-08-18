@@ -27,6 +27,17 @@ export default defineConfig([
     },
   },
   {
+    // Standalone maintenance scripts. These are run with `node`, never bundled,
+    // so they get Node's globals and none of the Fast Refresh rules.
+    files: ['*.{js,mjs}', 'scripts/**/*.{js,mjs}'],
+    languageOptions: {
+      globals: { ...globals.node },
+    },
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
+  {
     // Tests and the test harness. They run in Node (the harness reads the SQL
     // schema off disk), and the Fast Refresh rule does not apply to files that
     // are never part of a bundle.

@@ -403,7 +403,6 @@ export default function GroupTaskDetailModal({
   if (!task) return null;
 
   const isCreator = task.created_by === currentUserId;
-  const isCancelled = task.status === "CANCELLED";
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
   const isCompletedOrBeyond =
@@ -411,10 +410,6 @@ export default function GroupTaskDetailModal({
 
   // Map display status: COMPLETED/HR_PENDING/HR_VERIFIED → "COMPLETED"
   const displayStatus = isCompletedOrBeyond ? "COMPLETED" : task.status;
-
-  const myMember = members.find((m) => m.employee_id === currentUserId);
-  const allMembersDone =
-    members.length > 0 && members.every((m) => m.status === "DONE");
 
   const selectedMember =
     orderedMembers.find((m) => m.id === selectedMemberId) || null;

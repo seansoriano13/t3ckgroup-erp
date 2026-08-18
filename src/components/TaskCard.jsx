@@ -144,7 +144,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         } else {
           plainTextContent = trimmed;
         }
-      } catch (e) {
+      } catch {
         plainTextContent = trimmed;
       }
     } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -159,7 +159,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         } else {
           plainTextContent = trimmed;
         }
-      } catch (e) { 
+      } catch {
         plainTextContent = trimmed;
       }
     } else if (Array.isArray(task.taskDescription)) {

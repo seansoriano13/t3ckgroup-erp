@@ -142,6 +142,7 @@ export const confirmDeleteToast = (title, description, onConfirm) => {
 };
 
 // Global utility for triggering generic action confirmations
+// eslint-disable-next-line react-refresh/only-export-components
 export const confirmActionToast = (title, description, confirmText, actionType, onConfirm) => {
   toast.custom(
     (t) => (

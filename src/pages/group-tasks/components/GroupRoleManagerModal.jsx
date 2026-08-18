@@ -24,6 +24,10 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
 
   useEffect(() => {
     if (isOpen) {
+      // Resetting on open is the point: the modal keeps its fields mounted
+      // between openings, so without this the next open shows the last
+      // session's input. isOpen is the external event being followed.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNewRole("");
       setEditingId(null);
       setEditValue("");

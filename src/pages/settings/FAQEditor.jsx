@@ -23,7 +23,6 @@ const ROLES = [
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
-import { useNavigate } from "react-router";
 
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
@@ -362,7 +361,6 @@ function CategoryStylePicker({ cat, onChange }) {
 
 // ─── Main FAQEditor page ───────────────────────────────────────────────────────
 export default function FAQEditorPage() {
-  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [activeCatId, setActiveCatId] = useState(null);
   const [saved, setSaved] = useState(false);
