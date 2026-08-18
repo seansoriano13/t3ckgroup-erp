@@ -29,15 +29,35 @@ const Dropdown = forwardRef(
     const computeCoords = useCallback(() => {
       if (!dropdownRef.current) return null;
       const rect = dropdownRef.current.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const windowWidth = window.innerWidth;
+      
+      const spaceBelow = windowHeight - rect.bottom - 12;
+      const spaceAbove = rect.top - 12;
+      
+      const isExplicitTop = placement.startsWith("top");
+      const shouldFlipTop =
+        isExplicitTop ||
+        (placement.startsWith("bottom") &&
+          spaceBelow < 220 &&
+          spaceAbove > spaceBelow);
+
+      const availableHeight = shouldFlipTop
+        ? Math.max(140, Math.min(spaceAbove, 380))
+        : Math.max(140, Math.min(spaceBelow, 380));
+
       return {
         left: rect.left,
         top: rect.bottom,
         rectTop: rect.top,
         width: rect.width,
-        right: window.innerWidth - rect.right,
-        windowHeight: window.innerHeight,
+        right: windowWidth - rect.right,
+        windowHeight,
+        windowWidth,
+        shouldFlipTop,
+        availableHeight,
       };
-    }, []);
+    }, [placement]);
 
     const updateCoords = useCallback(() => {
       const next = computeCoords();
@@ -50,7 +70,9 @@ const Dropdown = forwardRef(
           prev.rectTop === next.rectTop &&
           prev.width === next.width &&
           prev.right === next.right &&
-          prev.windowHeight === next.windowHeight
+          prev.windowHeight === next.windowHeight &&
+          prev.shouldFlipTop === next.shouldFlipTop &&
+          prev.availableHeight === next.availableHeight
         ) {
           return prev;
         }
@@ -170,12 +192,14 @@ const Dropdown = forwardRef(
                 style={{
                   position: "fixed",
                   zIndex: 10001,
-                  top: placement.startsWith("top")
-                    ? "auto"
-                    : coords.top + 6,
-                  bottom: placement.startsWith("top")
+                  top: coords.shouldFlipTop ? "auto" : coords.top + 6,
+                  bottom: coords.shouldFlipTop
                     ? coords.windowHeight - coords.rectTop + 6
                     : "auto",
+                  maxHeight: coords.availableHeight,
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
                   ...(placement.endsWith("end")
                     ? { right: coords.right, left: "auto" }
                     : { left: coords.left, right: "auto" }),
@@ -195,6 +219,12 @@ const Dropdown = forwardRef(
             <div
               ref={popoverRef}
               className={`${popoverClassName} ${placementClass}`}
+              style={{
+                maxHeight: "calc(100vh - 100px)",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
             >
               {typeof children === "function"
                 ? children({

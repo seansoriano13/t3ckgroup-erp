@@ -51,9 +51,9 @@ export default function RoleDropdown({
       )}
     >
       {({ close }) => (
-        <>
+        <div className="flex flex-col min-h-0 max-h-[inherit] overflow-hidden">
           {roles.length > 5 && (
-            <div className="px-2 pt-2 pb-1 border-b border-border">
+            <div className="px-2 pt-2 pb-1 border-b border-border shrink-0">
               <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 rounded-md border border-border focus-within:border-mauve-4 focus-within:ring-1 focus-within:ring-mauve-4 transition-all">
                 <Search size={14} className="text-muted-foreground shrink-0" />
                 <input
@@ -69,7 +69,7 @@ export default function RoleDropdown({
             </div>
           )}
 
-          <div className="max-h-[240px] overflow-y-auto p-1">
+          <div className="max-h-[220px] flex-1 min-h-0 overflow-y-auto p-1 custom-scrollbar">
             {isLoading ? (
               <p className="text-[13px] text-mauve-7 text-center py-4 font-medium">
                 Loading…
@@ -129,7 +129,7 @@ export default function RoleDropdown({
           </div>
 
           {onManage && (
-            <div className="border-t border-border p-1">
+            <div className="border-t border-border p-1 shrink-0 bg-muted/40">
               <button
                 type="button"
                 onClick={(e) => {
@@ -144,7 +144,7 @@ export default function RoleDropdown({
               </button>
             </div>
           )}
-        </>
+        </div>
       )}
     </Dropdown>
   );
