@@ -1,4 +1,4 @@
-import { Users, Lock } from "lucide-react";
+import { Users, Lock, Settings2 } from "lucide-react";
 import Dropdown from "@/components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown";
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
@@ -90,9 +90,21 @@ export default function GroupTaskMemberPanel({
 
       {/* Role */}
       <div className="flex flex-col gap-1.5">
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          Role (optional)
-        </label>
+        <div className="flex items-center justify-between max-w-sm">
+          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+            Role (optional)
+          </label>
+          {canEditAssignment && onManageRoles && (
+            <button
+              type="button"
+              onClick={onManageRoles}
+              className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-md hover:bg-muted transition-colors flex items-center gap-1 text-[9px] font-bold uppercase cursor-pointer"
+              title="Manage Roles"
+            >
+              <Settings2 size={11} /> Manage
+            </button>
+          )}
+        </div>
         {canEditAssignment ? (
           <>
             <RoleDropdown
