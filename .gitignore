@@ -67,3 +67,13 @@ Script Roadmap.md
 TEST-SCENARIOS.md
 
 Video Script -*
+
+# Skill scratch — critique output and live-preview state, not project files.
+.impeccable/
+
+# Reference PDFs pulled from Odoo while working on a deal. A sales order or
+# quotation carries customer-facing pricing and therefore the margin on a live
+# deal (see §10 of docs/sor-procurement-flow-decisions.md). Keeping them out of
+# the repo is the same rule, applied to the thing itself rather than to what
+# gets attached to a task.
+docs/*.pdf
