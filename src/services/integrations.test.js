@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { PDFDocument } from "pdf-lib"
+import { PDFArray, PDFDocument, PDFName, PDFRawStream, StandardFonts } from "pdf-lib"
 import { githubService } from "./githubService"
 import { odooService } from "./odooService"
 import { quotationService } from "./quotationService"
 import { storageService } from "./storageService"
 import { aiService } from "./aiService"
+import { ODOO_LETTERHEAD_COMPANY_NAME } from "@/lib/pdfLetterhead"
 import { supabase } from "@/lib/supabase"
 import {
   server,
@@ -301,6 +302,117 @@ describe("quotationService", () => {
 
     expect(await widthsOf(result.blob)).toEqual([100, 100, 100])
     expect(result.warnings).toEqual([])
+  })
+
+  describe("store letterhead", () => {
+    /** Odoo's header, at its real position, in the same simple font pdf-lib itself draws with. */
+    const pdfWithHeader = async (text) => {
+      const doc = await PDFDocument.create()
+      const page = doc.addPage([595, 842])
+      const font = await doc.embedFont(StandardFonts.HelveticaBold)
+      page.drawText(text, { x: 29.6, y: 799.6, size: 10.25, font })
+      return doc.save()
+    }
+
+    /** Local, independent of pdfLetterhead's own decoder — see the equivalent helper in pdfLetterhead.test.js for why this has to hex-decode rather than substring-match. */
+    const rawPageText = async (doc, pageIndex = 0) => {
+      const page = doc.getPages()[pageIndex]
+      const ctx = page.node.context
+      const contents = ctx.lookup(page.node.get(PDFName.of("Contents")))
+      const parts = contents instanceof PDFArray ? contents.asArray().map((r) => ctx.lookup(r)) : [contents]
+      const texts = await Promise.all(
+        parts.map(async (part) => {
+          const bytes = part instanceof PDFRawStream ? part.contents : part.getContents()
+          const isFlate = String(part.dict.get(PDFName.of("Filter"))).includes("Flate")
+          const plain = isFlate
+            ? new Uint8Array(
+                await new Response(
+                  new Response(bytes).body.pipeThrough(new DecompressionStream("deflate")),
+                ).arrayBuffer(),
+              )
+            : bytes
+          return new TextDecoder("latin1").decode(plain)
+        }),
+      )
+      return texts.join("\n")
+    }
+    const decodedTextOf = (raw) =>
+      [...raw.matchAll(/<([0-9A-Fa-f]+)>\s*Tj/g)]
+        .map(([, hex]) => hex.match(/../g).map((b) => String.fromCharCode(parseInt(b, 16))).join(""))
+        .join("")
+
+    const headerTextOf = async (blob) => {
+      const doc = await PDFDocument.load(new Uint8Array(await blob.arrayBuffer()))
+      return decodedTextOf(await rawPageText(doc, 0))
+    }
+
+    it("prints the requesting store's letterhead over Odoo's company name", async () => {
+      stubEdgeFunction("odoo-quotation-manifest", {
+        success: true,
+        order: { id: 20, name: "S00020" },
+        documents: [],
+      })
+      stubQuotation(await pdfWithHeader(ODOO_LETTERHEAD_COMPANY_NAME))
+
+      const result = await quotationService.buildQuotationPdf("S00020", {
+        requestedByEmail: "storecdoopc@gmail.com",
+      })
+
+      const text = await headerTextOf(result.blob)
+      expect(text).not.toContain(ODOO_LETTERHEAD_COMPANY_NAME)
+      expect(text).toContain("STORE CDO")
+      expect(result.notices).toEqual([])
+    })
+
+    it("leaves the header untouched for an account outside the store pattern", async () => {
+      stubEdgeFunction("odoo-quotation-manifest", {
+        success: true,
+        order: { id: 21, name: "S00021" },
+        documents: [],
+      })
+      stubQuotation(await pdfWithHeader(ODOO_LETTERHEAD_COMPANY_NAME))
+
+      const result = await quotationService.buildQuotationPdf("S00021", {
+        requestedByEmail: "sales@t3ckgroup.com",
+      })
+
+      expect(await headerTextOf(result.blob)).toContain(ODOO_LETTERHEAD_COMPANY_NAME)
+      expect(result.notices).toEqual([])
+    })
+
+    it("leaves the header untouched when no requester is given", async () => {
+      // Back-compat: existing callers that never pass requestedByEmail must
+      // keep downloading Odoo's own header exactly as before.
+      stubEdgeFunction("odoo-quotation-manifest", {
+        success: true,
+        order: { id: 22, name: "S00022" },
+        documents: [],
+      })
+      stubQuotation(await pdfWithHeader(ODOO_LETTERHEAD_COMPANY_NAME))
+
+      const result = await quotationService.buildQuotationPdf("S00022")
+
+      expect(await headerTextOf(result.blob)).toContain(ODOO_LETTERHEAD_COMPANY_NAME)
+    })
+
+    it("notes the letterhead could not be applied, without failing the download", async () => {
+      // The render this time carries no "TG Enterprise" at all — e.g. a
+      // report template change — so the swap has nothing to find. The
+      // download still has to succeed; the store just gets a generic PDF.
+      stubEdgeFunction("odoo-quotation-manifest", {
+        success: true,
+        order: { id: 23, name: "S00023" },
+        documents: [],
+      })
+      stubQuotation(await pdfWithHeader("Some Other Company"))
+
+      const result = await quotationService.buildQuotationPdf("S00023", {
+        requestedByEmail: "storetagbilaranopc@gmail.com",
+      })
+
+      expect(result.notices).toHaveLength(1)
+      expect(result.notices[0]).toMatch(/STORE TAGBILARAN/)
+    })
   })
 
   it("reports each file as it lands", async () => {

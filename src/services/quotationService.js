@@ -1,5 +1,6 @@
 import { PDFDocument } from "pdf-lib";
 import { brochureUrl } from "../lib/brochureUrl";
+import { replaceLetterheadText, resolveStoreLetterhead } from "../lib/pdfLetterhead";
 import { supabase } from "../lib/supabase";
 
 /**
@@ -322,8 +323,14 @@ export const quotationService = {
    *   could not be done safely.
    *
    * `onProgress({ step, current, total, label })` fires as each file lands.
+   *
+   * `requestedByEmail` drives the letterhead swap: a `store<city>opc@gmail.com`
+   * account gets "STORE <CITY>" patched over Odoo's "TG Enterprise" header (see
+   * lib/pdfLetterhead.js — those storefronts sell under Odoo's one company
+   * record and get no separate one there). Any other email, or none, leaves
+   * the header exactly as Odoo rendered it.
    */
-  async buildQuotationPdf(salesReference, { onProgress } = {}) {
+  async buildQuotationPdf(salesReference, { onProgress, requestedByEmail } = {}) {
     const report = (step, current, total, label) =>
       onProgress?.({ step, current, total, label });
 
@@ -433,6 +440,20 @@ export const quotationService = {
       : rendered.getPageIndices();
     const quotationPages = await target.copyPages(rendered, keep);
     quotationPages.forEach((page) => target.addPage(page));
+
+    const storeLetterhead = resolveStoreLetterhead(requestedByEmail);
+    if (storeLetterhead) {
+      const patched = await replaceLetterheadText(target, quotationPages, { to: storeLetterhead });
+      // Not a throw: Odoo's report template could change, or this could be a
+      // format that never carried the header at all. Either way the download
+      // still succeeds — just with the company's own name instead of the
+      // store's, which is what would have happened before this feature.
+      if (!patched) {
+        notices.push(
+          `Could not apply the "${storeLetterhead}" letterhead — the quotation still shows TG Enterprise.`,
+        );
+      }
+    }
 
     // Without the trim, Odoo's copy of each 'inside' brochure is still at the
     // front of the render — appending it again is what produced
