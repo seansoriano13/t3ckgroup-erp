@@ -22,6 +22,7 @@ import Spinner from "../ui/Spinner";
 import Avatar from "../Avatar";
 import StatusBadge from "../StatusBadge";
 import { opportunityService } from "../../services/opportunityService";
+import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../context/AuthContext";
 import { confirmDeleteToast, confirmActionToast } from "../ui/CustomToast";
 import { AttachmentPreviews, AttachmentList } from "../ui/Attachments";
@@ -36,10 +37,16 @@ import { employeeService } from "../../services/employeeService";
 import { odooService } from "../../services/odooService";
 import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
+import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
+import ProcurementPanel from "./ProcurementPanel";
+import { procurementService } from "../../services/procurementService";
+import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
+import { formatDueDate } from "../../utils/formatDate";
 import {
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPES,
+  STAGE_LABELS,
   formatLeadSource,
   formatPHP,
   isValidSalesReference,
@@ -143,45 +150,73 @@ function PeopleRoster({ opportunity }) {
   );
 }
 
+/**
+ * The deal's product list, as pulled from the Odoo sales order.
+ *
+ * Deliberately carries no procurement state. An earlier design hung a
+ * per-line "not in Odoo" flag here and joined requests back onto these rows by
+ * normalised name — impossible by construction, since this list is read from
+ * `sale.order.line` and therefore every row in it already exists in Odoo. What
+ * purchasing gets asked for is a product that was never on the order at all,
+ * so it lives in `sor_procurement_requests` and renders in ProcurementPanel.
+ * See the "Revision" section of docs/sor-procurement-flow-decisions.md.
+ */
 function ItemsList({ items }) {
   if (!items.length) return null;
-  const total = items.reduce((sum, it) => sum + ((Number(it.quantity) || 0) * (Number(it.unit_price) || 0)), 0);
+  const total = items.reduce(
+    (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
+    0,
+  );
   return (
-    <div className="border border-border rounded-xl overflow-x-auto">
-      <div className="min-w-[500px] divide-y divide-border">
-        <div className="grid grid-cols-12 gap-2 px-3 py-1.5 bg-muted/40 text-[9px] font-bold text-muted-foreground uppercase tracking-widest">
-          <span className="col-span-6">Product</span>
-          <span className="col-span-2 text-right">Qty</span>
-          <span className="col-span-2 text-right">Unit Price</span>
-          <span className="col-span-2 text-right">Total</span>
-        </div>
-        {items.map((it) => (
-          <div
-            key={it.id}
-            className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm"
-          >
-            <span className="col-span-6 text-foreground font-medium truncate">
-              {it.product_name}
-              {it.unit && (
-                <span className="text-muted-foreground font-normal"> ({it.unit})</span>
-              )}
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xs">
+      <div className="overflow-x-auto">
+        <div className="min-w-[560px]">
+          <div className="grid grid-cols-12 gap-3 border-b border-border/60 bg-muted/40 px-4 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <span className="col-span-6">Product & Unit</span>
+            <span className="col-span-2 text-right">Quantity</span>
+            <span className="col-span-2 text-right">Unit Price</span>
+            <span className="col-span-2 text-right">Line Total</span>
+          </div>
+
+          <div className="max-h-[420px] divide-y divide-border/50 overflow-y-auto custom-scrollbar">
+            {items.map((it) => (
+              <div
+                key={it.id}
+                className="grid grid-cols-12 gap-3 items-center px-4 py-3 text-sm transition-colors hover:bg-muted/25"
+              >
+                <div className="col-span-6 min-w-0 pr-2">
+                  <span className="block truncate font-semibold text-foreground">
+                    {it.product_name}
+                  </span>
+                  {it.unit && (
+                    <span className="inline-block mt-0.5 text-[11px] font-medium text-muted-foreground">
+                      Unit: {it.unit}
+                    </span>
+                  )}
+                </div>
+                <div className="col-span-2 text-right">
+                  <span className="inline-block rounded-md bg-mauve-3 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-foreground">
+                    {it.quantity} {it.unit ? "" : "qty"}
+                  </span>
+                </div>
+                <span className="col-span-2 text-right font-medium text-muted-foreground tabular-nums">
+                  {formatPHP(it.unit_price)}
+                </span>
+                <span className="col-span-2 text-right font-bold text-foreground tabular-nums">
+                  {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-12 gap-3 border-t border-border/80 bg-muted/30 px-4 py-3 items-center text-sm">
+            <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              Product Line Total
             </span>
-            <span className="col-span-2 text-right text-muted-foreground">
-              {it.quantity}
-            </span>
-            <span className="col-span-2 text-right text-muted-foreground">
-              {formatPHP(it.unit_price)}
-            </span>
-            <span className="col-span-2 text-right font-bold text-foreground">
-              {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+            <span className="col-span-4 text-right text-base font-black text-foreground tabular-nums">
+              {formatPHP(total)}
             </span>
           </div>
-        ))}
-        <div className="grid grid-cols-12 gap-2 px-3 py-2.5 items-center text-sm bg-muted/10 border-t border-border">
-          <span className="col-span-10 text-right font-bold text-muted-foreground uppercase tracking-widest text-[9px]">Product Line Total</span>
-          <span className="col-span-2 text-right font-black text-foreground">
-            {formatPHP(total)}
-          </span>
         </div>
       </div>
     </div>
@@ -208,6 +243,25 @@ function formatWhen(iso) {
   });
 }
 
+function groupThousands(raw) {
+  if (!raw) return "";
+  const parts = raw.toString().split(".");
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return parts.join(".");
+}
+
+/**
+ * The Estimated Value box is a fixed width, so a fixed text-3xl/4xl broke
+ * mid-digit-group on 8-figure deals (e.g. "₱28,543,940.0" / "0"). Shrinking by
+ * length keeps the whole number on one line instead of wrapping it.
+ */
+function estimatedValueSizeClass(displayText) {
+  const len = (displayText || "").length;
+  if (len >= 17) return "text-xl lg:text-2xl";
+  if (len >= 14) return "text-2xl lg:text-3xl";
+  return "text-3xl lg:text-4xl";
+}
+
 const toRow = (item) => ({
   product_name: item.product_name || "",
   unit: item.unit || "",
@@ -227,15 +281,70 @@ const toRow = (item) => ({
  * sales-reference gating instead of mutating directly, and Log Notes keeps
  * its real composer and attachments.
  */
+function ProcurementLogNoteCard({ metadata }) {
+  if (!metadata) return null;
+  const outcomeLabel =
+    PROCUREMENT_OUTCOME_LABELS[metadata.outcome] || metadata.outcome;
+
+  return (
+    <div className="mt-1.5 rounded-xl border border-border/80 bg-card p-3 shadow-xs space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="truncate text-xs font-bold text-foreground">
+            {metadata.requested_name || "Product"}
+          </span>
+
+        </div>
+
+        <div className="flex items-center gap-2 min-w-0">
+          {metadata.po_number && (
+            <span className="font-mono text-[11px] font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border">
+              {metadata.po_number}
+            </span>
+          )}
+          <StatusBadge
+            status={metadata.outcome}
+            label={outcomeLabel}
+          />
+        </div>
+      </div>
+
+      {metadata.odoo_product_ref && (
+        <div className="rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-foreground">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
+            Odoo Product
+          </span>
+          <span className="font-medium">{metadata.odoo_product_ref}</span>
+        </div>
+      )}
+
+      {(metadata.eta || metadata.note) && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground pt-1.5 border-t border-border/40">
+          {metadata.eta && (
+            <span>
+              ETA: <span className="font-semibold text-foreground">{formatDueDate(metadata.eta)}</span>
+            </span>
+          )}
+          {metadata.note && (
+            <span>
+              Remarks: <span className="italic text-foreground">“{metadata.note}”</span>
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function OpportunityDetailsModal({
   isOpen,
   onClose,
   opportunity,
-  onEdit,
 }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
+  const [noteMentions, setNoteMentions] = useState([]);
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
@@ -279,9 +388,48 @@ export default function OpportunityDetailsModal({
     enabled: !!id && isOpen,
   });
 
+  const notesContainerRef = useRef(null);
+
+  // Realtime subscription for Log Notes
+  useEffect(() => {
+    if (!id || !isOpen) return;
+
+    const channel = supabase
+      .channel(`opportunity_logs_${id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "sales_opportunity_logs",
+          filter: `opportunity_id=eq.${id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, isOpen, queryClient]);
+
+  useEffect(() => {
+    if (notesContainerRef.current) {
+      notesContainerRef.current.scrollTop = notesContainerRef.current.scrollHeight;
+    }
+  }, [notes.length, loadingNotes, isOpen]);
+
   const { data: items = [] } = useQuery({
     queryKey: ["opportunityItems", id],
     queryFn: () => opportunityService.getItems(id),
+    enabled: !!id && isOpen,
+  });
+
+  const { data: procurementRequests = [] } = useQuery({
+    queryKey: ["procurementRequests", id],
+    queryFn: () => procurementService.listForOpportunity(id),
     enabled: !!id && isOpen,
   });
 
@@ -303,10 +451,11 @@ export default function OpportunityDetailsModal({
   };
 
   const addNoteMutation = useMutation({
-    mutationFn: ({ content, attachments }) =>
-      opportunityService.addNote(id, user?.id, content, attachments),
+    mutationFn: ({ content, attachments, mentions }) =>
+      opportunityService.addNote(id, user?.id, content, attachments, mentions),
     onSuccess: () => {
       setNote("");
+      setNoteMentions([]);
       attachments.clear();
       invalidate();
     },
@@ -357,17 +506,21 @@ export default function OpportunityDetailsModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Small delay ensures DialogContent is fully mounted and dimensions are available
-    const timer = setTimeout(() => {
-      if (scrollRef.current && activeChevronRef.current) {
-        const container = scrollRef.current;
-        const activeEl = activeChevronRef.current;
-        const scrollLeft = activeEl.offsetLeft - container.clientWidth * 0.2;
-        container.scrollTo({ left: Math.max(0, scrollLeft), behavior: "smooth" });
-      }
-    }, 100);
+    // Two rAFs, not a timeout: the first fires once the browser has committed
+    // DialogContent's post-open layout, the second once that layout has
+    // painted. A fixed delay guessed wrong often enough that the active stage
+    // silently stayed scrolled off-screen on deals past the first couple stages.
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        activeChevronRef.current?.scrollIntoView({
+          behavior: "smooth",
+          inline: "center",
+          block: "nearest",
+        });
+      });
+    });
 
-    return () => clearTimeout(timer);
+    return () => cancelAnimationFrame(raf);
   }, [opportunity?.status, isOpen]);
 
   const handlePostNote = async () => {
@@ -383,7 +536,7 @@ export default function OpportunityDetailsModal({
       return;
     }
 
-    addNoteMutation.mutate({ content, attachments: uploaded });
+    addNoteMutation.mutate({ content, attachments: uploaded, mentions: noteMentions });
   };
 
   const executeOdooFetch = async (ref) => {
@@ -504,6 +657,7 @@ export default function OpportunityDetailsModal({
         await quotationService.buildQuotationPdf(opportunity.sales_reference, {
           onProgress: ({ current, total, label }) =>
             setDownloadStep(total ? `${current}/${total} — ${label}` : label),
+          requestedByEmail: user?.email,
         });
 
       const url = URL.createObjectURL(blob);
@@ -565,6 +719,11 @@ export default function OpportunityDetailsModal({
 
   if (!opportunity) return null;
 
+  const estimatedValueDisplay = isEditing
+    ? `₱${groupThousands(editForm.expected_value)}`
+    : formatPHP(opportunity.expected_value);
+  const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
+
   const isLostPending = pendingStage === "CLOSED_LOST";
   const needsSalesRef =
     !!pendingStage &&
@@ -583,6 +742,24 @@ export default function OpportunityDetailsModal({
       setPendingStage(next);
       return;
     }
+
+    // Advancing with purchasing still unanswered is a warning, never a block.
+    // Blocking would make purchasing's backlog into sales' blocker, and the
+    // predictable response is deleting the flagged line, advancing, and adding
+    // it back — a gate that teaches people to route around it.
+    const stillOpen = openRequests(procurementRequests);
+    if (stillOpen.length && next !== "CLOSED_LOST") {
+      confirmActionToast(
+        "Purchasing hasn't answered yet",
+        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${STAGE_LABELS[next] || next
+        } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
+        "Move anyway",
+        "warning",
+        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
+      );
+      return;
+    }
+
     stageMutation.mutate({ next, reason: null, salesReference: null });
   };
 
@@ -792,7 +969,7 @@ export default function OpportunityDetailsModal({
         >
           {/* Pipeline Stage Tracker */}
           <div className="w-full">
-            <p className="mb-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
               Pipeline Stage
             </p>
             {stageControl}
@@ -896,213 +1073,223 @@ export default function OpportunityDetailsModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3 items-start">
+          {/* Purchasing status is what ops needs on first glance, so it sits
+              above the fact grid/notes stack rather than at the very bottom. */}
+          {!isEditing && (
+            <div className="rounded-xl border border-border/50 p-6">
+              <ProcurementPanel opportunity={opportunity} />
+            </div>
+          )}
 
-            {/* LEFT COLUMN */}
-            <div className="flex flex-col gap-6 lg:col-span-1">
-              {/* Left Box: Estimated Value */}
-              <div className="flex min-w-0 flex-col justify-center rounded-xl border border-border bg-muted/30 p-6 ">
-                <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Estimated Value
-                </p>
-                {isEditing ? (
-                  <div className="flex items-center text-3xl font-black tracking-tight text-foreground lg:text-4xl">
-                    <span className="mr-2 text-muted-foreground/50">₱</span>
-                    <input
-                      type="text"
-                      value={(() => {
-                        const val = editForm.expected_value;
-                        if (!val) return "";
-                        const parts = val.toString().split(".");
-                        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-                        return parts.join(".");
-                      })()}
-                      onChange={(e) => {
-                        let raw = e.target.value.replace(/[^0-9.]/g, '');
-                        const parts = raw.split('.');
-                        if (parts.length > 2) raw = parts[0] + '.' + parts.slice(1).join('');
-                        setEditForm(f => ({ ...f, expected_value: raw }));
-                      }}
-                      className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
-                      placeholder="0.00"
-                    />
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
+            {/* LEFT COLUMN: Overview Hero (Estimated Value + Quotation Actions + People Roster) */}
+            <div className="lg:col-span-4 flex flex-col gap-6">
+              <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden divide-y divide-border/60">
+                {/* 1. Estimated Value Section */}
+                <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                      Estimated Value
+                    </span>
+                    {opportunity.status && (
+                      <StatusBadge status={opportunity.status} />
+                    )}
                   </div>
-                ) : (
-                  <p className="text-3xl font-black tracking-tight break-words text-foreground tabular-nums lg:text-4xl">
-                    {formatPHP(opportunity.expected_value)}
-                  </p>
-                )}
-              </div>
-              {/* Left Box 1b: Customer quotation link. Odoo's portal page shows
-                  the quotation with every product brochure beneath it, so this
-                  is what sales sends instead of an attachment. Needs a Sales
-                  Reference to resolve the order, so it stays hidden until
-                  there is one. */}
-              {!isEditing && opportunity.sales_reference && (
-                <div className="flex flex-col gap-2 rounded-xl border border-border/50 p-3">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      disabled={buildingLink}
-                      onClick={handlePreviewQuotation}
-                      className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-muted/50 px-4 py-3 text-[13px] font-bold text-foreground transition-all hover:bg-muted disabled:opacity-50"
-                    >
-                      {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={15} />}
-                      Preview Quotation
-                    </button>
-                    <button
-                      type="button"
-                      disabled={buildingLink}
-                      onClick={handleCopyQuotationLink}
-                      title="Copy the customer link"
-                      aria-label="Copy the customer link"
-                      className="flex items-center justify-center rounded-lg border border-border px-3 text-muted-foreground transition-all hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
-                    >
-                      <Link2 size={15} />
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={!!downloadStep}
-                    onClick={handleDownloadQuotation}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-[13px] font-bold text-muted-foreground transition-all hover:bg-muted/50 hover:text-foreground disabled:opacity-50"
-                  >
-                    {downloadStep ? <Spinner size="sm" /> : <FileDown size={15} />}
-                    Download Full PDF
-                  </button>
-                  {downloadStep && (
-                    <p className="truncate text-center text-[11px] text-muted-foreground">
-                      {downloadStep}
+                  {isEditing ? (
+                    <div className={cn("flex items-center font-black tracking-tight text-foreground", estimatedValueSize)}>
+                      <span className="mr-1.5 text-muted-foreground/50">₱</span>
+                      <input
+                        type="text"
+                        value={groupThousands(editForm.expected_value)}
+                        onChange={(e) => {
+                          let raw = e.target.value.replace(/[^0-9.]/g, "");
+                          const parts = raw.split(".");
+                          if (parts.length > 2) raw = parts[0] + "." + parts.slice(1).join("");
+                          setEditForm((f) => ({ ...f, expected_value: raw }));
+                        }}
+                        className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
+                        placeholder="0.00"
+                      />
+                    </div>
+                  ) : (
+                    <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>
+                      {formatPHP(opportunity.expected_value)}
                     </p>
                   )}
                 </div>
-              )}
-              {/* Left Box 2: People Roster */}
-              <div className="rounded-xl border border-border/50 p-6 ">
-                <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  People
-                </p>
-                {isEditing ? (
-                  <div className="space-y-4">
-                    <Detail
-                      label="Deal Owner"
-                      isEditing={isEditing}
-                      control={
-                        <Dropdown
-                          usePortal
-                          className="w-full"
-                          trigger={({ isOpen }) => (
-                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                              <span className={editForm.deal_owner_id ? "text-foreground" : "text-muted-foreground/50"}>
-                                {editForm.deal_owner_id ? employees.find(e => e.id === editForm.deal_owner_id)?.name : "Unassigned"}
-                              </span>
-                            </div>
-                          )}
-                        >
-                          {({ close }) => (
-                            <FilterOptionList
-                              options={employees.map(e => ({ value: e.id, label: e.name }))}
-                              value={editForm.deal_owner_id}
-                              onChange={(val) => setEditForm(f => ({ ...f, deal_owner_id: val }))}
-                              close={close}
-                            />
-                          )}
-                        </Dropdown>
-                      }
-                    />
-                    <Detail
-                      label="Sales Director"
-                      isEditing={isEditing}
-                      control={
-                        <Dropdown
-                          usePortal
-                          className="w-full"
-                          trigger={({ isOpen }) => (
-                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                              <span className={editForm.sales_director_id ? "text-foreground" : "text-muted-foreground/50"}>
-                                {editForm.sales_director_id ? employees.find(e => e.id === editForm.sales_director_id)?.name : "Unassigned"}
-                              </span>
-                            </div>
-                          )}
-                        >
-                          {({ close }) => (
-                            <FilterOptionList
-                              options={employees.map(e => ({ value: e.id, label: e.name }))}
-                              value={editForm.sales_director_id}
-                              onChange={(val) => setEditForm(f => ({ ...f, sales_director_id: val }))}
-                              close={close}
-                            />
-                          )}
-                        </Dropdown>
-                      }
-                    />
-                    <Detail
-                      label="Support Sales 1"
-                      isEditing={isEditing}
-                      control={
-                        <Dropdown
-                          usePortal
-                          className="w-full"
-                          trigger={({ isOpen }) => (
-                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                              <span className={editForm.support_sales_1_id ? "text-foreground" : "text-muted-foreground/50"}>
-                                {editForm.support_sales_1_id ? employees.find(e => e.id === editForm.support_sales_1_id)?.name : "Unassigned"}
-                              </span>
-                            </div>
-                          )}
-                        >
-                          {({ close }) => (
-                            <FilterOptionList
-                              options={employees.map(e => ({ value: e.id, label: e.name }))}
-                              value={editForm.support_sales_1_id}
-                              onChange={(val) => setEditForm(f => ({ ...f, support_sales_1_id: val }))}
-                              close={close}
-                            />
-                          )}
-                        </Dropdown>
-                      }
-                    />
-                    <Detail
-                      label="Support Sales 2"
-                      isEditing={isEditing}
-                      control={
-                        <Dropdown
-                          usePortal
-                          className="w-full"
-                          trigger={({ isOpen }) => (
-                            <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
-                              <span className={editForm.support_sales_2_id ? "text-foreground" : "text-muted-foreground/50"}>
-                                {editForm.support_sales_2_id ? employees.find(e => e.id === editForm.support_sales_2_id)?.name : "Unassigned"}
-                              </span>
-                            </div>
-                          )}
-                        >
-                          {({ close }) => (
-                            <FilterOptionList
-                              options={employees.map(e => ({ value: e.id, label: e.name }))}
-                              value={editForm.support_sales_2_id}
-                              onChange={(val) => setEditForm(f => ({ ...f, support_sales_2_id: val }))}
-                              close={close}
-                            />
-                          )}
-                        </Dropdown>
-                      }
-                    />
+
+                {/* 2. Quotation Actions (if sales reference exists) */}
+                {!isEditing && opportunity.sales_reference && (
+                  <div className="p-4 bg-muted/15 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground mb-1">
+                      <span>Quotation Document</span>
+                      <span className="font-mono text-primary">{opportunity.sales_reference}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        disabled={buildingLink}
+                        onClick={handlePreviewQuotation}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                      >
+                        {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={13} />}
+                        <span>Preview Quote</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={buildingLink}
+                        onClick={handleCopyQuotationLink}
+                        title="Copy customer quotation link"
+                        aria-label="Copy customer quotation link"
+                        className="flex items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                      >
+                        <Link2 size={13} />
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!!downloadStep}
+                      onClick={handleDownloadQuotation}
+                      className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                    >
+                      {downloadStep ? <Spinner size="sm" /> : <FileDown size={13} />}
+                      <span>Download Full PDF</span>
+                    </button>
+                    {downloadStep && (
+                      <p className="truncate text-center text-[10.5px] font-medium text-muted-foreground">
+                        {downloadStep}
+                      </p>
+                    )}
                   </div>
-                ) : (
-                  <PeopleRoster opportunity={opportunity} />
                 )}
+
+                {/* 3. Assigned People Roster */}
+                <div className="p-5">
+                  <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    Team & Assignees
+                  </p>
+                  {isEditing ? (
+                    <div className="space-y-3">
+                      <Detail
+                        label="Deal Owner"
+                        isEditing={isEditing}
+                        control={
+                          <Dropdown
+                            usePortal
+                            className="w-full"
+                            trigger={() => (
+                              <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                                <span className={editForm.deal_owner_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                  {editForm.deal_owner_id ? employees.find((e) => e.id === editForm.deal_owner_id)?.name : "Unassigned"}
+                                </span>
+                              </div>
+                            )}
+                          >
+                            {({ close }) => (
+                              <FilterOptionList
+                                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                                value={editForm.deal_owner_id}
+                                onChange={(val) => setEditForm((f) => ({ ...f, deal_owner_id: val }))}
+                                close={close}
+                              />
+                            )}
+                          </Dropdown>
+                        }
+                      />
+                      <Detail
+                        label="Sales Director"
+                        isEditing={isEditing}
+                        control={
+                          <Dropdown
+                            usePortal
+                            className="w-full"
+                            trigger={() => (
+                              <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                                <span className={editForm.sales_director_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                  {editForm.sales_director_id ? employees.find((e) => e.id === editForm.sales_director_id)?.name : "Unassigned"}
+                                </span>
+                              </div>
+                            )}
+                          >
+                            {({ close }) => (
+                              <FilterOptionList
+                                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                                value={editForm.sales_director_id}
+                                onChange={(val) => setEditForm((f) => ({ ...f, sales_director_id: val }))}
+                                close={close}
+                              />
+                            )}
+                          </Dropdown>
+                        }
+                      />
+                      <Detail
+                        label="Support Sales 1"
+                        isEditing={isEditing}
+                        control={
+                          <Dropdown
+                            usePortal
+                            className="w-full"
+                            trigger={() => (
+                              <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                                <span className={editForm.support_sales_1_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                  {editForm.support_sales_1_id ? employees.find((e) => e.id === editForm.support_sales_1_id)?.name : "Unassigned"}
+                                </span>
+                              </div>
+                            )}
+                          >
+                            {({ close }) => (
+                              <FilterOptionList
+                                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                                value={editForm.support_sales_1_id}
+                                onChange={(val) => setEditForm((f) => ({ ...f, support_sales_1_id: val }))}
+                                close={close}
+                              />
+                            )}
+                          </Dropdown>
+                        }
+                      />
+                      <Detail
+                        label="Support Sales 2"
+                        isEditing={isEditing}
+                        control={
+                          <Dropdown
+                            usePortal
+                            className="w-full"
+                            trigger={() => (
+                              <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                                <span className={editForm.support_sales_2_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                  {editForm.support_sales_2_id ? employees.find((e) => e.id === editForm.support_sales_2_id)?.name : "Unassigned"}
+                                </span>
+                              </div>
+                            )}
+                          >
+                            {({ close }) => (
+                              <FilterOptionList
+                                options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                                value={editForm.support_sales_2_id}
+                                onChange={(val) => setEditForm((f) => ({ ...f, support_sales_2_id: val }))}
+                                close={close}
+                              />
+                            )}
+                          </Dropdown>
+                        }
+                      />
+                    </div>
+                  ) : (
+                    <PeopleRoster opportunity={opportunity} />
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* RIGHT COLUMN */}
-            <div className="flex flex-col gap-6 lg:col-span-2">
-              {/* Right Box: Deal Details */}
-              <div className="rounded-xl border border-border/50 p-6 ">
+            {/* RIGHT COLUMN: Deal Details + Log Notes Activity Stream */}
+            <div className="lg:col-span-8 flex flex-col gap-6">
+              {/* 1. Deal Details Card */}
+              <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
                 <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                   Deal Details
                 </p>
-                <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
+                <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3", isExpanded && "xl:grid-cols-4")}>
                   <Detail
                     label="Lead Source"
                     isEditing={isEditing}
@@ -1110,19 +1297,19 @@ export default function OpportunityDetailsModal({
                       <Dropdown
                         usePortal
                         className="w-full"
-                        trigger={({ isOpen }) => (
+                        trigger={() => (
                           <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
                             <span className={`truncate ${editForm.lead_source ? "text-foreground" : "text-muted-foreground/50"}`}>
-                              {editForm.lead_source ? activeLeadSources.find(l => l.value === editForm.lead_source)?.label || editForm.lead_source : "Select..."}
+                              {editForm.lead_source ? activeLeadSources.find((l) => l.value === editForm.lead_source)?.label || editForm.lead_source : "Select..."}
                             </span>
                           </div>
                         )}
                       >
                         {({ close }) => (
                           <FilterOptionList
-                            options={activeLeadSources.map(s => ({ value: s.value, label: s.label }))}
+                            options={activeLeadSources.map((s) => ({ value: s.value, label: s.label }))}
                             value={editForm.lead_source}
-                            onChange={(val) => setEditForm(f => ({ ...f, lead_source: val }))}
+                            onChange={(val) => setEditForm((f) => ({ ...f, lead_source: val }))}
                             close={close}
                           />
                         )}
@@ -1140,7 +1327,7 @@ export default function OpportunityDetailsModal({
                         <input
                           type="text"
                           value={editForm.lead_source_detail}
-                          onChange={(e) => setEditForm(f => ({ ...f, lead_source_detail: e.target.value }))}
+                          onChange={(e) => setEditForm((f) => ({ ...f, lead_source_detail: e.target.value }))}
                           className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                           placeholder="Specify..."
                         />
@@ -1155,10 +1342,10 @@ export default function OpportunityDetailsModal({
                       <Dropdown
                         usePortal
                         className="w-full"
-                        trigger={({ isOpen }) => (
+                        trigger={() => (
                           <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
                             <span className={`truncate ${editForm.project_type ? "text-foreground" : "text-muted-foreground/50"}`}>
-                              {editForm.project_type ? PROJECT_TYPES.find(pt => pt.value === editForm.project_type)?.label : "Select..."}
+                              {editForm.project_type ? PROJECT_TYPES.find((pt) => pt.value === editForm.project_type)?.label : "Select..."}
                             </span>
                           </div>
                         )}
@@ -1167,7 +1354,7 @@ export default function OpportunityDetailsModal({
                           <FilterOptionList
                             options={PROJECT_TYPES}
                             value={editForm.project_type}
-                            onChange={(val) => setEditForm(f => ({ ...f, project_type: val }))}
+                            onChange={(val) => setEditForm((f) => ({ ...f, project_type: val }))}
                             close={close}
                           />
                         )}
@@ -1178,6 +1365,7 @@ export default function OpportunityDetailsModal({
                       {PROJECT_TYPE_LABELS[opportunity.project_type]}
                     </span>
                   </Detail>
+
                   <Detail
                     label="Date Registered"
                     isEditing={isEditing}
@@ -1186,7 +1374,7 @@ export default function OpportunityDetailsModal({
                         usePortal
                         placement="bottom-start"
                         className="w-full"
-                        trigger={({ isOpen }) => (
+                        trigger={() => (
                           <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
                             <span className={editForm.registration_date ? "text-foreground" : "text-muted-foreground/50"}>
                               {editForm.registration_date || "Select date..."}
@@ -1200,12 +1388,12 @@ export default function OpportunityDetailsModal({
                               selected={editForm.registration_date ? new Date(editForm.registration_date) : null}
                               onChange={(date) => {
                                 if (!date) {
-                                  setEditForm(f => ({ ...f, registration_date: "" }));
+                                  setEditForm((f) => ({ ...f, registration_date: "" }));
                                 } else {
                                   const y = date.getFullYear();
                                   const m = String(date.getMonth() + 1).padStart(2, "0");
                                   const d = String(date.getDate()).padStart(2, "0");
-                                  setEditForm(f => ({ ...f, registration_date: `${y}-${m}-${d}` }));
+                                  setEditForm((f) => ({ ...f, registration_date: `${y}-${m}-${d}` }));
                                 }
                                 close();
                               }}
@@ -1218,6 +1406,7 @@ export default function OpportunityDetailsModal({
                   >
                     {formatLongDate(opportunity.registration_date)}
                   </Detail>
+
                   <Detail
                     label="Purchase Date/Order"
                     isEditing={isEditing}
@@ -1226,7 +1415,7 @@ export default function OpportunityDetailsModal({
                         usePortal
                         placement="bottom-start"
                         className="w-full"
-                        trigger={({ isOpen }) => (
+                        trigger={() => (
                           <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
                             <span className={editForm.expected_award_date ? "text-foreground" : "text-muted-foreground/50"}>
                               {editForm.expected_award_date || "Select date..."}
@@ -1240,12 +1429,12 @@ export default function OpportunityDetailsModal({
                               selected={editForm.expected_award_date ? new Date(editForm.expected_award_date) : null}
                               onChange={(date) => {
                                 if (!date) {
-                                  setEditForm(f => ({ ...f, expected_award_date: "" }));
+                                  setEditForm((f) => ({ ...f, expected_award_date: "" }));
                                 } else {
                                   const y = date.getFullYear();
                                   const m = String(date.getMonth() + 1).padStart(2, "0");
                                   const d = String(date.getDate()).padStart(2, "0");
-                                  setEditForm(f => ({ ...f, expected_award_date: `${y}-${m}-${d}` }));
+                                  setEditForm((f) => ({ ...f, expected_award_date: `${y}-${m}-${d}` }));
                                 }
                                 close();
                               }}
@@ -1258,6 +1447,7 @@ export default function OpportunityDetailsModal({
                   >
                     {formatLongDate(opportunity.expected_award_date)}
                   </Detail>
+
                   <Detail
                     label="Contact Person"
                     isEditing={isEditing}
@@ -1266,7 +1456,7 @@ export default function OpportunityDetailsModal({
                         type="text"
                         required
                         value={editForm.contact_person}
-                        onChange={(e) => setEditForm(f => ({ ...f, contact_person: e.target.value }))}
+                        onChange={(e) => setEditForm((f) => ({ ...f, contact_person: e.target.value }))}
                         className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                         placeholder="e.g. Juan Dela Cruz"
                       />
@@ -1285,7 +1475,7 @@ export default function OpportunityDetailsModal({
                           <input
                             type="text"
                             value={editForm.sales_reference}
-                            onChange={(e) => setEditForm(f => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
+                            onChange={(e) => setEditForm((f) => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
                             className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
                             placeholder="e.g. S01237"
                           />
@@ -1304,7 +1494,7 @@ export default function OpportunityDetailsModal({
                   ) : (
                     <Detail label="Sales Reference">
                       {opportunity.sales_reference ? (
-                        <span className="font-mono">{opportunity.sales_reference}</span>
+                        <span className="font-mono text-primary font-bold">{opportunity.sales_reference}</span>
                       ) : opportunity.status === "LEAD" ? (
                         <span className="text-xs font-medium text-amber-11">Required to qualify</span>
                       ) : null}
@@ -1312,17 +1502,26 @@ export default function OpportunityDetailsModal({
                   )}
                 </div>
               </div>
-              {/* Right Box 2: Log Notes */}
-              <div className="flex flex-col rounded-xl border border-border/50 p-6 ">
-                <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                  Log Notes
-                </p>
 
-                <div className="min-h-[120px] flex-1 overflow-y-auto">
+              {/* 2. Log Notes Card */}
+              <div className="flex flex-col rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
+                <div className="flex items-center justify-between gap-2 mb-4">
+                  <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                    Activity & Log Notes
+                  </p>
+                  <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                    {notes.length} note{notes.length === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div
+                  ref={notesContainerRef}
+                  className="min-h-[140px] max-h-[320px] flex-1 overflow-y-auto custom-scrollbar pr-1.5"
+                >
                   {loadingNotes ? (
                     <Spinner size="sm" />
                   ) : notes.length === 0 ? (
-                    <p className="text-xs text-muted-foreground/70 italic">No notes yet.</p>
+                    <p className="text-xs text-muted-foreground/70 italic py-4 text-center">No notes yet.</p>
                   ) : (
                     <ul className="space-y-3">
                       {notes.map((n) => (
@@ -1342,7 +1541,9 @@ export default function OpportunityDetailsModal({
                                 {formatWhen(n.created_at)}
                               </span>
                             </p>
-                            {n.type === "SYSTEM" && n.metadata?.changes?.length > 0 ? (
+                            {n.metadata?.event === "PROCUREMENT_UPDATE" ? (
+                              <ProcurementLogNoteCard metadata={n.metadata} />
+                            ) : n.type === "SYSTEM" && n.metadata?.changes?.length > 0 ? (
                               <ul className="mt-0.5 space-y-0.5">
                                 {n.metadata.changes.map((change, idx) => (
                                   <li
@@ -1355,16 +1556,16 @@ export default function OpportunityDetailsModal({
                               </ul>
                             ) : (
                               n.content && (
-                                <p
+                                <NoteText
+                                  content={n.content}
+                                  mentions={n.metadata?.mentions}
                                   className={cn(
                                     "text-sm break-words",
                                     n.type === "SYSTEM"
                                       ? "text-muted-foreground italic"
                                       : "text-foreground",
                                   )}
-                                >
-                                  {n.content}
-                                </p>
+                                />
                               )
                             )}
                             <AttachmentList
@@ -1378,7 +1579,7 @@ export default function OpportunityDetailsModal({
                   )}
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 pt-3 border-t border-border/50">
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1407,13 +1608,16 @@ export default function OpportunityDetailsModal({
                     )}
 
                     <div className="flex items-end gap-2">
-                      <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3.5 focus-within:border-mauve-7">
-                        <textarea
+                      <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
+                        <MentionTextarea
                           rows={2}
                           value={note}
-                          onChange={(e) => setNote(e.target.value)}
+                          onChange={setNote}
+                          people={employees}
+                          mentions={noteMentions}
+                          onMentionsChange={setNoteMentions}
                           onPaste={attachments.addFromPaste}
-                          placeholder="Add a note — client meeting, bid status, follow-up…"
+                          placeholder="Add a note — type @ to mention someone"
                           className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
                         />
                       </div>
@@ -1422,7 +1626,7 @@ export default function OpportunityDetailsModal({
                         title={`Attach files (max ${attachments.max})`}
                         disabled={isPosting || files.length >= attachments.max}
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/30 text-muted-foreground transition-all hover:border-mauve-7 hover:text-foreground disabled:opacity-50"
+                        className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:opacity-50"
                       >
                         <Paperclip size={15} />
                       </button>
@@ -1436,30 +1640,37 @@ export default function OpportunityDetailsModal({
                       </button>
                     </div>
                     <p className="mt-1.5 text-[10px] text-muted-foreground/70">
-                      Attach or paste up to {attachments.max} files —{" "}
-                      {formatBytes(MAX_ATTACHMENT_BYTES)} each.
+                      Type <span className="font-bold">@</span> to mention someone · attach or
+                      paste up to {attachments.max} files — {formatBytes(MAX_ATTACHMENT_BYTES)}{" "}
+                      each.
                     </p>
                   </form>
                 </div>
               </div>
-
             </div>
           </div>
 
           {(items.length > 0 || isEditing) && (
-            <div className="rounded-xl border border-border/50 p-6">
+            <div className="space-y-3">
               {isEditing ? (
-                <OpportunityItemsEditor
-                  items={editForm.items || []}
-                  onChange={(newItems) => setEditForm(f => ({ ...f, items: newItems }))}
-                />
+                <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
+                  <OpportunityItemsEditor
+                    items={editForm.items || []}
+                    onChange={(newItems) => setEditForm((f) => ({ ...f, items: newItems }))}
+                  />
+                </div>
               ) : (
-                <>
-                  <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                    Product List
-                  </p>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                      Product List
+                    </p>
+                    <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                      {items.length} item{items.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
                   <ItemsList items={items} />
-                </>
+                </div>
               )}
             </div>
           )}

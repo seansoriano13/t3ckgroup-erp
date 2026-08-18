@@ -94,6 +94,21 @@ export const TRIGGERS = {
       },
     ],
   },
+
+  sor_procurement_requests: {
+    // 0017 — sor_procurement_requests_touch()
+    //
+    // 0023's sor_procurement_requests_guard() is deliberately NOT mirrored. It
+    // decides what to reject from public.get_employee_id() — who the caller is
+    // — and the fake has no notion of an authenticated actor, so a transcription
+    // of it could only ever return NEW unchanged. Its effect is checked against
+    // a real database, like the RLS policies it narrows.
+    beforeUpdate: [
+      function touchUpdatedAt(row) {
+        row.updated_at = new Date().toISOString()
+      },
+    ],
+  },
 }
 
 export function runBeforeInsert(table, row) {

@@ -407,6 +407,67 @@ describe("opportunityService", () => {
   })
 
   describe("notes", () => {
+    it("notifies the person named in a note", async () => {
+      const buyer = makeEmployee({ name: "Cjay Espina" })
+      const opportunity = makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S01237",
+      })
+
+      const note = await opportunityService.addNote(
+        opportunity.id,
+        registrar.id,
+        "@Cjay Espina can you check stock on this",
+        [],
+        [{ id: buyer.id, name: "Cjay Espina" }],
+      )
+      await waitForNetworkIdle()
+
+      expect(note.metadata.mentions).toEqual([{ id: buyer.id, name: "Cjay Espina" }])
+      const [sent] = db.rows("notifications")
+      expect(sent).toMatchObject({
+        recipient_id: buyer.id,
+        // No "TASK" substring: notificationRouter's fallthrough would send them
+        // to the task pages instead of the deal being discussed.
+        type: "OPPORTUNITY_MENTION",
+        reference_id: opportunity.id,
+      })
+    })
+
+    it("does not notify someone whose name was deleted before posting", async () => {
+      const buyer = makeEmployee({ name: "Cjay Espina" })
+      const opportunity = makeOpportunity({ registered_by: registrar.id })
+
+      // Picked from the list, then thought better of it and removed the name.
+      const note = await opportunityService.addNote(
+        opportunity.id,
+        registrar.id,
+        "never mind, sorted it",
+        [],
+        [{ id: buyer.id, name: "Cjay Espina" }],
+      )
+      await waitForNetworkIdle()
+
+      expect(note.metadata).toBeNull()
+      expect(db.rows("notifications")).toHaveLength(0)
+    })
+
+    it("does not notify the author for mentioning themselves", async () => {
+      const opportunity = makeOpportunity({ registered_by: registrar.id })
+
+      await opportunityService.addNote(
+        opportunity.id,
+        registrar.id,
+        "@Ana Reyes to follow up on Monday",
+        [],
+        [{ id: registrar.id, name: "Ana Reyes" }],
+      )
+      await waitForNetworkIdle()
+
+      // Writing your own name is a note to self, not a request to be pinged.
+      expect(db.rows("notifications")).toHaveLength(0)
+    })
+
     it("stores a comment against its author", async () => {
       const opportunity = makeOpportunity({ registered_by: registrar.id })
 

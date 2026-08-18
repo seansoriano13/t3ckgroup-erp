@@ -292,5 +292,14 @@ describe("TaskCard", () => {
 
       expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument()
     })
+
+    it("does not flag a recalled incomplete task with null endAt as overdue", () => {
+      renderCard({
+        as: owner,
+        task: task({ status: "INCOMPLETE", endAt: null }),
+      })
+
+      expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument()
+    })
   })
 })

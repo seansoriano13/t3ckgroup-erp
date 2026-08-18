@@ -1,72 +1,161 @@
 # SOR → Purchasing procurement flow — decision record
 
-**Status:** decisions from the design session of 2026-08-17. Not a plan. No code
-written. Expect revisions — this document exists so the next round of input can
-be diffed against what was already settled rather than re-litigated from scratch.
+**Status:** decisions from the design session of 2026-08-17, **implemented the
+same day, reworked 2026-08-18** after the premise behind §1–3 turned out to be
+wrong (see "Revision" below). Expect further revisions — this document exists
+so the next round of input can be diffed against what was already settled
+rather than re-litigated from scratch.
 
-**Scenario being designed:** a SOR is registered with a product list. Some
-products do not exist in Odoo, so sales cannot finish the quotation. Sales
-mentions purchasing, which generates a task carrying those products as a
-checklist. Purchasing sources them, creates the product in Odoo, raises a PO,
-and records the result. Sales is notified and finishes the quotation.
+## ⚠️ Migrations — none of 0017–0023 have been run
+
+Pushing to main deploys the frontend but not the schema. Run these in the
+Supabase SQL editor, **in order, before** deploying the frontend. Every one of
+them is written to be safe against a live frontend of any version and safe to
+re-run; the "if it is missing" column is what breaks when it is not applied.
+
+| # | What it does | If it is missing |
+| --- | --- | --- |
+| 0017 | Creates `sor_procurement_requests` + RLS | `procurementService` reads 404; the panel renders empty. Degrades gracefully — verified — and breaks nothing else. |
+| 0018 | `sor_raise_procurement_task` SECURITY DEFINER insert | `new row violates row-level security policy for table "tasks"` — the Send button fails on **every** request. |
+| 0019 | Widens the outcome CHECK to the 3-step lifecycle | Every `PURCHASED` / `DELIVERED` resolve violates the constraint. Load-bearing. |
+| 0020 | Realtime on `sor_procurement_requests` | Panels stop updating live; a reload still shows the truth. |
+| 0021 | Realtime on `sales_opportunity_logs` | Log notes stop updating live; a reload still shows the truth. |
+| 0022 | Adds `odoo_vendor` | `resolveRequest` writes the column unconditionally, so every resolve fails. Load-bearing. |
+| 0023 | Column guard trigger on the update policy | Sales can write `outcome`, `po_number` and `verification` on their own request — including marking their own PO `VERIFIED`. |
+
+0017 was revised in place after the rework (free text + images replaced the
+flagged-line shape) rather than split into a second file — it converges either
+way, so a database that already ran the first version is not stuck.
+
+**Where it lives:**
+
+| Piece | File |
+| --- | --- |
+| Table + RLS | `supabase/migrations/0017_sor_procurement_requests.sql` |
+| Task insert (RLS workaround) | `supabase/migrations/0018_sor_raise_procurement_task.sql` |
+| Outcome lifecycle constraint | `supabase/migrations/0019_sor_procurement_lifecycle_statuses.sql` |
+| Realtime publications | `supabase/migrations/0020_…_realtime.sql`, `0021_…_realtime.sql` |
+| PO vendor column | `supabase/migrations/0022_sor_procurement_odoo_vendor.sql` |
+| Who may write purchasing's columns | `supabase/migrations/0023_sor_procurement_column_guard.sql` |
+| Outcomes, PO format, title builder | `src/constants/procurement.js` |
+| Badge palette (shared leaf) | `src/constants/statusTheme.js` |
+| Flow logic | `src/services/procurementService.js` |
+| Task-deletion guard (leaf, breaks the cycle) | `src/services/procurementTaskLinks.js` |
+| PO verification | `supabase/functions/odoo-po-verify/index.ts` |
+| @ mentions in Log Notes | `src/components/ui/MentionTextarea.jsx`, `src/utils/mentions.js` |
+| Sales-side request UI | `src/components/sor/ProcurementPanel.jsx` |
+| Purchasing-side resolution UI | `src/components/ProcurementResolutionPanel.jsx` |
+| Recorded PO / vendor / ETA block (shared) | `src/components/ProcurementMetaFooter.jsx` |
+
+**Scenario being designed:** a client asks sales for a product the company
+doesn't carry. Sales names it for purchasing — a name, whatever the client said
+about it, usually a screenshot of the message they said it in. Purchasing
+sources it, creates the product in Odoo, raises a PO, and records the result.
+Sales is notified and finishes the quotation.
 
 ---
 
-## Decided
+## Revision — the original premise was wrong
 
-### 1. Trigger and completion
+The first build had sales **flag existing lines on the SOR product list** as
+"not in Odoo," with a per-line Odoo/not-Odoo indicator. That's impossible by
+construction: the SOR's product list is *pulled from* the Odoo sales order
+(`odoo-sor-lookup` reads `sale.order.line`), so every line on it already exists
+in Odoo. The set of "flagged, not-in-Odoo SOR lines" is always empty. What
+actually happens is a client asks for something that was **never on the
+order** — sales requests it as a new product, and there is nothing to flag on
+the SOR at all.
 
-The flow triggers on **"this product does not exist in Odoo"** — not on "out of
-stock". Sales ops makes that determination by eye; nothing checks the Odoo
-catalog automatically (`odoo-sor-lookup` searches `sale.order` by S-number, not
-`product.template`, so an automatic check means a new edge function and an
-invocation per SOR view).
+This killed §1–3 of the original decisions and everything downstream of them:
 
-Purchasing's real-world sequence is: buy from supplier → create the product in
-Odoo → raise the PO. Because a PO cannot exist before the product record does,
-**the PO number is the single completion fact** — it proves both that the buy
-happened and that the product is now quotable. Confirmed with purchasing: a PO
-is always raised for these.
+- The per-line Odoo/not-Odoo column on the SOR product list is **gone**.
+  `ItemsList` is back to a plain product table.
+- The "unsourceable value" banner and `unsourceableValue()` helper are **gone**.
+  A requested product was never a SOR line item and never contributed to
+  `expected_value`, so nothing was ever inflated — there was nothing to warn
+  about.
+- Requests are **free text**, not a tick-list over existing lines:
+  `requested_name`, `requested_description`, `requested_images` (Cloudinary
+  descriptors, same shape as every other attachment column in this schema).
+  No `requested_value` — a product nobody carries has no price to quote yet,
+  which is exactly what purchasing is being asked to find out.
+- The composer stays **collapsed behind a button** rather than always-open next
+  to the product list, since it is no longer a property of that list.
 
-### 2. Where procurement state lives
+Everything from §4 onward (task shape, title convention, outcomes, PO
+verification, approval chain, notification routing, permissions, the
+closed-lost hook) survived unchanged — none of it depended on the flagging
+premise.
 
-A **new table**, not a column on `sales_opportunity_items`.
+### UI rework, same pass
 
-`opportunityService.replaceItems` deletes every item row and re-inserts with
-fresh UUIDs on every SOR save (`src/services/opportunityService.js:393`). Line
-items have no stable identity, so any state stored on them is destroyed the next
-time anyone edits the SOR — silently.
+Prompted separately, alongside the premise fix:
 
-Each request row:
+- The composer is a **button-revealed form**, not an always-visible checklist —
+  most opportunities never need one, and a permanently open form made every
+  record look like it had outstanding work on it.
+- Product name is a **borderless headline**, not a bordered input: it's free
+  text with nothing to validate against (there is no catalog holding this
+  product yet — that's the entire reason for the request), so a boxed field
+  would imply a check that can't exist.
+- Unit picking uses the existing `Dropdown` (`src/components/ui/Dropdown.jsx`);
+  buyer/team picking uses `FilterTrigger`/`FilterOptionList`
+  (`src/components/ui/FilterDropdown.jsx`) — both reused rather than
+  reinvented, matching the rest of the app's pickers.
+- Description accepts a **pasted screenshot** directly
+  (`useFileAttachments().addFromPaste`), because sales rarely retypes specs —
+  they paste the screenshot of the client's message. Images upload to
+  Cloudinary only on send, never on paste, so an abandoned draft costs nothing.
+- The SOR product list's cell padding went from `px-3 py-2` to `px-4 py-3` —
+  called out as too tight once the dead Odoo column was removed and there was
+  room to fix it.
 
-- has its own `id`
-- freezes `requested_name` — the free text sales typed, never updated afterwards
-- carries `odoo_product_ref`, filled by purchasing at completion
-- carries the PO number **per row** (see 4)
-- carries an optional ETA (see 6)
+### 1–3. Superseded — see Revision above
 
-Matching a row back to a SOR line is by normalised name, for **display only**,
-and a miss is tolerated. Freezing the request is correct on its own terms: a
-requisition should record what was asked for at the time, not mutate when
-someone fixes a typo weeks later.
+### 3. How a request is raised (current)
 
-### 3. How a request is raised
+**A named product creates the task; the mention only decides who owns it.**
 
-**Flagged items create the task; the mention only decides who owns it.**
+- The composer holds up to 3 products per send, each with its own name,
+  quantity, unit, description and up to 5 images.
+- Submitting with **no named product** does nothing — no task, no request.
+  This is what prevents task-list bloat: an empty send is a no-op, not a
+  comment recorded anywhere.
+- A send with N named products creates **one** task with N checklist rows.
+  Never one task per product.
 
-- Each SOR product line shows an in-Odoo / not-in-Odoo state.
-- A mention with **zero** flagged items is a comment and a notification only —
-  no task. This is what prevents task-list bloat.
-- A mention with N flagged items creates **one** task with N checklist rows.
-  Never one task per mention.
-
-Mentioning a **named purchasing employee** assigns them. Mentioning the
-**department** routes to the purchasing head, who assigns
+Mentioning a **named purchasing employee** assigns them. Mentioning a **team**
+(department, or department › sub-department where one exists — see §3a) routes
+to that team's head, who assigns
 (`notificationService.notifyHeadByDepartment` already exists;
 `allow_reported_to_reassignment` is already a setting). Random assignment was
 rejected: it ignores leave, load, and supplier relationships, and arbitrary
-assignment attached to an HR-graded record invites gaming. If zero-human routing
-is ever wanted, use least-loaded, not random.
+assignment attached to an HR-graded record invites gaming. If zero-human
+routing is ever wanted, use least-loaded, not random.
+
+### 3a. Teams, not departments
+
+Purchasing turned out to be **`OPERATIONS › PURCHASING`**, a sub-department —
+not its own top-level department. This broke the first cut of team-mention
+routing twice, in testing against the real org:
+
+- Offering bare departments in the picker made "mention OPERATIONS" resolve to
+  the Operations Manager (`notifyHeadByDepartment` matches a department-level
+  head only when that head has **no** sub-department). The picker now offers
+  every distinct `department` / `department › sub-department` pair as one
+  "team," 21 of them in the live data, `OPERATIONS › PURCHASING` among them.
+- The naive fix — passing department **and** sub-department together — matches
+  *both* branches of that function's filter, so the Purchasing Manager and the
+  Operations Manager both get notified on every request. Fixed by passing only
+  the narrower of the two: sub-department when there is one, department
+  otherwise (a team with no sub-department, e.g. `SALES`, still resolves
+  correctly).
+
+Both were caught by deliberately mutating the code back to each broken version
+and confirming the test suite fails — see `procurementService.test.js` and
+`ProcurementPanel.test.jsx`, which fixture the real shape (`OPERATIONS` with
+its own head, `PURCHASING` nested under it with theirs) rather than a flattened
+one, so re-flattening it later re-breaks the test instead of the routing.
 
 ### 4. Task shape
 
@@ -121,10 +210,11 @@ outcomes exist because partial results are the normal case: a purchaser who
 sources two of three would otherwise have to either mark done (a lie sales acts
 on) or leave it open (invisible work, bad grade).
 
-`ALREADY_EXISTS` matters more than it looks — sales types "Boom Lift 12m", Odoo
-has "BOOM LIFT, 12M, DIESEL". Purchasing can clear a flag without buying
-anything. Without it they either buy a duplicate or close the item dishonestly.
-**Open question: how often this happens** — see below.
+`ALREADY_EXISTS` matters more than it looks — sales asks for "Boom Lift 12m",
+Odoo already carries it as "BOOM LIFT, 12M, DIESEL" under a name sales didn't
+know to search for. Purchasing resolves the request as a name mismatch without
+buying anything. Without this outcome they either buy a duplicate or close the
+request dishonestly. **Open question: how often this happens** — see below.
 
 Each row also takes an **optional ETA**, filled at completion. Lead time
 "depends on the product" per purchasing, and that variance is the argument for
@@ -164,6 +254,53 @@ Types take the `OPPORTUNITY_` prefix the router already handles:
 named `PROCUREMENT_TASK_DONE` would be silently captured by task routing.
 Purchasing's own notification, which does point at their task, keeps it.
 
+### 9a. Inserting the purchasing task
+
+`tasks` has RLS enabled but **no policy defined anywhere in this repo** — it was
+created through the dashboard. A requisition task is owned by the buyer
+(`logged_by` = the purchasing employee) while the person clicking Send is in
+sales, which that policy rejects: *new row violates row-level security policy
+for table "tasks"*.
+
+Fixed with a `SECURITY DEFINER` function, `sor_raise_procurement_task`
+(migration 0018), rather than by touching policies:
+
+- **Not a rewritten policy.** Dropping and recreating a policy that cannot be
+  read first is guessing at the access rules of the app's core table, and a
+  wrong guess silently breaks task logging for everyone.
+- **Not an additional permissive policy.** Nothing on the row marks it as a
+  requisition at insert time, so a policy permissive enough to cover this case
+  would have to allow inserting a task for an arbitrary employee.
+
+The function is gated on `sor_can_edit_opportunity()` — the same permission
+that already governs the `sor_procurement_requests` rows the task exists to
+carry, so the two halves of a request cannot come apart. `EXECUTE` is revoked
+from `public` and granted to `authenticated`.
+
+Because the insert no longer goes through `taskMutationService.createTask`,
+`procurementService.openTaskFor` posts the system activity entry and the
+`TASK_ASSIGNED` / `NEW_TASK_SUBMITTED` notifications itself — otherwise the
+task would appear with no trail and nobody would be told it exists.
+
+### 9b. Mentions in Log Notes
+
+Separate from the procurement recipient field: `@` in the note composer offers
+people, and posting notifies whoever was named.
+
+- Mentions are stored as **ids alongside the text** (`metadata.mentions`), not
+  parsed back out of it on save. A name typed by hand, or edited after picking,
+  would otherwise notify nobody — and a notification that only sometimes fires
+  is worse than one that never does.
+- A mention whose name is **no longer in the posted text** is dropped. Picking
+  someone then deleting the name is a change of mind.
+- **Mentioning yourself notifies nobody.** Writing your own name is a note to
+  self.
+- Type is `OPPORTUNITY_MENTION` — the `OPPORTUNITY_` prefix routes to the deal,
+  and it deliberately avoids the substring `TASK` for the reason in §9.
+
+Only names actually recorded on the note are highlighted when it renders, so a
+hand-typed `@someone` reads as plain text — honest, because nobody was pinged.
+
 ### 10. Permissions and visibility
 
 Purchasing gets write access **scoped to the procurement rows only**. They can
@@ -179,22 +316,18 @@ migration.)
 
 **The S01237 quotation PDF is not attached.** It carries customer-facing pricing
 and therefore the margin on a live deal. Purchasing needs product names,
-quantities and specs — all already in the checklist. If specs are needed, attach
-a spec sheet.
+quantities and specs — the request's own name, description and screenshots
+already carry that, since sales forwards the client's own wording rather than
+retyping it. Nobody needs the priced quotation to source a part.
 
 ### 11. Consequences
 
-- **Unsourceable items stay in the product list and stay in `expected_value`.**
-  The SOR shows a warning naming the amount; sales removes, substitutes, or
-  knowingly keeps it. Auto-removing rewrites someone's forecast behind their back
-  and deletes the record of what the client asked for; auto-excluding makes the
-  displayed total stop matching the lines beneath it. `expected_value` is
-  trigger-maintained as the sum of all items
-  (`supabase/migrations/0003_sales_opportunity_items.sql:60`).
 - **An open request warns at the stage gate, it does not block.** Blocking makes
-  purchasing's backlog into sales' blocker, and the predictable response is
-  deleting the flagged line, advancing, and re-adding it — a gate that teaches
-  people to route around it.
+  purchasing's backlog into sales' blocker — the deal can't move even though
+  the requested product has nothing to do with what's already quoted. The
+  predictable response to a hard block is finding a way around it, e.g.
+  withdrawing the request just to advance the stage — a gate that teaches
+  people to route around it rather than one that informs the decision.
 - **A SOR closed lost with an open request notifies the purchaser and posts a
   system note on the task, but never auto-closes it.** Real money may already be
   committed to a supplier, and a task that silently vanishes takes the evidence
@@ -248,3 +381,57 @@ a spec sheet.
 - **Supabase cost** — being solved separately. For reference, this flow adds
   Odoo calls only at item completion; the SOR product list adds none, since the
   flag is a local column.
+
+---
+
+## Built beyond this record — noted 2026-08-18 during review
+
+A two-axis review of the working tree against this document found behaviour in
+the code that the record never asked for. None of it is being reverted; it is
+recorded here so the record and the build agree, and so the next reader does
+not have to guess which of the two was ahead.
+
+- **`DELIVERED` outcome and the `ON_ORDER` → `PURCHASED` rename** (§6 said a
+  received state was "explicitly out of scope, not forgotten"). What was out of
+  scope was *inferring* receipt from Odoo stock reads, which still is. This is
+  a purchaser ticking a box they already know the answer to, so the objection
+  did not apply. `ON_ORDER` stays legal in the CHECK (0019) and readable in the
+  app for rows already carrying it, but it is **not** a member of
+  `PROCUREMENT_OUTCOME` — an alias inside the enum made `Object.values` return
+  `PURCHASED` twice and `ON_ORDER` never, which is a trap for anything building
+  a dropdown or a tally off it. `LEGACY_PROCUREMENT_OUTCOME` holds it instead.
+- **Auto-submitting the task once every row is delivered** (§8 has the
+  purchaser mark done). Kept: the last delivery *is* the purchaser saying so,
+  and making them then find the task and click Submit is a second statement of
+  the same fact. The approval chain itself is unchanged — the head still
+  approves.
+- **`[PR #N]` batch numbering** (§5 fixes one title form). Needed once a second
+  requisition can exist on one deal, which §1 of the follow-up plan introduced.
+  Note the trap it created: `TaskDetails` gated the whole resolution panel on
+  `startsWith("[PR]")`, which `"[PR #2]"` fails — every second-batch task
+  rendered as an ordinary task with no panel and no Submit button. Both the
+  predicate and the batch parse now live in `constants/procurement.js`
+  (`isRequisitionTitle`, `requisitionBatchNumber`) so there is one spelling.
+- **Store-letterhead quotation PDF** (`src/lib/pdfLetterhead.js`,
+  `quotationService`). Unrelated to procurement; rode along in the same working
+  tree. Belongs in its own commit and its own record.
+- **`input.jsx` rewrite, `textarea.jsx` ring, `index.css` reformat and the
+  global `prefers-reduced-motion` block.** Design-system work, same situation.
+- **Recall / `end_at` fix and the procurement-linked task delete guard.** The
+  delete guard is genuinely part of this flow (§11 only covered closed-lost);
+  it now lives in `src/services/procurementTaskLinks.js` rather than inside the
+  generic task service, which had no business knowing this table exists.
+
+### Two corrections to what §1 of the follow-up plan asked for
+
+The plan said task reuse should filter `status = INCOMPLETE`, and should
+**skip** restating the task's item count. The build did neither. Both are now
+as the plan wrote them, because the plan's reasons were the right ones:
+
+- Reusing an `AWAITING APPROVAL` task pulled it back out of the head's approval
+  queue on a sales action. A submitted task is a closed cycle; a later send
+  opens a fresh one.
+- Restating the count meant a direct `.update()` on `tasks` from a sales user —
+  the same RLS wall 0018 exists to route around, and it was issued with no
+  error check, so a rejection would have failed silently. The activity entry
+  already records that more was added.

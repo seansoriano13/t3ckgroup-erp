@@ -32,7 +32,7 @@ there.
 **Add a table or column in a migration and the fake picks it up on the next test
 run.** Nothing in `src/test/` needs editing.
 
-The one exception is `src/test/db/triggers.js`, which mirrors the four row
+The one exception is `src/test/db/triggers.js`, which mirrors the row
 triggers by hand — plpgsql bodies cannot be parsed. Each is annotated with the
 migration it came from. If you change one of those triggers, change it there
 too.
@@ -217,8 +217,11 @@ Worth knowing before you trust a green test too far:
 
 - **Row Level Security is not enforced.** The fake answers as though every query
   is permitted. Policy changes need checking against a real database.
-- **Only the four SOR triggers are mirrored.** Any trigger added later has to be
-  transcribed into `src/test/db/triggers.js` or its effect will be missing.
+- **Only the data-shaping SOR triggers are mirrored.** Any trigger added later
+  has to be transcribed into `src/test/db/triggers.js` or its effect will be
+  missing. Permission triggers are the exception and are listed there as
+  deliberately unmirrored: they branch on who the caller is, and the fake has
+  no authenticated actor to answer with.
 - **Realtime is inert.** Subscription callbacks never fire; anything driven
   purely by a realtime event is untested.
 - **Transactions are not modelled.** A multi-statement service call that fails

@@ -3,6 +3,12 @@
  * and ensure consistency across the task and sales modules.
  */
 
+import {
+  PROCUREMENT_LABEL_THEME,
+  PROCUREMENT_OUTCOME_THEME,
+} from "./procurement";
+import { STATUS_THEME } from "./statusTheme";
+
 export const TASK_STATUS = {
   INCOMPLETE: "INCOMPLETE",
   AWAITING_APPROVAL: "AWAITING APPROVAL",
@@ -11,15 +17,7 @@ export const TASK_STATUS = {
   DELETED: "DELETED",
 };
 
-export const STATUS_THEME = {
-  GREEN: "green",
-  AMBER: "amber",
-  BLUE: "blue",
-  RED: "red",
-  VIOLET: "violet",
-  ORANGE: "orange",
-  MAUVE: "mauve",
-};
+export { STATUS_THEME } from "./statusTheme";
 
 // Map each task status to a consistent color theme
 export const TASK_STATUS_THEME = {
@@ -58,14 +56,31 @@ export const getStatusTheme = (status) => {
   if (OPPORTUNITY_STATUS_THEME[safeStatus])
     return OPPORTUNITY_STATUS_THEME[safeStatus];
 
-  // Legacy / Other supports
+  // Procurement outcomes own their own palette in constants/procurement.js.
+  // Re-listing them here as switch cases meant two maps over the same type,
+  // free to drift; a badge is also sometimes handed the display label rather
+  // than the stored value, so both are looked up.
+  if (PROCUREMENT_OUTCOME_THEME[safeStatus])
+    return PROCUREMENT_OUTCOME_THEME[safeStatus];
+  if (PROCUREMENT_LABEL_THEME[safeStatus])
+    return PROCUREMENT_LABEL_THEME[safeStatus];
+
+  // Legacy / other supports
   switch (safeStatus) {
-    case "WON": return STATUS_THEME.GREEN;
-    case "DRAFT": return STATUS_THEME.AMBER;
-    case "SUBMITTED": return STATUS_THEME.BLUE;
-    case "ACTIVE": return STATUS_THEME.BLUE;
-    case "CANCELLED": return STATUS_THEME.RED;
-    default: return STATUS_THEME.MAUVE;
+    case "WON":
+      return STATUS_THEME.GREEN;
+    case "DRAFT":
+    case "REQUESTED":
+    case "PENDING":
+      return STATUS_THEME.AMBER;
+    case "SUBMITTED":
+    case "ACTIVE":
+    case "ASSIGNED":
+      return STATUS_THEME.BLUE;
+    case "CANCELLED":
+      return STATUS_THEME.RED;
+    default:
+      return STATUS_THEME.MAUVE;
   }
 };
 

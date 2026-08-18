@@ -2,6 +2,7 @@ import { supabase } from "../../lib/supabase";
 import { notificationService } from "../notificationService";
 import { taskActivityService } from "./taskActivityService";
 import { TASK_STATUS } from "../../constants/status";
+import { procurementDeletionBlock } from "../procurementTaskLinks";
 
 /**
  * Extracts a readable plain-text snippet from a task description.
@@ -176,6 +177,9 @@ export const taskMutationService = {
       updateData.hr_verified = false;
       updateData.hr_verified_at = null;
       updateData.hr_remarks = "";
+      if (payload?.endAt === undefined) {
+        updateData.end_at = null;
+      }
     }
 
     if (payload?.status === TASK_STATUS.NOT_APPROVED) {
@@ -460,7 +464,9 @@ export const taskMutationService = {
             .limit(1);
           if (resubmitEvents && resubmitEvents.length > 0)
             submitVerb = "resubmitted";
-        } catch (_) {}
+        } catch {
+          // The verb is cosmetic; a failed lookup keeps the default wording.
+        }
 
         taskActivityService.addSystemEvent(
           taskId,
@@ -725,7 +731,9 @@ export const taskMutationService = {
               .eq("id", payload.categoryId)
               .single();
             newCatName = newCat?.description || payload.categoryId;
-          } catch (_) {}
+          } catch {
+            // Falls back to the raw category id in the activity entry.
+          }
           const oldCatName =
             current.category?.description || current.category_id || "(none)";
           taskActivityService.addSystemEvent(
@@ -1059,6 +1067,9 @@ export const taskMutationService = {
     if (task.hr_verified === true && !userRole?.is_super_admin) {
       throw new Error("Cannot delete tasks that are already verified by HR.");
     }
+
+    const procurementBlock = await procurementDeletionBlock(taskId);
+    if (procurementBlock) throw new Error(procurementBlock);
 
     // NOTE: Attachments are intentionally preserved during soft deletes
     // to maintain audit trail integrity. Physical cleanup should only

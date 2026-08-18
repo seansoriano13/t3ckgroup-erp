@@ -509,6 +509,28 @@ describe("taskMutationService", () => {
 
       expect((await readTask(task.id)).attachment_urls).toEqual(["https://x.test/receipt.png"])
     })
+
+    it("prevents deleting a task linked to procurement requests from sales", async () => {
+      const task = await createTask()
+      const opp = db.seed("sales_opportunities", {
+        sales_reference: "S09999",
+        client_name: "Test Client",
+        project_title: "Project Alpha",
+        registered_by: employee.id,
+        lead_source: "Walk-in",
+      })
+      db.seed("sor_procurement_requests", {
+        opportunity_id: opp.id,
+        task_id: task.id,
+        requested_name: "Specialty Valve",
+        requested_quantity: 2,
+        requested_by: employee.id,
+      })
+
+      await expect(taskMutationService.deleteTask(task.id, employee.id)).rejects.toThrow(
+        "This task is linked to procurement requests from sales",
+      )
+    })
   })
 
   describe("bulk approval", () => {

@@ -111,8 +111,8 @@ const TaskFooter = ({ actions, permissions, state }) => {
               </Button>
             )}
 
-            {/* --- SUBMIT FOR REVIEW (Marketing always / All when setting enabled) --- */}
-            {(state.isMarketing || state.universalTaskSubmission) &&
+            {/* --- SUBMIT FOR REVIEW (Marketing always / Procurement / All when setting enabled) --- */}
+            {(state.isMarketing || state.universalTaskSubmission || state.isProcurement) &&
               isOwner &&
               (task.status === TASK_STATUS.INCOMPLETE ||
                 task.status === TASK_STATUS.NOT_APPROVED) && (
@@ -122,9 +122,16 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   disabled={
                     isSubmitting ||
                     state.task.status === TASK_STATUS.AWAITING_APPROVAL ||
-                    state.hasUncheckedItems
+                    state.hasUncheckedItems ||
+                    state.hasUndeliveredProcurement
                   }
-                  title={state.hasUncheckedItems ? "Check all items first" : ""}
+                  title={
+                    state.hasUndeliveredProcurement
+                      ? "All procurement products must be delivered or resolved before submitting for review"
+                      : state.hasUncheckedItems
+                        ? "Check all items first"
+                        : ""
+                  }
                   className="h-9 rounded-xl px-5 text-[13px] font-bold shadow-sm gap-1.5 bg-blue-9 text-white hover:bg-blue-10 border-none"
                 >
                   {isSubmitting ? (
@@ -132,11 +139,11 @@ const TaskFooter = ({ actions, permissions, state }) => {
                   ) : (
                     <CheckCircle size={15} />
                   )}
-                  Submit for Review
+                  {isSubmitting ? "Submitting for Review..." : "Submit for Review"}
                 </Button>
               )}
 
-            {(state.isMarketing || state.universalTaskSubmission) &&
+            {(state.isMarketing || state.universalTaskSubmission || state.isProcurement) &&
               isOwner &&
               task.status === TASK_STATUS.AWAITING_APPROVAL && (
                 <div className="flex flex-wrap items-center gap-2.5">

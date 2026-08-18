@@ -1,6 +1,11 @@
 import { getStatusTheme } from "../constants/status";
 
-export default function StatusBadge({ status }) {
+export default function StatusBadge({
+  status,
+  label,
+  children,
+  className = "",
+}) {
   const theme = getStatusTheme(status);
 
   const themeStyles = {
@@ -17,9 +22,9 @@ export default function StatusBadge({ status }) {
 
   return (
     <span
-      className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap ${appliedStyle}`}
+      className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider border rounded-full whitespace-nowrap ${appliedStyle} ${className}`}
     >
-      {status || "UNKNOWN"}
+      {children || label || status || "UNKNOWN"}
     </span>
   );
 }

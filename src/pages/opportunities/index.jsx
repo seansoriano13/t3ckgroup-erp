@@ -64,16 +64,44 @@ export default function OpportunitiesPage() {
   });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [selectedId, setSelectedId] = useState(null);
+  // notificationRouter sends every OPPORTUNITY_* notification here with the
+  // record's id, so the deep link has to actually open it — otherwise clicking
+  // a stage-change or procurement notification lands on an unfiltered list and
+  // the user has to find the deal by hand.
+  const [selectedId, setSelectedId] = useState(
+    () => location.state?.openOpportunityId || null,
+  );
 
-  // Clear nav state so back-navigation doesn't re-apply the deep-link filter
-  // (mirrors /tasks's handling of the same pattern).
+  // Synchronise deep-link nav state whenever location.state updates (e.g. from
+  // notification drawer, toast popup, or overview clicks), and clear nav state
+  // so back-navigation doesn't re-apply filters.
   useEffect(() => {
-    if (location.state?.filterEmployeeId || location.state?.filterStatus) {
+    const navState = location.state;
+    if (!navState) return;
+
+    let hasHandledState = false;
+
+    if (navState.openOpportunityId) {
+      // Router location is the external system this effect exists to follow:
+      // a notification or toast navigates here carrying the deal to open.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSelectedId(navState.openOpportunityId);
+      hasHandledState = true;
+    }
+    if (navState.filterEmployeeId) {
+      setEmployeeFilter(navState.filterEmployeeId);
+      setView("list");
+      hasHandledState = true;
+    }
+    if (navState.filterStatus) {
+      setStageFilter(navState.filterStatus);
+      hasHandledState = true;
+    }
+
+    if (hasHandledState) {
       navigate(location.pathname, { replace: true, state: {} });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [location.state, navigate, location.pathname]);
 
   const changeView = (next) => {
     setView(next);
@@ -191,7 +219,16 @@ export default function OpportunitiesPage() {
     };
   }, [filtered]);
 
-  const selected = opportunities.find((o) => o.id === selectedId) || null;
+  const { data: directOpportunity } = useQuery({
+    queryKey: ["opportunity", selectedId],
+    queryFn: () => opportunityService.getOpportunityById(selectedId),
+    enabled: !!selectedId && !opportunities.some((o) => o.id === selectedId),
+  });
+
+  const selected = useMemo(() => {
+    if (!selectedId) return null;
+    return opportunities.find((o) => o.id === selectedId) || directOpportunity || null;
+  }, [opportunities, selectedId, directOpportunity]);
 
   const stageOptions = [
     { value: "ALL", label: "All Stages" },

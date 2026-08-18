@@ -1,5 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
+import { procurementService } from "./procurementService";
+import { notificationService } from "./notificationService";
 import {
   STAGE_LABELS,
   formatPHP,
@@ -343,6 +345,16 @@ export const opportunityService = {
       actorId,
     ).catch(console.error);
 
+    // Purchasing may already have committed to a supplier for this deal. They
+    // are told; nothing of theirs is closed on their behalf, because a task
+    // that silently vanished would take the evidence of that spend with it.
+    // Fire-and-forget: losing the deal must not fail because a notification did.
+    if (nextStatus === "CLOSED_LOST") {
+      procurementService
+        .notifyDealClosed(id, actorId, lostReason)
+        .catch(console.error);
+    }
+
     return data;
   },
 
@@ -351,10 +363,14 @@ export const opportunityService = {
       .from("sales_opportunities")
       .update({ is_deleted: true })
       .eq("id", id)
-      .select("client_name, sales_reference")
+      .select("id, client_name, sales_reference")
       .single();
 
     if (error) throw error;
+
+    procurementService
+      .handleOpportunityDeleted(id, actorId, data)
+      .catch(console.error);
 
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
@@ -436,11 +452,22 @@ export const opportunityService = {
    * existing `metadata` column the same way task comments store theirs. A note
    * carrying files needs no text.
    */
-  async addNote(opportunityId, authorId, content, attachments = []) {
+  async addNote(opportunityId, authorId, content, attachments = [], mentions = []) {
     const trimmed = (content || "").trim();
     const files = (attachments || []).filter((a) => a?.url);
     if (!trimmed && files.length === 0)
       throw new Error("Add a note or attach a file.");
+
+    // Only mentions whose name still appears in the posted text count. Picking
+    // someone and then deleting the name is a change of mind, and notifying
+    // them anyway would be a message about a note that never names them.
+    const live = (mentions || []).filter(
+      (m) => m?.id && m?.name && trimmed.includes(`@${m.name}`),
+    );
+
+    const metadata = {};
+    if (files.length > 0) metadata.attachments = files;
+    if (live.length > 0) metadata.mentions = live;
 
     const { data, error } = await supabase
       .from("sales_opportunity_logs")
@@ -449,12 +476,51 @@ export const opportunityService = {
         author_id: authorId,
         type: "COMMENT",
         content: trimmed,
-        metadata: files.length > 0 ? { attachments: files } : null,
+        metadata: Object.keys(metadata).length > 0 ? metadata : null,
       })
       .select("*, author:employees!sales_opportunity_logs_author_id_fkey(id, name, avatar_path)")
       .single();
 
     if (error) throw error;
+
+    if (live.length > 0) {
+      const { data: author } = await supabase
+        .from("employees")
+        .select("name")
+        .eq("id", authorId)
+        .single();
+
+      const { data: opportunity } = await supabase
+        .from("sales_opportunities")
+        .select("sales_reference, client_name")
+        .eq("id", opportunityId)
+        .single();
+
+      const label =
+        opportunity?.sales_reference || opportunity?.client_name || "an opportunity";
+      const snippet = trimmed.length > 90 ? `${trimmed.slice(0, 90)}…` : trimmed;
+
+      await Promise.all(
+        live
+          // Mentioning yourself is a way of writing, not a request for a
+          // notification.
+          .filter((m) => m.id !== authorId)
+          .map((m) =>
+            notificationService.createNotification({
+              recipient_id: m.id,
+              sender_id: authorId,
+              // No "TASK" substring — notificationRouter's fallthrough would
+              // send them to the task pages instead of the deal being
+              // discussed. See src/utils/notificationRouter.js.
+              type: "OPPORTUNITY_MENTION",
+              title: "Mentioned on a deal",
+              message: `${author?.name || "Someone"} mentioned you on ${label}: "${snippet}"`,
+              reference_id: opportunityId,
+            }),
+          ),
+      );
+    }
+
     return data;
   },
 

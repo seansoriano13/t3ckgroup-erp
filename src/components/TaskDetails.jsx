@@ -5,6 +5,7 @@ import TaskHeader from "./TaskHeader"
 import ManagementSection from "./ManagementSection"
 import StandardDetailsSection from "./StandardDetailsSection"
 import TaskBodySection from "./TaskBodySection"
+import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import TaskEvaluationSection from "./TaskEvaluationSection"
 import InlineTaskChat from "./InlineTaskChat"
 import TaskActivityTimeline from "./TaskActivityTimeline"
@@ -19,6 +20,8 @@ import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
+import { procurementService } from "@/services/procurementService"
+import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 
@@ -60,6 +63,16 @@ export default function TaskDetails({
   })
 
   const activeTask = fullTask || task // Fallback to prop while loading
+
+  const isProcurement =
+    isRequisitionTitle(activeTask?.taskDescription) ||
+    isRequisitionTitle(activeTask?.task_description)
+
+  const { data: procurementRequests = [] } = useQuery({
+    queryKey: ["procurement", "task", activeTask?.id],
+    queryFn: () => procurementService.listForTask(activeTask?.id),
+    enabled: isOpen && !!activeTask?.id && isProcurement,
+  })
 
   // Timeline message ref — used by the approval flow to grab the message
   // from the timeline input box when the head clicks Approve/Reject
@@ -235,6 +248,16 @@ export default function TaskDetails({
     selectedCategoryObj?.description?.toUpperCase().includes("OTHERS")
 
   const isComplete = task.status === TASK_STATUS.COMPLETE
+
+  const hasUndeliveredProcurement =
+    isProcurement &&
+    (procurementRequests.length === 0 ||
+      procurementRequests.some(
+        (r) =>
+          !r.outcome ||
+          r.outcome === PROCUREMENT_OUTCOME.IN_PROGRESS ||
+          r.outcome === PROCUREMENT_OUTCOME.PURCHASED,
+      ))
   const isNotApproved = task.status === TASK_STATUS.NOT_APPROVED
   const isFinalized = isComplete || isNotApproved
   const timelineLegacyRemarks = isCategoryMetadataRemarks(task?.remarks)
@@ -576,6 +599,26 @@ export default function TaskDetails({
                   user={user}
                 />
 
+                {/* Renders nothing unless this task carries procurement
+                    requests, so ordinary tasks are unaffected. */}
+                <ProcurementResolutionPanel
+                  taskId={activeTask?.id}
+                  userId={user?.id}
+                  onSubmittingChange={setIsSubmitting}
+                  onDeliveredComplete={() => {
+                    onClose?.()
+                    setTimeout(() => {
+                      if (activeTask?.id) {
+                        window.dispatchEvent(
+                          new CustomEvent("HIGHLIGHT_TASK", {
+                            detail: { id: activeTask.id },
+                          }),
+                        )
+                      }
+                    }, 200)
+                  }}
+                />
+
                 <TaskEvaluationSection
                   isEditing={isEditing}
                   canReEvalGrade={canReEvalGrade}
@@ -703,12 +746,15 @@ export default function TaskDetails({
                     hrRemarks: "",
                   }),
 
-                onRecallTask: () =>
-                  executeUpdate({
+                onRecallTask: () => {
+                  setFormData((prev) => ({ ...prev, status: TASK_STATUS.INCOMPLETE, endAt: "" }))
+                  return executeUpdate({
                     id: task.id,
                     status: TASK_STATUS.INCOMPLETE,
+                    endAt: null,
                     editedBy: user.id,
-                  }),
+                  })
+                },
 
                 onResubmit: handleResubmit,
 
@@ -743,6 +789,8 @@ export default function TaskDetails({
                     : false),
                 canApprove: approvalGrade !== null && !hasUncheckedItems,
                 isMarketing,
+                isProcurement,
+                hasUndeliveredProcurement,
                 universalTaskSubmission:
                   appSettings?.universal_task_submission === true,
                 hasAttachments:

@@ -169,6 +169,40 @@ describe("handleNotificationRoute", () => {
         state: { openOpportunityId: "opp-1" },
       })
     })
+
+    it("sends procurement notifications to the deal, not to purchasing's task", () => {
+      // The naming is load-bearing. The branch above this one is
+      // `type.includes("TASK")`, so calling these PROCUREMENT_TASK_* would
+      // route sales into the task pages instead — silently, since both
+      // branches navigate somewhere plausible. Sales' next move is finishing
+      // the quotation, which happens on the SOR.
+      for (const type of [
+        "OPPORTUNITY_PROCUREMENT_REQUESTED",
+        "OPPORTUNITY_PROCUREMENT_RESOLVED",
+      ]) {
+        navigate.mockClear()
+        handleNotificationRoute({ type, reference_id: "opp-9" }, employee, navigate, onClose)
+
+        expect(navigate).toHaveBeenCalledWith("/opportunities", {
+          state: { openOpportunityId: "opp-9" },
+        })
+      }
+    })
+
+    it("keeps purchasing's own warning on the task pages", () => {
+      // The buyer's open requisition is the thing they need to look at, so
+      // this one keeps the TASK substring deliberately.
+      handleNotificationRoute(
+        { type: "PROCUREMENT_TASK_DEAL_LOST", reference_id: "task-77" },
+        employee,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/tasks", {
+        state: { openTaskId: "task-77" },
+      })
+    })
   })
 
   describe("notifications with nowhere to go", () => {
