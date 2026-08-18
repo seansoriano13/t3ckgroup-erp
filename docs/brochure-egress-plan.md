@@ -162,7 +162,10 @@ prerequisite. There is no window in which downloads are broken.
 - **A guarded Supabase fallback.** Deliberately omitted: a silent fallback would
   mean a misconfigured Cloudinary quietly bleeds egress and you'd find out from
   the billing page. Revisit only with loud reporting attached.
-- **Scheduled mirror** (GitHub Actions) if manual runs start biting.
+- ~~**Scheduled mirror** (GitHub Actions) if manual runs start biting.~~ Done —
+  they bit. Three new kayak products shipped unmirrored and broke every
+  quotation containing one. `.github/workflows/mirror-brochures.yml` runs
+  nightly at 02:00 Manila and on demand; a no-op when nothing changed.
 - **The duplicate Dinglee catalogue** — two `product.document` records hold the
   same 4.5 MB file under different names, so every download of S07813 ships it
   twice and the customer receives it twice. The dedupe in the manifest only

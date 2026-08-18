@@ -1,0 +1,92 @@
+name: Mirror brochures
+
+# Promoted from the "Backlog" section of docs/brochure-egress-plan.md, which
+# deferred this until manual runs started biting. They did: three new kayak
+# products shipped without mirrored brochures, and every quotation containing
+# one of them failed to assemble until someone ran the script by hand.
+#
+# The script is idempotent — it asks Cloudinary what already exists and uploads
+# only the gaps — so a nightly run is a no-op that finishes in seconds on a
+# catalogue that has not changed. Supabase is not in this path at all, so this
+# costs zero egress.
+
+on:
+  schedule:
+    # 18:00 UTC = 02:00 Asia/Manila, well outside working hours.
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report what would upload, upload nothing"
+        type: boolean
+        default: false
+
+# Two mirrors racing would duplicate uploads for the same documents.
+concurrency:
+  group: mirror-brochures
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror product brochures to Cloudinary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The script reads a file rather than process.env, so that its local and
+      # CI behaviour are identical — one code path, no "works on my machine".
+      - name: Write .env.mirror from secrets
+        env:
+          ODOO_URL: ${{ secrets.ODOO_URL }}
+          ODOO_DB: ${{ secrets.ODOO_DB }}
+          ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+          ODOO_API_KEY: ${{ secrets.ODOO_API_KEY }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_UPLOAD_PRESET: ${{ secrets.CLOUDINARY_UPLOAD_PRESET }}
+          CLOUDINARY_FOLDER: ${{ secrets.CLOUDINARY_FOLDER }}
+        run: |
+          for key in ODOO_URL ODOO_DB ODOO_USERNAME ODOO_API_KEY \
+                     CLOUDINARY_CLOUD_NAME CLOUDINARY_UPLOAD_PRESET; do
+            if [ -z "${!key}" ]; then
+              echo "::error::Missing repository secret $key"
+              exit 1
+            fi
+          done
+          {
+            echo "ODOO_URL=$ODOO_URL"
+            echo "ODOO_DB=$ODOO_DB"
+            echo "ODOO_USERNAME=$ODOO_USERNAME"
+            echo "ODOO_API_KEY=$ODOO_API_KEY"
+            echo "CLOUDINARY_CLOUD_NAME=$CLOUDINARY_CLOUD_NAME"
+            echo "CLOUDINARY_UPLOAD_PRESET=$CLOUDINARY_UPLOAD_PRESET"
+            echo "CLOUDINARY_FOLDER=$CLOUDINARY_FOLDER"
+          } > .env.mirror
+
+      # Exit 1 = a document failed outright; exit 2 = too large or misplaced.
+      # Both are left to fail the job. A quiet mirror is how you find out from
+      # a salesperson that a download is broken.
+      - name: Mirror
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/mirror-brochures.mjs --dry-run
+          else
+            node scripts/mirror-brochures.mjs
+          fi
+
+      - name: Remove credentials
+        if: always()
+        run: rm -f .env.mirror
