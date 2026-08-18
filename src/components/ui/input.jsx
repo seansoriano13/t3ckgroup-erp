@@ -1,20 +1,80 @@
 import * as React from "react";
-import { Input as InputPrimitive } from "@base-ui/react/input";
-
 import { cn } from "@/lib/utils";
 
-function Input({ className, type, ...props }) {
+const Input = React.forwardRef(function Input(
+  {
+    className,
+    containerClassName,
+    label,
+    labelClassName,
+    error,
+    icon: Icon,
+    type,
+    ...props
+  },
+  ref,
+) {
+  // If a label is provided, render the standardized labeled card container
+  if (label) {
+    return (
+      <div
+        className={cn(
+          "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all w-full",
+          error && "border-destructive focus-within:border-destructive ring-destructive/20",
+          props.disabled && "opacity-50 pointer-events-none",
+          containerClassName,
+        )}
+      >
+        <label
+          className={cn(
+            "text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block",
+            error && "text-destructive",
+            labelClassName,
+          )}
+        >
+          {label}
+        </label>
+        <div className="flex items-center gap-2">
+          {Icon && <Icon size={16} className="text-muted-foreground shrink-0" />}
+          <input
+            ref={ref}
+            type={type}
+            className={cn(
+              "w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium",
+              className,
+            )}
+            {...props}
+          />
+        </div>
+        {error && (
+          <span className="text-[10px] font-bold text-destructive mt-1">{error}</span>
+        )}
+      </div>
+    );
+  }
+
+  // Standalone input (when used without a label, e.g. search bars, filters, compact forms)
   return (
-    <InputPrimitive
-      type={type}
-      data-slot="input"
-      className={cn(
-        "h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:disabled:bg-input/80 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40",
-        className,
+    <div className={cn("relative flex items-center w-full", containerClassName)}>
+      {Icon && (
+        <Icon size={16} className="absolute left-3 text-muted-foreground pointer-events-none" />
       )}
-      {...props}
-    />
+      <input
+        ref={ref}
+        type={type}
+        data-slot="input"
+        className={cn(
+          "h-10 w-full min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 transition-colors outline-none focus-visible:border-mauve-7 focus-visible:ring-1 focus-visible:ring-mauve-7 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
+          Icon && "pl-9",
+          error && "border-destructive focus-visible:border-destructive ring-destructive/20",
+          className,
+        )}
+        {...props}
+      />
+    </div>
   );
-}
+});
+
+Input.displayName = "Input";
 
 export { Input };

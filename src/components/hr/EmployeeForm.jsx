@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { Shield, Users, Briefcase, ListCheck, ChevronDown } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
 
@@ -29,6 +30,9 @@ export default function EmployeeForm({
   })
 
   useEffect(() => {
+    // The form is reseeded whenever the record it edits changes; without
+    // this it would keep showing the previously-opened employee.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setFormData({
       name: "",
       email: "",
@@ -113,36 +117,26 @@ export default function EmployeeForm({
 
       {/* 2. ROLE & EMAIL */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Google Auth Email
-          </label>
-          <input
-            required
-            type="email"
-            placeholder="e.g. juan@t3ckgroup.com"
-            value={formData.email}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, email: e.target.value }))
-            }
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
-          />
-        </div>
+        <Input
+          required
+          type="email"
+          label="Google Auth Email"
+          placeholder="e.g. juan@t3ckgroup.com"
+          value={formData.email}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, email: e.target.value }))
+          }
+        />
 
-        <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Job Role / Title
-          </label>
-          <input
-            type="text"
-            value={formData.role}
-            onChange={(e) =>
-              setFormData((prev) => ({ ...prev, role: e.target.value }))
-            }
-            placeholder="e.g. Marketing Assistant"
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
-          />
-        </div>
+        <Input
+          type="text"
+          label="Job Role / Title"
+          value={formData.role}
+          onChange={(e) =>
+            setFormData((prev) => ({ ...prev, role: e.target.value }))
+          }
+          placeholder="e.g. Marketing Assistant"
+        />
       </div>
 
       <DeptSubDeptSelector

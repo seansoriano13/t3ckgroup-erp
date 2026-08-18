@@ -87,10 +87,10 @@
 @import "./styles/radix-theme.css";
 
 /* ---break--- */
-@custom-variant dark
-  (&:is(.dark *));
+@custom-variant dark (&:is(.dark *));
 
 @layer components {
+
   /* LAYOUT */
   .wrapper {
     @apply mx-auto max-w-7xl px-4 sm:px-10 w-full;
@@ -244,9 +244,7 @@
   border-radius: 8px !important;
 }
 
-.react-datepicker__day--in-range:not(.react-datepicker__day--range-start):not(
-    .react-datepicker__day--range-end
-  ) {
+.react-datepicker__day--in-range:not(.react-datepicker__day--range-start):not(.react-datepicker__day--range-end) {
   background-color: var(--red-a2) !important;
   color: var(--primary) !important;
 }
@@ -281,9 +279,7 @@
   float: none !important;
 }
 
-.react-datepicker__time-container
-  .react-datepicker__time
-  .react-datepicker__time-box {
+.react-datepicker__time-container .react-datepicker__time .react-datepicker__time-box {
   width: 100% !important;
   border-radius: 0 !important;
   height: 235px !important;
@@ -560,13 +556,98 @@
 /* 
 ---break--- */
 
+/*
+  Reveal a panel to its natural height.
+
+  `height: auto` is not animatable, and measuring it in JS means a resize
+  observer plus a re-measure every time the content inside changes — a form
+  that grows as products are added would jump. Animating grid-template-rows
+  from 0fr to 1fr gets the same result declaratively, and keeps working when
+  the content changes mid-transition.
+*/
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.reveal[data-open="true"] {
+  grid-template-rows: 1fr;
+}
+
+/* The 0fr row still shows overflow without this, so the collapsed panel would
+   leak its contents over whatever sits below it. */
+.reveal>* {
+  overflow: hidden;
+  min-height: 0;
+}
+
+/*
+  Once the panel has finished opening, the clip has to come back off.
+
+  `overflow: hidden` is only needed while the row height is animating, and it
+  costs two things when left on: it clips focus rings drawn outside a
+  full-width field's border box (left and right, where there is no slack), and
+  it makes this div the nearest scrolling ancestor, which stops any
+  `position: sticky` child from sticking to the modal. The owning component
+  flips data-settled after the transition ends.
+*/
+.reveal[data-settled="true"]>* {
+  overflow: visible;
+}
+
+/*
+  The body must stay mounted, not be conditionally rendered.
+
+  `1fr` resolves against the row's content at the moment the transition starts.
+  Mounting the content in the same commit that flips the panel open means the
+  browser measures an empty row, resolves the target to 0px, and interpolates
+  0px → 0px — the panel stays shut with no visible error. Keeping it mounted
+  gives the track real content to resolve against; `inert` keeps it out of the
+  tab order while collapsed.
+*/
+.reveal-body {
+  opacity: 0;
+  transform: translateY(-4px);
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+
+.reveal[data-open="true"] .reveal-body {
+  opacity: 1;
+  transform: none;
+  /* Lags the height slightly so the content arrives into open space rather
+     than racing the panel edge down the screen. */
+  transition-delay: 0.06s;
+}
+
+/*
+  Respect a system-level request for less motion. Applies to everything, not
+  just the reveal above — this app had no such guard, and the modal, popover
+  and stagger animations all ignored it.
+*/
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
   }
+
   html {
     @apply font-sans;
   }
