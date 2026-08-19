@@ -1,6 +1,6 @@
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
-import { resolveAssignment } from "../utils/checklist";
+import { resolveAssignment } from "@/utils/checklist";
 
 /**
  * GroupTaskMemberRail — the master half of the group task master/detail layout.

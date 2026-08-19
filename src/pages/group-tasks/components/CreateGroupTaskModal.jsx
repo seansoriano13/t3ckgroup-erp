@@ -1,18 +1,37 @@
 import { useState, useMemo, useEffect, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Maximize2, Minimize2, X, ChevronDown, Check, Calendar } from "lucide-react";
+import {
+  Maximize2,
+  Minimize2,
+  X,
+  ChevronDown,
+  Check,
+  Calendar,
+  LayoutTemplate,
+  BookmarkPlus,
+} from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
-import { useQuery } from "@tanstack/react-query";
+import Dropdown from "@/components/ui/Dropdown";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupRoleService } from "../../../services/groupRoleService";
+import { groupTaskTemplateService } from "../../../services/groupTaskTemplateService";
+import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import GroupRoleManagerModal from "./GroupRoleManagerModal";
 import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
-import { parseChecklist, hasChecklistContent } from "../utils/checklist";
+import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
+import { parseChecklist, hasChecklistContent } from "@/utils/checklist";
+import {
+  applyTemplateToMembers,
+  applyTemplateDefaults,
+  hasDraftContent,
+  computeDueDateOffsetDays,
+} from "../utils/templateApply";
 
 const makeMember = () => ({
   id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -40,9 +59,12 @@ export default function CreateGroupTaskModal({
   const [dueDate, setDueDate] = useState(null);
   const [members, setMembers] = useState(() => [makeMember()]);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
+  const [appliedTemplateId, setAppliedTemplateId] = useState(null);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
 
   const titleRef = useRef(null);
   const avatarMap = useEmployeeAvatarMap();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (isOpen) {
@@ -56,6 +78,8 @@ export default function CreateGroupTaskModal({
       setDueDate(null);
       setMembers([first]);
       setSelectedMemberId(first.id);
+      setAppliedTemplateId(null);
+      setIsSaveTemplateModalOpen(false);
       setTimeout(() => titleRef.current?.focus(), 150);
     }
   }, [isOpen]);
@@ -73,7 +97,68 @@ export default function CreateGroupTaskModal({
     enabled: isOpen,
   });
 
+  const { data: templates = [] } = useQuery({
+    queryKey: ["groupTaskTemplates"],
+    queryFn: () => groupTaskTemplateService.getTemplates(),
+    enabled: isOpen,
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: (name) =>
+      groupTaskTemplateService.createTemplate({
+        name,
+        title: title.trim() || null,
+        description: description.trim() || null,
+        dueDateOffsetDays: computeDueDateOffsetDays(dueDate),
+        createdBy: user.id,
+        members,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
+      toast.success("Template saved.");
+      setIsSaveTemplateModalOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const selectedMember = members.find((m) => m.id === selectedMemberId) || null;
+
+  const handleApplyTemplate = (template) => {
+    const apply = () => {
+      const { members: newMembers, skippedCount } = applyTemplateToMembers(
+        template,
+        employees,
+      );
+      const nextMembers = newMembers.length > 0 ? newMembers : [makeMember()];
+      setMembers(nextMembers);
+      setSelectedMemberId(nextMembers[0]?.id ?? null);
+      setAppliedTemplateId(template.id);
+
+      const defaults = applyTemplateDefaults(template, { title, description, dueDate });
+      setTitle(defaults.title || "");
+      setDescription(defaults.description || "");
+      setDueDate(defaults.dueDate || null);
+
+      if (skippedCount > 0) {
+        toast(
+          `${skippedCount} slot${skippedCount === 1 ? "" : "s"} skipped — bound employee is no longer active.`,
+          { icon: "⚠️" },
+        );
+      }
+    };
+
+    if (hasDraftContent(members, { title, description, dueDate })) {
+      confirmActionToast(
+        "Replace current draft?",
+        `Applying "${template.name}" replaces the task details and members currently in this form.`,
+        "Replace",
+        null,
+        apply,
+      );
+    } else {
+      apply();
+    }
+  };
 
   const handleAddMember = () => {
     const next = makeMember();
@@ -138,6 +223,7 @@ export default function CreateGroupTaskModal({
       description,
       dueDate,
       createdBy: user.id,
+      templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
         const items = parseChecklist(m.checklist).filter((i) => i?.text?.trim());
         return {
@@ -175,6 +261,53 @@ export default function CreateGroupTaskModal({
                 New Group Task
               </span>
             </div>
+
+            <Dropdown
+              usePortal
+              placement="bottom-start"
+              trigger={({ isOpen: isTemplateDropdownOpen }) => (
+                <button
+                  type="button"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors ${
+                    isTemplateDropdownOpen
+                      ? "bg-muted border-primary/30 text-foreground"
+                      : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  }`}
+                >
+                  <LayoutTemplate size={12} />
+                  <span>Use Template</span>
+                </button>
+              )}
+            >
+              {({ close }) => (
+                <div className="min-w-[220px] max-h-64 overflow-y-auto flex flex-col gap-0.5">
+                  {templates.length === 0 ? (
+                    <p className="px-3 py-4 text-[11px] text-muted-foreground text-center">
+                      No templates yet — save one from the footer below.
+                    </p>
+                  ) : (
+                    templates.map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          handleApplyTemplate(t);
+                          close();
+                        }}
+                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold text-foreground hover:bg-sidebar-accent transition-colors text-left"
+                      >
+                        <span className="truncate">{t.name}</span>
+                        <span className="text-[10px] text-muted-foreground shrink-0">
+                          {(t.members || []).length} slot
+                          {(t.members || []).length === 1 ? "" : "s"}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </Dropdown>
+
             <div className="flex items-center gap-1">
               <button
                 type="button"
@@ -279,8 +412,17 @@ export default function CreateGroupTaskModal({
 
           {/* FOOTER */}
           <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
-            <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
-              <div className="flex items-center gap-1">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setIsSaveTemplateModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold hover:border-primary/40 transition-all shadow-sm"
+              >
+                <BookmarkPlus size={13} className="text-primary" />
+                <span>Save as Template</span>
+              </button>
+
+              <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground font-medium border-l border-border/80 pl-3">
                 <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded text-muted-foreground font-sans text-[9px]">
                   Esc
                 </kbd>
@@ -323,6 +465,13 @@ export default function CreateGroupTaskModal({
       <GroupRoleManagerModal
         isOpen={isRoleManagerOpen}
         onClose={() => setIsRoleManagerOpen(false)}
+      />
+      <SaveGroupTaskTemplateModal
+        isOpen={isSaveTemplateModalOpen}
+        onClose={() => setIsSaveTemplateModalOpen(false)}
+        taskDraft={{ title, description, dueDate, members }}
+        onSave={(name) => saveTemplateMutation.mutate(name)}
+        isSaving={saveTemplateMutation.isPending}
       />
     </>
   );

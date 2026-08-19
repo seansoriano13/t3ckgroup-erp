@@ -3,7 +3,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown";
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
-import { resolveAssignment } from "../utils/checklist";
+import { resolveAssignment } from "@/utils/checklist";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.

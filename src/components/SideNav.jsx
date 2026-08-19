@@ -18,6 +18,7 @@ import {
   SquarePen,
   Megaphone,
   UsersRound,
+  LayoutTemplate,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useQuery } from "@tanstack/react-query";
@@ -135,6 +136,7 @@ export default function SideNav() {
       { label: "Dashboard", link: "/", icon: LayoutList },
       { label: "Tasks", link: "/tasks", icon: ListCheck },
       { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
+      { label: "Group Templates", link: "/group-tasks/templates", icon: LayoutTemplate },
       { label: "Leaves & Overtime", link: "/offsets", icon: Clock },
     ];
     groups.approvals.links = [
@@ -167,6 +169,14 @@ export default function SideNav() {
         { label: "Tasks", link: "/tasks", icon: ListCheck },
         { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
       );
+    }
+
+    if (canManage && hasTask) {
+      groups.main.links.push({
+        label: "Group Templates",
+        link: "/group-tasks/templates",
+        icon: LayoutTemplate,
+      });
     }
 
     if (hasSales) {
@@ -537,6 +547,7 @@ export default function SideNav() {
                         to={navLink.link}
                         end={
                           navLink.link === "/" ||
+                          navLink.link === "/group-tasks" ||
                           navLink.link === "/approvals/tasks" ||
                           navLink.link === "/approvals/hr-verification" ||
                           navLink.link === "/super-admin"

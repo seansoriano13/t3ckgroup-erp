@@ -22,6 +22,9 @@ export type Path =
   | `/group-tasks/components/GroupTaskMemberPanel`
   | `/group-tasks/components/GroupTaskMemberRail`
   | `/group-tasks/components/RateEmployeesModal`
+  | `/group-tasks/components/SaveGroupTaskTemplateModal`
+  | `/group-tasks/templates`
+  | `/group-tasks/templates/components/TemplateEditorModal`
   | `/hr-master-log`
   | `/hr/management`
   | `/hr/offsets`

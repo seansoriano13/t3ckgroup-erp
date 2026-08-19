@@ -5,6 +5,11 @@
  * columns, matching regular tasks. Before that split, task_description held
  * either plain text or a serialised checklist array, so values coming back from
  * older rows can still be strings. Everything here tolerates both.
+ *
+ * Lives under src/utils rather than src/pages/group-tasks/utils because
+ * groupTaskTemplateService (a service, not a page) needs it too — services
+ * never reach into src/pages/** elsewhere in this codebase, so this stays the
+ * shared, layer-neutral home.
  */
 
 /** Normalises a checklist value (jsonb array, JSON string, or legacy {items}) to an array. */

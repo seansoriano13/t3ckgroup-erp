@@ -3,7 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, Star } from "lucide-react";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
-import { parseChecklist } from "../utils/checklist";
+import { parseChecklist } from "@/utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 
 export default function RateEmployeesModal({

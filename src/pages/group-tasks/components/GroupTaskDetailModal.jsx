@@ -50,7 +50,7 @@ import {
   parseChecklist,
   hasChecklistContent,
   resolveAssignment,
-} from "../utils/checklist";
+} from "@/utils/checklist";
 
 export default function GroupTaskDetailModal({
   isOpen,
