@@ -1,0 +1,8 @@
+project_id = "epqmberwewztzbrkhhss"
+
+[functions.odoo-document-admin]
+[functions.odoo-po-verify]
+[functions.odoo-quotation-file]
+[functions.odoo-quotation-link]
+[functions.odoo-quotation-manifest]
+[functions.odoo-sor-lookup]
