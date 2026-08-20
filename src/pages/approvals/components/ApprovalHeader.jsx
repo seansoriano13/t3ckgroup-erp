@@ -29,7 +29,6 @@ export function ApprovalHeader({
       ? "Audit and verify graded tasks for payroll accuracy."
       : "Review and grade pending tasks from your team.");
 
-
   return (
     <PageHeader title={title} description={description}>
       {appSettings?.enable_bulk_approval && (
@@ -40,37 +39,34 @@ export function ApprovalHeader({
                 variant="secondary"
                 size="sm"
                 onClick={onDeselectAll}
-                className="font-semibold shadow-sm"
+                className="font-semibold shadow-xs"
               >
-                <XSquare className="mr-2 h-4 w-4" /> Deselect All
+                <XSquare className="mr-1.5 h-4 w-4" /> Deselect All
               </Button>
               {!isVerifiedTab && !isHr && (
                 <Button
                   onClick={handleBulkDecline}
                   size="sm"
-                  className="font-semibold shadow-sm text-primary-foreground bg-destructive hover:bg-red-9"
+                  variant="destructive"
+                  className="font-semibold shadow-xs"
                 >
-                  <XSquare className="mr-2 h-4 w-4" /> Decline {selectedCount}{" "}
+                  <XSquare className="mr-1.5 h-4 w-4" /> Decline {selectedCount}{" "}
                   Selected
                 </Button>
               )}
               <Button
                 onClick={isVerifiedTab ? handleUndoBulk : handleBulkApprove}
                 size="sm"
-                className={`font-semibold shadow-sm text-primary-foreground ${
+                className={`font-semibold shadow-xs text-white ${
                   isVerifiedTab
-                    ? "bg-destructive hover:bg-destructive"
-                    : isHr
-                      ? "bg-blue-10 hover:bg-blue-11"
-                      : "bg-green-10 hover:bg-green-9"
+                    ? "bg-destructive hover:bg-destructive/90"
+                    : "bg-green-600 hover:bg-green-700"
                 }`}
               >
                 {isVerifiedTab ? (
-                  <Undo2 className="mr-2 h-4 w-4" />
-                ) : isHr ? (
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  <Undo2 className="mr-1.5 h-4 w-4" />
                 ) : (
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" />
                 )}
                 {isVerifiedTab
                   ? isHr
@@ -86,16 +82,16 @@ export function ApprovalHeader({
               variant="outline"
               size="sm"
               onClick={onSelectAllPending}
-              className="font-semibold shadow-sm"
+              className="font-semibold shadow-xs"
             >
-              <CheckSquare className="mr-2 h-4 w-4" /> Select All
+              <CheckSquare className="mr-1.5 h-4 w-4" /> Select All
             </Button>
           ) : null}
         </>
       )}
-      <div className="bg-card border border-border px-4 py-2 rounded-xl flex items-center gap-2.5 shadow-sm">
-        <Clock size={16} className="text-primary" />
-        <span className="text-foreground font-black text-[11px] uppercase tracking-widest">
+      <div className="bg-card border border-border px-3.5 py-1.5 rounded-xl flex items-center gap-2 shadow-xs">
+        <Clock size={15} className="text-muted-foreground" />
+        <span className="text-foreground font-extrabold text-[11px] uppercase tracking-wider">
           {pendingTasksCount} {isVerifiedTab ? (isHr ? "Verified" : "Approved") : "Pending"}
         </span>
       </div>

@@ -7,14 +7,33 @@ import { taskQueryService } from "../../../services/tasks/taskQueryService.js";
 import { supabase } from "../../../lib/supabase.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
-import { Search, CheckCircle2, History, Users2 } from "lucide-react";
+import {
+  Search,
+  CheckCircle2,
+  History,
+  Users2,
+  Clock,
+  AlertTriangle,
+  ListFilter,
+  Layers,
+  CheckSquare,
+  XSquare,
+  Sparkles,
+  UserCheck
+} from "lucide-react";
 import toast from "react-hot-toast";
 import Spinner from "@/components/ui/Spinner";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
 
+import {
+  filterAndSortTasks,
+  partitionByStaleness,
+  summariseQueueEmployees,
+  toggleSelectedId,
+} from "../../../utils/approvalQueue.js";
 import { ApprovalHeader } from "../components/ApprovalHeader";
-import { ApprovalRow } from "../components/ApprovalRow";
+import { ApprovalSplitView } from "../components/ApprovalSplitView";
 import BulkGradeModal from "../components/BulkGradeModal";
 import BulkDeclineModal from "../components/BulkDeclineModal";
 import { Button } from "@/components/ui/button";
@@ -50,9 +69,11 @@ export default function TaskApprovalsPage() {
 
   const location = useLocation();
   const navigate = useNavigate();
-  const [autoOpenId, setAutoOpenId] = useState(null);
   const [viewTask, setViewTask] = useState(null);
-  const [activeTab, setActiveTab] = useState("PENDING");
+  const [activeTaskId, setActiveTaskId] = useState(null);
+
+  // Smart Tabs: "ALL" | "ACTIVE" | "STALE" | "VERIFIED"
+  const [activeTab, setActiveTab] = useState("ALL");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("ALL");
@@ -69,8 +90,8 @@ export default function TaskApprovalsPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
   const [allEmployees, setAllEmployees] = useState([]);
   const [allCategories, setAllCategories] = useState([]);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 50;
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
   const [isBulkGradeModalOpen, setIsBulkGradeModalOpen] = useState(false);
   const [isBulkDeclineModalOpen, setIsBulkDeclineModalOpen] = useState(false);
 
@@ -78,7 +99,6 @@ export default function TaskApprovalsPage() {
   const [reportedToMeOnly, setReportedToMeOnly] = useState(true);
 
   useEffect(() => {
-    setCurrentPage(1);
     setSelectedTaskIds([]);
   }, [
     searchQuery,
@@ -95,9 +115,8 @@ export default function TaskApprovalsPage() {
   ]);
 
   useEffect(() => {
-    if (activeTab === "VERIFIED") {
-      setStatusFilter(TASK_STATUS.COMPLETE);
-    }
+    if (activeTab === "VERIFIED") setStatusFilter(TASK_STATUS.COMPLETE);
+    else setStatusFilter("ALL");
   }, [activeTab]);
 
   useEffect(() => {
@@ -145,17 +164,19 @@ export default function TaskApprovalsPage() {
     if (rawTasks.length > 0) {
       const targetTask = rawTasks.find((t) => t.id === openId);
       queueMicrotask(() => {
-        setAutoOpenId(openId);
+        setActiveTaskId(openId);
         if (targetTask) {
           setViewTask(targetTask);
         } else {
-          // Task may be soft-deleted — fetch it directly
           taskQueryService
             .getTaskById(openId)
             .then((task) => {
-              if (task) setViewTask(task);
+              if (task) {
+                setViewTask(task);
+                setActiveTaskId(task.id);
+              }
             })
-            .catch(() => {});
+            .catch(() => { });
         }
       });
       navigate(location.pathname, { replace: true, state: {} });
@@ -163,7 +184,6 @@ export default function TaskApprovalsPage() {
   }, [location.state, rawTasks, navigate, location.pathname]);
 
   // HEAD QUEUE — pending tasks for grading (INCOMPLETE / AWAITING_APPROVAL)
-  // HR users (who are not also Heads/SuperAdmins) are excluded from this queue intentionally.
   const pendingTasks = useMemo(() => {
     return rawTasks
       .filter((t) => {
@@ -172,7 +192,6 @@ export default function TaskApprovalsPage() {
         if (!isHead && !isSuperAdmin) return false;
 
         if (t.reportedTo) {
-          // Super admin / Head with scope toggle: when "reported to me only" is off, show all
           if ((isSuperAdmin || isHead) && !reportedToMeOnly) {
             return (
               t.status === TASK_STATUS.INCOMPLETE ||
@@ -243,21 +262,13 @@ export default function TaskApprovalsPage() {
     reportedToMeOnly,
   ]);
 
-  // IDs of all tasks currently in the pending queue — used to scope the replies query
-  const pendingTaskIds = useMemo(
-    () => pendingTasks.map((t) => t.id),
+  // Split pending into Active and Stale/Backlog around the staleness threshold
+  const { active: activePendingTasks, stale: stalePendingTasks } = useMemo(
+    () => partitionByStaleness(pendingTasks),
     [pendingTasks],
   );
 
-  // Secondary query: which pending tasks has the current user already replied to?
-  const { data: repliedTaskIds = new Set() } = useQuery({
-    queryKey: ["managerReplies", user?.id, pendingTaskIds],
-    queryFn: () =>
-      taskQueryService.getManagerRepliesForTasks(pendingTaskIds, user.id),
-    enabled: !!user?.id && pendingTaskIds.length > 0,
-    staleTime: 30_000,
-  });
-
+  // Verified / Recently Approved tasks
   const verifiedTasks = useMemo(() => {
     return rawTasks
       .filter((t) => {
@@ -276,113 +287,64 @@ export default function TaskApprovalsPage() {
       );
   }, [rawTasks, user?.id, isSuperAdmin, reportedToMeOnly]);
 
-  const activeRawData = activeTab === "PENDING" ? pendingTasks : verifiedTasks;
+  // IDs of all tasks in pending queue for replies query
+  const pendingTaskIds = useMemo(
+    () => pendingTasks.map((t) => t.id),
+    [pendingTasks],
+  );
 
-  const filteredTasks = useMemo(() => {
-    let result = [...activeRawData];
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      result = result.filter(
-        (t) =>
-          (t.loggedByName || "").toLowerCase().includes(q) ||
-          (t.categoryId || "").toLowerCase().includes(q) ||
-          (t.taskDescription || "").toLowerCase().includes(q) ||
-          (t.paymentVoucher || "").toLowerCase().includes(q),
-      );
-    }
-    if (priorityFilter !== "ALL") {
-      result = result.filter((t) => t.priority === priorityFilter);
-    }
-    if (statusFilter !== "ALL") {
-      if (statusFilter === TASK_STATUS.INCOMPLETE)
-        result = result.filter((t) => t.status === TASK_STATUS.INCOMPLETE);
-      else if (statusFilter === TASK_STATUS.COMPLETE)
-        result = result.filter((t) => t.status === TASK_STATUS.COMPLETE);
-      else if (statusFilter === TASK_STATUS.AWAITING_APPROVAL)
-        result = result.filter(
-          (t) => t.status === TASK_STATUS.AWAITING_APPROVAL,
-        );
-      else if (statusFilter === "NOT APPROVED")
-        result = result.filter((t) => t.status === TASK_STATUS.NOT_APPROVED);
-      else if (statusFilter === "DELAYED")
-        result = result.filter((t) => {
-          const isPending =
-            t.status === TASK_STATUS.INCOMPLETE ||
-            t.status === TASK_STATUS.AWAITING_APPROVAL;
-          if (!isPending || !t.createdAt) return false;
-          const hrs = (new Date() - new Date(t.createdAt)) / (1000 * 60 * 60);
-          return hrs >= 48;
-        });
-    }
-    if (selectedDateFilter) {
-      result = result.filter((t) => {
-        const taskDate = new Date(t.createdAt);
-        const taskDateStr = taskDate.toISOString().split("T")[0]; // YYYY-MM-DD
+  const { data: repliedTaskIds = new Set() } = useQuery({
+    queryKey: ["managerReplies", user?.id, pendingTaskIds],
+    queryFn: () =>
+      taskQueryService.getManagerRepliesForTasks(pendingTaskIds, user.id),
+    enabled: !!user?.id && pendingTaskIds.length > 0,
+    staleTime: 30_000,
+  });
 
-        if (timeframe === "DAILY") {
-          return taskDateStr === selectedDateFilter;
-        } else if (timeframe === "MONTHLY" || timeframe === "YEARLY") {
-          return taskDateStr.startsWith(selectedDateFilter);
-        } else if (timeframe === "WEEKLY") {
-          const [y, m, d] = selectedDateFilter.split("-").map(Number);
-          const selectedD = new Date(y, m - 1, d);
-          const day = selectedD.getDay();
-          const diff = selectedD.getDate() - day + (day === 0 ? -6 : 1);
-          const startOfWeek = new Date(selectedD);
-          startOfWeek.setDate(diff);
-          startOfWeek.setHours(0, 0, 0, 0);
-          const endOfWeek = new Date(startOfWeek);
-          endOfWeek.setDate(startOfWeek.getDate() + 6);
-          endOfWeek.setHours(23, 59, 59, 999);
+  // Base dataset depending on active smart tab
+  const activeRawData = useMemo(() => {
+    if (activeTab === "VERIFIED") return verifiedTasks;
+    if (activeTab === "ACTIVE") return activePendingTasks;
+    if (activeTab === "STALE") return stalePendingTasks;
+    return pendingTasks;
+  }, [activeTab, verifiedTasks, activePendingTasks, stalePendingTasks, pendingTasks]);
 
-          return taskDate >= startOfWeek && taskDate <= endOfWeek;
-        }
-        return true;
-      });
-    }
-    if (
-      deptFilter !== "ALL" ||
-      subDeptFilter !== "ALL" ||
-      employeeFilter !== "ALL"
-    ) {
-      const empMap = new Map();
-      for (const emp of allEmployees) empMap.set(emp.id, emp);
-      result = result.filter((task) => {
-        let matchesDept = true,
-          matchesSubDept = true,
-          matchesEmp = true;
-        const taskOwner = empMap.get(task.loggedById);
-        if (deptFilter !== "ALL")
-          matchesDept = taskOwner?.department === deptFilter;
-        if (subDeptFilter !== "ALL")
-          matchesSubDept = taskOwner?.subDepartment === subDeptFilter;
-        if (employeeFilter !== "ALL")
-          matchesEmp = task.loggedById === employeeFilter;
-        return matchesDept && matchesSubDept && matchesEmp;
-      });
-    }
-    if (sortBy === "NEWEST")
-      result.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    else if (sortBy === "OLDEST")
-      result.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
-    else if (sortBy === "NAME")
-      result.sort((a, b) =>
-        (a.loggedByName || "").localeCompare(b.loggedByName || ""),
-      );
-    return result;
-  }, [
-    activeRawData,
-    searchQuery,
-    priorityFilter,
-    sortBy,
-    statusFilter,
-    timeframe,
-    selectedDateFilter,
-    deptFilter,
-    subDeptFilter,
-    employeeFilter,
-    allEmployees,
-  ]);
+  // Unique employees with pending task counts for the quick-filter chips
+  const queueEmployees = useMemo(
+    () => summariseQueueEmployees(activeRawData),
+    [activeRawData],
+  );
+
+  // Filtered dataset — every control on the filter bar is applied here, in one
+  // shared helper, so the HR queue cannot answer the same controls differently.
+  const filteredTasks = useMemo(
+    () =>
+      filterAndSortTasks(activeRawData, {
+        searchQuery,
+        priorityFilter,
+        statusFilter,
+        timeframe,
+        selectedDateFilter,
+        deptFilter,
+        subDeptFilter,
+        employeeFilter,
+        sortBy,
+        employees: allEmployees,
+      }),
+    [
+      activeRawData,
+      searchQuery,
+      priorityFilter,
+      statusFilter,
+      timeframe,
+      selectedDateFilter,
+      deptFilter,
+      subDeptFilter,
+      employeeFilter,
+      sortBy,
+      allEmployees,
+    ],
+  );
 
   const editTaskMutation = useMutation({
     mutationFn: (updatedData) =>
@@ -402,29 +364,11 @@ export default function TaskApprovalsPage() {
     },
   });
 
-  const handleSelectAllPending = () =>
+  const handleSelectAllFiltered = () =>
     setSelectedTaskIds(filteredTasks.map((t) => t.id));
   const handleDeselectAll = () => setSelectedTaskIds([]);
   const toggleTaskSelection = (taskId) =>
-    setSelectedTaskIds((prev) =>
-      prev.includes(taskId)
-        ? prev.filter((id) => id !== taskId)
-        : [...prev, taskId],
-    );
-
-  const handleUndoBulkDirect = async () => {
-    if (!selectedTaskIds.length) return;
-    try {
-      await taskService.undoBulkApproval(selectedTaskIds, user.id);
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["managerReplies"] });
-      setSelectedTaskIds([]);
-      toast.success("Action reverted successfully.");
-    } catch (err) {
-      toast.error(err.message || "Failed to revert action.");
-    }
-  };
+    setSelectedTaskIds((prev) => toggleSelectedId(prev, taskId));
 
   const handleUndoBulk = async (taskIds) => {
     try {
@@ -479,34 +423,25 @@ export default function TaskApprovalsPage() {
     }
   };
 
-  const paginatedTasks = useMemo(
-    () =>
-      filteredTasks.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage,
-      ),
-    [filteredTasks, currentPage, itemsPerPage],
-  );
-  const totalPages = Math.ceil(filteredTasks.length / itemsPerPage);
-
-  if (isLoading)
+  if (isLoading) {
     return (
       <div className="py-20 flex flex-col items-center justify-center text-muted-foreground h-[60vh]">
         <Spinner size="md" />
         <p className="font-bold animate-pulse tracking-wider uppercase text-sm mt-3">
-          Loading Approval Queue...
+          Loading Task Approvals...
         </p>
       </div>
     );
+  }
 
-  // HR-only users (not also heads/super-admins) have no business here
+  // HR-only users (not also heads/super-admins) redirect note
   if (isHr && !isHead && !isSuperAdmin) {
     return (
       <ProtectedRoute requireHead={false}>
         <div className="flex flex-col items-center justify-center py-32 text-center">
-          <p className="text-foreground font-bold text-xl">Wrong queue</p>
+          <p className="text-foreground font-bold text-xl">Manager Queue</p>
           <p className="text-muted-foreground mt-2">
-            HR verification is at{" "}
+            Looking for HR verification? Go to{" "}
             <a
               href="/approvals/hr-verification"
               className="text-primary underline font-semibold"
@@ -521,7 +456,8 @@ export default function TaskApprovalsPage() {
 
   return (
     <ProtectedRoute>
-      <PageContainer className="pt-4">
+      <PageContainer className="pt-3 pb-8 space-y-4">
+        {/* HEADER & TOP METRICS */}
         <ApprovalHeader
           isHr={false}
           isSuperAdmin={isSuperAdmin}
@@ -529,29 +465,42 @@ export default function TaskApprovalsPage() {
           pendingTasksCount={activeRawData.length}
           filteredTasksCount={filteredTasks.length}
           selectedCount={selectedTaskIds.length}
-          onSelectAllPending={handleSelectAllPending}
+          onSelectAllPending={handleSelectAllFiltered}
           onDeselectAll={handleDeselectAll}
           handleBulkApprove={() => setIsBulkGradeModalOpen(true)}
           handleBulkDecline={() => setIsBulkDeclineModalOpen(true)}
-          handleUndoBulk={handleUndoBulkDirect}
+          handleUndoBulk={() => handleUndoBulk(selectedTaskIds)}
           isVerifiedTab={activeTab === "VERIFIED"}
-          pageTitle={isSuperAdmin ? "Task Approval" : "Manager Queue"}
+          pageTitle={isSuperAdmin ? "Task Approval Queue" : "Manager Evaluation Queue"}
           pageDescription={
             isSuperAdmin
-              ? "Review and grade pending tasks system-wide."
-              : "Review and grade pending tasks from your team."
+              ? "Triage, evaluate, and clear task approvals system-wide."
+              : "Review and evaluate pending tasks from your team."
           }
         />
 
-        {/* TAB TOGGLE */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border/50 pb-4 mt-2">
+        {/* SMART QUEUE TABS & SCOPE TOGGLE */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-border/60 pb-3">
           <TabGroup
             tabs={[
               {
-                value: "PENDING",
-                label: "Pending",
-                icon: CheckCircle2,
+                value: "ALL",
+                label: "All Pending",
+                icon: Layers,
                 badge: pendingTasks.length || undefined,
+              },
+              {
+                value: "ACTIVE",
+                label: "Active (<48h)",
+                icon: Clock,
+                badge: activePendingTasks.length || undefined,
+              },
+              {
+                value: "STALE",
+                label: "Stale Backlog (>48h)",
+                icon: AlertTriangle,
+                badge: stalePendingTasks.length || undefined,
+                activeClass: stalePendingTasks.length > 0 ? "bg-amber-500/10 text-amber-600 font-bold" : undefined,
               },
               {
                 value: "VERIFIED",
@@ -561,180 +510,156 @@ export default function TaskApprovalsPage() {
               },
             ]}
             activeTab={activeTab}
-            onChange={setActiveTab}
+            onChange={(val) => {
+              setActiveTab(val);
+              setEmployeeFilter("ALL");
+            }}
             size="md"
           />
 
-          {(isSuperAdmin || isHead || isHr) && (
-            <TabGroup
-              tabs={[
-                { value: "ME", label: "My Queue", icon: Users2 },
-                {
-                  value: "ALL",
-                  label: "System-wide",
-                  icon: Users2,
-                  activeClass:
-                    "bg-amber-500/10 text-amber-600 shadow-sm rounded-lg",
-                },
-              ]}
-              activeTab={reportedToMeOnly ? "ME" : "ALL"}
-              onChange={(v) => setReportedToMeOnly(v === "ME")}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {(isSuperAdmin || isHead) && (
+              <TabGroup
+                tabs={[
+                  { value: "ME", label: "My Team", icon: Users2 },
+                  {
+                    value: "ALL",
+                    label: "System-wide",
+                    icon: Users2,
+                    activeClass: "bg-amber-500/10 text-amber-600 shadow-xs rounded-lg font-bold",
+                  },
+                ]}
+                activeTab={reportedToMeOnly ? "ME" : "ALL"}
+                onChange={(v) => setReportedToMeOnly(v === "ME")}
+                size="sm"
+              />
+            )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+              className={`h-8 text-xs font-semibold rounded-lg gap-1.5 ${showAdvancedFilters ? "bg-muted text-foreground" : "text-muted-foreground"
+                }`}
+            >
+              <ListFilter className="w-3.5 h-3.5" />
+              <span>Filters</span>
+            </Button>
+          </div>
         </div>
 
-        <TaskFilters
-          searchTerm={searchQuery}
-          setSearchTerm={setSearchQuery}
-          statusFilter={statusFilter}
-          setStatusFilter={setStatusFilter}
-          priorityFilter={priorityFilter}
-          setPriorityFilter={setPriorityFilter}
-          timeframe={timeframe}
-          setTimeframe={setTimeframe}
-          selectedDateFilter={selectedDateFilter}
-          setSelectedDateFilter={setSelectedDateFilter}
-          deptFilter={deptFilter}
-          setDeptFilter={setDeptFilter}
-          subDeptFilter={subDeptFilter}
-          setSubDeptFilter={setSubDeptFilter}
-          employeeFilter={employeeFilter}
-          setEmployeeFilter={setEmployeeFilter}
-          isManagement={true}
-          isHr={false}
-          hrViewMode="ALL"
-          disableDeptFilter={false}
-          uniqueDepts={uniqueDepts}
-          uniqueSubDepts={uniqueSubDepts}
-          uniqueEmployees={uniqueEmployees}
-          showStatusFilter={true}
-          disableStatusFilter={activeTab === "VERIFIED"}
-          sortBy={sortBy}
-          setSortBy={setSortBy}
-        />
-
-        <>
-          {filteredTasks.length > 0 ? (
-            <div className="flex flex-col gap-4">
-              {(searchQuery || priorityFilter !== "ALL") && (
-                <p className="text-xs font-bold text-muted-foreground px-1">
-                  Showing {filteredTasks.length} of {activeRawData.length} tasks
-                </p>
-              )}
-              {paginatedTasks.map((task) => (
-                <ApprovalRow
-                  key={task.id}
-                  task={task}
-                  isHr={false}
-                  currentUserId={user?.id}
-                  defaultExpanded={task.id === autoOpenId}
-                  onViewDetails={setViewTask}
-                  onProcess={(payload) =>
-                    editTaskMutation.mutateAsync({
-                      ...payload,
-                      editedBy: user.id,
-                    })
-                  }
-                  appSettings={appSettings}
-                  isSelected={selectedTaskIds.includes(task.id)}
-                  onToggleSelection={
-                    appSettings?.enable_bulk_approval
-                      ? toggleTaskSelection
-                      : undefined
-                  }
-                  isVerifiedTab={activeTab === "VERIFIED"}
-                  searchTerm={searchQuery}
-                  isReplied={
-                    activeTab === "PENDING" && repliedTaskIds.has(task.id)
-                  }
-                />
-              ))}
-
-              {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-border pt-6 mt-4">
-                  <span className="text-sm font-semibold text-muted-foreground">
-                    Page {currentPage} of {totalPages}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 1}
-                      onClick={() => {
-                        setCurrentPage((prev) => Math.max(1, prev - 1));
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === totalPages}
-                      onClick={() => {
-                        setCurrentPage((prev) =>
-                          Math.min(totalPages, prev + 1),
-                        );
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : pendingTasks.length > 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 bg-card border border-border border-dashed rounded-xl shadow-sm text-center">
-              <div className="p-4 bg-muted rounded-full mb-4 ring-4 ring-muted/50">
-                <Search size={28} className="text-muted-foreground" />
-              </div>
-              <p className="text-foreground font-semibold text-lg tracking-tight">
-                No tasks match your filter
-              </p>
-              <p className="text-muted-foreground mt-1.5 text-sm max-w-sm mx-auto">
-                Try adjusting your search or filter criteria.
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setSearchQuery("");
-                  setPriorityFilter("ALL");
-                }}
-                className="mt-6 font-semibold"
-              >
-                Clear filters
-              </Button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-24 bg-card border border-border rounded-xl shadow-[0_4px_20px_-2px_rgba(79,70,229,0.1)] text-center relative overflow-hidden group">
-              <div className="absolute -top-12 -right-12 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-all duration-[3000ms]" />
-              <div
-                className={`relative inline-flex items-center justify-center w-16 h-16 rounded-full mb-6 shadow-sm ring-4 ${
-                  activeTab === "PENDING"
-                    ? "bg-green-3/50 text-green-10 ring-green-2"
-                    : "bg-muted text-muted-foreground ring-muted/50"
+        {/* QUICK TEAM MEMBER FILTER CHIPS (Visible if > 1 employee has tasks in queue) */}
+        {queueEmployees.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-4 text-xs">
+            <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <UserCheck className="w-3 h-3" /> Quick Filter:
+            </span>
+            <button
+              onClick={() => setEmployeeFilter("ALL")}
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 transition-all border ${employeeFilter === "ALL"
+                  ? "bg-foreground text-background border-foreground shadow-xs"
+                  : "bg-card hover:bg-muted text-muted-foreground border-border"
                 }`}
+            >
+              All ({activeRawData.length})
+            </button>
+            {queueEmployees.map((emp) => (
+              <button
+                key={emp.id}
+                onClick={() => setEmployeeFilter(emp.id === employeeFilter ? "ALL" : emp.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border ${emp.id === employeeFilter
+                    ? "bg-foreground text-background border-foreground shadow-xs font-bold"
+                    : "bg-card hover:bg-muted text-foreground border-border"
+                  }`}
               >
-                {activeTab === "PENDING" ? (
-                  <CheckCircle2 size={32} />
-                ) : (
-                  <History size={32} />
-                )}
-              </div>
-              <p className="text-foreground font-bold text-2xl tracking-tight relative">
-                {activeTab === "PENDING" ? "Inbox Zero!" : "No Approved Tasks"}
-              </p>
-              <p className="text-muted-foreground mt-2 relative font-medium">
-                {activeTab === "PENDING"
-                  ? "You're all caught up. No pending approvals require your attention."
-                  : "Tasks you've approved will appear here."}
-              </p>
-            </div>
-          )}
-        </>
+                <span>{emp.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${emp.id === employeeFilter
+                    ? "bg-background/20 text-background"
+                    : "bg-muted text-muted-foreground"
+                  }`}>
+                  {emp.count}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* EXPANDABLE ADVANCED FILTER BAR */}
+        {showAdvancedFilters && (
+          <div className="bg-card border border-border/80 rounded-xl p-3 shadow-xs">
+            <TaskFilters
+              searchTerm={searchQuery}
+              setSearchTerm={setSearchQuery}
+              statusFilter={statusFilter}
+              setStatusFilter={setStatusFilter}
+              priorityFilter={priorityFilter}
+              setPriorityFilter={setPriorityFilter}
+              timeframe={timeframe}
+              setTimeframe={setTimeframe}
+              selectedDateFilter={selectedDateFilter}
+              setSelectedDateFilter={setSelectedDateFilter}
+              deptFilter={deptFilter}
+              setDeptFilter={setDeptFilter}
+              subDeptFilter={subDeptFilter}
+              setSubDeptFilter={setSubDeptFilter}
+              employeeFilter={employeeFilter}
+              setEmployeeFilter={setEmployeeFilter}
+              isManagement={true}
+              isHr={false}
+              hrViewMode="ALL"
+              disableDeptFilter={false}
+              uniqueDepts={uniqueDepts}
+              uniqueSubDepts={uniqueSubDepts}
+              uniqueEmployees={uniqueEmployees}
+              showStatusFilter={true}
+              disableStatusFilter={activeTab === "VERIFIED"}
+              sortBy={sortBy}
+              setSortBy={setSortBy}
+            />
+          </div>
+        )}
+
+        {/* MASTER-DETAIL SPLIT VIEW */}
+        <ApprovalSplitView
+          tasks={filteredTasks}
+          isHr={false}
+          isVerifiedTab={activeTab === "VERIFIED"}
+          currentUserId={user?.id}
+          activeTaskId={activeTaskId}
+          onSelectTaskId={setActiveTaskId}
+          onProcessTask={(payload) =>
+            editTaskMutation.mutateAsync({
+              ...payload,
+              editedBy: user.id,
+            })
+          }
+          isSubmitting={editTaskMutation.isPending}
+          onViewFullDetails={setViewTask}
+          selectedTaskIds={selectedTaskIds}
+          onToggleTaskSelection={
+            appSettings?.enable_bulk_approval ? toggleTaskSelection : undefined
+          }
+          enableBulkApproval={appSettings?.enable_bulk_approval}
+          searchTerm={searchQuery}
+          repliedTaskIds={repliedTaskIds}
+          emptyMessage={{
+            title:
+              activeTab === "STALE"
+                ? "No Stale Backlog!"
+                : activeTab === "VERIFIED"
+                  ? "No Approved Tasks"
+                  : "Queue is Clear!",
+            description:
+              activeTab === "STALE"
+                ? "All tasks older than 48 hours have been evaluated."
+                : activeTab === "VERIFIED"
+                  ? "Tasks you evaluate will appear here."
+                  : "You're all caught up on approvals.",
+          }}
+        />
       </PageContainer>
 
+      {/* FULL DETAILS MODAL */}
       <TaskDetails
         isOpen={!!viewTask}
         onClose={() => setViewTask(null)}
@@ -745,6 +670,7 @@ export default function TaskApprovalsPage() {
         onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
       />
 
+      {/* BULK GRADE MODAL */}
       <BulkGradeModal
         isOpen={isBulkGradeModalOpen}
         onClose={() => setIsBulkGradeModalOpen(false)}
@@ -753,6 +679,7 @@ export default function TaskApprovalsPage() {
         isSubmitting={editTaskMutation.isPending}
       />
 
+      {/* BULK DECLINE MODAL */}
       <BulkDeclineModal
         isOpen={isBulkDeclineModalOpen}
         onClose={() => setIsBulkDeclineModalOpen(false)}

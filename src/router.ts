@@ -6,8 +6,11 @@ import { components, hooks, utils } from '@generouted/react-router/client'
 export type Path =
   | `/`
   | `/approvals`
+  | `/approvals/components/ApprovalDetailPane`
   | `/approvals/components/ApprovalHeader`
+  | `/approvals/components/ApprovalQueueItem`
   | `/approvals/components/ApprovalRow`
+  | `/approvals/components/ApprovalSplitView`
   | `/approvals/components/BulkDeclineModal`
   | `/approvals/components/BulkGradeModal`
   | `/approvals/components/GroupTaskApprovalSection`
