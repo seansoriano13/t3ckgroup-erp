@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
+import { useTableRealtime } from "../../hooks/useTableRealtime.js";
 import { employeeService } from "../../services/employeeService.js";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
@@ -154,9 +155,12 @@ export default function TasksPage() {
   // 3. UI State (Pop-ups)
   const [viewTask, setViewTask] = useState(null);
 
+  useTableRealtime("tasks", { invalidateKeys: [["tasks"], ["dashboardTasks"]] });
+
   const deleteTaskMutation = useMutation({
     mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
     },
   });

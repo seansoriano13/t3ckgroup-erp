@@ -16,9 +16,12 @@ import PersonalizedHeroBanner from "../components/PersonalizedHeroBanner.jsx";
 import GroupTasksList from "../components/GroupTasksList.jsx";
 import PageHeader from "../components/ui/PageHeader";
 import PageContainer from "../components/ui/PageContainer";
+import { useTableRealtime } from "../hooks/useTableRealtime.js";
 
 export default function Dashboard() {
   const { user } = useAuth();
+
+  useTableRealtime("tasks", { invalidateKeys: [["dashboardTasks"]] });
 
   const isPrivileged =
     user?.is_head || user?.isHead || user?.is_hr || user?.isHr || user?.isSuperAdmin;
