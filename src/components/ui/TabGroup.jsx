@@ -98,64 +98,66 @@ export default function TabGroup({
   };
 
   return (
-    <motion.div layout className={wrapperCls}>
-      <AnimatePresence>
-        {normalised.map(
-          ({
-            value,
-            label,
-            icon: Icon,
-            badge,
-            activeClass,
-            variant: tabVariant,
-          }) => {
-            const isActive = activeTab === value;
-            const currentVariant = tabVariant || variant;
-            return (
-              <button
-                key={value}
-                onClick={() => onChange(value)}
-                className={cn(
-                  btnBase,
-                  isActive
-                    ? activeClass || btnActive[currentVariant]
-                    : btnInactive[currentVariant],
-                  variant === "underline" && size === "sm" && "pb-3",
-                )}
-              >
-                {isActive && currentVariant !== "underline" && (
-                  <motion.div
-                    layoutId={`tab-indicator-${variant}-${groupId}`}
-                    className={cn(
-                      "absolute inset-0 z-0",
-                      indicatorCls[currentVariant],
-                    )}
-                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  {Icon && <Icon size={14} />}
-                  <span>{label}</span>
-                  {badge != null && badge > 0 && (
-                    <span
-                      className={cn(
-                        "ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-black transition-colors",
-                        isActive
-                          ? variant === "success"
-                            ? "bg-white/20 text-white"
-                            : "bg-primary/10 text-primary"
-                          : "bg-muted-foreground/20 text-muted-foreground",
-                      )}
-                    >
-                      {badge}
-                    </span>
+    <div className={wrapperCls}>
+      {normalised.map(
+        ({
+          value,
+          label,
+          icon: Icon,
+          badge,
+          activeClass,
+          variant: tabVariant,
+        }) => {
+          const isActive = activeTab === value;
+          const currentVariant = tabVariant || variant;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                onChange(value);
+              }}
+              className={cn(
+                btnBase,
+                isActive
+                  ? activeClass || btnActive[currentVariant]
+                  : btnInactive[currentVariant],
+                variant === "underline" && size === "sm" && "pb-3",
+              )}
+            >
+              {isActive && currentVariant !== "underline" && (
+                <motion.div
+                  layoutId={`tab-indicator-${variant}-${groupId}`}
+                  className={cn(
+                    "absolute inset-0 z-0",
+                    indicatorCls[currentVariant],
                   )}
-                </span>
-              </button>
-            );
-          },
-        )}
-      </AnimatePresence>
-    </motion.div>
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.3 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-1.5">
+                {Icon && <Icon size={14} />}
+                <span>{label}</span>
+                {badge != null && badge > 0 && (
+                  <span
+                    className={cn(
+                      "ml-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-black transition-colors",
+                      isActive
+                        ? variant === "success"
+                          ? "bg-white/20 text-white"
+                          : "bg-primary/10 text-primary"
+                        : "bg-muted-foreground/20 text-muted-foreground",
+                    )}
+                  >
+                    {badge}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        },
+      )}
+    </div>
   );
 }

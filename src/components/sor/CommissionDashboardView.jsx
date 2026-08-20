@@ -732,7 +732,7 @@ export default function CommissionDashboardView() {
       {/* 5. Tabbed Tables (Styled matching SOR register) */}
       {/* TAB 1: Sales Roster Summary */}
       {activeTab === "sales-roster" && (
-        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -829,7 +829,7 @@ export default function CommissionDashboardView() {
 
       {/* TAB 2: Transaction Ledger */}
       {activeTab === "transaction-ledger" && (
-        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -935,7 +935,7 @@ export default function CommissionDashboardView() {
 
       {/* TAB 3: Department Allocations Breakdown */}
       {activeTab === "department-breakdown" && (
-        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm">
+        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
