@@ -1,0 +1,8 @@
+-- Placeholder for a migration version that predates any tracked file in this
+-- directory. Supabase's history recorded this version (likely from an early
+-- `supabase db pull` snapshot) before this repo's 0000_baseline_schema.sql
+-- existed. Its actual schema effect is already fully captured by
+-- 0000_baseline_schema.sql, so this file is intentionally a no-op — it
+-- exists only so the migrations directory accounts for every version
+-- production has ever recorded, which the GitHub integration's
+-- deploy-to-production check requires before it will proceed.
