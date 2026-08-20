@@ -25,6 +25,14 @@ export default defineConfig({
         // assert different behaviour than production sees.
         env: { TZ: "Asia/Manila" },
         include: ["src/**/*.test.{js,jsx}"],
+        // The suite is read as three tiers, and each can be run on its own:
+        //
+        //   pnpm test:unit         isolated functions and hooks, no I/O
+        //   pnpm test:integration  a component or service against the fake DB
+        //   pnpm test:e2e          a whole page, mounted, driven as a user
+        //
+        // Membership is by location, not by hand — see the scripts in
+        // package.json and the tier table in docs/testing.md.
         // Services talk to a shared in-memory database, so files must not share
         // a worker. Forks give each file its own process and its own store.
         pool: "forks",

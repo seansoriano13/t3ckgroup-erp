@@ -413,6 +413,32 @@ describe("quotationService", () => {
       expect(result.notices).toHaveLength(1)
       expect(result.notices[0]).toMatch(/STORE TAGBILARAN/)
     })
+
+    it("prints STORE CDO for S07924 when requested by the CDO storefront account", async () => {
+      // S07924 is a real sales_opportunities row (client "DRRM- BRGY TIPTIP-
+      // ART CRISJOHN TAPA", project "PROTEGER") confirmed via the Supabase
+      // MCP. The storecdoopc@gmail.com mailbox is not reachable to log in and
+      // download for real, but resolveStoreLetterhead only ever looks at the
+      // email string passed in — see quotationService.js:444 and
+      // OpportunityDetailsModal.jsx:660 (`requestedByEmail: user?.email`) —
+      // so this exercises the exact same code path without that login.
+      stubEdgeFunction("odoo-quotation-manifest", {
+        success: true,
+        order: { id: 7924, name: "S07924" },
+        documents: [],
+      })
+      stubQuotation(await pdfWithHeader(ODOO_LETTERHEAD_COMPANY_NAME))
+
+      const result = await quotationService.buildQuotationPdf("S07924", {
+        requestedByEmail: "storecdoopc@gmail.com",
+      })
+
+      const text = await headerTextOf(result.blob)
+      expect(text).not.toContain(ODOO_LETTERHEAD_COMPANY_NAME)
+      expect(text).toContain("STORE CDO")
+      expect(result.filename).toBe("Quotation S07924.pdf")
+      expect(result.notices).toEqual([])
+    })
   })
 
   it("reports each file as it lands", async () => {

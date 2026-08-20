@@ -8,6 +8,61 @@ pnpm test
 
 ---
 
+## The three tiers
+
+The suite is read as a pyramid, and each tier runs on its own:
+
+| Tier | Command | What it covers | Where it lives |
+| --- | --- | --- | --- |
+| **Unit** | `pnpm test:unit` | One function, one hook, no I/O | `src/{utils,constants,lib,hooks}`, `src/test/db`, `src/test/factories` |
+| **Integration** | `pnpm test:integration` | A service or component against the fake database | `src/{services,context,components}`, `src/test/pages/*.test.jsx` |
+| **E2E** | `pnpm test:e2e` | A whole page, mounted and driven as a user | `src/test/pages/*.e2e.test.jsx` |
+
+The target shape is **70 / 20 / 10**. Where it actually stands:
+
+| Tier | Tests | Share | Target |
+| --- | ---: | ---: | ---: |
+| Unit | 980 | 63% | 70% |
+| Integration | 574 | 37% | 20% |
+| E2E | 10 | 0.6% | 10% |
+
+Two notes on the gap, so nobody closes it the wrong way.
+
+**Integration is over-weight because of what it covers, not because it is
+padded.** 427 of those tests are service tests, and they are the ones that
+catch a query shape real PostgREST would reject. They read as integration
+because they cross a boundary, but they cost what a unit test costs — the fake
+is in-memory. Deleting them to reach 20% would trade the suite's best tests for
+a ratio. Close the gap by growing the unit tier instead, which is where new
+extraction work should land anyway.
+
+**E2E is capped by design.** A literal 10% would be roughly 190 journeys, which
+contradicts what the tier is for — a small handful of whole-user paths. Each
+one costs about a second of wall clock and breaks on any layout change, so the
+rule here is: add a journey only for a path a user actually walks end to end,
+and push everything narrower down a tier.
+
+### Where a new test goes
+
+- Can it be answered by calling a function with arguments? **Unit.** If the
+  logic is currently tangled into a component, extract it first —
+  `src/utils/approvalQueue.js` is the worked example.
+- Does it need a row in the database, or a component wired to a service?
+  **Integration.**
+- Is it a path a real person walks, start to finish? **E2E** — and check the
+  path is not already covered before adding one.
+
+### Why page tests live in `src/test/pages`
+
+Everything else in this repo keeps its test beside the module. Page-level tests
+cannot: Generouted routes every file under `src/pages` with a glob compiled into
+the library, so a test file left there becomes a route — and drags msw, the fake
+database and the SQL schema parser into the production bundle. The build fails
+outright when that happens. `src/test/pages` is the workaround, and this
+paragraph is why it is not an inconsistency to tidy up.
+
+---
+
 ## What this suite is built on
 
 Tests run against a **fake Supabase**, not mocks of our own code. MSW intercepts
@@ -85,12 +140,34 @@ const { result } = renderHookWithQuery(() => useProjectTitles())
 await waitFor(() => expect(result.current).toContain("Network refresh"))
 ```
 
-### A component (`src/components`, `src/pages`)
+### A component (`src/components`)
 
 `renderWithProviders` from `@/test/support`. Components that read `useAuth`
 need it stubbed so you can render as any role — see
 `src/components/TaskCard.test.jsx` for the pattern. `AuthProvider` itself is
 covered in `src/context/AuthContext.test.jsx`.
+
+### A page or a journey (`src/test/pages`)
+
+Same helpers, but the file goes under `src/test/pages` rather than beside the
+page — see [Why page tests live in `src/test/pages`](#why-page-tests-live-in-srctestpages).
+Mount the page inside a `MemoryRouter`, stub `useAuth` to the role under test,
+and let the real query hooks fetch from the fake database:
+
+```js
+renderWithProviders(
+  <MemoryRouter>
+    <TaskApprovalsPage />
+  </MemoryRouter>,
+)
+
+await user.keyboard("4")
+await user.keyboard("{Enter}")
+await waitFor(() => expect(rowOf(task.id).grade).toBe(4))
+```
+
+Name it `*.e2e.test.jsx` when it is a whole journey, plain `*.test.jsx` when it
+is one component wired to a service.
 
 ---
 
@@ -193,21 +270,25 @@ vi.mock("browser-image-compression", () => ({ default: async (file) => file }))
 
 | Layer | Lines | Notes |
 | --- | --- | --- |
-| `src/hooks` | 97% | All nine hooks |
-| `src/constants` | 96% | Complete |
+| `src/constants` | 96%+ | Complete |
+| `src/hooks` | 96% | All nine hooks |
+| `src/utils` | 95% | Complete except `notificationPopup.jsx` |
 | `src/services` | 89% | All 19 top-level services |
+| `src/lib` | 90% | Complete |
 | `src/context` | 86% | AuthContext |
-| `src/utils` | 83% | Complete except `notificationPopup.jsx` |
 | `src/services/tasks` | 77% | The four task services |
 | `src/components` | 4% | **`TaskCard` and `ApplyLeaveModal` only** |
-| `src/pages` | 0% | Not started |
+| `src/pages` | — | The approvals queue only, via `src/test/pages` |
 
-The logic layers are covered; the UI layer is deliberately only started. Two
-components were done first to establish the pattern — one read-heavy card with
+The logic layers are covered; the UI layer is deliberately only started. Three
+areas were done first to establish the patterns — one read-heavy card with
 permission rules (`TaskCard`), one write-heavy form against real balances
-(`ApplyLeaveModal`). Extending to the rest is mechanical from there; the
-highest-value targets are the approvals queue, the opportunity form, and the
-employee admin form.
+(`ApplyLeaveModal`), and the approvals queue, which is the worked example of all
+three tiers over one feature: pure rules in `src/utils/approvalQueue.test.js`,
+component-to-service wiring in `src/test/pages/approvalSplitView.test.jsx`, and
+whole journeys in `src/test/pages/approvals.e2e.test.jsx`. Extending to the rest
+is mechanical from there; the highest-value remaining targets are the
+opportunity form and the employee admin form.
 
 Run `pnpm test:coverage` for the current numbers.
 
