@@ -140,6 +140,7 @@ describe("navigation registry", () => {
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         "System Admin",
         "Activity Log",
+        "Commission Pool",
       ]);
     });
   });

@@ -29,8 +29,8 @@ export function useNavBadges(user) {
     queryFn: async () => {
       const [otRes, offsetRes, silRes] = await Promise.all([
         supabase.from("overtime_requests").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
-        supabase.from("offset_requests").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
-        supabase.from("sil_requests").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
+        supabase.from("offset_leaves").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
+        supabase.from("sil_leaves").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
       ]);
 
       const otCount = otRes?.count || 0;
