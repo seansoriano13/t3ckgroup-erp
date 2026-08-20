@@ -80,4 +80,19 @@ _Avoid_: Award Date, Sign Date
 What one employee is attributed from one Opportunity — their role's (or position's) percentage of their Department's Allocation. Calculated live, never entered or stored.
 _Avoid_: Payout, Earnings
 
+**Commission Dashboard**:
+The centralized analytics interface and register aggregating live Commission Pool and Commissionable Revenue across SORs, providing date range filtering, stage scopes, sales rep attribution, department distribution, and role-based privacy masking.
+_Avoid_: Commission Page, Money Tab
+
+**Realized Commission Pool**:
+The accumulated Commission Pool derived strictly from deals that have reached the Awarded stage or beyond (Awarded, PO Received, Project Delivery, Collection, Closed Won) where each deal is priced using the Commission Rate effective on its Contract Date.
+_Avoid_: Paid Commission, Settled Pool
+
+**Projected Commission Pool**:
+The estimated future Commission Pool derived from pipeline opportunities before the Awarded stage (Lead through Negotiation), priced off current effective Commission Rates as a moving forecast.
+_Avoid_: Forecasted Bonus, Unearned Pool
+
+**Privacy Masking**:
+The role-based security boundary ensuring standard employees view only their own attributed monetary values (₱) and relative percentage splits, while masking other employees' exact earnings. Full company monetary totals and peer earnings are restricted to Super Admin, Management, and Finance & Accounting.
+
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.

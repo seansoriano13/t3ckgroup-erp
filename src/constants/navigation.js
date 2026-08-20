@@ -70,6 +70,14 @@ export const NAV_MODULES = {
         link: "/opportunities",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        exactMatch: true,
+      },
+      {
+        label: "Commission Dashboard",
+        link: "/opportunities/commission",
+        icon: Percent,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        exactMatch: true,
       },
       {
         label: "Commission Formula",

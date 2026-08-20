@@ -8,6 +8,7 @@ import {
   OPPORTUNITY_STATUS,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_SHORT,
+  REALIZED_STAGES,
   requiresSalesReference,
   STAGE_LABELS,
 } from "./sor"
@@ -98,6 +99,17 @@ describe("pipeline definition", () => {
   it("labels the three sales divisions", () => {
     expect(PROJECT_TYPE_LABELS.SSP).toBe("SSP — Single Salesperson Project")
     expect(PROJECT_TYPE_SHORT.STRATEGIC).toBe("Strategic")
+  })
+
+  it("identifies realized pipeline stages (Awarded through Retention)", () => {
+    expect(REALIZED_STAGES).toEqual([
+      "AWARDED",
+      "PO_RECEIVED",
+      "PROJECT_DELIVERY",
+      "COLLECTION",
+      "CLOSED_WON",
+      "RETENTION",
+    ])
   })
 })
 

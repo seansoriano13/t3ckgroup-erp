@@ -156,3 +156,219 @@ export function calculateCommissionBreakdown({
 
   return { commissionableRevenue, commissionPool, departmentShares };
 }
+
+/**
+ * Resolves effective rates for a given date from an array of dated rate records
+ * [ { rate_type, percent, effective_from } ]
+ */
+export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
+  const rates = {};
+  for (const type of Object.values(RATE_TYPES)) {
+    const matching = rateList
+      .filter((r) => r.rate_type === type && (!r.effective_from || r.effective_from <= asOfDate))
+      .sort((a, b) => (b.effective_from || "").localeCompare(a.effective_from || ""));
+    const latest = matching[0];
+    if (!latest) {
+      throw new Error(`No effective Commission Rate found for ${type} as of ${asOfDate}.`);
+    }
+    rates[type] = Number(latest.percent);
+  }
+  return {
+    vatPercent: rates[RATE_TYPES.VAT],
+    withholdingPercent: rates[RATE_TYPES.WITHHOLDING],
+    poolPercent: rates[RATE_TYPES.POOL],
+  };
+}
+
+const REALIZED_STATUSES = [
+  "AWARDED",
+  "PO_RECEIVED",
+  "PROJECT_DELIVERY",
+  "COLLECTION",
+  "CLOSED_WON",
+  "RETENTION",
+];
+
+/**
+ * Aggregates commission metrics across a collection of opportunities.
+ * Sums independent per-opportunity calculations based on each opportunity's
+ * Contract Date (or currentDate if unawarded).
+ */
+export function aggregateOpportunityCommissions({
+  opportunities = [],
+  ratesResolver,
+  departments = [],
+  splitsByProjectType = {},
+  scope = "REALIZED", // "REALIZED" | "FORECAST" | "ALL"
+  currentDate = new Date().toISOString().slice(0, 10),
+  dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
+} = {}) {
+  const filteredOpps = opportunities.filter((opp) => {
+    if (opp.status === "CLOSED_LOST") return false;
+
+    if (scope === "REALIZED") {
+      if (!REALIZED_STATUSES.includes(opp.status)) return false;
+    }
+
+    if (dateFilter?.startDate || dateFilter?.endDate) {
+      const targetDate = opp[dateFilter.dateField || "contract_date"] || opp.created_at?.slice(0, 10);
+      if (dateFilter.startDate && targetDate && targetDate < dateFilter.startDate) return false;
+      if (dateFilter.endDate && targetDate && targetDate > dateFilter.endDate) return false;
+    }
+
+    return true;
+  });
+
+  let totalContractValue = 0;
+  let totalCommissionableRevenue = 0;
+  let totalCommissionPool = 0;
+  let wonDealsCount = 0;
+
+  const salesDeptIndex = departments.findIndex(
+    (d) => d.key === "sales" || d.name?.toLowerCase() === "sales",
+  );
+  const salesDeptName = salesDeptIndex !== -1 ? departments[salesDeptIndex].name : "Sales";
+
+  const departmentTotalsMap = {};
+  for (const dept of departments) {
+    departmentTotalsMap[dept.name] = {
+      name: dept.name,
+      allocationPercent: dept.allocationPercent,
+      amount: 0,
+      isSales: dept.key === "sales" || dept.name?.toLowerCase() === "sales",
+    };
+  }
+
+  const salesEmployeesMap = new Map();
+  const dealLedger = [];
+
+  for (const opp of filteredOpps) {
+    const isWon = REALIZED_STATUSES.includes(opp.status);
+    if (isWon) wonDealsCount += 1;
+
+    const contractValue = Number(opp.expected_value) || 0;
+    totalContractValue += contractValue;
+
+    const asOfDate = opp.contract_date || currentDate;
+    const rates = typeof ratesResolver === "function" ? ratesResolver(asOfDate) : ratesResolver;
+
+    const breakdown = calculateCommissionBreakdown({
+      contractValue,
+      ...rates,
+      departments,
+    });
+
+    totalCommissionableRevenue += breakdown.commissionableRevenue;
+    totalCommissionPool += breakdown.commissionPool;
+
+    for (const share of breakdown.departmentShares) {
+      if (departmentTotalsMap[share.name]) {
+        departmentTotalsMap[share.name].amount += share.amount;
+      }
+    }
+
+    const salesShareAmount = breakdown.departmentShares[salesDeptIndex]?.amount || 0;
+    let salesRoleShares = [];
+
+    const dealOwner = opp.deal_owner || null;
+    const support1 = opp.support_1 || null;
+    const support2 = opp.support_2 || null;
+    const salesDirector = opp.sales_director || null;
+
+    if (opp.project_type === "SSP" || !opp.project_type) {
+      salesRoleShares = splitSalesShareForSsp(salesShareAmount);
+      if (dealOwner && salesRoleShares[0]) {
+        salesRoleShares[0].employee = dealOwner;
+      }
+    } else {
+      const splits = splitsByProjectType[opp.project_type] || [];
+      salesRoleShares = splitSalesShareForRoles(salesShareAmount, splits, {
+        deal_owner: dealOwner,
+        supporting_salespeople: [support1, support2],
+        sales_director: salesDirector,
+      });
+    }
+
+    dealLedger.push({
+      id: opp.id,
+      opportunityNo: opp.opportunity_no,
+      projectTitle: opp.project_title,
+      clientName: opp.client_name,
+      status: opp.status,
+      projectType: opp.project_type,
+      contractDate: opp.contract_date,
+      createdAt: opp.created_at,
+      contractValue,
+      rates,
+      commissionableRevenue: breakdown.commissionableRevenue,
+      commissionPool: breakdown.commissionPool,
+      departmentShares: breakdown.departmentShares,
+      salesRoleShares,
+      salesShareAmount,
+      participants: {
+        dealOwner,
+        support1,
+        support2,
+        salesDirector,
+      },
+    });
+
+    for (const roleShare of salesRoleShares) {
+      if (!roleShare.employee?.id) continue;
+      const emp = roleShare.employee;
+      if (!salesEmployeesMap.has(emp.id)) {
+        salesEmployeesMap.set(emp.id, {
+          employeeId: emp.id,
+          name: emp.name,
+          avatarPath: emp.avatar_path || emp.avatarPath,
+          wonDealsCount: 0,
+          totalDealsCount: 0,
+          totalContractValue: 0,
+          totalCommissionShare: 0,
+          roleBreakdown: {
+            deal_owner: 0,
+            supporting_salesperson: 0,
+            sales_director: 0,
+          },
+          dealIds: new Set(),
+        });
+      }
+
+      const empEntry = salesEmployeesMap.get(emp.id);
+      empEntry.totalCommissionShare += roleShare.amount;
+      if (empEntry.roleBreakdown[roleShare.role] !== undefined) {
+        empEntry.roleBreakdown[roleShare.role] += roleShare.amount;
+      }
+      if (!empEntry.dealIds.has(opp.id)) {
+        empEntry.dealIds.add(opp.id);
+        empEntry.totalDealsCount += 1;
+        if (isWon) empEntry.wonDealsCount += 1;
+        empEntry.totalContractValue += contractValue;
+      }
+    }
+  }
+
+  const salesEmployees = Array.from(salesEmployeesMap.values())
+    .map((e) => ({
+      ...e,
+      dealIds: Array.from(e.dealIds),
+    }))
+    .sort((a, b) => b.totalCommissionShare - a.totalCommissionShare);
+
+  const departmentTotals = Object.values(departmentTotalsMap);
+  const salesDeptTotal = departmentTotalsMap[salesDeptName]?.amount || 0;
+  const otherDeptsTotal = totalCommissionPool - salesDeptTotal;
+
+  return {
+    totalDealsCount: filteredOpps.length,
+    wonDealsCount,
+    totalContractValue,
+    totalCommissionableRevenue,
+    totalCommissionPool,
+    salesDeptTotal,
+    otherDeptsTotal,
+    departmentTotals,
+    salesEmployees,
+    dealLedger,
+  };
+}

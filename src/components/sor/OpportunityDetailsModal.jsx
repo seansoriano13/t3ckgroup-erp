@@ -15,6 +15,8 @@ import {
   Link2,
   ExternalLink,
   FileDown,
+  Copy,
+  Check,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -39,7 +41,7 @@ import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import ProcurementPanel from "./ProcurementPanel";
-import CommissionPoolPanel from "./CommissionPoolPanel";
+import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
@@ -287,6 +289,26 @@ function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
   const outcomeLabel =
     PROCUREMENT_OUTCOME_LABELS[metadata.outcome] || metadata.outcome;
+  const [copiedPo, setCopiedPo] = useState(false);
+  const [copiedProduct, setCopiedProduct] = useState(false);
+
+  const handleCopyPo = (e) => {
+    e.stopPropagation();
+    if (!metadata.po_number) return;
+    navigator.clipboard.writeText(metadata.po_number);
+    setCopiedPo(true);
+    toast.success(`PO ${metadata.po_number} copied to clipboard`);
+    setTimeout(() => setCopiedPo(false), 2000);
+  };
+
+  const handleCopyProduct = (e) => {
+    e.stopPropagation();
+    if (!metadata.odoo_product_ref) return;
+    navigator.clipboard.writeText(metadata.odoo_product_ref);
+    setCopiedProduct(true);
+    toast.success("Odoo product reference copied to clipboard");
+    setTimeout(() => setCopiedProduct(false), 2000);
+  };
 
   return (
     <div className="mt-1.5 rounded-xl border border-border/80 bg-card p-3 shadow-xs space-y-2">
@@ -295,14 +317,23 @@ function ProcurementLogNoteCard({ metadata }) {
           <span className="truncate text-xs font-bold text-foreground">
             {metadata.requested_name || "Product"}
           </span>
-
         </div>
 
         <div className="flex items-center gap-2 min-w-0">
           {metadata.po_number && (
-            <span className="font-mono text-[11px] font-bold text-foreground bg-muted/60 px-2 py-0.5 rounded-md border border-border">
-              {metadata.po_number}
-            </span>
+            <button
+              type="button"
+              onClick={handleCopyPo}
+              title="Click to copy PO number"
+              className="group/po flex items-center gap-1 font-mono text-[11px] font-bold text-foreground bg-muted/60 hover:bg-muted px-2 py-0.5 rounded-md border border-border transition-colors cursor-pointer"
+            >
+              <span>{metadata.po_number}</span>
+              {copiedPo ? (
+                <Check size={11} className="text-green-600 dark:text-green-400" />
+              ) : (
+                <Copy size={11} className="text-muted-foreground/60 group-hover/po:text-foreground transition-colors" />
+              )}
+            </button>
           )}
           <StatusBadge
             status={metadata.outcome}
@@ -312,12 +343,26 @@ function ProcurementLogNoteCard({ metadata }) {
       </div>
 
       {metadata.odoo_product_ref && (
-        <div className="rounded-lg border border-border/60 bg-muted/30 px-2.5 py-1.5 text-xs text-foreground">
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
-            Odoo Product
-          </span>
+        <button
+          type="button"
+          onClick={handleCopyProduct}
+          title="Click to copy Odoo product reference"
+          className="group/prod w-full text-left rounded-lg border border-border/60 bg-muted/30 hover:bg-muted/60 px-2.5 py-1.5 text-xs text-foreground transition-colors cursor-pointer"
+        >
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground block">
+              Odoo Product
+            </span>
+            {copiedProduct ? (
+              <span className="flex items-center gap-1 text-[10px] text-green-600 dark:text-green-400 font-medium">
+                <Check size={10} /> Copied
+              </span>
+            ) : (
+              <Copy size={10} className="text-muted-foreground/50 group-hover/prod:text-foreground transition-colors" />
+            )}
+          </div>
           <span className="font-medium">{metadata.odoo_product_ref}</span>
-        </div>
+        </button>
       )}
 
       {(metadata.eta || metadata.note) && (
@@ -449,10 +494,40 @@ export default function OpportunityDetailsModal({
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
+    queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
+    queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     // Expected Value edits and stage moves (esp. into Awarded, which sets
     // Contract Date) both change what the Commission Pool panel should show.
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
+  };
+
+  const handleMentionClick = (person) => {
+    if (!person?.name) return;
+    const name = person.name;
+    const mentionTag = `@${name}`;
+
+    setNote((prev) => {
+      const trimmed = prev.trimEnd();
+      if (!trimmed) return `${mentionTag} `;
+      if (trimmed.includes(mentionTag)) return `${prev} `;
+      return `${trimmed} ${mentionTag} `;
+    });
+
+    if (person.id) {
+      setNoteMentions((prev) => {
+        if (prev.some((m) => m.id === person.id || m.name === name)) return prev;
+        return [...prev, person];
+      });
+    } else {
+      const matched = employees.find((e) => e.name === name);
+      if (matched) {
+        setNoteMentions((prev) => {
+          if (prev.some((m) => m.id === matched.id || m.name === matched.name)) return prev;
+          return [...prev, matched];
+        });
+      }
+    }
   };
 
   const addNoteMutation = useMutation({
@@ -1086,12 +1161,6 @@ export default function OpportunityDetailsModal({
             </div>
           )}
 
-          {!isEditing && (
-            <div className="rounded-xl border border-border/50 p-6">
-              <CommissionPoolPanel opportunity={opportunity} />
-            </div>
-          )}
-
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
             {/* LEFT COLUMN: Overview Hero (Estimated Value + Quotation Actions + People Roster) */}
             <div className="lg:col-span-4 flex flex-col gap-6">
@@ -1583,7 +1652,18 @@ export default function OpportunityDetailsModal({
                           )}
                           <div className="min-w-0 flex-1">
                             <p className="text-[11px] font-semibold text-muted-foreground">
-                              {n.author?.name || (n.type === "SYSTEM" ? "System" : "Unknown")}
+                              {n.author?.name ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMentionClick(n.author)}
+                                  className="font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-left inline-block"
+                                  title={`Click to mention @${n.author.name}`}
+                                >
+                                  {n.author.name}
+                                </button>
+                              ) : (
+                                <span>{n.type === "SYSTEM" ? "System" : "Unknown"}</span>
+                              )}
                               <span className="font-normal text-muted-foreground/60">
                                 {" · "}
                                 {formatWhen(n.created_at)}
@@ -1607,6 +1687,7 @@ export default function OpportunityDetailsModal({
                                 <NoteText
                                   content={n.content}
                                   mentions={n.metadata?.mentions}
+                                  onMentionClick={handleMentionClick}
                                   className={cn(
                                     "text-sm break-words",
                                     n.type === "SYSTEM"
@@ -1721,6 +1802,10 @@ export default function OpportunityDetailsModal({
                 </div>
               )}
             </div>
+          )}
+
+          {!isEditing && (
+            <OpportunityCommissionFooter opportunity={opportunity} onClose={onClose} />
           )}
         </div>
       </DialogContent>

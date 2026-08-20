@@ -248,7 +248,7 @@ export default function SuperAdminActivityLogPage() {
   const { data: opportunities = [] } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
-    enabled: activeTab === "SOR",
+    enabled: activeTab === "SOR" || activeTab === "SYSTEM",
   });
 
   const {
@@ -382,9 +382,21 @@ export default function SuperAdminActivityLogPage() {
       search: "",
     });
 
-  // Entity-details dispatch — SYSTEM and SOR logs are non-clickable
+  // Entity-details dispatch — TASKS, GROUP, SOR, and OPPORTUNITY system logs are clickable
   const handleEntryClick = (e) => {
-    if (activeTab === "SYSTEM" || activeTab === "SOR") return;
+    if (activeTab === "SOR" || (activeTab === "SYSTEM" && e.entityType === "OPPORTUNITY")) {
+      const oppId = e.entityId || e.taskId;
+      if (!oppId) return;
+      window.dispatchEvent(
+        new CustomEvent("OPEN_ENTITY_DETAILS", {
+          detail: { id: oppId, type: "OPPORTUNITY" },
+        }),
+      );
+      return;
+    }
+
+    if (activeTab === "SYSTEM") return;
+
     const typeMap = {
       TASKS: "TASK",
       GROUP: "GROUP_TASK",
@@ -543,7 +555,11 @@ export default function SuperAdminActivityLogPage() {
                   ? Target
                   : typeIcon(e.type);
 
-              const isClickable = activeTab !== "SYSTEM" && activeTab !== "SOR";
+              const isClickable =
+                activeTab === "TASKS" ||
+                activeTab === "GROUP" ||
+                (activeTab === "SOR" && !!(e.entityId || e.taskId)) ||
+                (activeTab === "SYSTEM" && e.entityType === "OPPORTUNITY" && !!(e.entityId || e.taskId));
 
               let displayTitle = e.taskDescription || `Task ${e.taskId}`;
               let displayContent = e.content;

@@ -6,13 +6,15 @@ import { employeeService } from "../services/employeeService";
 import TaskDetails from "./TaskDetails";
 import GroupTaskDetailModal from "../pages/group-tasks/components/GroupTaskDetailModal";
 import RateEmployeesModal from "../pages/group-tasks/components/RateEmployeesModal";
+import OpportunityDetailsModal from "./sor/OpportunityDetailsModal";
+import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
 
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'GROUP_TASK' }
+  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' }
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
@@ -60,15 +62,25 @@ export default function GlobalDetailManager() {
     staleTime: 0,
   });
 
+  // 3. Opportunity Fetching
+  const { data: opportunityData, isLoading: isLoadingOpportunity } = useQuery({
+    queryKey: ["globalOpportunity", activeItem?.id],
+    queryFn: () => opportunityService.getOpportunityById(activeItem.id),
+    enabled: activeItem?.type === "OPPORTUNITY" && !!activeItem?.id,
+    staleTime: 0,
+  });
+
   useEffect(() => {
     if (activeItem) {
       if (activeItem.type === "TASK" && !isLoadingTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       } else if (activeItem.type === "GROUP_TASK" && !isLoadingGroupTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
+      } else if (activeItem.type === "OPPORTUNITY" && !isLoadingOpportunity) {
+        window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       }
     }
-  }, [activeItem, isLoadingTask, isLoadingGroupTask]);
+  }, [activeItem, isLoadingTask, isLoadingGroupTask, isLoadingOpportunity]);
 
   // --- Task Mutations ---
   const editTaskMutation = useMutation({
@@ -266,6 +278,15 @@ export default function GlobalDetailManager() {
             />
           )}
         </>
+      )}
+
+      {/* OPPORTUNITY MODAL */}
+      {activeItem.type === "OPPORTUNITY" && opportunityData && (
+        <OpportunityDetailsModal
+          isOpen={true}
+          onClose={handleClose}
+          opportunity={opportunityData}
+        />
       )}
     </>
   );

@@ -112,6 +112,7 @@ if (!globalThis._supabaseInstance) {
       persistSession: true,
       detectSessionInUrl: true,
       storageKey: 't3ckgroup-auth-session', // Specific key to avoid conflicts
+      lock: (name, acquireTimeout, fn) => fn(), // Prevents LockAcquireTimeoutError during Vite HMR reloads
     },
     global: {
       fetch: customFetch,

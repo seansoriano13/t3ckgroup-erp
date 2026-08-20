@@ -149,7 +149,7 @@ export default function MentionTextarea({
  * Highlights only the names actually recorded on the note, so typing "@someone"
  * by hand reads as plain text — which is honest, because nobody was notified.
  */
-export function NoteText({ content, mentions = [], className = "" }) {
+export function NoteText({ content, mentions = [], className = "", onMentionClick }) {
   if (!content) return null;
   const names = (mentions || []).map((m) => m.name).filter(Boolean);
   if (names.length === 0) return <p className={className}>{content}</p>;
@@ -163,18 +163,37 @@ export function NoteText({ content, mentions = [], className = "" }) {
 
   return (
     <p className={className}>
-      {parts.map((part, i) =>
-        /^@/.test(part) && names.some((n) => `@${n}` === part) ? (
-          <span
-            key={i}
-            className="rounded bg-primary/10 px-1 font-semibold text-primary"
-          >
-            {part}
-          </span>
-        ) : (
-          part
-        ),
-      )}
+      {parts.map((part, i) => {
+        if (/^@/.test(part) && names.some((n) => `@${n}` === part)) {
+          const rawName = part.slice(1);
+          const mentionObj = (mentions || []).find((m) => m.name === rawName);
+          if (onMentionClick) {
+            return (
+              <button
+                key={i}
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onMentionClick(mentionObj || { name: rawName });
+                }}
+                className="inline-flex items-center rounded bg-primary/10 hover:bg-primary/20 px-1 font-semibold text-primary transition-colors cursor-pointer"
+                title={`Click to mention @${rawName}`}
+              >
+                {part}
+              </button>
+            );
+          }
+          return (
+            <span
+              key={i}
+              className="rounded bg-primary/10 px-1 font-semibold text-primary"
+            >
+              {part}
+            </span>
+          );
+        }
+        return part;
+      })}
     </p>
   );
 }

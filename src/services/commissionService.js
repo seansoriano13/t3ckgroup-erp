@@ -4,6 +4,8 @@ import {
   assertPercentagesSumTo100,
   calculateCommissionBreakdown,
   splitSalesShareForRoles,
+  resolveEffectiveRatesFromList,
+  aggregateOpportunityCommissions,
 } from "../utils/commission";
 import { getCurrentLocalDate } from "../utils/formatDate";
 
@@ -328,11 +330,63 @@ async function getCommissionBreakdownForOpportunity(opportunityId) {
   };
 }
 
+/**
+ * Aggregates all opportunity commission metrics across the whole company
+ * for the Commission Dashboard.
+ */
+async function getCommissionDashboardData({
+  scope = "REALIZED",
+  dateFilter = null,
+} = {}) {
+  const [oppsResult, ratesResult, departments, splitsCp, splitsStrategic] = await Promise.all([
+    supabase
+      .from("sales_opportunities")
+      .select(
+        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
+         deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
+         support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
+         support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
+         sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
+      )
+      .neq("is_deleted", true)
+      .order("contract_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("commission_rates")
+      .select("rate_type, percent, effective_from")
+      .order("effective_from", { ascending: false }),
+    getDepartments(),
+    getSplitsForProjectType("CP"),
+    getSplitsForProjectType("STRATEGIC"),
+  ]);
+
+  if (oppsResult.error) throw oppsResult.error;
+  if (ratesResult.error) throw ratesResult.error;
+
+  const rateList = ratesResult.data || [];
+  const ratesResolver = (asOfDate) => resolveEffectiveRatesFromList(rateList, asOfDate);
+
+  const splitsByProjectType = {
+    CP: splitsCp,
+    STRATEGIC: splitsStrategic,
+  };
+
+  return aggregateOpportunityCommissions({
+    opportunities: oppsResult.data || [],
+    ratesResolver,
+    departments,
+    splitsByProjectType,
+    scope,
+    dateFilter,
+  });
+}
+
 export const commissionService = {
   getEffectiveRates,
   getDepartments,
   getSplitsForProjectType,
   getCommissionBreakdownForOpportunity,
+  getCommissionDashboardData,
   listRateHistory,
   createRate,
   saveDepartmentAllocations,

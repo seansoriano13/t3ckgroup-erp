@@ -389,4 +389,67 @@ describe("commissionService", () => {
       ).rejects.toThrow(/Only a Sales Director or Super Admin/)
     })
   })
+
+  describe("getCommissionDashboardData", () => {
+    it("aggregates all company won opportunities and calculates team commissions", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      const support = makeEmployee({ name: "Bob Support" })
+      const director = makeEmployee({ name: "Dave Director" })
+
+      makeCommissionSplit({ project_type: "CP", share_role: "deal_owner", percent: 60 })
+      makeCommissionSplit({ project_type: "CP", share_role: "supporting_salesperson", percent: 30 })
+      makeCommissionSplit({ project_type: "CP", share_role: "sales_director", percent: 10 })
+
+      makeOpportunity({
+        opportunity_no: "SOR-001",
+        sales_reference: "S01234",
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+      })
+
+      makeOpportunity({
+        opportunity_no: "SOR-002",
+        sales_reference: "S01235",
+        project_type: "CP",
+        expected_value: 2_000_000,
+        status: "CLOSED_WON",
+        contract_date: "2026-02-15",
+        deal_owner_id: owner.id,
+        support_sales_1_id: support.id,
+        sales_director_id: director.id,
+      })
+
+      makeOpportunity({
+        project_type: "SSP",
+        expected_value: 500_000,
+        status: "LEAD",
+        deal_owner_id: owner.id,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.wonDealsCount).toBe(2)
+      expect(dashboard.totalDealsCount).toBe(2)
+      expect(dashboard.totalContractValue).toBe(3_000_000)
+      expect(dashboard.totalCommissionableRevenue).toBeCloseTo(2_464_285.71, 2)
+      expect(dashboard.totalCommissionPool).toBeCloseTo(24_642.86, 2)
+      expect(dashboard.salesDeptTotal).toBeCloseTo(12_321.43, 2)
+
+      const alice = dashboard.salesEmployees.find((e) => e.employeeId === owner.id)
+      expect(alice).toBeDefined()
+      expect(alice.wonDealsCount).toBe(2)
+      // Alice earned SSP Deal Owner (4,107.14) + CP Deal Owner 60% of 8,214.29 (4,928.57) = 9,035.71
+      expect(alice.totalCommissionShare).toBeCloseTo(9_035.71, 2)
+
+      const bob = dashboard.salesEmployees.find((e) => e.employeeId === support.id)
+      expect(bob).toBeDefined()
+      // Bob earned CP Support 30% of 8,214.29 = 2,464.29
+      expect(bob.totalCommissionShare).toBeCloseTo(2_464.29, 2)
+
+      expect(dashboard.dealLedger).toHaveLength(2)
+    })
+  })
 })

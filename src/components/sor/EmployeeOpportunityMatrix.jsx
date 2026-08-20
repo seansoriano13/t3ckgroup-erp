@@ -160,34 +160,31 @@ export default function EmployeeOpportunityMatrix({
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
             <button
-              onClick={() => setLayoutMode("list")}
-              className={`p-1 rounded transition-all ${
-                layoutMode === "list"
+              onClick={() => setLayoutMode("leaderboard")}
+              className={`p-1 rounded transition-all ${layoutMode === "list"
                   ? "bg-card shadow-sm text-red-9"
                   : "text-muted-foreground hover:text-mauve-11"
-              }`}
+                }`}
               title="List View"
             >
               <List size={16} />
             </button>
             <button
               onClick={() => setLayoutMode("leaderboard")}
-              className={`p-1 rounded transition-all ${
-                layoutMode === "leaderboard"
+              className={`p-1 rounded transition-all ${layoutMode === "leaderboard"
                   ? "bg-card shadow-sm text-red-9"
                   : "text-muted-foreground hover:text-mauve-11"
-              }`}
+                }`}
               title="Leaderboard View"
             >
               <Trophy size={16} />
             </button>
             <button
               onClick={() => setLayoutMode("grid")}
-              className={`p-1 rounded transition-all ${
-                layoutMode === "grid"
+              className={`p-1 rounded transition-all ${layoutMode === "grid"
                   ? "bg-card shadow-sm text-red-9"
                   : "text-muted-foreground hover:text-mauve-11"
-              }`}
+                }`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
@@ -208,11 +205,10 @@ export default function EmployeeOpportunityMatrix({
         className={`
         ${layoutMode === "list" ? "flex flex-col gap-3 pb-1" : ""}
         ${layoutMode === "leaderboard" ? "flex flex-col gap-2.5 pb-1" : ""}
-        ${
-          layoutMode === "grid"
+        ${layoutMode === "grid"
             ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4"
             : ""
-        }
+          }
       `}
       >
         {filteredStats.map((emp, index) => {
@@ -305,15 +301,14 @@ export default function EmployeeOpportunityMatrix({
                 {/* Left: Rank Badge + Avatar + Name & Subdept */}
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${
-                      index === 0
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${index === 0
                         ? "bg-amber-3 text-amber-11 border border-amber-5 shadow-xs"
                         : index === 1
                           ? "bg-mauve-3 text-mauve-11 border border-mauve-5"
                           : index === 2
                             ? "bg-orange-3 text-orange-11 border border-orange-5"
                             : "bg-muted text-muted-foreground border border-border"
-                    }`}
+                      }`}
                   >
                     #{index + 1}
                   </div>

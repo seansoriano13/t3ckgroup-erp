@@ -35,6 +35,7 @@ export type Path =
   | `/login`
   | `/offsets`
   | `/opportunities`
+  | `/opportunities/commission`
   | `/opportunities/commission-formula`
   | `/profile`
   | `/settings`
