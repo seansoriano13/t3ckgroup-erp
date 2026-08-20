@@ -9,6 +9,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "react-error-boundary"
 import { useTheme } from "./hooks/useTheme"
 import { CustomToast } from "./components/ui/CustomToast"
+import { VersionUpdateNotifier } from "./components/VersionUpdateNotifier"
+
+// Auto-reload when dynamic chunk imports fail due to new deployments
+window.addEventListener("vite:preloadError", () => {
+  window.location.reload()
+})
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,6 +80,7 @@ createRoot(document.getElementById("root")).render(
                   )
                 }
               </Toaster>
+              <VersionUpdateNotifier />
               <Routes />
             </ThemeApplier>
           </AuthProvider>
