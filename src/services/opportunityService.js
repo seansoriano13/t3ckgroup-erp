@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { procurementService } from "./procurementService";
 import { notificationService } from "./notificationService";
+import { getCurrentLocalDate } from "../utils/formatDate";
 import {
   STAGE_LABELS,
   formatPHP,
@@ -273,7 +274,7 @@ export const opportunityService = {
   async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, client_name, status, sales_reference")
+      .select("id, client_name, status, sales_reference, contract_date")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -297,6 +298,15 @@ export const opportunityService = {
     };
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
+
+    // Contract Date anchors which dated Commission Rate applies to this
+    // opportunity (see commissionService.getCommissionBreakdownForOpportunity).
+    // Set once, the first time an opportunity reaches Awarded — never
+    // overwritten by a later transition, so a rate change afterward can't
+    // move an already-priced opportunity's commission figure.
+    if (nextStatus === "AWARDED" && !existing.contract_date) {
+      patch.contract_date = getCurrentLocalDate();
+    }
 
     const { data, error } = await supabase
       .from("sales_opportunities")

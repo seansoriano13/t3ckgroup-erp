@@ -3,6 +3,7 @@ import {
   formatDate,
   formatDueDate,
   formatTaskDateTime,
+  getCurrentLocalDate,
   getCurrentLocalTime,
   toLocalDatetimeString,
 } from "./formatDate"
@@ -57,6 +58,33 @@ describe("getCurrentLocalTime", () => {
 
   it("reports now in the form a datetime-local input expects", () => {
     expect(getCurrentLocalTime()).toBe("2026-03-05T09:30")
+  })
+})
+
+describe("getCurrentLocalDate", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("reports today's date in the local zone as YYYY-MM-DD", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-03-05T01:30:00Z"))
+
+    expect(getCurrentLocalDate()).toBe("2026-03-05")
+  })
+
+  it("rolls into the next local day for a late-evening UTC instant", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-03-05T17:00:00Z"))
+
+    expect(getCurrentLocalDate()).toBe("2026-03-06")
+  })
+
+  it("zero-pads the month and day", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-01-02T08:05:00Z"))
+
+    expect(getCurrentLocalDate()).toBe("2026-01-02")
   })
 })
 

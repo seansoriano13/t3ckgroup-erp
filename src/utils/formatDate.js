@@ -23,6 +23,13 @@ export const getCurrentLocalTime = () => {
   return new Date(now.getTime() - offset).toISOString().slice(0, 16);
 };
 
+/** Today's date in the caller's local timezone, as `YYYY-MM-DD`. */
+export const getCurrentLocalDate = () => {
+  const now = new Date();
+  const pad = (n) => n.toString().padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+};
+
 export const formatTaskDateTime = (val) => {
   if (!val) return null;
   try {

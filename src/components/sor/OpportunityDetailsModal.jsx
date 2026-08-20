@@ -39,6 +39,7 @@ import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import ProcurementPanel from "./ProcurementPanel";
+import CommissionPoolPanel from "./CommissionPoolPanel";
 import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
@@ -448,6 +449,9 @@ export default function OpportunityDetailsModal({
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
+    // Expected Value edits and stage moves (esp. into Awarded, which sets
+    // Contract Date) both change what the Commission Pool panel should show.
+    queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
   };
 
   const addNoteMutation = useMutation({
@@ -1078,6 +1082,12 @@ export default function OpportunityDetailsModal({
           {!isEditing && (
             <div className="rounded-xl border border-border/50 p-6">
               <ProcurementPanel opportunity={opportunity} />
+            </div>
+          )}
+
+          {!isEditing && (
+            <div className="rounded-xl border border-border/50 p-6">
+              <CommissionPoolPanel opportunity={opportunity} />
             </div>
           )}
 

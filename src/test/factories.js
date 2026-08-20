@@ -151,6 +151,45 @@ export function makeLeadSource(overrides = {}) {
   })
 }
 
+export function makeCommissionRate(overrides = {}) {
+  return db.seed("commission_rates", {
+    rate_type: "POOL",
+    percent: 1,
+    effective_from: "2000-01-01",
+    ...overrides,
+  })
+}
+
+export function makeCommissionDepartment(overrides = {}) {
+  const n = next()
+  return db.seed("commission_departments", {
+    key: `department-${n}`,
+    name: `Department ${n}`,
+    allocation_percent: 0,
+    ...overrides,
+  })
+}
+
+export function makeCommissionPosition(overrides = {}) {
+  const departmentId = overrides.department_id ?? makeCommissionDepartment().id
+  const n = next()
+  return db.seed("commission_positions", {
+    name: `Position ${n}`,
+    allocation_percent: 0,
+    ...overrides,
+    department_id: departmentId,
+  })
+}
+
+export function makeCommissionSplit(overrides = {}) {
+  return db.seed("commission_splits", {
+    project_type: "CP",
+    share_role: "deal_owner",
+    percent: 0,
+    ...overrides,
+  })
+}
+
 export function makeNotification(overrides = {}) {
   const recipientId = overrides.recipient_id ?? makeEmployee().id
   return db.seed("notifications", {

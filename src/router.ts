@@ -35,12 +35,14 @@ export type Path =
   | `/login`
   | `/offsets`
   | `/opportunities`
+  | `/opportunities/commission-formula`
   | `/profile`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`
   | `/super-admin`
   | `/super-admin/activity-log`
+  | `/super-admin/commission`
   | `/tasks`
 
 export type Params = {

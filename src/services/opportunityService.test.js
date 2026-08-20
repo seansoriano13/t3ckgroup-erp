@@ -265,6 +265,40 @@ describe("opportunityService", () => {
 
       expect(await opportunityService.getNotes(lead.id)).toEqual([])
     })
+
+    it("sets the Contract Date automatically when the opportunity is Awarded", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      expect(lead.contract_date).toBeFalsy()
+
+      const awarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+
+      expect(awarded.contract_date).toBeTruthy()
+    })
+
+    it("does not set the Contract Date for a transition that isn't Awarded", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id })
+
+      const moved = await opportunityService.updateStatus(
+        lead.id,
+        "QUALIFIED",
+        registrar.id,
+        null,
+        "S01237",
+      )
+
+      expect(moved.contract_date).toBeFalsy()
+    })
+
+    it("keeps the original Contract Date if the opportunity leaves and re-enters Awarded", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const firstAward = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+      const firstDate = firstAward.contract_date
+
+      await opportunityService.updateStatus(lead.id, "NEGOTIATION", registrar.id)
+      const reAwarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+
+      expect(reAwarded.contract_date).toBe(firstDate)
+    })
   })
 
   describe("editing an opportunity", () => {
