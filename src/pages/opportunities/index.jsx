@@ -311,7 +311,7 @@ export default function OpportunitiesPage() {
 
   return (
     <ProtectedRoute>
-      <PageContainer className="pt-4">
+      <PageContainer maxWidth="full" className="pt-4 px-0 sm:px-0 lg:px-0">
         <PageHeader
           title="SOR Sales Opportunity Registration"
           description="Register every lead before bid, proposal, or quotation issuance. Registration date establishes deal ownership."
@@ -605,83 +605,109 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full table-fixed text-sm">
                 <thead>
                   <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <th className="text-left font-bold px-4 py-3">No.</th>
-                    <th className="text-left font-bold px-4 py-3">Sales Ref.</th>
-                    <th className="text-left font-bold px-4 py-3">Date</th>
-                    <th className="text-left font-bold px-4 py-3">Lead Source</th>
-                    <th className="text-left font-bold px-4 py-3">Client</th>
-                    <th className="text-left font-bold px-4 py-3">Project</th>
-                    <th className="text-right font-bold px-4 py-3">Expected Value</th>
-                    <th className="text-left font-bold px-4 py-3">Div.</th>
-                    <th className="text-left font-bold px-4 py-3">Deal Owner</th>
-                    <th className="text-left font-bold px-4 py-3">Status</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[46px] whitespace-nowrap">No.</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[76px] whitespace-nowrap">Sales Ref.</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[84px] whitespace-nowrap">Date</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[13%] whitespace-nowrap">Lead Source</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[18%] whitespace-nowrap">Client</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[22%] whitespace-nowrap">Project</th>
+                    <th className="text-right font-bold px-2.5 py-2.5 w-[114px] whitespace-nowrap">Expected Value</th>
+                    <th className="text-center font-bold px-2 py-2.5 w-[44px] whitespace-nowrap">Div.</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[14%] whitespace-nowrap">Deal Owner</th>
+                    <th className="text-left font-bold px-2.5 py-2.5 w-[96px] whitespace-nowrap">Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((o) => (
-                    <tr
-                      key={o.id}
-                      onClick={() => setSelectedId(o.id)}
-                      className="border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                        <HighlightText text={o.serial_no} search={search} />
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap">
-                        {o.sales_reference ? (
-                          <HighlightText text={o.sales_reference} search={search} />
-                        ) : (
-                          <span className="text-muted-foreground/50">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground whitespace-nowrap text-xs">
-                        {o.registration_date
-                          ? new Date(o.registration_date).toLocaleDateString("en-US", {
-                              month: "long",
-                              day: "numeric",
-                              year: "numeric",
-                            })
-                          : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-xs">
-                        <HighlightText text={formatLeadSource(o.lead_source, o.lead_source_detail, activeLeadSources)} search={search} />
-                      </td>
-                      <td className="px-4 py-3 font-semibold">
-                        <HighlightText text={o.client_name} search={search} />
-                      </td>
-                      <td className="px-4 py-3 max-w-[220px] truncate">
-                        <HighlightText text={o.project_title} search={search} />
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
-                        {formatPHP(o.expected_value)}
-                      </td>
-                      <td className="px-4 py-3 text-xs font-bold text-muted-foreground">
-                        {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        {o.deal_owner ? (
-                          <span className="inline-flex items-center gap-1.5">
-                            <Avatar
-                              name={o.deal_owner.name}
-                              src={o.deal_owner.avatar_path}
-                              size="xs"
-                            />
-                            <span className="text-xs font-semibold">
-                              <HighlightText text={o.deal_owner.name} search={search} />
+                  {filtered.map((o) => {
+                    const leadSourceText = formatLeadSource(
+                      o.lead_source,
+                      o.lead_source_detail,
+                      activeLeadSources,
+                    );
+                    const dateFormatted = o.registration_date
+                      ? (() => {
+                          const d = new Date(o.registration_date);
+                          const m = d.toLocaleDateString("en-US", { month: "short" });
+                          const day = d.getDate();
+                          const yr = String(d.getFullYear()).slice(-2);
+                          return `${m} ${day}, '${yr}`;
+                        })()
+                      : "—";
+
+                    return (
+                      <tr
+                        key={o.id}
+                        onClick={() => setSelectedId(o.id)}
+                        className="border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
+                      >
+                        <td className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                          <HighlightText text={o.serial_no} search={search} />
+                        </td>
+                        <td
+                          className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"
+                          title={o.sales_reference || ""}
+                        >
+                          {o.sales_reference ? (
+                            <HighlightText text={o.sales_reference} search={search} />
+                          ) : (
+                            <span className="text-muted-foreground/50">—</span>
+                          )}
+                        </td>
+                        <td className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                          {dateFormatted}
+                        </td>
+                        <td
+                          className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
+                          title={leadSourceText}
+                        >
+                          <HighlightText text={leadSourceText} search={search} />
+                        </td>
+                        <td
+                          className="px-2.5 py-2.5 font-semibold text-xs truncate whitespace-nowrap"
+                          title={o.client_name}
+                        >
+                          <HighlightText text={o.client_name} search={search} />
+                        </td>
+                        <td
+                          className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
+                          title={o.project_title}
+                        >
+                          <HighlightText text={o.project_title} search={search} />
+                        </td>
+                        <td className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
+                          {formatPHP(o.expected_value)}
+                        </td>
+                        <td className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
+                          {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
+                        </td>
+                        <td
+                          className="px-2.5 py-2.5 whitespace-nowrap"
+                          title={o.deal_owner?.name || ""}
+                        >
+                          {o.deal_owner ? (
+                            <span className="inline-flex items-center gap-1.5 max-w-full overflow-hidden">
+                              <Avatar
+                                name={o.deal_owner.name}
+                                src={o.deal_owner.avatar_path}
+                                size="xs"
+                              />
+                              <span className="text-xs font-semibold truncate">
+                                <HighlightText text={o.deal_owner.name} search={search} />
+                              </span>
                             </span>
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/60">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <StatusBadge status={o.status} />
-                      </td>
-                    </tr>
-                  ))}
+                          ) : (
+                            <span className="text-muted-foreground/60">—</span>
+                          )}
+                        </td>
+                        <td className="px-2.5 py-2.5 whitespace-nowrap">
+                          <StatusBadge status={o.status} />
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
