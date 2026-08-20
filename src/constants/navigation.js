@@ -10,6 +10,7 @@ import {
   ClipboardList,
   Crown,
   SquarePen,
+  Percent,
 } from "lucide-react";
 
 export const NAV_MODULES = {
@@ -70,6 +71,12 @@ export const NAV_MODULES = {
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
       },
+      {
+        label: "Commission Formula",
+        link: "/opportunities/commission-formula",
+        icon: Percent,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+      },
     ],
   },
   approvals: {
@@ -117,7 +124,6 @@ export const NAV_MODULES = {
         label: "Leaves Manager",
         link: "/hr/offsets",
         icon: Clock,
-        badgeKey: "leaveApprovals",
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
       },
     ],
@@ -139,6 +145,12 @@ export const NAV_MODULES = {
         link: "/super-admin/activity-log",
         icon: ClipboardList,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
+      },
+      {
+        label: "Commission Pool",
+        link: "/super-admin/commission",
+        icon: Percent,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
       },
     ],
   },

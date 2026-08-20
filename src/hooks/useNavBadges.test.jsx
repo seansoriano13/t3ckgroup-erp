@@ -34,7 +34,6 @@ describe("useNavBadges", () => {
     expect(result.current).toEqual({
       taskApprovals: 0,
       hrVerifications: 0,
-      leaveApprovals: 0,
     });
   });
 

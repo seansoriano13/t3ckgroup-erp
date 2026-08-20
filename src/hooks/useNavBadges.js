@@ -23,25 +23,6 @@ export function useNavBadges(user) {
     staleTime: 30000,
   });
 
-  // 2. Pending Leaves Query for HR
-  const { data: pendingLeavesCount = 0 } = useQuery({
-    queryKey: ["navPendingLeaves", user?.id],
-    queryFn: async () => {
-      const [otRes, offsetRes, silRes] = await Promise.all([
-        supabase.from("overtime_requests").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
-        supabase.from("offset_leaves").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
-        supabase.from("sil_leaves").select("id", { count: "exact", head: true }).eq("status", "PENDING"),
-      ]);
-
-      const otCount = otRes?.count || 0;
-      const offsetCount = offsetRes?.count || 0;
-      const silCount = silRes?.count || 0;
-      return otCount + offsetCount + silCount;
-    },
-    enabled: !!user?.id && canSeeHr,
-    staleTime: 30000,
-  });
-
   // Compute Task Approvals count
   let taskApprovals = 0;
   if (canSeeTaskApprovals) {
@@ -68,6 +49,5 @@ export function useNavBadges(user) {
   return {
     taskApprovals,
     hrVerifications,
-    leaveApprovals: pendingLeavesCount,
   };
 }

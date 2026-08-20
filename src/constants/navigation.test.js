@@ -116,6 +116,7 @@ describe("navigation registry", () => {
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
         "SOR Register",
+        "Commission Formula",
       ]);
     });
 
