@@ -33,6 +33,11 @@ class InertWebSocket {
 
 beforeAll(() => {
   vi.stubGlobal("WebSocket", InertWebSocket)
+  // jsdom does not implement scrollIntoView; components that call it to keep
+  // a selected row in view would otherwise crash every test that renders them.
+  if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {}
+  }
   // Anything not described by a handler is a bug in the test, not something to
   // quietly let through to the real internet.
   server.listen({ onUnhandledRequest: "error" })
