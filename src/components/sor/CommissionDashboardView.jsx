@@ -25,8 +25,6 @@ import {
   Tag,
   BookOpen,
   Calculator,
-  UserCheck,
-  ShieldCheck,
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
@@ -58,15 +56,6 @@ const DATE_PRESETS = [
 const PROJECT_TYPE_OPTIONS = [
   { value: "ALL", label: "All Project Types" },
   ...PROJECT_TYPES.map((pt) => ({ value: pt.value, label: pt.label })),
-];
-
-const DEPT_CHART_COLORS = [
-  "#10b981", // Emerald (Sales)
-  "#3b82f6", // Blue (Operations)
-  "#8b5cf6", // Violet (Administration)
-  "#f59e0b", // Amber (HR)
-  "#06b6d4", // Cyan (Finance & Accounting)
-  "#ec4899", // Pink (Other)
 ];
 
 function getPresetDateRange(preset) {
@@ -192,17 +181,17 @@ function CustomChartTooltip({ active, payload, label }) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3 shadow-xl text-xs space-y-1.5 min-w-[170px]">
+      <div className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3 shadow-md text-xs space-y-1.5 min-w-[170px]">
         <p className="font-bold text-foreground border-b border-border/60 pb-1">{data.label || label}</p>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground">Commissionable:</span>
-          <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+          <span className="font-bold text-foreground tabular-nums">
             {formatPHP(data.revenue)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground">Pool Reserve (1%):</span>
-          <span className="font-bold text-violet-600 dark:text-violet-400 tabular-nums">
+          <span className="font-bold text-foreground tabular-nums">
             {formatPHP(data.pool)}
           </span>
         </div>
@@ -244,8 +233,7 @@ export default function CommissionDashboardView() {
   );
   const [expandedDealIds, setExpandedDealIds] = useState({});
 
-  const toggleExpandDeal = (dealId, e) => {
-    if (e) e.stopPropagation();
+  const toggleExpandDeal = (dealId) => {
     setExpandedDealIds((prev) => ({
       ...prev,
       [dealId]: !prev[dealId],
@@ -386,15 +374,15 @@ export default function CommissionDashboardView() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Executive KPI Cards (Using StatCard with Zero-Truncation) */}
+      {/* 1. Executive KPI Cards (Clean, Cohesive Neutral Palette) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Commissionable Revenue (First) */}
         <StatCard
           title="Commissionable Revenue"
           value={formatPHP(totalCommissionableRevenue)}
           subtitle="Net of VAT & Withholding"
-          icon={<TrendingUp className="text-emerald-11" size={20} />}
-          color="emerald"
+          icon={<TrendingUp size={18} className="text-muted-foreground" />}
+          color="mauve"
         />
 
         {/* Card 2: Total Commission Pool */}
@@ -402,8 +390,8 @@ export default function CommissionDashboardView() {
           title="Commission Pool"
           value={canViewAllFinancials ? formatPHP(totalCommissionPool) : "••••••"}
           subtitle={canViewAllFinancials ? "1% of Commissionable Revenue" : "Restricted to Accounting"}
-          icon={<Sparkles className="text-violet-11" size={20} />}
-          color="violet"
+          icon={<Sparkles size={18} className="text-muted-foreground" />}
+          color="mauve"
         />
 
         {/* Card 3: Sales Department Share */}
@@ -411,8 +399,8 @@ export default function CommissionDashboardView() {
           title="Sales Share"
           value={canViewAllFinancials || isHead ? formatPHP(salesDeptTotal) : "50.00% Pool"}
           subtitle="50% allocated to sales roles"
-          icon={<Users className="text-blue-11" size={20} />}
-          color="blue"
+          icon={<Users size={18} className="text-muted-foreground" />}
+          color="mauve"
         />
 
         {/* Card 4: Won Opportunities */}
@@ -420,19 +408,19 @@ export default function CommissionDashboardView() {
           title="Won Opportunities"
           value={`${wonDealsCount} / ${totalDealsCount}`}
           subtitle={scope === "REALIZED" ? "Awarded to Closed Won" : "Including active pipeline"}
-          icon={<CheckCircle2 className="text-amber-11" size={20} />}
-          color="amber"
+          icon={<CheckCircle2 size={18} className="text-muted-foreground" />}
+          color="mauve"
           onClick={() => navigate("/opportunities", { state: { filterStatus: "AWARDED" } })}
         />
       </div>
 
-      {/* 2. Visual Analytics Section (Interactive Recharts Graphs) */}
+      {/* 2. Visual Analytics Section (Clean, Unified Monochrome/Mauve Palette) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
         {/* Revenue & Pool Velocity Interactive Chart */}
         <div className="lg:col-span-7 flex flex-col rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-a3 text-emerald-11">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground">
                 <TrendingUp size={14} />
               </div>
               <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">
@@ -494,9 +482,10 @@ export default function CommissionDashboardView() {
                       yAxisId="left"
                       dataKey="revenue"
                       name="Commissionable Revenue"
-                      fill="#10b981"
-                      radius={[6, 6, 0, 0]}
-                      maxBarSize={48}
+                      fill="var(--color-muted-foreground, #888)"
+                      opacity={0.7}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={44}
                     />
                     {canViewAllFinancials && (
                       <Line
@@ -504,10 +493,10 @@ export default function CommissionDashboardView() {
                         type="monotone"
                         dataKey="pool"
                         name="Commission Pool"
-                        stroke="#8b5cf6"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 1.5, stroke: "#fff" }}
-                        activeDot={{ r: 6 }}
+                        stroke="var(--color-foreground, #222)"
+                        strokeWidth={2}
+                        dot={{ r: 3.5, fill: "var(--color-foreground, #222)", strokeWidth: 1 }}
+                        activeDot={{ r: 5 }}
                       />
                     )}
                   </ComposedChart>
@@ -517,10 +506,10 @@ export default function CommissionDashboardView() {
           </div>
         </div>
 
-        {/* Department Allocations Card */}
+        {/* Department Allocations Card (Clean Neutral Palette) */}
         <div className="lg:col-span-5 flex flex-col rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-muted text-foreground">
               <Building2 size={14} />
             </div>
             <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">
@@ -532,8 +521,7 @@ export default function CommissionDashboardView() {
           </p>
 
           <div className="flex-1 flex flex-col justify-center space-y-2.5">
-            {departmentTotals.map((dept, index) => {
-              const color = DEPT_CHART_COLORS[index % DEPT_CHART_COLORS.length];
+            {departmentTotals.map((dept) => {
               return (
                 <div
                   key={dept.name}
@@ -548,15 +536,12 @@ export default function CommissionDashboardView() {
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span
-                      className="h-2.5 w-2.5 rounded-full shrink-0"
-                      style={{ backgroundColor: color }}
-                    />
+                    <span className="h-2 w-2 rounded-full shrink-0 bg-muted-foreground/60" />
                     <div>
                       <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
                         <span>{dept.name}</span>
                         {dept.isSales && (
-                          <span className="text-[9.5px] font-semibold text-primary">
+                          <span className="text-[9.5px] font-semibold text-muted-foreground">
                             (Click to inspect)
                           </span>
                         )}
@@ -600,7 +585,7 @@ export default function CommissionDashboardView() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <CheckCircle2 size={13} className={scope === "REALIZED" ? "text-primary" : ""} />
+                <CheckCircle2 size={13} className={scope === "REALIZED" ? "text-foreground" : ""} />
                 <span>Realized Pool</span>
               </button>
               <button
@@ -612,7 +597,7 @@ export default function CommissionDashboardView() {
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <TrendingUp size={13} className={scope === "FORECAST" ? "text-primary" : ""} />
+                <TrendingUp size={13} className={scope === "FORECAST" ? "text-foreground" : ""} />
                 <span>Pipeline Forecast</span>
               </button>
             </div>
@@ -690,7 +675,7 @@ export default function CommissionDashboardView() {
             placeholder="Search deals, clients, reps…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-[46px] w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary transition-all"
+            className="h-[46px] w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-border transition-all"
           />
         </div>
 
@@ -781,7 +766,7 @@ export default function CommissionDashboardView() {
                           })
                         }
                         className={`border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors ${
-                          isCurrentUser ? "bg-primary/5 font-semibold" : ""
+                          isCurrentUser ? "bg-muted/20 font-semibold" : ""
                         }`}
                       >
                         <td className="px-3.5 py-3">
@@ -791,7 +776,7 @@ export default function CommissionDashboardView() {
                               <p className="truncate font-bold text-foreground flex items-center gap-1.5">
                                 <span>{emp.name}</span>
                                 {isCurrentUser && (
-                                  <span className="rounded bg-primary/20 px-1.5 py-0.2 text-[9.5px] font-bold text-primary">
+                                  <span className="rounded bg-muted px-1.5 py-0.2 text-[9.5px] font-bold text-foreground">
                                     You
                                   </span>
                                 )}
@@ -882,7 +867,7 @@ export default function CommissionDashboardView() {
                     const canSeeDealMoney = canViewAllFinancials || isHead || isDealOwnerUser;
 
                     return (
-                      <React.Fragment key={deal.id}>
+                      <Fragment key={deal.id}>
                         <tr
                           onClick={() =>
                             navigate("/opportunities", {
@@ -890,7 +875,7 @@ export default function CommissionDashboardView() {
                             })
                           }
                           className={`border-b border-border/50 hover:bg-muted/40 cursor-pointer transition-colors ${
-                            isHighlighted ? "bg-primary/10 ring-1 ring-primary/40" : ""
+                            isHighlighted ? "bg-muted/30" : ""
                           }`}
                         >
                           <td
@@ -903,7 +888,7 @@ export default function CommissionDashboardView() {
                           >
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </td>
-                          <td className="px-3 py-3 font-mono font-bold text-primary whitespace-nowrap">
+                          <td className="px-3 py-3 font-mono font-bold text-foreground whitespace-nowrap">
                             <HighlightText text={deal.opportunityNo} query={search} />
                           </td>
                           <td className="px-3 py-3">
@@ -1011,7 +996,7 @@ export default function CommissionDashboardView() {
                                         state: { openOpportunityId: deal.id },
                                       })
                                     }
-                                    className="text-xs font-bold text-primary hover:underline self-start sm:self-center"
+                                    className="text-xs font-bold text-foreground hover:underline self-start sm:self-center"
                                   >
                                     Open in SOR Register →
                                   </button>
@@ -1024,22 +1009,22 @@ export default function CommissionDashboardView() {
                                   </div>
                                   <div className="p-2.5 rounded-lg bg-muted/40">
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">Commissionable Revenue</span>
-                                    <p className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatPHP(deal.commissionableRevenue)}</p>
+                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.commissionableRevenue)}</p>
                                   </div>
                                   <div className="p-2.5 rounded-lg bg-muted/40">
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">Total Commission Pool (1%)</span>
-                                    <p className="font-bold text-violet-600 dark:text-violet-400 tabular-nums">{formatPHP(deal.commissionPool)}</p>
+                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.commissionPool)}</p>
                                   </div>
                                   <div className="p-2.5 rounded-lg bg-muted/40">
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">Sales Dept Pool (50%)</span>
-                                    <p className="font-bold text-blue-600 dark:text-blue-400 tabular-nums">{formatPHP(deal.salesShareAmount)}</p>
+                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.salesShareAmount)}</p>
                                   </div>
                                 </div>
                               </div>
                             </td>
                           </tr>
                         )}
-                      </React.Fragment>
+                      </Fragment>
                     );
                   })
                 )}
@@ -1098,12 +1083,12 @@ export default function CommissionDashboardView() {
         </div>
       )}
 
-      {/* TAB 4: Commission Formula & Split Rules (New Transparency Tab) */}
+      {/* TAB 4: Commission Formula & Split Rules (Clean Neutral Explainer) */}
       {activeTab === "split-rules" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm p-6 space-y-6 min-h-[400px]">
           <div>
             <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-muted text-foreground">
                 <Calculator size={16} />
               </div>
               <div>
@@ -1129,7 +1114,7 @@ export default function CommissionDashboardView() {
 
             <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">2. Commission Pool Reserve</span>
-              <p className="font-mono text-xs font-bold text-violet-600 dark:text-violet-400 bg-card p-2.5 rounded-lg border border-border">
+              <p className="font-mono text-xs font-bold text-foreground bg-card p-2.5 rounded-lg border border-border">
                 Commissionable Revenue × 1.00%
               </p>
               <p className="text-[11px] text-muted-foreground">
@@ -1139,7 +1124,7 @@ export default function CommissionDashboardView() {
 
             <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">3. Sales Department Fund</span>
-              <p className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-card p-2.5 rounded-lg border border-border">
+              <p className="font-mono text-xs font-bold text-foreground bg-card p-2.5 rounded-lg border border-border">
                 Total Pool × 50.00%
               </p>
               <p className="text-[11px] text-muted-foreground">

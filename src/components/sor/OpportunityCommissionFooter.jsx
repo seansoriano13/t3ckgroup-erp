@@ -19,8 +19,7 @@ function useSafeNavigate() {
 
 /**
  * Dedicated commission and participant allocation footer section in the SOR Details Modal.
- * Shows the live Commission Pool, Commissionable Revenue, and full role attribution
- * (Deal Owner, Supporting Salespeople, and Sales Director) with un-truncated ₱ figures and %.
+ * Clean, cohesive monochrome/neutral design.
  */
 export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   const navigate = useSafeNavigate();
@@ -44,11 +43,11 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   const salesDeptShare = breakdown?.departmentShares?.find((d) => d.name === "Sales")?.amount || 0;
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border/80 bg-card p-4 sm:p-5 shadow-xs">
+    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
       {/* Header & Main Summary */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3.5">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
             <Sparkles size={17} />
           </div>
           <div className="min-w-0">
@@ -80,14 +79,14 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
                 <span className="text-border/80">•</span>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xs text-muted-foreground">Commission Pool (1%):</span>
-                  <span className="text-sm font-bold tabular-nums text-violet-600 dark:text-violet-400">
+                  <span className="text-sm font-bold tabular-nums text-foreground">
                     {formatPHP(breakdown.commissionPool)}
                   </span>
                 </div>
                 <span className="text-border/80">•</span>
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-xs text-muted-foreground">Sales Dept (50%):</span>
-                  <span className="text-sm font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  <span className="text-sm font-bold tabular-nums text-foreground">
                     {formatPHP(salesDeptShare)}
                   </span>
                 </div>
@@ -132,18 +131,10 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
                 return (
                   <div
                     key={`${share.role}-${idx}`}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-muted/40 border border-border/60 p-2.5 transition-colors"
+                    className="flex items-center justify-between gap-2 rounded-xl bg-muted/30 border border-border/60 p-2.5 transition-colors hover:bg-muted/50"
                   >
                     <div className="min-w-0 flex items-center gap-2">
-                      <div
-                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                          isDealOwner
-                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                            : isDirector
-                            ? "bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                            : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                        }`}
-                      >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                         {isDealOwner ? (
                           <UserCheck size={14} />
                         ) : isDirector ? (
