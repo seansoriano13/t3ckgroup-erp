@@ -1,10 +1,24 @@
 import { Navigate } from "react-router";
+import { useAuth } from "../../context/AuthContext";
 
-// /approvals is now split into:
-//   /approvals/tasks           → Head/Manager grading queue
-//   /approvals/hr-verification → HR-only verification queue
-//
-// This file acts as a redirect shim for legacy links and nav entries.
+/**
+ * Smart redirect shim for /approvals.
+ * Forwards users to the primary queue they have permission to access.
+ */
 export default function ApprovalsRedirect() {
-  return <Navigate to="/approvals/tasks" replace />;
+  const { user } = useAuth();
+
+  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
+  const isHead = !!(user?.is_head || user?.isHead);
+  const isHr = !!(user?.is_hr || user?.isHr);
+
+  if (isSuperAdmin || isHead) {
+    return <Navigate to="/approvals/tasks" replace />;
+  }
+
+  if (isHr) {
+    return <Navigate to="/approvals/hr-verification" replace />;
+  }
+
+  return <Navigate to="/" replace />;
 }

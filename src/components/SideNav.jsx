@@ -30,7 +30,7 @@ import ComprehensiveChatModal from "./ComprehensiveChatModal";
 import GlobalDetailManager from "./GlobalDetailManager";
 import { Link, useNavigate, NavLink } from "react-router";
 import Avatar from "./Avatar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import LogTaskModal from "./LogTaskModal";
 import CreateGroupTaskModal from "../pages/group-tasks/components/CreateGroupTaskModal";
 import Dropdown from "./ui/Dropdown";
@@ -44,10 +44,24 @@ import { Clock } from "lucide-react";
 import ApplyLeaveModal from "./offsets/ApplyLeaveModal";
 import OpportunityFormModal from "./sor/OpportunityFormModal";
 import { opportunityService } from "../services/opportunityService";
+import {
+  getFilteredNavigationGroups,
+  getFilteredQuickActions,
+} from "../constants/navigation";
+import { useNavBadges } from "../hooks/useNavBadges";
 
 export default function SideNav() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const badges = useNavBadges(user);
+
+  const handleQuickAction = (actionId) => {
+    setIsMobileOpen(false);
+    if (actionId === "task") setIsLogTaskOpen(true);
+    else if (actionId === "group-task") setIsCreateGroupOpen(true);
+    else if (actionId === "offset") setIsApplyOffsetOpen(true);
+    else if (actionId === "sor") setIsOpportunityOpen(true);
+  };
 
   // Mobile Toggle State
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -57,16 +71,55 @@ export default function SideNav() {
   const [isApplyOffsetOpen, setIsApplyOffsetOpen] = useState(false);
   const [isOpportunityOpen, setIsOpportunityOpen] = useState(false);
 
-  // Accordion State
-  const [expandedGroups, setExpandedGroups] = useState({
-    main: true,
-    approvals: true,
-    opportunities: true,
-    management: true,
-  });
+  const getInitialExpandedState = (userId) => {
+    const defaults = {
+      workspace: true,
+      operations: true,
+      sales: true,
+      approvals: true,
+      human_resources: false,
+      administration: false,
+    };
+
+    if (!userId) return defaults;
+
+    try {
+      const saved = localStorage.getItem(`erp_sidebar_groups_${userId}`);
+      if (saved) {
+        return { ...defaults, ...JSON.parse(saved) };
+      }
+    } catch (e) {
+      // Ignore storage errors
+    }
+    return defaults;
+  };
+
+  // Accordion State with localStorage persistence
+  const [expandedGroups, setExpandedGroups] = useState(() =>
+    getInitialExpandedState(user?.id)
+  );
+
+  useEffect(() => {
+    if (user?.id) {
+      setExpandedGroups(getInitialExpandedState(user.id));
+    }
+  }, [user?.id]);
 
   const toggleGroup = (groupKey) => {
-    setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+    setExpandedGroups((prev) => {
+      const next = { ...prev, [groupKey]: !prev[groupKey] };
+      if (user?.id) {
+        try {
+          localStorage.setItem(
+            `erp_sidebar_groups_${user.id}`,
+            JSON.stringify(next)
+          );
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
+      return next;
+    });
   };
 
   // Notification State
@@ -120,120 +173,12 @@ export default function SideNav() {
     onError: (err) => toast.error(err.message),
   });
 
-  const hasSales = user?.has_sales_flow;
-  const hasTask = user?.has_task_flow;
+  const hasSales = user?.has_sales_flow ?? user?.hasSalesFlow;
+  const hasTask = user?.has_task_flow ?? user?.hasTaskFlow;
 
-  // Nav mapping logic grouped by categories
-  let groups = {
-    main: { label: "Main", links: [] },
-    approvals: { label: "Approvals", links: [] },
-    opportunities: { label: "Sales", links: [] },
-    management: { label: "Management", links: [] },
-  };
-
-  if (user?.isSuperAdmin) {
-    groups.main.links = [
-      { label: "Dashboard", link: "/", icon: LayoutList },
-      { label: "Tasks", link: "/tasks", icon: ListCheck },
-      { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
-      { label: "Group Templates", link: "/group-tasks/templates", icon: LayoutTemplate },
-      { label: "Leaves & Overtime", link: "/offsets", icon: Clock },
-    ];
-    groups.approvals.links = [
-      { label: "Task Approval", link: "/approvals/tasks", icon: ShieldCheck },
-      {
-        label: "Task Verification",
-        link: "/approvals/hr-verification",
-        icon: ShieldCheck,
-      },
-    ];
-    groups.opportunities.links = [
-      { label: "Opportunity Registration", link: "/opportunities", icon: Target },
-    ];
-    groups.management.links = [
-      { label: "HR Management", link: "/hr/management", icon: Users },
-      { label: "HR Leaves Manager", link: "/hr/offsets", icon: Clock },
-      { label: "Super Admin", link: "/super-admin", icon: Crown },
-      {
-        label: "Activity Log",
-        link: "/super-admin/activity-log",
-        icon: ClipboardList,
-      },
-    ];
-  } else {
-    groups.main.links.push({ label: "Dashboard", link: "/", icon: LayoutList });
-    groups.main.links.push({ label: "Leaves & Overtime", link: "/offsets", icon: Clock });
-
-    if (hasTask) {
-      groups.main.links.push(
-        { label: "Tasks", link: "/tasks", icon: ListCheck },
-        { label: "Group Tasks", link: "/group-tasks", icon: UsersRound },
-      );
-    }
-
-    if (canManage && hasTask) {
-      groups.main.links.push({
-        label: "Group Templates",
-        link: "/group-tasks/templates",
-        icon: LayoutTemplate,
-      });
-    }
-
-    if (hasSales) {
-      groups.opportunities.links.push({
-        label: "Opportunity Registration",
-        link: "/opportunities",
-        icon: Target,
-      });
-    }
-
-    if (user?.isHead || user?.is_head) {
-      const userSubDept = user?.subDepartment || user?.sub_department;
-      const isMasterHead = !userSubDept;
-
-      if (isMasterHead || hasTask) {
-        groups.approvals.links.push({
-          label: "Task Approval",
-          link: "/approvals/tasks",
-          icon: ShieldCheck,
-        });
-      }
-    }
-
-    if (user?.isHr) {
-      groups.approvals.links.push({
-        label: "Task Verification",
-        link: "/approvals/hr-verification",
-        icon: ShieldCheck,
-      });
-      groups.management.links.push({
-        label: "HR Management",
-        link: "/hr/management",
-        icon: Users,
-      });
-      groups.management.links.push({
-        label: "HR Leaves Manager",
-        link: "/hr/offsets",
-        icon: Clock,
-      });
-      groups.management.links.push({
-        label: "Activity Log",
-        link: "/super-admin/activity-log",
-        icon: ClipboardList,
-      });
-      if (!hasSales) {
-        groups.opportunities.links.push({
-          label: "Opportunity Registration",
-          link: "/opportunities",
-          icon: Target,
-        });
-      }
-    }
-  }
-
-  const activeGroups = Object.entries(groups).filter(
-    ([, group]) => group.links.length > 0
-  );
+  // Get domain-driven filtered groups and quick actions from declarative registry
+  const activeGroups = getFilteredNavigationGroups(user);
+  const quickActionGroups = getFilteredQuickActions(user);
 
   // React Select setup for Profile Dropdown
   const profileOptions = [
@@ -387,18 +332,19 @@ export default function SideNav() {
               )}
             </button>
 
-            {/* Merged Action Button */}
-            {canManage ? (
+            {/* Quick Action (+) Button */}
+            {quickActionGroups.length > 0 && (
               <Dropdown
                 placement="bottom-end"
                 className="flex-1"
                 usePortal={true}
                 trigger={({ isOpen }) => (
                   <button
-                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${isOpen
-                      ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
-                      : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
-                      }`}
+                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
+                      isOpen
+                        ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
+                        : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
+                    }`}
                     title="Create new..."
                   >
                     <Plus size={15} strokeWidth={2.5} />
@@ -406,110 +352,33 @@ export default function SideNav() {
                 )}
               >
                 {({ close }) => (
-                  <div className="p-1.5 min-w-[180px] flex flex-col gap-0.5 bg-mauve-3  rounded-xl">
-                    <button
-                      onClick={() => {
-                        close();
-                        setIsMobileOpen(false);
-                        setIsLogTaskOpen(true);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                    >
-                      <SquarePen size={14} />
-                      <span>Task</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        close();
-                        setIsMobileOpen(false);
-                        setIsCreateGroupOpen(true);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                    >
-                      <UsersRound size={14} />
-                      <span>Group Task</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        close();
-                        setIsMobileOpen(false);
-                        setIsApplyOffsetOpen(true);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                    >
-                      <Clock size={14} />
-                      <span>Offset / Overtime</span>
-                    </button>
-                    {(hasSales || user?.isSuperAdmin || user?.isHr) && (
-                      <button
-                        onClick={() => {
-                          close();
-                          setIsMobileOpen(false);
-                          setIsOpportunityOpen(true);
-                        }}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                      >
-                        <Target size={14} />
-                        <span>SOR</span>
-                      </button>
-                    )}
-                  </div>
-                )}
-              </Dropdown>
-            ) : (
-              <Dropdown
-                placement="bottom-end"
-                className="flex-1"
-                usePortal={true}
-                trigger={({ isOpen }) => (
-                  <button
-                    className={`w-full flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isOpen
-                      ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
-                      : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
-                      }`}
-                    title="Create new..."
-                  >
-                    <Plus size={15} strokeWidth={2.5} />
-                  </button>
-                )}
-              >
-                {({ close }) => (
-                  <div className="p-1.5 min-w-[180px] flex flex-col gap-0.5 bg-mauve-3 rounded-xl">
-                    <button
-                      onClick={() => {
-                        close();
-                        setIsMobileOpen(false);
-                        setIsLogTaskOpen(true);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                    >
-                      <SquarePen size={14} />
-                      <span>Task</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        close();
-                        setIsMobileOpen(false);
-                        setIsApplyOffsetOpen(true);
-                      }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                    >
-                      <Clock size={14} />
-                      <span>Offset / Overtime</span>
-                    </button>
-                    {(hasSales || user?.isSuperAdmin || user?.isHr) && (
-                      <button
-                        onClick={() => {
-                          close();
-                          setIsMobileOpen(false);
-                          setIsOpportunityOpen(true);
-                        }}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
-                      >
-                        <Target size={14} />
-                        <span>SOR</span>
-                      </button>
-                    )}
+                  <div className="p-1.5 min-w-[190px] flex flex-col gap-1.5 bg-mauve-3 rounded-xl shadow-lg border border-border">
+                    {quickActionGroups.map((catGroup, groupIdx) => (
+                      <div key={catGroup.category} className="flex flex-col gap-0.5">
+                        {groupIdx > 0 && (
+                          <div className="h-[1px] bg-border/60 my-1 -mx-0.5" />
+                        )}
+                        <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {catGroup.category}
+                        </span>
+                        {catGroup.items.map((item) => {
+                          const Icon = item.icon;
+                          return (
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                close();
+                                handleQuickAction(item.id);
+                              }}
+                              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                            >
+                              <Icon size={14} className="text-sidebar-foreground/70" />
+                              <span>{item.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ))}
                   </div>
                 )}
               </Dropdown>
@@ -520,68 +389,90 @@ export default function SideNav() {
         {/* 4. Combined Workspace Menus */}
         <div className="px-3 flex-1 flex flex-col text-sidebar-foreground/80 pb-4">
           <nav className="flex flex-col gap-5 mb-6 mt-2">
-            {activeGroups.map(([key, group]) => (
-              <div key={key} className="flex flex-col">
-                <div
-                  onClick={() => toggleGroup(key)}
-                  className="px-3 mb-1.5 flex items-center justify-between text-sidebar-foreground/60 group/header cursor-pointer transition-colors hover:text-sidebar-foreground"
-                >
-                  <span className="text-[11px] font-black tracking-widest uppercase">
-                    {group.label}
-                  </span>
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${expandedGroups[key] ? "rotate-180" : ""
+            {activeGroups.map((group) => {
+              const key = group.key;
+              const isExpanded = expandedGroups[key] ?? group.defaultExpanded ?? true;
+              const groupBadgeCount = group.links.reduce((acc, l) => {
+                return acc + (l.badgeKey && badges?.[l.badgeKey] ? badges[l.badgeKey] : 0);
+              }, 0);
+
+              return (
+                <div key={key} className="flex flex-col">
+                  <div
+                    onClick={() => toggleGroup(key)}
+                    className="px-3 mb-1.5 flex items-center justify-between text-sidebar-foreground/60 group/header cursor-pointer transition-colors hover:text-sidebar-foreground"
+                  >
+                    <span className="text-[11px] font-black tracking-widest uppercase">
+                      {group.label}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {!isExpanded && groupBadgeCount > 0 && (
+                        <span
+                          data-testid={`group-badge-${key}`}
+                          className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary px-1 text-[9px] font-bold text-primary-foreground shadow-sm"
+                        >
+                          {groupBadgeCount}
+                        </span>
+                      )}
+                      <ChevronDown
+                        size={14}
+                        className={`transition-transform duration-200 ${isExpanded ? "rotate-180" : ""
+                          }`}
+                      />
+                    </div>
+                  </div>
+                  <div
+                    className={`flex flex-col gap-1 overflow-hidden transition-all duration-300 ${isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
                       }`}
-                  />
+                  >
+                    {group.links.map((navLink) => {
+                      const Icon = navLink.icon;
+                      const linkBadge = navLink.badgeKey ? badges?.[navLink.badgeKey] || 0 : 0;
+
+                      return (
+                        <NavLink
+                          key={navLink.label}
+                          to={navLink.link}
+                          end={!!navLink.exactMatch}
+                          onClick={() => setIsMobileOpen(false)}
+                          className={({ isActive }) =>
+                            `flex gap-3 items-center px-3 py-2 rounded-md transition-colors ${isActive
+                              ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
+                              : "hover:text-sidebar-foreground hover:bg-sidebar-accent/50 text-sidebar-foreground/80"
+                            }`
+                          }
+                        >
+                          {({ isActive }) => (
+                            <>
+                              <Icon
+                                size={15}
+                                strokeWidth={2.2}
+                                className={`shrink-0 transition-colors ${isActive ? "text-sidebar-primary" : "text-sidebar-foreground/60"
+                                  }`}
+                              />
+                              <span
+                                className={`truncate text-[13.5px] mt-[0.5px] transition-all flex-1 ${isActive ? "font-bold text-sidebar-primary" : "font-medium"
+                                  }`}
+                              >
+                                {navLink.label}
+                              </span>
+                              {linkBadge > 0 && (
+                                <span
+                                  data-testid={`link-badge-${navLink.label}`}
+                                  className="shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary px-1.5 text-[10px] font-bold"
+                                >
+                                  {linkBadge}
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </NavLink>
+                      );
+                    })}
+                  </div>
                 </div>
-                <div
-                  className={`flex flex-col gap-1 overflow-hidden transition-all duration-300 ${expandedGroups[key] ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
-                    }`}
-                >
-                  {group.links.map((navLink) => {
-                    const Icon = navLink.icon;
-                    return (
-                      <NavLink
-                        key={navLink.label}
-                        to={navLink.link}
-                        end={
-                          navLink.link === "/" ||
-                          navLink.link === "/group-tasks" ||
-                          navLink.link === "/approvals/tasks" ||
-                          navLink.link === "/approvals/hr-verification" ||
-                          navLink.link === "/super-admin"
-                        }
-                        onClick={() => setIsMobileOpen(false)}
-                        className={({ isActive }) =>
-                          `flex gap-3.5 items-center px-3 py-2.5 rounded-md transition-colors ${isActive
-                            ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
-                            : "hover:text-sidebar-foreground hover:bg-sidebar-accent/50 text-sidebar-foreground/80"
-                          }`
-                        }
-                      >
-                        {({ isActive }) => (
-                          <>
-                            <Icon
-                              size={15}
-                              strokeWidth={2.2}
-                              className={`transition-colors ${isActive ? "text-sidebar-primary" : "text-sidebar-foreground/60"
-                                }`}
-                            />
-                            <span
-                              className={`truncate text-[13.5px] mt-[1px] transition-all ${isActive ? "font-bold text-sidebar-primary" : "font-medium"
-                                }`}
-                            >
-                              {navLink.label}
-                            </span>
-                          </>
-                        )}
-                      </NavLink>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </nav>
 
           <RoleSwitcher />

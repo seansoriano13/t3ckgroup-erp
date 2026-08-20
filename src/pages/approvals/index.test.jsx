@@ -1,0 +1,47 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Routes, Route } from "react-router";
+import ApprovalsRedirect from "./index";
+import * as AuthContext from "../../context/AuthContext";
+
+describe("ApprovalsRedirect", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function renderRedirect(user) {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user,
+      isAuthLoading: false,
+    });
+
+    return render(
+      <MemoryRouter initialEntries={["/approvals"]}>
+        <Routes>
+          <Route path="/approvals" element={<ApprovalsRedirect />} />
+          <Route path="/approvals/tasks" element={<div>Tasks Approval Page</div>} />
+          <Route path="/approvals/hr-verification" element={<div>HR Verification Page</div>} />
+          <Route path="/" element={<div>Dashboard Root</div>} />
+        </Routes>
+      </MemoryRouter>
+    );
+  }
+
+  it("redirects Department Head to /approvals/tasks", () => {
+    const user = { id: "h1", isHead: true };
+    renderRedirect(user);
+    expect(screen.getByText("Tasks Approval Page")).toBeInTheDocument();
+  });
+
+  it("redirects HR user to /approvals/hr-verification", () => {
+    const user = { id: "hr1", isHr: true, isHead: false, isSuperAdmin: false };
+    renderRedirect(user);
+    expect(screen.getByText("HR Verification Page")).toBeInTheDocument();
+  });
+
+  it("redirects unauthorized user to /", () => {
+    const user = { id: "u1", isHr: false, isHead: false, isSuperAdmin: false };
+    renderRedirect(user);
+    expect(screen.getByText("Dashboard Root")).toBeInTheDocument();
+  });
+});
