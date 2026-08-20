@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client"
 import "./index.css"
 import { Routes } from "@generouted/react-router"
 import { AuthProvider } from "./context/AuthContext"
-import { Toaster } from "react-hot-toast"
+import { Toaster, resolveValue } from "react-hot-toast"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ErrorBoundary } from "react-error-boundary"
@@ -66,7 +66,13 @@ createRoot(document.getElementById("root")).render(
                 containerStyle={{ zIndex: 99999999 }}
                 toastOptions={{ duration: 3000 }}
               >
-                {(t) => <CustomToast t={t} />}
+                {(t) =>
+                  t.type === "custom" ? (
+                    resolveValue(t.message, t)
+                  ) : (
+                    <CustomToast t={t} />
+                  )
+                }
               </Toaster>
               <Routes />
             </ThemeApplier>
