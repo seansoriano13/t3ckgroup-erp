@@ -12,7 +12,7 @@ The application is transitioning from a task logger to an Enterprise Resource Pl
    - **Operations** (Execution: `Group Tasks`, `Task Templates`)
    - **Sales** (Commercial: `SOR Register`)
    - **Approvals** (Governance & Review: `Task Approvals`, `HR Verifications`)
-   - **Human Resources** (Workforce: `Employee Directory`, `Leaves Manager`, `HR Master Log`)
+   - **Human Resources** (Workforce: `Employee Directory`, `Leaves Manager`)
    - **Administration** (System Control: `System Admin`, `Activity Log`)
 2. **Explicit Personal vs. Operational Tiering**: Retain a persistent top "Workspace" tier for personal employee actions, distinguishing personal leaves (`My Leaves & Overtime`) from managerial tools (`Leaves Manager`).
 3. **Centralized Approval Center with Badges**: Aggregate cross-cutting approval queues into an Approvals module with live badge counters both on individual leaf links and summarized on collapsed module headers.

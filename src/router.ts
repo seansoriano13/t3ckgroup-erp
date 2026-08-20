@@ -30,7 +30,6 @@ export type Path =
   | `/group-tasks/templates`
   | `/group-tasks/templates/components/TemplateEditorModal`
   | `/hr`
-  | `/hr-master-log`
   | `/hr/management`
   | `/hr/offsets`
   | `/login`

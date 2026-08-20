@@ -120,12 +120,6 @@ export const NAV_MODULES = {
         badgeKey: "leaveApprovals",
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
       },
-      {
-        label: "HR Master Log",
-        link: "/hr-master-log",
-        icon: ClipboardList,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
-      },
     ],
   },
   administration: {

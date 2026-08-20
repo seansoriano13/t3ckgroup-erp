@@ -97,7 +97,6 @@ describe("navigation registry", () => {
       expect(hrGroup.links.map((l) => l.label)).toEqual([
         "Employee Directory",
         "Leaves Manager",
-        "HR Master Log",
       ]);
 
       const approvalsGroup = groups.find((g) => g.key === "approvals");
