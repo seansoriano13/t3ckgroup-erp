@@ -77,3 +77,4 @@ Video Script -*
 # the repo is the same rule, applied to the thing itself rather than to what
 # gets attached to a task.
 docs/*.pdf
+.vercel

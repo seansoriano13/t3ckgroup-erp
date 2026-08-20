@@ -127,7 +127,7 @@ export default function SideNav() {
   let groups = {
     main: { label: "Main", links: [] },
     approvals: { label: "Approvals", links: [] },
-    opportunities: { label: "Sales Opportunities", links: [] },
+    opportunities: { label: "Sales", links: [] },
     management: { label: "Management", links: [] },
   };
 
