@@ -44,7 +44,7 @@ export default function LeadSourceManager() {
   };
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative mt-6">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
       <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
       <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center justify-between relative z-10">
         <div className="flex items-center gap-2.5">

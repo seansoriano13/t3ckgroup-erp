@@ -11,6 +11,7 @@ import {
   Crown,
   SquarePen,
   Percent,
+  Shuffle,
 } from "lucide-react";
 
 export const NAV_MODULES = {
@@ -158,6 +159,12 @@ export const NAV_MODULES = {
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
+      {
+        label: "Lead Sources",
+        link: "/super-admin/lead-sources",
+        icon: Shuffle,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
     ],

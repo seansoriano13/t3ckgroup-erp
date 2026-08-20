@@ -286,4 +286,45 @@ describe("CommissionDashboardView", () => {
       );
     });
   });
+
+  it("navigates to SOR register with filterEmployeeId when a salesperson row is clicked", async () => {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "user-admin", is_super_admin: true },
+    });
+
+    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
+    });
+
+    const aliceRow = screen.getByText("Alice Rep").closest("tr");
+    fireEvent.click(aliceRow);
+
+    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+      state: { filterEmployeeId: "user-alice" },
+    });
+  });
+
+  it("navigates to SOR register with openOpportunityId when a transaction row is clicked", async () => {
+    vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+      user: { id: "user-admin", is_super_admin: true },
+    });
+
+    render(<CommissionDashboardView />, { wrapper: createWrapper() });
+
+    await waitFor(() => {
+      expect(screen.getByText("Alice Rep")).toBeInTheDocument();
+    });
+
+    const ledgerTab = screen.getByRole("button", { name: /Transaction Ledger/i });
+    fireEvent.click(ledgerTab);
+
+    const dealRow = screen.getByText("SOR-001").closest("tr");
+    fireEvent.click(dealRow);
+
+    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+      state: { openOpportunityId: "opp-1" },
+    });
+  });
 });

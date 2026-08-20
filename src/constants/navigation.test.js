@@ -143,6 +143,7 @@ describe("navigation registry", () => {
         "System Admin",
         "Activity Log",
         "Commission Pool",
+        "Lead Sources",
       ]);
     });
   });
