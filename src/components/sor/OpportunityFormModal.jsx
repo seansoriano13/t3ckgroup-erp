@@ -10,12 +10,13 @@ import { opportunityService } from "../../services/opportunityService";
 import { odooService } from "../../services/odooService";
 import {
   PROJECT_TYPES,
+  PROJECT_TYPE_LABELS,
   isValidSalesReference,
   normalizeSalesReference,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
+import { deriveProjectType } from "../../utils/commission";
 import { leadSourceService } from "../../services/leadSourceService";
-import { useAuth } from "../../context/AuthContext";
 
 const FORM_ID = "opportunity-form";
 
@@ -65,7 +66,6 @@ export default function OpportunityFormModal({
   isPending,
   opportunity = null,
 }) {
-  const { user } = useAuth();
   const isEdit = !!opportunity;
 
   // Render-phase sync rather than an effect. `isOpen` is part of the key so the
@@ -134,8 +134,33 @@ export default function OpportunityFormModal({
     employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
   const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
 
-  const set = (key) => (e) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  const set = (key) => (e) => {
+    const val = e.target.value;
+    setForm((prev) => {
+      const next = { ...prev, [key]: val };
+      if (key === "support_sales_1_id" || key === "support_sales_2_id") {
+        next.project_type = deriveProjectType({
+          supportSales1Id: next.support_sales_1_id,
+          supportSales2Id: next.support_sales_2_id,
+          currentProjectType: prev.project_type,
+        });
+      }
+      return next;
+    });
+  };
+
+  const toggleStrategic = () => {
+    setForm((prev) => ({
+      ...prev,
+      project_type:
+        prev.project_type === "STRATEGIC"
+          ? deriveProjectType({
+              supportSales1Id: prev.support_sales_1_id,
+              supportSales2Id: prev.support_sales_2_id,
+            })
+          : "STRATEGIC",
+    }));
+  };
 
   const [fetchingOdoo, setFetchingOdoo] = useState(false);
 
@@ -183,8 +208,14 @@ export default function OpportunityFormModal({
       toast.error(SALES_REFERENCE_HINT);
       return;
     }
+    const derivedType = deriveProjectType({
+      supportSales1Id: form.support_sales_1_id,
+      supportSales2Id: form.support_sales_2_id,
+      currentProjectType: form.project_type,
+    });
     onSubmit({
       ...form,
+      project_type: derivedType,
       sales_reference,
       sales_director_id: effectiveSalesDirectorId,
       items,
@@ -220,6 +251,7 @@ export default function OpportunityFormModal({
               label="Registration Date"
               type="date"
               required
+              disabled
               value={form.registration_date}
               onChange={set("registration_date")}
             />
@@ -227,20 +259,28 @@ export default function OpportunityFormModal({
           <SelectField
             label="Lead Source"
             required
+            placeholder="Select lead source…"
             options={leadSourceOptions}
             value={form.lead_source}
             onChange={set("lead_source")}
           />
+        </div>
+
+        {form.lead_source === "OTHERS" && (
           <TextField
             label="Referral"
-            placeholder="e.g. Bayambang"
+            required
+            placeholder="e.g. John Doe"
             value={form.lead_source_detail}
             onChange={set("lead_source_detail")}
           />
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TextField
             label="Client"
             required
-            placeholder="e.g. LGU - Tuguegarao"
+            placeholder="e.g. Acme Corp"
             value={form.client_name}
             onChange={set("client_name")}
           />
@@ -262,15 +302,39 @@ export default function OpportunityFormModal({
         />
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <SelectField
-            label="Sales Division"
-            required
-            disabled={!(user?.isSuperAdmin || user?.is_super_admin)}
-            placeholder="Select project type…"
-            options={PROJECT_TYPES}
-            value={form.project_type}
-            onChange={set("project_type")}
-          />
+          <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between">
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
+                Sales Division
+              </label>
+              <button
+                type="button"
+                onClick={toggleStrategic}
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${
+                  form.project_type === "STRATEGIC"
+                    ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                    : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
+                }`}
+                title="Toggle Strategic project override"
+              >
+                {form.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
+              </button>
+            </div>
+            <div className="flex items-center gap-2 pt-0.5">
+              <span
+                data-testid="project-type-badge"
+                className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+                  form.project_type === "STRATEGIC"
+                    ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                    : form.project_type === "CP"
+                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                }`}
+              >
+                {PROJECT_TYPE_LABELS[form.project_type] || form.project_type}
+              </span>
+            </div>
+          </div>
           <TextField
             label="Purchase Date/Order"
             type="date"

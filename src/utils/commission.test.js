@@ -4,6 +4,7 @@ import {
   calculateCommissionableRevenue,
   calculateCommissionBreakdown,
   calculateCommissionPool,
+  deriveProjectType,
   splitByDepartment,
   splitByPosition,
   splitSalesShareForRoles,
@@ -160,6 +161,44 @@ describe("splitSalesShareForRoles", () => {
     });
 
     expect(shares).toEqual([{ role: "deal_owner", employee: owner, amount: 400 }]);
+  });
+});
+
+describe("deriveProjectType", () => {
+  it("returns SSP when no support salespeople are present", () => {
+    expect(deriveProjectType({ supportSales1Id: null, supportSales2Id: null })).toBe("SSP");
+  });
+
+  it("returns SSP when support IDs are empty strings", () => {
+    expect(deriveProjectType({ supportSales1Id: "", supportSales2Id: "" })).toBe("SSP");
+  });
+
+  it("returns CP when support_sales_1 is filled", () => {
+    expect(deriveProjectType({ supportSales1Id: "abc-123", supportSales2Id: null })).toBe("CP");
+  });
+
+  it("returns CP when support_sales_2 is filled", () => {
+    expect(deriveProjectType({ supportSales1Id: null, supportSales2Id: "def-456" })).toBe("CP");
+  });
+
+  it("returns CP when both support sales are filled", () => {
+    expect(deriveProjectType({ supportSales1Id: "abc", supportSales2Id: "def" })).toBe("CP");
+  });
+
+  it("preserves Strategic override even when no support sales are present", () => {
+    expect(deriveProjectType({ supportSales1Id: null, supportSales2Id: null, currentProjectType: "STRATEGIC" })).toBe("STRATEGIC");
+  });
+
+  it("preserves Strategic override when support sales are present", () => {
+    expect(deriveProjectType({ supportSales1Id: "abc", supportSales2Id: "def", currentProjectType: "STRATEGIC" })).toBe("STRATEGIC");
+  });
+
+  it("ignores currentProjectType when it is SSP (auto-derives normally)", () => {
+    expect(deriveProjectType({ supportSales1Id: "abc", supportSales2Id: null, currentProjectType: "SSP" })).toBe("CP");
+  });
+
+  it("ignores currentProjectType when it is CP (auto-derives normally)", () => {
+    expect(deriveProjectType({ supportSales1Id: null, supportSales2Id: null, currentProjectType: "CP" })).toBe("SSP");
   });
 });
 

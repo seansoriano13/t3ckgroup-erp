@@ -3,6 +3,7 @@ import { systemAuditLogService } from "./systemAuditLogService";
 import { procurementService } from "./procurementService";
 import { notificationService } from "./notificationService";
 import { getCurrentLocalDate } from "../utils/formatDate";
+import { deriveProjectType } from "../utils/commission";
 import {
   STAGE_LABELS,
   formatPHP,
@@ -100,7 +101,11 @@ export const opportunityService = {
         client_name: payload.client_name,
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
-        project_type: payload.project_type,
+        project_type: deriveProjectType({
+          supportSales1Id: payload.support_sales_1_id,
+          supportSales2Id: payload.support_sales_2_id,
+          currentProjectType: payload.project_type,
+        }),
         sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
@@ -150,7 +155,11 @@ export const opportunityService = {
         client_name: payload.client_name,
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
-        project_type: payload.project_type,
+        project_type: deriveProjectType({
+          supportSales1Id: payload.support_sales_1_id,
+          supportSales2Id: payload.support_sales_2_id,
+          currentProjectType: payload.project_type,
+        }),
         sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,

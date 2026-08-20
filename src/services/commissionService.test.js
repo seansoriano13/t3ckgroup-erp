@@ -62,12 +62,17 @@ describe("commissionService", () => {
   })
 
   describe("getCommissionBreakdownForOpportunity", () => {
-    it("attributes the entire Sales share to the deal owner on a Single Salesperson Project", async () => {
+    it("splits an SSP's Sales share 80/20 between deal owner and sales director", async () => {
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
       const owner = makeEmployee({ name: "Ben Cruz" })
+      const director = makeEmployee({ name: "Sales Director" })
       const opportunity = makeOpportunity({
         project_type: "SSP",
         expected_value: 1_000_000,
         deal_owner_id: owner.id,
+        sales_director_id: director.id,
       })
 
       const breakdown = await commissionService.getCommissionBreakdownForOpportunity(opportunity.id)
@@ -75,10 +80,16 @@ describe("commissionService", () => {
       expect(breakdown.commissionableRevenue).toBeCloseTo(821_428.57, 2)
       expect(breakdown.commissionPool).toBeCloseTo(8_214.29, 2)
       expect(breakdown.departmentShares).toHaveLength(5)
-      expect(breakdown.salesRoleShares).toHaveLength(1)
-      expect(breakdown.salesRoleShares[0].role).toBe("deal_owner")
-      expect(breakdown.salesRoleShares[0].employee).toMatchObject({ id: owner.id, name: "Ben Cruz" })
-      expect(breakdown.salesRoleShares[0].amount).toBeCloseTo(4_107.14, 2)
+
+      expect(breakdown.salesRoleShares).toHaveLength(2)
+      const ownerShare = breakdown.salesRoleShares.find((s) => s.role === "deal_owner")
+      const directorShare = breakdown.salesRoleShares.find((s) => s.role === "sales_director")
+      expect(ownerShare.employee).toMatchObject({ id: owner.id, name: "Ben Cruz" })
+      expect(directorShare.employee).toMatchObject({ id: director.id, name: "Sales Director" })
+
+      const salesAmount = breakdown.departmentShares.find((d) => d.name === "Sales").amount
+      expect(ownerShare.amount).toBeCloseTo(salesAmount * 0.8, 2)
+      expect(directorShare.amount).toBeCloseTo(salesAmount * 0.2, 2)
     })
 
     it("returns no Sales role shares for a non-SSP project", async () => {

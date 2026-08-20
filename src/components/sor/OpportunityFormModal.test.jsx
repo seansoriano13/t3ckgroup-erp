@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 
@@ -107,26 +107,56 @@ describe("OpportunityFormModal — Sales Director", () => {
   });
 });
 
-describe("OpportunityFormModal — Sales Division lock", () => {
-  it("stays editable for a super admin", async () => {
-    authUser.isSuperAdmin = true;
-    try {
-      renderForm();
-      // The locked rendering drops the Dropdown trigger, so a super admin
-      // seeing an interactive control is what proves the gate reads the right
-      // field: `user.is_super_admin` is always undefined on the auth user.
-      const division = await screen.findByText(
-        "SSP — Single Salesperson Project",
-      );
-      expect(division.closest("[class*='cursor-not-allowed']")).toBeNull();
-    } finally {
-      authUser.isSuperAdmin = false;
-    }
+describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Toggle", () => {
+  it("displays SSP badge by default on a blank registration form", async () => {
+    renderForm();
+    const badge = await screen.findByTestId("project-type-badge");
+    expect(badge).toHaveTextContent("SSP — Single Salesperson Project");
   });
 
-  it("is locked for everyone else", async () => {
+  it("submits with project_type SSP by default", async () => {
+    const onSubmit = renderForm();
+    await screen.findByText("101");
+
+    const form = document.getElementById("opportunity-form");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].project_type).toBe("SSP");
+  });
+
+  it("toggles to Strategic when Mark as Strategic is clicked", async () => {
+    const onSubmit = renderForm();
+    await screen.findByText("101");
+
+    const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
+    fireEvent.click(toggleButton);
+
+    const badge = await screen.findByTestId("project-type-badge");
+    expect(badge).toHaveTextContent("Strategic Project");
+
+    const form = document.getElementById("opportunity-form");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].project_type).toBe("STRATEGIC");
+  });
+
+  it("unsets Strategic back to auto-derived SSP when clicked again", async () => {
     renderForm();
-    const division = await screen.findByText("SSP — Single Salesperson Project");
-    expect(division.closest("[class*='cursor-not-allowed']")).not.toBeNull();
+    await screen.findByText("101");
+
+    const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
+    fireEvent.click(toggleButton);
+
+    let badge = await screen.findByTestId("project-type-badge");
+    expect(badge).toHaveTextContent("Strategic Project");
+
+    // Click again to unset
+    const unsetButton = screen.getByRole("button", { name: /★ strategic/i });
+    fireEvent.click(unsetButton);
+
+    badge = await screen.findByTestId("project-type-badge");
+    expect(badge).toHaveTextContent("SSP — Single Salesperson Project");
   });
 });

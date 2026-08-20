@@ -4,7 +4,6 @@ import {
   assertPercentagesSumTo100,
   calculateCommissionBreakdown,
   splitSalesShareForRoles,
-  splitSalesShareForSsp,
 } from "../utils/commission";
 import { getCurrentLocalDate } from "../utils/formatDate";
 
@@ -311,19 +310,12 @@ async function getCommissionBreakdownForOpportunity(opportunityId) {
 
   let salesRoleShares = [];
   if (salesShare) {
-    if (opportunity.project_type === "SSP") {
-      salesRoleShares = splitSalesShareForSsp(salesShare.amount).map((share) => ({
-        ...share,
-        employee: opportunity.deal_owner ?? null,
-      }));
-    } else {
-      const splits = await getSplitsForProjectType(opportunity.project_type);
-      salesRoleShares = splitSalesShareForRoles(salesShare.amount, splits, {
-        deal_owner: opportunity.deal_owner ?? null,
-        supporting_salespeople: [opportunity.support_1, opportunity.support_2],
-        sales_director: opportunity.sales_director ?? null,
-      });
-    }
+    const splits = await getSplitsForProjectType(opportunity.project_type);
+    salesRoleShares = splitSalesShareForRoles(salesShare.amount, splits, {
+      deal_owner: opportunity.deal_owner ?? null,
+      supporting_salespeople: [opportunity.support_1, opportunity.support_2],
+      sales_director: opportunity.sales_director ?? null,
+    });
   }
 
   return {

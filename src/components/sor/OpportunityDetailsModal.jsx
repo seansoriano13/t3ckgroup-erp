@@ -55,6 +55,7 @@ import {
   requiresSalesReference,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
+import { deriveProjectType } from "../../utils/commission";
 import { leadSourceService } from "../../services/leadSourceService";
 
 const TONE_CLASSES = {
@@ -1251,7 +1252,17 @@ export default function OpportunityDetailsModal({
                               <FilterOptionList
                                 options={employees.map((e) => ({ value: e.id, label: e.name }))}
                                 value={editForm.support_sales_1_id}
-                                onChange={(val) => setEditForm((f) => ({ ...f, support_sales_1_id: val }))}
+                                onChange={(val) =>
+                                  setEditForm((f) => {
+                                    const next = { ...f, support_sales_1_id: val };
+                                    next.project_type = deriveProjectType({
+                                      supportSales1Id: next.support_sales_1_id,
+                                      supportSales2Id: next.support_sales_2_id,
+                                      currentProjectType: f.project_type,
+                                    });
+                                    return next;
+                                  })
+                                }
                                 close={close}
                               />
                             )}
@@ -1277,7 +1288,17 @@ export default function OpportunityDetailsModal({
                               <FilterOptionList
                                 options={employees.map((e) => ({ value: e.id, label: e.name }))}
                                 value={editForm.support_sales_2_id}
-                                onChange={(val) => setEditForm((f) => ({ ...f, support_sales_2_id: val }))}
+                                onChange={(val) =>
+                                  setEditForm((f) => {
+                                    const next = { ...f, support_sales_2_id: val };
+                                    next.project_type = deriveProjectType({
+                                      supportSales1Id: next.support_sales_1_id,
+                                      supportSales2Id: next.support_sales_2_id,
+                                      currentProjectType: f.project_type,
+                                    });
+                                    return next;
+                                  })
+                                }
                                 close={close}
                               />
                             )}
@@ -1349,26 +1370,43 @@ export default function OpportunityDetailsModal({
                     label="Sales Division"
                     isEditing={isEditing}
                     control={
-                      <Dropdown
-                        usePortal
-                        className="w-full"
-                        trigger={() => (
-                          <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer min-w-0">
-                            <span className={`truncate ${editForm.project_type ? "text-foreground" : "text-muted-foreground/50"}`}>
-                              {editForm.project_type ? PROJECT_TYPES.find((pt) => pt.value === editForm.project_type)?.label : "Select..."}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <FilterOptionList
-                            options={PROJECT_TYPES}
-                            value={editForm.project_type}
-                            onChange={(val) => setEditForm((f) => ({ ...f, project_type: val }))}
-                            close={close}
-                          />
-                        )}
-                      </Dropdown>
+                      <div className="w-full flex items-center justify-between gap-2 min-w-0">
+                        <span
+                          data-testid="project-type-badge-edit"
+                          className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md border truncate ${
+                            editForm.project_type === "STRATEGIC"
+                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                              : editForm.project_type === "CP"
+                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                          }`}
+                        >
+                          {PROJECT_TYPE_LABELS[editForm.project_type] || editForm.project_type}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditForm((prev) => ({
+                              ...prev,
+                              project_type:
+                                prev.project_type === "STRATEGIC"
+                                  ? deriveProjectType({
+                                      supportSales1Id: prev.support_sales_1_id,
+                                      supportSales2Id: prev.support_sales_2_id,
+                                    })
+                                  : "STRATEGIC",
+                            }))
+                          }
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${
+                            editForm.project_type === "STRATEGIC"
+                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                              : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
+                          }`}
+                          title="Toggle Strategic project override"
+                        >
+                          {editForm.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
+                        </button>
+                      </div>
                     }
                   >
                     <span className="block truncate" title={PROJECT_TYPE_LABELS[opportunity.project_type]}>

@@ -71,6 +71,19 @@ export function splitByPosition(departmentAmount, positions) {
 }
 
 /**
+ * Derives the project type from the support sales assignments:
+ * - Strategic is always a manual override — if the current type is Strategic
+ *   it is preserved regardless of support sales.
+ * - If any support salesperson is assigned → Collaborative Project (CP).
+ * - Otherwise → Single Salesperson Project (SSP).
+ */
+export function deriveProjectType({ supportSales1Id, supportSales2Id, currentProjectType } = {}) {
+  if (currentProjectType === "STRATEGIC") return "STRATEGIC";
+  if (supportSales1Id || supportSales2Id) return "CP";
+  return "SSP";
+}
+
+/**
  * A Single Salesperson Project attributes the entire Sales department share
  * to the deal owner — there is no other role on the deal to split it with.
  */

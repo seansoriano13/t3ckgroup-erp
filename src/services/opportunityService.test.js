@@ -596,4 +596,82 @@ describe("opportunityService", () => {
       ).toBe(true)
     })
   })
+
+  describe("project type auto-derivation", () => {
+    it("derives CP on creation when supporting salespeople are present", async () => {
+      const support = makeEmployee({ name: "Support One" })
+      const created = await opportunityService.createOpportunity(
+        payload({
+          project_type: "SSP", // Client sent SSP, but supporting salesperson is present
+          support_sales_1_id: support.id,
+        }),
+        registrar.id,
+      )
+
+      expect(created.project_type).toBe("CP")
+    })
+
+    it("derives SSP on creation when no supporting salespeople are present", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({
+          project_type: "CP", // Client sent CP, but no supporting salespeople
+          support_sales_1_id: null,
+          support_sales_2_id: null,
+        }),
+        registrar.id,
+      )
+
+      expect(created.project_type).toBe("SSP")
+    })
+
+    it("preserves STRATEGIC project type on creation", async () => {
+      const created = await opportunityService.createOpportunity(
+        payload({
+          project_type: "STRATEGIC",
+        }),
+        registrar.id,
+      )
+
+      expect(created.project_type).toBe("STRATEGIC")
+    })
+
+    it("re-derives CP on update when supporting salespeople are added", async () => {
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      expect(created.project_type).toBe("SSP")
+
+      const support = makeEmployee({ name: "Support Person" })
+      const updated = await opportunityService.updateOpportunity(
+        created.id,
+        {
+          ...payload(),
+          support_sales_1_id: support.id,
+        },
+        registrar.id,
+      )
+
+      expect(updated.project_type).toBe("CP")
+    })
+
+    it("re-derives SSP on update when supporting salespeople are cleared", async () => {
+      const support = makeEmployee({ name: "Support Person" })
+      const created = await opportunityService.createOpportunity(
+        payload({ support_sales_1_id: support.id }),
+        registrar.id,
+      )
+      expect(created.project_type).toBe("CP")
+
+      const updated = await opportunityService.updateOpportunity(
+        created.id,
+        {
+          ...payload(),
+          support_sales_1_id: null,
+          support_sales_2_id: null,
+        },
+        registrar.id,
+      )
+
+      expect(updated.project_type).toBe("SSP")
+    })
+  })
 })
+
