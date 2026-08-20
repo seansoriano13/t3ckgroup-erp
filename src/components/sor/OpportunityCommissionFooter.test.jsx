@@ -25,12 +25,16 @@ function createWrapper() {
 }
 
 describe("OpportunityCommissionFooter", () => {
-  it("renders live commission pool and commissionable revenue summary", async () => {
+  it("renders live commission pool and commissionable revenue summary with deal owner and supporting cast", async () => {
     commissionService.getCommissionBreakdownForOpportunity.mockResolvedValue({
       commissionPool: 8214.29,
       commissionableRevenue: 821428.57,
-      departmentShares: [],
-      salesRoleShares: [],
+      departmentShares: [{ name: "Sales", allocationPercent: 50, amount: 4107.14 }],
+      salesRoleShares: [
+        { role: "deal_owner", percent: 60, employee: { id: "u1", name: "Alice Owner" }, amount: 2464.29 },
+        { role: "supporting_salesperson", percent: 30, employee: { id: "u2", name: "Bob Support" }, amount: 1232.14 },
+        { role: "sales_director", percent: 10, employee: { id: "u3", name: "Dave Director" }, amount: 410.71 },
+      ],
     });
 
     render(
@@ -49,6 +53,14 @@ describe("OpportunityCommissionFooter", () => {
 
     expect(screen.getByText(/Commission Pool/i)).toBeInTheDocument();
     expect(screen.getByText(/Commissionable Revenue/i)).toBeInTheDocument();
+
+    // Verify Deal Owner and supporting cast
+    expect(screen.getByText("Alice Owner")).toBeInTheDocument();
+    expect(screen.getByText("₱2,464.29")).toBeInTheDocument();
+    expect(screen.getByText("Bob Support")).toBeInTheDocument();
+    expect(screen.getByText("₱1,232.14")).toBeInTheDocument();
+    expect(screen.getByText("Dave Director")).toBeInTheDocument();
+    expect(screen.getByText("₱410.71")).toBeInTheDocument();
   });
 
   it("navigates to commission dashboard on click", async () => {

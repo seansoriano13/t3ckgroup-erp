@@ -174,6 +174,14 @@ describe("CommissionDashboardView", () => {
 
     expect(screen.getAllByText("Operations").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Administration").length).toBeGreaterThanOrEqual(1);
+
+    // Switch to Commission Formula & Split Rules tab
+    const rulesTab = screen.getByRole("button", { name: /Split Rules/i });
+    fireEvent.click(rulesTab);
+
+    expect(screen.getByText(/Commission Formula & Allocation Rules/i)).toBeInTheDocument();
+    expect(screen.getByText(/Solo Sales Project/i)).toBeInTheDocument();
+    expect(screen.getByText(/Collaborative Project/i)).toBeInTheDocument();
   });
 
   it("masks peer monetary amounts when viewed by a standard sales rep", async () => {

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, Fragment } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -10,9 +10,6 @@ import {
   YAxis,
   Tooltip as RechartsTooltip,
   CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
 } from "recharts";
 import {
   Sparkles,
@@ -26,7 +23,12 @@ import {
   Building2,
   FileSpreadsheet,
   Tag,
-  PieChart as PieChartIcon,
+  BookOpen,
+  Calculator,
+  UserCheck,
+  ShieldCheck,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { commissionService } from "../../services/commissionService";
 import { useAuth } from "../../context/AuthContext";
@@ -240,6 +242,15 @@ export default function CommissionDashboardView() {
   const [highlightedDealId, setHighlightedDealId] = useState(
     () => location.state?.openOpportunityId || null,
   );
+  const [expandedDealIds, setExpandedDealIds] = useState({});
+
+  const toggleExpandDeal = (dealId, e) => {
+    if (e) e.stopPropagation();
+    setExpandedDealIds((prev) => ({
+      ...prev,
+      [dealId]: !prev[dealId],
+    }));
+  };
 
   useEffect(() => {
     if (location.state?.openOpportunityId) {
@@ -375,7 +386,7 @@ export default function CommissionDashboardView() {
 
   return (
     <div className="space-y-6">
-      {/* 1. Executive KPI Cards (Using StatCard) */}
+      {/* 1. Executive KPI Cards (Using StatCard with Zero-Truncation) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Commissionable Revenue (First) */}
         <StatCard
@@ -506,7 +517,7 @@ export default function CommissionDashboardView() {
           </div>
         </div>
 
-        {/* Department Allocations Donut & Breakdown Card */}
+        {/* Department Allocations Card */}
         <div className="lg:col-span-5 flex flex-col rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
             <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
@@ -707,13 +718,14 @@ export default function CommissionDashboardView() {
         </Dropdown>
       </FilterBar>
 
-      {/* 4. Tab Navigation (Sales Roster / Transaction Ledger / Department Allocations) */}
+      {/* 4. Tab Navigation (4 Tabs: Sales Roster, Transaction Ledger, Department Allocations, Formula & Split Rules) */}
       <div className="flex items-center justify-between gap-3">
         <TabGroup
           tabs={[
             { value: "sales-roster", label: "Sales Roster Summary", icon: Users },
             { value: "transaction-ledger", label: "Transaction Ledger", icon: FileSpreadsheet },
             { value: "department-breakdown", label: "Department Allocations", icon: Layers },
+            { value: "split-rules", label: "Split Rules & Formula", icon: BookOpen },
           ]}
           activeTab={activeTab}
           onChange={setActiveTab}
@@ -725,11 +737,13 @@ export default function CommissionDashboardView() {
             ? `${salesEmployees.length} personnel`
             : activeTab === "transaction-ledger"
             ? `${filteredLedger.length} transaction${filteredLedger.length === 1 ? "" : "s"}`
-            : `${departmentTotals.length} units`}
+            : activeTab === "department-breakdown"
+            ? `${departmentTotals.length} units`
+            : "Active Policy"}
         </span>
       </div>
 
-      {/* 5. Tabbed Tables (Styled matching SOR register) */}
+      {/* 5. Tabbed Views */}
       {/* TAB 1: Sales Roster Summary */}
       {activeTab === "sales-roster" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
@@ -827,103 +841,205 @@ export default function CommissionDashboardView() {
         </div>
       )}
 
-      {/* TAB 2: Transaction Ledger */}
+      {/* TAB 2: Transaction Ledger (Expanded Explicit Columns & Inline Inspector) */}
       {activeTab === "transaction-ledger" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
-                  <th className="font-bold px-3 py-3 w-[80px]">SOR #</th>
-                  <th className="font-bold px-3 py-3">Client & Project</th>
+                  <th className="font-bold px-3 py-3 w-[28px]"></th>
+                  <th className="font-bold px-3 py-3 w-[84px]">SOR #</th>
+                  <th className="font-bold px-3 py-3 min-w-[160px]">Client & Project</th>
                   <th className="font-bold px-3 py-3">Stage</th>
-                  <th className="font-bold px-3 py-3 text-center">Div.</th>
+                  <th className="font-bold px-3 py-3 text-center">Type</th>
                   <th className="font-bold px-3 py-3">Contract Date</th>
                   <th className="font-bold px-3 py-3 text-right">Contract Value</th>
                   <th className="font-bold px-3 py-3 text-right">Commissionable</th>
-                  <th className="font-bold px-3 py-3 text-right">Pool</th>
-                  <th className="font-bold px-3 py-3">Role Splits</th>
+                  <th className="font-bold px-3 py-3 text-right">Pool (1%)</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Deal Owner</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Support Sales</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Sales Director</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredLedger.length === 0 ? (
                   <tr>
-                    <td colSpan={9} className="py-8 text-center text-muted-foreground">
+                    <td colSpan={12} className="py-8 text-center text-muted-foreground">
                       No transactions match the selected filters.
                     </td>
                   </tr>
                 ) : (
                   filteredLedger.map((deal) => {
                     const isHighlighted = highlightedDealId === deal.id;
+                    const isExpanded = !!expandedDealIds[deal.id];
+
+                    const ownerShareObj = deal.salesRoleShares.find((s) => s.role === "deal_owner");
+                    const supportShares = deal.salesRoleShares.filter((s) => s.role === "supporting_salesperson");
+                    const directorShareObj = deal.salesRoleShares.find((s) => s.role === "sales_director");
+
+                    const isDealOwnerUser = deal.participants?.dealOwner?.id === user?.id;
+                    const canSeeDealMoney = canViewAllFinancials || isHead || isDealOwnerUser;
 
                     return (
-                      <tr
-                        key={deal.id}
-                        onClick={() =>
-                          navigate("/opportunities", {
-                            state: { openOpportunityId: deal.id },
-                          })
-                        }
-                        className={`border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors ${
-                          isHighlighted ? "bg-primary/10 ring-1 ring-primary/40" : ""
-                        }`}
-                      >
-                        <td className="px-3 py-3 font-mono font-bold text-primary whitespace-nowrap">
-                          <HighlightText text={deal.opportunityNo} query={search} />
-                        </td>
-                        <td className="px-3 py-3">
-                          <p className="font-semibold text-foreground truncate max-w-[200px]">
-                            <HighlightText text={deal.clientName} query={search} />
-                          </p>
-                          <p className="truncate text-[10.5px] text-muted-foreground max-w-[200px]">
-                            <HighlightText text={deal.projectTitle} query={search} />
-                          </p>
-                        </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <StatusBadge status={deal.status} />
-                        </td>
-                        <td className="px-3 py-3 text-center whitespace-nowrap">
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
-                            {deal.projectType}
-                          </span>
-                        </td>
-                        <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
-                          {deal.contractDate || "—"}
-                        </td>
-                        <td className="px-3 py-3 text-right font-medium tabular-nums text-foreground whitespace-nowrap">
-                          {formatPHP(deal.contractValue)}
-                        </td>
-                        <td className="px-3 py-3 text-right font-medium tabular-nums text-muted-foreground whitespace-nowrap">
-                          {formatPHP(deal.commissionableRevenue)}
-                        </td>
-                        <td className="px-3 py-3 text-right font-bold tabular-nums text-foreground whitespace-nowrap">
-                          {canViewAllFinancials ? formatPHP(deal.commissionPool) : "••••••"}
-                        </td>
-                        <td className="px-3 py-3">
-                          <div className="flex flex-wrap gap-1.5 max-w-[280px]">
-                            {deal.salesRoleShares.map((roleShare, i) => {
-                              const isUser = roleShare.employee?.id === user?.id;
-                              const showMoney = canViewAllFinancials || isHead || isUser;
+                      <React.Fragment key={deal.id}>
+                        <tr
+                          onClick={() =>
+                            navigate("/opportunities", {
+                              state: { openOpportunityId: deal.id },
+                            })
+                          }
+                          className={`border-b border-border/50 hover:bg-muted/40 cursor-pointer transition-colors ${
+                            isHighlighted ? "bg-primary/10 ring-1 ring-primary/40" : ""
+                          }`}
+                        >
+                          <td
+                            className="px-2 py-3 text-center text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandDeal(deal.id);
+                            }}
+                            title="Toggle calculation sheet"
+                          >
+                            {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                          </td>
+                          <td className="px-3 py-3 font-mono font-bold text-primary whitespace-nowrap">
+                            <HighlightText text={deal.opportunityNo} query={search} />
+                          </td>
+                          <td className="px-3 py-3">
+                            <p className="font-semibold text-foreground">
+                              <HighlightText text={deal.clientName} query={search} />
+                            </p>
+                            <p className="text-[10.5px] text-muted-foreground">
+                              <HighlightText text={deal.projectTitle} query={search} />
+                            </p>
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap">
+                            <StatusBadge status={deal.status} />
+                          </td>
+                          <td className="px-3 py-3 text-center whitespace-nowrap">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
+                              {deal.projectType}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                            {deal.contractDate || "—"}
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-foreground whitespace-nowrap">
+                            {formatPHP(deal.contractValue)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-muted-foreground whitespace-nowrap">
+                            {formatPHP(deal.commissionableRevenue)}
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold tabular-nums text-foreground whitespace-nowrap">
+                            {canViewAllFinancials ? formatPHP(deal.commissionPool) : "••••••"}
+                          </td>
+                          {/* Deal Owner Column */}
+                          <td className="px-3 py-3">
+                            {ownerShareObj?.employee ? (
+                              <div>
+                                <p className="font-bold text-foreground">
+                                  {ownerShareObj.employee.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground tabular-nums">
+                                  {canSeeDealMoney ? formatPHP(ownerShareObj.amount) : "••••••"}
+                                  {ownerShareObj.percent != null && ` (${ownerShareObj.percent}%)`}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/60">—</span>
+                            )}
+                          </td>
+                          {/* Support Sales Column */}
+                          <td className="px-3 py-3">
+                            {supportShares.length > 0 ? (
+                              <div className="space-y-0.5">
+                                {supportShares.map((s, idx) => (
+                                  <div key={idx}>
+                                    <p className="font-bold text-foreground">{s.employee?.name || "Support"}</p>
+                                    <p className="text-[10px] text-muted-foreground tabular-nums">
+                                      {canSeeDealMoney || s.employee?.id === user?.id
+                                        ? formatPHP(s.amount)
+                                        : "••••••"}
+                                      {s.percent != null && ` (${s.percent}%)`}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/60">—</span>
+                            )}
+                          </td>
+                          {/* Sales Director Column */}
+                          <td className="px-3 py-3">
+                            {directorShareObj?.employee ? (
+                              <div>
+                                <p className="font-bold text-foreground">
+                                  {directorShareObj.employee.name}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground tabular-nums">
+                                  {canSeeDealMoney || directorShareObj.employee.id === user?.id
+                                    ? formatPHP(directorShareObj.amount)
+                                    : "••••••"}
+                                  {directorShareObj.percent != null && ` (${directorShareObj.percent}%)`}
+                                </p>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground/60">—</span>
+                            )}
+                          </td>
+                        </tr>
 
-                              return (
-                                <span
-                                  key={`${roleShare.role}-${i}`}
-                                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] ${
-                                    isUser
-                                      ? "bg-primary/20 text-primary font-bold border border-primary/30"
-                                      : "bg-muted text-muted-foreground"
-                                  }`}
-                                >
-                                  <span>{roleShare.employee?.name || "Unassigned"}:</span>
-                                  <span className="font-semibold tabular-nums">
-                                    {showMoney ? formatPHP(roleShare.amount) : "•••"}
-                                  </span>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </td>
-                      </tr>
+                        {/* Inline Detailed Sheet Expansion */}
+                        {isExpanded && (
+                          <tr className="bg-muted/20 border-b border-border/60">
+                            <td colSpan={12} className="p-4 sm:p-5">
+                              <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3">
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-2.5">
+                                  <div>
+                                    <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                                      Itemized Calculation Sheet — {deal.opportunityNo} ({deal.clientName})
+                                    </h5>
+                                    <p className="text-[10.5px] text-muted-foreground">
+                                      Anchored on Contract Date rates ({deal.contractDate || "Effective live"})
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      navigate("/opportunities", {
+                                        state: { openOpportunityId: deal.id },
+                                      })
+                                    }
+                                    className="text-xs font-bold text-primary hover:underline self-start sm:self-center"
+                                  >
+                                    Open in SOR Register →
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                                  <div className="p-2.5 rounded-lg bg-muted/40">
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Contract Value</span>
+                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.contractValue)}</p>
+                                  </div>
+                                  <div className="p-2.5 rounded-lg bg-muted/40">
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Commissionable Revenue</span>
+                                    <p className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{formatPHP(deal.commissionableRevenue)}</p>
+                                  </div>
+                                  <div className="p-2.5 rounded-lg bg-muted/40">
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Total Commission Pool (1%)</span>
+                                    <p className="font-bold text-violet-600 dark:text-violet-400 tabular-nums">{formatPHP(deal.commissionPool)}</p>
+                                  </div>
+                                  <div className="p-2.5 rounded-lg bg-muted/40">
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Sales Dept Pool (50%)</span>
+                                    <p className="font-bold text-blue-600 dark:text-blue-400 tabular-nums">{formatPHP(deal.salesShareAmount)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })
                 )}
@@ -978,6 +1094,130 @@ export default function CommissionDashboardView() {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Commission Formula & Split Rules (New Transparency Tab) */}
+      {activeTab === "split-rules" && (
+        <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm p-6 space-y-6 min-h-[400px]">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Calculator size={16} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-foreground">Commission Formula & Allocation Rules</h4>
+                <p className="text-xs text-muted-foreground">
+                  Mathematical foundation, tax deductions, department reserves, and project role splits.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Mathematical Pipeline */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">1. Commissionable Revenue</span>
+              <p className="font-mono text-xs font-bold text-foreground bg-card p-2.5 rounded-lg border border-border">
+                (Contract Value ÷ 1.12) × (1 - 0.08)
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Deducts 12% Value Added Tax (VAT) and 8% Withholding Tax from official Contract Value.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">2. Commission Pool Reserve</span>
+              <p className="font-mono text-xs font-bold text-violet-600 dark:text-violet-400 bg-card p-2.5 rounded-lg border border-border">
+                Commissionable Revenue × 1.00%
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                1% of net Commissionable Revenue is allocated to the company-wide commission pool.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-border bg-muted/20 p-4 space-y-2">
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground">3. Sales Department Fund</span>
+              <p className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-card p-2.5 rounded-lg border border-border">
+                Total Pool × 50.00%
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Half of the pool is distributed to sales personnel involved on the deal (50% to other depts).
+              </p>
+            </div>
+          </div>
+
+          {/* Project Type Split Rules */}
+          <div className="space-y-3">
+            <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">Sales Role Allocation Rules by Project Type</h5>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Solo Sales Project */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-foreground">Solo Sales Project (SSP)</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">SSP</span>
+                </div>
+                <div className="space-y-1.5 text-xs pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Deal Owner:</span>
+                    <span className="font-bold text-foreground">100% of Sales share</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Supporting Sales:</span>
+                    <span className="font-medium text-muted-foreground">N/A</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Sales Director:</span>
+                    <span className="font-medium text-muted-foreground">0%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Collaborative Project */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-foreground">Collaborative Project (CP)</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">CP</span>
+                </div>
+                <div className="space-y-1.5 text-xs pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Deal Owner:</span>
+                    <span className="font-bold text-foreground">60%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Supporting Sales:</span>
+                    <span className="font-bold text-foreground">30% (split evenly)</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Sales Director:</span>
+                    <span className="font-bold text-foreground">10%</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Strategic Project */}
+              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs text-foreground">Strategic Deal</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">STRATEGIC</span>
+                </div>
+                <div className="space-y-1.5 text-xs pt-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Deal Owner:</span>
+                    <span className="font-bold text-foreground">60%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Supporting Sales:</span>
+                    <span className="font-bold text-foreground">30%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Sales Director:</span>
+                    <span className="font-bold text-foreground">10%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
