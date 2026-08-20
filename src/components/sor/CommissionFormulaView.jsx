@@ -13,6 +13,7 @@ const SHARE_ROLE_LABELS = {
 };
 
 const PROJECT_TYPES_WITH_SPLITS = [
+  { value: "SSP", label: "SSP — Solo Sales Project" },
   { value: "CP", label: "CP — Collaborative Project" },
   { value: "STRATEGIC", label: "Strategic Project" },
 ];
@@ -55,7 +56,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
   }
 
   return (
-    <div className="rounded-lg border border-border/60 p-4">
+    <div className="rounded-xl border border-border bg-card p-4">
       <p className="pb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
       <div className="divide-y divide-border/50">
         {Object.entries(SHARE_ROLE_LABELS).map(([shareRole, roleLabel]) => {
@@ -84,7 +85,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
 
       {canEdit && (
         <div className="flex items-center justify-end gap-3 pt-3">
-          <span className={total !== 100 ? "text-xs font-semibold text-red-9" : "text-xs text-muted-foreground"}>
+          <span className={total !== 100 ? "text-xs font-semibold text-destructive" : "text-xs text-muted-foreground"}>
             Total {total.toFixed(2)}%
           </span>
           <button
@@ -103,7 +104,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
 
 /**
  * Read view of current Commission Rates and Department allocation, plus
- * Sales-Director-editable Commission Split percentages per Project Type.
+ * Sales-Director-editable Commission Split percentages per Project Type (SSP, CP, STRATEGIC).
  */
 export default function CommissionFormulaView() {
   const { user } = useAuth();
@@ -135,7 +136,7 @@ export default function CommissionFormulaView() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-border/70 bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <p className="pb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Current Commission Rates
         </p>
@@ -149,7 +150,7 @@ export default function CommissionFormulaView() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border/70 bg-card p-5">
+      <div className="rounded-2xl border border-border bg-card p-5">
         <p className="pb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
           Department Allocation
         </p>
@@ -165,7 +166,7 @@ export default function CommissionFormulaView() {
 
       <div className="space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-          Sales Role Split (Collaborative &amp; Strategic Projects)
+          Sales Role Split (Solo, Collaborative &amp; Strategic Projects)
         </p>
         {PROJECT_TYPES_WITH_SPLITS.map(({ value, label }) => (
           <SplitEditor
