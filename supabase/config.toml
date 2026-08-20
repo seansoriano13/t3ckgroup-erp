@@ -6,4 +6,4 @@ project_id = "epqmberwewztzbrkhhss"
 [functions.odoo-quotation-link]
 [functions.odoo-quotation-manifest]
 [functions.odoo-sor-lookup]
-# Declared here so Deploy to production auto-ships function changes. (v2)
+# Declared here so Deploy to production auto-ships function changes. (v3)
