@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Routes, Route } from "react-router";
-import HrRedirect from "./index";
+import HrRedirect from "../../pages/hr/index";
 import * as AuthContext from "../../context/AuthContext";
 
 describe("HrRedirect", () => {
