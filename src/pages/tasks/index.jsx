@@ -1,8 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router";
+import { LayoutGrid, Table as TableIcon } from "lucide-react";
 import { TASK_STATUS } from "../../constants/status.js";
 import TaskDetails from "../../components/TaskDetails.jsx";
 import TaskCard from "../../components/TaskCard";
+import TaskTableView from "../../components/TaskTableView.jsx";
 import TaskFilters from "../../components/TaskFilters.jsx";
 import { useAuth } from "../../context/AuthContext";
 import { taskService } from "../../services/taskService.js";
@@ -14,7 +16,6 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
 import { employeeService } from "../../services/employeeService.js";
-import { useMemo } from "react";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import TabGroup from "../../components/ui/TabGroup";
@@ -46,6 +47,24 @@ export default function TasksPage() {
 
   // HR Specific Toggle
   const [hrViewMode, setHrViewMode] = useState("ALL"); // "ALL" or "PERSONAL"
+
+  // View Switcher Mode (Grid vs Table)
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("tasks_view_mode") || "grid";
+    } catch {
+      return "grid";
+    }
+  });
+
+  const handleViewModeChange = (nextMode) => {
+    setViewMode(nextMode);
+    try {
+      localStorage.setItem("tasks_view_mode", nextMode);
+    } catch {
+      /* ignore */
+    }
+  };
 
   // 1. Filter State (Standard)
   const [searchTerm, setSearchTerm] = useState("");
@@ -384,10 +403,33 @@ export default function TasksPage() {
         setSortBy={wrapFilter(setSortBy)}
         forceAdvancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
+        actions={
+          <TabGroup
+            variant="pill"
+            size="sm"
+            tabs={[
+              { value: "grid", label: "Grid", icon: LayoutGrid },
+              { value: "table", label: "Table", icon: TableIcon },
+            ]}
+            activeTab={viewMode}
+            onChange={handleViewModeChange}
+            className="shrink-0"
+          />
+        }
       />
 
-      {/* THE CATEGORIZED GRID — each group has its own pagination */}
-      <div className="space-y-12 pb-10">
+      {viewMode === "table" ? (
+        <div className="pb-10">
+          <TaskTableView
+            tasks={sortedAndFilteredTasks}
+            searchTerm={searchTerm}
+            onView={(task) => setViewTask(task)}
+            onSilentUpdate={(payload) => editTaskMutation.mutateAsync(payload)}
+          />
+        </div>
+      ) : (
+        /* THE CATEGORIZED GRID — each group has its own pagination */
+        <div className="space-y-12 pb-10">
         {[
           "INCOMPLETE",
           "AWAITING_APPROVAL",
@@ -587,6 +629,7 @@ export default function TasksPage() {
           </div>
         )}
       </div>
+      )}
 
       <TaskDetails
         isOpen={!!viewTask}

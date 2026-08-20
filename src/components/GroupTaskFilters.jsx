@@ -21,6 +21,7 @@ export default function GroupTaskFilters({
   dueDate,
   setDueDate,
   uniqueCreators = [],
+  actions,
 }) {
   const isAnyFilterActive =
     statusFilter !== "ALL" ||
@@ -180,6 +181,8 @@ export default function GroupTaskFilters({
               </div>
             )}
           </Dropdown>
+
+          {actions}
 
           {/* Clear All */}
           {isAnyFilterActive && (

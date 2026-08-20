@@ -24,6 +24,7 @@ export type Path =
   | `/group-tasks/components/GroupTaskDetailModal`
   | `/group-tasks/components/GroupTaskMemberPanel`
   | `/group-tasks/components/GroupTaskMemberRail`
+  | `/group-tasks/components/GroupTaskTableView`
   | `/group-tasks/components/RateEmployeesModal`
   | `/group-tasks/components/SaveGroupTaskTemplateModal`
   | `/group-tasks/templates`

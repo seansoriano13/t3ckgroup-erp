@@ -50,6 +50,7 @@ export default function TaskFilters({
   setSortBy,
   forceAdvancedOpen = false,
   onAdvancedOpenChange,
+  actions,
 }) {
   const [showAdvanced, setShowAdvancedRaw] = useState(
     forceAdvancedOpen || !!employeeFilter,
@@ -345,6 +346,8 @@ export default function TaskFilters({
               Add Filter
             </Button>
           </div>
+
+          {actions}
 
           {/* CLEAR ALL ESCAPE HATCH */}
           {isAnyFilterActive && (

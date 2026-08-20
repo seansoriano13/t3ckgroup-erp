@@ -6,11 +6,12 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { employeeService } from "../../services/employeeService";
 import toast from "react-hot-toast";
-import { Users, Plus, Search } from "lucide-react";
+import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 
 import GroupTaskCard from "./components/GroupTaskCard";
+import GroupTaskTableView from "./components/GroupTaskTableView";
 import CreateGroupTaskModal from "./components/CreateGroupTaskModal";
 import GroupTaskDetailModal from "./components/GroupTaskDetailModal";
 import RateEmployeesModal from "./components/RateEmployeesModal";
@@ -74,6 +75,23 @@ export default function GroupTasksPage() {
   }, [canManage]);
 
   // --- UI State ---
+  const [viewMode, setViewMode] = useState(() => {
+    try {
+      return localStorage.getItem("group_tasks_view_mode") || "grid";
+    } catch {
+      return "grid";
+    }
+  });
+
+  const handleViewModeChange = (nextMode) => {
+    setViewMode(nextMode);
+    try {
+      localStorage.setItem("group_tasks_view_mode", nextMode);
+    } catch {
+      /* ignore */
+    }
+  };
+
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, ACTIVE, COMPLETED
   const [creatorFilter, setCreatorFilter] = useState("ALL");
@@ -256,36 +274,61 @@ export default function GroupTasksPage() {
           dueDate={dueDate}
           setDueDate={setDueDate}
           uniqueCreators={uniqueCreators}
+          actions={
+            <TabGroup
+              variant="pill"
+              size="sm"
+              tabs={[
+                { value: "grid", label: "Grid", icon: LayoutGrid },
+                { value: "table", label: "Table", icon: TableIcon },
+              ]}
+              activeTab={viewMode}
+              onChange={handleViewModeChange}
+              className="shrink-0"
+            />
+          }
         />
       </div>
 
-      {/* GRID */}
-      {filteredTasks.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredTasks.map((task) => (
-            <GroupTaskCard
-              key={task.id}
-              task={task}
-              currentUserId={user?.id}
-              isSuperAdmin={isSuperAdmin}
-              onView={() => setSelectedTaskId(task.id)}
-              searchTerm={searchTerm}
-              // demoProgress={index === 0 ? demoProgress : undefined}
-            />
-          ))}
+      {viewMode === "table" ? (
+        <div className="pb-10">
+          <GroupTaskTableView
+            tasks={filteredTasks}
+            searchTerm={searchTerm}
+            onView={(task) => setSelectedTaskId(task.id)}
+            currentUserId={user?.id}
+            isSuperAdmin={isSuperAdmin}
+          />
         </div>
       ) : (
-        <div className="py-20 text-center bg-card border border-border border-dashed rounded-2xl">
-          <Users size={32} className="mx-auto text-muted-foreground/50 mb-3" />
-          <h3 className="text-lg font-bold text-foreground">
-            No Group Tasks Found
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            {searchTerm
-              ? "Try adjusting your search criteria."
-              : "There are no active group tasks at the moment."}
-          </p>
-        </div>
+        /* GRID */
+        filteredTasks.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredTasks.map((task) => (
+              <GroupTaskCard
+                key={task.id}
+                task={task}
+                currentUserId={user?.id}
+                isSuperAdmin={isSuperAdmin}
+                onView={() => setSelectedTaskId(task.id)}
+                searchTerm={searchTerm}
+                // demoProgress={index === 0 ? demoProgress : undefined}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="py-20 text-center bg-card border border-border border-dashed rounded-2xl">
+            <Users size={32} className="mx-auto text-muted-foreground/50 mb-3" />
+            <h3 className="text-lg font-bold text-foreground">
+              No Group Tasks Found
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              {searchTerm
+                ? "Try adjusting your search criteria."
+                : "There are no active group tasks at the moment."}
+            </p>
+          </div>
+        )
       )}
 
       {/* MODALS */}
