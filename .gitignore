@@ -78,3 +78,7 @@ Video Script -*
 # gets attached to a task.
 docs/*.pdf
 .vercel
+
+.agents/*
+
+.claude/*

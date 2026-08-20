@@ -1,6 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { Activity, Search, X, Users } from "lucide-react";
+import {
+  Activity,
+  Search,
+  X,
+  Users,
+  List,
+  Rows3,
+  LayoutGrid,
+  TrendingUp,
+} from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Avatar";
 import HighlightText from "../HighlightText";
@@ -37,13 +46,17 @@ const THEME_DOT = {
  * Reused for both the Head/HR/Super Admin team view and (by the caller
  * passing a single-employee list) an individual's own row.
  */
-export default function EmployeeOpportunityMatrix({ opportunities, title = "Team Opportunity Radar" }) {
+export default function EmployeeOpportunityMatrix({
+  opportunities,
+  title = "Team Opportunity Radar",
+}) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isHr = user?.is_hr === true || user?.isHr === true;
   const isHead = user?.is_head === true || user?.isHead === true;
   const userDepartment = user?.department;
   const [searchTerm, setSearchTerm] = useState("");
+  const [layoutMode, setLayoutMode] = useState("list"); // "list" | "stack" | "grid"
 
   const employeeStats = useMemo(() => {
     if (!opportunities?.length) return [];
@@ -68,6 +81,7 @@ export default function EmployeeOpportunityMatrix({ opportunities, title = "Team
           subDept: owner.sub_department || "N/A",
           total: 0,
           value: 0,
+          wonCount: 0,
           stageCounts: {},
         };
       }
@@ -75,10 +89,19 @@ export default function EmployeeOpportunityMatrix({ opportunities, title = "Team
       const emp = empMap[owner.id];
       emp.total++;
       emp.value += Number(o.expected_value || 0);
+      if (o.status === "CLOSED_WON") {
+        emp.wonCount++;
+      }
       emp.stageCounts[o.status] = (emp.stageCounts[o.status] || 0) + 1;
     });
 
-    return Object.values(empMap).sort((a, b) => b.value - a.value);
+    return Object.values(empMap)
+      .map((emp) => ({
+        ...emp,
+        winRate:
+          emp.total > 0 ? Math.round((emp.wonCount / emp.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.value - a.value);
   }, [opportunities, isHr, isHead, userDepartment]);
 
   const filteredStats = useMemo(() => {
@@ -134,6 +157,43 @@ export default function EmployeeOpportunityMatrix({ opportunities, title = "Team
               </button>
             )}
           </div>
+
+          <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
+            <button
+              onClick={() => setLayoutMode("list")}
+              className={`p-1 rounded transition-all ${
+                layoutMode === "list"
+                  ? "bg-card shadow-sm text-red-9"
+                  : "text-muted-foreground hover:text-mauve-11"
+              }`}
+              title="List View"
+            >
+              <List size={16} />
+            </button>
+            <button
+              onClick={() => setLayoutMode("stack")}
+              className={`p-1 rounded transition-all ${
+                layoutMode === "stack"
+                  ? "bg-card shadow-sm text-red-9"
+                  : "text-muted-foreground hover:text-mauve-11"
+              }`}
+              title="3-Row Stack"
+            >
+              <Rows3 size={16} />
+            </button>
+            <button
+              onClick={() => setLayoutMode("grid")}
+              className={`p-1 rounded transition-all ${
+                layoutMode === "grid"
+                  ? "bg-card shadow-sm text-red-9"
+                  : "text-muted-foreground hover:text-mauve-11"
+              }`}
+              title="Full Grid"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
+
           <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg">
             <Users size={14} className="text-muted-foreground" />
             <span className="text-xs text-muted-foreground">
@@ -143,83 +203,213 @@ export default function EmployeeOpportunityMatrix({ opportunities, title = "Team
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 pb-1">
-        {filteredStats.map((emp) => (
-          <div
-            key={emp.id}
-            onClick={() => goToEmployee(emp.id)}
-            className="cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between transition-colors hover:bg-mauve-3 border border-border rounded-lg px-4 py-3 gap-4"
-          >
-            <div className="flex items-center gap-3 min-w-[200px] w-full lg:w-1/4">
-              <Avatar
-                className="bg-white shrink-0"
-                size="sm"
-                name={emp.name}
-                src={emp.avatarPath}
-              />
-              <div className="min-w-0">
-                <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
-                  <HighlightText text={emp.name} search={searchTerm} />
-                </h3>
-                <p className="line-clamp-1 text-xs text-muted-foreground">
-                  <HighlightText text={emp.subDept} search={searchTerm} />
-                </p>
-              </div>
-            </div>
+      {/* DYNAMIC PIPELINE MATRIX CONTAINER */}
+      <div
+        className={`
+        ${layoutMode === "list" ? "flex flex-col gap-3 pb-1" : ""}
+        ${
+          layoutMode === "stack"
+            ? "grid grid-rows-3 grid-flow-col gap-3 overflow-x-auto pb-4 custom-scrollbar snap-x"
+            : ""
+        }
+        ${
+          layoutMode === "grid"
+            ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4"
+            : ""
+        }
+      `}
+      >
+        {filteredStats.map((emp) => {
+          if (layoutMode === "list") {
+            return (
+              <div
+                key={emp.id}
+                onClick={() => goToEmployee(emp.id)}
+                className="cursor-pointer flex flex-col lg:flex-row lg:items-center justify-between transition-colors hover:bg-mauve-3 border border-border rounded-lg px-4 py-3 gap-4"
+              >
+                <div className="flex items-center gap-3 min-w-[200px] w-full lg:w-1/4">
+                  <Avatar
+                    className="bg-white shrink-0"
+                    size="sm"
+                    name={emp.name}
+                    src={emp.avatarPath}
+                  />
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+                      <HighlightText text={emp.name} search={searchTerm} />
+                    </h3>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">
+                      <HighlightText text={emp.subDept} search={searchTerm} />
+                    </p>
+                  </div>
+                </div>
 
-            <div className="flex-1 flex flex-col justify-center min-w-0 w-full lg:w-auto">
-              <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
-                <span>Pipeline</span>
-                <span className="text-foreground">
-                  {emp.total} · {formatPHP(emp.value)}
-                </span>
+                <div className="flex-1 flex flex-col justify-center min-w-0 w-full lg:w-auto">
+                  <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-1.5">
+                    <span>Pipeline</span>
+                    <span className="text-foreground">
+                      {emp.total} · {formatPHP(emp.value)}
+                    </span>
+                  </div>
+
+                  <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
+                    {OPPORTUNITY_STAGES.map((stage) => {
+                      const count = emp.stageCounts[stage.value];
+                      if (!count) return null;
+                      const theme = getStatusTheme(stage.value);
+                      return (
+                        <div
+                          key={stage.value}
+                          className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
+                          style={{ width: `${(count / emp.total) * 100}%` }}
+                          title={`${count} ${stage.label}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToEmployee(emp.id, stage.value);
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center gap-3 flex-wrap pt-2">
+                    {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
+                      (stage) => {
+                        const theme = getStatusTheme(stage.value);
+                        return (
+                          <span
+                            key={stage.value}
+                            className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              goToEmployee(emp.id, stage.value);
+                            }}
+                          >
+                            <span
+                              className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
+                            />
+                            {emp.stageCounts[stage.value]} {stage.label}
+                          </span>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
+          // Render Grid & Stack Card View
+          return (
+            <div
+              key={emp.id}
+              onClick={() => goToEmployee(emp.id)}
+              className={`cursor-pointer flex flex-col transition-colors hover:bg-mauve-3 border border-border rounded-lg p-4 bg-card ${
+                layoutMode === "grid"
+                  ? "w-full"
+                  : "min-w-[260px] sm:min-w-[290px] snap-start"
+              }`}
+            >
+              {/* Header: Avatar, Name, Dept & Value Pill */}
+              <div className="flex justify-between items-center gap-2">
+                <div className="flex gap-2.5 items-center min-w-0">
+                  <Avatar
+                    className="bg-white shrink-0"
+                    size="sm"
+                    name={emp.name}
+                    src={emp.avatarPath}
+                  />
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-1 text-sm font-semibold text-foreground">
+                      <HighlightText text={emp.name} search={searchTerm} />
+                    </h3>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">
+                      <HighlightText text={emp.subDept} search={searchTerm} />
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className="flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-full border border-border bg-transparent text-xs font-semibold text-foreground"
+                  title="Total Pipeline Value"
+                >
+                  <span>{formatPHP(emp.value)}</span>
+                </div>
               </div>
 
-              <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
-                {OPPORTUNITY_STAGES.map((stage) => {
-                  const count = emp.stageCounts[stage.value];
-                  if (!count) return null;
-                  const theme = getStatusTheme(stage.value);
-                  return (
-                    <div
-                      key={stage.value}
-                      className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
-                      style={{ width: `${(count / emp.total) * 100}%` }}
-                      title={`${count} ${stage.label}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        goToEmployee(emp.id, stage.value);
-                      }}
-                    />
-                  );
-                })}
-              </div>
+              {/* Segmented Pipeline Bar */}
+              <div className="mt-3.5">
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1.5">
+                  <span>Pipeline</span>
+                  <span className="text-foreground">{emp.total} Total</span>
+                </div>
 
-              <div className="flex items-center gap-3 flex-wrap pt-2">
-                {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
-                  (stage) => {
+                <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
+                  {OPPORTUNITY_STAGES.map((stage) => {
+                    const count = emp.stageCounts[stage.value];
+                    if (!count) return null;
                     const theme = getStatusTheme(stage.value);
                     return (
-                      <span
+                      <div
                         key={stage.value}
-                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
+                        style={{ width: `${(count / emp.total) * 100}%` }}
+                        title={`${count} ${stage.label}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           goToEmployee(emp.id, stage.value);
                         }}
-                      >
-                        <span
-                          className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
-                        />
-                        {emp.stageCounts[stage.value]} {stage.label}
-                      </span>
+                      />
                     );
-                  },
-                )}
+                  })}
+                </div>
+
+                {/* Legend */}
+                <div className="flex items-center gap-2.5 flex-wrap pt-2">
+                  {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
+                    (stage) => {
+                      const theme = getStatusTheme(stage.value);
+                      return (
+                        <span
+                          key={stage.value}
+                          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            goToEmployee(emp.id, stage.value);
+                          }}
+                        >
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
+                          />
+                          {emp.stageCounts[stage.value]} {stage.label}
+                        </span>
+                      );
+                    },
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="flex justify-between items-center mt-auto pt-3 mt-3.5 border-t border-border">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Win Rate
+                </span>
+                <span className="flex items-center gap-1 text-sm font-semibold text-foreground">
+                  {emp.winRate}%
+                  <TrendingUp
+                    size={13}
+                    className={
+                      emp.winRate >= 50
+                        ? "text-green-9"
+                        : emp.winRate >= 25
+                          ? "text-amber-9"
+                          : "text-muted-foreground"
+                    }
+                  />
+                </span>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
