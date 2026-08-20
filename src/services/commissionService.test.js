@@ -396,6 +396,8 @@ describe("commissionService", () => {
       const support = makeEmployee({ name: "Bob Support" })
       const director = makeEmployee({ name: "Dave Director" })
 
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
       makeCommissionSplit({ project_type: "CP", share_role: "deal_owner", percent: 60 })
       makeCommissionSplit({ project_type: "CP", share_role: "supporting_salesperson", percent: 30 })
       makeCommissionSplit({ project_type: "CP", share_role: "sales_director", percent: 10 })
@@ -441,8 +443,8 @@ describe("commissionService", () => {
       const alice = dashboard.salesEmployees.find((e) => e.employeeId === owner.id)
       expect(alice).toBeDefined()
       expect(alice.wonDealsCount).toBe(2)
-      // Alice earned SSP Deal Owner (4,107.14) + CP Deal Owner 60% of 8,214.29 (4,928.57) = 9,035.71
-      expect(alice.totalCommissionShare).toBeCloseTo(9_035.71, 2)
+      // Alice earned SSP Deal Owner 80% of 4,107.14 (3,285.71) + CP Deal Owner 60% of 8,214.29 (4,928.57) = 8,214.28
+      expect(alice.totalCommissionShare).toBeCloseTo(8_214.29, 2)
 
       const bob = dashboard.salesEmployees.find((e) => e.employeeId === support.id)
       expect(bob).toBeDefined()

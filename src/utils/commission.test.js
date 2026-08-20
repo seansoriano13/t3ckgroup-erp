@@ -10,7 +10,6 @@ import {
   splitByDepartment,
   splitByPosition,
   splitSalesShareForRoles,
-  splitSalesShareForSsp,
 } from "./commission";
 
 const DEPARTMENTS = [
@@ -101,12 +100,6 @@ describe("splitByPosition", () => {
       { name: "Operations Manager", allocationPercent: 60, amount: 1_200 },
       { name: "Operations Staff", allocationPercent: 40, amount: 800 },
     ]);
-  });
-});
-
-describe("splitSalesShareForSsp", () => {
-  it("attributes the entire Sales share to the deal owner", () => {
-    expect(splitSalesShareForSsp(4_107.14)).toEqual([{ role: "deal_owner", amount: 4_107.14 }]);
   });
 });
 
@@ -259,6 +252,10 @@ describe("resolveEffectiveRatesFromList", () => {
 describe("aggregateOpportunityCommissions", () => {
   const RATES = { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 };
   const SPLITS = {
+    SSP: [
+      { shareRole: "deal_owner", percent: 80 },
+      { shareRole: "sales_director", percent: 20 },
+    ],
     CP: [
       { shareRole: "deal_owner", percent: 60 },
       { shareRole: "supporting_salesperson", percent: 30 },
@@ -288,7 +285,7 @@ describe("aggregateOpportunityCommissions", () => {
     deal_owner: alice,
     support_1: null,
     support_2: null,
-    sales_director: null,
+    sales_director: daveDirector,
   };
 
   const opp2 = {
@@ -354,26 +351,31 @@ describe("aggregateOpportunityCommissions", () => {
     expect(agg.salesDeptTotal).toBeCloseTo(12_321.43, 2);
     expect(agg.otherDeptsTotal).toBeCloseTo(12_321.43, 2);
 
-    // Check individual sales reps accumulation:
+    // Regulation CCPR-2026-001 splits, applied identically regardless of
+    // project type — SSP is 80% deal owner / 20% sales director, no
+    // supporting-salesperson row (see supabase/migrations/0032).
     // Alice earned:
-    // - From opp1 (SSP Deal Owner 100% of Sales share): 4,107.14
+    // - From opp1 (SSP Deal Owner, 80% of Sales share 4,107.14): 3,285.71
     // - From opp2 (CP Support Rep, 30% split / 2 supporters = 15% of Sales share 8,214.29): 1,232.14
-    // Total Alice = 5,339.29
+    // Total Alice = 4,517.86
     const aliceMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-alice");
     expect(aliceMetrics).toBeDefined();
-    expect(aliceMetrics.totalCommissionShare).toBeCloseTo(5_339.29, 2);
+    expect(aliceMetrics.totalCommissionShare).toBeCloseTo(4_517.86, 2);
     expect(aliceMetrics.wonDealsCount).toBe(2);
     expect(aliceMetrics.totalContractValue).toBe(3_000_000);
-    expect(aliceMetrics.roleBreakdown.deal_owner).toBeCloseTo(4_107.14, 2);
+    expect(aliceMetrics.roleBreakdown.deal_owner).toBeCloseTo(3_285.71, 2);
     expect(aliceMetrics.roleBreakdown.supporting_salesperson).toBeCloseTo(1_232.14, 2);
 
     // Bob (Opp2 Deal Owner: 60% of Sales share 8,214.29): 4,928.57
     const bobMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-bob");
     expect(bobMetrics.totalCommissionShare).toBeCloseTo(4_928.57, 2);
 
-    // Dave Director (Opp2 Sales Director: 10% of Sales share 8,214.29): 821.43
+    // Dave Director earns his 20% Sales Director share on both deals:
+    // - Opp1 (SSP Sales Director, 20% of Sales share 4,107.14): 821.43
+    // - Opp2 (CP Sales Director, 10% of Sales share 8,214.29): 821.43
+    // Total Dave = 1,642.86
     const daveMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-dave");
-    expect(daveMetrics.totalCommissionShare).toBeCloseTo(821.43, 2);
+    expect(daveMetrics.totalCommissionShare).toBeCloseTo(1_642.86, 2);
 
     // Zero discrepancy check: Sum of all rep shares = sales department total
     const sumRepShares = agg.salesEmployees.reduce((sum, e) => sum + e.totalCommissionShare, 0);

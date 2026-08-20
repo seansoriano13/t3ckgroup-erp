@@ -268,26 +268,19 @@ export function aggregateOpportunityCommissions({
     }
 
     const salesShareAmount = breakdown.departmentShares[salesDeptIndex]?.amount || 0;
-    let salesRoleShares = [];
 
     const dealOwner = opp.deal_owner || null;
     const support1 = opp.support_1 || null;
     const support2 = opp.support_2 || null;
     const salesDirector = opp.sales_director || null;
 
-    if (opp.project_type === "SSP" || !opp.project_type) {
-      salesRoleShares = splitSalesShareForSsp(salesShareAmount);
-      if (dealOwner && salesRoleShares[0]) {
-        salesRoleShares[0].employee = dealOwner;
-      }
-    } else {
-      const splits = splitsByProjectType[opp.project_type] || [];
-      salesRoleShares = splitSalesShareForRoles(salesShareAmount, splits, {
-        deal_owner: dealOwner,
-        supporting_salespeople: [support1, support2],
-        sales_director: salesDirector,
-      });
-    }
+    const projectType = opp.project_type || "SSP";
+    const splits = splitsByProjectType[projectType] || [];
+    const salesRoleShares = splitSalesShareForRoles(salesShareAmount, splits, {
+      deal_owner: dealOwner,
+      supporting_salespeople: [support1, support2],
+      sales_director: salesDirector,
+    });
 
     dealLedger.push({
       id: opp.id,

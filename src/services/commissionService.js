@@ -338,7 +338,7 @@ async function getCommissionDashboardData({
   scope = "REALIZED",
   dateFilter = null,
 } = {}) {
-  const [oppsResult, ratesResult, departments, splitsCp, splitsStrategic] = await Promise.all([
+  const [oppsResult, ratesResult, departments, splitsSsp, splitsCp, splitsStrategic] = await Promise.all([
     supabase
       .from("sales_opportunities")
       .select(
@@ -356,6 +356,7 @@ async function getCommissionDashboardData({
       .select("rate_type, percent, effective_from")
       .order("effective_from", { ascending: false }),
     getDepartments(),
+    getSplitsForProjectType("SSP"),
     getSplitsForProjectType("CP"),
     getSplitsForProjectType("STRATEGIC"),
   ]);
@@ -367,6 +368,7 @@ async function getCommissionDashboardData({
   const ratesResolver = (asOfDate) => resolveEffectiveRatesFromList(rateList, asOfDate);
 
   const splitsByProjectType = {
+    SSP: splitsSsp,
     CP: splitsCp,
     STRATEGIC: splitsStrategic,
   };
