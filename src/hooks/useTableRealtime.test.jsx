@@ -56,6 +56,18 @@ describe("useTableRealtime", () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboardTasks"] })
   })
 
+  it("invalidates just the one key a single-key consumer passes, like the Dashboard", () => {
+    const { client } = renderHookWithQuery(() =>
+      useTableRealtime("tasks", { invalidateKeys: [["dashboardTasks"]] }),
+    )
+    const invalidateSpy = vi.spyOn(client, "invalidateQueries")
+
+    channelState.handlers[0]({ event: "INSERT" })
+
+    expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboardTasks"] })
+  })
+
   it("does nothing when there are no keys to invalidate", () => {
     renderHookWithQuery(() => useTableRealtime("tasks", { invalidateKeys: [] }))
 

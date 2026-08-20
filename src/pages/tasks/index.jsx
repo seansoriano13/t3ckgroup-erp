@@ -23,6 +23,10 @@ import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "../../components/ui/Dot";
 
+// Every mutation and the realtime hook below need the page's own list and the
+// dashboard's shared task list to agree on freshness after any change.
+const TASK_QUERY_KEYS = [["tasks"], ["dashboardTasks"]];
+
 export default function TasksPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -155,13 +159,12 @@ export default function TasksPage() {
   // 3. UI State (Pop-ups)
   const [viewTask, setViewTask] = useState(null);
 
-  useTableRealtime("tasks", { invalidateKeys: [["tasks"], ["dashboardTasks"]] });
+  useTableRealtime("tasks", { invalidateKeys: TASK_QUERY_KEYS });
 
   const deleteTaskMutation = useMutation({
     mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
+      TASK_QUERY_KEYS.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     },
   });
 
@@ -233,8 +236,7 @@ export default function TasksPage() {
     mutationFn: (updatedData) =>
       taskService.updateTask(updatedData.id, updatedData),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
+      TASK_QUERY_KEYS.forEach((queryKey) => queryClient.invalidateQueries({ queryKey }));
     },
     onError: (error) => {
       console.error("Failed to update task:", error);
