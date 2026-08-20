@@ -91,19 +91,20 @@ describe("EmployeeOpportunityMatrix", () => {
 
     // Verify 3 layout toggle buttons exist
     expect(screen.getByTitle("List View")).toBeInTheDocument();
-    expect(screen.getByTitle("3-Row Stack")).toBeInTheDocument();
+    expect(screen.getByTitle("Leaderboard View")).toBeInTheDocument();
     expect(screen.getByTitle("Full Grid")).toBeInTheDocument();
   });
 
-  it("switches to 3-Row Stack and Full Grid layout modes", async () => {
+  it("switches to Leaderboard View and Full Grid layout modes", async () => {
     const user = userEvent.setup();
     const { container } = renderWithProviders(
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );
 
-    // Click 3-Row Stack
-    await user.click(screen.getByTitle("3-Row Stack"));
-    expect(container.querySelector(".grid-rows-3")).toBeInTheDocument();
+    // Click Leaderboard View
+    await user.click(screen.getByTitle("Leaderboard View"));
+    expect(screen.getByText("#1")).toBeInTheDocument();
+    expect(screen.getByText("#2")).toBeInTheDocument();
 
     // Click Full Grid
     await user.click(screen.getByTitle("Full Grid"));
