@@ -19,7 +19,7 @@ function useSafeNavigate() {
 
 /**
  * Dedicated commission and participant allocation footer section in the SOR Details Modal.
- * Clean, cohesive monochrome/neutral design.
+ * Clean, cohesive 3-column metric layout with participant split cards.
  */
 export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   const navigate = useSafeNavigate();
@@ -43,55 +43,20 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   const salesDeptShare = breakdown?.departmentShares?.find((d) => d.name === "Sales")?.amount || 0;
 
   return (
-    <div className="space-y-3 rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
-      {/* Header & Main Summary */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3.5">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
-            <Sparkles size={17} />
+    <div className="space-y-3.5 rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
+      {/* Header Row */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/60 pb-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-foreground">
+            <Sparkles size={14} />
           </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Commission Estimate & Sales Attribution
-              </span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
-                Live Pool
-              </span>
-            </div>
-            {isLoading ? (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground pt-0.5">
-                <Spinner size="xs" />
-                <span>Calculating commission estimate…</span>
-              </div>
-            ) : error ? (
-              <span className="text-xs text-muted-foreground pt-0.5">
-                Unavailable
-              </span>
-            ) : (
-              <div className="flex items-baseline gap-3 pt-1 flex-wrap">
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xs text-muted-foreground">Commissionable Revenue:</span>
-                  <span className="text-sm font-bold tabular-nums text-foreground">
-                    {formatPHP(breakdown.commissionableRevenue)}
-                  </span>
-                </div>
-                <span className="text-border/80">•</span>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xs text-muted-foreground">Commission Pool (1%):</span>
-                  <span className="text-sm font-bold tabular-nums text-foreground">
-                    {formatPHP(breakdown.commissionPool)}
-                  </span>
-                </div>
-                <span className="text-border/80">•</span>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-xs text-muted-foreground">Sales Dept (50%):</span>
-                  <span className="text-sm font-bold tabular-nums text-foreground">
-                    {formatPHP(salesDeptShare)}
-                  </span>
-                </div>
-              </div>
-            )}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Commission Estimate & Sales Attribution
+            </span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
+              Live Pool
+            </span>
           </div>
         </div>
 
@@ -105,10 +70,54 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
         </button>
       </div>
 
+      {/* 3-Column Metrics Layout */}
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+          <Spinner size="xs" />
+          <span>Calculating commission estimate…</span>
+        </div>
+      ) : error ? (
+        <div className="text-xs text-muted-foreground py-2">
+          Commission estimate unavailable.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {/* Col 1: Commissionable Revenue */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+              Commissionable Revenue
+            </span>
+            <p className="text-sm font-extrabold tabular-nums text-foreground">
+              {formatPHP(breakdown?.commissionableRevenue)}
+            </p>
+          </div>
+
+          {/* Col 2: Commission Pool (1%) */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+              Commission Pool (1%)
+            </span>
+            <p className="text-sm font-extrabold tabular-nums text-foreground">
+              {formatPHP(breakdown?.commissionPool)}
+            </p>
+          </div>
+
+          {/* Col 3: Sales Dept (50%) */}
+          <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
+              Sales Dept (50%)
+            </span>
+            <p className="text-sm font-extrabold tabular-nums text-foreground">
+              {formatPHP(salesDeptShare)}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Participant Allocation Breakdown (Deal Owner, Support Cast, Sales Director) */}
       {!isLoading && !error && (
-        <div className="space-y-2 pt-1">
-          <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+        <div className="space-y-2 pt-1 border-t border-border/60">
+          <p className="text-[10.5px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 pt-1">
             <Users size={12} />
             <span>Assigned Sales Participants & Earnings Allocation</span>
           </p>
