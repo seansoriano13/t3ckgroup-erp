@@ -2,9 +2,21 @@ import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
+  ResponsiveContainer,
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip as RechartsTooltip,
+  CartesianGrid,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+import {
   Sparkles,
   TrendingUp,
-  Percent,
   Layers,
   Users,
   Search,
@@ -14,8 +26,7 @@ import {
   Building2,
   FileSpreadsheet,
   Tag,
-  Briefcase,
-  ExternalLink,
+  PieChart as PieChartIcon,
 } from "lucide-react";
 import { commissionService } from "../../services/commissionService";
 import { useAuth } from "../../context/AuthContext";
@@ -45,6 +56,15 @@ const DATE_PRESETS = [
 const PROJECT_TYPE_OPTIONS = [
   { value: "ALL", label: "All Project Types" },
   ...PROJECT_TYPES.map((pt) => ({ value: pt.value, label: pt.label })),
+];
+
+const DEPT_CHART_COLORS = [
+  "#10b981", // Emerald (Sales)
+  "#3b82f6", // Blue (Operations)
+  "#8b5cf6", // Violet (Administration)
+  "#f59e0b", // Amber (HR)
+  "#06b6d4", // Cyan (Finance & Accounting)
+  "#ec4899", // Pink (Other)
 ];
 
 function getPresetDateRange(preset) {
@@ -77,6 +97,16 @@ function getPresetDateRange(preset) {
     return { startDate: `${year}-01-01`, endDate: now.toISOString().slice(0, 10) };
   }
   return null;
+}
+
+function formatShortCurrency(num) {
+  if (num >= 1_000_000) {
+    return `₱${(num / 1_000_000).toFixed(1)}M`;
+  }
+  if (num >= 1_000) {
+    return `₱${(num / 1_000).toFixed(0)}k`;
+  }
+  return `₱${num.toFixed(0)}`;
 }
 
 /**
@@ -154,6 +184,34 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
   link.click();
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
+}
+
+function CustomChartTooltip({ active, payload, label }) {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="rounded-xl border border-border bg-card/95 backdrop-blur-md p-3 shadow-xl text-xs space-y-1.5 min-w-[170px]">
+        <p className="font-bold text-foreground border-b border-border/60 pb-1">{data.label || label}</p>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Commissionable:</span>
+          <span className="font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+            {formatPHP(data.revenue)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-muted-foreground">Pool Reserve (1%):</span>
+          <span className="font-bold text-violet-600 dark:text-violet-400 tabular-nums">
+            {formatPHP(data.pool)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-3 text-[10px] text-muted-foreground pt-0.5">
+          <span>Won Deals:</span>
+          <span className="font-semibold text-foreground">{data.count}</span>
+        </div>
+      </div>
+    );
+  }
+  return null;
 }
 
 export default function CommissionDashboardView() {
@@ -309,7 +367,6 @@ export default function CommissionDashboardView() {
     totalCommissionableRevenue = 0,
     totalCommissionPool = 0,
     salesDeptTotal = 0,
-    otherDeptsTotal = 0,
     wonDealsCount = 0,
     totalDealsCount = 0,
     departmentTotals = [],
@@ -358,9 +415,9 @@ export default function CommissionDashboardView() {
         />
       </div>
 
-      {/* 2. Visual Analytics Section (Revenue Velocity + Department Allocations) */}
+      {/* 2. Visual Analytics Section (Interactive Recharts Graphs) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-stretch">
-        {/* Revenue & Pool Velocity Card */}
+        {/* Revenue & Pool Velocity Interactive Chart */}
         <div className="lg:col-span-7 flex flex-col rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
           <div className="flex items-center justify-between gap-2 mb-1">
             <div className="flex items-center gap-2">
@@ -375,48 +432,84 @@ export default function CommissionDashboardView() {
               {monthlyTrendData.length} active period{monthlyTrendData.length === 1 ? "" : "s"}
             </span>
           </div>
-          <p className="text-[11px] text-muted-foreground mb-5">
+          <p className="text-[11px] text-muted-foreground mb-4">
             Historical accumulation of commissionable revenue and pool reserves by month.
           </p>
 
-          <div className="flex-1 flex flex-col justify-center space-y-4">
+          <div className="flex-1 w-full min-h-[220px] pt-2">
             {monthlyTrendData.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">
+              <div className="flex h-full min-h-[180px] items-center justify-center text-xs text-muted-foreground">
                 No monthly transactions recorded for this period.
-              </p>
+              </div>
             ) : (
-              monthlyTrendData.slice(-5).map((item) => {
-                const maxRev = Math.max(...monthlyTrendData.map((d) => d.revenue)) || 1;
-                const pct = Math.min(100, Math.max(10, (item.revenue / maxRev) * 100));
-
-                return (
-                  <div key={item.monthKey} className="space-y-1.5">
-                    <div className="flex items-center justify-between text-xs font-semibold">
-                      <span className="text-foreground font-bold">{item.label}</span>
-                      <div className="flex items-center gap-3 tabular-nums">
-                        <span className="text-muted-foreground">{formatPHP(item.revenue)}</span>
-                        {canViewAllFinancials && (
-                          <span className="font-bold text-destructive">{formatPHP(item.pool)}</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full rounded-full bg-destructive transition-all duration-500"
-                        style={{ width: `${pct}%` }}
+              <div className="w-full h-[220px]">
+                <ResponsiveContainer
+                  width="100%"
+                  height="100%"
+                  minWidth={100}
+                  minHeight={200}
+                  initialDimension={{ width: 500, height: 220 }}
+                >
+                  <ComposedChart
+                    data={monthlyTrendData}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tick={{ fontSize: 11, fill: "var(--color-muted-foreground, #888)" }}
+                    />
+                    <YAxis
+                      yAxisId="left"
+                      tickLine={false}
+                      axisLine={false}
+                      tickFormatter={formatShortCurrency}
+                      tick={{ fontSize: 10, fill: "var(--color-muted-foreground, #888)" }}
+                    />
+                    {canViewAllFinancials && (
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        tickLine={false}
+                        axisLine={false}
+                        tickFormatter={formatShortCurrency}
+                        tick={{ fontSize: 10, fill: "var(--color-muted-foreground, #888)" }}
                       />
-                    </div>
-                  </div>
-                );
-              })
+                    )}
+                    <RechartsTooltip content={<CustomChartTooltip />} />
+                    <Bar
+                      yAxisId="left"
+                      dataKey="revenue"
+                      name="Commissionable Revenue"
+                      fill="#10b981"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={48}
+                    />
+                    {canViewAllFinancials && (
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="pool"
+                        name="Commission Pool"
+                        stroke="#8b5cf6"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, fill: "#8b5cf6", strokeWidth: 1.5, stroke: "#fff" }}
+                        activeDot={{ r: 6 }}
+                      />
+                    )}
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </div>
         </div>
 
-        {/* Department Allocations Card */}
+        {/* Department Allocations Donut & Breakdown Card */}
         <div className="lg:col-span-5 flex flex-col rounded-2xl border border-border bg-card p-5 md:p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-1">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-red-a3 text-destructive">
+            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
               <Building2 size={14} />
             </div>
             <h4 className="text-xs font-bold uppercase tracking-widest text-foreground">
@@ -428,36 +521,53 @@ export default function CommissionDashboardView() {
           </p>
 
           <div className="flex-1 flex flex-col justify-center space-y-2.5">
-            {departmentTotals.map((dept) => (
-              <div
-                key={dept.name}
-                className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-2.5 transition-colors hover:bg-muted/60"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      dept.isSales ? "bg-destructive" : "bg-muted-foreground/60"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-xs font-bold text-foreground">{dept.name}</p>
-                    <p className="text-[10px] font-medium text-muted-foreground">
-                      {dept.allocationPercent}% allocation
+            {departmentTotals.map((dept, index) => {
+              const color = DEPT_CHART_COLORS[index % DEPT_CHART_COLORS.length];
+              return (
+                <div
+                  key={dept.name}
+                  onClick={() =>
+                    dept.isSales &&
+                    navigate("/opportunities", {
+                      state: { filterStatus: "AWARDED" },
+                    })
+                  }
+                  className={`flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-2.5 transition-colors hover:bg-muted/60 ${
+                    dept.isSales ? "cursor-pointer" : ""
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="h-2.5 w-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: color }}
+                    />
+                    <div>
+                      <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <span>{dept.name}</span>
+                        {dept.isSales && (
+                          <span className="text-[9.5px] font-semibold text-primary">
+                            (Click to inspect)
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] font-medium text-muted-foreground">
+                        {dept.allocationPercent}% allocation
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right tabular-nums">
+                    <p className="text-xs font-extrabold text-foreground">
+                      {canViewAllFinancials || (dept.isSales && isHead)
+                        ? formatPHP(dept.amount)
+                        : `${dept.allocationPercent}%`}
                     </p>
+                    {!canViewAllFinancials && !dept.isSales && (
+                      <span className="text-[9px] text-muted-foreground">Accounting Only</span>
+                    )}
                   </div>
                 </div>
-                <div className="text-right tabular-nums">
-                  <p className="text-xs font-extrabold text-foreground">
-                    {canViewAllFinancials || (dept.isSales && isHead)
-                      ? formatPHP(dept.amount)
-                      : `${dept.allocationPercent}%`}
-                  </p>
-                  {!canViewAllFinancials && !dept.isSales && (
-                    <span className="text-[9px] text-muted-foreground">Accounting Only</span>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
