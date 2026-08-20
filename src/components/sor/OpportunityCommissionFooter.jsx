@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { Sparkles, ArrowRight, Users, ShieldCheck, UserCheck } from "lucide-react";
 import { commissionService } from "../../services/commissionService";
+import { useAuth } from "../../context/AuthContext";
 import { formatPHP } from "../../constants/sor";
 import Spinner from "../ui/Spinner";
 
@@ -19,10 +20,19 @@ function useSafeNavigate() {
 
 /**
  * Dedicated commission and participant allocation footer section in the SOR Details Modal.
- * Clean, cohesive 3-column metric layout with participant split cards.
+ * Clean, cohesive 3-column metric layout with participant split cards and privacy masking.
  */
 export default function OpportunityCommissionFooter({ opportunity, onClose }) {
+  const { user } = useAuth();
   const navigate = useSafeNavigate();
+
+  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
+  const isHead = !!(user?.is_head || user?.isHead);
+  const isAccounting =
+    isSuperAdmin ||
+    user?.department?.toLowerCase().includes("accounting") ||
+    user?.department?.toLowerCase().includes("finance");
+  const canViewAllFinancials = isSuperAdmin || isAccounting;
 
   const { data: breakdown, isLoading, error } = useQuery({
     queryKey: ["commissionBreakdown", opportunity?.id],
@@ -70,7 +80,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
         </button>
       </div>
 
-      {/* 3-Column Metrics Layout */}
+      {/* 3-Column Metrics Layout with Role-Based Privacy Masking */}
       {isLoading ? (
         <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
           <Spinner size="xs" />
@@ -98,7 +108,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
               Commission Pool (1%)
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
-              {formatPHP(breakdown?.commissionPool)}
+              {canViewAllFinancials ? formatPHP(breakdown?.commissionPool) : "••••••"}
             </p>
           </div>
 
@@ -108,7 +118,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
               Sales Dept (50%)
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
-              {formatPHP(salesDeptShare)}
+              {canViewAllFinancials || isHead ? formatPHP(salesDeptShare) : "50.00% Pool"}
             </p>
           </div>
         </div>
@@ -129,6 +139,9 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
               {salesRoleShares.map((share, idx) => {
+                const isCurrentUser = share.employee?.id === user?.id;
+                const canSeeParticipantAmount = canViewAllFinancials || isHead || isCurrentUser;
+
                 const isDealOwner = share.role === "deal_owner";
                 const isDirector = share.role === "sales_director";
                 const roleTitle = isDealOwner
@@ -137,10 +150,18 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
                   ? "Sales Director"
                   : "Supporting Sales";
 
+                const displayAmount = canSeeParticipantAmount
+                  ? formatPHP(share.amount)
+                  : share.percent != null
+                  ? `${share.percent}% Share`
+                  : "••••••";
+
                 return (
                   <div
                     key={`${share.role}-${idx}`}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-muted/30 border border-border/60 p-2.5 transition-colors hover:bg-muted/50"
+                    className={`flex items-center justify-between gap-2 rounded-xl border border-border/60 p-2.5 transition-colors hover:bg-muted/50 ${
+                      isCurrentUser ? "bg-muted/40 font-semibold" : "bg-muted/20"
+                    }`}
                   >
                     <div className="min-w-0 flex items-center gap-2">
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
@@ -153,8 +174,13 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
                         )}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-foreground truncate">
-                          {share.employee?.name || "Unassigned"}
+                        <p className="text-xs font-bold text-foreground truncate flex items-center gap-1.5">
+                          <span>{share.employee?.name || "Unassigned"}</span>
+                          {isCurrentUser && (
+                            <span className="rounded bg-muted px-1.5 py-0.2 text-[9px] font-bold text-foreground">
+                              You
+                            </span>
+                          )}
                         </p>
                         <p className="text-[10px] text-muted-foreground">
                           {roleTitle} {share.percent != null ? `(${share.percent}%)` : ""}
@@ -163,7 +189,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs font-extrabold tabular-nums text-foreground">
-                        {formatPHP(share.amount)}
+                        {displayAmount}
                       </p>
                     </div>
                   </div>
