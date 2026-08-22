@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { supabase } from "./supabase"
+import { supabase, missingSupabaseConfig } from "./supabase"
 import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
@@ -85,5 +85,34 @@ describe("supabase customFetch", () => {
 
     const { error } = await invocation
     expect(error).toBeTruthy()
+  })
+})
+
+/**
+ * The configuration check that runs when this module is first imported.
+ *
+ * main.jsx statically imports AuthContext, which statically imports this
+ * file, so a missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY takes the app
+ * down during module evaluation — before createRoot().render(), and therefore
+ * before the ErrorBoundary in main.jsx exists to catch anything. The symptom
+ * is a blank page with no login form, which looks like broken authentication
+ * rather than an unconfigured checkout. The message has to say which is which.
+ */
+describe("supabase configuration check", () => {
+  it("reports nothing missing when both variables are set", () => {
+    expect(missingSupabaseConfig({ url: "http://supabase.test", key: "anon" })).toBeNull()
+  })
+
+  it("names each variable that is absent", () => {
+    expect(missingSupabaseConfig({ url: "", key: "k" })).toEqual(["VITE_SUPABASE_URL"])
+    expect(missingSupabaseConfig({ url: "u", key: "" })).toEqual(["VITE_SUPABASE_ANON_KEY"])
+    expect(missingSupabaseConfig({ url: undefined, key: undefined })).toEqual([
+      "VITE_SUPABASE_URL",
+      "VITE_SUPABASE_ANON_KEY",
+    ])
+  })
+
+  it("built a client at import time, because .env.test supplies both", () => {
+    expect(supabase.auth).toBeDefined()
   })
 })

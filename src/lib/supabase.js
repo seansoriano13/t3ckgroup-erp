@@ -5,6 +5,42 @@ import { createClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+/**
+ * Names the missing Supabase environment variables, or null if both are set.
+ * Exported for the test that pins the message; callers want assertSupabaseConfig.
+ */
+export function missingSupabaseConfig(env = { url: supabaseUrl, key: supabaseKey }) {
+  const missing = [];
+  if (!env.url) missing.push("VITE_SUPABASE_URL");
+  if (!env.key) missing.push("VITE_SUPABASE_ANON_KEY");
+  return missing.length > 0 ? missing : null;
+}
+
+/**
+ * Fails with a message that says what to do about it.
+ *
+ * This module is reached at import time — main.jsx statically imports
+ * AuthContext, which statically imports this file — so createClient() below
+ * runs before createRoot().render() ever does. Without this check the app
+ * dies on supabase-js's own "supabaseUrl is required.", thrown before the
+ * React tree (and therefore the ErrorBoundary in main.jsx) exists, and the
+ * only symptom is a blank white page: no login form, no error screen. That
+ * reads like a broken login rather than an unconfigured checkout, which is
+ * exactly the wrong place to start looking.
+ */
+function assertSupabaseConfig() {
+  const missing = missingSupabaseConfig();
+  if (!missing) return;
+
+  throw new Error(
+    `Supabase is not configured: ${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} missing. ` +
+      "Copy .env.example to .env in the project root and fill in the project URL and anon key. " +
+      "The app cannot start without them — this is a missing local .env, not a login failure.",
+  );
+}
+
+assertSupabaseConfig();
+
 // Simple delay helper
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
@@ -132,4 +168,4 @@ if (!globalThis._supabaseInstance) {
   });
 }
 
-export const supabase = globalThis._supabaseInstance;
+export const supabase = globalThis._supabaseInstance;
