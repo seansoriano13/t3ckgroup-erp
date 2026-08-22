@@ -141,28 +141,65 @@ describe("SideNav Component", () => {
     expect(linkBadge).toHaveTextContent("5");
   });
 
+  // Asserted through what ends up in storage, not through spies on the
+  // Storage methods. jsdom's localStorage is a Proxy whose traps route any
+  // property write into the key/value store, so `vi.spyOn(localStorage,
+  // "getItem")` does not shadow the prototype method — it writes an entry
+  // literally named "getItem" and the real method keeps running, leaving the
+  // spy with zero recorded calls no matter what the component does.
   it("persists accordion collapse toggle in localStorage", async () => {
     const user = {
       id: "persisted-user-1",
       name: "Persistence Test",
       isSuperAdmin: true,
     };
-
-    const getItemSpy = vi.spyOn(window.localStorage, "getItem");
-    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
+    const storageKey = "erp_sidebar_groups_persisted-user-1";
+    window.localStorage.removeItem(storageKey);
 
     renderSideNav(user);
 
-    // Initial check
-    expect(getItemSpy).toHaveBeenCalledWith("erp_sidebar_groups_persisted-user-1");
+    // Nothing is written until the user actually collapses something.
+    expect(window.localStorage.getItem(storageKey)).toBeNull();
 
-    // Click Workspace header to collapse
-    const workspaceHeader = screen.getByText("Workspace");
-    fireEvent.click(workspaceHeader);
+    fireEvent.click(screen.getByText("Workspace"));
 
-    expect(setItemSpy).toHaveBeenCalledWith(
-      "erp_sidebar_groups_persisted-user-1",
-      expect.stringContaining('"workspace":false')
+    expect(JSON.parse(window.localStorage.getItem(storageKey))).toMatchObject({
+      workspace: false,
+    });
+  });
+
+  // Collapsing is presentational — the links stay mounted and are hidden by
+  // max-height, so the assertion is on the collapsible wrapper rather than on
+  // the links being gone.
+  it("restores a collapsed group from localStorage on the next mount", async () => {
+    const user = {
+      id: "persisted-user-2",
+      name: "Restore Test",
+      isSuperAdmin: true,
+    };
+    window.localStorage.setItem(
+      "erp_sidebar_groups_persisted-user-2",
+      JSON.stringify({ workspace: false })
     );
+
+    renderSideNav(user);
+
+    const workspaceLinks = screen.getByText("Dashboard").closest(".overflow-hidden");
+    expect(workspaceLinks).not.toBeNull();
+    expect(workspaceLinks.className).toContain("max-h-0");
+  });
+
+  it("leaves a group expanded when nothing was stored for it", async () => {
+    const user = {
+      id: "persisted-user-3",
+      name: "Default Test",
+      isSuperAdmin: true,
+    };
+    window.localStorage.removeItem("erp_sidebar_groups_persisted-user-3");
+
+    renderSideNav(user);
+
+    const workspaceLinks = screen.getByText("Dashboard").closest(".overflow-hidden");
+    expect(workspaceLinks.className).not.toContain("max-h-0");
   });
 });

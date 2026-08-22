@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHookWithQuery } from "../test/support";
 import { useNavBadges } from "./useNavBadges";
 import { taskService } from "../services/taskService";
-import { supabase } from "../lib/supabase";
 
 vi.mock("../services/taskService", () => ({
   taskService: {
