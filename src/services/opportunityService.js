@@ -17,6 +17,7 @@ const PARTICIPANT_SELECT = `
   *,
   registrar:employees!sales_opportunities_registered_by_fkey(id, name, avatar_path),
   deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path, department, sub_department, is_super_admin),
+  closing_sales:employees!sales_opportunities_closing_sales_id_fkey(id, name, avatar_path),
   support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
   support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
   sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)
@@ -109,6 +110,7 @@ export const opportunityService = {
         sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
+        closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
         support_sales_2_id: payload.support_sales_2_id || null,
         sales_director_id: payload.sales_director_id || null,
@@ -163,6 +165,7 @@ export const opportunityService = {
         sales_reference: cleanSalesReference(payload.sales_reference),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
+        closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
         support_sales_2_id: payload.support_sales_2_id || null,
         sales_director_id: payload.sales_director_id || null,
@@ -201,6 +204,7 @@ export const opportunityService = {
     };
 
     checkEmployee('deal_owner_id', 'deal_owner', 'Deal Owner');
+    checkEmployee('closing_sales_id', 'closing_sales', 'Closing Salesperson');
     checkEmployee('sales_director_id', 'sales_director', 'Sales Director');
     checkEmployee('support_sales_1_id', 'support_1', 'Support Sales 1');
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');

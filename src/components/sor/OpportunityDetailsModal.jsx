@@ -116,7 +116,8 @@ function peopleByRole(o) {
     if (entry) entry.roles.push(role);
     else byId.set(person.id, { person, roles: [role] });
   };
-  add(o.deal_owner, "Deal Owner");
+  add(o.deal_owner, o.project_type === "STRATEGIC" ? "Deal Owner / Originator" : "Deal Owner");
+  add(o.closing_sales, "Closing Salesperson");
   add(o.sales_director, "Sales Director");
   add(o.support_1, "Support Sales 1");
   add(o.support_2, "Support Sales 2");
@@ -125,31 +126,44 @@ function peopleByRole(o) {
 
 function PeopleRoster({ opportunity }) {
   const people = peopleByRole(opportunity);
-
-  if (people.length === 0) {
-    return <p className="text-sm text-muted-foreground/60">No one assigned yet.</p>;
-  }
+  const isStrategic = opportunity.project_type === "STRATEGIC";
+  const missingParticipants = [];
+  if (!opportunity.deal_owner) missingParticipants.push(isStrategic ? "Deal Owner / Originator" : "Deal Owner");
+  if (isStrategic && !opportunity.closing_sales) missingParticipants.push("Closing Salesperson");
+  if (!opportunity.sales_director) missingParticipants.push("Sales Director");
 
   return (
     <div className="space-y-3">
-      {people.map(({ person, roles }) => (
-        <div key={person.id} className="flex items-center gap-3">
-          <Avatar name={person.name} src={person.avatar_path} size="sm" />
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground truncate">{person.name}</p>
-            <div className="flex flex-wrap gap-1 mt-0.5">
-              {roles.map((role) => (
-                <span
-                  key={role}
-                  className="text-[10px] font-bold text-muted-foreground bg-muted rounded-full px-1.5 py-0.5"
-                >
-                  {role}
-                </span>
-              ))}
+      {missingParticipants.length > 0 && (
+        <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 p-2 text-xs text-amber-700 dark:text-amber-300">
+          <p className="font-semibold">Unassigned: {missingParticipants.join(", ")}</p>
+          <p className="text-[11px] text-amber-600/80 dark:text-amber-400/80 mt-0.5">
+            Unassigned roles leave their commission shares unattributed.
+          </p>
+        </div>
+      )}
+      {people.length === 0 ? (
+        <p className="text-sm text-muted-foreground/60">No one assigned yet.</p>
+      ) : (
+        people.map(({ person, roles }) => (
+          <div key={person.id} className="flex items-center gap-3">
+            <Avatar name={person.name} src={person.avatar_path} size="sm" />
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground truncate">{person.name}</p>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {roles.map((role) => (
+                  <span
+                    key={role}
+                    className="text-[10px] font-bold text-muted-foreground bg-muted rounded-full px-1.5 py-0.5"
+                  >
+                    {role}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      ))}
+        ))
+      )}
     </div>
   );
 }
@@ -557,12 +571,27 @@ export default function OpportunityDetailsModal({
   const stageMutation = useMutation({
     mutationFn: ({ next, reason, salesReference }) =>
       opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
       setSalesRef("");
       invalidate();
       toast.success("Stage updated.");
+
+      const isLeavingLead = opportunity?.status === "LEAD" && variables?.next !== "LEAD";
+      if (isLeavingLead) {
+        const isStrategic = opportunity?.project_type === "STRATEGIC";
+        const missing = [];
+        if (!opportunity?.deal_owner_id && !opportunity?.deal_owner?.id) missing.push(isStrategic ? "Deal Owner / Originator" : "Deal Owner");
+        if (isStrategic && !opportunity?.closing_sales_id && !opportunity?.closing_sales?.id) missing.push("Closing Salesperson");
+        if (!opportunity?.sales_director_id && !opportunity?.sales_director?.id) missing.push("Sales Director");
+        if (missing.length > 0) {
+          toast(`Advisory: Deal is missing ${missing.join(", ")} — commission shares will remain unattributed until filled.`, {
+            icon: "⚠️",
+            duration: 6000,
+          });
+        }
+      }
     },
     onError: (err) => toast.error(err.message),
   });
@@ -789,6 +818,7 @@ export default function OpportunityDetailsModal({
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
         deal_owner_id: opportunity.deal_owner_id || "",
+        closing_sales_id: opportunity.closing_sales_id || "",
         sales_director_id: opportunity.sales_director_id || "",
         support_sales_1_id: opportunity.support_sales_1_id || "",
         support_sales_2_id: opportunity.support_sales_2_id || "",
@@ -1251,7 +1281,7 @@ export default function OpportunityDetailsModal({
                   {isEditing ? (
                     <div className="space-y-3">
                       <Detail
-                        label="Deal Owner"
+                        label={editForm.project_type === "STRATEGIC" ? "Deal Owner / Originator" : "Deal Owner"}
                         isEditing={isEditing}
                         control={
                           <Dropdown
@@ -1276,6 +1306,34 @@ export default function OpportunityDetailsModal({
                           </Dropdown>
                         }
                       />
+                      {editForm.project_type === "STRATEGIC" && (
+                        <Detail
+                          label="Closing Salesperson"
+                          isEditing={isEditing}
+                          control={
+                            <Dropdown
+                              usePortal
+                              className="w-full"
+                              trigger={() => (
+                                <div className="w-full h-full flex items-center justify-between bg-transparent text-sm font-medium outline-none cursor-pointer">
+                                  <span className={editForm.closing_sales_id ? "text-foreground" : "text-muted-foreground/50"}>
+                                    {editForm.closing_sales_id ? employees.find((e) => e.id === editForm.closing_sales_id)?.name : "Unassigned"}
+                                  </span>
+                                </div>
+                              )}
+                            >
+                              {({ close }) => (
+                                <FilterOptionList
+                                  options={employees.map((e) => ({ value: e.id, label: e.name }))}
+                                  value={editForm.closing_sales_id}
+                                  onChange={(val) => setEditForm((f) => ({ ...f, closing_sales_id: val }))}
+                                  close={close}
+                                />
+                              )}
+                            </Dropdown>
+                          }
+                        />
+                      )}
                       <Detail
                         label="Sales Director"
                         isEditing={isEditing}

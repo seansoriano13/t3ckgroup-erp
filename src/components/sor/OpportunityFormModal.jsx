@@ -31,6 +31,7 @@ const blankForm = () => ({
   sales_reference: "",
   expected_award_date: "",
   deal_owner_id: "",
+  closing_sales_id: "",
   support_sales_1_id: "",
   support_sales_2_id: "",
   sales_director_id: "",
@@ -47,6 +48,7 @@ const fromRecord = (o) => ({
   sales_reference: o.sales_reference || "",
   expected_award_date: o.expected_award_date || "",
   deal_owner_id: o.deal_owner_id || "",
+  closing_sales_id: o.closing_sales_id || "",
   support_sales_1_id: o.support_sales_1_id || "",
   support_sales_2_id: o.support_sales_2_id || "",
   sales_director_id: o.sales_director_id || "",
@@ -378,17 +380,32 @@ export default function OpportunityFormModal({
         </div>
 
         <div className="pt-2 border-t border-border/50 space-y-3">
-          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-            Ownership
-          </p>
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              Ownership
+            </p>
+            {(!form.deal_owner_id || !effectiveSalesDirectorId || (form.project_type === "STRATEGIC" && !form.closing_sales_id)) && (
+              <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                Advisory: Unassigned roles leave shares unattributed
+              </span>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <SelectField
-              label="Deal Owner"
+              label={form.project_type === "STRATEGIC" ? "Deal Owner / Originator" : "Deal Owner"}
               required
               options={employeeOptions}
               value={form.deal_owner_id}
               onChange={set("deal_owner_id")}
             />
+            {form.project_type === "STRATEGIC" && (
+              <SelectField
+                label="Closing Salesperson"
+                options={employeeOptions}
+                value={form.closing_sales_id}
+                onChange={set("closing_sales_id")}
+              />
+            )}
             <SelectField
               label="Sales Director"
               disabled

@@ -6,10 +6,22 @@ import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
 
-const SHARE_ROLE_LABELS = {
-  deal_owner: "Deal Owner",
-  supporting_salesperson: "Supporting Salesperson (combined)",
-  sales_director: "Sales Director",
+const ROLE_LABELS_BY_PROJECT_TYPE = {
+  SSP: {
+    deal_owner: "Deal Owner",
+    sales_director: "Sales Director",
+  },
+  CP: {
+    deal_owner: "Deal Owner",
+    supporting_salesperson: "Supporting Salesperson (combined)",
+    sales_director: "Sales Director",
+  },
+  STRATEGIC: {
+    deal_owner: "Deal Owner / Originator",
+    closing_salesperson: "Closing Salesperson",
+    supporting_salesperson: "Supporting Sales Team (combined)",
+    sales_director: "Sales Director",
+  },
 };
 
 const PROJECT_TYPES_WITH_SPLITS = [
@@ -26,6 +38,12 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
     queryKey: ["commissionSplits", projectType],
     queryFn: () => commissionService.getSplitsForProjectType(projectType),
   });
+
+  const roleLabels = ROLE_LABELS_BY_PROJECT_TYPE[projectType] || {
+    deal_owner: "Deal Owner",
+    supporting_salesperson: "Supporting Salesperson (combined)",
+    sales_director: "Sales Director",
+  };
 
   const draft = rows ?? splits ?? [];
   const total = draft.reduce((sum, row) => sum + (Number(row.percent) || 0), 0);
@@ -59,7 +77,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
     <div className="rounded-xl border border-border bg-card p-4">
       <p className="pb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
       <div className="divide-y divide-border/50">
-        {Object.entries(SHARE_ROLE_LABELS).map(([shareRole, roleLabel]) => {
+        {Object.entries(roleLabels).map(([shareRole, roleLabel]) => {
           const row = draft.find((r) => r.shareRole === shareRole);
           return (
             <div key={shareRole} className="flex items-center justify-between gap-3 py-1.5">
@@ -91,7 +109,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
           <button
             type="button"
             disabled={saveMutation.isPending}
-            onClick={() => saveMutation.mutate(draft.filter((row) => SHARE_ROLE_LABELS[row.shareRole]))}
+            onClick={() => saveMutation.mutate(draft.filter((row) => roleLabels[row.shareRole]))}
             className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Save

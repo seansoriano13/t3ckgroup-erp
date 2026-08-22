@@ -69,7 +69,11 @@ Standalone tables holding the names and allocation percentages the Commission Po
 _Avoid_: Department, Position, Role (when meaning the employee-record fields)
 
 **Commission Split**:
-The percentage of the Sales Department's share attributed to each Sales role (Deal Owner, Supporting Salesperson, Sales Director) for a given Project Type (Collaborative or Strategic — a Single Salesperson Project always attributes 100% to the deal owner and has no Commission Split rows). Supporting Salesperson is one combined percentage for both support-salesperson slots on an Opportunity, split evenly between however many are actually filled — the two slots are an unordered, interchangeable pair, not distinct roles.
+The percentage of the Sales Department's share attributed to each Sales role for a given Project Type:
+- **SSP (Single Salesperson Project)**: 80% Deal Owner, 20% Sales Director.
+- **CP (Collaborative Project)**: 60% Deal Owner, 20% Supporting Sales Team (combined), 20% Sales Director.
+- **Strategic Project**: 40% Deal Owner / Originator, 20% Closing Salesperson, 20% Supporting Sales Team (combined), 20% Sales Director.
+Supporting Sales Team is one combined percentage for up to 2 support-salesperson slots on an Opportunity, split evenly between however many are actually filled. Unassigned roles on any project leave their percentage share explicitly unattributed rather than redistributed.
 _Avoid_: Role Split
 
 **Contract Date**:
@@ -93,6 +97,6 @@ The estimated future Commission Pool derived from pipeline opportunities before 
 _Avoid_: Forecasted Bonus, Unearned Pool
 
 **Privacy Masking**:
-The role-based security boundary ensuring standard employees view only their own attributed monetary values (₱) and relative percentage splits, while masking other employees' exact earnings. Full company monetary totals and peer earnings are restricted to Super Admin, Management, and Finance & Accounting.
+Role-based UI presentation masking where standard employees view only their own attributed monetary values (₱) and relative percentage splits, while peer earnings and full company monetary totals are displayed only to Super Admin, Management, and Finance & Accounting. (Note: Client-side UI masking per ADR 0002).
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.

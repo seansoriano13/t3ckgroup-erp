@@ -159,4 +159,19 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
     badge = await screen.findByTestId("project-type-badge");
     expect(badge).toHaveTextContent("SSP — Single Salesperson Project");
   });
+
+  it("shows Closing Salesperson selector and Deal Owner / Originator label when Strategic", async () => {
+    renderForm();
+    await screen.findByText("101");
+
+    // Initially no Closing Salesperson field
+    expect(screen.queryByText("Closing Salesperson")).not.toBeInTheDocument();
+
+    const toggleButton = screen.getByRole("button", { name: /mark as strategic/i });
+    fireEvent.click(toggleButton);
+
+    // After marking Strategic, Closing Salesperson is shown
+    expect(screen.getByText("Closing Salesperson")).toBeInTheDocument();
+    expect(screen.getByText("Deal Owner / Originator")).toBeInTheDocument();
+  });
 });

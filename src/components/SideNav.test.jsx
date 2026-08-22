@@ -148,8 +148,8 @@ describe("SideNav Component", () => {
       isSuperAdmin: true,
     };
 
-    const getItemSpy = vi.spyOn(window.localStorage, "getItem");
-    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
+    const getItemSpy = vi.spyOn(Storage.prototype, "getItem");
+    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
 
     renderSideNav(user);
 

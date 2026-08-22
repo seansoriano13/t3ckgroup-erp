@@ -121,11 +121,14 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
     "Sales Share (PHP)",
     "Deal Owner",
     "Deal Owner Share (PHP)",
+    "Closing Salesperson",
+    "Closing Salesperson Share (PHP)",
     "Support Sales 1",
     "Support Sales 2",
     "Support Sales Total (PHP)",
     "Sales Director",
     "Sales Director Share (PHP)",
+    "Unattributed Sales (PHP)",
   ];
 
   const escapeCsv = (val) => {
@@ -136,9 +139,11 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
 
   const rows = ledger.map((deal) => {
     const ownerShare = deal.salesRoleShares.find((s) => s.role === "deal_owner")?.amount || 0;
+    const closingShare = deal.salesRoleShares.find((s) => s.role === "closing_salesperson")?.amount || 0;
     const supportShares = deal.salesRoleShares.filter((s) => s.role === "supporting_salesperson");
     const supportTotal = supportShares.reduce((sum, s) => sum + s.amount, 0);
     const directorShare = deal.salesRoleShares.find((s) => s.role === "sales_director")?.amount || 0;
+    const unattributed = deal.unattributedSalesAmount || 0;
 
     return [
       escapeCsv(deal.opportunityNo),
@@ -157,11 +162,14 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
       (deal.salesShareAmount || 0).toFixed(2),
       escapeCsv(deal.participants?.dealOwner?.name || "Unassigned"),
       ownerShare.toFixed(2),
+      escapeCsv(deal.participants?.closingSales?.name || ""),
+      closingShare.toFixed(2),
       escapeCsv(deal.participants?.support1?.name || ""),
       escapeCsv(deal.participants?.support2?.name || ""),
       supportTotal.toFixed(2),
       escapeCsv(deal.participants?.salesDirector?.name || ""),
       directorShare.toFixed(2),
+      unattributed.toFixed(2),
     ].join(",");
   });
 
@@ -903,8 +911,13 @@ export default function CommissionDashboardView() {
                             <StatusBadge status={deal.status} />
                           </td>
                           <td className="px-3 py-3 text-center whitespace-nowrap">
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
                               {deal.projectType}
+                              {deal.hasMissingParticipants && (
+                                <span title="Deal has unassigned participants leaving commission shares unattributed" className="text-amber-500 font-bold">
+                                  ⚠️
+                                </span>
+                              )}
                             </span>
                           </td>
                           <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
@@ -1019,6 +1032,16 @@ export default function CommissionDashboardView() {
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">Sales Dept Pool (50%)</span>
                                     <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.salesShareAmount)}</p>
                                   </div>
+                                  {deal.unattributedSalesAmount > 0 && (
+                                    <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 col-span-2 sm:col-span-4">
+                                      <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase">
+                                        ⚠️ Unattributed Sales Share (Unassigned Roles)
+                                      </span>
+                                      <p className="font-bold text-amber-800 dark:text-amber-200 tabular-nums">
+                                        {formatPHP(deal.unattributedSalesAmount)}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </td>

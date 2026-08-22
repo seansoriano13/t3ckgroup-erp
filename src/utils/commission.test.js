@@ -157,6 +157,60 @@ describe("splitSalesShareForRoles", () => {
 
     expect(shares).toEqual([{ role: "deal_owner", employee: owner, amount: 400 }]);
   });
+
+  it("handles Strategic 4-role split (40/20/20/20) correctly with all roles filled", () => {
+    const owner = { id: "owner" };
+    const closer = { id: "closer" };
+    const support1 = { id: "support-1" };
+    const support2 = { id: "support-2" };
+    const director = { id: "director" };
+
+    const STRATEGIC_SPLITS = [
+      { shareRole: "deal_owner", percent: 40 },
+      { shareRole: "closing_salesperson", percent: 20 },
+      { shareRole: "supporting_salesperson", percent: 20 },
+      { shareRole: "sales_director", percent: 20 },
+    ];
+
+    const shares = splitSalesShareForRoles(1_000, STRATEGIC_SPLITS, {
+      deal_owner: owner,
+      closing_salesperson: closer,
+      supporting_salespeople: [support1, support2],
+      sales_director: director,
+    });
+
+    expect(shares).toEqual([
+      { role: "deal_owner", employee: owner, amount: 400 },
+      { role: "closing_salesperson", employee: closer, amount: 200 },
+      { role: "supporting_salesperson", employee: support1, amount: 100 },
+      { role: "supporting_salesperson", employee: support2, amount: 100 },
+      { role: "sales_director", employee: director, amount: 200 },
+    ]);
+  });
+
+  it("handles Strategic split with unfilled closing salesperson without redistributing", () => {
+    const owner = { id: "owner" };
+    const director = { id: "director" };
+
+    const STRATEGIC_SPLITS = [
+      { shareRole: "deal_owner", percent: 40 },
+      { shareRole: "closing_salesperson", percent: 20 },
+      { shareRole: "supporting_salesperson", percent: 20 },
+      { shareRole: "sales_director", percent: 20 },
+    ];
+
+    const shares = splitSalesShareForRoles(1_000, STRATEGIC_SPLITS, {
+      deal_owner: owner,
+      closing_salesperson: null,
+      supporting_salespeople: [],
+      sales_director: director,
+    });
+
+    expect(shares).toEqual([
+      { role: "deal_owner", employee: owner, amount: 400 },
+      { role: "sales_director", employee: director, amount: 200 },
+    ]);
+  });
 });
 
 describe("deriveProjectType", () => {
@@ -407,5 +461,79 @@ describe("aggregateOpportunityCommissions", () => {
 
     expect(agg.totalDealsCount).toBe(1);
     expect(agg.dealLedger[0].id).toBe("opp-2");
+  });
+
+  it("aggregates Strategic deals with 4-role split (40/20/20/20) and tracks unattributed amounts", () => {
+    const STRATEGIC_SPLITS = {
+      ...SPLITS,
+      STRATEGIC: [
+        { shareRole: "deal_owner", percent: 40 },
+        { shareRole: "closing_salesperson", percent: 20 },
+        { shareRole: "supporting_salesperson", percent: 20 },
+        { shareRole: "sales_director", percent: 20 },
+      ],
+    };
+
+    const oppStrategic = {
+      id: "opp-strat",
+      opportunity_no: "SOR-STRAT",
+      project_title: "Strategic Won Deal",
+      client_name: "Strategic Client",
+      expected_value: 1_000_000,
+      status: "AWARDED",
+      project_type: "STRATEGIC",
+      contract_date: "2026-04-01",
+      deal_owner: alice,
+      closing_sales: bob,
+      support_1: carol,
+      support_2: null,
+      sales_director: daveDirector,
+    };
+
+    const oppStratMissingCloser = {
+      id: "opp-strat-unfilled",
+      opportunity_no: "SOR-STRAT-UNFILLED",
+      project_title: "Strategic Deal Unfilled Closer",
+      client_name: "Client Unfilled",
+      expected_value: 1_000_000,
+      status: "AWARDED",
+      project_type: "STRATEGIC",
+      contract_date: "2026-04-02",
+      deal_owner: alice,
+      closing_sales: null, // missing closing salesperson
+      support_1: null,
+      support_2: null,
+      sales_director: daveDirector,
+    };
+
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [oppStrategic, oppStratMissingCloser],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: STRATEGIC_SPLITS,
+      scope: "REALIZED",
+    });
+
+    expect(agg.totalDealsCount).toBe(2);
+    // Sales share per 1M deal = 4,107.14
+    // Opp 1 (fully filled):
+    // Alice (deal_owner 40%): 1,642.86
+    // Bob (closing_salesperson 20%): 821.43
+    // Carol (supporting_salesperson 20%): 821.43
+    // Dave (sales_director 20%): 821.43
+    // Opp 2 (missing closer & support):
+    // Alice (deal_owner 40%): 1,642.86
+    // Dave (sales_director 20%): 821.43
+    // Unattributed (closer 20% + support 20% = 40% of 4,107.14): 1,642.86
+    const ledgerStrat = agg.dealLedger.find((d) => d.id === "opp-strat");
+    expect(ledgerStrat.hasMissingParticipants).toBe(false);
+    expect(ledgerStrat.unattributedSalesAmount).toBeCloseTo(0, 2);
+
+    const ledgerUnfilled = agg.dealLedger.find((d) => d.id === "opp-strat-unfilled");
+    expect(ledgerUnfilled.hasMissingParticipants).toBe(true);
+    expect(ledgerUnfilled.unattributedSalesAmount).toBeCloseTo(1_642.86, 2);
+
+    const bobMetrics = agg.salesEmployees.find((e) => e.employeeId === "emp-bob");
+    expect(bobMetrics.roleBreakdown.closing_salesperson).toBeCloseTo(821.43, 2);
   });
 });

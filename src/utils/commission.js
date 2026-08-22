@@ -270,6 +270,7 @@ export function aggregateOpportunityCommissions({
     const salesShareAmount = breakdown.departmentShares[salesDeptIndex]?.amount || 0;
 
     const dealOwner = opp.deal_owner || null;
+    const closingSales = opp.closing_sales || opp.closing_salesperson || null;
     const support1 = opp.support_1 || null;
     const support2 = opp.support_2 || null;
     const salesDirector = opp.sales_director || null;
@@ -278,9 +279,17 @@ export function aggregateOpportunityCommissions({
     const splits = splitsByProjectType[projectType] || [];
     const salesRoleShares = splitSalesShareForRoles(salesShareAmount, splits, {
       deal_owner: dealOwner,
+      closing_salesperson: closingSales,
       supporting_salespeople: [support1, support2],
       sales_director: salesDirector,
     });
+
+    const totalAttributedSales = salesRoleShares.reduce((sum, s) => sum + s.amount, 0);
+    const unattributedSalesAmount = Math.max(0, salesShareAmount - totalAttributedSales);
+    const hasMissingParticipants =
+      !dealOwner ||
+      !salesDirector ||
+      (projectType === "STRATEGIC" && !closingSales);
 
     dealLedger.push({
       id: opp.id,
@@ -298,8 +307,11 @@ export function aggregateOpportunityCommissions({
       departmentShares: breakdown.departmentShares,
       salesRoleShares,
       salesShareAmount,
+      unattributedSalesAmount,
+      hasMissingParticipants,
       participants: {
         dealOwner,
+        closingSales,
         support1,
         support2,
         salesDirector,
@@ -321,6 +333,7 @@ export function aggregateOpportunityCommissions({
           roleBreakdown: {
             deal_owner: 0,
             supporting_salesperson: 0,
+            closing_salesperson: 0,
             sales_director: 0,
           },
           dealIds: new Set(),

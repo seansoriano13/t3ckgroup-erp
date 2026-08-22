@@ -281,6 +281,7 @@ async function getCommissionBreakdownForOpportunity(opportunityId) {
     .select(
       `id, expected_value, project_type, contract_date,
        deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
+       closing_sales:employees!sales_opportunities_closing_sales_id_fkey(id, name, avatar_path),
        support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
        support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
        sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
@@ -315,6 +316,7 @@ async function getCommissionBreakdownForOpportunity(opportunityId) {
     const splits = await getSplitsForProjectType(opportunity.project_type);
     salesRoleShares = splitSalesShareForRoles(salesShare.amount, splits, {
       deal_owner: opportunity.deal_owner ?? null,
+      closing_salesperson: opportunity.closing_sales ?? null,
       supporting_salespeople: [opportunity.support_1, opportunity.support_2],
       sales_director: opportunity.sales_director ?? null,
     });
@@ -344,6 +346,7 @@ async function getCommissionDashboardData({
       .select(
         `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
          deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
+         closing_sales:employees!sales_opportunities_closing_sales_id_fkey(id, name, avatar_path),
          support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
          support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
          sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
