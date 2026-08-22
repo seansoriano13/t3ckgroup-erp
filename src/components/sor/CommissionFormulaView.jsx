@@ -4,7 +4,9 @@ import toast from "react-hot-toast";
 
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
+import { PROJECT_TYPES } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
+import { getCurrentLocalDate } from "../../utils/formatDate";
 
 const SHARE_ROLE_LABELS = {
   deal_owner: "Deal Owner",
@@ -12,11 +14,12 @@ const SHARE_ROLE_LABELS = {
   sales_director: "Sales Director",
 };
 
-const PROJECT_TYPES_WITH_SPLITS = [
-  { value: "SSP", label: "SSP — Solo Sales Project" },
-  { value: "CP", label: "CP — Collaborative Project" },
-  { value: "STRATEGIC", label: "Strategic Project" },
-];
+// Taken from the shared list rather than restated here: every Project Type
+// now carries its split percentages in commission_splits, and a second copy
+// of the labels is how this screen came to call an SSP a "Solo Sales
+// Project" while the rest of the app — and CONTEXT.md — called it a Single
+// Salesperson Project.
+const PROJECT_TYPES_WITH_SPLITS = PROJECT_TYPES;
 
 function SplitEditor({ projectType, label, canEdit, actorId }) {
   const queryClient = useQueryClient();
@@ -130,7 +133,16 @@ export default function CommissionFormulaView() {
     queryFn: () => commissionService.getDepartments(),
   });
 
-  const currentRates = (rates || []).filter(
+  // listRateHistory returns every rate ever recorded, newest first, and that
+  // includes rates scheduled to take effect later. "Current" has to mean what
+  // getEffectiveRates means — the newest row already in force — otherwise
+  // scheduling next year's VAT announces it as today's while every figure on
+  // the screen is still computed from the rate actually applying now.
+  const today = getCurrentLocalDate();
+  const inForce = (rates || []).filter(
+    (rate) => !rate.effective_from || rate.effective_from <= today,
+  );
+  const currentRates = inForce.filter(
     (rate, i, all) => all.findIndex((r) => r.rate_type === rate.rate_type) === i,
   );
 
@@ -166,7 +178,7 @@ export default function CommissionFormulaView() {
 
       <div className="space-y-4">
         <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-          Sales Role Split (Solo, Collaborative &amp; Strategic Projects)
+          Sales Role Split (Single Salesperson, Collaborative &amp; Strategic Projects)
         </p>
         {PROJECT_TYPES_WITH_SPLITS.map(({ value, label }) => (
           <SplitEditor

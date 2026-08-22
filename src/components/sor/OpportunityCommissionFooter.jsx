@@ -37,10 +37,36 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   const { data: breakdown, isLoading, error } = useQuery({
     queryKey: ["commissionBreakdown", opportunity?.id],
     queryFn: () => commissionService.getCommissionBreakdownForOpportunity(opportunity.id),
-    enabled: !!opportunity?.id,
+    // A lost deal renders no estimate, so there is nothing to fetch for it.
+    enabled: !!opportunity?.id && opportunity?.status !== "CLOSED_LOST",
   });
 
   if (!opportunity) return null;
+
+  // The Commission Dashboard drops CLOSED_LOST unconditionally (see
+  // aggregateOpportunityCommissions), so presenting a full estimate and a
+  // per-person attribution table here would have the two screens disagree
+  // about the same deal — and would show a rep "their share" of something
+  // that will never pay.
+  if (opportunity.status === "CLOSED_LOST") {
+    return (
+      <div className="rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+            <Sparkles size={14} />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              Commission Estimate &amp; Sales Attribution
+            </p>
+            <p className="text-xs text-muted-foreground">
+              This opportunity is Closed Lost, so it carries no Commission Pool and no attribution.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleOpenDashboard = () => {
     if (onClose) onClose();
@@ -50,7 +76,22 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
   };
 
   const salesRoleShares = breakdown?.salesRoleShares || [];
-  const salesDeptShare = breakdown?.departmentShares?.find((d) => d.name === "Sales")?.amount || 0;
+  // Matched on the flag the service sets from the department's `key`, not on
+  // the display name: a Super Admin can rename the Sales department, and a
+  // name match would silently start reporting zero the moment they did.
+  const salesDept = breakdown?.departmentShares?.find((d) => d.isSales);
+  const salesDeptShare = salesDept?.amount || 0;
+  const salesDeptPercent = salesDept?.allocationPercent;
+
+  // The Pool rate is dated and editable, so the heading has to read it off
+  // the breakdown rather than hard-coding the rate that happened to apply
+  // when this screen was written.
+  const poolPercent = breakdown?.rates?.poolPercent;
+  // Percentages are stored as numeric(6,3); Number() drops the trailing
+  // zeros so 1.500 reads as "1.5%" and 50.000 as "50%".
+  const formatPercent = (value) => (value == null ? null : `${Number(value)}%`);
+  const poolLabel = formatPercent(poolPercent);
+  const salesDeptLabel = formatPercent(salesDeptPercent);
 
   return (
     <div className="space-y-3.5 rounded-2xl border border-border bg-card p-4 sm:p-5 shadow-xs">
@@ -105,7 +146,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
           {/* Col 2: Commission Pool (1%) */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
-              Commission Pool (1%)
+              {poolLabel ? `Commission Pool (${poolLabel})` : "Commission Pool"}
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
               {canViewAllFinancials ? formatPHP(breakdown?.commissionPool) : "••••••"}
@@ -115,10 +156,14 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
           {/* Col 3: Sales Dept (50%) */}
           <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-0.5">
-              Sales Dept (50%)
+              {salesDeptLabel ? `Sales Dept (${salesDeptLabel})` : "Sales Dept"}
             </span>
             <p className="text-sm font-extrabold tabular-nums text-foreground">
-              {canViewAllFinancials || isHead ? formatPHP(salesDeptShare) : "50.00% Pool"}
+              {canViewAllFinancials || isHead
+                ? formatPHP(salesDeptShare)
+                : salesDeptLabel
+                  ? `${salesDeptLabel} Pool`
+                  : "••••••"}
             </p>
           </div>
         </div>

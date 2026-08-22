@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect, Fragment } from "react";
+import React, { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { useLocation, useNavigate } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -31,6 +31,8 @@ import {
 import { commissionService } from "../../services/commissionService";
 import { useAuth } from "../../context/AuthContext";
 import { formatPHP, PROJECT_TYPES } from "../../constants/sor";
+import { DATE_PRESETS, getPresetDateRange } from "../../utils/dateRangePresets";
+import { deriveTotalsFromLedger } from "../../utils/commission";
 import Spinner from "../ui/Spinner";
 import TabGroup from "../ui/TabGroup";
 import StatCard from "../StatCard";
@@ -42,53 +44,31 @@ import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import FilterBar from "../ui/FilterBar";
 import { Button } from "../ui/button";
 
-const DATE_PRESETS = [
-  { value: "ALL", label: "All Time" },
-  { value: "THIS_MONTH", label: "This Month" },
-  { value: "LAST_MONTH", label: "Last Month" },
-  { value: "Q1", label: "Q1 (Jan - Mar)" },
-  { value: "Q2", label: "Q2 (Apr - Jun)" },
-  { value: "Q3", label: "Q3 (Jul - Sep)" },
-  { value: "Q4", label: "Q4 (Oct - Dec)" },
-  { value: "YTD", label: "Year-To-Date (YTD)" },
+// The Sales roles a Commission Split can name, in the order the policy reads
+// them. A Project Type with no row for a role simply has no such role.
+/**
+ * What to call a deal on screen.
+ *
+ * The SOR module identifies an opportunity by its Odoo sales_reference (see
+ * OpportunityBoard). opportunity_no was retired in migration 0025 — nothing
+ * has minted one since, so a dashboard keyed on it showed an empty cell for
+ * every current deal — but rows registered before that still carry one, and
+ * historical audit entries quote it, so it stays as a fallback.
+ */
+function dealReference(deal) {
+  return deal?.salesReference || deal?.opportunityNo || "";
+}
+
+const SHARE_ROLE_ROWS = [
+  { shareRole: "deal_owner", label: "Deal Owner" },
+  { shareRole: "supporting_salesperson", label: "Supporting Sales", note: "(split evenly)" },
+  { shareRole: "sales_director", label: "Sales Director" },
 ];
 
 const PROJECT_TYPE_OPTIONS = [
   { value: "ALL", label: "All Project Types" },
   ...PROJECT_TYPES.map((pt) => ({ value: pt.value, label: pt.label })),
 ];
-
-function getPresetDateRange(preset) {
-  const now = new Date();
-  const year = now.getFullYear();
-
-  if (preset === "THIS_MONTH") {
-    const start = new Date(year, now.getMonth(), 1).toISOString().slice(0, 10);
-    const end = new Date(year, now.getMonth() + 1, 0).toISOString().slice(0, 10);
-    return { startDate: start, endDate: end };
-  }
-  if (preset === "LAST_MONTH") {
-    const start = new Date(year, now.getMonth() - 1, 1).toISOString().slice(0, 10);
-    const end = new Date(year, now.getMonth(), 0).toISOString().slice(0, 10);
-    return { startDate: start, endDate: end };
-  }
-  if (preset === "Q1") {
-    return { startDate: `${year}-01-01`, endDate: `${year}-03-31` };
-  }
-  if (preset === "Q2") {
-    return { startDate: `${year}-04-01`, endDate: `${year}-06-30` };
-  }
-  if (preset === "Q3") {
-    return { startDate: `${year}-07-01`, endDate: `${year}-09-30` };
-  }
-  if (preset === "Q4") {
-    return { startDate: `${year}-10-01`, endDate: `${year}-12-31` };
-  }
-  if (preset === "YTD") {
-    return { startDate: `${year}-01-01`, endDate: now.toISOString().slice(0, 10) };
-  }
-  return null;
-}
 
 function formatShortCurrency(num) {
   if (num >= 1_000_000) {
@@ -105,7 +85,7 @@ function formatShortCurrency(num) {
  */
 function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
   const headers = [
-    "SOR Number",
+    "Sales Reference",
     "Client Name",
     "Project Title",
     "Stage",
@@ -126,12 +106,29 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
     "Support Sales Total (PHP)",
     "Sales Director",
     "Sales Director Share (PHP)",
+    // A split percentage for a role nobody on the deal fills is attributed to
+    // no employee, so the role shares need not add up to the Sales share.
+    // Stated outright rather than left for the reader to subtract.
+    "Unattributed Sales Share (PHP)",
   ];
 
+  // Summing floats back out of a share leaves noise on the order of 1e-13,
+  // which toFixed(2) renders as "-0.00" — a value that reads like a real
+  // negative in a spreadsheet. Anything under half a centavo is zero.
+  const formatUnattributed = (amount) => (Math.abs(amount) < 0.005 ? 0 : amount).toFixed(2);
+
+  // Quoting alone does not make a value inert: a spreadsheet still evaluates
+  // a cell whose text begins with = + - or @, so a client named "=1+1" (or
+  // something that reaches out over the network) becomes a live formula the
+  // moment Finance opens this "audit-ready" file. Client names and project
+  // titles are free text typed by sales staff, so they get the standard
+  // apostrophe prefix that marks the cell as literal.
+  const FORMULA_LEAD = /^[=+\-@]/;
   const escapeCsv = (val) => {
     if (val === null || val === undefined) return '""';
-    const str = String(val).replace(/"/g, '""');
-    return `"${str}"`;
+    let str = String(val);
+    if (FORMULA_LEAD.test(str)) str = `'${str}`;
+    return `"${str.replace(/"/g, '""')}"`;
   };
 
   const rows = ledger.map((deal) => {
@@ -141,7 +138,7 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
     const directorShare = deal.salesRoleShares.find((s) => s.role === "sales_director")?.amount || 0;
 
     return [
-      escapeCsv(deal.opportunityNo),
+      escapeCsv(dealReference(deal) || "—"),
       escapeCsv(deal.clientName),
       escapeCsv(deal.projectTitle),
       escapeCsv(deal.status),
@@ -162,6 +159,9 @@ function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
       supportTotal.toFixed(2),
       escapeCsv(deal.participants?.salesDirector?.name || ""),
       directorShare.toFixed(2),
+      formatUnattributed(
+        (deal.salesShareAmount || 0) - (ownerShare + supportTotal + directorShare),
+      ),
     ].join(",");
   });
 
@@ -244,19 +244,47 @@ export default function CommissionDashboardView() {
     if (location.state?.openOpportunityId) {
       setHighlightedDealId(location.state.openOpportunityId);
       setActiveTab("transaction-ledger");
+      widenedForDealRef.current = null;
     }
   }, [location.state]);
 
+  // Tracks the deep-linked deal we have already widened the scope for, so the
+  // widening happens once and cannot bounce the user back and forth.
+  const widenedForDealRef = useRef(null);
+
   const dateFilter = useMemo(() => getPresetDateRange(datePreset), [datePreset]);
 
-  const { data: dashboard, isLoading, error } = useQuery({
+  const { data: dashboard, isLoading, isFetching, error } = useQuery({
     queryKey: ["commissionDashboard", scope, datePreset],
     queryFn: () =>
       commissionService.getCommissionDashboardData({
         scope,
         dateFilter,
       }),
+    // Scope and date preset are part of the key, so changing either starts a
+    // fresh query. Without this the dashboard fell back to `isLoading` and
+    // replaced itself — filter bar included — with a full-page spinner, so
+    // the control the user had just operated vanished under their cursor and
+    // the page jumped. Keeping the previous result means only the very first
+    // load shows the spinner; later changes swap the numbers in place.
+    placeholderData: keepPreviousData,
   });
+
+  // Arriving from the SOR modal's "View in Commission Dashboard" lands on the
+  // Realized scope, which holds only Awarded-and-beyond deals. Most
+  // opportunities are still in the pipeline, so the deal the user clicked
+  // through from was simply absent from the ledger they were shown. If it
+  // isn't here, widen the scope once to the one that includes everything.
+  useEffect(() => {
+    const dealId = highlightedDealId;
+    if (!dealId || !dashboard?.dealLedger) return;
+    if (scope !== "REALIZED") return;
+    if (widenedForDealRef.current === dealId) return;
+    if (dashboard.dealLedger.some((deal) => deal.id === dealId)) return;
+
+    widenedForDealRef.current = dealId;
+    setScope("FORECAST");
+  }, [highlightedDealId, dashboard?.dealLedger, scope]);
 
   // Sales rep filter options
   const salesRepOptions = useMemo(() => {
@@ -293,7 +321,7 @@ export default function CommissionDashboardView() {
       }
       if (!q) return true;
       return [
-        deal.opportunityNo,
+        dealReference(deal),
         deal.clientName,
         deal.projectTitle,
         deal.participants?.dealOwner?.name,
@@ -303,12 +331,21 @@ export default function CommissionDashboardView() {
     });
   }, [dashboard?.dealLedger, search, selectedProjectType, selectedSalesRep]);
 
+  // Every panel below reads from the filtered ledger, not the raw aggregate,
+  // so the KPI cards, the chart, the roster and the department table all
+  // describe the same deals the Transaction Ledger is showing. Previously the
+  // Sales Rep / Project Type / search filters moved the ledger alone while
+  // the totals above it stayed company-wide.
+  const visible = useMemo(
+    () => deriveTotalsFromLedger(filteredLedger, dashboard?.departmentTotals || []),
+    [filteredLedger, dashboard?.departmentTotals],
+  );
+
   // Monthly aggregated data for trend visualization
   const monthlyTrendData = useMemo(() => {
-    if (!dashboard?.dealLedger) return [];
     const monthMap = {};
 
-    dashboard.dealLedger.forEach((deal) => {
+    filteredLedger.forEach((deal) => {
       const dateStr = deal.contractDate || deal.createdAt?.slice(0, 10);
       if (!dateStr) return;
       const monthKey = dateStr.slice(0, 7); // "YYYY-MM"
@@ -330,7 +367,7 @@ export default function CommissionDashboardView() {
     });
 
     return Object.values(monthMap).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
-  }, [dashboard?.dealLedger]);
+  }, [filteredLedger]);
 
   const handleClearFilters = () => {
     setSearch("");
@@ -370,10 +407,56 @@ export default function CommissionDashboardView() {
     totalDealsCount = 0,
     departmentTotals = [],
     salesEmployees = [],
-  } = dashboard || {};
+  } = visible;
+
+  // The Pool rate and the Sales allocation are both dated, editable settings.
+  // Read them off the data being displayed rather than restating the values
+  // that happened to be in force when this screen was built.
+  const poolRateLabel = (() => {
+    const percents = new Set(
+      filteredLedger.map((deal) => deal.rates?.poolPercent).filter((p) => p != null),
+    );
+    return percents.size === 1 ? `${Number([...percents][0])}%` : null;
+  })();
+  const salesAllocation = departmentTotals.find((dept) => dept.isSales)?.allocationPercent;
+  const salesAllocationLabel = salesAllocation == null ? null : `${Number(salesAllocation)}%`;
+
+  const unpricedDeals = dashboard?.unpricedDeals || [];
 
   return (
     <div className="space-y-6">
+      {/* An opportunity dated before the earliest Commission Rate cannot be
+          priced. It is left out of every figure below, so say so plainly
+          rather than letting the totals quietly under-report. */}
+      {unpricedDeals.length > 0 && (
+        <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+          <p className="text-xs font-bold text-destructive">
+            {unpricedDeals.length} opportunit{unpricedDeals.length === 1 ? "y is" : "ies are"} not
+            included below
+          </p>
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            No Commission Rate was in force on their Contract Date, so they cannot be priced. Add a
+            rate effective on or before that date to include them.
+          </p>
+          <ul className="mt-2 space-y-0.5">
+            {unpricedDeals.slice(0, 5).map((deal) => (
+              <li key={deal.id} className="text-[11px] text-foreground">
+                <span className="font-semibold">
+                  {deal.salesReference || deal.opportunityNo || deal.projectTitle || "Unreferenced"}
+                </span>
+                {deal.clientName ? ` — ${deal.clientName}` : ""}
+                <span className="text-muted-foreground"> (Contract Date {deal.asOfDate})</span>
+              </li>
+            ))}
+            {unpricedDeals.length > 5 && (
+              <li className="text-[11px] text-muted-foreground">
+                and {unpricedDeals.length - 5} more
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
       {/* 1. Executive KPI Cards (Clean, Cohesive Neutral Palette) */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Card 1: Commissionable Revenue (First) */}
@@ -389,7 +472,13 @@ export default function CommissionDashboardView() {
         <StatCard
           title="Commission Pool"
           value={canViewAllFinancials ? formatPHP(totalCommissionPool) : "••••••"}
-          subtitle={canViewAllFinancials ? "1% of Commissionable Revenue" : "Restricted to Accounting"}
+          subtitle={
+            canViewAllFinancials
+              ? poolRateLabel
+                ? `${poolRateLabel} of Commissionable Revenue`
+                : "Share of Commissionable Revenue"
+              : "Restricted to Accounting"
+          }
           icon={<Sparkles size={18} className="text-muted-foreground" />}
           color="mauve"
         />
@@ -397,8 +486,18 @@ export default function CommissionDashboardView() {
         {/* Card 3: Sales Department Share */}
         <StatCard
           title="Sales Share"
-          value={canViewAllFinancials || isHead ? formatPHP(salesDeptTotal) : "50.00% Pool"}
-          subtitle="50% allocated to sales roles"
+          value={
+            canViewAllFinancials || isHead
+              ? formatPHP(salesDeptTotal)
+              : salesAllocationLabel
+                ? `${salesAllocationLabel} Pool`
+                : "••••••"
+          }
+          subtitle={
+            salesAllocationLabel
+              ? `${salesAllocationLabel} allocated to sales roles`
+              : "Allocated to sales roles"
+          }
           icon={<Users size={18} className="text-muted-foreground" />}
           color="mauve"
         />
@@ -718,7 +817,9 @@ export default function CommissionDashboardView() {
           size="sm"
         />
         <span className="text-xs font-semibold text-muted-foreground">
-          {activeTab === "sales-roster"
+          {isFetching
+            ? "Updating…"
+            : activeTab === "sales-roster"
             ? `${salesEmployees.length} personnel`
             : activeTab === "transaction-ledger"
             ? `${filteredLedger.length} transaction${filteredLedger.length === 1 ? "" : "s"}`
@@ -834,7 +935,7 @@ export default function CommissionDashboardView() {
               <thead>
                 <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
                   <th className="font-bold px-3 py-3 w-[28px]"></th>
-                  <th className="font-bold px-3 py-3 w-[84px]">SOR #</th>
+                  <th className="font-bold px-3 py-3 w-[104px]">Sales Ref.</th>
                   <th className="font-bold px-3 py-3 min-w-[160px]">Client & Project</th>
                   <th className="font-bold px-3 py-3">Stage</th>
                   <th className="font-bold px-3 py-3 text-center">Type</th>
@@ -866,6 +967,15 @@ export default function CommissionDashboardView() {
                     const isDealOwnerUser = deal.participants?.dealOwner?.id === user?.id;
                     const canSeeDealMoney = canViewAllFinancials || isHead || isDealOwnerUser;
 
+                    // This deal's own rates, not today's — an itemized sheet
+                    // has to describe the figures it is actually showing.
+                    const dealPoolLabel =
+                      deal.rates?.poolPercent == null ? null : `${Number(deal.rates.poolPercent)}%`;
+                    const dealSalesAllocation = deal.departmentShares?.find((d) => d.isSales)
+                      ?.allocationPercent;
+                    const dealSalesLabel =
+                      dealSalesAllocation == null ? null : `${Number(dealSalesAllocation)}%`;
+
                     return (
                       <Fragment key={deal.id}>
                         <tr
@@ -889,14 +999,14 @@ export default function CommissionDashboardView() {
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           </td>
                           <td className="px-3 py-3 font-mono font-bold text-foreground whitespace-nowrap">
-                            <HighlightText text={deal.opportunityNo} query={search} />
+                            <HighlightText text={dealReference(deal) || "—"} search={search} />
                           </td>
                           <td className="px-3 py-3">
                             <p className="font-semibold text-foreground">
-                              <HighlightText text={deal.clientName} query={search} />
+                              <HighlightText text={deal.clientName} search={search} />
                             </p>
                             <p className="text-[10.5px] text-muted-foreground">
-                              <HighlightText text={deal.projectTitle} query={search} />
+                              <HighlightText text={deal.projectTitle} search={search} />
                             </p>
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap">
@@ -983,7 +1093,7 @@ export default function CommissionDashboardView() {
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-2.5">
                                   <div>
                                     <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">
-                                      Itemized Calculation Sheet — {deal.opportunityNo} ({deal.clientName})
+                                      Itemized Calculation Sheet — {dealReference(deal) || deal.projectTitle} ({deal.clientName})
                                     </h5>
                                     <p className="text-[10.5px] text-muted-foreground">
                                       Anchored on Contract Date rates ({deal.contractDate || "Effective live"})
@@ -1011,13 +1121,26 @@ export default function CommissionDashboardView() {
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase">Commissionable Revenue</span>
                                     <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.commissionableRevenue)}</p>
                                   </div>
+                                  {/* Masked exactly as the collapsed row and the
+                                      KPI cards mask them — expanding a row is
+                                      not a way around the privacy boundary. */}
                                   <div className="p-2.5 rounded-lg bg-muted/40">
-                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Total Commission Pool (1%)</span>
-                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.commissionPool)}</p>
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                                      Total Commission Pool{dealPoolLabel ? ` (${dealPoolLabel})` : ""}
+                                    </span>
+                                    <p className="font-bold text-foreground tabular-nums">
+                                      {canViewAllFinancials ? formatPHP(deal.commissionPool) : "••••••"}
+                                    </p>
                                   </div>
                                   <div className="p-2.5 rounded-lg bg-muted/40">
-                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">Sales Dept Pool (50%)</span>
-                                    <p className="font-bold text-foreground tabular-nums">{formatPHP(deal.salesShareAmount)}</p>
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                                      Sales Dept Pool{dealSalesLabel ? ` (${dealSalesLabel})` : ""}
+                                    </span>
+                                    <p className="font-bold text-foreground tabular-nums">
+                                      {canViewAllFinancials || isHead
+                                        ? formatPHP(deal.salesShareAmount)
+                                        : "••••••"}
+                                    </p>
                                   </div>
                                 </div>
                               </div>
@@ -1133,75 +1256,49 @@ export default function CommissionDashboardView() {
             </div>
           </div>
 
-          {/* Project Type Split Rules */}
+          {/* Project Type Split Rules — read from commission_splits, never
+              restated here: a Sales Director can edit these percentages. */}
           <div className="space-y-3">
-            <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">Sales Role Allocation Rules by Project Type</h5>
+            <h5 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Sales Role Allocation Rules by Project Type
+            </h5>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Solo Sales Project */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-foreground">Solo Sales Project (SSP)</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">SSP</span>
-                </div>
-                <div className="space-y-1.5 text-xs pt-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Deal Owner:</span>
-                    <span className="font-bold text-foreground">100% of Sales share</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Supporting Sales:</span>
-                    <span className="font-medium text-muted-foreground">N/A</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-medium text-muted-foreground">0%</span>
-                  </div>
-                </div>
-              </div>
+              {PROJECT_TYPES.map((projectType) => {
+                const splits = dashboard?.splitsByProjectType?.[projectType.value] || [];
+                const percentFor = (shareRole) =>
+                  splits.find((split) => split.shareRole === shareRole)?.percent;
 
-              {/* Collaborative Project */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-foreground">Collaborative Project (CP)</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">CP</span>
-                </div>
-                <div className="space-y-1.5 text-xs pt-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Deal Owner:</span>
-                    <span className="font-bold text-foreground">60%</span>
+                return (
+                  <div
+                    key={projectType.value}
+                    className="rounded-xl border border-border bg-card p-4 space-y-2"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-xs text-foreground">{projectType.label}</span>
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
+                        {projectType.value}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 text-xs pt-1">
+                      {SHARE_ROLE_ROWS.map(({ shareRole, label, note }) => {
+                        const percent = percentFor(shareRole);
+                        return (
+                          <div key={shareRole} className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">{label}:</span>
+                            {percent == null ? (
+                              <span className="font-medium text-muted-foreground">N/A</span>
+                            ) : (
+                              <span className="font-bold tabular-nums text-foreground">
+                                {Number(percent)}%{note ? ` ${note}` : ""}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Supporting Sales:</span>
-                    <span className="font-bold text-foreground">30% (split evenly)</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-bold text-foreground">10%</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Strategic Project */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs text-foreground">Strategic Deal</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">STRATEGIC</span>
-                </div>
-                <div className="space-y-1.5 text-xs pt-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Deal Owner:</span>
-                    <span className="font-bold text-foreground">60%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Supporting Sales:</span>
-                    <span className="font-bold text-foreground">30%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-bold text-foreground">10%</span>
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
           </div>
         </div>

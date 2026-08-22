@@ -91,9 +91,11 @@ function PositionsEditor({ department, actorId }) {
           <span className={cn("text-xs font-semibold tabular-nums", Math.abs(total - 100) > 0.01 ? "text-red-9" : "text-muted-foreground")}>
             {total.toFixed(2)}%
           </span>
+          {/* Saving an empty set is how a department's positions get cleared;
+              the service treats that as a valid state. */}
           <button
             type="button"
-            disabled={saveMutation.isPending || draft.length === 0}
+            disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft)}
             className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
