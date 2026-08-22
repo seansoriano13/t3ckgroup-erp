@@ -38,9 +38,9 @@ export default function HrLeavesManagerPage() {
 
   useEffect(() => {
     loadData();
-  }, [dateRange]);
+  }, [dateRange, loadData]);
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     setLoading(true);
     try {
       // 1. Fetch Balances
@@ -88,7 +88,7 @@ export default function HrLeavesManagerPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange.startDate, dateRange.endDate]);
 
   const handleAction = (request, actionType) => {
     // actionType: 'approve', 'approve_paid' (for OT), 'reject'

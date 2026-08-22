@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
-import { supabase } from "../lib/supabase";
+
 
 /**
  * Custom hook that fetches live pending badge counts for navigation links.

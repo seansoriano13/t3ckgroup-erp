@@ -112,7 +112,6 @@ export default function TaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
-  onSilentUpdate,
 }) {
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();

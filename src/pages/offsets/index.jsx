@@ -39,9 +39,9 @@ export default function EmployeeLeavesPage() {
     if (user?.id) {
       loadData();
     }
-  }, [user, dateRange]);
+  }, [user, dateRange, loadData]);
 
-  const loadData = async () => {
+  const loadData = React.useCallback(async () => {
     setLoadingHistory(true);
     try {
       const [
@@ -88,7 +88,7 @@ export default function EmployeeLeavesPage() {
     } finally {
       setLoadingHistory(false);
     }
-  };
+  }, [user?.id, dateRange.startDate, dateRange.endDate]);
 
   const handleWithdrawOvertime = (id) => {
     confirmDeleteToast(

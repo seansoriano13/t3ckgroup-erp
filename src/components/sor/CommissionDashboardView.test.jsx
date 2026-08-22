@@ -206,7 +206,7 @@ describe("CommissionDashboardView", () => {
     expect(screen.getByText("₱9,035.71")).toBeInTheDocument();
 
     // Bob Rep's total is masked as percentage or bullet, so his total ₱3,285.71 is not shown
-    const allText = document.body.textContent;
+    // Bob's row has bullet dots instead of currency
     // Bob's row has bullet dots instead of currency
     expect(screen.getByText("26.7% Share")).toBeInTheDocument();
 

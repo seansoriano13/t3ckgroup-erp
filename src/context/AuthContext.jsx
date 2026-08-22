@@ -129,6 +129,7 @@ export const AuthProvider = ({ children }) => {
       clearTimeout(timeout);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run once on mount
 
 

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import toast from "react-hot-toast";
 import {
   X,
   CheckCircle2,
@@ -238,7 +239,7 @@ export default function GroupTaskDetailModal({
     return () => {
       groupTaskActivityService.unsubscribeFromActivity(channel);
     };
-  }, [isSplitScreen, task?.id, isOpen]);
+  }, [isSplitScreen, task?.id, isOpen, queryClient]);
 
   // --- Inline chat: send message mutation ---
   const sendMessageMutation = useMutation({
@@ -302,12 +303,13 @@ export default function GroupTaskDetailModal({
         }
         sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls });
       } catch (err) {
+        toast.error("Failed to upload chat attachments");
         console.error("Failed to upload chat attachments:", err);
       } finally {
         setIsUploading(false);
       }
     },
-    [messageContent, attachments, task?.id, isUploading],
+    [messageContent, attachments, task?.id, isUploading, sendMessageMutation],
   );
 
   // Helper: time ago
@@ -763,7 +765,10 @@ export default function GroupTaskDetailModal({
                                           task.id,
                                           currentUserId,
                                         )
-                                        .catch(console.error);
+                                        .catch(err => {
+                                          toast.error("Failed to update checklist");
+                                          console.error("Checklist update error:", err);
+                                        });
                                     }
                                   }}
                                 />

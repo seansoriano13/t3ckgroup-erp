@@ -250,6 +250,7 @@ export default function CommissionDashboardView() {
 
   useEffect(() => {
     if (location.state?.openOpportunityId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHighlightedDealId(location.state.openOpportunityId);
       setActiveTab("transaction-ledger");
     }
@@ -276,7 +277,7 @@ export default function CommissionDashboardView() {
         label: e.name,
       })),
     ];
-  }, [dashboard?.salesEmployees]);
+  }, [dashboard]);
 
   const currentDatePresetLabel =
     DATE_PRESETS.find((p) => p.value === datePreset)?.label || "All Time";
@@ -309,7 +310,7 @@ export default function CommissionDashboardView() {
         .filter(Boolean)
         .some((v) => String(v).toLowerCase().includes(q));
     });
-  }, [dashboard?.dealLedger, search, selectedProjectType, selectedSalesRep]);
+  }, [dashboard, search, selectedProjectType, selectedSalesRep]);
 
   // Monthly aggregated data for trend visualization
   const monthlyTrendData = useMemo(() => {
@@ -338,7 +339,7 @@ export default function CommissionDashboardView() {
     });
 
     return Object.values(monthMap).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
-  }, [dashboard?.dealLedger]);
+  }, [dashboard]);
 
   const handleClearFilters = () => {
     setSearch("");

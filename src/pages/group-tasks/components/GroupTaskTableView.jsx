@@ -22,8 +22,6 @@ export default function GroupTaskTableView({
   tasks = [],
   searchTerm = "",
   onView,
-  currentUserId,
-  isSuperAdmin,
 }) {
   const avatarMap = useEmployeeAvatarMap();
 

@@ -300,11 +300,12 @@ const toRow = (item) => ({
  * its real composer and attachments.
  */
 function ProcurementLogNoteCard({ metadata }) {
+  const [copiedPo, setCopiedPo] = useState(false);
+  const [copiedProduct, setCopiedProduct] = useState(false);
+
   if (!metadata) return null;
   const outcomeLabel =
     PROCUREMENT_OUTCOME_LABELS[metadata.outcome] || metadata.outcome;
-  const [copiedPo, setCopiedPo] = useState(false);
-  const [copiedProduct, setCopiedProduct] = useState(false);
 
   const handleCopyPo = (e) => {
     e.stopPropagation();

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import toast from "react-hot-toast";
 import {
   Plus,
   Trash2,
@@ -459,6 +460,7 @@ export default function FAQEditorPage() {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
+      toast.error("Failed to save FAQs");
       console.error("[FAQEditor] save error:", err);
     } finally {
       setSaving(false);
@@ -476,6 +478,7 @@ export default function FAQEditorPage() {
       setCategories([]);
       setActiveCatId(null);
     } catch (err) {
+      toast.error("Failed to reset FAQs");
       console.error("[FAQEditor] reset error:", err);
     }
     setConfirmReset(false);

@@ -167,7 +167,6 @@ function ProcurementEditForm({
       // or a stale "Confirmed in Odoo" stays on screen against a PO that is no
       // longer typed. Deriving this instead would mean re-plumbing every
       // reader of liveVerification through a second source of truth.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLiveVerification({
         status: PO_VERIFICATION.UNVERIFIED,
         productRef: null,
@@ -220,6 +219,7 @@ function ProcurementEditForm({
     }, 400);
 
     return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poNumber]);
 
   const isOdooVerified =

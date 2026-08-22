@@ -117,7 +117,7 @@ export default function LogTaskModal({ isOpen, onClose }) {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, openPopover, onClose, setOpenPopover]);
+  }, [isOpen, openPopover, onClose, setOpenPopover, handleClose]);
 
   // ── Derived / Computed ────────────────────────────────────
   const selectedCategoryObj = categories.find(

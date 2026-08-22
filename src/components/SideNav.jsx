@@ -88,7 +88,7 @@ export default function SideNav() {
       if (saved) {
         return { ...defaults, ...JSON.parse(saved) };
       }
-    } catch (e) {
+    } catch {
       // Ignore storage errors
     }
     return defaults;
@@ -101,6 +101,7 @@ export default function SideNav() {
 
   useEffect(() => {
     if (user?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setExpandedGroups(getInitialExpandedState(user.id));
     }
   }, [user?.id]);
@@ -114,7 +115,7 @@ export default function SideNav() {
             `erp_sidebar_groups_${user.id}`,
             JSON.stringify(next)
           );
-        } catch (e) {
+        } catch {
           // Ignore storage errors
         }
       }
@@ -172,9 +173,6 @@ export default function SideNav() {
     },
     onError: (err) => toast.error(err.message),
   });
-
-  const hasSales = user?.has_sales_flow ?? user?.hasSalesFlow;
-  const hasTask = user?.has_task_flow ?? user?.hasTaskFlow;
 
   // Get domain-driven filtered groups and quick actions from declarative registry
   const activeGroups = getFilteredNavigationGroups(user);
