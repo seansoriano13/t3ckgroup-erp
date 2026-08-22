@@ -139,10 +139,19 @@ async function createRate({ rateType, percent, effectiveFrom }, actorId) {
   if (!effectiveFrom) {
     throw new Error("Effective-from date is required.");
   }
+  // commission_rates.percent is numeric(6,3) with no CHECK behind it, so this
+  // is the only thing standing between a slipped keystroke and every
+  // commission figure in the company being recomputed from it. A VAT of 120
+  // makes Commissionable Revenue a fraction of the contract; a negative one
+  // makes it larger than the contract.
+  const percentValue = Number(percent);
+  if (!Number.isFinite(percentValue) || percentValue < 0 || percentValue > 100) {
+    throw new Error("Percent must be a number between 0 and 100.");
+  }
 
   const { data, error } = await supabase
     .from("commission_rates")
-    .insert({ rate_type: rateType, percent, effective_from: effectiveFrom })
+    .insert({ rate_type: rateType, percent: percentValue, effective_from: effectiveFrom })
     .select()
     .single();
   if (error) throw error;
@@ -203,10 +212,27 @@ async function getPositions(departmentId) {
 async function savePositionAllocations(departmentId, positions, actorId) {
   await requireSuperAdmin(actorId);
 
-  assertPercentagesSumTo100(
-    positions.map((position) => position.allocationPercent),
-    { label: "Position allocations" },
-  );
+  // Names land in a `unique (department_id, name)` index (migration 0031), so
+  // blanks and repeats surface as a raw Postgres constraint error after a
+  // partial write. Caught here instead, before anything is deleted.
+  const names = positions.map((position) => (position.name || "").trim());
+  if (names.some((name) => name === "")) {
+    throw new Error("Every position needs a name.");
+  }
+  const duplicates = names.filter((name, i) => names.indexOf(name) !== i);
+  if (duplicates.length > 0) {
+    throw new Error(`Position names must be unique within a department: "${duplicates[0]}" is repeated.`);
+  }
+
+  // Clearing a department's positions entirely is a legitimate state — it is
+  // how every department stands today — and 0% cannot sum to 100, so the
+  // sum rule only applies to a set that actually has members.
+  if (positions.length > 0) {
+    assertPercentagesSumTo100(
+      positions.map((position) => position.allocationPercent),
+      { label: "Position allocations" },
+    );
+  }
 
   const existing = positions.filter((position) => position.id);
   const fresh = positions.filter((position) => !position.id);
@@ -222,7 +248,7 @@ async function savePositionAllocations(departmentId, positions, actorId) {
   for (const position of existing) {
     const { error } = await supabase
       .from("commission_positions")
-      .update({ name: position.name, allocation_percent: position.allocationPercent })
+      .update({ name: position.name.trim(), allocation_percent: position.allocationPercent })
       .eq("id", position.id);
     if (error) throw error;
   }
@@ -231,7 +257,7 @@ async function savePositionAllocations(departmentId, positions, actorId) {
     const { error } = await supabase.from("commission_positions").insert(
       fresh.map((position) => ({
         department_id: departmentId,
-        name: position.name,
+        name: position.name.trim(),
         allocation_percent: position.allocationPercent,
       })),
     );
@@ -245,6 +271,15 @@ async function savePositionAllocations(departmentId, positions, actorId) {
  * Replaces the Commission Split percentages for one Project Type. Validates
  * the percentages sum to 100 before writing anything. Restricted to a Sales
  * Director (see isSalesDirector) or Super Admin.
+ *
+ * "Replaces" is literal: a role the caller left out is deleted, not left
+ * behind. An upsert alone only ever wrote the roles it was handed, so
+ * dropping a role from the editor left its old row in place and the stored
+ * set summed past 100 — the exact thing the validation above exists to
+ * prevent, passing validation on the way in and violating it in the table.
+ * A Single Salesperson Project is the case that bites: it has no supporting
+ * salesperson by definition, so saving it must remove any such row rather
+ * than strand one.
  */
 async function saveSplitsForProjectType(projectType, splits, actorId) {
   await requireSalesDirectorOrSuperAdmin(actorId);
@@ -253,6 +288,8 @@ async function saveSplitsForProjectType(projectType, splits, actorId) {
     splits.map((split) => split.percent),
     { label: "Commission Split percentages" },
   );
+
+  const keptRoles = splits.map((split) => split.shareRole);
 
   const { error } = await supabase.from("commission_splits").upsert(
     splits.map((split) => ({
@@ -264,16 +301,33 @@ async function saveSplitsForProjectType(projectType, splits, actorId) {
   );
   if (error) throw error;
 
+  const stale = (await getSplitsForProjectType(projectType)).filter(
+    (split) => !keptRoles.includes(split.shareRole),
+  );
+  if (stale.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("commission_splits")
+      .delete()
+      .eq("project_type", projectType)
+      .in(
+        "share_role",
+        stale.map((split) => split.shareRole),
+      );
+    if (deleteError) throw deleteError;
+  }
+
   return getSplitsForProjectType(projectType);
 }
 
 /**
  * The full Commission Pool breakdown for one opportunity: Commissionable
- * Revenue, the Pool, the Department split, and the Sales role split (or, for
- * a Single Salesperson Project, the whole Sales share attributed to the deal
- * owner). Rates are resolved as of the opportunity's Contract Date once it
- * has one (set automatically at Awarded — see opportunityService.updateStatus);
- * before that, as of today, so the figure stays a live, moving estimate.
+ * Revenue, the Pool, the Department split, and the Sales role split. Every
+ * Project Type — Single Salesperson included — takes its role percentages
+ * from `commission_splits`; there is no hard-coded SSP branch any more (see
+ * supabase/migrations/0032). Rates are resolved as of the opportunity's
+ * Contract Date once it has one (set automatically at Awarded — see
+ * opportunityService.updateStatus); before that, as of today, so the figure
+ * stays a live, moving estimate.
  */
 async function getCommissionBreakdownForOpportunity(opportunityId) {
   const { data: opportunity, error } = await supabase
@@ -325,6 +379,9 @@ async function getCommissionBreakdownForOpportunity(opportunityId) {
     projectType: opportunity.project_type,
     contractDate: opportunity.contract_date,
     rateAsOfDate: asOfDate,
+    // The rates that priced this opportunity, so a caller can label a figure
+    // with the percentage actually applied instead of assuming today's.
+    rates,
     ...breakdown,
     salesRoleShares,
   };
@@ -342,7 +399,7 @@ async function getCommissionDashboardData({
     supabase
       .from("sales_opportunities")
       .select(
-        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
+        `id, opportunity_no, sales_reference, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
          deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
          support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
          support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
@@ -373,14 +430,23 @@ async function getCommissionDashboardData({
     STRATEGIC: splitsStrategic,
   };
 
-  return aggregateOpportunityCommissions({
-    opportunities: oppsResult.data || [],
-    ratesResolver,
-    departments,
+  return {
+    ...aggregateOpportunityCommissions({
+      opportunities: oppsResult.data || [],
+      ratesResolver,
+      departments,
+      splitsByProjectType,
+      scope,
+      dateFilter,
+    }),
+    // Returned so the dashboard's split-rules explainer can state the
+    // percentages actually in force. They are editable by a Sales Director,
+    // so anything written into the page as a literal goes stale the first
+    // time someone changes them — as it had, still describing a Single
+    // Salesperson Project as 100% to the deal owner well after 0032 made it
+    // 80/20.
     splitsByProjectType,
-    scope,
-    dateFilter,
-  });
+  };
 }
 
 export const commissionService = {

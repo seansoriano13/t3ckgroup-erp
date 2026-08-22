@@ -84,14 +84,6 @@ export function deriveProjectType({ supportSales1Id, supportSales2Id, currentPro
 }
 
 /**
- * A Single Salesperson Project attributes the entire Sales department share
- * to the deal owner — there is no other role on the deal to split it with.
- */
-export function splitSalesShareForSsp(salesDepartmentAmount) {
-  return [{ role: "deal_owner", amount: salesDepartmentAmount }];
-}
-
-/**
  * Splits a Collaborative Project or Strategic opportunity's Sales department
  * share across deal owner, supporting salespeople, and sales director, per
  * the Commission Split percentages for that Project Type.
@@ -105,7 +97,14 @@ export function splitSalesShareForSsp(salesDepartmentAmount) {
  * whichever of those slots are actually filled, divided evenly among them.
  * A role with no participant filling it (an empty slot, or a split row with
  * no matching role) contributes no share — its percentage isn't
- * redistributed to the other roles.
+ * redistributed to the other roles. That share is therefore attributed to
+ * nobody; `aggregateOpportunityCommissions` reports the running total as
+ * `unattributedSalesAmount` so it is visible rather than silently missing.
+ *
+ * Each returned share carries the `percent` that produced its `amount` — for
+ * a supporting salesperson that is the combined percentage divided by the
+ * number of filled slots. Callers mask money by showing this percent
+ * instead (see OpportunityCommissionFooter), so it must always be present.
  */
 export function splitSalesShareForRoles(salesDepartmentAmount, splits, participants) {
   const shares = [];
@@ -117,8 +116,16 @@ export function splitSalesShareForRoles(salesDepartmentAmount, splits, participa
 
       const totalAmount = salesDepartmentAmount * (split.percent / 100);
       const perPersonAmount = totalAmount / supporters.length;
+      // The combined percentage divided the same way the money was, so the
+      // percent shown next to a name always explains that name's amount.
+      const perPersonPercent = split.percent / supporters.length;
       supporters.forEach((employee) => {
-        shares.push({ role: "supporting_salesperson", employee, amount: perPersonAmount });
+        shares.push({
+          role: "supporting_salesperson",
+          employee,
+          percent: perPersonPercent,
+          amount: perPersonAmount,
+        });
       });
       continue;
     }
@@ -129,6 +136,7 @@ export function splitSalesShareForRoles(salesDepartmentAmount, splits, participa
     shares.push({
       role: split.shareRole,
       employee,
+      percent: split.percent,
       amount: salesDepartmentAmount * (split.percent / 100),
     });
   }
@@ -222,6 +230,7 @@ export function aggregateOpportunityCommissions({
   let totalContractValue = 0;
   let totalCommissionableRevenue = 0;
   let totalCommissionPool = 0;
+  let unattributedSalesAmount = 0;
   let wonDealsCount = 0;
 
   const salesDeptIndex = departments.findIndex(
@@ -241,16 +250,38 @@ export function aggregateOpportunityCommissions({
 
   const salesEmployeesMap = new Map();
   const dealLedger = [];
+  const unpricedDeals = [];
 
   for (const opp of filteredOpps) {
+    const contractValue = Number(opp.expected_value) || 0;
+    const asOfDate = opp.contract_date || currentDate;
+
+    // An opportunity dated before the earliest Commission Rate cannot be
+    // priced. Resolving throws, and doing that here — inside the loop over
+    // every opportunity — used to abort the whole aggregation: one deal from
+    // before the rate table existed and the entire dashboard reported nothing
+    // but "No effective Commission Rate found", naming a date but not a deal.
+    // Set that one aside and carry on, so the omission is one named row
+    // instead of a blank page.
+    let rates;
+    try {
+      rates = typeof ratesResolver === "function" ? ratesResolver(asOfDate) : ratesResolver;
+    } catch (error) {
+      unpricedDeals.push({
+        id: opp.id,
+        salesReference: opp.sales_reference,
+        opportunityNo: opp.opportunity_no,
+        projectTitle: opp.project_title,
+        clientName: opp.client_name,
+        asOfDate,
+        reason: error.message,
+      });
+      continue;
+    }
+
     const isWon = REALIZED_STATUSES.includes(opp.status);
     if (isWon) wonDealsCount += 1;
-
-    const contractValue = Number(opp.expected_value) || 0;
     totalContractValue += contractValue;
-
-    const asOfDate = opp.contract_date || currentDate;
-    const rates = typeof ratesResolver === "function" ? ratesResolver(asOfDate) : ratesResolver;
 
     const breakdown = calculateCommissionBreakdown({
       contractValue,
@@ -282,8 +313,19 @@ export function aggregateOpportunityCommissions({
       sales_director: salesDirector,
     });
 
+    // Whatever the split table allocated to a role nobody fills stays with
+    // no employee. Summing it here keeps the discrepancy reportable instead
+    // of leaving the roster quietly short of the Sales department total.
+    const attributedSalesAmount = salesRoleShares.reduce((sum, share) => sum + share.amount, 0);
+    unattributedSalesAmount += salesShareAmount - attributedSalesAmount;
+
     dealLedger.push({
       id: opp.id,
+      // sales_reference (the Odoo quotation number) is the identifier the
+      // rest of the SOR module shows. opportunity_no stopped being minted in
+      // migration 0025 and is null on every row created since, so it is kept
+      // only as a fallback for the historical rows that still carry one.
+      salesReference: opp.sales_reference,
       opportunityNo: opp.opportunity_no,
       projectTitle: opp.project_title,
       clientName: opp.client_name,
@@ -353,15 +395,134 @@ export function aggregateOpportunityCommissions({
   const otherDeptsTotal = totalCommissionPool - salesDeptTotal;
 
   return {
-    totalDealsCount: filteredOpps.length,
+    // Counts what was actually priced; anything set aside is listed in
+    // unpricedDeals rather than quietly folded into the total.
+    totalDealsCount: filteredOpps.length - unpricedDeals.length,
+    unpricedDeals,
     wonDealsCount,
     totalContractValue,
     totalCommissionableRevenue,
     totalCommissionPool,
     salesDeptTotal,
     otherDeptsTotal,
+    unattributedSalesAmount,
     departmentTotals,
     salesEmployees,
     dealLedger,
+  };
+}
+
+const REALIZED_STATUS_SET = new Set(REALIZED_STATUSES);
+
+/**
+ * Re-derives the dashboard's headline figures from a subset of the deal
+ * ledger, so the KPI cards, the trend chart, the roster and the department
+ * table all describe the same deals the ledger is currently showing.
+ *
+ * The dashboard's Sales Rep / Project Type / search filters are applied in
+ * the browser, after `aggregateOpportunityCommissions` has already run over
+ * everything. Without this, those filters moved only the ledger table while
+ * the totals above it stayed company-wide — the roster's own empty state
+ * ("No sales employee records found for the selected filter") promised
+ * filtering that was never happening.
+ *
+ * Every figure is summed from the per-deal values the aggregate already
+ * computed, never recalculated from rates, so a filtered total and an
+ * unfiltered one can't drift apart.
+ */
+export function deriveTotalsFromLedger(ledger = [], departments = []) {
+  let totalContractValue = 0;
+  let totalCommissionableRevenue = 0;
+  let totalCommissionPool = 0;
+  let unattributedSalesAmount = 0;
+  let wonDealsCount = 0;
+
+  const departmentTotalsMap = {};
+  for (const dept of departments) {
+    departmentTotalsMap[dept.name] = {
+      name: dept.name,
+      allocationPercent: dept.allocationPercent,
+      amount: 0,
+      // Callers that already resolved this — the dashboard passes back the
+      // aggregate's own department rows — keep their answer. A Super Admin
+      // can rename the Sales department, so re-deriving it from the name
+      // here would lose the flag the moment they do.
+      isSales:
+        dept.isSales ?? (dept.key === "sales" || dept.name?.toLowerCase() === "sales"),
+    };
+  }
+
+  const salesEmployeesMap = new Map();
+
+  for (const deal of ledger) {
+    const isWon = REALIZED_STATUS_SET.has(deal.status);
+    if (isWon) wonDealsCount += 1;
+
+    totalContractValue += deal.contractValue || 0;
+    totalCommissionableRevenue += deal.commissionableRevenue || 0;
+    totalCommissionPool += deal.commissionPool || 0;
+
+    for (const share of deal.departmentShares || []) {
+      if (departmentTotalsMap[share.name]) {
+        departmentTotalsMap[share.name].amount += share.amount;
+      }
+    }
+
+    const salesRoleShares = deal.salesRoleShares || [];
+    const attributed = salesRoleShares.reduce((sum, share) => sum + share.amount, 0);
+    unattributedSalesAmount += (deal.salesShareAmount || 0) - attributed;
+
+    for (const roleShare of salesRoleShares) {
+      const emp = roleShare.employee;
+      if (!emp?.id) continue;
+
+      if (!salesEmployeesMap.has(emp.id)) {
+        salesEmployeesMap.set(emp.id, {
+          employeeId: emp.id,
+          name: emp.name,
+          avatarPath: emp.avatar_path || emp.avatarPath,
+          wonDealsCount: 0,
+          totalDealsCount: 0,
+          totalContractValue: 0,
+          totalCommissionShare: 0,
+          roleBreakdown: {
+            deal_owner: 0,
+            supporting_salesperson: 0,
+            sales_director: 0,
+          },
+          dealIds: new Set(),
+        });
+      }
+
+      const empEntry = salesEmployeesMap.get(emp.id);
+      empEntry.totalCommissionShare += roleShare.amount;
+      if (empEntry.roleBreakdown[roleShare.role] !== undefined) {
+        empEntry.roleBreakdown[roleShare.role] += roleShare.amount;
+      }
+      if (!empEntry.dealIds.has(deal.id)) {
+        empEntry.dealIds.add(deal.id);
+        empEntry.totalDealsCount += 1;
+        if (isWon) empEntry.wonDealsCount += 1;
+        empEntry.totalContractValue += deal.contractValue || 0;
+      }
+    }
+  }
+
+  const departmentTotals = Object.values(departmentTotalsMap);
+  const salesDeptTotal = departmentTotals.find((d) => d.isSales)?.amount || 0;
+
+  return {
+    totalDealsCount: ledger.length,
+    wonDealsCount,
+    totalContractValue,
+    totalCommissionableRevenue,
+    totalCommissionPool,
+    salesDeptTotal,
+    otherDeptsTotal: totalCommissionPool - salesDeptTotal,
+    unattributedSalesAmount,
+    departmentTotals,
+    salesEmployees: Array.from(salesEmployeesMap.values())
+      .map((e) => ({ ...e, dealIds: Array.from(e.dealIds) }))
+      .sort((a, b) => b.totalCommissionShare - a.totalCommissionShare),
   };
 }

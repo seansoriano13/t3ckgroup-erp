@@ -234,7 +234,58 @@ describe("commissionService", () => {
     })
   })
 
-  describe("saveDepartmentAllocations", () => {
+    describe("createRate percent validation", () => {
+    // commission_rates.percent carries no CHECK constraint (migration 0028),
+    // so nothing below this stops a mistyped rate from repricing every
+    // opportunity in the company.
+    it("rejects a percent above 100", async () => {
+      const admin = makeSuperAdmin()
+      await expect(
+        commissionService.createRate(
+          { rateType: "VAT", percent: 120, effectiveFrom: "2026-01-01" },
+          admin.id,
+        ),
+      ).rejects.toThrow(/between 0 and 100/)
+    })
+
+    it("rejects a negative percent", async () => {
+      const admin = makeSuperAdmin()
+      await expect(
+        commissionService.createRate(
+          { rateType: "POOL", percent: -1, effectiveFrom: "2026-01-01" },
+          admin.id,
+        ),
+      ).rejects.toThrow(/between 0 and 100/)
+    })
+
+    it("rejects a percent that is not a number", async () => {
+      const admin = makeSuperAdmin()
+      await expect(
+        commissionService.createRate(
+          { rateType: "POOL", percent: "abc", effectiveFrom: "2026-01-01" },
+          admin.id,
+        ),
+      ).rejects.toThrow(/between 0 and 100/)
+    })
+
+    it("accepts the boundary values", async () => {
+      const admin = makeSuperAdmin()
+      await expect(
+        commissionService.createRate(
+          { rateType: "POOL", percent: 0, effectiveFrom: "2026-02-01" },
+          admin.id,
+        ),
+      ).resolves.toBeTruthy()
+      await expect(
+        commissionService.createRate(
+          { rateType: "VAT", percent: 100, effectiveFrom: "2026-02-02" },
+          admin.id,
+        ),
+      ).resolves.toBeTruthy()
+    })
+  })
+
+describe("saveDepartmentAllocations", () => {
     it("persists new allocation percentages that sum to 100", async () => {
       const admin = makeSuperAdmin()
       const departments = await commissionService.getDepartments()
@@ -332,6 +383,68 @@ describe("commissionService", () => {
     })
   })
 
+  describe("savePositionAllocations validation", () => {
+    // commission_positions has unique (department_id, name) — migration 0031.
+    it("rejects a position with no name before writing anything", async () => {
+      const admin = makeSuperAdmin()
+      const dept = makeCommissionDepartment({ key: "posval1", name: "Pos Val One", allocation_percent: 25 })
+      makeCommissionPosition({ department_id: dept.id, name: "Keep Me", allocation_percent: 100 })
+
+      await expect(
+        commissionService.savePositionAllocations(
+          dept.id,
+          [{ name: "   ", allocationPercent: 100 }],
+          admin.id,
+        ),
+      ).rejects.toThrow(/needs a name/)
+
+      // The existing row must survive a rejected save.
+      const after = await commissionService.getPositions(dept.id)
+      expect(after.map((p) => p.name)).toEqual(["Keep Me"])
+    })
+
+    it("rejects duplicate position names within a department", async () => {
+      const admin = makeSuperAdmin()
+      const dept = makeCommissionDepartment({ key: "ops2", name: "Ops Two", allocation_percent: 25 })
+
+      await expect(
+        commissionService.savePositionAllocations(
+          dept.id,
+          [
+            { name: "Coordinator", allocationPercent: 50 },
+            { name: "Coordinator", allocationPercent: 50 },
+          ],
+          admin.id,
+        ),
+      ).rejects.toThrow(/must be unique/)
+    })
+
+    it("clears a department's positions when handed an empty set", async () => {
+      const admin = makeSuperAdmin()
+      const dept = makeCommissionDepartment({ key: "ops3", name: "Ops Three", allocation_percent: 25 })
+      makeCommissionPosition({ department_id: dept.id, name: "Manager", allocation_percent: 100 })
+
+      // 0% cannot sum to 100, but "no positions configured" is the state every
+      // department is actually in, so it has to be reachable.
+      const after = await commissionService.savePositionAllocations(dept.id, [], admin.id)
+
+      expect(after).toEqual([])
+    })
+
+    it("trims a position name rather than storing the padding", async () => {
+      const admin = makeSuperAdmin()
+      const dept = makeCommissionDepartment({ key: "ops4", name: "Ops Four", allocation_percent: 25 })
+
+      const after = await commissionService.savePositionAllocations(
+        dept.id,
+        [{ name: "  Technical Team  ", allocationPercent: 100 }],
+        admin.id,
+      )
+
+      expect(after.map((p) => p.name)).toEqual(["Technical Team"])
+    })
+  })
+
   describe("isSalesDirector", () => {
     it("is true for an employee set as sales_director_id on any opportunity", async () => {
       const director = makeEmployee({ name: "Director" })
@@ -387,6 +500,30 @@ describe("commissionService", () => {
       await expect(
         commissionService.saveSplitsForProjectType("CP", [{ shareRole: "deal_owner", percent: 100 }], salesperson.id),
       ).rejects.toThrow(/Only a Sales Director or Super Admin/)
+    })
+
+    it("removes a role left out of the save instead of stranding its old row", async () => {
+      const admin = makeSuperAdmin()
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "supporting_salesperson", percent: 15 })
+
+      const saved = await commissionService.saveSplitsForProjectType(
+        "SSP",
+        [
+          { shareRole: "deal_owner", percent: 80 },
+          { shareRole: "sales_director", percent: 20 },
+        ],
+        admin.id,
+      )
+
+      // The stored set must match what was validated on the way in — the
+      // dropped supporting_salesperson row would otherwise push it to 115.
+      expect(saved.map((s) => s.shareRole).sort()).toEqual(["deal_owner", "sales_director"])
+      expect(saved.reduce((sum, s) => sum + s.percent, 0)).toBe(100)
+
+      const reread = await commissionService.getSplitsForProjectType("SSP")
+      expect(reread.map((s) => s.shareRole).sort()).toEqual(["deal_owner", "sales_director"])
     })
   })
 

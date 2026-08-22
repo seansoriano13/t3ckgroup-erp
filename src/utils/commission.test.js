@@ -10,6 +10,7 @@ import {
   splitByDepartment,
   splitByPosition,
   splitSalesShareForRoles,
+  deriveTotalsFromLedger,
 } from "./commission";
 
 const DEPARTMENTS = [
@@ -123,10 +124,10 @@ describe("splitSalesShareForRoles", () => {
     });
 
     expect(shares).toEqual([
-      { role: "deal_owner", employee: owner, amount: 400 },
-      { role: "supporting_salesperson", employee: support1, amount: 150 },
-      { role: "supporting_salesperson", employee: support2, amount: 150 },
-      { role: "sales_director", employee: director, amount: 300 },
+      { role: "deal_owner", employee: owner, percent: 40, amount: 400 },
+      { role: "supporting_salesperson", employee: support1, percent: 15, amount: 150 },
+      { role: "supporting_salesperson", employee: support2, percent: 15, amount: 150 },
+      { role: "sales_director", employee: director, percent: 30, amount: 300 },
     ]);
   });
 
@@ -141,8 +142,8 @@ describe("splitSalesShareForRoles", () => {
     });
 
     expect(shares).toEqual([
-      { role: "deal_owner", employee: owner, amount: 400 },
-      { role: "supporting_salesperson", employee: support1, amount: 300 },
+      { role: "deal_owner", employee: owner, percent: 40, amount: 400 },
+      { role: "supporting_salesperson", employee: support1, percent: 30, amount: 300 },
     ]);
   });
 
@@ -155,7 +156,7 @@ describe("splitSalesShareForRoles", () => {
       sales_director: null,
     });
 
-    expect(shares).toEqual([{ role: "deal_owner", employee: owner, amount: 400 }]);
+    expect(shares).toEqual([{ role: "deal_owner", employee: owner, percent: 40, amount: 400 }]);
   });
 });
 
@@ -407,5 +408,294 @@ describe("aggregateOpportunityCommissions", () => {
 
     expect(agg.totalDealsCount).toBe(1);
     expect(agg.dealLedger[0].id).toBe("opp-2");
+  });
+});
+
+describe("splitSalesShareForRoles — percent on every share", () => {
+  // The SOR modal footer masks a peer's money by rendering a "N% Share"
+  // label instead. That fallback was unreachable while shares carried no
+  // `percent` at all, so a masked peer always fell through to bullets. Every
+  // share must carry the percentage that explains its own amount.
+  const SPLITS = [
+    { shareRole: "deal_owner", percent: 60 },
+    { shareRole: "supporting_salesperson", percent: 30 },
+    { shareRole: "sales_director", percent: 10 },
+  ];
+
+  it("labels each share with the percentage that produced its amount", () => {
+    const shares = splitSalesShareForRoles(4_107.14, SPLITS, {
+      deal_owner: { id: "u1", name: "Alice" },
+      supporting_salespeople: [{ id: "u2", name: "Bob" }],
+      sales_director: { id: "u3", name: "Dave" },
+    });
+
+    expect(shares.map((s) => [s.role, s.percent])).toEqual([
+      ["deal_owner", 60],
+      ["supporting_salesperson", 30],
+      ["sales_director", 10],
+    ]);
+
+    for (const share of shares) {
+      expect(share.amount).toBeCloseTo(4_107.14 * (share.percent / 100), 6);
+    }
+  });
+
+  it("halves the combined supporting percentage when both slots are filled", () => {
+    const shares = splitSalesShareForRoles(4_107.14, SPLITS, {
+      deal_owner: { id: "u1", name: "Alice" },
+      supporting_salespeople: [
+        { id: "u2", name: "Bob" },
+        { id: "u4", name: "Carol" },
+      ],
+      sales_director: { id: "u3", name: "Dave" },
+    });
+
+    const supporters = shares.filter((s) => s.role === "supporting_salesperson");
+    expect(supporters).toHaveLength(2);
+    for (const share of supporters) {
+      expect(share.percent).toBe(15);
+      expect(share.amount).toBeCloseTo(4_107.14 * 0.15, 6);
+    }
+  });
+});
+
+describe("aggregateOpportunityCommissions — unattributed Sales share", () => {
+  const RATES = { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 };
+  const SSP_SPLITS = {
+    SSP: [
+      { shareRole: "deal_owner", percent: 80 },
+      { shareRole: "sales_director", percent: 20 },
+    ],
+  };
+
+  const soloDeal = {
+    id: "opp-solo",
+    expected_value: 1_000_000,
+    status: "AWARDED",
+    project_type: "SSP",
+    contract_date: "2026-03-01",
+    deal_owner: { id: "emp-alice", name: "Alice", avatar_path: null },
+    support_1: null,
+    support_2: null,
+    sales_director: null,
+  };
+
+  // Since the SSP branch was folded into the configured splits, a solo deal
+  // with nobody in the Sales Director slot leaves that role's 20% attributed
+  // to no employee. The number is reported rather than silently dropped, so
+  // the roster and the Sales department total can be reconciled.
+  it("reports the share of a role no one on the deal fills", () => {
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [soloDeal],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SSP_SPLITS,
+      scope: "REALIZED",
+    });
+
+    const sumRepShares = agg.salesEmployees.reduce((sum, e) => sum + e.totalCommissionShare, 0);
+
+    expect(agg.salesDeptTotal).toBeCloseTo(4_107.14, 2);
+    expect(sumRepShares).toBeCloseTo(3_285.71, 2);
+    expect(agg.unattributedSalesAmount).toBeCloseTo(821.43, 2);
+    // The three always reconcile, whoever is or isn't on the deal.
+    expect(sumRepShares + agg.unattributedSalesAmount).toBeCloseTo(agg.salesDeptTotal, 2);
+  });
+
+  it("reports nothing unattributed when every split role is filled", () => {
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [
+        { ...soloDeal, sales_director: { id: "emp-dave", name: "Dave", avatar_path: null } },
+      ],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SSP_SPLITS,
+      scope: "REALIZED",
+    });
+
+    expect(agg.unattributedSalesAmount).toBeCloseTo(0, 6);
+  });
+});
+
+describe("deriveTotalsFromLedger", () => {
+  const RATES = { vatPercent: 12, withholdingPercent: 8, poolPercent: 1 };
+  const SPLITS = {
+    SSP: [
+      { shareRole: "deal_owner", percent: 80 },
+      { shareRole: "sales_director", percent: 20 },
+    ],
+    CP: [
+      { shareRole: "deal_owner", percent: 60 },
+      { shareRole: "supporting_salesperson", percent: 20 },
+      { shareRole: "sales_director", percent: 20 },
+    ],
+  };
+
+  const alice = { id: "emp-alice", name: "Alice", avatar_path: null };
+  const bob = { id: "emp-bob", name: "Bob", avatar_path: null };
+  const dave = { id: "emp-dave", name: "Dave", avatar_path: null };
+
+  const opportunities = [
+    {
+      id: "opp-1",
+      expected_value: 1_000_000,
+      status: "AWARDED",
+      project_type: "SSP",
+      contract_date: "2026-03-01",
+      deal_owner: alice,
+      support_1: null,
+      support_2: null,
+      sales_director: dave,
+    },
+    {
+      id: "opp-2",
+      expected_value: 2_000_000,
+      status: "CLOSED_WON",
+      project_type: "CP",
+      contract_date: "2026-03-15",
+      deal_owner: bob,
+      support_1: alice,
+      support_2: null,
+      sales_director: dave,
+    },
+  ];
+
+  const aggregate = () =>
+    aggregateOpportunityCommissions({
+      opportunities,
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+  it("reproduces the aggregate exactly when nothing is filtered out", () => {
+    const agg = aggregate();
+    const derived = deriveTotalsFromLedger(agg.dealLedger, DEPARTMENTS);
+
+    expect(derived.totalDealsCount).toBe(agg.totalDealsCount);
+    expect(derived.wonDealsCount).toBe(agg.wonDealsCount);
+    expect(derived.totalContractValue).toBeCloseTo(agg.totalContractValue, 6);
+    expect(derived.totalCommissionableRevenue).toBeCloseTo(agg.totalCommissionableRevenue, 6);
+    expect(derived.totalCommissionPool).toBeCloseTo(agg.totalCommissionPool, 6);
+    expect(derived.salesDeptTotal).toBeCloseTo(agg.salesDeptTotal, 6);
+    expect(derived.otherDeptsTotal).toBeCloseTo(agg.otherDeptsTotal, 6);
+    expect(derived.salesEmployees.map((e) => e.employeeId)).toEqual(
+      agg.salesEmployees.map((e) => e.employeeId),
+    );
+  });
+
+  it("narrows every figure to the deals it is given", () => {
+    const agg = aggregate();
+    const onlyCp = agg.dealLedger.filter((deal) => deal.projectType === "CP");
+    const derived = deriveTotalsFromLedger(onlyCp, DEPARTMENTS);
+
+    expect(derived.totalDealsCount).toBe(1);
+    expect(derived.totalContractValue).toBe(2_000_000);
+    // 2M -> commissionable 1,642,857.14 -> pool 16,428.57 -> sales 50% = 8,214.29
+    expect(derived.totalCommissionPool).toBeCloseTo(16_428.57, 2);
+    expect(derived.salesDeptTotal).toBeCloseTo(8_214.29, 2);
+
+    // Alice keeps only her CP supporting share, not her SSP deal-owner share.
+    const aliceRow = derived.salesEmployees.find((e) => e.employeeId === "emp-alice");
+    expect(aliceRow.roleBreakdown.deal_owner).toBe(0);
+    expect(aliceRow.roleBreakdown.supporting_salesperson).toBeCloseTo(1_642.86, 2);
+  });
+
+  it("returns empty totals rather than throwing on an empty ledger", () => {
+    const derived = deriveTotalsFromLedger([], DEPARTMENTS);
+
+    expect(derived.totalDealsCount).toBe(0);
+    expect(derived.totalCommissionPool).toBe(0);
+    expect(derived.salesDeptTotal).toBe(0);
+    expect(derived.salesEmployees).toEqual([]);
+    expect(derived.departmentTotals).toHaveLength(DEPARTMENTS.length);
+  });
+});
+
+describe("aggregateOpportunityCommissions — an opportunity the rates cannot price", () => {
+  const DEPTS = [{ key: "sales", name: "Sales", allocationPercent: 100 }];
+  const SPLITS = { SSP: [{ shareRole: "deal_owner", percent: 100 }] };
+  const alice = { id: "emp-alice", name: "Alice", avatar_path: null };
+
+  // Rates begin 2026-01-01, exactly as they do in production.
+  const RATE_LIST = [
+    { rate_type: "VAT", percent: 12, effective_from: "2026-01-01" },
+    { rate_type: "WITHHOLDING", percent: 8, effective_from: "2026-01-01" },
+    { rate_type: "POOL", percent: 1, effective_from: "2026-01-01" },
+  ];
+  const resolver = (asOfDate) => resolveEffectiveRatesFromList(RATE_LIST, asOfDate);
+
+  const priceable = {
+    id: "opp-good",
+    sales_reference: "S02001",
+    client_name: "Good Client",
+    expected_value: 1_000_000,
+    status: "AWARDED",
+    project_type: "SSP",
+    contract_date: "2026-03-01",
+    deal_owner: alice,
+  };
+
+  const tooOld = {
+    id: "opp-legacy",
+    sales_reference: "S02099",
+    client_name: "Legacy Client",
+    project_title: "Legacy Rollout",
+    expected_value: 500_000,
+    status: "AWARDED",
+    project_type: "SSP",
+    contract_date: "2025-11-30",
+    deal_owner: alice,
+  };
+
+  // Resolving rates happens once per opportunity inside the aggregation loop,
+  // so a single unpriceable deal used to abort the whole run and the dashboard
+  // reported nothing at all.
+  it("still prices every other deal", () => {
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [priceable, tooOld],
+      ratesResolver: resolver,
+      departments: DEPTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    expect(agg.totalDealsCount).toBe(1);
+    expect(agg.totalContractValue).toBe(1_000_000);
+    expect(agg.totalCommissionPool).toBeCloseTo(8_214.29, 2);
+    expect(agg.dealLedger.map((d) => d.id)).toEqual(["opp-good"]);
+  });
+
+  it("names the deal it could not price instead of dropping it silently", () => {
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [priceable, tooOld],
+      ratesResolver: resolver,
+      departments: DEPTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    expect(agg.unpricedDeals).toHaveLength(1);
+    expect(agg.unpricedDeals[0]).toMatchObject({
+      id: "opp-legacy",
+      salesReference: "S02099",
+      clientName: "Legacy Client",
+      asOfDate: "2025-11-30",
+    });
+    expect(agg.unpricedDeals[0].reason).toMatch(/No effective Commission Rate/);
+  });
+
+  it("reports nothing unpriced when every deal is in range", () => {
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [priceable],
+      ratesResolver: resolver,
+      departments: DEPTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    expect(agg.unpricedDeals).toEqual([]);
+    expect(agg.totalDealsCount).toBe(1);
   });
 });
