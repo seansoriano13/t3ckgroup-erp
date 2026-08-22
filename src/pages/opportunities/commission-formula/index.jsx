@@ -9,7 +9,7 @@ export default function CommissionFormulaPage() {
       <PageContainer maxWidth="2xl" className="pt-4">
         <PageHeader
           title="Commission Formula"
-          description="Current Commission Rates and Department allocation, and the Sales role split for Solo, Collaborative, and Strategic projects."
+          description="Current Commission Rates and Department allocation, and the Sales role split for Single Salesperson, Collaborative, and Strategic projects."
         />
 
         <CommissionFormulaView />
