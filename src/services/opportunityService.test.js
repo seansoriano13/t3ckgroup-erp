@@ -289,6 +289,54 @@ describe("opportunityService", () => {
       expect(moved.contract_date).toBeFalsy()
     })
 
+    // Found in production: all five Awarded-or-beyond opportunities carried a
+    // null contract_date, so none of them was anchored to a dated Commission
+    // Rate. Four had created_at == updated_at to the microsecond — registered
+    // straight into a realized stage, never passing through updateStatus at
+    // all — and the fifth had moved to Closed Won without stopping at Awarded.
+    it("sets the Contract Date when a deal skips Awarded and lands further down the pipeline", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      expect(lead.contract_date).toBeFalsy()
+
+      const won = await opportunityService.updateStatus(lead.id, "CLOSED_WON", registrar.id)
+
+      expect(won.contract_date).toBeTruthy()
+    })
+
+    it("sets the Contract Date on an opportunity registered directly at a realized stage", async () => {
+      const created = await opportunityService.createOpportunity(
+        {
+          registration_date: "2026-03-01",
+          lead_source: "LGU",
+          client_name: "Direct Award Client",
+          project_title: "Registered Already Awarded",
+          sales_reference: "S01500",
+          status: "AWARDED",
+          deal_owner_id: registrar.id,
+          items: [],
+        },
+        registrar.id,
+      )
+
+      expect(created.contract_date).toBeTruthy()
+    })
+
+    it("leaves the Contract Date unset on an opportunity registered as a Lead", async () => {
+      const created = await opportunityService.createOpportunity(
+        {
+          registration_date: "2026-03-01",
+          lead_source: "LGU",
+          client_name: "Ordinary Client",
+          project_title: "Registered As Lead",
+          deal_owner_id: registrar.id,
+          items: [],
+        },
+        registrar.id,
+      )
+
+      expect(created.contract_date).toBeFalsy()
+    })
+
     it("keeps the original Contract Date if the opportunity leaves and re-enters Awarded", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
       const firstAward = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
@@ -298,6 +346,115 @@ describe("opportunityService", () => {
       const reAwarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
 
       expect(reAwarded.contract_date).toBe(firstDate)
+    })
+  })
+
+  // The Odoo quotation number is the opportunity's identity since migration
+  // 0025 retired opportunity_no — but the UNIQUE index stayed on the retired
+  // column. Two pairs reached production sharing a reference, each with
+  // identical contract values, and the Commission Pool counted both.
+  describe("Sales Reference uniqueness", () => {
+    it("refuses to register a second opportunity against the same quotation", async () => {
+      makeOpportunity({ registered_by: registrar.id, sales_reference: "S08106", client_name: "Vigan City Government" })
+
+      await expect(
+        opportunityService.createOpportunity(
+          {
+            registration_date: "2026-08-17",
+            lead_source: "LGU",
+            client_name: "CPSDRRMO",
+            project_title: "Smart Interactive Flat Panel Display",
+            sales_reference: "S08106",
+            items: [],
+          },
+          registrar.id,
+        ),
+      ).rejects.toThrow(/already registered to Vigan City Government/)
+    })
+
+    it("names the conflicting deal rather than surfacing a constraint error", async () => {
+      makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S07995",
+        client_name: "Drrmo Santa Lucia",
+        project_title: "Coming lights",
+      })
+
+      await expect(
+        opportunityService.createOpportunity(
+          {
+            registration_date: "2026-08-18",
+            lead_source: "LGU",
+            client_name: "Santa Lucia Ilocos Sur",
+            project_title: "Rescue Equipment",
+            sales_reference: "S07995",
+            items: [],
+          },
+          registrar.id,
+        ),
+      ).rejects.toThrow(/Coming lights/)
+    })
+
+    it("still allows registering an opportunity with no reference yet", async () => {
+      await expect(
+        opportunityService.createOpportunity(
+          {
+            registration_date: "2026-08-18",
+            lead_source: "LGU",
+            client_name: "Fresh Lead",
+            project_title: "Nothing quoted yet",
+            items: [],
+          },
+          registrar.id,
+        ),
+      ).resolves.toBeTruthy()
+    })
+
+    it("lets an opportunity keep its own reference when edited", async () => {
+      const opp = makeOpportunity({ registered_by: registrar.id, sales_reference: "S08200" })
+
+      // Re-saving the same form must not read as a clash with itself.
+      await expect(
+        opportunityService.updateOpportunity(
+          opp.id,
+          {
+            lead_source: "LGU",
+            client_name: "Same Client",
+            project_title: "Same Project",
+            sales_reference: "S08200",
+            items: [],
+          },
+          registrar.id,
+        ),
+      ).resolves.toBeTruthy()
+    })
+
+    it("refuses to move an opportunity onto a reference another deal holds", async () => {
+      makeOpportunity({ registered_by: registrar.id, sales_reference: "S08300", client_name: "Holder Corp" })
+      const other = makeOpportunity({ registered_by: registrar.id, sales_reference: "S08301" })
+
+      await expect(
+        opportunityService.updateOpportunity(
+          other.id,
+          {
+            lead_source: "LGU",
+            client_name: "Thief Corp",
+            project_title: "Taking the ref",
+            sales_reference: "S08300",
+            items: [],
+          },
+          registrar.id,
+        ),
+      ).rejects.toThrow(/already registered to Holder Corp/)
+    })
+
+    it("refuses a duplicate reference supplied during a stage transition", async () => {
+      makeOpportunity({ registered_by: registrar.id, sales_reference: "S08400", client_name: "Holder Corp" })
+      const lead = makeOpportunity({ registered_by: registrar.id })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, null, "S08400"),
+      ).rejects.toThrow(/already registered to Holder Corp/)
     })
   })
 

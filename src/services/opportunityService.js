@@ -5,6 +5,7 @@ import { notificationService } from "./notificationService";
 import { getCurrentLocalDate } from "../utils/formatDate";
 import { deriveProjectType } from "../utils/commission";
 import {
+  REALIZED_STAGES,
   STAGE_LABELS,
   formatPHP,
   isValidSalesReference,
@@ -32,6 +33,43 @@ function cleanSalesReference(value) {
   if (!ref) return null;
   if (!isValidSalesReference(ref)) throw new Error(SALES_REFERENCE_HINT);
   return ref;
+}
+
+/**
+ * Throws if another opportunity already carries this Sales Reference.
+ *
+ * The Odoo quotation number is the opportunity's identity — migration 0025
+ * retired opportunity_no in its favour — but the UNIQUE index stayed behind
+ * on the retired column, so nothing stopped the same quotation anchoring two
+ * records. Two pairs reached production that way, each with identical
+ * contract values, and the Commission Pool counted both: one quotation, two
+ * lots of Commissionable Revenue.
+ *
+ * Checked here rather than relying on the database alone so the message names
+ * the conflicting deal instead of surfacing a raw constraint violation.
+ */
+async function assertSalesReferenceUnused(ref, excludeId = null) {
+  if (!ref) return;
+
+  let query = supabase
+    .from("sales_opportunities")
+    .select("id, client_name, project_title")
+    .eq("sales_reference", ref)
+    .neq("is_deleted", true)
+    .limit(1);
+  if (excludeId) query = query.neq("id", excludeId);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  const clash = data?.[0];
+  if (clash) {
+    throw new Error(
+      `Sales Reference ${ref} is already registered to ${clash.client_name || "another opportunity"}` +
+        `${clash.project_title ? ` (${clash.project_title})` : ""}. ` +
+        "Each Odoo quotation belongs to one opportunity.",
+    );
+  }
 }
 
 /**
@@ -91,6 +129,10 @@ export const opportunityService = {
    * registrations cannot collide.
    */
   async createOpportunity(payload, actorId) {
+    const createStatus = payload.status || "LEAD";
+    const newRef = cleanSalesReference(payload.sales_reference);
+    await assertSalesReferenceUnused(newRef);
+
     const { data, error } = await supabase
       .from("sales_opportunities")
       .insert({
@@ -106,13 +148,19 @@ export const opportunityService = {
           supportSales2Id: payload.support_sales_2_id,
           currentProjectType: payload.project_type,
         }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
+        sales_reference: newRef,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
         support_sales_2_id: payload.support_sales_2_id || null,
         sales_director_id: payload.sales_director_id || null,
-        status: payload.status || "LEAD",
+        status: createStatus,
+        // An opportunity can be registered already at Awarded or beyond, in
+        // which case it never passes through updateStatus and would otherwise
+        // carry no Contract Date to anchor its Commission Rate to.
+        contract_date: REALIZED_STAGES.includes(createStatus)
+          ? getCurrentLocalDate()
+          : null,
       })
       .select(PARTICIPANT_SELECT)
       .single();
@@ -147,6 +195,11 @@ export const opportunityService = {
     const existing = await opportunityService.getOpportunityById(id);
     const existingItems = await opportunityService.getItems(id);
 
+    // Excludes this opportunity, so re-saving a form without touching the
+    // reference is not treated as a clash with itself.
+    const editedRef = cleanSalesReference(payload.sales_reference);
+    await assertSalesReferenceUnused(editedRef, id);
+
     const { data, error } = await supabase
       .from("sales_opportunities")
       .update({
@@ -160,7 +213,7 @@ export const opportunityService = {
           supportSales2Id: payload.support_sales_2_id,
           currentProjectType: payload.project_type,
         }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
+        sales_reference: editedRef,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -291,6 +344,9 @@ export const opportunityService = {
     if (existing.status === nextStatus) return existing;
 
     const providedRef = cleanSalesReference(salesReference);
+    if (providedRef && providedRef !== existing.sales_reference) {
+      await assertSalesReferenceUnused(providedRef, id);
+    }
 
     if (
       requiresSalesReference(existing.status, nextStatus) &&
@@ -313,7 +369,11 @@ export const opportunityService = {
     // Set once, the first time an opportunity reaches Awarded — never
     // overwritten by a later transition, so a rate change afterward can't
     // move an already-priced opportunity's commission figure.
-    if (nextStatus === "AWARDED" && !existing.contract_date) {
+    //
+    // Any realized stage counts, not AWARDED alone: a deal moved straight to
+    // PO Received or Closed Won has plainly been awarded, and testing for the
+    // one exact stage left it with no anchor at all.
+    if (REALIZED_STAGES.includes(nextStatus) && !existing.contract_date) {
       patch.contract_date = getCurrentLocalDate();
     }
 
