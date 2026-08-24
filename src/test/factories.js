@@ -151,6 +151,28 @@ export function makeLeadSource(overrides = {}) {
   })
 }
 
+/**
+ * A pipeline stage. Defaults to an ordinary open-region stage — a test that
+ * cares about the anchor, the entry point or a terminal stage says so, because
+ * at most one row may carry each of those flags.
+ */
+export function makePipelineStage(overrides = {}) {
+  const n = next()
+  return db.seed("crm_pipeline_stages", {
+    code: `STAGE_${n}`,
+    label: `Stage ${n}`,
+    sort_order: n * 10,
+    theme: "mauve",
+    is_active: true,
+    is_system: false,
+    is_default: false,
+    is_anchor: false,
+    is_won: false,
+    is_lost: false,
+    ...overrides,
+  })
+}
+
 export function makeCommissionRate(overrides = {}) {
   return db.seed("commission_rates", {
     rate_type: "POOL",
