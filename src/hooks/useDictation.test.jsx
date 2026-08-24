@@ -69,6 +69,9 @@ const uninstall = () => {
   vi.stubGlobal("webkitSpeechRecognition", undefined)
 }
 
+/** Let a real (very short) availability timeout elapse. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 25))
+
 const dictate = (options = {}) => {
   const onCommit = vi.fn()
   const utils = renderHook((props) => useDictation(props), {
@@ -448,6 +451,45 @@ describe("useDictation", () => {
       expect(onCloudNoticeNeeded).not.toHaveBeenCalled()
     })
 
+    /**
+     * The whole launch used to sit behind this promise. A check that never
+     * settles meant the button did nothing, silently, for ever.
+     */
+    it("dictates anyway when the availability check never answers", async () => {
+      class Hanging extends StubRecognition {}
+      Hanging.available = vi.fn(() => new Promise(() => {}))
+      install(Hanging)
+      const { result } = dictate({ availabilityTimeoutMs: 5 })
+
+      await act(async () => {
+        result.current.start()
+        await settle()
+      })
+
+      expect(live).not.toBeNull()
+      expect(live.started).toBe(1)
+    })
+
+    it("can be pressed again after an availability check hangs", async () => {
+      class Hanging extends StubRecognition {}
+      Hanging.available = vi.fn(() => new Promise(() => {}))
+      install(Hanging)
+      const { result } = dictate({ availabilityTimeoutMs: 5 })
+
+      await act(async () => {
+        result.current.start()
+        await settle()
+      })
+      act(() => live.end())
+      const first = live
+      await act(async () => {
+        result.current.start()
+        await settle()
+      })
+
+      expect(live).not.toBe(first)
+    })
+
     it("retries against the vendor service when the local pack turns out unusable", async () => {
       withPack("available")
       const { result } = dictate()
@@ -462,6 +504,41 @@ describe("useDictation", () => {
       expect(live).not.toBe(local)
       expect(live.processLocally).toBe(false)
       expect(live.started).toBe(1)
+    })
+  })
+
+  describe("when the recogniser refuses to start", () => {
+    it("says so rather than doing nothing at all", () => {
+      class Refusing extends StubRecognition {
+        start() {
+          throw new Error("InvalidStateError")
+        }
+      }
+      install(Refusing)
+      const { result } = dictate()
+
+      act(() => result.current.start())
+
+      expect(result.current.error).toBe("start-failed")
+      expect(result.current.state).toBe("idle")
+    })
+
+    it("can be pressed again after a refusal", () => {
+      let refuse = true
+      class Flaky extends StubRecognition {
+        start() {
+          if (refuse) throw new Error("InvalidStateError")
+          super.start()
+        }
+      }
+      install(Flaky)
+      const { result } = dictate()
+
+      act(() => result.current.start())
+      refuse = false
+      act(() => result.current.start())
+
+      expect(result.current.state).toBe("listening")
     })
   })
 
