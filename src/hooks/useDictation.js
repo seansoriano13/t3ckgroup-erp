@@ -89,12 +89,10 @@ function buildPhrases(phrases) {
  * to the vendor service — making the employee wait on a download mid-task
  * would be a worse feature than sending one recording off-device.
  *
- * Returns a plain `false` — not a promise — when the browser has no
- * availability check, so a recogniser that needs no negotiation starts inside
- * the tap that asked for it rather than a microtask later.
+ * Asked once when the hook mounts, never on the press itself — see `start`.
  */
 function decideProcessLocally(Ctor, lang, timeoutMs) {
-  if (typeof Ctor.available !== "function") return false
+  if (typeof Ctor.available !== "function") return Promise.resolve(false)
   const query = { langs: [lang], processLocally: true }
   const asked = Promise.resolve()
     .then(() => Ctor.available(query))
@@ -145,8 +143,9 @@ export function useDictation({
   const errorRef = useRef(null)
   const tickRef = useRef(null)
   const blockedRef = useRef(false)
-  const startingRef = useRef(false)
   const unmountedRef = useRef(false)
+  // Answered on mount so the press never has to wait for it.
+  const localReadyRef = useRef(false)
   // The language ladder re-enters `launch` from inside its own closure.
   const launchRef = useRef(null)
 
@@ -298,22 +297,35 @@ export function useDictation({
     launchRef.current = launch
   }, [launch])
 
+  /**
+   * Negotiated once, on mount. Availability does not change between presses,
+   * and asking on the press would put an `await` between the click and
+   * `recognition.start()`.
+   */
+  useEffect(() => {
+    if (!Ctor) return undefined
+    let cancelled = false
+    decideProcessLocally(Ctor, lang, availabilityTimeoutMs).then((local) => {
+      if (!cancelled) localReadyRef.current = local
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [Ctor, availabilityTimeoutMs, lang])
+
+  /**
+   * Synchronous, deliberately. Chrome drops user activation across an `await`
+   * and then declines to open the microphone prompt without raising anything —
+   * the control simply does nothing. `recognition.start()` must happen inside
+   * the press that asked for it. A press that beats the availability answer
+   * uses the vendor service rather than waiting for it.
+   */
   const start = useCallback(() => {
     // The browser will not re-prompt after a denial, so neither do we.
-    if (!Ctor || blockedRef.current || recognitionRef.current || startingRef.current) return
+    if (!Ctor || blockedRef.current || recognitionRef.current) return
     setError(null)
-    const decision = decideProcessLocally(Ctor, lang, availabilityTimeoutMs)
-    if (typeof decision === "boolean") {
-      launch({ processLocally: decision, lang })
-      return
-    }
-    startingRef.current = true
-    return decision
-      .then((processLocally) => launch({ processLocally, lang }))
-      .finally(() => {
-        startingRef.current = false
-      })
-  }, [Ctor, availabilityTimeoutMs, lang, launch])
+    launch({ processLocally: localReadyRef.current, lang })
+  }, [Ctor, lang, launch])
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop()

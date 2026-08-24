@@ -348,10 +348,12 @@ describe("useDictation", () => {
       return PackAware
     }
 
+    /** Let the on-mount availability check land, then press. */
     const startAndSettle = async (result) => {
       await act(async () => {
-        await result.current.start()
+        await settle()
       })
+      act(() => result.current.start())
       act(() => live.begin())
     }
 
@@ -430,8 +432,9 @@ describe("useDictation", () => {
       const { result } = dictate({ onCloudNoticeNeeded })
 
       await act(async () => {
-        await result.current.start()
+        await settle()
       })
+      act(() => result.current.start())
 
       expect(onCloudNoticeNeeded).not.toHaveBeenCalled()
     })
@@ -443,8 +446,9 @@ describe("useDictation", () => {
       const { result } = dictate({ onCloudNoticeNeeded })
 
       await act(async () => {
-        await result.current.start()
+        await settle()
       })
+      act(() => result.current.start())
       act(() => live.fail("not-allowed"))
       act(() => live.end())
 
@@ -452,42 +456,34 @@ describe("useDictation", () => {
     })
 
     /**
-     * The whole launch used to sit behind this promise. A check that never
-     * settles meant the button did nothing, silently, for ever.
+     * Chrome drops user activation across an await, and then declines to open
+     * the microphone prompt without raising anything. The recogniser must be
+     * constructed and started inside the press itself, never a tick later.
      */
-    it("dictates anyway when the availability check never answers", async () => {
-      class Hanging extends StubRecognition {}
-      Hanging.available = vi.fn(() => new Promise(() => {}))
-      install(Hanging)
-      const { result } = dictate({ availabilityTimeoutMs: 5 })
-
+    it("starts inside the press, without awaiting the availability check", async () => {
+      withPack("available")
+      const { result } = dictate()
       await act(async () => {
-        result.current.start()
         await settle()
       })
+
+      act(() => result.current.start())
 
       expect(live).not.toBeNull()
       expect(live.started).toBe(1)
     })
 
-    it("can be pressed again after an availability check hangs", async () => {
+    it("uses the vendor service when pressed before the check has answered", () => {
       class Hanging extends StubRecognition {}
       Hanging.available = vi.fn(() => new Promise(() => {}))
       install(Hanging)
-      const { result } = dictate({ availabilityTimeoutMs: 5 })
+      const { result } = dictate()
 
-      await act(async () => {
-        result.current.start()
-        await settle()
-      })
-      act(() => live.end())
-      const first = live
-      await act(async () => {
-        result.current.start()
-        await settle()
-      })
+      act(() => result.current.start())
 
-      expect(live).not.toBe(first)
+      expect(live).not.toBeNull()
+      expect(live.started).toBe(1)
+      expect(live.processLocally).toBe(false)
     })
 
     it("retries against the vendor service when the local pack turns out unusable", async () => {
