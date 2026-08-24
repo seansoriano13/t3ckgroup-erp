@@ -44,6 +44,13 @@ const PHRASE_BOOST = 3
 const DENIED = ["not-allowed", "service-not-allowed"]
 
 /**
+ * How long to wait on the on-device availability check before giving up and
+ * using the vendor service. The whole launch hangs behind this promise, so a
+ * check that never settles would leave the control doing nothing, silently.
+ */
+const AVAILABILITY_TIMEOUT_MS = 1500
+
+/**
  * Append, never replace. The employee may have typed before dictating, and may
  * keep typing while the Dictation runs — so the text is read at commit time,
  * not at start time.
@@ -86,10 +93,11 @@ function buildPhrases(phrases) {
  * availability check, so a recogniser that needs no negotiation starts inside
  * the tap that asked for it rather than a microtask later.
  */
-function decideProcessLocally(Ctor, lang) {
+function decideProcessLocally(Ctor, lang, timeoutMs) {
   if (typeof Ctor.available !== "function") return false
   const query = { langs: [lang], processLocally: true }
-  return Promise.resolve(Ctor.available(query))
+  const asked = Promise.resolve()
+    .then(() => Ctor.available(query))
     .then((availability) => {
       if (availability === "available") return true
       if (availability === "downloadable") {
@@ -98,6 +106,10 @@ function decideProcessLocally(Ctor, lang) {
       return false
     })
     .catch(() => false)
+  const gaveUp = new Promise((resolve) => {
+    setTimeout(() => resolve(false), timeoutMs)
+  })
+  return Promise.race([asked, gaveUp])
 }
 
 /**
@@ -118,6 +130,7 @@ export function useDictation({
   phrases,
   cloudNoticeSeen = false,
   onCloudNoticeNeeded,
+  availabilityTimeoutMs = AVAILABILITY_TIMEOUT_MS,
 } = {}) {
   const Ctor = useMemo(() => getRecognitionCtor(), [])
 
@@ -163,8 +176,12 @@ export function useDictation({
       recognition.interimResults = true
       recognition.processLocally = attempt.processLocally
 
-      const hints = buildPhrases(propsRef.current.phrases)
-      if (hints) recognition.phrases = hints
+      try {
+        const hints = buildPhrases(propsRef.current.phrases)
+        if (hints) recognition.phrases = hints
+      } catch {
+        // Biasing is an enhancement. Losing it is not losing the Dictation.
+      }
 
       /**
        * The disclosure waits for audio to actually flow. Raising it at
@@ -256,7 +273,23 @@ export function useDictation({
         setSecondsRemaining(left <= COUNTDOWN_FROM ? left : null)
       }, 1000)
 
-      recognition.start()
+      /**
+       * `start()` throws on a stale recogniser, an insecure origin, or a
+       * browser that exposes the constructor without a working engine. Left
+       * unhandled the control simply does nothing, which is indistinguishable
+       * from a dead button — so the failure is surfaced and the control reset.
+       */
+      try {
+        recognition.start()
+      } catch {
+        clearTick()
+        recognitionRef.current = null
+        setInterimText("")
+        setSecondsRemaining(null)
+        setProcessingLocally(null)
+        setState("idle")
+        setError("start-failed")
+      }
     },
     [Ctor, clearTick],
   )
@@ -269,7 +302,7 @@ export function useDictation({
     // The browser will not re-prompt after a denial, so neither do we.
     if (!Ctor || blockedRef.current || recognitionRef.current || startingRef.current) return
     setError(null)
-    const decision = decideProcessLocally(Ctor, lang)
+    const decision = decideProcessLocally(Ctor, lang, availabilityTimeoutMs)
     if (typeof decision === "boolean") {
       launch({ processLocally: decision, lang })
       return
@@ -280,7 +313,7 @@ export function useDictation({
       .finally(() => {
         startingRef.current = false
       })
-  }, [Ctor, lang, launch])
+  }, [Ctor, availabilityTimeoutMs, lang, launch])
 
   const stop = useCallback(() => {
     recognitionRef.current?.stop()
