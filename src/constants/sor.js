@@ -76,7 +76,14 @@ export const PIPELINE_STAGE_SEED = [
   stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
   stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 20, STATUS_THEME.BLUE),
   stage("QUALIFIED", "Qualified", 30, STATUS_THEME.AMBER),
-  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER, { is_itb_gate: true }),
+  // TEMPORARY (migration 0037): For Bidding no longer carries is_itb_gate, so
+  // no stage does, and the ITB Number gate is dormant on both sides. Outright
+  // awards — government direct contracts among them — are won without an
+  // Invitation to Bid ever being issued, so they have no number to give, and
+  // the gate was refusing to let them reach Closed Won on prod. Restore by
+  // putting `{ is_itb_gate: true }` back here and re-running the flag update
+  // in 0037's footer; the header there records what the real fix looks like.
+  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
   stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
   stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
   stage("AWARDED", "Awarded", 60, STATUS_THEME.GREEN, { is_anchor: true }),
@@ -103,6 +110,10 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * position, the same way the Anchor Stage is — never by a literal sort_order
  * or code, which would silently detach from the gate the moment that stage is
  * renamed or reordered.
+ *
+ * Returns null against today's seed: no stage carries the flag while the gate
+ * is temporarily off (see the FOR_BIDDING seed row above and migration 0037).
+ * The resolution itself is unchanged and still covered by its own tests.
  */
 export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_itb_gate) ?? null;
@@ -260,6 +271,12 @@ export const requiresSalesReference = (
  * or renaming For Bidding must move the gate with it. A stage list with no
  * gate stage requires nothing, the same fail-safe direction isRealizedStage
  * takes when a list has no anchor.
+ *
+ * That last clause is what is carrying the temporary shutdown: nothing here is
+ * stubbed or short-circuited, the shipped seed simply has no flagged stage for
+ * it to find, so every caller gets false. Re-flagging FOR_BIDDING switches the
+ * gate back on everywhere at once — service pre-check, details modal and the
+ * trigger — with no code change. See migration 0037.
  */
 export const requiresItbNumber = (
   fromStatus,

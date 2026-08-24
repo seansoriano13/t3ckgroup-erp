@@ -1,0 +1,45 @@
+-- ==============================================================================
+-- 0037_itb_gate_temporarily_disabled.sql
+--
+-- TEMPORARY — clears the ITB gate. Not a redesign: nothing added by 0035/0036
+-- is dropped. The column, the unique index, the trigger's flag lookup, the
+-- itb_number field and every screen that records it all stay exactly as they
+-- are. This migration only takes the flag off the row that carries it.
+--
+-- Why: the CRM's live data does not currently support the assumption 0035 was
+-- built on — that everything reaching For Bidding or beyond went out to bid.
+-- It does not. Outright awards (government direct contracts among them) are
+-- won without any Invitation to Bid ever being issued, so there is no ITB
+-- Number for those deals to carry, now or ever. With the gate on, the first
+-- place that bites is Closed Won: an outright deal registered pre-gate cannot
+-- be marked won, because the move crosses the gate and the trigger demands a
+-- number that does not exist. Sales is blocked on prod today.
+--
+-- Note the gate is crossing-based, so this is not only a Closed Won problem —
+-- the same deal is refused at For Bidding, Bid Submitted and Awarded too. A
+-- carve-out for the won stage alone would just move the wall one stage
+-- earlier, which is why the flag comes off entirely rather than the trigger
+-- growing a special case.
+--
+-- The trigger already reads `where is_itb_gate` and treats "no flagged row" as
+-- "nothing is gated" (0036's fail-safe direction), so unflagging is the whole
+-- change on the DB side. `crm_pipeline_stages_one_itb_gate` is an at-most-one
+-- index, so zero flagged rows is a valid state.
+--
+-- Mirrored on the app side by dropping `is_itb_gate` from FOR_BIDDING in
+-- PIPELINE_STAGE_SEED (src/constants/sor.js) — requiresItbNumber() resolves
+-- the gate from that seed, so both sides go dormant together and neither can
+-- refuse a move the other allows.
+--
+-- TO RESTORE, once the CRM distinguishes bid deals from outright ones:
+--     update public.crm_pipeline_stages set is_itb_gate = true
+--       where code = 'FOR_BIDDING';
+--   and put `{ is_itb_gate: true }` back on the FOR_BIDDING seed row. The
+--   real fix is a per-opportunity "no bidding required" exemption the gate
+--   consults, so outright awards are exempt by record rather than the gate
+--   being off for everyone; this buys the time to build it.
+-- ==============================================================================
+
+update public.crm_pipeline_stages
+  set is_itb_gate = false
+  where is_itb_gate;

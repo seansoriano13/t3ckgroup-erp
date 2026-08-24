@@ -182,39 +182,25 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
     })
 
-    it("refuses to reach For Bidding without an ITB Number on record", async () => {
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      await expect(
-        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
-      ).rejects.toThrow(/ITB Number/i)
-
-      const unchanged = await opportunityService.getOpportunityById(lead.id)
-      expect(unchanged.status).toBe("LEAD")
-    })
-
-    it("raises a clean error for a missing ITB Number without a round trip to the database", async () => {
-      // Mirrors the Sales Reference gate: the service checks before writing,
-      // rather than relying on the trigger's raw constraint-violation message
-      // to reach the caller. Matters for anything that calls updateStatus
-      // other than the details modal, which already gates client-side.
+    it("lets an opportunity with no ITB Number reach For Bidding and Closed Won", async () => {
+      // TEMPORARY (migration 0037). Both moves were refused until the gate was
+      // switched off — the second one is the reason it was: an outright award
+      // (a government direct contract, say) never receives an Invitation to
+      // Bid, so it had no number to give and could not be marked won at all.
       //
-      // A trigger-surfaced rejection carries `.pgrst` (see pgrstError in the
-      // fake database); a plain `throw new Error(...)` from the service does
-      // not. That is the only reliable way to tell "the service refused" from
-      // "the database refused" apart, since the messages are deliberately the
-      // same wording either way.
+      // Nothing about the refusal was deleted to get here. updateStatus still
+      // runs the same pre-write requiresItbNumber() check the Sales Reference
+      // gate has; it answers false because no stage in the seed carries
+      // is_itb_gate any more. Re-flag FOR_BIDDING and these moves are refused
+      // again, by the service and by the trigger both.
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      let caught = null
-      try {
-        await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
-      } catch (error) {
-        caught = error
-      }
+      const bidding = await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
+      expect(bidding.status).toBe("FOR_BIDDING")
+      expect(bidding.itb_number).toBeNull()
 
-      expect(caught?.message).toMatch(/ITB Number/i)
-      expect(caught?.pgrst).toBeUndefined()
+      const won = await opportunityService.updateStatus(lead.id, "CLOSED_WON", registrar.id)
+      expect(won.status).toBe("CLOSED_WON")
     })
 
     it("advances to For Bidding when the ITB Number is supplied with the move", async () => {

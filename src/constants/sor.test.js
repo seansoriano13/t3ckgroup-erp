@@ -351,36 +351,59 @@ describe("stage gating derived from flags rather than codes", () => {
  * never off a stage's sort_order literal or code — a magic number baked into
  * a threshold comparison is exactly what the flag design exists to prevent,
  * because reordering or renaming the gate stage would silently detach it.
+ *
+ * The gate is TEMPORARILY OFF (migration 0037): no stage in the shipped seed
+ * carries the flag, because outright awards have no ITB Number to give and
+ * were being refused at Closed Won on prod. That is a data change, not a code
+ * change, so the mechanism below is still exercised in full — against GATED,
+ * a copy of the seed with the flag put back. The first test is the one that
+ * pins the temporary state, and flipping the seed row back flips it back.
  */
 describe("the ITB Number gate", () => {
+  // The seed as it will look again once the gate is restored.
+  const GATED = PIPELINE_STAGE_SEED.map((s) =>
+    s.code === "FOR_BIDDING" ? { ...s, is_itb_gate: true } : s,
+  )
+
+  it("is dormant in the shipped seed while the gate is temporarily off", () => {
+    // Migration 0037. Outright deals (government direct contracts among them)
+    // never receive an Invitation to Bid, so nothing may be gated on one until
+    // the CRM can tell a bid deal from an outright one. Closed Won especially:
+    // that is where the gate was biting.
+    expect(itbGateStage(PIPELINE_STAGE_SEED)).toBeNull()
+    expect(requiresItbNumber("QUALIFIED", "CLOSED_WON")).toBe(false)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING")).toBe(false)
+    expect(requiresItbNumber("QUALIFIED", "AWARDED")).toBe(false)
+  })
+
   it("names For Bidding as the single stage requiring an ITB Number", () => {
-    expect(itbGateStage(PIPELINE_STAGE_SEED).code).toBe("FOR_BIDDING")
+    expect(itbGateStage(GATED).code).toBe("FOR_BIDDING")
   })
 
   it("requires an ITB Number moving from before the gate to it or beyond", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING")).toBe(true)
-    expect(requiresItbNumber("QUALIFIED", "NEGOTIATION")).toBe(true)
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "AWARDED")).toBe(true)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING", GATED)).toBe(true)
+    expect(requiresItbNumber("QUALIFIED", "NEGOTIATION", GATED)).toBe(true)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "AWARDED", GATED)).toBe(true)
   })
 
   it("does not gate a move that stays before the gate stage", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED")).toBe(false)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED", GATED)).toBe(false)
   })
 
   it("does not re-gate a move that stays at or past the gate stage", () => {
     // Already-quoted opportunities keep advancing without a second ask.
-    expect(requiresItbNumber("FOR_BIDDING", "BID_SUBMITTED")).toBe(false)
-    expect(requiresItbNumber("NEGOTIATION", "AWARDED")).toBe(false)
+    expect(requiresItbNumber("FOR_BIDDING", "BID_SUBMITTED", GATED)).toBe(false)
+    expect(requiresItbNumber("NEGOTIATION", "AWARDED", GATED)).toBe(false)
   })
 
   it("lets a deal be closed as lost before it was ever put out to bid", () => {
-    expect(requiresItbNumber("QUALIFIED", "CLOSED_LOST")).toBe(false)
+    expect(requiresItbNumber("QUALIFIED", "CLOSED_LOST", GATED)).toBe(false)
   })
 
   it("keeps gating at the position the gate stage actually holds after a reorder", () => {
     // The whole point of deriving from a flag: moving For Bidding's sort_order
     // must move the gate with it, not leave a stale threshold behind.
-    const reordered = PIPELINE_STAGE_SEED.map((s) => {
+    const reordered = GATED.map((s) => {
       if (s.code === "FOR_BIDDING") return { ...s, sort_order: 25 }
       if (s.code === "QUALIFIED") return { ...s, sort_order: 35 }
       return s
@@ -392,7 +415,7 @@ describe("the ITB Number gate", () => {
   })
 
   it("never gates anything when no stage carries the flag", () => {
-    const noGate = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_itb_gate: false }))
+    const noGate = GATED.map((s) => ({ ...s, is_itb_gate: false }))
     expect(itbGateStage(noGate)).toBeNull()
     expect(requiresItbNumber("LEAD", "CLOSED_WON", noGate)).toBe(false)
   })
