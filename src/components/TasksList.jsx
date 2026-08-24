@@ -122,14 +122,14 @@ export default function TasksList({ selectedRange }) {
       ? new Date(`${selectedRange.startDate}T00:00:00`)
       : new Date(0);
     const rangeEnd = selectedRange?.endDate
-      ? new Date(`${selectedRange.endDate}T23:59:59.999`)
+      ? new Date(`${selectedRange.endDate}T00:00:00`)
       : new Date();
 
     // 🔥 NEW: Instantly scrub all deleted tasks and filter by range boundaries
     const activeTasks = rawTasks.filter((t) => {
       if (t.status === TASK_STATUS.DELETED) return false;
       const taskDate = new Date(t.createdAt);
-      return taskDate >= rangeStart && taskDate <= rangeEnd;
+      return taskDate >= rangeStart && taskDate < rangeEnd;
     });
 
     // SECTION A: My Private Queue (using activeTasks)

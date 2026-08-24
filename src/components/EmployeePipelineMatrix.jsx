@@ -55,7 +55,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
       ? new Date(`${selectedRange.startDate}T00:00:00`)
       : new Date(0);
     const rangeEnd = selectedRange?.endDate
-      ? new Date(`${selectedRange.endDate}T23:59:59.999`)
+      ? new Date(`${selectedRange.endDate}T00:00:00`)
       : new Date();
 
     const empMap = {};
@@ -64,7 +64,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
       if (!task.loggedById || task.status === TASK_STATUS.DELETED) return;
 
       const taskDate = new Date(task.createdAt);
-      if (taskDate < rangeStart || taskDate > rangeEnd) {
+      if (taskDate < rangeStart || taskDate >= rangeEnd) {
         return;
       }
 

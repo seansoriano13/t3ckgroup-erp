@@ -114,7 +114,7 @@ export const silService = {
       .order('created_at', { ascending: false });
 
     if (startDate) query = query.gte('date', startDate);
-    if (endDate) query = query.lte('date', endDate);
+    if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
@@ -135,7 +135,7 @@ export const silService = {
       .order('created_at', { ascending: false });
 
     if (startDate) query = query.gte('date', startDate);
-    if (endDate) query = query.lte('date', endDate);
+    if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);

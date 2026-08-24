@@ -3,6 +3,7 @@ import { silService } from "./silService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeHrEmployee, makeSilLeave } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
+import { getMonthBoundaries } from "@/utils/dateUtils"
 
 /**
  * Service Incentive Leave is a statutory entitlement measured in hours, so the
@@ -352,6 +353,18 @@ describe("silService", () => {
       makeSilLeave({ employee_id: employee.id, date: "2026-04-10" })
 
       const march = await silService.getMySilLeaves(employee.id, "2026-03-01", "2026-03-31")
+
+      expect(march.map((l) => l.date)).toEqual(["2026-03-10"])
+    })
+
+    it("excludes a leave dated the 1st of the following month from a month filter", async () => {
+      // getMonthBoundaries returns an EXCLUSIVE endDate (the 1st of the next
+      // month), matching what FloatingMonthPicker feeds these calls.
+      makeSilLeave({ employee_id: employee.id, date: "2026-03-10" })
+      makeSilLeave({ employee_id: employee.id, date: "2026-04-01" })
+
+      const { startDate, endDate } = getMonthBoundaries("2026-03")
+      const march = await silService.getMySilLeaves(employee.id, startDate, endDate)
 
       expect(march.map((l) => l.date)).toEqual(["2026-03-10"])
     })

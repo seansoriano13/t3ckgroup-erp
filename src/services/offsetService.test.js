@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { cleanAttachments, offsetService } from "./offsetService"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
+import { getMonthBoundaries } from "@/utils/dateUtils"
 import {
   makeEmployee,
   makeHrEmployee,
@@ -117,6 +118,27 @@ describe("offsetService", () => {
       })
 
       expect(await offsetService.getMyOffsetLeaves(employee.id)).toHaveLength(2)
+    })
+
+    it("excludes a leave dated the 1st of the following month from a month filter", async () => {
+      await offsetService.applyOffsetLeave({
+        employeeId: employee.id,
+        date: "2026-03-13",
+        hours: 4,
+        reason: "Friday",
+      })
+      // April 1, 2026 is a Wednesday, so it is a valid weekday application.
+      await offsetService.applyOffsetLeave({
+        employeeId: employee.id,
+        date: "2026-04-01",
+        hours: 4,
+        reason: "Next month",
+      })
+
+      const { startDate, endDate } = getMonthBoundaries("2026-03")
+      const march = await offsetService.getMyOffsetLeaves(employee.id, startDate, endDate)
+
+      expect(march.map((l) => l.date)).toEqual(["2026-03-13"])
     })
 
     it("refuses more hours than the employee has banked", async () => {
@@ -378,6 +400,18 @@ describe("offsetService", () => {
         "2026-03-01",
         "2026-03-31",
       )
+
+      expect(march.map((r) => r.date)).toEqual(["2026-03-10"])
+    })
+
+    it("excludes a request dated the 1st of the following month from a month filter", async () => {
+      // getMonthBoundaries returns an EXCLUSIVE endDate (the 1st of the next
+      // month), matching what FloatingMonthPicker feeds these calls.
+      makeOvertimeRequest({ employee_id: employee.id, date: "2026-03-10" })
+      makeOvertimeRequest({ employee_id: employee.id, date: "2026-04-01" })
+
+      const { startDate, endDate } = getMonthBoundaries("2026-03")
+      const march = await offsetService.getMyOvertimeRequests(employee.id, startDate, endDate)
 
       expect(march.map((r) => r.date)).toEqual(["2026-03-10"])
     })

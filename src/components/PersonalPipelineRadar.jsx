@@ -38,7 +38,7 @@ export default function PersonalPipelineRadar({ selectedRange }) {
       ? new Date(`${selectedRange.startDate}T00:00:00`)
       : new Date(0);
     const rangeEnd = selectedRange?.endDate
-      ? new Date(`${selectedRange.endDate}T23:59:59.999`)
+      ? new Date(`${selectedRange.endDate}T00:00:00`)
       : new Date();
 
     let total = 0, draft = 0, rejected = 0, pendingHead = 0, pendingHr = 0, verified = 0;
@@ -46,7 +46,7 @@ export default function PersonalPipelineRadar({ selectedRange }) {
 
     rawTasks.forEach((task) => {
       const taskDate = new Date(task.createdAt);
-      if (taskDate < rangeStart || taskDate > rangeEnd) return;
+      if (taskDate < rangeStart || taskDate >= rangeEnd) return;
       if (task.status === TASK_STATUS.DELETED) return;
 
       let matched = false;
