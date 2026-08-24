@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Clock, Calendar, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
@@ -14,16 +14,21 @@ import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { AttachmentList } from '../../../components/ui/Attachments';
+import { getMonthBoundaries } from '../../../utils/dateUtils';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'history', 'balances'
   
   // Date Range State (for FloatingMonthPicker)
+  const currentDate = new Date();
+  const currentMonthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const initialBoundaries = getMonthBoundaries(currentMonthStr);
+
   const [dateRange, setDateRange] = useState({
     mode: 'MONTHLY',
-    startDate: new Date().toISOString().slice(0, 7) + '-01',
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10),
+    startDate: initialBoundaries.startDate,
+    endDate: initialBoundaries.endDate,
   });
 
   const [pendingLeaves, setPendingLeaves] = useState([]);
@@ -36,11 +41,7 @@ export default function HrLeavesManagerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
 
-  useEffect(() => {
-    loadData();
-  }, [dateRange, loadData]);
-
-  const loadData = React.useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       // 1. Fetch Balances
@@ -90,7 +91,11 @@ export default function HrLeavesManagerPage() {
     }
   }, [dateRange.startDate, dateRange.endDate]);
 
-  const handleAction = (request, actionType) => {
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleAction = useCallback((request, actionType) => {
     // actionType: 'approve', 'approve_paid' (for OT), 'reject'
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
@@ -120,9 +125,9 @@ export default function HrLeavesManagerPage() {
         toast.error(err.message || `Failed to ${actionLabel.toLowerCase()} request.`);
       }
     });
-  };
+  }, [user?.id, loadData]);
 
-  const handleUndo = (request) => {
+  const handleUndo = useCallback((request) => {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
@@ -148,7 +153,7 @@ export default function HrLeavesManagerPage() {
         }
       }
     );
-  };
+  }, [user?.id, loadData]);
 
   const getStatusBadge = (status) => {
     switch (status) {

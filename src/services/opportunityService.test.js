@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { opportunityService } from "./opportunityService"
 import { db } from "@/test/db/store"
-import { makeEmployee, makeOpportunity } from "@/test/factories"
+import { makeEmployee, makeOpportunity, seedPipeline } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
 
 /**
@@ -16,6 +16,7 @@ describe("opportunityService", () => {
   let owner
 
   beforeEach(() => {
+    seedPipeline()
     registrar = makeEmployee({ name: "Ana Reyes" })
     owner = makeEmployee({ name: "Ben Cruz" })
   })

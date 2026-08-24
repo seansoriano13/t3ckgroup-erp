@@ -7,6 +7,8 @@
  * (see supabase/migrations/0001_sales_opportunities.sql).
  */
 
+import { STATUS_THEME } from "./statusTheme";
+
 // Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
 // Previously, they were hardcoded here as LEAD_SOURCES.
 
@@ -17,48 +19,177 @@ export const PROJECT_TYPES = [
   { value: "STRATEGIC", label: "Strategic Project" },
 ];
 
-// Annex C.3 — pipeline, in order. CLOSED_LOST is reachable from any stage.
-export const OPPORTUNITY_STATUS = {
-  LEAD: "LEAD",
-  QUALIFIED: "QUALIFIED",
-  PROPOSAL_SUBMITTED: "PROPOSAL_SUBMITTED",
-  BID_SUBMITTED: "BID_SUBMITTED",
-  NEGOTIATION: "NEGOTIATION",
-  AWARDED: "AWARDED",
-  PO_RECEIVED: "PO_RECEIVED",
-  PROJECT_DELIVERY: "PROJECT_DELIVERY",
-  COLLECTION: "COLLECTION",
-  CLOSED_WON: "CLOSED_WON",
-  RETENTION: "RETENTION",
-  CLOSED_LOST: "CLOSED_LOST",
+// ── Pipeline stages ─────────────────────────────────────────────────────────
+// The default pipeline, in order. CLOSED_LOST is reachable from any stage.
+// Twelve stages come from Annex C.3; For Bidding and Payment Verification were
+// added on top of them.
+//
+// These rows are the *seed* for `crm_pipeline_stages` and the fallback
+// the register renders when that table is empty or unreachable — they are no
+// longer the source of truth at runtime. Nothing outside this file should ever
+// match on a stage code again; ask the helpers below instead.
+//
+// The flags are what carry meaning, and none of them is a per-stage toggle an
+// admin can invent:
+//   is_default  the stage `sales_opportunities.status` defaults to, and the one
+//               a Sales Reference is required to leave (migration 0011).
+//   is_anchor   stamps Contract Date, which fixes the Commission Rate pricing
+//               that opportunity forever. Exactly one, never editable.
+//   is_won      terminal success.
+//   is_lost     terminal failure; requires a lost reason, excluded from
+//               commission, and reachable from any stage.
+//   is_system   seeded by policy; cannot be deactivated or reordered.
+//
+// Realized-vs-Projected is deliberately NOT a flag here. It is derived from
+// position relative to the anchor (see `isRealizedStage`), so that no settings
+// screen anywhere can move an opportunity between the two pools.
+//
+// sort_order is gapped by ten so inserting a stage never renumbers its
+// neighbours, which would otherwise rewrite every row on an ordering change.
+// For Bidding (35) and Payment Verification (65) were added into those gaps
+// after the fact, which is the mechanism working as intended: no existing
+// stage moved.
+//
+// Payment Verification sits AFTER the anchor, so an opportunity there counts
+// toward the Realized Commission Pool. That is correct — it has been awarded
+// and its Contract Date is already stamped; accounting still checking the
+// payment does not un-award it. It also means adding it was a change to the
+// realized set, which is why a stage this side of the anchor is a migration
+// and a policy decision rather than something a settings screen can do.
+
+const stage = (code, label, sort_order, theme, flags = {}) => ({
+  code,
+  label,
+  sort_order,
+  theme,
+  is_active: true,
+  is_system: true,
+  is_default: false,
+  is_anchor: false,
+  is_won: false,
+  is_lost: false,
+  ...flags,
+});
+
+export const PIPELINE_STAGE_SEED = [
+  stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
+  stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 20, STATUS_THEME.BLUE),
+  stage("QUALIFIED", "Qualified", 30, STATUS_THEME.AMBER),
+  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
+  stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
+  stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
+  stage("AWARDED", "Awarded", 60, STATUS_THEME.GREEN, { is_anchor: true }),
+  stage("PAYMENT_VERIFICATION", "Payment Verification", 65, STATUS_THEME.AMBER),
+  stage("PO_RECEIVED", "PO Received", 70, STATUS_THEME.GREEN),
+  stage("PROJECT_DELIVERY", "Project Delivery", 80, STATUS_THEME.ORANGE),
+  stage("COLLECTION", "Collection", 90, STATUS_THEME.ORANGE),
+  stage("CLOSED_WON", "Closed Won", 100, STATUS_THEME.GREEN, { is_won: true }),
+  stage("RETENTION", "Retention", 110, STATUS_THEME.VIOLET),
+  stage("CLOSED_LOST", "Closed Lost", 120, STATUS_THEME.RED, { is_lost: true }),
+];
+
+/** The single stage that stamps Contract Date, or null if a list has none. */
+export const anchorStage = (stages = PIPELINE_STAGE_SEED) =>
+  stages.find((s) => s.is_anchor) ?? null;
+
+/** The stage a newly registered opportunity starts in. */
+export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
+  stages.find((s) => s.is_default) ?? null;
+
+/**
+ * Whether an opportunity in this stage counts toward the Realized Commission
+ * Pool rather than the Projected one.
+ *
+ * Derived, never stored: a stage at or past the anchor has been awarded, and a
+ * lost deal never counts however late it sorts. A stage list with no anchor
+ * yields nothing realized — under-reporting is the safe direction to fail,
+ * because the alternative silently promotes pipeline deals into booked money.
+ */
+export const isRealizedStage = (s, stages = PIPELINE_STAGE_SEED) => {
+  const anchor = anchorStage(stages);
+  if (!anchor || !s) return false;
+  return s.sort_order >= anchor.sort_order && !s.is_lost;
 };
 
-export const OPPORTUNITY_STAGES = [
-  { value: OPPORTUNITY_STATUS.LEAD, label: "Lead" },
-  { value: OPPORTUNITY_STATUS.QUALIFIED, label: "Qualified" },
-  { value: OPPORTUNITY_STATUS.PROPOSAL_SUBMITTED, label: "Proposal Submitted" },
-  { value: OPPORTUNITY_STATUS.BID_SUBMITTED, label: "Bid Submitted" },
-  { value: OPPORTUNITY_STATUS.NEGOTIATION, label: "Negotiation" },
-  { value: OPPORTUNITY_STATUS.AWARDED, label: "Awarded" },
-  { value: OPPORTUNITY_STATUS.PO_RECEIVED, label: "PO Received" },
-  { value: OPPORTUNITY_STATUS.PROJECT_DELIVERY, label: "Project Delivery" },
-  { value: OPPORTUNITY_STATUS.COLLECTION, label: "Collection" },
-  { value: OPPORTUNITY_STATUS.CLOSED_WON, label: "Closed Won" },
-  { value: OPPORTUNITY_STATUS.RETENTION, label: "Retention" },
-  { value: OPPORTUNITY_STATUS.CLOSED_LOST, label: "Closed Lost" },
-];
+export const realizedStageCodes = (stages = PIPELINE_STAGE_SEED) =>
+  stages.filter((s) => isRealizedStage(s, stages)).map((s) => s.code);
 
-export const REALIZED_STAGES = [
-  OPPORTUNITY_STATUS.AWARDED,
-  OPPORTUNITY_STATUS.PO_RECEIVED,
-  OPPORTUNITY_STATUS.PROJECT_DELIVERY,
-  OPPORTUNITY_STATUS.COLLECTION,
-  OPPORTUNITY_STATUS.CLOSED_WON,
-  OPPORTUNITY_STATUS.RETENTION,
-];
+/** Won or lost — an opportunity here has stopped moving. */
+export const isTerminalStage = (s) => Boolean(s?.is_won || s?.is_lost);
+
+/**
+ * The pre-award region a super admin may add to, reorder, and deactivate
+ * within. Everything from the anchor onward is the accounting pipeline that
+ * Annex C and the commission engine depend on, so it stays locked — inserting
+ * a stage there would change the Realized pool by side effect.
+ */
+export const isOpenRegionStage = (s, stages = PIPELINE_STAGE_SEED) => {
+  const anchor = anchorStage(stages);
+  if (!anchor || !s) return false;
+  return s.sort_order < anchor.sort_order && !isTerminalStage(s);
+};
+
+/** Active stages in pipeline order — what a picker or board should render. */
+export const activeStages = (stages = PIPELINE_STAGE_SEED) =>
+  stages.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order);
+
+/**
+ * Active stages, plus any deactivated stage an opportunity is still sitting
+ * in. Deactivating a stage removes it from pickers — it must never also make
+ * the opportunities inside it disappear from a board or matrix.
+ *
+ * `occupiedCodes` is whatever the caller's own opportunities carry in
+ * `status`; duplicates are fine.
+ */
+export const renderableStages = (stages = PIPELINE_STAGE_SEED, occupiedCodes = []) => {
+  const occupied = new Set(occupiedCodes);
+  return stages
+    .filter((s) => s.is_active || occupied.has(s.code))
+    .sort((a, b) => a.sort_order - b.sort_order);
+};
+
+// ── Asking about the code stored on an opportunity ──────────────────────────
+// `sales_opportunities.status` holds a stage code, so most callers have a
+// string rather than a row. These resolve it for them. A code that is no
+// longer in the list — a row written before a stage was retired — resolves to
+// null and answers false to everything, rather than throwing inside a render.
+
+export const stageByCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  stages.find((s) => s.code === code) ?? null;
+
+export const isWonCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_won);
+
+export const isLostCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_lost);
+
+export const isAnchorCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_anchor);
+
+export const isRealizedCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  isRealizedStage(stageByCode(code, stages), stages);
+
+export const isTerminalCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  isTerminalStage(stageByCode(code, stages));
+
+// ── Compatibility views over the seed ───────────────────────────────────────
+// Existing call sites still read these shapes. They derive from the seed so the
+// two can never drift; consumers move onto the loaded stage list ticket by
+// ticket, and these disappear once the last one has.
+
+export const OPPORTUNITY_STATUS = Object.fromEntries(
+  PIPELINE_STAGE_SEED.map((s) => [s.code, s.code]),
+);
+
+export const OPPORTUNITY_STAGES = PIPELINE_STAGE_SEED.map((s) => ({
+  value: s.code,
+  label: s.label,
+}));
+
+export const REALIZED_STAGES = realizedStageCodes(PIPELINE_STAGE_SEED);
 
 export const STAGE_LABELS = Object.fromEntries(
-  OPPORTUNITY_STAGES.map((s) => [s.value, s.label]),
+  PIPELINE_STAGE_SEED.map((s) => [s.code, s.label]),
 );
 
 // Dynamic lead sources replaced LEAD_SOURCE_LABELS.
@@ -92,13 +223,39 @@ export const isValidSalesReference = (value) =>
 
 /**
  * Whether a stage move requires a Sales Reference to already be on record.
- * Only moves *out of* Lead are gated: rows registered before this field
- * existed keep advancing, and a lead can still be lost before it is quoted.
+ * Only moves *out of* the entry stage are gated: rows registered before this
+ * field existed keep advancing, and a lead can still be lost before it is
+ * quoted.
+ *
+ * Reads the is_default and is_lost flags rather than matching 'LEAD' and
+ * 'CLOSED_LOST', so renaming either stage cannot quietly disable the gate.
+ * Mirrored by a trigger — see migration 0011.
  */
-export const requiresSalesReference = (fromStatus, toStatus) =>
-  fromStatus === OPPORTUNITY_STATUS.LEAD &&
-  toStatus !== OPPORTUNITY_STATUS.LEAD &&
-  toStatus !== OPPORTUNITY_STATUS.CLOSED_LOST;
+export const requiresSalesReference = (
+  fromStatus,
+  toStatus,
+  stages = PIPELINE_STAGE_SEED,
+) =>
+  Boolean(stageByCode(fromStatus, stages)?.is_default) &&
+  toStatus !== fromStatus &&
+  !isLostCode(toStatus, stages);
+
+/**
+ * Whether a stage move requires an ITB Number (Invitation to Bid) to be on record.
+ * Required when moving into For Bidding (sort_order 35) or beyond, from a stage
+ * prior to it. Existing downstream opportunities are grandfathered in.
+ */
+export const requiresItbNumber = (
+  fromStatus,
+  toStatus,
+  stages = PIPELINE_STAGE_SEED,
+) => {
+  const fromStage = stageByCode(fromStatus, stages);
+  const toStage = stageByCode(toStatus, stages);
+  if (!fromStage || !toStage) return false;
+  
+  return fromStage.sort_order < 35 && toStage.sort_order >= 35 && !isLostCode(toStatus, stages);
+};
 
 /** Formats a PHP amount for display. */
 export const formatPHP = (amount) =>

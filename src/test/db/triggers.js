@@ -28,11 +28,17 @@ export const TRIGGERS = {
       // S0#### format with Odoo's sales references while identifying an
       // unrelated record, so it is no longer minted. New rows leave it null.
       // 0011 — sales_opportunities_require_sales_ref(), INSERT branch
-      function requireSalesReferenceOnInsert(row) {
+      // Updated in 0034 to read flags from crm_pipeline_stages
+      function requireSalesReferenceOnInsert(row, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
           : null
-        if (!["LEAD", "CLOSED_LOST"].includes(row.status) && row.sales_reference == null) {
+        
+        const stage = context.rowsOf("crm_pipeline_stages").find(s => s.code === row.status)
+        const isLead = stage?.is_default
+        const isLost = stage?.is_lost
+
+        if (!isLead && !isLost && row.sales_reference == null) {
           raise(
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required to register an opportunity beyond Lead.",
           )
@@ -41,14 +47,24 @@ export const TRIGGERS = {
     ],
     beforeUpdate: [
       // 0011 — sales_opportunities_require_sales_ref(), UPDATE branch
-      function requireSalesReferenceOnStageMove(row, old) {
+      // Updated in 0034 to read flags from crm_pipeline_stages
+      function requireSalesReferenceOnStageMove(row, old, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
           : null
+        
+        const stage = context.rowsOf("crm_pipeline_stages").find(s => s.code === row.status)
+        const oldStage = context.rowsOf("crm_pipeline_stages").find(s => s.code === old.status)
+        
+        const isLead = stage?.is_default
+        const isLost = stage?.is_lost
+        const oldIsLead = oldStage?.is_default
+
         if (
           row.status !== old.status &&
-          old.status === "LEAD" &&
-          !["LEAD", "CLOSED_LOST"].includes(row.status) &&
+          oldIsLead &&
+          !isLead &&
+          !isLost &&
           row.sales_reference == null
         ) {
           raise(
@@ -111,12 +127,12 @@ export const TRIGGERS = {
   },
 }
 
-export function runBeforeInsert(table, row) {
-  for (const trigger of TRIGGERS[table]?.beforeInsert ?? []) trigger(row)
+export function runBeforeInsert(table, row, context) {
+  for (const trigger of TRIGGERS[table]?.beforeInsert ?? []) trigger(row, context)
 }
 
-export function runBeforeUpdate(table, row, old) {
-  for (const trigger of TRIGGERS[table]?.beforeUpdate ?? []) trigger(row, old)
+export function runBeforeUpdate(table, row, old, context) {
+  for (const trigger of TRIGGERS[table]?.beforeUpdate ?? []) trigger(row, old, context)
 }
 
 export function runAfterWrite(table, row, old, context) {

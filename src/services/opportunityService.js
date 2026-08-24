@@ -7,6 +7,8 @@ import { deriveProjectType } from "../utils/commission";
 import {
   STAGE_LABELS,
   formatPHP,
+  isAnchorCode,
+  isLostCode,
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
@@ -108,6 +110,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         closing_sales_id: payload.closing_sales_id || null,
@@ -163,6 +166,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         closing_sales_id: payload.closing_sales_id || null,
@@ -193,6 +197,7 @@ export const opportunityService = {
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
     checkField('sales_reference', 'Sales Reference');
+    checkField('itb_number', 'ITB Number');
     checkField('expected_award_date', 'Purchase Date/Order');
 
     const checkEmployee = (idField, objField, label) => {
@@ -284,10 +289,10 @@ export const opportunityService = {
    * `salesReference` is required when leaving Lead and none is on record yet
    * (mirrored by a trigger — see migration 0011).
    */
-  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null) {
+  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null, itbNumber = null) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, client_name, status, sales_reference, contract_date")
+      .select("id, client_name, status, sales_reference, contract_date, itb_number")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -307,17 +312,21 @@ export const opportunityService = {
 
     const patch = {
       status: nextStatus,
-      lost_reason: nextStatus === "CLOSED_LOST" ? lostReason : null,
+      lost_reason: isLostCode(nextStatus) ? lostReason : null,
     };
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
+
+    const providedItb = (itbNumber || "").trim() || null;
+    const recordsItb = providedItb && providedItb !== existing.itb_number;
+    if (recordsItb) patch.itb_number = providedItb;
 
     // Contract Date anchors which dated Commission Rate applies to this
     // opportunity (see commissionService.getCommissionBreakdownForOpportunity).
     // Set once, the first time an opportunity reaches Awarded — never
     // overwritten by a later transition, so a rate change afterward can't
     // move an already-priced opportunity's commission figure.
-    if (nextStatus === "AWARDED" && !existing.contract_date) {
+    if (isAnchorCode(nextStatus) && !existing.contract_date) {
       patch.contract_date = getCurrentLocalDate();
     }
 
@@ -349,7 +358,7 @@ export const opportunityService = {
 
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
-    const suffix = nextStatus === "CLOSED_LOST" && lostReason ? ` — ${lostReason}` : "";
+    const suffix = isLostCode(nextStatus) && lostReason ? ` — ${lostReason}` : "";
 
     await opportunityService.addSystemNote(id, `Stage moved: ${from} → ${to}${suffix}`, {
       event: "STAGE_CHANGED",
@@ -372,7 +381,7 @@ export const opportunityService = {
     // are told; nothing of theirs is closed on their behalf, because a task
     // that silently vanished would take the evidence of that spend with it.
     // Fire-and-forget: losing the deal must not fail because a notification did.
-    if (nextStatus === "CLOSED_LOST") {
+    if (isLostCode(nextStatus)) {
       procurementService
         .notifyDealClosed(id, actorId, lostReason)
         .catch(console.error);

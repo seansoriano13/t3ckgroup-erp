@@ -301,7 +301,7 @@ export default function NotionLeaveCalendar({
                onWithdrawLeave && (
                 <button
                   onClick={() => {
-                    onWithdrawLeave(selectedLeave.id, selectedLeave.status);
+                    onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
                     setSelectedLeave(null);
                   }}
                   className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"

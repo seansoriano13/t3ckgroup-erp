@@ -121,6 +121,7 @@ function parseDefault(expr) {
   if (quoted) {
     const inner = quoted[1].replace(/''/g, "'")
     if (inner === "{}") return { kind: "const", value: [] }
+    if (inner === "[]") return { kind: "const", value: [] }
     if (inner === "" || !inner.startsWith("{")) return { kind: "const", value: inner }
     return { kind: "const", value: inner.slice(1, -1).split(",").filter(Boolean) }
   }
@@ -175,6 +176,7 @@ function emptyTable(name) {
     foreignKeys: {},
     checks: [],
     unique: [],
+    uniqueIndexes: [],
     identity: [],
   }
 }
@@ -277,6 +279,64 @@ function parseConstraint(table, part, registry) {
   return false
 }
 
+/**
+ * `create unique index ... on t (cols) where <flag>`.
+ *
+ * Standalone indexes used to be skipped entirely, which meant a partial unique
+ * index — Postgres's way of saying "at most one row may have this flag set" —
+ * was invisible to the harness and silently unenforced. crm_pipeline_stages
+ * relies on four of them to guarantee a single anchor, entry, won and lost
+ * stage, so the fake database has to honour them or its tests prove nothing.
+ *
+ * Only the predicate forms actually used are understood: a bare boolean column
+ * and its negation. Anything else is left unenforced rather than guessed at,
+ * the same way an unrecognised CHECK is.
+ */
+function applyCreateIndex(sql, registry) {
+  const head = /create\s+unique\s+index(?:\s+concurrently)?(?:\s+if\s+not\s+exists)?\s+"?([a-z_0-9]+)"?\s+on\s+(?:public\.)?"?([a-z_0-9]+)"?\s*/gi
+  let match
+  while ((match = head.exec(sql))) {
+    const [, name, tableName] = match
+    const table = registry.tables[tableName]
+    if (!table) continue
+
+    // Hand-scan the key list: `((true))` and `(a, b)` both start at the same
+    // paren, and a regex cannot balance them.
+    let i = head.lastIndex
+    if (sql[i] !== "(") continue
+    let depth = 0
+    let end = -1
+    for (let j = i; j < sql.length; j++) {
+      if (sql[j] === "(") depth += 1
+      else if (sql[j] === ")") {
+        depth -= 1
+        if (depth === 0) { end = j; break }
+      }
+    }
+    if (end === -1) continue
+
+    const keyBody = sql.slice(i + 1, end).trim()
+    const tail = sql.slice(end + 1, sql.indexOf(";", end) === -1 ? undefined : sql.indexOf(";", end))
+    const whereMatch = tail.match(/\bwhere\s+([\s\S]+)$/i)
+
+    let where = null
+    if (whereMatch) {
+      const predicate = whereMatch[1].trim().replace(/\s+/g, " ")
+      const negated = /^not\s+/i.test(predicate)
+      const column = predicate.replace(/^not\s+/i, "").replace(/\s+is\s+(true|false)$/i, "").trim()
+      if (!/^[a-z_0-9]+$/i.test(column) || !table.columns[column]) continue
+      where = { column, negated }
+    }
+
+    // A key list of column names dedupes on those columns; anything else is an
+    // expression over constants, where every matching row shares one key.
+    const parts = keyBody.split(",").map((c) => c.trim().replace(/"/g, ""))
+    const columns = parts.every((c) => table.columns[c]) ? parts : null
+
+    table.uniqueIndexes.push({ name, columns, where })
+  }
+}
+
 function applyCreateTable(sql, registry) {
   const pattern =
     /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s*\(([\s\S]*?)\n\s*\)\s*;/gi
@@ -369,6 +429,7 @@ function build() {
     const sql = stripComments(source)
     applyCreateTable(sql, registry)
     applyAlterTable(sql, registry)
+    applyCreateIndex(sql, registry)
   }
   return registry
 }

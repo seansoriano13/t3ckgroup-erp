@@ -1,3 +1,9 @@
+import {
+  isLostCode,
+  isRealizedCode,
+  PIPELINE_STAGE_SEED,
+} from "../constants/sor";
+
 // Pure commission-pool math. No database, no network — every value comes in
 // as an argument and every result goes out as a plain number, so this can be
 // tested directly against the policy's own worked examples.
@@ -180,14 +186,11 @@ export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
   };
 }
 
-const REALIZED_STATUSES = [
-  "AWARDED",
-  "PO_RECEIVED",
-  "PROJECT_DELIVERY",
-  "COLLECTION",
-  "CLOSED_WON",
-  "RETENTION",
-];
+// The realized set used to be a second hard-coded copy of REALIZED_STAGES,
+// free to drift from the one in constants/sor.js. It is now derived from the
+// stage list, so a stage added to the pipeline is classified once, in one
+// place. Callers that have loaded crm_pipeline_stages pass it in; the rest get
+// the policy seed.
 
 /**
  * Aggregates commission metrics across a collection of opportunities.
@@ -202,12 +205,13 @@ export function aggregateOpportunityCommissions({
   scope = "REALIZED", // "REALIZED" | "FORECAST" | "ALL"
   currentDate = new Date().toISOString().slice(0, 10),
   dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
+  stages = PIPELINE_STAGE_SEED,
 } = {}) {
   const filteredOpps = opportunities.filter((opp) => {
-    if (opp.status === "CLOSED_LOST") return false;
+    if (isLostCode(opp.status, stages)) return false;
 
     if (scope === "REALIZED") {
-      if (!REALIZED_STATUSES.includes(opp.status)) return false;
+      if (!isRealizedCode(opp.status, stages)) return false;
     }
 
     if (dateFilter?.startDate || dateFilter?.endDate) {
@@ -243,7 +247,7 @@ export function aggregateOpportunityCommissions({
   const dealLedger = [];
 
   for (const opp of filteredOpps) {
-    const isWon = REALIZED_STATUSES.includes(opp.status);
+    const isWon = isRealizedCode(opp.status, stages);
     if (isWon) wonDealsCount += 1;
 
     const contractValue = Number(opp.expected_value) || 0;

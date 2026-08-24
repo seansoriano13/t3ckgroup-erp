@@ -9,7 +9,7 @@ import {
   X,
   List,
   LayoutGrid,
-  Rows3,
+  Trophy,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -38,7 +38,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
 
   const userDepartment = user?.department;
   const [searchTerm, setSearchTerm] = useState("");
-  const [layoutMode, setLayoutMode] = useState("stack"); // "list" | "stack" | "grid"
+  const [layoutMode, setLayoutMode] = useState("grid"); // "list" | "leaderboard" | "grid"
   const avatarMap = useEmployeeAvatarMap();
 
   // Fetch ALL tasks (we will filter them down for Heads)
@@ -209,11 +209,11 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
               <List size={16} />
             </button>
             <button
-              onClick={() => setLayoutMode("stack")}
-              className={`p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
-              title="3-Row Stack"
+              onClick={() => setLayoutMode("leaderboard")}
+              className={`p-1 rounded transition-all ${layoutMode === "leaderboard" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              title="Leaderboard View"
             >
-              <Rows3 size={16} />
+              <Trophy size={16} />
             </button>
             <button
               onClick={() => setLayoutMode("grid")}
@@ -235,13 +235,13 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
 
       {/* DYNAMIC PIPELINE GRID */}
       <div
-        className={`
+        className={`max-h-[500px] overflow-y-auto overflow-x-hidden pr-1
         ${layoutMode === "list" ? "flex flex-col gap-3 pb-4" : ""}
-        ${layoutMode === "stack" ? "grid grid-rows-3 grid-flow-col gap-3 overflow-x-auto pb-4 custom-scrollbar snap-x" : ""}
+        ${layoutMode === "leaderboard" ? "flex flex-col gap-2.5 pb-4" : ""}
         ${layoutMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-4" : ""}
       `}
       >
-        {filteredStats.map((emp) => {
+        {filteredStats.map((emp, index) => {
           if (layoutMode === "list") {
             return (
               <div
@@ -316,7 +316,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                   >
                     {emp.draft > 0 && (
                       <div
-                        className="bg-amber-a7 hover:opacity-80 cursor-pointer"
+                        className="bg-orange-a7 hover:opacity-80 cursor-pointer"
                         style={{ width: `${(emp.draft / emp.total) * 100}%` }}
                         title={`${emp.draft} Incomplete`}
                         onClick={(e) =>
@@ -338,7 +338,7 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                     )}
                     {emp.eval > 0 && (
                       <div
-                        className="bg-blue-a7 hover:opacity-80 cursor-pointer"
+                        className="bg-violet-a7 hover:opacity-80 cursor-pointer"
                         style={{ width: `${(emp.eval / emp.total) * 100}%` }}
                         title={`${emp.eval} Awaiting Approval`}
                         onClick={(e) =>
@@ -376,36 +376,30 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                     )}
                   </div>
 
-                  <div
-                    className="flex items-center gap-3"
-                    style={{ paddingTop: "8px" }}
-                  >
+                  <div className="flex items-center gap-2.5 flex-wrap py-2">
                     <span
-                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                      style={{ fontSize: "12px", color: "#6B7280" }}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       onClick={(e) =>
                         handleDeepLink(e, TASK_STATUS.INCOMPLETE, emp.id)
                       }
                     >
-                      <span className="w-1.5 h-1.5 rounded-full inline-block bg-amber-a7" />
-                      {emp.draft} <span>Inc</span>
+                      <span className="w-1.5 h-1.5 rounded-full inline-block bg-orange-a7" />
+                      {emp.draft} Incomplete
                     </span>
                     {emp.rejected > 0 && (
                       <span
-                        className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                        style={{ fontSize: "12px", color: "#6B7280" }}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                         onClick={(e) =>
                           handleDeepLink(e, TASK_STATUS.NOT_APPROVED, emp.id)
                         }
                       >
                         <span className="w-1.5 h-1.5 rounded-full inline-block bg-red-a7" />
-                        {emp.rejected} <span>Ret</span>
+                        {emp.rejected} Returned
                       </span>
                     )}
                     {emp.eval > 0 && (
                       <span
-                        className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                        style={{ fontSize: "12px", color: "#6B7280" }}
+                        className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                         onClick={(e) =>
                           handleDeepLink(
                             e,
@@ -414,29 +408,27 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                           )
                         }
                       >
-                        <span className="w-1.5 h-1.5 rounded-full inline-block bg-blue-a7" />
-                        {emp.eval} <span>Eval</span>
+                        <span className="w-1.5 h-1.5 rounded-full inline-block bg-violet-a7" />
+                        {emp.eval} Awaiting Approval
                       </span>
                     )}
                     <span
-                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                      style={{ fontSize: "12px", color: "#6B7280" }}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       onClick={(e) =>
                         handleDeepLink(e, TASK_STATUS.COMPLETE, emp.id)
                       }
                     >
                       <span className="w-1.5 h-1.5 rounded-full inline-block bg-blue-a7" />
-                      {emp.pendingHr} <span>Comp</span>
+                      {emp.pendingHr} Completed
                     </span>
                     <span
-                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                      style={{ fontSize: "12px", color: "#6B7280" }}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       onClick={(e) =>
                         handleDeepLink(e, TASK_STATUS.COMPLETE, emp.id)
                       }
                     >
                       <span className="w-1.5 h-1.5 rounded-full inline-block bg-green-a7" />
-                      {emp.verified} <span>Hr</span>
+                      {emp.verified} HR Verified
                     </span>
                   </div>
                 </div>
@@ -501,17 +493,99 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
             );
           }
 
+          if (layoutMode === "leaderboard") {
+            return (
+              <div
+                key={emp.id}
+                onClick={() =>
+                  navigate("/tasks", { state: { filterEmployeeId: emp.id } })
+                }
+                className="cursor-pointer flex items-center justify-between p-3.5 bg-card hover:bg-mauve-3 border border-border rounded-xl transition-all gap-4"
+              >
+                {/* Left: Rank Badge + Avatar + Name & Subdept */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${index === 0
+                        ? "bg-amber-3 text-amber-11 border border-amber-5 shadow-xs"
+                        : index === 1
+                          ? "bg-mauve-3 text-mauve-11 border border-mauve-5"
+                          : index === 2
+                            ? "bg-orange-3 text-orange-11 border border-orange-5"
+                            : "bg-muted text-muted-foreground border border-border"
+                      }`}
+                  >
+                    #{index + 1}
+                  </div>
+                  <Avatar
+                    className="bg-white shrink-0"
+                    size="sm"
+                    name={emp.name}
+                    src={avatarMap.get(emp.id) ?? undefined}
+                  />
+                  <div className="min-w-0">
+                    <h3 className="line-clamp-1 text-sm font-semibold text-foreground flex items-center gap-1.5">
+                      <HighlightText text={emp.name} search={searchTerm} />
+                      {index === 0 && (
+                        <Trophy size={13} className="text-amber-11 shrink-0" />
+                      )}
+                    </h3>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">
+                      <HighlightText text={emp.subDept} search={searchTerm} />
+                    </p>
+                  </div>
+                </div>
+
+                {/* Right: Metrics */}
+                <div className="flex items-center gap-4 sm:gap-6 shrink-0">
+                  <div className="hidden md:flex flex-col items-end">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Avg Grade
+                    </span>
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground">
+                      {emp.avgGrade}
+                      <Star size={11} className="text-amber-11 fill-amber-5" />
+                    </span>
+                  </div>
+
+                  <div className="hidden sm:flex flex-col items-end">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Tasks Completed
+                    </span>
+                    <span className="text-xs font-semibold text-foreground">
+                      {emp.pendingHr + emp.verified} / {emp.total}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col items-end min-w-[100px]">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Completion
+                    </span>
+                    <span className="flex items-center gap-1 text-sm font-bold text-foreground">
+                      {emp.completionRate}%
+                      <TrendingUp
+                        size={13}
+                        className={
+                          emp.completionRate >= 80
+                            ? "text-green-9"
+                            : emp.completionRate >= 50
+                              ? "text-amber-9"
+                              : "text-red-9"
+                        }
+                      />
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div
               key={emp.id}
               onClick={() =>
                 navigate("/tasks", { state: { filterEmployeeId: emp.id } })
               }
-              className={`cursor-pointer flex flex-col transition-colors hover:bg-mauve-3 hover:border-mauve-5 ${
-                layoutMode === "grid"
-                  ? "w-full"
-                  : "min-w-[260px] sm:min-w-[290px] snap-start"
-              }`}
+              className="cursor-pointer flex flex-col transition-colors hover:bg-mauve-3 hover:border-mauve-5 w-full bg-card"
               style={{
                 border: "1px solid #E5E7EB",
                 borderRadius: "8px",
@@ -661,68 +735,55 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
                 </div>
 
                 {/* Legend – ultra-clean: dot + number only */}
-                <div
-                  className="flex items-center gap-3"
-                  style={{ paddingTop: "8px" }}
-                >
+                <div className="flex items-center gap-2.5 flex-wrap py-2">
                   <span
-                    className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                    style={{ fontSize: "12px", color: "#6B7280" }}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     onClick={(e) =>
                       handleDeepLink(e, TASK_STATUS.INCOMPLETE, emp.id)
                     }
                   >
                     <span className="w-1.5 h-1.5 rounded-full inline-block bg-orange-a7" />
-                    {emp.draft}
-                    <span>Inc</span>
+                    {emp.draft} Incomplete
                   </span>
                   {emp.rejected > 0 && (
                     <span
-                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                      style={{ fontSize: "12px", color: "#6B7280" }}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       onClick={(e) =>
                         handleDeepLink(e, TASK_STATUS.NOT_APPROVED, emp.id)
                       }
                     >
                       <span className="w-1.5 h-1.5 rounded-full inline-block bg-red-a7" />
-                      {emp.rejected}
-                      <span>Ret</span>
+                      {emp.rejected} Returned
                     </span>
                   )}
                   {emp.eval > 0 && (
                     <span
-                      className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                      style={{ fontSize: "12px", color: "#6B7280" }}
+                      className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                       onClick={(e) =>
                         handleDeepLink(e, TASK_STATUS.AWAITING_APPROVAL, emp.id)
                       }
                     >
                       <span className="w-1.5 h-1.5 rounded-full inline-block bg-violet-a7" />
-                      {emp.eval}
-                      <span>Eval</span>
+                      {emp.eval} Awaiting Approval
                     </span>
                   )}
                   <span
-                    className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                    style={{ fontSize: "12px", color: "#6B7280" }}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     onClick={(e) =>
                       handleDeepLink(e, TASK_STATUS.COMPLETE, emp.id)
                     }
                   >
                     <span className="w-1.5 h-1.5 rounded-full inline-block bg-blue-a7" />
-                    {emp.pendingHr}
-                    <span>Comp</span>
+                    {emp.pendingHr} Completed
                   </span>
                   <span
-                    className="flex items-center gap-1 cursor-pointer hover:text-foreground transition-colors"
-                    style={{ fontSize: "12px", color: "#6B7280" }}
+                    className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                     onClick={(e) =>
                       handleDeepLink(e, TASK_STATUS.COMPLETE, emp.id)
                     }
                   >
                     <span className="w-1.5 h-1.5 rounded-full inline-block bg-green-a7" />
-                    {emp.verified}
-                    <span>Hr</span>
+                    {emp.verified} HR Verified
                   </span>
                 </div>
               </div>

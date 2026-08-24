@@ -45,6 +45,7 @@ export type Path =
   | `/super-admin/activity-log`
   | `/super-admin/commission`
   | `/super-admin/lead-sources`
+  | `/super-admin/pipeline-stages`
   | `/tasks`
 
 export type Params = {

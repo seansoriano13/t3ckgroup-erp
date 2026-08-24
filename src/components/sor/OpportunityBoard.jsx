@@ -1,10 +1,7 @@
 import { useMemo } from "react";
 import Avatar from "../Avatar";
-import {
-  OPPORTUNITY_STAGES,
-  PROJECT_TYPE_SHORT,
-  formatPHP,
-} from "../../constants/sor";
+import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
+import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
 
@@ -26,16 +23,25 @@ const THEME_DOT = {
  * to enforce that, so drag-and-drop is deliberately not offered here).
  */
 export default function OpportunityBoard({ opportunities, search, onCardClick }) {
+  // Deactivating a stage removes it from pickers, never from opportunities
+  // already sitting in it — so a column an opportunity here occupies stays
+  // on the board even after a super admin retires it.
+  const occupiedStageCodes = useMemo(
+    () => opportunities.map((o) => o.status),
+    [opportunities],
+  );
+  const { stages } = usePipelineStages({ occupiedCodes: occupiedStageCodes });
+
   const columns = useMemo(() => {
-    return OPPORTUNITY_STAGES.map((stage) => {
-      const items = opportunities.filter((o) => o.status === stage.value);
+    return stages.map((stage) => {
+      const items = opportunities.filter((o) => o.status === stage.code);
       const total = items.reduce(
         (sum, o) => sum + Number(o.expected_value || 0),
         0,
       );
-      return { ...stage, items, total };
+      return { value: stage.code, label: stage.label, theme: stage.theme, items, total };
     });
-  }, [opportunities]);
+  }, [opportunities, stages]);
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 items-start">
@@ -52,7 +58,9 @@ export default function OpportunityBoard({ opportunities, search, onCardClick })
 }
 
 function BoardColumn({ column, search, onCardClick }) {
-  const theme = getStatusTheme(column.value);
+  // A configured stage carries its own theme; getStatusTheme is the fallback
+  // for a code the palette map still knows about.
+  const theme = column.theme || getStatusTheme(column.value);
   const dotClass = THEME_DOT[theme] || THEME_DOT.mauve;
 
   return (

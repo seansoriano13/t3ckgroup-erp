@@ -150,17 +150,37 @@ function keyOf(row, columns) {
   return columns.map((c) => JSON.stringify(row[c] ?? null)).join("|")
 }
 
+// A partial unique index only constrains the rows its predicate selects, so a
+// row outside the predicate can never collide with one inside it.
+function indexApplies(group, row) {
+  if (!group.where) return true
+  const value = Boolean(row[group.where.column])
+  return group.where.negated ? !value : value
+}
+
 function checkUnique(tableName, table, row, existingRow) {
   const groups = [
     ...(table.primaryKey.length ? [{ columns: table.primaryKey, name: `${tableName}_pkey` }] : []),
     ...table.unique.map((columns) => ({ columns, name: `${tableName}_${columns.join("_")}_key` })),
+    // `columns: null` is an index over a constant expression — every row the
+    // predicate selects shares a single key, which is how "at most one row may
+    // set this flag" is spelled.
+    ...(table.uniqueIndexes ?? []).map((idx) => ({
+      columns: idx.columns ?? [],
+      name: idx.name,
+      where: idx.where,
+    })),
   ]
 
   for (const group of groups) {
-    if (group.columns.some((c) => row[c] == null)) continue
+    if (!indexApplies(group, row)) continue
+    if (group.columns.length && group.columns.some((c) => row[c] == null)) continue
     const key = keyOf(row, group.columns)
     const clash = rowsOf(tableName).some(
-      (other) => other !== existingRow && keyOf(other, group.columns) === key,
+      (other) =>
+        other !== existingRow &&
+        indexApplies(group, other) &&
+        keyOf(other, group.columns) === key,
     )
     if (clash) {
       throw pgrstError(
@@ -205,7 +225,7 @@ export function insertRow(tableName, input) {
   rejectUnknownColumns(tableName, table, input)
 
   const row = normalise(table, applyDefaults(tableName, table, input))
-  runBeforeInsert(tableName, row)
+  runBeforeInsert(tableName, row, { rowsOf })
   checkNotNull(tableName, table, row)
   checkConstraints(tableName, table, row)
   checkUnique(tableName, table, row, null)
@@ -223,7 +243,7 @@ export function updateRow(tableName, existingRow, patch) {
 
   const previous = { ...existingRow }
   const merged = { ...existingRow, ...normalise(table, patch) }
-  runBeforeUpdate(tableName, merged, previous)
+  runBeforeUpdate(tableName, merged, previous, { rowsOf })
   checkNotNull(tableName, table, merged)
   checkConstraints(tableName, table, merged)
   checkUnique(tableName, table, merged, existingRow)

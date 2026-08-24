@@ -4,7 +4,7 @@ import { taskQueryService } from "./taskQueryService"
 import { supabase } from "@/lib/supabase"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
+import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin, seedPipeline } from "@/test/factories"
 
 /**
  * The task pipeline is the product: INCOMPLETE → AWAITING APPROVAL → head
@@ -19,6 +19,7 @@ describe("taskMutationService", () => {
   let category
 
   beforeEach(() => {
+    seedPipeline()
     employee = makeEmployee({ name: "Ana Reyes", department: "IT" })
     head = makeHead({ name: "Head Ito", department: "IT" })
     hr = makeHrEmployee({ name: "HR Officer" })

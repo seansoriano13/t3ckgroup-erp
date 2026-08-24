@@ -355,6 +355,18 @@ export function ApprovalDetailPane({
 
         {/* SECTION 2: TASK DESCRIPTION / CHECKLIST (Clean readable block) */}
         <div className="space-y-2 pb-5 border-b border-border/70">
+          {task.projectTitle && (
+            <div className="mb-4">
+              <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1.5">
+                <Tag className="w-3.5 h-3.5" />
+                Project Title
+              </label>
+              <h4 className="text-sm font-bold text-foreground">
+                <HighlightText text={task.projectTitle} search={searchTerm} />
+              </h4>
+            </div>
+          )}
+
           <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
             Task Description

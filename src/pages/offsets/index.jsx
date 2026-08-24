@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { Clock, Calendar, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter } from 'lucide-react';
+import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter } from 'lucide-react';
+import ProtectedRoute from '../../components/ProtectedRoute';
 import PageContainer from '../../components/ui/PageContainer';
 import PageHeader from '../../components/ui/PageHeader';
 import TabGroup from '../../components/ui/TabGroup';
@@ -14,6 +15,7 @@ import NotionLeaveCalendar from '../../components/hr/NotionLeaveCalendar';
 import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { AttachmentList } from '../../components/ui/Attachments';
+import { getMonthBoundaries } from '../../utils/dateUtils';
 
 export default function EmployeeLeavesPage() {
   const { user } = useAuth();
@@ -24,10 +26,14 @@ export default function EmployeeLeavesPage() {
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OFFSET', 'SIL'
 
   // Date Range State (for FloatingMonthPicker)
+  const currentDate = new Date();
+  const currentMonthStr = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
+  const initialBoundaries = getMonthBoundaries(currentMonthStr);
+
   const [dateRange, setDateRange] = useState({
     mode: 'MONTHLY',
-    startDate: new Date().toISOString().slice(0, 7) + '-01',
-    endDate: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 10),
+    startDate: initialBoundaries.startDate,
+    endDate: initialBoundaries.endDate,
   });
 
   const [overtimeHistory, setOvertimeHistory] = useState([]);
@@ -35,13 +41,8 @@ export default function EmployeeLeavesPage() {
   const [globalApprovedLeaves, setGlobalApprovedLeaves] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
-  useEffect(() => {
-    if (user?.id) {
-      loadData();
-    }
-  }, [user, dateRange, loadData]);
-
-  const loadData = React.useCallback(async () => {
+  const loadData = useCallback(async () => {
+    if (!user?.id) return;
     setLoadingHistory(true);
     try {
       const [
@@ -90,13 +91,19 @@ export default function EmployeeLeavesPage() {
     }
   }, [user?.id, dateRange.startDate, dateRange.endDate]);
 
-  const handleWithdrawOvertime = (id) => {
+  useEffect(() => {
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id, loadData]);
+
+  const handleWithdrawOvertime = useCallback((id) => {
     confirmDeleteToast(
       'Withdraw Overtime Request',
       'Are you sure you want to withdraw this overtime request? This cannot be undone.',
       async () => {
         try {
-          await offsetService.withdrawOvertimeRequest({ requestId: id, employeeId: user.id });
+          await offsetService.withdrawOvertimeRequest({ requestId: id, employeeId: user?.id });
           toast.success('Overtime request withdrawn successfully.');
           loadData();
         } catch (err) {
@@ -104,18 +111,18 @@ export default function EmployeeLeavesPage() {
         }
       }
     );
-  };
+  }, [user?.id, loadData]);
 
-  const handleWithdrawLeave = (id, status, type) => {
+  const handleWithdrawLeave = useCallback((id, status, type) => {
     confirmDeleteToast(
       'Withdraw Leave Request',
       'Are you sure you want to withdraw this leave request? This cannot be undone.',
       async () => {
         try {
           if (type === 'OFFSET') {
-            await offsetService.withdrawOffsetLeave({ leaveId: id, employeeId: user.id });
+            await offsetService.withdrawOffsetLeave({ leaveId: id, employeeId: user?.id });
           } else {
-            await silService.cancelMySilLeave({ leaveId: id, employeeId: user.id });
+            await silService.cancelMySilLeave({ leaveId: id, employeeId: user?.id });
           }
           toast.success('Leave request withdrawn successfully.');
           loadData();
@@ -124,7 +131,7 @@ export default function EmployeeLeavesPage() {
         }
       }
     );
-  };
+  }, [user?.id, loadData]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -174,7 +181,8 @@ export default function EmployeeLeavesPage() {
   }, [leaveHistory, leaveTypeFilter]);
 
   return (
-    <PageContainer className="pt-4 space-y-6 relative">
+    <ProtectedRoute>
+      <PageContainer className="pt-4 space-y-6 relative">
 
       {/* Date Picker Overlay */}
       <FloatingMonthPicker
@@ -426,5 +434,6 @@ export default function EmployeeLeavesPage() {
         onSuccess={loadData}
       />
     </PageContainer>
+    </ProtectedRoute>
   );
 }

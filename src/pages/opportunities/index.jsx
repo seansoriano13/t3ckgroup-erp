@@ -22,19 +22,16 @@ import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
-  OPPORTUNITY_STAGES,
+  isTerminalStage,
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
   PROJECT_TYPES,
 } from "../../constants/sor";
 import { leadSourceService } from "../../services/leadSourceService";
+import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
-
-const OPEN_STAGES = OPPORTUNITY_STAGES.filter(
-  (s) => s.value !== "CLOSED_WON" && s.value !== "CLOSED_LOST",
-).map((s) => s.value);
 
 export default function OpportunitiesPage() {
   const { user } = useAuth();
@@ -146,6 +143,15 @@ export default function OpportunitiesPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const { stages: pipelineStages } = usePipelineStages();
+
+  // "Open" here means not yet terminal — it deliberately includes the whole
+  // post-award run, which is still work in progress for the sales team.
+  const openStageCodes = useMemo(
+    () => pipelineStages.filter((s) => !isTerminalStage(s)).map((s) => s.code),
+    [pipelineStages],
+  );
+
   const employeeFilterName = useMemo(
     () => opportunities.find((o) => o.deal_owner_id === employeeFilter)?.deal_owner?.name,
     [opportunities, employeeFilter],
@@ -154,7 +160,7 @@ export default function OpportunitiesPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
-      if (stageFilter === "OPEN" && !OPEN_STAGES.includes(o.status)) return false;
+      if (stageFilter === "OPEN" && !openStageCodes.includes(o.status)) return false;
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
@@ -209,15 +215,16 @@ export default function OpportunitiesPage() {
     mineOnly,
     employeeFilter,
     user?.id,
+    openStageCodes,
   ]);
 
   const totals = useMemo(() => {
-    const open = filtered.filter((o) => OPEN_STAGES.includes(o.status));
+    const open = filtered.filter((o) => openStageCodes.includes(o.status));
     return {
       count: filtered.length,
       openValue: open.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
     };
-  }, [filtered]);
+  }, [filtered, openStageCodes]);
 
   const { data: directOpportunity } = useQuery({
     queryKey: ["opportunity", selectedId],
@@ -233,7 +240,7 @@ export default function OpportunitiesPage() {
   const stageOptions = [
     { value: "ALL", label: "All Stages" },
     { value: "OPEN", label: "Open Only" },
-    ...OPPORTUNITY_STAGES.map((s) => ({ value: s.value, label: s.label })),
+    ...pipelineStages.map((s) => ({ value: s.code, label: s.label })),
   ];
 
   const currentStageLabel =
