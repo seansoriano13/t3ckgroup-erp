@@ -336,8 +336,12 @@ export function useDictation({
    * `stop` emits a final result into a component that is unmounting — and the
    * handlers are detached first so an in-flight end cannot commit either.
    */
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // StrictMode runs this effect mount -> cleanup -> mount in development.
+    // Without this line the cleanup's flag stays latched into the surviving
+    // mount and every later Dictation returns before constructing anything.
+    unmountedRef.current = false
+    return () => {
       unmountedRef.current = true
       clearTick()
       const recognition = recognitionRef.current
@@ -348,9 +352,8 @@ export function useDictation({
       recognition.onend = null
       recognitionRef.current = null
       recognition.abort()
-    },
-    [clearTick],
-  )
+    }
+  }, [clearTick])
 
   return {
     supported: Boolean(Ctor),

@@ -1,3 +1,4 @@
+import { StrictMode } from "react"
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { useDictation } from "./useDictation"
@@ -104,6 +105,45 @@ describe("useDictation", () => {
       const { result } = dictate()
 
       expect(result.current.supported).toBe(true)
+    })
+  })
+
+  /**
+   * The app mounts under StrictMode (see main.jsx), so in development React
+   * runs every effect mount -> cleanup -> mount. Anything the cleanup latches
+   * stays latched into the surviving mount.
+   */
+  describe("under StrictMode, as the app actually mounts it", () => {
+    const dictateStrictly = (options = {}) => {
+      const onCommit = vi.fn()
+      const utils = renderHook((props) => useDictation(props), {
+        initialProps: { text: "", onCommit, ...options },
+        wrapper: StrictMode,
+      })
+      return { ...utils, onCommit }
+    }
+
+    it("still dictates after the double mount", () => {
+      install()
+      const { result } = dictateStrictly()
+
+      act(() => result.current.start())
+
+      expect(live).not.toBeNull()
+      expect(live.started).toBe(1)
+      expect(result.current.state).toBe("listening")
+    })
+
+    it("still commits the Transcript after the double mount", () => {
+      install()
+      const { result, onCommit } = dictateStrictly({ text: "Existing note." })
+
+      act(() => result.current.start())
+      act(() => live.emit([["Replaced the office switch.", true]]))
+      act(() => result.current.stop())
+      act(() => live.end())
+
+      expect(onCommit).toHaveBeenCalledWith("Existing note. Replaced the office switch.")
     })
   })
 
