@@ -94,8 +94,6 @@ export const AuthProvider = ({ children }) => {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(`[AuthContext] onAuthStateChange event: ${event}`);
-
       if (session?.user) {
         resolveEmployee(session.user, isMounted);
       } else {
@@ -112,7 +110,6 @@ export const AuthProvider = ({ children }) => {
     // Re-verify session when user returns to the tab
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log("[AuthContext] Tab became visible, verifying session...");
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user && isMounted) {
             resolveEmployee(session.user, isMounted);

@@ -156,6 +156,12 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
       },
       {
+        label: "Pipeline Stages",
+        link: "/super-admin/pipeline-stages",
+        icon: LayoutList,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
+      {
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,

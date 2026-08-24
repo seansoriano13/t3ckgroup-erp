@@ -115,6 +115,14 @@ export function ApprovalQueueItem({
         <p className={`text-xs line-clamp-2 leading-relaxed transition-colors ${
           isActive ? "text-foreground font-semibold" : "text-foreground/80 font-medium"
         }`}>
+          {task.projectTitle && (
+            <>
+              <strong className="font-bold">
+                <HighlightText text={task.projectTitle} search={searchTerm} />
+              </strong>
+              <span className="opacity-60 mx-1.5">-</span>
+            </>
+          )}
           <HighlightText
             text={formatTaskPreview(task.taskDescription, task.checklist)}
             search={searchTerm}

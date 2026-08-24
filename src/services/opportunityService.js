@@ -109,6 +109,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -163,6 +164,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -192,6 +194,7 @@ export const opportunityService = {
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
     checkField('sales_reference', 'Sales Reference');
+    checkField('itb_number', 'ITB Number');
     checkField('expected_award_date', 'Purchase Date/Order');
 
     const checkEmployee = (idField, objField, label) => {
@@ -282,10 +285,10 @@ export const opportunityService = {
    * `salesReference` is required when leaving Lead and none is on record yet
    * (mirrored by a trigger — see migration 0011).
    */
-  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null) {
+  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null, itbNumber = null) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, client_name, status, sales_reference, contract_date")
+      .select("id, client_name, status, sales_reference, contract_date, itb_number")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -309,6 +312,10 @@ export const opportunityService = {
     };
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
+
+    const providedItb = (itbNumber || "").trim() || null;
+    const recordsItb = providedItb && providedItb !== existing.itb_number;
+    if (recordsItb) patch.itb_number = providedItb;
 
     // Contract Date anchors which dated Commission Rate applies to this
     // opportunity (see commissionService.getCommissionBreakdownForOpportunity).

@@ -73,8 +73,8 @@ const stage = (code, label, sort_order, theme, flags = {}) => ({
 
 export const PIPELINE_STAGE_SEED = [
   stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
-  stage("QUALIFIED", "Qualified", 20, STATUS_THEME.AMBER),
-  stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 30, STATUS_THEME.BLUE),
+  stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 20, STATUS_THEME.BLUE),
+  stage("QUALIFIED", "Qualified", 30, STATUS_THEME.AMBER),
   stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
   stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
   stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
@@ -239,6 +239,23 @@ export const requiresSalesReference = (
   Boolean(stageByCode(fromStatus, stages)?.is_default) &&
   toStatus !== fromStatus &&
   !isLostCode(toStatus, stages);
+
+/**
+ * Whether a stage move requires an ITB Number (Invitation to Bid) to be on record.
+ * Required when moving into For Bidding (sort_order 35) or beyond, from a stage
+ * prior to it. Existing downstream opportunities are grandfathered in.
+ */
+export const requiresItbNumber = (
+  fromStatus,
+  toStatus,
+  stages = PIPELINE_STAGE_SEED,
+) => {
+  const fromStage = stageByCode(fromStatus, stages);
+  const toStage = stageByCode(toStatus, stages);
+  if (!fromStage || !toStage) return false;
+  
+  return fromStage.sort_order < 35 && toStage.sort_order >= 35 && !isLostCode(toStatus, stages);
+};
 
 /** Formats a PHP amount for display. */
 export const formatPHP = (amount) =>

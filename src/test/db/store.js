@@ -225,7 +225,7 @@ export function insertRow(tableName, input) {
   rejectUnknownColumns(tableName, table, input)
 
   const row = normalise(table, applyDefaults(tableName, table, input))
-  runBeforeInsert(tableName, row)
+  runBeforeInsert(tableName, row, { rowsOf })
   checkNotNull(tableName, table, row)
   checkConstraints(tableName, table, row)
   checkUnique(tableName, table, row, null)
@@ -243,7 +243,7 @@ export function updateRow(tableName, existingRow, patch) {
 
   const previous = { ...existingRow }
   const merged = { ...existingRow, ...normalise(table, patch) }
-  runBeforeUpdate(tableName, merged, previous)
+  runBeforeUpdate(tableName, merged, previous, { rowsOf })
   checkNotNull(tableName, table, merged)
   checkConstraints(tableName, table, merged)
   checkUnique(tableName, table, merged, existingRow)

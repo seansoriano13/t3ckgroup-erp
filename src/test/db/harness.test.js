@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { supabase } from "@/lib/supabase"
 import { db } from "./store"
+import { seedPipeline } from "../factories"
 
 /**
  * Contract tests for the fake itself, driven through the real supabase-js
@@ -172,6 +173,7 @@ describe("fake PostgREST: SQL three-valued logic", () => {
 
 describe("fake PostgREST: embedded selects", () => {
   beforeEach(() => {
+    seedPipeline()
     db.seed("employees", [
       { id: "emp-owner", name: "Owner" },
       { id: "emp-registrar", name: "Registrar" },
@@ -414,6 +416,7 @@ describe("fake PostgREST: writes and constraints", () => {
 
 describe("fake PostgREST: row triggers", () => {
   beforeEach(() => {
+    seedPipeline()
     db.seed("employees", { id: "emp-1", name: "Ana Reyes" })
   })
 

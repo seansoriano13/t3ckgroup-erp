@@ -26,8 +26,8 @@ describe("pipelineStageService", () => {
 
       expect(stages.map((s) => s.code)).toEqual([
         "LEAD",
-        "QUALIFIED",
         "PROPOSAL_SUBMITTED",
+        "QUALIFIED",
         "FOR_BIDDING",
         "BID_SUBMITTED",
         "NEGOTIATION",

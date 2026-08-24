@@ -70,6 +70,11 @@ export function makeTask(overrides = {}) {
 export function makeOpportunity(overrides = {}) {
   const registeredBy = overrides.registered_by ?? makeEmployee().id
   const n = next()
+  
+  if (db.internal.rowsOf("crm_pipeline_stages").length === 0) {
+    seedPipeline()
+  }
+
   // opportunity_no is not set: migration 0012 retired it, so production leaves
   // it null too. sales_reference is the only S0#### identifier now.
   return db.seed("sales_opportunities", {
@@ -171,6 +176,23 @@ export function makePipelineStage(overrides = {}) {
     is_lost: false,
     ...overrides,
   })
+}
+
+export function seedPipeline() {
+  makePipelineStage({ code: "LEAD", label: "Lead", sort_order: 10, is_system: true, is_default: true })
+  makePipelineStage({ code: "QUALIFIED", label: "Qualified", sort_order: 20, is_system: true })
+  makePipelineStage({ code: "PROPOSAL_SUBMITTED", label: "Proposal Submitted", sort_order: 30, is_system: true })
+  makePipelineStage({ code: "FOR_BIDDING", label: "For Bidding", sort_order: 35, is_system: true })
+  makePipelineStage({ code: "BID_SUBMITTED", label: "Bid Submitted", sort_order: 40, is_system: true })
+  makePipelineStage({ code: "NEGOTIATION", label: "Negotiation", sort_order: 50, is_system: true })
+  makePipelineStage({ code: "AWARDED", label: "Awarded", sort_order: 60, is_system: true, is_anchor: true })
+  makePipelineStage({ code: "PAYMENT_VERIFICATION", label: "Payment Verification", sort_order: 65, is_system: true })
+  makePipelineStage({ code: "PO_RECEIVED", label: "PO Received", sort_order: 70, is_system: true })
+  makePipelineStage({ code: "PROJECT_DELIVERY", label: "Project Delivery", sort_order: 80, is_system: true })
+  makePipelineStage({ code: "COLLECTION", label: "Collection", sort_order: 90, is_system: true })
+  makePipelineStage({ code: "CLOSED_WON", label: "Closed Won", sort_order: 100, is_system: true, is_won: true })
+  makePipelineStage({ code: "RETENTION", label: "Retention", sort_order: 110, is_system: true })
+  makePipelineStage({ code: "CLOSED_LOST", label: "Closed Lost", sort_order: 120, is_system: true, is_lost: true })
 }
 
 export function makeCommissionRate(overrides = {}) {

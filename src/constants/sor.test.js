@@ -91,8 +91,8 @@ describe("pipeline definition", () => {
     // the business runs but the policy never named.
     expect(OPPORTUNITY_STAGES.map((s) => s.value)).toEqual([
       "LEAD",
-      "QUALIFIED",
       "PROPOSAL_SUBMITTED",
+      "QUALIFIED",
       "FOR_BIDDING",
       "BID_SUBMITTED",
       "NEGOTIATION",
@@ -405,8 +405,8 @@ describe("classifying stages for the register and the admin screen", () => {
     ).map((s) => s.code)
     expect(open).toEqual([
       "LEAD",
-      "QUALIFIED",
       "PROPOSAL_SUBMITTED",
+      "QUALIFIED",
       "FOR_BIDDING",
       "BID_SUBMITTED",
       "NEGOTIATION",

@@ -125,11 +125,6 @@ if (!globalThis._supabaseInstance) {
       heartbeatIntervalMs: 8000, 
     },
   });
-
-  // Log connectivity state for debugging
-  globalThis._supabaseInstance.auth.onAuthStateChange((event, session) => {
-    console.log(`[Supabase Auth] ${event}`, session?.user?.email || 'No session');
-  });
 }
 
 export const supabase = globalThis._supabaseInstance;

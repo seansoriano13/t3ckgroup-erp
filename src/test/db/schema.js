@@ -121,6 +121,7 @@ function parseDefault(expr) {
   if (quoted) {
     const inner = quoted[1].replace(/''/g, "'")
     if (inner === "{}") return { kind: "const", value: [] }
+    if (inner === "[]") return { kind: "const", value: [] }
     if (inner === "" || !inner.startsWith("{")) return { kind: "const", value: inner }
     return { kind: "const", value: inner.slice(1, -1).split(",").filter(Boolean) }
   }

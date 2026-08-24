@@ -97,8 +97,8 @@ insert into public.crm_pipeline_stages
   (code, label, sort_order, theme, is_system, is_default, is_anchor, is_won, is_lost)
 values
   ('LEAD',               'Lead',              10,  'mauve',  true, true,  false, false, false),
-  ('QUALIFIED',          'Qualified',         20,  'amber',  true, false, false, false, false),
-  ('PROPOSAL_SUBMITTED', 'Proposal Submitted',30,  'blue',   true, false, false, false, false),
+  ('PROPOSAL_SUBMITTED', 'Proposal Submitted',20,  'blue',   true, false, false, false, false),
+  ('QUALIFIED',          'Qualified',         30,  'amber',  true, false, false, false, false),
   ('FOR_BIDDING',        'For Bidding',       35,  'amber',  true, false, false, false, false),
   ('BID_SUBMITTED',      'Bid Submitted',     40,  'blue',   true, false, false, false, false),
   ('NEGOTIATION',        'Negotiation',       50,  'violet', true, false, false, false, false),
@@ -110,7 +110,7 @@ values
   ('CLOSED_WON',         'Closed Won',        100, 'green',  true, false, false, true,  false),
   ('RETENTION',          'Retention',         110, 'violet', true, false, false, false, false),
   ('CLOSED_LOST',        'Closed Lost',       120, 'red',    true, false, false, false, true)
-on conflict (code) do nothing;
+on conflict (code) do update set sort_order = excluded.sort_order;
 
 -- ── Let sales_opportunities.status accept the new stages ────────────────────
 -- 0001 froze the twelve valid statuses into a CHECK. Two stages have been
@@ -125,7 +125,7 @@ alter table public.sales_opportunities
   drop constraint if exists sales_opportunities_status_chk;
 alter table public.sales_opportunities
   add constraint sales_opportunities_status_chk check (status in (
-    'LEAD','QUALIFIED','PROPOSAL_SUBMITTED','FOR_BIDDING','BID_SUBMITTED',
+    'LEAD','PROPOSAL_SUBMITTED','QUALIFIED','FOR_BIDDING','BID_SUBMITTED',
     'NEGOTIATION','AWARDED','PAYMENT_VERIFICATION','PO_RECEIVED',
     'PROJECT_DELIVERY','COLLECTION','CLOSED_WON','RETENTION','CLOSED_LOST'
   ));

@@ -55,6 +55,7 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
+  requiresItbNumber,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
@@ -165,14 +166,19 @@ function PeopleRoster({ opportunity }) {
  * so it lives in `sor_procurement_requests` and renders in ProcurementPanel.
  * See the "Revision" section of docs/sor-procurement-flow-decisions.md.
  */
-function ItemsList({ items }) {
-  if (!items.length) return null;
+function ItemsList({ items, isSyncing }) {
+  if (!items.length && !isSyncing) return null;
   const total = items.reduce(
     (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
     0,
   );
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xs">
+    <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-card shadow-xs">
+      {isSyncing && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+          <Spinner size="md" className="text-primary" />
+        </div>
+      )}
       <div className="overflow-x-auto">
         <div className="min-w-[560px]">
           <div className="grid grid-cols-12 gap-3 border-b border-border/60 bg-muted/40 px-4 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
@@ -407,6 +413,7 @@ export default function OpportunityDetailsModal({
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
+  const [itbNumber, setItbNumber] = useState("");
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -414,6 +421,8 @@ export default function OpportunityDetailsModal({
   const [buildingLink, setBuildingLink] = useState(false);
   const [shareUrl, setShareUrl] = useState(null);
   const [downloadStep, setDownloadStep] = useState(null);
+  const [autoSyncingOdoo, setAutoSyncingOdoo] = useState(false);
+  const hasAutoSynced = useRef(new Set());
   const attachments = useFileAttachments();
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
@@ -435,6 +444,7 @@ export default function OpportunityDetailsModal({
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
+    setItbNumber("");
     setIsExpanded(false);
     setIsEditing(false);
     setEditForm({});
@@ -567,12 +577,13 @@ export default function OpportunityDetailsModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference }) =>
-      opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
+    mutationFn: ({ next, reason, salesReference, itbNumber }) =>
+      opportunityService.updateStatus(id, next, user?.id, reason, salesReference, itbNumber),
     onSuccess: () => {
       setPendingStage("");
       setLostReason("");
       setSalesRef("");
+      setItbNumber("");
       invalidate();
       toast.success("Stage updated.");
     },
@@ -614,6 +625,42 @@ export default function OpportunityDetailsModal({
 
     return () => cancelAnimationFrame(raf);
   }, [opportunity?.status, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !opportunity?.sales_reference || !id) return;
+    if (hasAutoSynced.current.has(id)) return;
+    
+    const ref = normalizeSalesReference(opportunity.sales_reference);
+    if (!isValidSalesReference(ref)) return;
+
+    let isMounted = true;
+    
+    const syncOdoo = async () => {
+      hasAutoSynced.current.add(id);
+      setAutoSyncingOdoo(true);
+      try {
+        const result = await odooService.fetchOrderLines(ref);
+        if (result?.success && isMounted) {
+          const payload = {
+            ...opportunity,
+            items: result.items.map(toRow)
+          };
+          await opportunityService.updateOpportunity(id, payload, user?.id);
+          invalidate();
+        }
+      } catch (err) {
+        console.error("Auto-sync Odoo failed", err);
+      } finally {
+        if (isMounted) setAutoSyncingOdoo(false);
+      }
+    };
+    
+    syncOdoo();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, id, opportunity?.sales_reference, user?.id]);
 
   const handlePostNote = async () => {
     const content = note.trim();
@@ -800,6 +847,7 @@ export default function OpportunityDetailsModal({
         expected_award_date: opportunity.expected_award_date || "",
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
+        itb_number: opportunity.itb_number || "",
         deal_owner_id: opportunity.deal_owner_id || "",
         sales_director_id: opportunity.sales_director_id || "",
         support_sales_1_id: opportunity.support_sales_1_id || "",
@@ -823,13 +871,20 @@ export default function OpportunityDetailsModal({
     !opportunity.sales_reference;
   const salesRefValid = isValidSalesReference(salesRef);
 
+  const needsItbNumber =
+    !!pendingStage &&
+    requiresItbNumber(opportunity.status, pendingStage) &&
+    !opportunity.itb_number;
+  const itbNumberValid = !!itbNumber.trim();
+
   const handleStageChange = (next) => {
     if (!next || next === opportunity.status) return;
     // Both branches need something typed before the move can be written, so
     // they park the choice in `pendingStage` and prompt for it inline.
     if (
       isLostCode(next) ||
-      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
+      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference) ||
+      (requiresItbNumber(opportunity.status, next) && !opportunity.itb_number)
     ) {
       setPendingStage(next);
       return;
@@ -847,18 +902,19 @@ export default function OpportunityDetailsModal({
         } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
         "Move anyway",
         "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
+        () => stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null }),
       );
       return;
     }
 
-    stageMutation.mutate({ next, reason: null, salesReference: null });
+    stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null });
   };
 
   const cancelPendingStage = () => {
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
+    setItbNumber("");
   };
 
   const isPosting = isUploading || addNoteMutation.isPending;
@@ -1151,6 +1207,49 @@ export default function OpportunityDetailsModal({
                     : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${stageLabel(pendingStage) ||
                     pendingStage
                     }.`}
+                </p>
+              </div>
+            )}
+
+            {needsItbNumber && (
+              <div className="mt-3">
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+                    <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                      ITB Number (Invitation to Bid)
+                      <span className="ml-0.5 text-red-500">*</span>
+                    </label>
+                    <input
+                      autoFocus
+                      value={itbNumber}
+                      onChange={(e) => setItbNumber(e.target.value)}
+                      placeholder="e.g. ITB-2026-001 or URL link"
+                      className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
+                    />
+                  </div>
+                  <button
+                    disabled={!itbNumberValid || stageMutation.isPending}
+                    onClick={() =>
+                      stageMutation.mutate({
+                        next: pendingStage,
+                        reason: null,
+                        salesReference: null,
+                        itbNumber: itbNumber.trim(),
+                      })
+                    }
+                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    onClick={cancelPendingStage}
+                    className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  Enter the ITB Number (Invitation to Bid) before moving to {stageLabel(pendingStage) || pendingStage}.
                 </p>
               </div>
             )}
@@ -1629,6 +1728,22 @@ export default function OpportunityDetailsModal({
                       ) : null}
                     </Detail>
                   )}
+
+                  <Detail
+                    label="ITB Number (Invitation to Bid)"
+                    isEditing={isEditing}
+                    control={
+                      <input
+                        type="text"
+                        value={editForm.itb_number}
+                        onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
+                        className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                        placeholder="e.g. ITB-2026-001 or URL link"
+                      />
+                    }
+                  >
+                    {opportunity.itb_number || <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>}
+                  </Detail>
                 </div>
               </div>
 
@@ -1791,7 +1906,7 @@ export default function OpportunityDetailsModal({
             </div>
           </div>
 
-          {(items.length > 0 || isEditing) && (
+          {(items.length > 0 || isEditing || autoSyncingOdoo) && (
             <div className="space-y-3">
               {isEditing ? (
                 <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
@@ -1810,7 +1925,7 @@ export default function OpportunityDetailsModal({
                       {items.length} item{items.length === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <ItemsList items={items} />
+                  <ItemsList items={items} isSyncing={autoSyncingOdoo || fetchingOdoo} />
                 </div>
               )}
             </div>
