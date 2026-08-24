@@ -96,3 +96,19 @@ _Avoid_: Forecasted Bonus, Unearned Pool
 The role-based security boundary ensuring standard employees view only their own attributed monetary values (₱) and relative percentage splits, while masking other employees' exact earnings. Full company monetary totals and peer earnings are restricted to Super Admin, Management, and Finance & Accounting.
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
+
+### Task Logging & Dictation
+
+**DTAR (Daily Task Accomplishment Report)**:
+The organizational name for an employee's logged task record — the same artifact the codebase calls a task and surfaces through the Log Task flow. Used in conversation and policy; the code and schema say `task`.
+_Avoid_: Accomplishment, Daily Report, Timesheet Entry
+
+**Dictation**:
+The transient act of an employee speaking a task description aloud instead of typing it. Bounded by a single start and stop; produces exactly one Transcript and leaves no durable artifact of its own.
+_Avoid_: Recording, Voice Note, Voice Memo
+
+**Transcript**:
+The verbatim text a Dictation produces, appended to the task description as ordinary editable text. Indistinguishable from typed text once it lands — a task description carries no record of how it was entered.
+_Avoid_: Transcription, Speech Result, Voice Text
+
+No audio is retained. A Dictation's audio exists only for the duration of the Dictation itself; there is no stored recording to play back, attach, review, or delete, and consequently no audio retention policy.

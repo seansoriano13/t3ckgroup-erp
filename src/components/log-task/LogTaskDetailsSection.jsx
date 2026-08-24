@@ -2,6 +2,7 @@ import { Receipt, ImagePlus, X, Maximize2, ClipboardPaste } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { createPortal } from "react-dom"
 import ChecklistTaskInput from "../ChecklistTaskInput"
+import DictateButton from "./DictateButton"
 import Spinner from "@/components/ui/Spinner"
 import { storageService } from "../../services/storageService"
 import toast from "react-hot-toast"
@@ -18,7 +19,8 @@ export default function LogTaskDetailsSection({
   isExpanded,
   onAttachmentsChange,
 }) {
-  const projectTitles = useProjectTitles(formData?.loggedById || selectedEmployeeInfo?.id, true)
+  const dictationEmployeeId = formData?.loggedById || selectedEmployeeInfo?.id
+  const projectTitles = useProjectTitles(dictationEmployeeId, true)
   const [isUploading, setIsUploading] = useState(false)
   const [fullscreenImage, setFullscreenImage] = useState(null)
   const fileInputRef = useRef(null)
@@ -136,8 +138,29 @@ export default function LogTaskDetailsSection({
           }`}
         />
 
+        {/* Dictation + checklist affordances share one row under the description */}
+        <div className="flex flex-wrap items-center gap-2">
+          <DictateButton
+            employeeId={dictationEmployeeId}
+            text={formData.taskDescription || ""}
+            phrases={projectTitles}
+            onCommit={(next) =>
+              handleChange({ target: { name: "taskDescription", value: next } })
+            }
+          />
+          {!showChecklist && (
+            <button
+              type="button"
+              onClick={onToggleChecklist}
+              className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+            >
+              <span className="text-base leading-none">+</span> Add checklist
+            </button>
+          )}
+        </div>
+
         {/* Checklist section — collapsible */}
-        {showChecklist ? (
+        {showChecklist && (
           <div className="mt-2 animate-slide-down">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -159,14 +182,6 @@ export default function LogTaskDetailsSection({
               />
             </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={onToggleChecklist}
-            className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
-          >
-            <span className="text-base leading-none">+</span> Add checklist
-          </button>
         )}
       </div>
       {/* 3. IMAGE ATTACHMENTS */}
