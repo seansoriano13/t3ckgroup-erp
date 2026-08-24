@@ -188,7 +188,13 @@ export default function PipelineStageManager() {
             {stages?.map((stage, index) => {
               const isLocked = stage.is_system;
               const isAnchorOrAfter = stages.findIndex(s => s.is_anchor) !== -1 && index >= stages.findIndex(s => s.is_anchor);
-              const isUndeactivatable = stage.is_default || stage.is_anchor || stage.is_won || stage.is_lost;
+              // The whole post-award region is locked, not just the four
+              // flagged rows — PO Received, Project Delivery, Collection,
+              // Retention and Payment Verification carry none of those flags
+              // but are exactly as load-bearing (matches the service's own
+              // guard in pipelineStageService.toggleStage).
+              const isUndeactivatable =
+                stage.is_default || stage.is_anchor || stage.is_won || stage.is_lost || isAnchorOrAfter;
               
               // Only allow moving up if previous stage exists and is not anchor-or-after
               const canMoveUp = index > 0 && !isAnchorOrAfter;

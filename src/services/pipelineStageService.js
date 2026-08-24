@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { PIPELINE_STAGE_SEED } from "../constants/sor";
+import { isOpenRegionStage, PIPELINE_STAGE_SEED } from "../constants/sor";
 
 /**
  * Reads the configurable SOR pipeline out of `crm_pipeline_stages`.
@@ -125,19 +125,34 @@ export const pipelineStageService = {
 
   /**
    * Toggle the active state of a pipeline stage.
-   * Prevents deactivating Lead, Anchor, Won, or Lost stages.
+   *
+   * Prevents deactivating Lead, Anchor, Won, or Lost individually, and — on
+   * top of those four — everything from the Anchor Stage onward. That region
+   * is the post-award accounting pipeline the commission engine and register
+   * depend on; a stage there carrying none of the four flags (PO Received,
+   * Project Delivery, Collection, Retention, Payment Verification) is exactly
+   * as load-bearing as one that does, so checking only the flags would leave
+   * a hole a super admin could punch in the middle of a locked region.
    */
   async toggleStage(code, isActive) {
     const existing = await this.getAllStages()
     const stage = existing.find(s => s.code === code)
-    
+
     if (!stage) throw new Error("Stage not found.")
-    
+
     if (!isActive) {
       if (stage.is_default) throw new Error("Cannot deactivate the initial Lead stage.")
       if (stage.is_anchor) throw new Error("Cannot deactivate the Anchor stage.")
       if (stage.is_won) throw new Error("Cannot deactivate the Closed Won stage.")
       if (stage.is_lost) throw new Error("Cannot deactivate the Closed Lost stage.")
+      // Won/Lost are excluded from the open region by definition, but both
+      // already threw above — by this point stage is neither, so this is
+      // purely a position check: at or past the anchor is locked.
+      if (!isOpenRegionStage(stage, existing)) {
+        throw new Error(
+          "Cannot deactivate a stage at or past the Anchor Stage — the post-award region is locked.",
+        )
+      }
     }
 
     const { data, error } = await supabase
@@ -154,10 +169,27 @@ export const pipelineStageService = {
   /**
    * Reorder stages by providing an array of objects { code, sort_order }.
    * Prevents reordering any stage after the Anchor stage.
+   *
+   * `sort_order` is UNIQUE (0033), so writing the target values in a single
+   * batch is only safe when none of them is currently held by another row in
+   * the same batch — which a two-stage swap never satisfies: the moment A's
+   * row is written to B's old value, B's row still holds that same value until
+   * its own write lands, and the unique index rejects the collision.
+   *
+   * Two passes sidesteps it: first move every affected row to a negative,
+   * guaranteed-unique placeholder (no seeded or admin-added stage ever has a
+   * negative sort_order), then write the real target values once nothing in
+   * the batch can collide with anything else in it.
    */
   async reorderStages(updates) {
     // Basic protection on the server side would require checking anchor position,
     // but we can trust the client for now or enforce it here.
+    const placeholders = updates.map((u, i) => ({ code: u.code, sort_order: -(i + 1) }))
+    const { error: placeholderError } = await supabase
+      .from("crm_pipeline_stages")
+      .upsert(placeholders)
+    if (placeholderError) throw placeholderError
+
     const { error } = await supabase
       .from("crm_pipeline_stages")
       .upsert(updates.map(u => ({ code: u.code, sort_order: u.sort_order })))
