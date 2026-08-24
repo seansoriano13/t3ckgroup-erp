@@ -56,6 +56,8 @@ import {
   normalizeSalesReference,
   requiresSalesReference,
   requiresItbNumber,
+  itbGateSatisfiedBy,
+  ITB_EXEMPT_LABEL,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
@@ -592,8 +594,16 @@ export default function OpportunityDetailsModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference, itbNumber }) =>
-      opportunityService.updateStatus(id, next, user?.id, reason, salesReference, itbNumber),
+    mutationFn: ({ next, reason, salesReference, itbNumber, itbExempt }) =>
+      opportunityService.updateStatus(
+        id,
+        next,
+        user?.id,
+        reason,
+        salesReference,
+        itbNumber,
+        itbExempt,
+      ),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
@@ -878,6 +888,7 @@ export default function OpportunityDetailsModal({
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
         itb_number: opportunity.itb_number || "",
+        itb_exempt: !!opportunity.itb_exempt,
         deal_owner_id: opportunity.deal_owner_id || "",
         closing_sales_id: opportunity.closing_sales_id || "",
         sales_director_id: opportunity.sales_director_id || "",
@@ -905,7 +916,7 @@ export default function OpportunityDetailsModal({
   const needsItbNumber =
     !!pendingStage &&
     requiresItbNumber(opportunity.status, pendingStage) &&
-    !opportunity.itb_number;
+    !itbGateSatisfiedBy(opportunity);
   const itbNumberValid = !!itbNumber.trim();
 
   const handleStageChange = (next) => {
@@ -915,7 +926,7 @@ export default function OpportunityDetailsModal({
     if (
       isLostCode(next) ||
       (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference) ||
-      (requiresItbNumber(opportunity.status, next) && !opportunity.itb_number)
+      (requiresItbNumber(opportunity.status, next) && !itbGateSatisfiedBy(opportunity))
     ) {
       setPendingStage(next);
       return;
@@ -1282,6 +1293,41 @@ export default function OpportunityDetailsModal({
                 <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
                   Enter the ITB Number (Invitation to Bid) before moving to {stageLabel(pendingStage) || pendingStage}.
                 </p>
+
+                {/* Not every deal was bid for. An outright award — a government
+                    direct contract, say — has no ITB Number to give, and with
+                    no way to say so the only options left were inventing a
+                    number or having the gate switched off for everyone (which
+                    is what migrations 0035–0038 went through). Saying it is a
+                    claim about how the deal was won, so it is confirmed and
+                    then written to the log notes, never applied silently. */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+                  <p className="text-[11px] font-medium text-muted-foreground">
+                    No Invitation to Bid was issued for this deal?
+                  </p>
+                  <button
+                    disabled={stageMutation.isPending}
+                    onClick={() =>
+                      confirmActionToast(
+                        "Mark this deal outright?",
+                        `${ITB_EXEMPT_LABEL} — it moves to ${stageLabel(pendingStage) || pendingStage} with no ITB Number, and this is recorded on the log notes under your name.`,
+                        "Mark outright",
+                        "warning",
+                        () =>
+                          stageMutation.mutate({
+                            next: pendingStage,
+                            reason: null,
+                            salesReference: null,
+                            itbNumber: null,
+                            itbExempt: true,
+                          }),
+                      )
+                    }
+                    className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                  >
+                    Outright — no bidding required
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -1792,16 +1838,36 @@ export default function OpportunityDetailsModal({
                     label="ITB Number (Invitation to Bid)"
                     isEditing={isEditing}
                     control={
-                      <input
-                        type="text"
-                        value={editForm.itb_number}
-                        onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
-                        className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
-                        placeholder="e.g. ITB-2026-001 or URL link"
-                      />
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          type="text"
+                          value={editForm.itb_number}
+                          onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
+                          disabled={editForm.itb_exempt}
+                          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium disabled:opacity-40"
+                          placeholder="e.g. ITB-2026-001 or URL link"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={!!editForm.itb_exempt}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, itb_exempt: e.target.checked }))
+                            }
+                            className="accent-amber-9"
+                          />
+                          {ITB_EXEMPT_LABEL}
+                        </label>
+                      </div>
                     }
                   >
-                    {opportunity.itb_number || <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>}
+                    {opportunity.itb_number || (
+                      opportunity.itb_exempt ? (
+                        <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>
+                      )
+                    )}
                   </Detail>
                 </div>
               </div>

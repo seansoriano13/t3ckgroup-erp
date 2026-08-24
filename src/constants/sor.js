@@ -76,14 +76,7 @@ export const PIPELINE_STAGE_SEED = [
   stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
   stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 20, STATUS_THEME.BLUE),
   stage("QUALIFIED", "Qualified", 30, STATUS_THEME.AMBER),
-  // TEMPORARY (migration 0037): For Bidding no longer carries is_itb_gate, so
-  // no stage does, and the ITB Number gate is dormant on both sides. Outright
-  // awards — government direct contracts among them — are won without an
-  // Invitation to Bid ever being issued, so they have no number to give, and
-  // the gate was refusing to let them reach Closed Won on prod. Restore by
-  // putting `{ is_itb_gate: true }` back here and re-running the flag update
-  // in 0037's footer; the header there records what the real fix looks like.
-  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
+  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER, { is_itb_gate: true }),
   stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
   stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
   stage("AWARDED", "Awarded", 60, STATUS_THEME.GREEN, { is_anchor: true }),
@@ -110,10 +103,6 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * position, the same way the Anchor Stage is — never by a literal sort_order
  * or code, which would silently detach from the gate the moment that stage is
  * renamed or reordered.
- *
- * Returns null against today's seed: no stage carries the flag while the gate
- * is temporarily off (see the FOR_BIDDING seed row above and migration 0037).
- * The resolution itself is unchanged and still covered by its own tests.
  */
 export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_itb_gate) ?? null;
@@ -272,11 +261,11 @@ export const requiresSalesReference = (
  * gate stage requires nothing, the same fail-safe direction isRealizedStage
  * takes when a list has no anchor.
  *
- * That last clause is what is carrying the temporary shutdown: nothing here is
- * stubbed or short-circuited, the shipped seed simply has no flagged stage for
- * it to find, so every caller gets false. Re-flagging FOR_BIDDING switches the
- * gate back on everywhere at once — service pre-check, details modal and the
- * trigger — with no code change. See migration 0037.
+ * This answers only "does the gate stand in the way of this move" — never
+ * "has this opportunity already satisfied it". Ask itbGateSatisfiedBy() for
+ * that; the two are separate because the gate is crossed by a move and
+ * satisfied by a record, and conflating them is how the exemption gets
+ * forgotten at one call site out of three.
  */
 export const requiresItbNumber = (
   fromStatus,
@@ -294,6 +283,27 @@ export const requiresItbNumber = (
     !isLostCode(toStatus, stages)
   );
 };
+
+/**
+ * Whether an opportunity already has what the ITB gate asks for.
+ *
+ * Two things satisfy it, and the second is the whole reason the gate is
+ * survivable: an ITB Number on record, or the deal being marked outright —
+ * an award with no bidding involved, government direct contracts among them,
+ * where no Invitation to Bid was ever issued and so no number exists to give.
+ * Without that second answer the gate could only block those deals or be
+ * switched off for everybody, which is exactly what happened between
+ * migrations 0035 and 0038.
+ *
+ * Every gate check goes through here rather than spelling out the pair
+ * inline, so a caller cannot honour the number and forget the exemption.
+ * Mirrored by the trigger — see migration 0038.
+ */
+export const itbGateSatisfiedBy = (opportunity) =>
+  Boolean(opportunity?.itb_number || opportunity?.itb_exempt);
+
+/** What the register shows in place of an ITB Number for an outright deal. */
+export const ITB_EXEMPT_LABEL = "Outright — no bidding required";
 
 /** Formats a PHP amount for display. */
 export const formatPHP = (amount) =>

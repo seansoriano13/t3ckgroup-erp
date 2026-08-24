@@ -31,7 +31,9 @@ export const TRIGGERS = {
       // Rewritten in 0034 to read flags from crm_pipeline_stages, and in 0036
       // to gate the ITB Number the same way — by the is_itb_gate flag's own
       // sort_order, never a literal, so reordering the gate stage moves the
-      // gate with it instead of leaving a stale threshold behind.
+      // gate with it instead of leaving a stale threshold behind. 0038 added
+      // the outright exemption: an award won with no bidding has no ITB
+      // Number to give, so itb_exempt satisfies the gate in its place.
       function requireSalesReferenceOnInsert(row, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
@@ -53,10 +55,11 @@ export const TRIGGERS = {
           gate &&
           stage?.sort_order >= gate.sort_order &&
           !isLost &&
-          row.itb_number == null
+          row.itb_number == null &&
+          !row.itb_exempt
         ) {
           raise(
-            "An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond.",
+            "An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond, unless it is marked outright (no bidding required).",
           )
         }
       },
@@ -92,10 +95,11 @@ export const TRIGGERS = {
           oldStage?.sort_order < gate.sort_order &&
           stage?.sort_order >= gate.sort_order &&
           !isLost &&
-          row.itb_number == null
+          row.itb_number == null &&
+          !row.itb_exempt
         ) {
           raise(
-            "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond.",
+            "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond, unless it is marked outright (no bidding required).",
           )
         }
       },

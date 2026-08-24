@@ -182,25 +182,126 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
     })
 
-    it("lets an opportunity with no ITB Number reach For Bidding and Closed Won", async () => {
-      // TEMPORARY (migration 0037). Both moves were refused until the gate was
-      // switched off — the second one is the reason it was: an outright award
-      // (a government direct contract, say) never receives an Invitation to
-      // Bid, so it had no number to give and could not be marked won at all.
-      //
-      // Nothing about the refusal was deleted to get here. updateStatus still
-      // runs the same pre-write requiresItbNumber() check the Sales Reference
-      // gate has; it answers false because no stage in the seed carries
-      // is_itb_gate any more. Re-flag FOR_BIDDING and these moves are refused
-      // again, by the service and by the trigger both.
+    it("refuses to reach For Bidding without an ITB Number on record", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      const bidding = await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
-      expect(bidding.status).toBe("FOR_BIDDING")
-      expect(bidding.itb_number).toBeNull()
+      await expect(
+        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
+      ).rejects.toThrow(/ITB Number/i)
 
-      const won = await opportunityService.updateStatus(lead.id, "CLOSED_WON", registrar.id)
-      expect(won.status).toBe("CLOSED_WON")
+      const unchanged = await opportunityService.getOpportunityById(lead.id)
+      expect(unchanged.status).toBe("LEAD")
+    })
+
+    it("raises a clean error for a missing ITB Number without a round trip to the database", async () => {
+      // Mirrors the Sales Reference gate: the service checks before writing,
+      // rather than relying on the trigger's raw constraint-violation message
+      // to reach the caller. Matters for anything that calls updateStatus
+      // other than the details modal, which already gates client-side.
+      //
+      // A trigger-surfaced rejection carries `.pgrst` (see pgrstError in the
+      // fake database); a plain `throw new Error(...)` from the service does
+      // not. That is the only reliable way to tell "the service refused" from
+      // "the database refused" apart, since the messages are deliberately the
+      // same wording either way.
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      let caught = null
+      try {
+        await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
+      } catch (error) {
+        caught = error
+      }
+
+      expect(caught?.message).toMatch(/ITB Number/i)
+      expect(caught?.pgrst).toBeUndefined()
+    })
+
+    it("tells the caller an outright deal is the way past the gate", async () => {
+      // The refusal has to name the second answer, or the only ways out a
+      // salesperson can see are inventing a number or giving up — and one of
+      // those two leaves fabricated ITB Numbers in the register.
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
+      ).rejects.toThrow(/outright/i)
+    })
+
+    it("advances an outright deal with no ITB Number when the move declares it", async () => {
+      // Government direct contracts and the like: won with no Invitation to
+      // Bid ever issued, so there is no number that could be supplied. This
+      // is the move that was impossible between migrations 0035 and 0038.
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      const moved = await opportunityService.updateStatus(
+        lead.id,
+        "CLOSED_WON",
+        registrar.id,
+        null,
+        null,
+        null,
+        true,
+      )
+
+      expect(moved.status).toBe("CLOSED_WON")
+      expect(moved.itb_exempt).toBe(true)
+      expect(moved.itb_number).toBeNull()
+    })
+
+    it("writes the outright claim to the log notes under the actor's name", async () => {
+      // A silent boolean on the row would leave no answer to "why did this one
+      // get through without a number", which is the question an audit asks.
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      await opportunityService.updateStatus(
+        lead.id,
+        "CLOSED_WON",
+        registrar.id,
+        null,
+        null,
+        null,
+        true,
+      )
+
+      const notes = await opportunityService.getNotes(lead.id)
+      const claim = notes.find((n) => n.metadata?.event === "ITB_EXEMPT_DECLARED")
+
+      expect(claim).toBeTruthy()
+      expect(claim.content).toMatch(/outright/i)
+      expect(claim.author_id).toBe(registrar.id)
+      // The move itself is still recorded separately — the claim explains the
+      // move, it does not replace it.
+      expect(notes.some((n) => n.metadata?.event === "STAGE_CHANGED")).toBe(true)
+    })
+
+    it("does not re-log the outright claim on a later move", async () => {
+      // Already declared. Repeating the note on every subsequent stage change
+      // would bury the timeline in a claim nobody made twice.
+      const lead = makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S00999",
+        status: "FOR_BIDDING",
+        itb_exempt: true,
+      })
+
+      await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id, null, null, null, true)
+
+      const notes = await opportunityService.getNotes(lead.id)
+      const claims = notes.filter((n) => n.metadata?.event === "ITB_EXEMPT_DECLARED")
+      expect(claims).toHaveLength(0)
+    })
+
+    it("keeps letting an already-outright deal advance without re-declaring", async () => {
+      const lead = makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S00999",
+        itb_exempt: true,
+      })
+
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_WON", registrar.id)
+
+      expect(moved.status).toBe("CLOSED_WON")
     })
 
     it("advances to For Bidding when the ITB Number is supplied with the move", async () => {

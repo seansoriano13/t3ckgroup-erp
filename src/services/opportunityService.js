@@ -10,6 +10,7 @@ import {
   isAnchorCode,
   isLostCode,
   isValidSalesReference,
+  itbGateSatisfiedBy,
   normalizeSalesReference,
   requiresItbNumber,
   requiresSalesReference,
@@ -168,6 +169,7 @@ export const opportunityService = {
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
         itb_number: (payload.itb_number || "").trim() || null,
+        itb_exempt: Boolean(payload.itb_exempt),
         expected_award_date: payload.expected_award_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         closing_sales_id: payload.closing_sales_id || null,
@@ -199,6 +201,15 @@ export const opportunityService = {
     checkField('project_type', 'Sales Division');
     checkField('sales_reference', 'Sales Reference');
     checkField('itb_number', 'ITB Number');
+    // Booleans read as "changed from false to true" through checkField, which
+    // says nothing to whoever reads the log line. Named as the claim it is.
+    if (Boolean(existing.itb_exempt) !== Boolean(final.itb_exempt)) {
+      changes.push(
+        final.itb_exempt
+          ? 'Marked outright — no bidding required, so no ITB Number applies'
+          : 'Outright marking removed — an ITB Number applies again',
+      );
+    }
     checkField('expected_award_date', 'Purchase Date/Order');
 
     const checkEmployee = (idField, objField, label) => {
@@ -289,11 +300,25 @@ export const opportunityService = {
    * timeline. `lostReason` is required when moving to CLOSED_LOST;
    * `salesReference` is required when leaving Lead and none is on record yet
    * (mirrored by a trigger — see migration 0011).
+   *
+   * Crossing the ITB gate needs `itbNumber`, or `itbExempt` to declare the
+   * deal outright — an award with no bidding involved, which has no ITB
+   * Number to give. The exemption is a claim someone makes about the deal, so
+   * it is written to the timeline and the audit log the same way a recorded
+   * Sales Reference is, never applied silently (migration 0038).
    */
-  async updateStatus(id, nextStatus, actorId, lostReason = null, salesReference = null, itbNumber = null) {
+  async updateStatus(
+    id,
+    nextStatus,
+    actorId,
+    lostReason = null,
+    salesReference = null,
+    itbNumber = null,
+    itbExempt = false,
+  ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, client_name, status, sales_reference, contract_date, itb_number")
+      .select("id, client_name, status, sales_reference, contract_date, itb_number, itb_exempt")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -312,13 +337,18 @@ export const opportunityService = {
     }
 
     const providedItb = (itbNumber || "").trim() || null;
+    // Whether the gate is satisfied is asked of the opportunity as it will be
+    // after this move, not as it is now — the number or the exemption arriving
+    // with the move is what unblocks it.
+    const declaresExempt = Boolean(itbExempt) && !existing.itb_exempt;
+    const satisfiesItbGate = itbGateSatisfiedBy({
+      itb_number: providedItb || existing.itb_number,
+      itb_exempt: Boolean(itbExempt) || existing.itb_exempt,
+    });
 
-    if (
-      requiresItbNumber(existing.status, nextStatus) &&
-      !(providedItb || existing.itb_number)
-    ) {
+    if (requiresItbNumber(existing.status, nextStatus) && !satisfiesItbGate) {
       throw new Error(
-        "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond.",
+        "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond, unless it is marked outright (no bidding required).",
       );
     }
 
@@ -331,6 +361,8 @@ export const opportunityService = {
 
     const recordsItb = providedItb && providedItb !== existing.itb_number;
     if (recordsItb) patch.itb_number = providedItb;
+
+    if (declaresExempt) patch.itb_exempt = true;
 
     // Contract Date anchors which dated Commission Rate applies to this
     // opportunity (see commissionService.getCommissionBreakdownForOpportunity).
@@ -363,6 +395,28 @@ export const opportunityService = {
         id,
         `${auditLabel(existing)}: Sales Reference recorded as ${providedRef}.`,
         { event: "SALES_REFERENCE_SET", salesReference: providedRef, employeeId: actorId },
+        actorId,
+      ).catch(console.error);
+    }
+
+    if (declaresExempt) {
+      // The salesperson answered the gate with "there was no bidding" rather
+      // than a number. That is a claim about how the deal was won, so it is
+      // recorded where the deal's history is read, not just stored as a flag
+      // on the row — otherwise the only trace of why the gate let this one
+      // through would be a silent boolean.
+      await opportunityService.addSystemNote(
+        id,
+        `Marked outright — no bidding required, so no ITB Number applies.`,
+        { event: "ITB_EXEMPT_DECLARED", employeeId: actorId },
+        actorId,
+      );
+
+      systemAuditLogService.addSystemEvent(
+        "OPPORTUNITY",
+        id,
+        `${auditLabel(existing)}: marked outright — no bidding required, advanced without an ITB Number.`,
+        { event: "ITB_EXEMPT_DECLARED", employeeId: actorId },
         actorId,
       ).catch(console.error);
     }
