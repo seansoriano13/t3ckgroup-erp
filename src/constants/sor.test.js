@@ -3,9 +3,14 @@ import {
   anchorStage,
   formatLeadSource,
   formatPHP,
+  isAnchorCode,
+  isLostCode,
   isOpenRegionStage,
+  isRealizedCode,
   isRealizedStage,
   isTerminalStage,
+  isWonCode,
+  stageByCode,
   isValidSalesReference,
   normalizeSalesReference,
   OPPORTUNITY_STAGES,
@@ -265,6 +270,65 @@ describe("deriving realized stages from stage order", () => {
     const anchorless = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_anchor: false }))
     expect(anchorStage(anchorless)).toBeNull()
     expect(realizedStageCodes(anchorless)).toEqual([])
+  })
+})
+
+describe("asking about a stage by the code stored on an opportunity", () => {
+  it("resolves a stored status to its stage row", () => {
+    expect(stageByCode("NEGOTIATION").label).toBe("Negotiation")
+  })
+
+  it("returns null for a status no longer in the pipeline rather than throwing", () => {
+    // Rows written before a stage was retired still carry its code.
+    expect(stageByCode("SOME_RETIRED_STAGE")).toBeNull()
+    expect(stageByCode(null)).toBeNull()
+  })
+
+  it("answers won, lost and realized without the caller knowing a code", () => {
+    expect(isWonCode("CLOSED_WON")).toBe(true)
+    expect(isWonCode("AWARDED")).toBe(false)
+    expect(isLostCode("CLOSED_LOST")).toBe(true)
+    expect(isLostCode("CLOSED_WON")).toBe(false)
+    expect(isRealizedCode("PO_RECEIVED")).toBe(true)
+    expect(isRealizedCode("QUALIFIED")).toBe(false)
+    expect(isRealizedCode("CLOSED_LOST")).toBe(false)
+  })
+
+  it("identifies the stage that stamps Contract Date", () => {
+    expect(isAnchorCode("AWARDED")).toBe(true)
+    expect(isAnchorCode("CLOSED_WON")).toBe(false)
+  })
+
+  it("treats an unknown status as neither won, lost nor realized", () => {
+    expect(isWonCode("SOME_RETIRED_STAGE")).toBe(false)
+    expect(isLostCode("SOME_RETIRED_STAGE")).toBe(false)
+    expect(isRealizedCode("SOME_RETIRED_STAGE")).toBe(false)
+  })
+
+  it("follows a caller's own stage list rather than the seed", () => {
+    // What the register does once it has loaded crm_pipeline_stages.
+    const renamed = PIPELINE_STAGE_SEED.map((s) =>
+      s.code === "AWARDED" ? { ...s, is_anchor: false } : { ...s, is_anchor: s.code === "NEGOTIATION" },
+    )
+    expect(isRealizedCode("NEGOTIATION", renamed)).toBe(true)
+    expect(isRealizedCode("NEGOTIATION")).toBe(false)
+  })
+})
+
+describe("stage gating derived from flags rather than codes", () => {
+  it("still gates leaving the default stage on a Sales Reference", () => {
+    expect(requiresSalesReference("LEAD", "QUALIFIED")).toBe(true)
+    expect(requiresSalesReference("LEAD", "CLOSED_LOST")).toBe(false)
+    expect(requiresSalesReference("QUALIFIED", "AWARDED")).toBe(false)
+  })
+
+  it("follows the default flag when a different stage is the entry point", () => {
+    const stages = PIPELINE_STAGE_SEED.map((s) => ({
+      ...s,
+      is_default: s.code === "QUALIFIED",
+    }))
+    expect(requiresSalesReference("QUALIFIED", "NEGOTIATION", stages)).toBe(true)
+    expect(requiresSalesReference("LEAD", "QUALIFIED", stages)).toBe(false)
   })
 })
 

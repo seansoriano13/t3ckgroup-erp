@@ -46,6 +46,7 @@ import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
 import {
+  isLostCode,
   OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPES,
@@ -804,7 +805,7 @@ export default function OpportunityDetailsModal({
     : formatPHP(opportunity.expected_value);
   const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
 
-  const isLostPending = pendingStage === "CLOSED_LOST";
+  const isLostPending = isLostCode(pendingStage);
   const needsSalesRef =
     !!pendingStage &&
     requiresSalesReference(opportunity.status, pendingStage) &&
@@ -816,7 +817,7 @@ export default function OpportunityDetailsModal({
     // Both branches need something typed before the move can be written, so
     // they park the choice in `pendingStage` and prompt for it inline.
     if (
-      next === "CLOSED_LOST" ||
+      isLostCode(next) ||
       (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
     ) {
       setPendingStage(next);
@@ -828,7 +829,7 @@ export default function OpportunityDetailsModal({
     // predictable response is deleting the flagged line, advancing, and adding
     // it back — a gate that teaches people to route around it.
     const stillOpen = openRequests(procurementRequests);
-    if (stillOpen.length && next !== "CLOSED_LOST") {
+    if (stillOpen.length && !isLostCode(next)) {
       confirmActionToast(
         "Purchasing hasn't answered yet",
         `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${STAGE_LABELS[next] || next
@@ -1072,7 +1073,7 @@ export default function OpportunityDetailsModal({
                   disabled={!lostReason.trim() || stageMutation.isPending}
                   onClick={() =>
                     stageMutation.mutate({
-                      next: "CLOSED_LOST",
+                      next: pendingStage,
                       reason: lostReason.trim(),
                       salesReference: null,
                     })

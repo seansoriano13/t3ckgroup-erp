@@ -14,7 +14,7 @@ import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Avatar";
 import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
-import { OPPORTUNITY_STAGES, formatPHP } from "../../constants/sor";
+import { OPPORTUNITY_STAGES, formatPHP, isWonCode } from "../../constants/sor";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -56,7 +56,7 @@ export default function EmployeeOpportunityMatrix({
   const isHead = user?.is_head === true || user?.isHead === true;
   const userDepartment = user?.department;
   const [searchTerm, setSearchTerm] = useState("");
-  const [layoutMode, setLayoutMode] = useState("list"); // "list" | "leaderboard" | "grid"
+  const [layoutMode, setLayoutMode] = useState("grid"); // "list" | "leaderboard" | "grid"
 
   const employeeStats = useMemo(() => {
     if (!opportunities?.length) return [];
@@ -89,7 +89,7 @@ export default function EmployeeOpportunityMatrix({
       const emp = empMap[owner.id];
       emp.total++;
       emp.value += Number(o.expected_value || 0);
-      if (o.status === "CLOSED_WON") {
+      if (isWonCode(o.status)) {
         emp.wonCount++;
       }
       emp.stageCounts[o.status] = (emp.stageCounts[o.status] || 0) + 1;
@@ -160,10 +160,10 @@ export default function EmployeeOpportunityMatrix({
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
             <button
-              onClick={() => setLayoutMode("leaderboard")}
+              onClick={() => setLayoutMode("list")}
               className={`p-1 rounded transition-all ${layoutMode === "list"
-                  ? "bg-card shadow-sm text-red-9"
-                  : "text-muted-foreground hover:text-mauve-11"
+                ? "bg-card shadow-sm text-red-9"
+                : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="List View"
             >
@@ -172,8 +172,8 @@ export default function EmployeeOpportunityMatrix({
             <button
               onClick={() => setLayoutMode("leaderboard")}
               className={`p-1 rounded transition-all ${layoutMode === "leaderboard"
-                  ? "bg-card shadow-sm text-red-9"
-                  : "text-muted-foreground hover:text-mauve-11"
+                ? "bg-card shadow-sm text-red-9"
+                : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="Leaderboard View"
             >
@@ -182,8 +182,8 @@ export default function EmployeeOpportunityMatrix({
             <button
               onClick={() => setLayoutMode("grid")}
               className={`p-1 rounded transition-all ${layoutMode === "grid"
-                  ? "bg-card shadow-sm text-red-9"
-                  : "text-muted-foreground hover:text-mauve-11"
+                ? "bg-card shadow-sm text-red-9"
+                : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="Full Grid"
             >
@@ -202,7 +202,7 @@ export default function EmployeeOpportunityMatrix({
 
       {/* DYNAMIC PIPELINE MATRIX CONTAINER */}
       <div
-        className={`
+        className={`max-h-[500px] overflow-y-auto overflow-x-hidden pr-1
         ${layoutMode === "list" ? "flex flex-col gap-3 pb-1" : ""}
         ${layoutMode === "leaderboard" ? "flex flex-col gap-2.5 pb-1" : ""}
         ${layoutMode === "grid"
@@ -302,12 +302,12 @@ export default function EmployeeOpportunityMatrix({
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div
                     className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold text-xs shrink-0 ${index === 0
-                        ? "bg-amber-3 text-amber-11 border border-amber-5 shadow-xs"
-                        : index === 1
-                          ? "bg-mauve-3 text-mauve-11 border border-mauve-5"
-                          : index === 2
-                            ? "bg-orange-3 text-orange-11 border border-orange-5"
-                            : "bg-muted text-muted-foreground border border-border"
+                      ? "bg-amber-3 text-amber-11 border border-amber-5 shadow-xs"
+                      : index === 1
+                        ? "bg-mauve-3 text-mauve-11 border border-mauve-5"
+                        : index === 2
+                          ? "bg-orange-3 text-orange-11 border border-orange-5"
+                          : "bg-muted text-muted-foreground border border-border"
                       }`}
                   >
                     #{index + 1}
@@ -435,7 +435,7 @@ export default function EmployeeOpportunityMatrix({
                 </div>
 
                 {/* Legend */}
-                <div className="flex items-center gap-2.5 flex-wrap pt-2">
+                <div className="flex items-center gap-2.5 flex-wrap py-2">
                   {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
                     (stage) => {
                       const theme = getStatusTheme(stage.value);

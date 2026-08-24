@@ -4,7 +4,16 @@ import { Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import StatCard from "../StatCard";
 import { getStatusTheme } from "../../constants/status";
-import { OPPORTUNITY_STAGES, formatPHP } from "../../constants/sor";
+import {
+  OPPORTUNITY_STAGES,
+  PIPELINE_STAGE_SEED,
+  formatPHP,
+  isLostCode,
+  isWonCode,
+} from "../../constants/sor";
+
+const wonCode = PIPELINE_STAGE_SEED.find((s) => s.is_won)?.code;
+const lostCode = PIPELINE_STAGE_SEED.find((s) => s.is_lost)?.code;
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -35,8 +44,8 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   const stats = useMemo(() => {
     const total = mine.length;
     const value = mine.reduce((sum, o) => sum + Number(o.expected_value || 0), 0);
-    const won = mine.filter((o) => o.status === "CLOSED_WON").length;
-    const lost = mine.filter((o) => o.status === "CLOSED_LOST").length;
+    const won = mine.filter((o) => isWonCode(o.status)).length;
+    const lost = mine.filter((o) => isLostCode(o.status)).length;
     const open = total - won - lost;
     const stageCounts = {};
     mine.forEach((o) => {
@@ -72,8 +81,8 @@ export default function PersonalOpportunityOverview({ opportunities }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
         <StatCard title="Open" value={stats.open} subtitle="In progress" icon={<Target size={18} />} color="blue" onClick={() => navigate("/opportunities", { state: { filterEmployeeId: user?.id } })} />
         <StatCard title="Value" value={formatPHP(stats.value)} subtitle="Total pipeline" icon={<Target size={18} />} color="mauve" />
-        <StatCard title="Won" value={stats.won} subtitle="Closed Won" icon={<Target size={18} />} color="emerald" onClick={() => goToStage("CLOSED_WON")} />
-        <StatCard title="Lost" value={stats.lost} subtitle="Closed Lost" icon={<Target size={18} />} color="destructive" onClick={() => goToStage("CLOSED_LOST")} />
+        <StatCard title="Won" value={stats.won} subtitle="Closed Won" icon={<Target size={18} />} color="emerald" onClick={() => goToStage(wonCode)} />
+        <StatCard title="Lost" value={stats.lost} subtitle="Closed Lost" icon={<Target size={18} />} color="destructive" onClick={() => goToStage(lostCode)} />
       </div>
 
       <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex mb-2">

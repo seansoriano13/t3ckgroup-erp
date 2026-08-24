@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 import { commissionService } from "../../services/commissionService";
 import { useAuth } from "../../context/AuthContext";
-import { formatPHP, PROJECT_TYPES } from "../../constants/sor";
+import { anchorStage, formatPHP, PROJECT_TYPES } from "../../constants/sor";
 import Spinner from "../ui/Spinner";
 import TabGroup from "../ui/TabGroup";
 import StatCard from "../StatCard";
@@ -410,7 +410,7 @@ export default function CommissionDashboardView() {
           subtitle={scope === "REALIZED" ? "Awarded to Closed Won" : "Including active pipeline"}
           icon={<CheckCircle2 size={18} className="text-muted-foreground" />}
           color="mauve"
-          onClick={() => navigate("/opportunities", { state: { filterStatus: "AWARDED" } })}
+          onClick={() => navigate("/opportunities", { state: { filterStatus: anchorStage().code } })}
         />
       </div>
 
@@ -528,7 +528,7 @@ export default function CommissionDashboardView() {
                   onClick={() =>
                     dept.isSales &&
                     navigate("/opportunities", {
-                      state: { filterStatus: "AWARDED" },
+                      state: { filterStatus: anchorStage().code },
                     })
                   }
                   className={`flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-2.5 transition-colors hover:bg-muted/60 ${
@@ -1054,7 +1054,7 @@ export default function CommissionDashboardView() {
                     onClick={() =>
                       dept.isSales &&
                       navigate("/opportunities", {
-                        state: { filterStatus: "AWARDED" },
+                        state: { filterStatus: anchorStage().code },
                       })
                     }
                     className={`border-b border-border/50 last:border-0 hover:bg-muted/40 transition-colors ${

@@ -7,6 +7,8 @@ import { deriveProjectType } from "../utils/commission";
 import {
   STAGE_LABELS,
   formatPHP,
+  isAnchorCode,
+  isLostCode,
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
@@ -303,7 +305,7 @@ export const opportunityService = {
 
     const patch = {
       status: nextStatus,
-      lost_reason: nextStatus === "CLOSED_LOST" ? lostReason : null,
+      lost_reason: isLostCode(nextStatus) ? lostReason : null,
     };
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
@@ -313,7 +315,7 @@ export const opportunityService = {
     // Set once, the first time an opportunity reaches Awarded — never
     // overwritten by a later transition, so a rate change afterward can't
     // move an already-priced opportunity's commission figure.
-    if (nextStatus === "AWARDED" && !existing.contract_date) {
+    if (isAnchorCode(nextStatus) && !existing.contract_date) {
       patch.contract_date = getCurrentLocalDate();
     }
 
@@ -345,7 +347,7 @@ export const opportunityService = {
 
     const from = STAGE_LABELS[existing.status] || existing.status;
     const to = STAGE_LABELS[nextStatus] || nextStatus;
-    const suffix = nextStatus === "CLOSED_LOST" && lostReason ? ` — ${lostReason}` : "";
+    const suffix = isLostCode(nextStatus) && lostReason ? ` — ${lostReason}` : "";
 
     await opportunityService.addSystemNote(id, `Stage moved: ${from} → ${to}${suffix}`, {
       event: "STAGE_CHANGED",
@@ -368,7 +370,7 @@ export const opportunityService = {
     // are told; nothing of theirs is closed on their behalf, because a task
     // that silently vanished would take the evidence of that spend with it.
     // Fire-and-forget: losing the deal must not fail because a notification did.
-    if (nextStatus === "CLOSED_LOST") {
+    if (isLostCode(nextStatus)) {
       procurementService
         .notifyDealClosed(id, actorId, lostReason)
         .catch(console.error);

@@ -23,6 +23,7 @@ import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
   OPPORTUNITY_STAGES,
+  isTerminalCode,
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
@@ -32,8 +33,10 @@ import { leadSourceService } from "../../services/leadSourceService";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 
+// "Open" here means not yet terminal — it deliberately includes the whole
+// post-award run, which is still work in progress for the sales team.
 const OPEN_STAGES = OPPORTUNITY_STAGES.filter(
-  (s) => s.value !== "CLOSED_WON" && s.value !== "CLOSED_LOST",
+  (s) => !isTerminalCode(s.value),
 ).map((s) => s.value);
 
 export default function OpportunitiesPage() {

@@ -119,6 +119,30 @@ export const isOpenRegionStage = (s, stages = PIPELINE_STAGE_SEED) => {
 export const activeStages = (stages = PIPELINE_STAGE_SEED) =>
   stages.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
+// ── Asking about the code stored on an opportunity ──────────────────────────
+// `sales_opportunities.status` holds a stage code, so most callers have a
+// string rather than a row. These resolve it for them. A code that is no
+// longer in the list — a row written before a stage was retired — resolves to
+// null and answers false to everything, rather than throwing inside a render.
+
+export const stageByCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  stages.find((s) => s.code === code) ?? null;
+
+export const isWonCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_won);
+
+export const isLostCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_lost);
+
+export const isAnchorCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  Boolean(stageByCode(code, stages)?.is_anchor);
+
+export const isRealizedCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  isRealizedStage(stageByCode(code, stages), stages);
+
+export const isTerminalCode = (code, stages = PIPELINE_STAGE_SEED) =>
+  isTerminalStage(stageByCode(code, stages));
+
 // ── Compatibility views over the seed ───────────────────────────────────────
 // Existing call sites still read these shapes. They derive from the seed so the
 // two can never drift; consumers move onto the loaded stage list ticket by
@@ -170,13 +194,22 @@ export const isValidSalesReference = (value) =>
 
 /**
  * Whether a stage move requires a Sales Reference to already be on record.
- * Only moves *out of* Lead are gated: rows registered before this field
- * existed keep advancing, and a lead can still be lost before it is quoted.
+ * Only moves *out of* the entry stage are gated: rows registered before this
+ * field existed keep advancing, and a lead can still be lost before it is
+ * quoted.
+ *
+ * Reads the is_default and is_lost flags rather than matching 'LEAD' and
+ * 'CLOSED_LOST', so renaming either stage cannot quietly disable the gate.
+ * Mirrored by a trigger — see migration 0011.
  */
-export const requiresSalesReference = (fromStatus, toStatus) =>
-  fromStatus === OPPORTUNITY_STATUS.LEAD &&
-  toStatus !== OPPORTUNITY_STATUS.LEAD &&
-  toStatus !== OPPORTUNITY_STATUS.CLOSED_LOST;
+export const requiresSalesReference = (
+  fromStatus,
+  toStatus,
+  stages = PIPELINE_STAGE_SEED,
+) =>
+  Boolean(stageByCode(fromStatus, stages)?.is_default) &&
+  toStatus !== fromStatus &&
+  !isLostCode(toStatus, stages);
 
 /** Formats a PHP amount for display. */
 export const formatPHP = (amount) =>
