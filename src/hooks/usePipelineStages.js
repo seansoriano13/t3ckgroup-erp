@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { pipelineStageService } from "../services/pipelineStageService";
-import { PIPELINE_STAGE_SEED } from "../constants/sor";
+import { PIPELINE_STAGE_SEED, renderableStages } from "../constants/sor";
 
 const SEEDED_ACTIVE = PIPELINE_STAGE_SEED.filter((s) => s.is_active);
 
@@ -16,14 +16,22 @@ const SEEDED_ACTIVE = PIPELINE_STAGE_SEED.filter((s) => s.is_active);
  * was seeded from, so the first paint is almost always already correct and the
  * resolved query changes nothing visible.
  *
- * `includeInactive` is for the super admin screen and for rendering an
- * opportunity still sitting in a deactivated stage; pickers want the default.
+ * `includeInactive` is for the super admin screen, which manages every stage
+ * whether it is offered to pickers or not.
+ *
+ * `occupiedCodes` is for a board or matrix rendering a set of opportunities:
+ * pass the stage codes those opportunities are actually sitting in (their
+ * `status` values) and a deactivated stage stays visible for exactly as long
+ * as something occupies it. Deactivating a stage removes it from pickers; it
+ * must never also make the opportunities inside it disappear.
  */
-export function usePipelineStages({ includeInactive = false } = {}) {
+export function usePipelineStages({ includeInactive = false, occupiedCodes } = {}) {
+  const needsInactive = includeInactive || Boolean(occupiedCodes);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["pipelineStages", includeInactive ? "all" : "active"],
+    queryKey: ["pipelineStages", needsInactive ? "all" : "active"],
     queryFn: () =>
-      includeInactive
+      needsInactive
         ? pipelineStageService.getAllStages()
         : pipelineStageService.getActiveStages(),
     // The pipeline changes on the rare occasion a super admin edits it, and a
@@ -32,8 +40,11 @@ export function usePipelineStages({ includeInactive = false } = {}) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const fallback = needsInactive ? PIPELINE_STAGE_SEED : SEEDED_ACTIVE;
+  const loaded = data ?? fallback;
+
   return {
-    stages: data ?? (includeInactive ? PIPELINE_STAGE_SEED : SEEDED_ACTIVE),
+    stages: occupiedCodes ? renderableStages(loaded, occupiedCodes) : loaded,
     isLoading,
   };
 }

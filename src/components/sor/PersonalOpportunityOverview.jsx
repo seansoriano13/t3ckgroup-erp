@@ -27,17 +27,24 @@ const THEME_BAR = {
 export default function PersonalOpportunityOverview({ opportunities }) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { stages: pipelineStages } = usePipelineStages();
-
-  // The won/lost tiles link to the register filtered by those stages, so they
-  // follow the flags rather than assuming the policy codes.
-  const wonCode = pipelineStages.find((s) => s.is_won)?.code;
-  const lostCode = pipelineStages.find((s) => s.is_lost)?.code;
 
   const mine = useMemo(
     () => opportunities.filter((o) => o.deal_owner_id === user?.id),
     [opportunities, user?.id],
   );
+
+  // Deactivating a stage removes it from pickers, never from opportunities
+  // already sitting in it — so a stage this employee's own pipeline occupies
+  // stays visible even after a super admin retires it.
+  const occupiedStageCodes = useMemo(() => mine.map((o) => o.status), [mine]);
+  const { stages: pipelineStages } = usePipelineStages({
+    occupiedCodes: occupiedStageCodes,
+  });
+
+  // The won/lost tiles link to the register filtered by those stages, so they
+  // follow the flags rather than assuming the policy codes.
+  const wonCode = pipelineStages.find((s) => s.is_won)?.code;
+  const lostCode = pipelineStages.find((s) => s.is_lost)?.code;
 
   const stats = useMemo(() => {
     const total = mine.length;

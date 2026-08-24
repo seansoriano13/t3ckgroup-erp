@@ -133,6 +133,21 @@ export const isOpenRegionStage = (s, stages = PIPELINE_STAGE_SEED) => {
 export const activeStages = (stages = PIPELINE_STAGE_SEED) =>
   stages.filter((s) => s.is_active).sort((a, b) => a.sort_order - b.sort_order);
 
+/**
+ * Active stages, plus any deactivated stage an opportunity is still sitting
+ * in. Deactivating a stage removes it from pickers — it must never also make
+ * the opportunities inside it disappear from a board or matrix.
+ *
+ * `occupiedCodes` is whatever the caller's own opportunities carry in
+ * `status`; duplicates are fine.
+ */
+export const renderableStages = (stages = PIPELINE_STAGE_SEED, occupiedCodes = []) => {
+  const occupied = new Set(occupiedCodes);
+  return stages
+    .filter((s) => s.is_active || occupied.has(s.code))
+    .sort((a, b) => a.sort_order - b.sort_order);
+};
+
 // ── Asking about the code stored on an opportunity ──────────────────────────
 // `sales_opportunities.status` holds a stage code, so most callers have a
 // string rather than a row. These resolve it for them. A code that is no

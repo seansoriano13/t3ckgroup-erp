@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  activeStages,
   anchorStage,
   formatLeadSource,
   formatPHP,
@@ -10,6 +11,7 @@ import {
   isRealizedStage,
   isTerminalStage,
   isWonCode,
+  renderableStages,
   stageByCode,
   isValidSalesReference,
   normalizeSalesReference,
@@ -338,6 +340,54 @@ describe("stage gating derived from flags rather than codes", () => {
     }))
     expect(requiresSalesReference("QUALIFIED", "NEGOTIATION", stages)).toBe(true)
     expect(requiresSalesReference("LEAD", "QUALIFIED", stages)).toBe(false)
+  })
+})
+
+describe("choosing which stages a board or matrix should render", () => {
+  it("renders every active stage even with nothing occupying it", () => {
+    expect(renderableStages(PIPELINE_STAGE_SEED, []).map((s) => s.code)).toEqual(
+      activeStages(PIPELINE_STAGE_SEED).map((s) => s.code),
+    )
+  })
+
+  it("keeps a deactivated stage visible when an opportunity still sits in it", () => {
+    // A super admin deactivating a stage must never make an opportunity in it
+    // disappear from the board — only stop it being offered for new work.
+    const stages = PIPELINE_STAGE_SEED.map((s) =>
+      s.code === "NEGOTIATION" ? { ...s, is_active: false } : s,
+    )
+
+    const rendered = renderableStages(stages, ["NEGOTIATION"]).map((s) => s.code)
+
+    expect(rendered).toContain("NEGOTIATION")
+  })
+
+  it("drops a deactivated stage nothing occupies", () => {
+    const stages = PIPELINE_STAGE_SEED.map((s) =>
+      s.code === "NEGOTIATION" ? { ...s, is_active: false } : s,
+    )
+
+    const rendered = renderableStages(stages, ["QUALIFIED"]).map((s) => s.code)
+
+    expect(rendered).not.toContain("NEGOTIATION")
+  })
+
+  it("keeps the result in pipeline order even when the occupied stage sorts first", () => {
+    const stages = PIPELINE_STAGE_SEED.map((s) =>
+      s.code === "LEAD" ? { ...s, is_active: false } : s,
+    )
+
+    const rendered = renderableStages(stages, ["LEAD"]).map((s) => s.code)
+
+    expect(rendered[0]).toBe("LEAD")
+    expect(rendered).toEqual([...rendered].sort((a, b) =>
+      stageByCode(a, stages).sort_order - stageByCode(b, stages).sort_order,
+    ))
+  })
+
+  it("never lists the same stage twice when it is both active and occupied", () => {
+    const rendered = renderableStages(PIPELINE_STAGE_SEED, ["NEGOTIATION", "NEGOTIATION"])
+    expect(rendered.filter((s) => s.code === "NEGOTIATION")).toHaveLength(1)
   })
 })
 

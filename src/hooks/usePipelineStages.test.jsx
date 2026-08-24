@@ -52,6 +52,32 @@ describe("usePipelineStages", () => {
     )
   })
 
+  it("keeps a deactivated stage visible when opportunities occupy it", async () => {
+    makePipelineStage({ code: "CURRENT", sort_order: 10, is_active: true })
+    makePipelineStage({ code: "RETIRED", sort_order: 20, is_active: false })
+
+    const { result } = renderHookWithQuery(() =>
+      usePipelineStages({ occupiedCodes: ["RETIRED"] }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.stages.map((s) => s.code)).toEqual(["CURRENT", "RETIRED"]),
+    )
+  })
+
+  it("drops a deactivated stage nothing occupies, even when occupiedCodes is passed", async () => {
+    makePipelineStage({ code: "CURRENT", sort_order: 10, is_active: true })
+    makePipelineStage({ code: "RETIRED", sort_order: 20, is_active: false })
+
+    const { result } = renderHookWithQuery(() =>
+      usePipelineStages({ occupiedCodes: ["CURRENT"] }),
+    )
+
+    await waitFor(() =>
+      expect(result.current.stages.map((s) => s.code)).toEqual(["CURRENT"]),
+    )
+  })
+
   it("keeps a renamed stage's code so stored opportunities still match it", async () => {
     makePipelineStage({ code: "NEGOTIATION", label: "Haggling", sort_order: 10 })
 

@@ -23,7 +23,14 @@ const THEME_DOT = {
  * to enforce that, so drag-and-drop is deliberately not offered here).
  */
 export default function OpportunityBoard({ opportunities, search, onCardClick }) {
-  const { stages } = usePipelineStages();
+  // Deactivating a stage removes it from pickers, never from opportunities
+  // already sitting in it — so a column an opportunity here occupies stays
+  // on the board even after a super admin retires it.
+  const occupiedStageCodes = useMemo(
+    () => opportunities.map((o) => o.status),
+    [opportunities],
+  );
+  const { stages } = usePipelineStages({ occupiedCodes: occupiedStageCodes });
 
   const columns = useMemo(() => {
     return stages.map((stage) => {

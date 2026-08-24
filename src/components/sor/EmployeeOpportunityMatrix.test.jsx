@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import EmployeeOpportunityMatrix from "./EmployeeOpportunityMatrix";
 import { renderWithProviders } from "@/test/support";
+import { makePipelineStage } from "@/test/factories";
 
 const mockNavigate = vi.fn();
 vi.mock("react-router", async () => {
@@ -93,6 +94,37 @@ describe("EmployeeOpportunityMatrix", () => {
     expect(screen.getByTitle("List View")).toBeInTheDocument();
     expect(screen.getByTitle("Leaderboard View")).toBeInTheDocument();
     expect(screen.getByTitle("Full Grid")).toBeInTheDocument();
+  });
+
+  it("still shows an opportunity sitting in a stage that was since deactivated", async () => {
+    // Deactivating a stage is supposed to remove it from pickers only — an
+    // opportunity already sitting there must keep showing up in the matrix.
+    makePipelineStage({ code: "PROPOSAL_SUBMITTED", label: "Proposal Submitted", sort_order: 30, is_active: true })
+    makePipelineStage({ code: "RETIRED_STAGE", label: "Retired Stage", sort_order: 35, is_active: false })
+
+    const opportunitiesWithRetired = [
+      ...mockOpportunities,
+      {
+        id: "opp-4",
+        title: "Legacy Deal In Retired Stage",
+        status: "RETIRED_STAGE",
+        expected_value: 300000,
+        deal_owner_id: "user-2",
+        deal_owner: {
+          id: "user-2",
+          name: "Maria Santos",
+          department: "Sales",
+          sub_department: "Commercial",
+          avatar_path: "https://example.com/maria.png",
+        },
+      },
+    ];
+
+    renderWithProviders(
+      <EmployeeOpportunityMatrix opportunities={opportunitiesWithRetired} />,
+    );
+
+    expect(await screen.findByTitle("1 Retired Stage")).toBeInTheDocument();
   });
 
   it("switches to Leaderboard View and Full Grid layout modes", async () => {

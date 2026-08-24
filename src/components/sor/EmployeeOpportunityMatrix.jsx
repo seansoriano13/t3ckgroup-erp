@@ -52,7 +52,16 @@ export default function EmployeeOpportunityMatrix({
   title = "Team Opportunity Radar",
 }) {
   const navigate = useNavigate();
-  const { stages: pipelineStages } = usePipelineStages();
+  // Deactivating a stage removes it from pickers, never from opportunities
+  // already sitting in it — so a stage an opportunity here occupies stays
+  // visible even after a super admin retires it.
+  const occupiedStageCodes = useMemo(
+    () => opportunities.map((o) => o.status),
+    [opportunities],
+  );
+  const { stages: pipelineStages } = usePipelineStages({
+    occupiedCodes: occupiedStageCodes,
+  });
   const { user } = useAuth();
   const isHr = user?.is_hr === true || user?.isHr === true;
   const isHead = user?.is_head === true || user?.isHead === true;
