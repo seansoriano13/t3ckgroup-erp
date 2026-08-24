@@ -4,16 +4,8 @@ import { Target } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import StatCard from "../StatCard";
 import { getStatusTheme } from "../../constants/status";
-import {
-  OPPORTUNITY_STAGES,
-  PIPELINE_STAGE_SEED,
-  formatPHP,
-  isLostCode,
-  isWonCode,
-} from "../../constants/sor";
-
-const wonCode = PIPELINE_STAGE_SEED.find((s) => s.is_won)?.code;
-const lostCode = PIPELINE_STAGE_SEED.find((s) => s.is_lost)?.code;
+import { formatPHP, isLostCode, isWonCode } from "../../constants/sor";
+import { usePipelineStages } from "../../hooks/usePipelineStages";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -35,6 +27,12 @@ const THEME_BAR = {
 export default function PersonalOpportunityOverview({ opportunities }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { stages: pipelineStages } = usePipelineStages();
+
+  // The won/lost tiles link to the register filtered by those stages, so they
+  // follow the flags rather than assuming the policy codes.
+  const wonCode = pipelineStages.find((s) => s.is_won)?.code;
+  const lostCode = pipelineStages.find((s) => s.is_lost)?.code;
 
   const mine = useMemo(
     () => opportunities.filter((o) => o.deal_owner_id === user?.id),
@@ -44,15 +42,15 @@ export default function PersonalOpportunityOverview({ opportunities }) {
   const stats = useMemo(() => {
     const total = mine.length;
     const value = mine.reduce((sum, o) => sum + Number(o.expected_value || 0), 0);
-    const won = mine.filter((o) => isWonCode(o.status)).length;
-    const lost = mine.filter((o) => isLostCode(o.status)).length;
+    const won = mine.filter((o) => isWonCode(o.status, pipelineStages)).length;
+    const lost = mine.filter((o) => isLostCode(o.status, pipelineStages)).length;
     const open = total - won - lost;
     const stageCounts = {};
     mine.forEach((o) => {
       stageCounts[o.status] = (stageCounts[o.status] || 0) + 1;
     });
     return { total, value, won, lost, open, stageCounts };
-  }, [mine]);
+  }, [mine, pipelineStages]);
 
   const goToStage = (status) => {
     navigate("/opportunities", {
@@ -86,30 +84,30 @@ export default function PersonalOpportunityOverview({ opportunities }) {
       </div>
 
       <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex mb-2">
-        {OPPORTUNITY_STAGES.map((stage) => {
-          const count = stats.stageCounts[stage.value];
+        {pipelineStages.map((stage) => {
+          const count = stats.stageCounts[stage.code];
           if (!count) return null;
-          const theme = getStatusTheme(stage.value);
+          const theme = stage.theme || getStatusTheme(stage.code);
           return (
             <div
-              key={stage.value}
+              key={stage.code}
               className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
               style={{ width: `${(count / stats.total) * 100}%` }}
               title={`${count} ${stage.label}`}
-              onClick={() => goToStage(stage.value)}
+              onClick={() => goToStage(stage.code)}
             />
           );
         })}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        {OPPORTUNITY_STAGES.filter((s) => stats.stageCounts[s.value]).map((stage) => (
+        {pipelineStages.filter((s) => stats.stageCounts[s.code]).map((stage) => (
           <span
-            key={stage.value}
+            key={stage.code}
             className="text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-            onClick={() => goToStage(stage.value)}
+            onClick={() => goToStage(stage.code)}
           >
-            {stats.stageCounts[stage.value]} {stage.label}
+            {stats.stageCounts[stage.code]} {stage.label}
           </span>
         ))}
       </div>

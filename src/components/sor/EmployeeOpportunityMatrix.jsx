@@ -14,7 +14,8 @@ import { useAuth } from "../../context/AuthContext";
 import Avatar from "../Avatar";
 import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
-import { OPPORTUNITY_STAGES, formatPHP, isWonCode } from "../../constants/sor";
+import { formatPHP, isWonCode } from "../../constants/sor";
+import { usePipelineStages } from "../../hooks/usePipelineStages";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -51,6 +52,7 @@ export default function EmployeeOpportunityMatrix({
   title = "Team Opportunity Radar",
 }) {
   const navigate = useNavigate();
+  const { stages: pipelineStages } = usePipelineStages();
   const { user } = useAuth();
   const isHr = user?.is_hr === true || user?.isHr === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -245,19 +247,19 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
-                    {OPPORTUNITY_STAGES.map((stage) => {
-                      const count = emp.stageCounts[stage.value];
+                    {pipelineStages.map((stage) => {
+                      const count = emp.stageCounts[stage.code];
                       if (!count) return null;
-                      const theme = getStatusTheme(stage.value);
+                      const theme = stage.theme || getStatusTheme(stage.code);
                       return (
                         <div
-                          key={stage.value}
+                          key={stage.code}
                           className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
                           style={{ width: `${(count / emp.total) * 100}%` }}
                           title={`${count} ${stage.label}`}
                           onClick={(e) => {
                             e.stopPropagation();
-                            goToEmployee(emp.id, stage.value);
+                            goToEmployee(emp.id, stage.code);
                           }}
                         />
                       );
@@ -265,22 +267,22 @@ export default function EmployeeOpportunityMatrix({
                   </div>
 
                   <div className="flex items-center gap-3 flex-wrap pt-2">
-                    {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
+                    {pipelineStages.filter((s) => emp.stageCounts[s.code]).map(
                       (stage) => {
-                        const theme = getStatusTheme(stage.value);
+                        const theme = stage.theme || getStatusTheme(stage.code);
                         return (
                           <span
-                            key={stage.value}
+                            key={stage.code}
                             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                             onClick={(e) => {
                               e.stopPropagation();
-                              goToEmployee(emp.id, stage.value);
+                              goToEmployee(emp.id, stage.code);
                             }}
                           >
                             <span
                               className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
                             />
-                            {emp.stageCounts[stage.value]} {stage.label}
+                            {emp.stageCounts[stage.code]} {stage.label}
                           </span>
                         );
                       },
@@ -415,19 +417,19 @@ export default function EmployeeOpportunityMatrix({
                 </div>
 
                 <div className="w-full h-[7px] rounded-sm bg-muted overflow-hidden flex">
-                  {OPPORTUNITY_STAGES.map((stage) => {
-                    const count = emp.stageCounts[stage.value];
+                  {pipelineStages.map((stage) => {
+                    const count = emp.stageCounts[stage.code];
                     if (!count) return null;
-                    const theme = getStatusTheme(stage.value);
+                    const theme = stage.theme || getStatusTheme(stage.code);
                     return (
                       <div
-                        key={stage.value}
+                        key={stage.code}
                         className={`h-full hover:opacity-80 cursor-pointer ${THEME_BAR[theme] || THEME_BAR.mauve}`}
                         style={{ width: `${(count / emp.total) * 100}%` }}
                         title={`${count} ${stage.label}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          goToEmployee(emp.id, stage.value);
+                          goToEmployee(emp.id, stage.code);
                         }}
                       />
                     );
@@ -436,22 +438,22 @@ export default function EmployeeOpportunityMatrix({
 
                 {/* Legend */}
                 <div className="flex items-center gap-2.5 flex-wrap py-2">
-                  {OPPORTUNITY_STAGES.filter((s) => emp.stageCounts[s.value]).map(
+                  {pipelineStages.filter((s) => emp.stageCounts[s.code]).map(
                     (stage) => {
-                      const theme = getStatusTheme(stage.value);
+                      const theme = stage.theme || getStatusTheme(stage.code);
                       return (
                         <span
-                          key={stage.value}
+                          key={stage.code}
                           className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
                           onClick={(e) => {
                             e.stopPropagation();
-                            goToEmployee(emp.id, stage.value);
+                            goToEmployee(emp.id, stage.code);
                           }}
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full inline-block ${THEME_DOT[theme] || THEME_DOT.mauve}`}
                           />
-                          {emp.stageCounts[stage.value]} {stage.label}
+                          {emp.stageCounts[stage.code]} {stage.label}
                         </span>
                       );
                     },

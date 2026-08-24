@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -45,12 +45,11 @@ import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
+import { usePipelineStages } from "../../hooks/usePipelineStages";
 import {
   isLostCode,
-  OPPORTUNITY_STAGES,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPES,
-  STAGE_LABELS,
   formatLeadSource,
   formatPHP,
   isValidSalesReference,
@@ -390,6 +389,18 @@ export default function OpportunityDetailsModal({
   opportunity,
 }) {
   const { user } = useAuth();
+  // Inactive stages are included so an opportunity still sitting in a stage a
+  // super admin has since retired keeps a step to stand on — but only its own,
+  // so a retired stage never reappears as somewhere else's next move.
+  const { stages: allStages } = usePipelineStages({ includeInactive: true });
+  const pipelineStages = useMemo(
+    () => allStages.filter((s) => s.is_active || s.code === opportunity?.status),
+    [allStages, opportunity?.status],
+  );
+  const stageLabel = useCallback(
+    (code) => pipelineStages.find((s) => s.code === code)?.label || code,
+    [pipelineStages],
+  );
   const queryClient = useQueryClient();
   const [note, setNote] = useState("");
   const [noteMentions, setNoteMentions] = useState([]);
@@ -832,7 +843,7 @@ export default function OpportunityDetailsModal({
     if (stillOpen.length && !isLostCode(next)) {
       confirmActionToast(
         "Purchasing hasn't answered yet",
-        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${STAGE_LABELS[next] || next
+        `${stillOpen.length} product${stillOpen.length === 1 ? " is" : "s are"} still with purchasing. Moving to ${stageLabel(next)
         } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
         "Move anyway",
         "warning",
@@ -852,28 +863,28 @@ export default function OpportunityDetailsModal({
 
   const isPosting = isUploading || addNoteMutation.isPending;
 
-  const currentIndex = OPPORTUNITY_STAGES.findIndex((s) => s.value === opportunity.status);
-  const lastIndex = OPPORTUNITY_STAGES.length - 1;
+  const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
+  const lastIndex = pipelineStages.length - 1;
 
   const stageControl = (
     <div className="relative w-full">
       <div ref={scrollRef} className="overflow-x-auto pb-2">
         <ul className="flex h-11 min-w-full w-max gap-[2px] mb-2">
-          {OPPORTUNITY_STAGES.map((s, index) => {
+          {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
             const isUpcoming = index > currentIndex;
 
-            const tone = getStatusTheme(s.value);
+            const tone = s.theme || getStatusTheme(s.code);
             const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
             return (
               <li
-                key={s.value}
+                key={s.code}
                 ref={isCurrent ? activeChevronRef : undefined}
                 onClick={() => {
-                  if (!stageMutation.isPending && s.value !== opportunity.status) {
-                    handleStageChange(s.value);
+                  if (!stageMutation.isPending && s.code !== opportunity.status) {
+                    handleStageChange(s.code);
                   }
                 }}
                 className={cn(
@@ -1137,7 +1148,7 @@ export default function OpportunityDetailsModal({
                 >
                   {salesRef && !salesRefValid
                     ? SALES_REFERENCE_HINT
-                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${OPPORTUNITY_STAGES.find((s) => s.value === pendingStage)?.label ||
+                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${stageLabel(pendingStage) ||
                     pendingStage
                     }.`}
                 </p>
