@@ -5,7 +5,7 @@ import { makePipelineStage } from "@/test/factories"
 
 /**
  * The pipeline moved from hard-coded constants into a table, and the service
- * keeps the twelve Annex C.3 stages as a fallback so the SOR Register can
+ * keeps the default stage list as a fallback so the SOR Register can
  * never render an empty board — a pipeline with no stages is not a degraded
  * register, it is no register at all.
  */
@@ -21,16 +21,18 @@ describe("pipelineStageService", () => {
       expect(stages.map((s) => s.code)).toEqual(["FIRST", "SECOND", "THIRD"])
     })
 
-    it("falls back to the policy pipeline when the table is empty", async () => {
+    it("falls back to the default pipeline when the table is empty", async () => {
       const stages = await pipelineStageService.getAllStages()
 
       expect(stages.map((s) => s.code)).toEqual([
         "LEAD",
         "QUALIFIED",
         "PROPOSAL_SUBMITTED",
+        "FOR_BIDDING",
         "BID_SUBMITTED",
         "NEGOTIATION",
         "AWARDED",
+        "PAYMENT_VERIFICATION",
         "PO_RECEIVED",
         "PROJECT_DELIVERY",
         "COLLECTION",

@@ -84,14 +84,18 @@ describe("stage gating on sales reference", () => {
 })
 
 describe("pipeline definition", () => {
-  it("lists the twelve Annex C.3 stages in policy order", () => {
+  it("lists the default pipeline in order", () => {
+    // Twelve from Annex C.3, plus For Bidding and Payment Verification, which
+    // the business runs but the policy never named.
     expect(OPPORTUNITY_STAGES.map((s) => s.value)).toEqual([
       "LEAD",
       "QUALIFIED",
       "PROPOSAL_SUBMITTED",
+      "FOR_BIDDING",
       "BID_SUBMITTED",
       "NEGOTIATION",
       "AWARDED",
+      "PAYMENT_VERIFICATION",
       "PO_RECEIVED",
       "PROJECT_DELIVERY",
       "COLLECTION",
@@ -112,9 +116,14 @@ describe("pipeline definition", () => {
     expect(PROJECT_TYPE_SHORT.STRATEGIC).toBe("Strategic")
   })
 
-  it("identifies realized pipeline stages (Awarded through Retention)", () => {
+  it("identifies realized stages as the anchor and everything after it, less lost", () => {
+    // Payment Verification joined this set when it was added after Awarded.
+    // That is the intended consequence of putting a stage past the anchor: the
+    // deal is awarded and priced, so accounting still checking the payment
+    // does not move it back into the Projected pool.
     expect(REALIZED_STAGES).toEqual([
       "AWARDED",
+      "PAYMENT_VERIFICATION",
       "PO_RECEIVED",
       "PROJECT_DELIVERY",
       "COLLECTION",
@@ -175,13 +184,13 @@ describe("formatLeadSource", () => {
 
 /**
  * The pipeline is moving from a hard-coded list into `crm_pipeline_stages`, so
- * the twelve Annex C.3 stages become the *seed* and the fallback rather than
- * the source of truth. Nothing that carries money is stored as a per-stage
+ * the default stages become the *seed* and the fallback rather than the source
+ * of truth. Nothing that carries money is stored as a per-stage
  * toggle: Realized/Projected is derived from where a stage sits relative to
  * the Anchor Stage, so no settings screen can move a deal between the two.
  */
 describe("pipeline stage seed", () => {
-  it("seeds the twelve Annex C.3 stages in policy order", () => {
+  it("seeds the same stages the compatibility view exposes, in the same order", () => {
     expect(PIPELINE_STAGE_SEED.map((s) => s.code)).toEqual(
       OPPORTUNITY_STAGES.map((s) => s.value),
     )
@@ -348,6 +357,7 @@ describe("classifying stages for the register and the admin screen", () => {
       "LEAD",
       "QUALIFIED",
       "PROPOSAL_SUBMITTED",
+      "FOR_BIDDING",
       "BID_SUBMITTED",
       "NEGOTIATION",
     ])

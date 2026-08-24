@@ -3,8 +3,10 @@
 --
 -- Moves the SOR pipeline out of hard-coded constants and into a table, the way
 -- 0013 did for lead sources. The twelve Annex C.3 stages are seeded here as
--- system rows: this migration does NOT amend Policy CCPR-2026-001, it only
--- stops a rename or a colour change from needing a deploy.
+-- system rows, plus two the business runs but Annex C never named: For Bidding
+-- and Payment Verification. Beyond those two additions this migration does not
+-- amend Policy CCPR-2026-001 — it stops a rename or a colour change from
+-- needing a deploy.
 --
 -- WHY FLAGS AND NOT NAMES
 -- Four stages carry behaviour that used to be matched by literal name in both
@@ -31,16 +33,17 @@
 --
 -- SAFE TO RUN AT ANY TIME, against a live production frontend of any version:
 --   * One new table — nothing existing selects it.
---   * No existing row, table, policy or constraint is modified. The status
---     CHECK on sales_opportunities is deliberately left in place; swapping it
---     for a foreign key is a separate migration, after the frontend is reading
---     from this table.
+--   * No existing ROW is modified, and no opportunity changes stage.
+--   * The status CHECK on sales_opportunities is widened, never narrowed, so
+--     every stored status stays valid and the statement cannot fail on
+--     existing data. Replacing that CHECK with a foreign key onto this table
+--     is a separate migration.
 --   * Idempotent — safe to re-run.
 --
 -- Run this BEFORE deploying the pipeline stage frontend — pipelineStageService
 -- selects this table, and PostgREST rejects the whole query (not a partial one)
--- when a relation is missing. The service does carry the same twelve stages as
--- a fallback, so a missing table degrades to the policy pipeline rather than an
+-- when a relation is missing. The service does carry the same stages as a
+-- fallback, so a missing table degrades to the default pipeline rather than an
 -- empty board, but the ordering above avoids relying on that.
 -- ==============================================================================
 
@@ -79,18 +82,28 @@ create unique index if not exists crm_pipeline_stages_one_won
 create unique index if not exists crm_pipeline_stages_one_lost
   on public.crm_pipeline_stages ((true)) where is_lost;
 
--- ── Seed: Annex C.3, in policy order ────────────────────────────────────────
--- Values match PIPELINE_STAGE_SEED in src/constants/sor.js. The themes are the
--- ones these badges already rendered with, so nothing changes colour.
+-- ── Seed: the default pipeline, in order ────────────────────────────────────
+-- Values match PIPELINE_STAGE_SEED in src/constants/sor.js. The twelve Annex
+-- C.3 themes are the ones those badges already rendered with, so nothing
+-- changes colour.
+--
+-- For Bidding (35) and Payment Verification (65) are additions on top of Annex
+-- C.3, slotted into the existing gaps so no seeded stage had to be renumbered.
+-- Payment Verification is past the anchor, so opportunities there count toward
+-- the Realized Commission Pool — correct, because the deal is awarded and its
+-- Contract Date is already stamped, and precisely why a stage on that side is
+-- added by migration rather than from a settings screen.
 insert into public.crm_pipeline_stages
   (code, label, sort_order, theme, is_system, is_default, is_anchor, is_won, is_lost)
 values
   ('LEAD',               'Lead',              10,  'mauve',  true, true,  false, false, false),
   ('QUALIFIED',          'Qualified',         20,  'amber',  true, false, false, false, false),
   ('PROPOSAL_SUBMITTED', 'Proposal Submitted',30,  'blue',   true, false, false, false, false),
+  ('FOR_BIDDING',        'For Bidding',       35,  'amber',  true, false, false, false, false),
   ('BID_SUBMITTED',      'Bid Submitted',     40,  'blue',   true, false, false, false, false),
   ('NEGOTIATION',        'Negotiation',       50,  'violet', true, false, false, false, false),
   ('AWARDED',            'Awarded',           60,  'green',  true, false, true,  false, false),
+  ('PAYMENT_VERIFICATION','Payment Verification',65,'amber',  true, false, false, false, false),
   ('PO_RECEIVED',        'PO Received',       70,  'green',  true, false, false, false, false),
   ('PROJECT_DELIVERY',   'Project Delivery',  80,  'orange', true, false, false, false, false),
   ('COLLECTION',         'Collection',        90,  'orange', true, false, false, false, false),
@@ -98,6 +111,24 @@ values
   ('RETENTION',          'Retention',         110, 'violet', true, false, false, false, false),
   ('CLOSED_LOST',        'Closed Lost',       120, 'red',    true, false, false, false, true)
 on conflict (code) do nothing;
+
+-- ── Let sales_opportunities.status accept the new stages ────────────────────
+-- 0001 froze the twelve valid statuses into a CHECK. Two stages have been
+-- added, so the constraint has to learn them or a deal could be moved to a
+-- stage the picker offers and the database then rejects.
+--
+-- This deliberately stops at widening the list. Replacing the CHECK with a
+-- foreign key onto this table — which removes the duplicated enumeration for
+-- good — is its own migration, because it also requires rewriting the 0011
+-- trigger and teaching the test factories to seed a pipeline.
+alter table public.sales_opportunities
+  drop constraint if exists sales_opportunities_status_chk;
+alter table public.sales_opportunities
+  add constraint sales_opportunities_status_chk check (status in (
+    'LEAD','QUALIFIED','PROPOSAL_SUBMITTED','FOR_BIDDING','BID_SUBMITTED',
+    'NEGOTIATION','AWARDED','PAYMENT_VERIFICATION','PO_RECEIVED',
+    'PROJECT_DELIVERY','COLLECTION','CLOSED_WON','RETENTION','CLOSED_LOST'
+  ));
 
 -- ── RLS ─────────────────────────────────────────────────────────────────────
 -- Everyone reads the pipeline, because everyone renders it. Only a super admin

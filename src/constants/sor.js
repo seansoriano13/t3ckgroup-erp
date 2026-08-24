@@ -20,9 +20,11 @@ export const PROJECT_TYPES = [
 ];
 
 // ── Pipeline stages ─────────────────────────────────────────────────────────
-// Annex C.3 — pipeline, in order. CLOSED_LOST is reachable from any stage.
+// The default pipeline, in order. CLOSED_LOST is reachable from any stage.
+// Twelve stages come from Annex C.3; For Bidding and Payment Verification were
+// added on top of them.
 //
-// These twelve rows are the *seed* for `crm_pipeline_stages` and the fallback
+// These rows are the *seed* for `crm_pipeline_stages` and the fallback
 // the register renders when that table is empty or unreachable — they are no
 // longer the source of truth at runtime. Nothing outside this file should ever
 // match on a stage code again; ask the helpers below instead.
@@ -44,6 +46,16 @@ export const PROJECT_TYPES = [
 //
 // sort_order is gapped by ten so inserting a stage never renumbers its
 // neighbours, which would otherwise rewrite every row on an ordering change.
+// For Bidding (35) and Payment Verification (65) were added into those gaps
+// after the fact, which is the mechanism working as intended: no existing
+// stage moved.
+//
+// Payment Verification sits AFTER the anchor, so an opportunity there counts
+// toward the Realized Commission Pool. That is correct — it has been awarded
+// and its Contract Date is already stamped; accounting still checking the
+// payment does not un-award it. It also means adding it was a change to the
+// realized set, which is why a stage this side of the anchor is a migration
+// and a policy decision rather than something a settings screen can do.
 
 const stage = (code, label, sort_order, theme, flags = {}) => ({
   code,
@@ -63,9 +75,11 @@ export const PIPELINE_STAGE_SEED = [
   stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
   stage("QUALIFIED", "Qualified", 20, STATUS_THEME.AMBER),
   stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 30, STATUS_THEME.BLUE),
+  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
   stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
   stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
   stage("AWARDED", "Awarded", 60, STATUS_THEME.GREEN, { is_anchor: true }),
+  stage("PAYMENT_VERIFICATION", "Payment Verification", 65, STATUS_THEME.AMBER),
   stage("PO_RECEIVED", "PO Received", 70, STATUS_THEME.GREEN),
   stage("PROJECT_DELIVERY", "Project Delivery", 80, STATUS_THEME.ORANGE),
   stage("COLLECTION", "Collection", 90, STATUS_THEME.ORANGE),
