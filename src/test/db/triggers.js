@@ -27,14 +27,20 @@ export const TRIGGERS = {
       // 0012 dropped sales_opportunities_set_no(): opportunity_no shared the
       // S0#### format with Odoo's sales references while identifying an
       // unrelated record, so it is no longer minted. New rows leave it null.
-      // 0011 — sales_opportunities_require_sales_ref(), INSERT branch
-      // Updated in 0034 to read flags from crm_pipeline_stages
+      // 0011 — sales_opportunities_require_sales_ref(), INSERT branch.
+      // Rewritten in 0034 to read flags from crm_pipeline_stages, and in 0036
+      // to gate the ITB Number the same way — by the is_itb_gate flag's own
+      // sort_order, never a literal, so reordering the gate stage moves the
+      // gate with it instead of leaving a stale threshold behind.
       function requireSalesReferenceOnInsert(row, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
           : null
-        
-        const stage = context.rowsOf("crm_pipeline_stages").find(s => s.code === row.status)
+        row.itb_number = row.itb_number?.trim() ? row.itb_number.trim() : null
+
+        const stages = context.rowsOf("crm_pipeline_stages")
+        const stage = stages.find((s) => s.code === row.status)
+        const gate = stages.find((s) => s.is_itb_gate)
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
 
@@ -43,32 +49,53 @@ export const TRIGGERS = {
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required to register an opportunity beyond Lead.",
           )
         }
+        if (
+          gate &&
+          stage?.sort_order >= gate.sort_order &&
+          !isLost &&
+          row.itb_number == null
+        ) {
+          raise(
+            "An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond.",
+          )
+        }
       },
     ],
     beforeUpdate: [
-      // 0011 — sales_opportunities_require_sales_ref(), UPDATE branch
-      // Updated in 0034 to read flags from crm_pipeline_stages
+      // 0011 — sales_opportunities_require_sales_ref(), UPDATE branch.
+      // Rewritten in 0034/0036 — see the INSERT branch above.
       function requireSalesReferenceOnStageMove(row, old, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
           : null
-        
-        const stage = context.rowsOf("crm_pipeline_stages").find(s => s.code === row.status)
-        const oldStage = context.rowsOf("crm_pipeline_stages").find(s => s.code === old.status)
-        
+        row.itb_number = row.itb_number?.trim() ? row.itb_number.trim() : null
+
+        const stages = context.rowsOf("crm_pipeline_stages")
+        const stage = stages.find((s) => s.code === row.status)
+        const oldStage = stages.find((s) => s.code === old.status)
+        const gate = stages.find((s) => s.is_itb_gate)
+
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
         const oldIsLead = oldStage?.is_default
 
-        if (
-          row.status !== old.status &&
-          oldIsLead &&
-          !isLead &&
-          !isLost &&
-          row.sales_reference == null
-        ) {
+        if (row.status === old.status) return
+
+        if (oldIsLead && !isLead && !isLost && row.sales_reference == null) {
           raise(
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required before this opportunity can leave Lead.",
+          )
+        }
+
+        if (
+          gate &&
+          oldStage?.sort_order < gate.sort_order &&
+          stage?.sort_order >= gate.sort_order &&
+          !isLost &&
+          row.itb_number == null
+        ) {
+          raise(
+            "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond.",
           )
         }
       },

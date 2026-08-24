@@ -11,6 +11,7 @@ import {
   isLostCode,
   isValidSalesReference,
   normalizeSalesReference,
+  requiresItbNumber,
   requiresSalesReference,
   SALES_REFERENCE_HINT,
 } from "../constants/sor";
@@ -310,6 +311,17 @@ export const opportunityService = {
       );
     }
 
+    const providedItb = (itbNumber || "").trim() || null;
+
+    if (
+      requiresItbNumber(existing.status, nextStatus) &&
+      !(providedItb || existing.itb_number)
+    ) {
+      throw new Error(
+        "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond.",
+      );
+    }
+
     const patch = {
       status: nextStatus,
       lost_reason: isLostCode(nextStatus) ? lostReason : null,
@@ -317,7 +329,6 @@ export const opportunityService = {
     const recordsRef = providedRef && providedRef !== existing.sales_reference;
     if (recordsRef) patch.sales_reference = providedRef;
 
-    const providedItb = (itbNumber || "").trim() || null;
     const recordsItb = providedItb && providedItb !== existing.itb_number;
     if (recordsItb) patch.itb_number = providedItb;
 

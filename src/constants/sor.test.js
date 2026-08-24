@@ -20,8 +20,10 @@ import {
   PIPELINE_STAGE_SEED,
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_SHORT,
+  itbGateStage,
   realizedStageCodes,
   REALIZED_STAGES,
+  requiresItbNumber,
   requiresSalesReference,
   STAGE_LABELS,
 } from "./sor"
@@ -340,6 +342,59 @@ describe("stage gating derived from flags rather than codes", () => {
     }))
     expect(requiresSalesReference("QUALIFIED", "NEGOTIATION", stages)).toBe(true)
     expect(requiresSalesReference("LEAD", "QUALIFIED", stages)).toBe(false)
+  })
+})
+
+/**
+ * The ITB (Invitation to Bid) Number gate was added on top of the flag-driven
+ * design: it must key off the same is_itb_gate flag pattern as the anchor,
+ * never off a stage's sort_order literal or code — a magic number baked into
+ * a threshold comparison is exactly what the flag design exists to prevent,
+ * because reordering or renaming the gate stage would silently detach it.
+ */
+describe("the ITB Number gate", () => {
+  it("names For Bidding as the single stage requiring an ITB Number", () => {
+    expect(itbGateStage(PIPELINE_STAGE_SEED).code).toBe("FOR_BIDDING")
+  })
+
+  it("requires an ITB Number moving from before the gate to it or beyond", () => {
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING")).toBe(true)
+    expect(requiresItbNumber("QUALIFIED", "NEGOTIATION")).toBe(true)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "AWARDED")).toBe(true)
+  })
+
+  it("does not gate a move that stays before the gate stage", () => {
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED")).toBe(false)
+  })
+
+  it("does not re-gate a move that stays at or past the gate stage", () => {
+    // Already-quoted opportunities keep advancing without a second ask.
+    expect(requiresItbNumber("FOR_BIDDING", "BID_SUBMITTED")).toBe(false)
+    expect(requiresItbNumber("NEGOTIATION", "AWARDED")).toBe(false)
+  })
+
+  it("lets a deal be closed as lost before it was ever put out to bid", () => {
+    expect(requiresItbNumber("QUALIFIED", "CLOSED_LOST")).toBe(false)
+  })
+
+  it("keeps gating at the position the gate stage actually holds after a reorder", () => {
+    // The whole point of deriving from a flag: moving For Bidding's sort_order
+    // must move the gate with it, not leave a stale threshold behind.
+    const reordered = PIPELINE_STAGE_SEED.map((s) => {
+      if (s.code === "FOR_BIDDING") return { ...s, sort_order: 25 }
+      if (s.code === "QUALIFIED") return { ...s, sort_order: 35 }
+      return s
+    })
+
+    // A move that used to be gated (Qualified was past For Bidding) no longer is.
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED", reordered)).toBe(true)
+    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING", reordered)).toBe(true)
+  })
+
+  it("never gates anything when no stage carries the flag", () => {
+    const noGate = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_itb_gate: false }))
+    expect(itbGateStage(noGate)).toBeNull()
+    expect(requiresItbNumber("LEAD", "CLOSED_WON", noGate)).toBe(false)
   })
 })
 

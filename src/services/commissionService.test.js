@@ -405,6 +405,7 @@ describe("commissionService", () => {
       makeOpportunity({
         opportunity_no: "SOR-001",
         sales_reference: "S01234",
+        itb_number: "ITB-2026-001",
         project_type: "SSP",
         expected_value: 1_000_000,
         status: "AWARDED",
@@ -415,6 +416,7 @@ describe("commissionService", () => {
       makeOpportunity({
         opportunity_no: "SOR-002",
         sales_reference: "S01235",
+        itb_number: "ITB-2026-002",
         project_type: "CP",
         expected_value: 2_000_000,
         status: "CLOSED_WON",

@@ -68,6 +68,7 @@ const stage = (code, label, sort_order, theme, flags = {}) => ({
   is_anchor: false,
   is_won: false,
   is_lost: false,
+  is_itb_gate: false,
   ...flags,
 });
 
@@ -75,7 +76,7 @@ export const PIPELINE_STAGE_SEED = [
   stage("LEAD", "Lead", 10, STATUS_THEME.MAUVE, { is_default: true }),
   stage("PROPOSAL_SUBMITTED", "Proposal Submitted", 20, STATUS_THEME.BLUE),
   stage("QUALIFIED", "Qualified", 30, STATUS_THEME.AMBER),
-  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER),
+  stage("FOR_BIDDING", "For Bidding", 35, STATUS_THEME.AMBER, { is_itb_gate: true }),
   stage("BID_SUBMITTED", "Bid Submitted", 40, STATUS_THEME.BLUE),
   stage("NEGOTIATION", "Negotiation", 50, STATUS_THEME.VIOLET),
   stage("AWARDED", "Awarded", 60, STATUS_THEME.GREEN, { is_anchor: true }),
@@ -95,6 +96,16 @@ export const anchorStage = (stages = PIPELINE_STAGE_SEED) =>
 /** The stage a newly registered opportunity starts in. */
 export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_default) ?? null;
+
+/**
+ * The single stage an ITB Number (Invitation to Bid) must be on record to
+ * reach, or null if a list has none. Resolved by flag and compared by
+ * position, the same way the Anchor Stage is — never by a literal sort_order
+ * or code, which would silently detach from the gate the moment that stage is
+ * renamed or reordered.
+ */
+export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
+  stages.find((s) => s.is_itb_gate) ?? null;
 
 /**
  * Whether an opportunity in this stage counts toward the Realized Commission
@@ -241,20 +252,30 @@ export const requiresSalesReference = (
   !isLostCode(toStatus, stages);
 
 /**
- * Whether a stage move requires an ITB Number (Invitation to Bid) to be on record.
- * Required when moving into For Bidding (sort_order 35) or beyond, from a stage
- * prior to it. Existing downstream opportunities are grandfathered in.
+ * Whether a stage move requires an ITB Number (Invitation to Bid) to be on
+ * record. Required when moving from before the gate stage (For Bidding) to it
+ * or beyond; rows already at or past it keep advancing without a second ask.
+ *
+ * Compared against the gate stage's own sort_order, not a literal — reordering
+ * or renaming For Bidding must move the gate with it. A stage list with no
+ * gate stage requires nothing, the same fail-safe direction isRealizedStage
+ * takes when a list has no anchor.
  */
 export const requiresItbNumber = (
   fromStatus,
   toStatus,
   stages = PIPELINE_STAGE_SEED,
 ) => {
+  const gate = itbGateStage(stages);
   const fromStage = stageByCode(fromStatus, stages);
   const toStage = stageByCode(toStatus, stages);
-  if (!fromStage || !toStage) return false;
-  
-  return fromStage.sort_order < 35 && toStage.sort_order >= 35 && !isLostCode(toStatus, stages);
+  if (!gate || !fromStage || !toStage) return false;
+
+  return (
+    fromStage.sort_order < gate.sort_order &&
+    toStage.sort_order >= gate.sort_order &&
+    !isLostCode(toStatus, stages)
+  );
 };
 
 /** Formats a PHP amount for display. */

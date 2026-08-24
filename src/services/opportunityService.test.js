@@ -182,6 +182,78 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
     })
 
+    it("refuses to reach For Bidding without an ITB Number on record", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
+      ).rejects.toThrow(/ITB Number/i)
+
+      const unchanged = await opportunityService.getOpportunityById(lead.id)
+      expect(unchanged.status).toBe("LEAD")
+    })
+
+    it("raises a clean error for a missing ITB Number without a round trip to the database", async () => {
+      // Mirrors the Sales Reference gate: the service checks before writing,
+      // rather than relying on the trigger's raw constraint-violation message
+      // to reach the caller. Matters for anything that calls updateStatus
+      // other than the details modal, which already gates client-side.
+      //
+      // A trigger-surfaced rejection carries `.pgrst` (see pgrstError in the
+      // fake database); a plain `throw new Error(...)` from the service does
+      // not. That is the only reliable way to tell "the service refused" from
+      // "the database refused" apart, since the messages are deliberately the
+      // same wording either way.
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      let caught = null
+      try {
+        await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
+      } catch (error) {
+        caught = error
+      }
+
+      expect(caught?.message).toMatch(/ITB Number/i)
+      expect(caught?.pgrst).toBeUndefined()
+    })
+
+    it("advances to For Bidding when the ITB Number is supplied with the move", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      const moved = await opportunityService.updateStatus(
+        lead.id,
+        "FOR_BIDDING",
+        registrar.id,
+        null,
+        null,
+        "ITB-2026-001",
+      )
+
+      expect(moved.status).toBe("FOR_BIDDING")
+      expect(moved.itb_number).toBe("ITB-2026-001")
+    })
+
+    it("does not re-ask for an ITB Number moving between stages already past the gate", async () => {
+      const lead = makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S00999",
+        status: "FOR_BIDDING",
+        itb_number: "ITB-2026-001",
+      })
+
+      const moved = await opportunityService.updateStatus(lead.id, "BID_SUBMITTED", registrar.id)
+
+      expect(moved.status).toBe("BID_SUBMITTED")
+    })
+
+    it("lets a lead be closed as lost before it was ever put out to bid", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Cancelled")
+
+      expect(moved.status).toBe("CLOSED_LOST")
+    })
+
     it("lets a lead be closed as lost before it was ever quoted", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
@@ -271,7 +343,14 @@ describe("opportunityService", () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
       expect(lead.contract_date).toBeFalsy()
 
-      const awarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+      const awarded = await opportunityService.updateStatus(
+        lead.id,
+        "AWARDED",
+        registrar.id,
+        null,
+        null,
+        "ITB-2026-001",
+      )
 
       expect(awarded.contract_date).toBeTruthy()
     })
@@ -292,7 +371,14 @@ describe("opportunityService", () => {
 
     it("keeps the original Contract Date if the opportunity leaves and re-enters Awarded", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-      const firstAward = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+      const firstAward = await opportunityService.updateStatus(
+        lead.id,
+        "AWARDED",
+        registrar.id,
+        null,
+        null,
+        "ITB-2026-001",
+      )
       const firstDate = firstAward.contract_date
 
       await opportunityService.updateStatus(lead.id, "NEGOTIATION", registrar.id)
@@ -589,7 +675,14 @@ describe("opportunityService", () => {
     it("records a stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
+      await opportunityService.updateStatus(
+        lead.id,
+        "AWARDED",
+        registrar.id,
+        null,
+        null,
+        "ITB-2026-001",
+      )
       await waitForNetworkIdle()
 
       expect(

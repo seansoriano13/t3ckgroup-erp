@@ -1,7 +1,7 @@
 /**
- * Builds the fake database's schema by parsing the project's real SQL:
- * `t3ckgroup.sql` (the dumped baseline) plus every file in
- * `supabase/migrations/` in order.
+ * Builds the fake database's schema by parsing the project's real, executable
+ * SQL: every file in `supabase/migrations/`, in order. `t3ckgroup.sql` at the
+ * repo root is deliberately not a source — see sqlSources() for why.
  *
  * Nothing about the schema is hand-maintained here. Add a table or a column in
  * a migration and the fake picks it up on the next test run — that is the whole
@@ -411,8 +411,16 @@ function applyAlterTable(sql, registry) {
 
 function sqlSources() {
   const sources = []
-  const baseline = path.join(REPO_ROOT, "t3ckgroup.sql")
-  if (fs.existsSync(baseline)) sources.push(fs.readFileSync(baseline, "utf8"))
+  // t3ckgroup.sql is EXCLUDED on purpose: its own header reads "This schema is
+  // for context only and is not meant to be run" — it is a periodically
+  // regenerated snapshot for AI context, not an executable source, and it goes
+  // stale between regenerations (its sales_opportunities.status inline CHECK
+  // still lists the original twelve codes, missing FOR_BIDDING and Payment
+  // Verification). Ingesting it duplicated every table-level named constraint
+  // under a second, auto-generated `_check` name that no migration ever drops,
+  // so the fake DB silently enforced whatever this snapshot happened to say
+  // even after 0033+ moved the real schema on. The migrations directory is the
+  // only executable, kept-current source of truth.
 
   const migrations = path.join(REPO_ROOT, "supabase", "migrations")
   if (fs.existsSync(migrations)) {
