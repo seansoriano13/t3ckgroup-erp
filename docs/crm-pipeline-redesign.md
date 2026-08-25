@@ -150,9 +150,16 @@ Two consequences that constrain everything below:
 `itb_exempt` ("marked outright — no bidding required"). Implemented as named
 columns and hand-written branches in
 [src/services/opportunityService.js:304](../src/services/opportunityService.js#L304),
-not as an instance of any general mechanism. The gate is currently switched off
-(migration
-[0037](../supabase/migrations/0037_itb_gate_temporarily_disabled.sql)).
+not as an instance of any general mechanism.
+
+**The gate is ON.** *(corrected 2026-08-25 — this section previously said it
+was off.)* Migration
+[0037](../supabase/migrations/0037_itb_gate_temporarily_disabled.sql) did
+switch it off, but
+[0038](../supabase/migrations/0038_itb_outright_exemption.sql) introduced the
+outright exemption and turned it back on in the same migration
+(`set is_itb_gate = true`). Verified against the live `crm_pipeline_stages`
+row on 2026-08-25: `FOR_BIDDING.is_itb_gate = true`.
 
 ### 2.4 Every authenticated employee can read every SOR
 
@@ -325,9 +332,15 @@ predate it. The two real defects are (1) **no backfill was ever run** for deals
 already past the anchor, and (2) the **skip-the-anchor hole**, which is live,
 unexercised, and which outright deals will hit every time.
 
-Incidental finding: `itb_number` has **never been populated on any deal**. The
-ITB gate was designed, shipped, gated, disabled, and removed without a single
-number ever being entered — which independently vindicates D12.
+~~Incidental finding: `itb_number` has never been populated on any deal.~~
+**Withdrawn 2026-08-25 — this was false, or has since become false.** Live
+count: **10 of 114 deals carry an ITB Number** — 6 in `AWARDED`, 4 in
+`PO_RECEIVED`. Three more are marked `itb_exempt`. So the gate has not only
+been on (§2.3), it has been *answered*, repeatedly.
+
+The claim was load-bearing: "never used" was cited as independent vindication
+of D12. That support is withdrawn. **D12 still stands, on a stronger argument
+found in the transition log** — see §3d.
 
 **C11 — Liquidated Damages have no representation anywhere.**
 An OPEX summary line with no field, no stage, and no mention in any meeting
@@ -508,7 +521,8 @@ on them alone.
 | File | Quality |
 | --- | --- |
 | `Aug 24_ 2.01 PM MAAM GRACE.txt` | **Usable.** Correctly detected as Tagalog and *transcribed*. Degraded stretches at lines 232–262 (`hindi nga yun` ×30), 341–373 (`Okay.` ×33), 404–422. |
-| `Aug 24_ 1.20 PM SOR CRM.txt` | **Broken — needs re-rendering.** Tagalog detected as Malay and machine-*translated* into it. ~45% is the `Terima kasih kerana menonton` silence hallucination. Domain terms were translated into nonsense: `sifar berkualiti` = **Qualified**, `Komite PAS` = **committee task**, `forbidding` = **For Bidding**, `disetujui` = qualified/approved. Re-run with language forced to Tagalog and task set to *transcribe*, never *translate*. |
+| `Aug 24_ 1.20 PM SOR CRM.txt` (re-rendered) | **Usable.** Supplied 2026-08-25 correctly transcribed as Tagalog. §3d is built on this one; the reconstruction in §3c below is superseded where they disagree. |
+| `Aug 24_ 1.20 PM SOR CRM.txt` (first render) | **Broken — superseded.** Tagalog detected as Malay and machine-*translated* into it. ~45% is the `Terima kasih kerana menonton` silence hallucination. Domain terms were translated into nonsense: `sifar berkualiti` = **Qualified**, `Komite PAS` = **committee task**, `forbidding` = **For Bidding**, `disetujui` = qualified/approved. Re-run with language forced to Tagalog and task set to *transcribe*, never *translate*. |
 
 Meaning survived the mistranslation well enough to extract the following. Every
 claim below is paraphrase, not quotation, unless quoted.
@@ -578,6 +592,220 @@ which process it described. That is the clearest possible argument for D1.
 it is reachable from any stage by design — but on a board it renders at the far
 right, which is the opposite of where a lost bid belongs. Cosmetic, cheap,
 worth doing with the D3 reorder.
+
+---
+
+## 3d. The transition log, 2026-08-25
+
+Every `STAGE_CHANGED` entry in `sales_opportunity_logs`, aggregated. This is
+the pipeline as a *behaviour* rather than a configuration, and it is a source
+this document had not consulted before. ~140 moves across 114 live deals.
+
+**Three stages have never been entered or left. Not once.**
+`FOR_BIDDING`, `PAYMENT_VERIFICATION`, `COLLECTION` appear on neither side of
+any transition. `QUALIFIED`, `PROJECT_DELIVERY` and `RETENTION` are empty right
+now but have been walked through.
+
+**The strongest argument for D12, which is not the one D12 gives.** The ITB
+gate is defined as a *crossing* — `requiresItbNumber()` fires when a move
+starts below `sort_order` 35 and lands at or above it. The eight
+`LEAD → AWARDED` jumps therefore **hit the gate**, which is exactly why six
+`AWARDED` deals carry an ITB Number. So:
+
+> The gate works. The stage it hangs on is decoration. Nobody has ever stood
+> in `For Bidding`, so the gate has only ever fired as a surprise
+> interrogation on a jump nobody expected to be gated.
+
+That argument survives the withdrawal of the "never populated" finding, and it
+generalises: **it applies to any stage-attached gate**, which is what D6 is
+about to build fourteen of. The mitigation is D6's own shape — requirements
+attach to a (pipeline, stage) pair (D27) and are evaluated on the move, so a
+deal that skips a stage skips its requirements silently. That is the same hole
+as C12, one layer up, and it is not yet addressed.
+
+**Seventeen moves jump the entry stage straight into booked money** —
+`LEAD → PO_RECEIVED` ×9, `LEAD → AWARDED` ×8 — plus `LEAD → CLOSED_WON` ×2 and
+`PROPOSAL_SUBMITTED → CLOSED_WON` ×1. Every one of these is the C12 exposure,
+and they are the *normal* path, not the exception.
+
+**Backward moves are routine: at least eleven.** `QUALIFIED → LEAD` ×4,
+`BID_SUBMITTED → PROPOSAL_SUBMITTED` ×3, `NEGOTIATION → BID_SUBMITTED` ×2, and
+two that leave the booked region — `AWARDED → PROPOSAL_SUBMITTED`,
+`AWARDED → LEAD`. `contract_date` is never cleared, so a deal can sit in `Lead`
+carrying a stamped Contract Date. Resolved as D32.
+
+**C1 is not hypothetical.** One deal has moved `CLOSED_WON → RETENTION` — a
+terminal deal re-entering the pipeline, exactly as the ordering forces.
+
+**The Qualified/Proposal-Submitted ordering is a changeover, not a dispute.**
+*(Q41, answered.)* The 27 Qualified-first moves are the old flow; the order was
+deliberately changed around **2026-08-12**. Per-day counts:
+
+| Convention | 08-05 → 08-11 | 08-12 onward |
+| --- | --- | --- |
+| old — `LEAD → QUALIFIED` | 8 | **9** |
+| new — `LEAD → PROPOSAL_SUBMITTED` | 0 | 54 |
+
+So the changeover is real and the new order dominates, **but the old one never
+stopped**: 9 of 63 post-changeover moves (14%) still went Lead → Qualified,
+most recently **2026-08-24**. Residual habit rather than a competing process —
+but it means `Qualified` is still reachable directly from `Lead`, which D15's
+"Qualified means we costed it" reading does not allow. A D6 requirement on
+`Qualified` is what closes it.
+
+---
+
+## 3d. The re-rendered SOR/CRM transcript — what it settles and what it breaks
+
+Supplied 2026-08-25, correctly transcribed. **This supersedes §3c wherever they
+disagree.** Two of my reconstructions from the mistranslation were wrong and
+are corrected below.
+
+### ⚠️ C15 — The boss does not want private and government separated
+
+> "ngayon, **ayoko namang ihiwalay yung private saka yung government**"
+
+This is the direct opposite of **D1 / ADR 0004**, which gives each Deal Type its
+own pipeline. His model is *one* pipeline where government skips stages:
+
+> "dito, maaaring yung awarded, i-skip na ng government, payment na lang siya
+> or PO"
+> "Unlike si private, si out-right, pwede may payment verification or may PO
+> Receive… Pero sa government, award talaga."
+
+**Possible reconciliation, not yet agreed:** his objection may be to *seeing two
+separate boards/registers*, not to the data model — the same instinct as
+"Boss don't want to divide them apart" about SOR/CRM, which D4 resolved by
+keeping one record and two bands. Two pipelines underneath, one unified
+register on top, would satisfy both. But ADR 0004 must not be built as-is until
+this is put to him in those terms.
+
+### ⚠️ C16 — The post-award order is NOA → NTP → PO/Contract
+
+> "Sa awarded natin, meron tinatawag na NTP. Notice to proceed. Una muna…
+> Notice of award. So, meron ng award. So, susundan siya ng NTP. Notice to
+> proceed. Tapos susundan siya ng PO tsaka contract. **PO or contract lang.
+> Minsan walang PO eh.**"
+
+D13 has `NOA → Performance Bond → Contract Agreement → NTP`. The boss says
+`NOA → NTP → PO/Contract`, and **Performance Bond is never mentioned in this
+recording at all** (it appears only in the Grace recording, as "Performance 1").
+
+**I was wrong to dismiss the original one-liner.** When the raw notes said
+"NOA - NTP - Contract Agreement" I called it a mis-recollection and recommended
+the stage-list order; the user then confirmed "Contract agreement before NTP".
+The recording says the one-liner was right. D13 is now unsafe — see Q41.
+
+Also new: **"minsan walang PO"** — sometimes there is no PO at all, so a PO
+stage cannot be mandatory on the government path.
+
+### ✅ C13 resolved — purchasing is assigned early and acts late
+
+Both readings were true, exactly as hypothesised.
+
+- **Assignment happens at the GS, at proposal/qualified:** "dito pala sa GS
+  meron eh, meron na kung sino, i-assign na natin dun… mag-create na rin siya
+  ng task kung sino i-assign dun sa purchasing".
+- **Grace's team physically moves at PO Received:** "saan ka papasok Grace? …
+  **PO receive na sir**… so dito nagagalaw si operation".
+
+D20 stands. Grace was describing when *operations executes*, not when
+purchasing is named.
+
+**Refinement to D10:** there are **two** purchasing people, not one — a lead
+plus an assigned officer. "Isang purchasing lang… Pwede po ba sa dalawa? Para
+si Ma'am Raquel yung isang main. Oo, dalawa… Parang lead. **May lead doon si
+1001.**" And they are **chosen deliberately, not derived**: "Ano yung randomly?
+**Hindi. Pipiliin ng grupo.**"
+
+### 🐞 A live mispricing, and the cleanest possible case for D9
+
+The meeting opened on the Santa Lucia rubber boat. Quoted **₱424,800**; the
+**NOA came back at ₱242,400**.
+
+> "ang lumalabas sa NOA mo is 242,400… saan nyo binawas dito yung item? …
+> **Once awarded na, kailangan ma-adjust.** Sino mag-a-adjust? … Sa sales po.
+> Danny, ikaw dapat in-charge."
+
+Verified in production: `Reinforced Rubber boat w/trailer`, `expected_value`
+**424,800**, `status` AWARDED, `contract_date` **2026-08-19**. The transcript
+independently says "August 19 pa meron na NOA" — **the C12 backfill derived
+exactly the right date from the stage-move log**, which is the only external
+check available on that work.
+
+But the value was never adjusted, so right now this deal overstates booked
+revenue by **₱182,400** and its Commission Pool by **₱1,498.29**. That is D9
+(`awarded_value`) justifying itself on live data.
+
+**D9 needs to grow, though.** The question in the room was *"saan nyo binawas
+dito yung item?"* — where did you deduct the **item**. The award did not merely
+change a total; **line items were removed**. A scalar `awarded_value` cannot
+represent that. The item list needs an awarded state, not just the header.
+
+### Confirms, with reasons attached
+
+- **D15 — the GS starts at Proposal Submitted**, and now we know *why*:
+  "Pagka-proposal pa lang, sinisimula na… Pag hindi po nila simulan sa
+  proposal, maghahabol po sila sa qualified… yung time nun, sir, parang one
+  week lang kasi yung pre-bid niya." The pre-bid window is about a week; start
+  later and you cannot catch up.
+- **D14 — Payment Verification is outright-only**, with the reason: "pag
+  government, no… ang process ng government is, madeliver mo muna bago
+  kabayaran." Government delivers first and is paid after; outright pays first.
+- **D4 — the SOR/CRM band**, and the boss named the rename himself: "maaaring
+  **sore slash CRM**… etong leads na to, eto lang ang sore… pagdating dito,
+  customer relation na yan, qualified na yan."
+- **D29 — member-only visibility**, driven specifically by the costing being
+  confidential: "Kasi confidential din yan… lahat nakikita ang kahit sino? Yes
+  po. So ngayon, pwede mo na itago… **Yun lang ipalabas mo kung sino yung
+  kasali sa team.**"
+- **L9 — two automatic triggers, named precisely:** moving to For Bidding
+  auto-creates the bidding group task with its document list; submitting the
+  proposal auto-creates the GS. "pagka binove na rito, ike-create niya na yung
+  group task. **Automatic**… dito naman sa kabila, sa SOAR naman, **pag bid
+  proposal automatic mag-create ng GS**."
+- **§3b.3 — the Incharge codes are people**, and they were recently renumbered:
+  "sino yung 10-04, bago na yun, mayroon lang kayong bagong code nyo… 10-04
+  dapat yun, tapos pinabago nyo." Note these are 1001/1004-style, whereas the
+  matrix showed 402/114 — **two numbering schemes, or one that changed.**
+
+### New requirements not previously captured
+
+- **Pull the cost item from Odoo.** Acquisition cost is typed by hand today.
+  "pwede ba hugutin ni Sean yung cost item? Sa ODO? … Bale, **dalawang price
+  yung lalabas** — dalawang price lalabas, pero yung isa, nasa cost item." Two
+  prices per line: selling and cost. This moves **L2** from "later" toward
+  "asked for", and it partially reverses **D23**: the boss also approved
+  pulling stock live — "huhugutin na natin… parang yung live preview".
+- **Stock checkbox drives the procurement request.** "pag sinabi siya may stock
+  … na-reserve na yan. Check, check, reserve… Pag chine-checkan ko to, hindi na
+  kailangan mag-request na purchasing. **Ang i-request niya lang, yung mga
+  uncheck.**" Checked = in stock, no request; unchecked = raise a request. That
+  is a concrete link between the stock columns and the existing
+  `sor_procurement_requests` flow.
+- **A generate button for the bid/no-bid figure.** "kung magkani-acquire, total
+  … tsaka yung magiging mark-up niya, ma-minus na lang natin. **Kasi from
+  there, dun tayo magdi-desisiyon kung sasali tayo sa bidding o hindi.** Pwede
+  ba i-generate yun? Mag-click button dito para i-generate na?"
+- **Mentioning a group currently auto-assigns at random, and that is wrong.**
+  "pag may-mention lang po yung buong purchasing dun, mag-a-auto-assign lang po
+  siya sa isang purchasing na randomly." Boss: "Hindi. Pipiliin ng grupo."
+
+### The cost of the missing automation, stated plainly
+
+> "ang problema nito, nung **August 19 hanggang 24**, walang alam si purchasing
+> na pwede niya nang i-order to."
+
+Five days between the NOA landing and purchasing learning they could buy. That
+is the business case for D6's attachment trigger, measured.
+
+### Corrections to §3c
+
+- The Malay reconstruction rendered a win rate as "10 to 14 percent". The actual
+  line is **"almost 80-90% tayo naman mananalo"** — an 80–90% win rate on bids.
+- §3c inferred `Closed Lost` belongs near Awarded from the Grace recording. This
+  recording does not discuss it; that inference rests on the Grace transcript
+  alone and stays unconfirmed.
 
 ---
 
@@ -682,15 +910,27 @@ Retention-% and Liquidated Damages representation (needs Q18, C10, C11), the
 stage→department mapping table (needs Q22), auto-created group tasks vs stage
 checklists (needs Q21).
 
-| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ? — ask Grace |
+| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ✓ both — §3d |
+| Q41 | C15 | Boss says don't separate private/government — does D1 survive? | ? **reopens ADR 0004** |
+| Q42 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ? **reopens D13** |
+| Q43 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ? |
 | Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
 | Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
 | Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
 | Q40 | — | Build order | ✓ D30 |
 
-**The frontier is empty.** Every design branch has been visited. What remains
-is building (D30) and three facts owed by other people: C13/Q36 from Grace,
-the IPAS acronym, and the ITR reconciliation from Finance (Q18, L6, L7).
+| Q41 | 2.1 | Qualified before or after Proposal Submitted (§3d)? | ✓ neither — a changeover, see §3d |
+| Q42 | 3.1.3 / 5.2 | What do a gate and a group task do on **re-entry**? | ✓ D31 |
+| Q43 | 2.2.1 | A deal moved backward *out of the booked region* — what happens to `contract_date`? | ✓ D32 |
+| Q44 | — | Is the C12 code fix in scope now, or behind D30's staging clone? | ✓ D33 |
+
+**Round 10 reopened the frontier.** §3d — the transition log — was a source
+this document had never read, and it falsified two claims (§2.3, C12's
+"never populated") and raised three questions the design tree had no branch
+for. The frontier is *not* empty; see the round-11 questions below.
+
+Still owed by other people, unchanged: C13/Q36 from Grace, the IPAS acronym,
+and the ITR reconciliation from Finance (Q18, L6, L7).
 
 **Transcripts received 2026-08-25** — see §3c. One usable, one needs
 re-rendering (mistranslated into Malay). They confirmed D3, D6, D10, L9 and the
@@ -1142,6 +1382,83 @@ they happen to be members of.
 
 ---
 
+### D31 — Requirements and group tasks fire once per (deal, stage), forever *(2026-08-25, Q42)*
+
+Re-entering a stage does **not** re-arm its gate and does **not** create a
+second group task. A satisfied `sor_requirement_status` row stays satisfied; a
+group task created on the first entry is the group task for that stage, and a
+later pass reuses it.
+
+This is D5's "membership is additive and never revoked" applied to work
+products rather than to people, and for the same reason: a deal that goes
+backwards is a deal already in trouble, and re-arming gates and duplicating
+task lists punishes exactly those deals with the most noise.
+
+*Rules out:* per-visit requirement instances, and a task-per-entry model. Both
+would need a visit counter on the deal, which nothing else in the design has.
+
+*Reversal cost:* low while `sor_requirement_status` is keyed on
+(deal, requirement). It becomes high the moment anything reports on
+per-visit history, because the rows to report on were never written.
+
+*Open, and sharpened by this:* what happens to a requirement **added while a
+deal was past the gate**, when that deal then moves backward and crosses again.
+D18 says a deal already past a gate is never re-evaluated; D31 says a
+re-entering deal reuses satisfied status — but a requirement added in the
+interval has *no* status row, satisfied or otherwise. See Q45.
+
+### D32 — Backward moves out of the booked region are a Stage Correction, not a move *(2026-08-25, Q43)*
+
+Two production deals have moved `AWARDED → LEAD` and
+`AWARDED → PROPOSAL_SUBMITTED`. Under D2's rename those read as "Notice of
+Award → Lead" — a deal that received a government Notice of Award and then
+did not.
+
+They are data-entry corrections, and they get a mechanism of their own:
+
+- An ordinary **backward move out of the booked region is blocked.** Once a
+  deal is at or past the anchor, the only ordinary moves are forward, or to
+  `Closed Lost`.
+- A separate, explicitly-named **Stage Correction** action does it instead. It
+  **clears `contract_date`**, writes a timeline note and an audit entry naming
+  it as a correction, and is not something a deal does in the normal course of
+  business.
+
+*Rules out:* treating a correction as an ordinary backward move, which is what
+happens today — and which leaves `contract_date` stamped on a deal sitting in
+`Lead`, because nothing ever clears it. That deal is Projected by position and
+anchored by date, a combination the anchor mechanism has no meaning for.
+
+*Rules out, second:* an un-stamp rule on the ordinary anchor transition. The
+anchor must stay a one-way stamp or D2's guarantee — no historical
+`contract_date` is ever re-stamped — stops holding.
+
+*Reversal cost:* moderate. The blocked-move rule is a check; the correction
+action is a new verb in the timeline vocabulary and will be referenced by
+audit history once used.
+
+### D33 — The C12 trigger backstop ships first, alone, ahead of the baseline *(2026-08-25, Q44)*
+
+D30 queued the C12 code fix inside step 3, behind the migration baseline and
+the staging clone. It comes out and goes first.
+
+Rationale: the fix has two halves, and they have very different costs. The
+**app-side half** (stamp on first entry to any booked stage) touches
+`updateStatus` and belongs with the rest of the pipeline work. The
+**database trigger backstop** is small, is the half that cannot be bypassed by
+the app or by a direct write, and stops the bleeding — every new
+`LEAD → PO_RECEIVED` jump currently adds an unanchored booked deal and makes
+the D26 backfill need running again.
+
+*Amends D30.* The build order becomes: **0. C12 trigger backstop** →
+1. baseline the migrations → 2. staging clone → 3. D6 gate engine (with the
+app-side C12 half) → 4. everything else, matrix last.
+
+*Open:* the trigger needs a rule for *which date to stamp* when a deal lands
+in a booked stage other than the anchor. See Q46 — this blocks the build.
+
+---
+
 ## 7b. Deferred work — the "later" list
 
 Explicitly agreed as future phases, recorded here so they are not silently
@@ -1193,6 +1510,13 @@ _Avoid_: SOR module, CRM module (implies separate systems)
 Someone with access to an SOR. Additive and permanent — a stage change may add
 members, never remove them.
 _Avoid_: Participant, Watcher, Collaborator
+
+**Stage Correction**:
+Undoing a stage that was recorded in error, as opposed to a deal genuinely
+moving backwards. The only way a deal leaves the booked region other than
+forward or to Closed Lost, and the only thing that ever clears a Contract Date.
+Always logged as a correction, never as a move.
+_Avoid_: Revert, Rollback, Moving back
 
 ---
 
@@ -1309,7 +1633,9 @@ rows migrate to `po_date`; the seven forecasts stay where they are.
 | 2026-08-24 | Round 2 answered. D6–D12. Sales Offer Matrix and Finance OPEX structure captured (§3b) and its arithmetic verified; C8–C11 raised. OCR dropped, ITB removed entirely. |
 | 2026-08-24 | Round 3 answered. D13–D17. C12 raised and then confirmed against production: 119 SORs, **zero** Contract Dates, ₱4.0M of Realized pool unanchored. Q18 parked pending Finance. Q20 re-asked as Q23 — the user agreed without understanding it. |
 | 2026-08-25 | Round 4 answered. D18–D19. A second, fully populated Sales Offer Matrix supplied — §3b.3 added, every total verified, the two-level tender-line/component structure established, ABC confirmed as a used ceiling. |
+| 2026-08-25 | Re-rendered SOR/CRM transcript folded in (§3d), superseding the reconstruction in §3c. C13 resolved — purchasing is assigned early and executes late, so D20 and Grace were both right. **C15 and C16 raised, reopening ADR 0004 and D13.** A live mispricing found: the Santa Lucia rubber boat is booked at its quote (₱424,800) not its award (₱242,400). The C12 backfill's derived date for that deal independently confirmed by the recording. |
 | 2026-08-25 | Round 9 answered — D27–D30. Frontier empty: stage-per-pipeline, gate vs group-task checklists separated, the RLS rewrite scoped so aggregates read past membership, and the build order fixed. |
 | 2026-08-25 | Meeting transcripts received (§3c). One usable, one mistranslated into Malay and needing a re-render. Confirmed D3, D6, D10, L9 and the `Incharge` reading; raised C13 (purchasing's entry stage disputed) and C14 (the room could not tell the two pipelines apart); flagged `Closed Lost`'s position. |
 | 2026-08-25 | Rounds 6–8 answered. D25–D26. "Purchase Date/Order" found to be `expected_award_date` mislabelled, with both meanings live in production (§7e) — split rather than renamed, and **implemented**. `stage_checkpoints` identified as the user's own backlogged start on D6. **C12 backfill executed**: 13 rows written, none invented, one deliberately left null. Vercel preview protection verified already on. |
+| 2026-08-25 | Round 10 answered. D31–D33. **§3d added — the transition log, a source never previously read.** It falsified two claims: §2.3's "the gate is switched off" (0038 turned it back on; corrected) and C12's "`itb_number` never populated" (10 deals carry one; withdrawn, and D12's stated support with it). D12 stands on a stronger argument found in the same log: the gate fires on crossings, and the stage it hangs on has never been occupied. Q41 closed — the Qualified ordering is a changeover, not a dispute, though 14% of post-changeover moves still use the old order. **The frontier reopened**; round 11 posed. |
 | 2026-08-25 | Round 5 answered. D20–D24 and the deferred list (§7b). **ITR solved exactly** as `(offer − 250,000) × 8%`. C12 re-measured — the earlier 11-deal figure was stale; production now holds 19 booked deals, 5 correctly stamped today, 14 needing backfill. Dry run published as an artifact; no rows written. |

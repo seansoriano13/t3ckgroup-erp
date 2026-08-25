@@ -2,7 +2,18 @@
 
 ## Status
 
-Accepted — 2026-08-24. Design settled; not yet implemented.
+**Challenged — 2026-08-25. Do not implement until resolved.**
+
+Accepted 2026-08-24. The re-rendered meeting transcript has the boss saying
+plainly *"ayoko namang ihiwalay yung private saka yung government"* — I don't
+want private and government separated — and describing one pipeline in which
+government simply skips stages. See C15 and Q41 in
+[the redesign doc](../crm-pipeline-redesign.md).
+
+The objection may be to seeing two separate registers rather than to the data
+model, in which case two pipelines underneath and one unified register on top
+satisfies both readings — the same shape D4 used to settle the SOR/CRM split.
+That has not been put to him yet. Nothing here should be built until it has.
 
 ## Context
 
