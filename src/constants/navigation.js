@@ -67,7 +67,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
-        label: "SOR Register",
+        label: "SOR / CRM",
         link: "/opportunities",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,

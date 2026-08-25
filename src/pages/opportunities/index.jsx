@@ -221,11 +221,11 @@ export default function OpportunitiesPage() {
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
-      
+
       const dealOwner = employees.find(e => e.id === o.deal_owner_id);
       if (departmentFilter !== "ALL" && dealOwner?.department !== departmentFilter) return false;
       if (subDeptFilter !== "ALL" && dealOwner?.subDepartment !== subDeptFilter) return false;
-      
+
       if (ownershipRole !== "ALL" && employeeFilter !== "ALL") {
         if (o[ownershipRole] !== employeeFilter) return false;
       } else if (employeeFilter !== "ALL" && employeeFilter !== null) {
@@ -447,7 +447,7 @@ export default function OpportunitiesPage() {
     <ProtectedRoute>
       <PageContainer maxWidth="full" className="pt-4 px-0 sm:px-0 lg:px-0">
         <PageHeader
-          title="SOR Sales Opportunity Registration"
+          title="SOR / CRM"
           description="Register every lead before bid, proposal, or quotation issuance. Registration date establishes deal ownership."
         >
           <button
@@ -769,12 +769,12 @@ export default function OpportunitiesPage() {
                     );
                     const dateFormatted = o.registration_date
                       ? (() => {
-                          const d = new Date(o.registration_date);
-                          const m = d.toLocaleDateString("en-US", { month: "short" });
-                          const day = d.getDate();
-                          const yr = String(d.getFullYear()).slice(-2);
-                          return `${m} ${day}, '${yr}`;
-                        })()
+                        const d = new Date(o.registration_date);
+                        const m = d.toLocaleDateString("en-US", { month: "short" });
+                        const day = d.getDate();
+                        const yr = String(d.getFullYear()).slice(-2);
+                        return `${m} ${day}, '${yr}`;
+                      })()
                       : "—";
 
                     return (
