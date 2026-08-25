@@ -101,6 +101,59 @@ Role-based UI presentation masking where standard employees view only their own 
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
 
+### Philippine Government Procurement
+
+Terms the system models. The full acronym list from the bidding documents is
+reference material in [docs/procurement-glossary.md](docs/procurement-glossary.md).
+
+**ABC (Approved Budget for the Contract)**:
+The ceiling a government client publishes for a project. A bid above it is
+disqualified, so it is a constraint on the offer, never merely a column.
+_Avoid_: Budget, Client Budget
+
+**Notice of Award**:
+Written notice that a bid was accepted. Starts a statutory ten-day clock inside
+which the performance security must be posted and the contract signed. Receipt
+must be confirmed in writing within two days.
+_Avoid_: Award Letter, NOA (in UI copy — spell it out)
+
+**Performance Security**:
+Posted by the winner before the contract is signed, as a percentage of the
+total contract price — 5% in cash or manager's check, 30% for a bank guarantee
+or surety bond. Called a Performance Bond in conversation.
+_Avoid_: Bond, Guarantee (unqualified)
+
+**Post-Qualification**:
+A non-discretionary pass/fail examination of the lowest bidder's documents,
+completed within twelve calendar days. Failing it disqualifies the bidder and
+passes the process to the next-ranked one.
+_Avoid_: Verification, Vetting
+
+**Retention Money**:
+Between 1% and 5% withheld from **every progress payment** as warranty cover,
+released only after the warranty period lapses. Distinct from the **Retention
+stage**, which is the deal waiting out that period.
+_Avoid_: Retention (unqualified — it is ambiguous between the money and the stage)
+
+**Liquidated Damages**:
+A per-day deduction for late delivery, needing no proof of actual loss. At 10%
+of the total contract price the client may rescind the contract.
+_Avoid_: Penalty, Late Fee
+
+**ILPAS (Importation, Local Purchase And Shipping information form)**:
+Purchasing's per-shipment record for an imported or externally sourced item —
+supplier, currency, payment terms and forex, freight, duties, the shipping
+document checklist, and the shipping status run of Ordered → Boarded → Arrived
+→ Delivered. What the Sales Offer Matrix's `IPAS` column marks as Applicable or
+Not Applicable is **whether an item needs one**; house-brand stock does not.
+_Avoid_: IPAS (a transcription of the same word), Import Form
+
+**Landed Cost**:
+An imported item's true unit cost once everything is apportioned onto it —
+`unit price + duties/item + freight/item + other charges/item`, computed on the
+ILPAS sheet. The basis every markup and income figure is taken from.
+_Avoid_: Cost, Unit Cost, Acquire Cost
+
 ### Task Logging & Dictation
 
 **DTAR (Daily Task Accomplishment Report)**:

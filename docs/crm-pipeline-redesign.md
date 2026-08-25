@@ -898,6 +898,104 @@ resolved here.
 
 ---
 
+## 3f. ILPAS and the bid document — 2026-08-25
+
+Two sources supplied together: purchasing's **ILPAS** sheet from Odoo, and the
+**Tagbilaran City bidding documents** (IB No. 2603-211, Rescue Truck —
+Philippine Bidding Documents, First Edition May 2025, under **RA No. 12009**).
+Between them they close three long-open questions.
+
+### ✅ IPAS is ILPAS, and it explains the Landed Cost column
+
+**ILPAS — Importation, Local Purchase And Shipping information form.**
+Purchasing's per-shipment record for an item that must be brought in: supplier,
+currency, forex rate, up to six payment terms with bank charges and doc stamps,
+freight, duties, a document checklist across origin/destination/T3CK, and a
+shipping status run of **Ordered → Boarded → Arrived → Delivered** with a date
+on each.
+
+So the Sales Offer Matrix's `IPAS` column marks **whether an item needs one**.
+That matches the correlation found in §3b.3 exactly: every `Proteger` component
+was *Not Applicable* — house-brand stock already here — and every `Fenix`,
+`Kong Italy`, `OEM` and `Gideaon` component was *Applicable*.
+
+**And it supplies the formula behind the matrix's unexplained `LANDED COST`
+column.** Verified exactly against the sheet:
+
+```
+LANDED COST = unit price (PHP) + duties/item + freight/item + other charges/item
+            = 2,160.98 + 145.59 + 79.58 + 126.18
+            = 2,512.33          ← exact
+```
+
+Everything downstream is taken from it, all verified:
+
+| Figure | Formula | Sheet |
+| --- | --- | --- |
+| Markup % | retail ÷ landed | 236% |
+| Discount price (wholesale) | retail × 70% | 4,144.00 |
+| WS income / unit | wholesale − landed | 1,631.67 |
+| Retail income / unit | retail − landed | 3,407.67 |
+
+One figure still does not reproduce: **`AUTO PRICING %`** is a constant
+**×2.0644** of landed cost on every line, while the sheet's stated multiplier is
+2.40 and the achieved markups are 236% and 258%. It behaves like a *suggested*
+price a human then overrides. Origin unknown — the same shape the ITR problem
+had before Finance explained it.
+
+### ⚠️ F4 — Under RA 12009 the quantity cannot change at award
+
+> ITB 29.4, p. 39 — "At the time of contract award, the Procuring Entity shall
+> **not increase or decrease the quantity of goods** originally specified."
+
+This contradicts the premise behind Q49, which assumed the Santa Lucia award
+(₱424,800 quoted → ₱242,400 awarded) removed line items. Legally it cannot
+have, on a government bid.
+
+The likelier explanation is **lots**. Government bids are awarded per lot, and
+production already registers them that way — four live deals are titled
+`Lot 3`, `Lot 5`, `Lot 6`, `Lot 7`. A quotation covering several lots wins only
+some, so the deal's value drops without any line being deleted.
+
+*Consequence:* Q49 shrinks. `awarded_value` stays a scalar, and the awarded
+line-item state is **not built**. See D38.
+
+### The clauses behind three stages and two OPEX lines
+
+Full extracts with page references live in
+[docs/procurement-glossary.md](./procurement-glossary.md). The load-bearing
+ones:
+
+- **Ten calendar days from NOA** to post the performance security *and* sign
+  the contract (ITB 29.3, 30.1), with receipt of the NOA confirmed in writing
+  within **two** days (ITB 29.2). `Notice of Award → Performance Bond →
+  Contract Agreement` is a **statutory clock**, not a loose sequence — and
+  missing it forfeits the award. This is the strongest argument yet that D6
+  needs a notion of **time**, which it does not have (Q52).
+- **Performance Security** is **5%** of total contract price in cash or
+  manager's check, **30%** for a bank guarantee or surety bond (ITB 31.3).
+  Concrete values for the Performance Bond stage.
+- **Post-Qualification** is non-discretionary pass/fail within **twelve
+  calendar days** (ITB 27.3). Two outcomes only, on a clock. That is exactly
+  why the operations manager drew `Closed Lost` next to it — and D36 still
+  holds, because the *other* outcome continues down the pipeline.
+- **C10 resolved.** Retention money is **1%–5% of every progress payment**,
+  released after the warranty period lapses (GCC 17.3–17.4). Per payment, not
+  once. The OPEX sheet's flat 1% is a simplification of this.
+- **C11 resolved.** Liquidated Damages are deducted **per day of delay**, need
+  no proof of loss, and **at 10% of the contract price the client may rescind**
+  (GCC 19.1–19.3). LD now has a formula, a ceiling and a consequence.
+
+### A vocabulary collision worth naming
+
+In the bidding documents **ITB means *Instructions to Bidders*** — a section of
+the bid pack. The system's retired `itb_number` meant *Invitation to Bid*.
+Same acronym, different objects, in the same domain. One more reason D12
+removes the field rather than renaming it.
+
+
+---
+
 ## 4. The design tree
 
 Branches, in dependency order. A child cannot be settled before its parent.
@@ -1002,11 +1100,12 @@ checklists (needs Q21).
 | Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ✓ both — §3d |
 | Q47 | C15 | Boss says don't separate private/government — does D1 survive? | ✓ D34 — yes, with one register |
 | Q48 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D35 — D13 confirmed |
-| Q49 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ? |
+| Q49 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ✓ D39 — premise was wrong (F4) |
 | Q50 | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
-| Q51 | — | Scope: are N1/N2/N3 (§3e) in this build or after it? | ? **blocks the roadmap** |
-| Q52 | 3.1 | A 30-minute no-reply SLA — D6 has no notion of time | ? needs Q51 |
-| Q53 | 4.2 | Delivery tasks are a third kind beside gates and group tasks (F2) | ? needs Q51 |
+| Q51 | — | Scope: are N1/N2/N3 (§3e) in this build or after it? | ✓ D38 — pipeline only |
+| Q52 | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3f) | ? **sharpened, now in scope** |
+| Q53 | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
+| Q54 | 4.2 | Delivery tasks as a third kind beside gates and group tasks (F2) | ⏸ deferred with N3 |
 | Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
 | Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
 | Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
@@ -1654,6 +1753,50 @@ as designed.
 region now. **Renumber the whole Bidding list cleanly when the pipeline split
 (D1/D34) is built** — that is the one moment renumbering costs nothing, since
 the rows are being written fresh anyway.
+
+### D38 — Scope boundary: pipeline only. N1/N2/N3 are later phases *(2026-08-25, Q51)*
+
+This build is **D1–D37 plus the gate engine**. The three subsystems in §3e —
+omnichannel lead intake, the non-SOR Purchase Request register, and the
+post-delivery chain — are separate phases.
+
+*One exception carried in now:* `lead_source = chatbot` as a value, and Deal
+Owner auto-assignment on intake. A column and a rule. Without them, plugging in
+Chatwoot later means changing stage 10 on a live system.
+
+### D39 — `awarded_value` stays a scalar *(2026-08-25, Q49)*
+
+Q49 shrinks to: **fetch cost price and marked-up price from Odoo, preview both
+on the product line with a total, tag availability by hand (D23), and record
+`awarded_value` at Notice of Award.** No awarded state on line items.
+
+*Why it shrank:* the premise was wrong. ITB 29.4 forbids the quantity changing
+at award (F4, §3f), so no line was deleted on the Santa Lucia deal — it is a
+lot-level award. The user independently judged the line-item build "masyadong
+future"; the bid document says it would also have been modelling something that
+cannot legally happen.
+
+*Still unruled:* whether `awarded_value` **replaces** `expected_value` in
+display. D9 says commission prices off `coalesce(awarded_value, expected_value)`
+and that stands; the register column is a presentation choice, not decided.
+
+### D40 — Purchasing: head by default, plus one assigned officer *(2026-08-25, Q53)*
+
+At **Proposal Submitted**:
+
+1. the **Purchasing head is added automatically** — no one picks them;
+2. **either the Deal Owner or the Purchasing head** assigns **one** purchasing
+   officer, who is notified.
+
+Two people, resolving F1 in favour of the 2026-08-24 account over the earlier
+"three, per project". The assigner is widened from D20 — the head may do it too,
+which is what the Aug-19 "purchasing themselves decide" instinct was reaching
+for.
+
+**And this is the first real consequence of D29's private SORs:** a purchasing
+officer sees an SOR *only once it reaches Proposal Submitted*. Before that the
+record does not exist for them. Membership stays additive (D5), so they keep it
+afterwards.
 
 ---
 
