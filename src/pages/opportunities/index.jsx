@@ -2,7 +2,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Plus, Search, Target, List, Kanban, LayoutDashboard, X } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Target,
+  List,
+  Kanban,
+  LayoutDashboard,
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+} from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
@@ -32,6 +43,52 @@ import { leadSourceService } from "../../services/leadSourceService";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
+
+// Alignment classes are written out in full rather than interpolated —
+// Tailwind scans source for literal class names, so a `text-${align}` would
+// compile to nothing.
+const TH_ALIGN = {
+  left: { cell: "text-left", inner: "" },
+  right: { cell: "text-right", inner: "justify-end" },
+  center: { cell: "text-center", inner: "justify-center" },
+};
+
+/**
+ * A clickable register column header. Same interaction styling as
+ * `TaskTableView` — cursor-pointer, hover:text-foreground, transition-colors —
+ * but this table keeps its own px-2.5/py-2.5 padding: ten columns already
+ * overflow the fixed layout, and wider gutters would push Status out of view.
+ *
+ * Lives at module scope, not inside the page component. A component declared
+ * during render is a new type on every render, so React unmounts and remounts
+ * every header on each keystroke in the search box.
+ */
+function SortableTh({ field, sortField, sortOrder, onSort, align = "left", className = "", children }) {
+  const active = sortField === field;
+  const { cell, inner } = TH_ALIGN[align] ?? TH_ALIGN.left;
+
+  const icon = !active ? (
+    <ArrowUpDown size={11} className="opacity-40 ml-1 inline-block shrink-0" />
+  ) : sortOrder === "asc" ? (
+    <ArrowUp size={11} className="text-primary ml-1 inline-block shrink-0" />
+  ) : (
+    <ArrowDown size={11} className="text-primary ml-1 inline-block shrink-0" />
+  );
+
+  return (
+    <th
+      scope="col"
+      onClick={() => onSort(field)}
+      aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
+      className={`${cell} font-bold px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
+    >
+      <span className={`flex items-center ${inner}`}>
+        {children}
+        {icon}
+      </span>
+    </th>
+  );
+}
 
 export default function OpportunitiesPage() {
   const { user } = useAuth();
@@ -217,6 +274,76 @@ export default function OpportunitiesPage() {
     user?.id,
     openStageCodes,
   ]);
+
+  // ── Register sorting ────────────────────────────────────────────────────
+  // `serial_no` descending is what the register showed before it was
+  // sortable, so it stays the default — turning sorting on must not silently
+  // reorder everyone's list on first load.
+  const [sortField, setSortField] = useState("serial_no");
+  const [sortOrder, setSortOrder] = useState("desc"); // 'asc' | 'desc'
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  // Stage sorts by pipeline position, never alphabetically — "Awarded" before
+  // "Bid Submitted" is meaningless, and the whole point of a stage column is
+  // where the deal is in the funnel.
+  const stageRank = useMemo(() => {
+    const rank = {};
+    pipelineStages.forEach((s) => {
+      rank[s.code] = s.sort_order;
+    });
+    return rank;
+  }, [pipelineStages]);
+
+  const sorted = useMemo(() => {
+    const dir = sortOrder === "asc" ? 1 : -1;
+    const text = (v) => (v || "").toString().toLowerCase();
+
+    const key = (o) => {
+      switch (sortField) {
+        case "serial_no":
+          return Number(o.serial_no) || 0;
+        case "sales_reference":
+          return text(o.sales_reference);
+        case "registration_date":
+          return o.registration_date ? new Date(o.registration_date).getTime() : 0;
+        case "lead_source":
+          return text(formatLeadSource(o.lead_source, o.lead_source_detail, activeLeadSources));
+        case "client_name":
+          return text(o.client_name);
+        case "project_title":
+          return text(o.project_title);
+        case "expected_value":
+          return Number(o.expected_value) || 0;
+        case "project_type":
+          return text(PROJECT_TYPE_SHORT[o.project_type] || o.project_type);
+        case "deal_owner":
+          return text(o.deal_owner?.name);
+        case "status":
+          return stageRank[o.status] ?? Number.MAX_SAFE_INTEGER;
+        default:
+          return 0;
+      }
+    };
+
+    // Sort a copy: `filtered` is a memo other consumers read, and Array.sort
+    // mutates in place.
+    return [...filtered].sort((a, b) => {
+      const av = key(a);
+      const bv = key(b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      // Stable tiebreak so equal keys never shuffle between renders.
+      return (Number(b.serial_no) || 0) - (Number(a.serial_no) || 0);
+    });
+  }, [filtered, sortField, sortOrder, stageRank, activeLeadSources]);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => openStageCodes.includes(o.status));
@@ -614,21 +741,27 @@ export default function OpportunitiesPage() {
             <div className="overflow-x-auto">
               <table className="w-full table-fixed text-sm">
                 <thead>
-                  <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[46px] whitespace-nowrap">No.</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[76px] whitespace-nowrap">Sales Ref.</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[84px] whitespace-nowrap">Date</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[13%] whitespace-nowrap">Lead Source</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[18%] whitespace-nowrap">Client</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[22%] whitespace-nowrap">Project</th>
-                    <th className="text-right font-bold px-2.5 py-2.5 w-[114px] whitespace-nowrap">Expected Value</th>
-                    <th className="text-center font-bold px-2 py-2.5 w-[44px] whitespace-nowrap">Div.</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[14%] whitespace-nowrap">Deal Owner</th>
-                    <th className="text-left font-bold px-2.5 py-2.5 w-[96px] whitespace-nowrap">Status</th>
+                  {/* Sortable headers. The interaction styling is
+                      TaskTableView's — cursor-pointer hover:text-foreground
+                      transition-colors — but the padding stays at this
+                      table's own px-2.5/py-2.5: ten columns already overflow
+                      the fixed layout, and px-4 gutters would push Status out
+                      of view. */}
+                  <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground select-none">
+                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[46px]">No.</SortableTh>
+                    <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
+                    <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
+                    <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Client</SortableTh>
+                    <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[22%]">Project</SortableTh>
+                    <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
+                    <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
+                    <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[14%]">Deal Owner</SortableTh>
+                    <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[96px]">Status</SortableTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map((o) => {
+                  {sorted.map((o) => {
                     const leadSourceText = formatLeadSource(
                       o.lead_source,
                       o.lead_source_detail,
