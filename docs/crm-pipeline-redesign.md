@@ -1102,18 +1102,18 @@ checklists (needs Q21).
 | Q48 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D35 — D13 confirmed |
 | Q49 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ✓ D39 — premise was wrong (F4) |
 | Q50 | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
-| Q51 | — | Scope: are N1/N2/N3 (§3e) in this build or after it? | ✓ D38 — pipeline only |
-| Q52 | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3f) | ? **sharpened, now in scope** |
-| Q53 | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
-| Q54 | 4.2 | Delivery tasks as a third kind beside gates and group tasks (F2) | ⏸ deferred with N3 |
+| Q55 | — | Scope: are N1/N2/N3 (§3e) in this build or after it? | ✓ D38 — pipeline only |
+| Q56 | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3f) | ✓ D42 |
+| Q57 | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
+| Q58 | 4.2 | Delivery tasks as a third kind beside gates and group tasks (F2) | ⏸ deferred with N3 |
 | Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
 | Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
 | Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
 | Q40 | — | Build order | ✓ D30 |
 
 | Q41 | 2.1 | Qualified before or after Proposal Submitted (§3e)? | ✓ neither — a changeover, see §3e |
-| Q45 | 3.1.3 | A requirement added while a deal was *past* the gate, on a deal that then re-enters — D18 vs D31 | ? — posed |
-| Q46 | C12 | Which date does the D33 trigger stamp on a non-anchor booked stage? | ? — **blocks D33** |
+| Q45 | 3.1.3 | A requirement added while a deal was *past* the gate, on a deal that then re-enters — D18 vs D31 | ✓ D41 |
+| Q46 | C12 | Which date does the D33 trigger stamp on a non-anchor booked stage? | ✓ `coalesce(po_date, move date)`, proxy logged — unblocks D33 |
 | Q51 | 2.1 / C11 | Losing a deal from the **booked** region — ordinary move, Stage Correction, or its own terminal stage? | ? — posed |
 | Q52 | 3.1.4 | Unflag the live ITB gate now, or wait for D12? | ? — posed |
 | Q53 | 2.1 | D37 keeps `FOR_BIDDING`, which §3e shows has **zero** transitions ever. Does it survive the renumber? | ? — posed |
@@ -1754,7 +1754,7 @@ region now. **Renumber the whole Bidding list cleanly when the pipeline split
 (D1/D34) is built** — that is the one moment renumbering costs nothing, since
 the rows are being written fresh anyway.
 
-### D38 — Scope boundary: pipeline only. N1/N2/N3 are later phases *(2026-08-25, Q51)*
+### D38 — Scope boundary: pipeline only. N1/N2/N3 are later phases *(2026-08-25, Q55)*
 
 This build is **D1–D37 plus the gate engine**. The three subsystems in §3e —
 omnichannel lead intake, the non-SOR Purchase Request register, and the
@@ -1797,6 +1797,52 @@ for.
 officer sees an SOR *only once it reaches Proposal Submitted*. Before that the
 record does not exist for them. Membership stays additive (D5), so they keep it
 afterwards.
+
+### D41 — No status row means the requirement never applied *(2026-08-25, Q45)*
+
+A requirement added to a stage **after** a deal has already crossed it has no
+`sor_requirement_status` row for that deal — neither satisfied nor unsatisfied.
+That absence is the answer: **it never applied to that deal, permanently**, even
+if the deal comes back and crosses the gate again.
+
+Resolves the D18/D31 standoff without amending either. D18 says a crossed gate
+is never re-evaluated; D31 says a re-entering deal reuses satisfied status. A
+missing row is neither case, so it gets its own rule: absent = not applicable.
+
+*Worked example.* Cherry's deal leaves `Bid Submitted` on 5 Aug with no
+requirements configured. On 10 Aug a requirement is added to that stage. On 15
+Aug post-qualification fails and the deal returns to `Bid Submitted`. On 20 Aug
+she pushes it forward again — and is **not** asked for the new document,
+because she was never asked the first time.
+
+*Consequence, accepted:* existing deals are invisible to every requirement
+written from now on. Only deals that cross a gate after it is configured carry
+status rows. This is D18's cost restated, and it is the reason retroactive
+compliance auditing is foreclosed.
+
+### D42 — A fifth requirement kind: `deadline` *(2026-08-25, Q56)*
+
+D6's four kinds — attachment, field, tickbox, assignment — have no notion of
+**time**. The bid documents make that a gap rather than an omission:
+
+| Clock | Source |
+| --- | --- |
+| Confirm receipt of the NOA in writing — **2 days** | ITB 29.2 |
+| Post performance security **and** sign the contract — **10 days** | ITB 29.3, 30.1 |
+| Post-qualification pass/fail — **12 days** | ITB 27.3 |
+
+A `deadline` requirement is **a number of days from entry into the stage**. It
+**does not block** the transition — you cannot stop the calendar — it
+**displays a countdown on the card and notifies** as the date approaches and
+when it passes.
+
+*Why it matters more than it looks:* miss the ten days after a Notice of Award
+and the award is forfeited. `Notice of Award → Performance Bond → Contract
+Agreement` is the one stretch of this pipeline where a deal is lost to the
+calendar rather than to a missing document, and without this the three stages
+record only that something has not happened yet — never that it is late.
+
+*Cost:* an integer column on `stage_requirements` and a query. Small.
 
 ---
 
