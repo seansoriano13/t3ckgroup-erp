@@ -2,18 +2,18 @@
 
 ## Status
 
-**Challenged — 2026-08-25. Do not implement until resolved.**
+Accepted 2026-08-24. **Challenged and re-affirmed 2026-08-25** with one
+constraint added.
 
-Accepted 2026-08-24. The re-rendered meeting transcript has the boss saying
-plainly *"ayoko namang ihiwalay yung private saka yung government"* — I don't
-want private and government separated — and describing one pipeline in which
-government simply skips stages. See C15 and Q41 in
-[the redesign doc](../crm-pipeline-redesign.md).
+The re-rendered transcript has the boss saying plainly *"ayoko namang ihiwalay
+yung private saka yung government"* — I don't want private and government
+separated (C15). Resolved the same way D4 settled the SOR/CRM split: his
+objection is to seeing two separate **registers**, not to the data model.
 
-The objection may be to seeing two separate registers rather than to the data
-model, in which case two pipelines underneath and one unified register on top
-satisfies both readings — the same shape D4 used to settle the SOR/CRM split.
-That has not been put to him yet. Nothing here should be built until it has.
+**Added constraint: two pipelines underneath, one unified register on top.**
+The SOR register and board list deals from every pipeline together; nothing in
+the UI presents Bidding and Outright as separate places to go. A deal's
+pipeline governs which stages it can occupy, never which screen it appears on.
 
 ## Context
 
