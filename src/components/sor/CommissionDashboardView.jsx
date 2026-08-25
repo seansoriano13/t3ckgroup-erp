@@ -1170,7 +1170,7 @@ export default function CommissionDashboardView() {
                 <div className="space-y-1.5 text-xs pt-1">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Deal Owner:</span>
-                    <span className="font-bold text-foreground">100% of Sales share</span>
+                    <span className="font-bold text-foreground">80%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Supporting Sales:</span>
@@ -1178,7 +1178,7 @@ export default function CommissionDashboardView() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-medium text-muted-foreground">0%</span>
+                    <span className="font-bold text-foreground">20%</span>
                   </div>
                 </div>
               </div>
@@ -1196,11 +1196,11 @@ export default function CommissionDashboardView() {
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Supporting Sales:</span>
-                    <span className="font-bold text-foreground">30% (split evenly)</span>
+                    <span className="font-bold text-foreground">20% (split evenly)</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-bold text-foreground">10%</span>
+                    <span className="font-bold text-foreground">20%</span>
                   </div>
                 </div>
               </div>
@@ -1214,15 +1214,19 @@ export default function CommissionDashboardView() {
                 <div className="space-y-1.5 text-xs pt-1">
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Deal Owner:</span>
-                    <span className="font-bold text-foreground">60%</span>
+                    <span className="font-bold text-foreground">40%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Closing Sales:</span>
+                    <span className="font-bold text-foreground">20%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Supporting Sales:</span>
-                    <span className="font-bold text-foreground">30%</span>
+                    <span className="font-bold text-foreground">20%</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-muted-foreground">Sales Director:</span>
-                    <span className="font-bold text-foreground">10%</span>
+                    <span className="font-bold text-foreground">20%</span>
                   </div>
                 </div>
               </div>
