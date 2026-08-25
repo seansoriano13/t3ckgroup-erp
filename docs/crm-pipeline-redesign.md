@@ -682,7 +682,15 @@ Retention-% and Liquidated Damages representation (needs Q18, C10, C11), the
 stage→department mapping table (needs Q22), auto-created group tasks vs stage
 checklists (needs Q21).
 
-| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ? |
+| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ? — ask Grace |
+| Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
+| Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
+| Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
+| Q40 | — | Build order | ✓ D30 |
+
+**The frontier is empty.** Every design branch has been visited. What remains
+is building (D30) and three facts owed by other people: C13/Q36 from Grace,
+the IPAS acronym, and the ITR reconciliation from Finance (Q18, L6, L7).
 
 **Transcripts received 2026-08-25** — see §3c. One usable, one needs
 re-rendering (mistranslated into Malay). They confirmed D3, D6, D10, L9 and the
@@ -1070,6 +1078,68 @@ only on entry to the anchor. The fix (stamp on first entry to *any* booked
 stage, plus a database trigger backstop) has not been written, so the
 skip-the-anchor hole is still open and outright deals will keep hitting it.
 
+### D27 — A stage belongs to exactly one pipeline *(2026-08-25, Q37)*
+
+Two rows, not one shared row. `Qualified` in Bidding and `Qualified` in
+Outright are **different stages that share a label**, because they mean
+different things — one precedes a bid, the other precedes a payment.
+Requirements therefore attach to a (pipeline, stage) pair by construction.
+
+*Rules out:* stages shared across pipelines. The cost is configuring the same
+thing twice where two stages genuinely are alike; the benefit is that a
+bidding-specific document can never silently gate a dealer sale.
+
+### D28 — A stage's gate checklist and its group task are two objects *(2026-08-25, Q38)*
+
+The distinguishing question is **"does it block the stage move."**
+
+| | Gate checklist (D6) | Group task checklist (L9) |
+| --- | --- | --- |
+| Purpose | the few things without which you cannot advance | the work to be done in this stage |
+| Length | short and hard | long, assigned, tracked |
+| Blocks the move | **yes** | no |
+| Lives in | `stage_requirements` | `committee_task_members.checklist` (0015) |
+
+Both fire on entering the same stage. Merging them fails in both directions: a
+gate with twenty items means nobody advances, and a work list with three means
+nobody knows what to do. The transcript's "For Bidding is where a team collects
+documents" is the **group task**; the two or three documents that must exist to
+leave the stage are the **gate**.
+
+### D29 — Membership gates the record; aggregates read past it *(2026-08-25, Q39)*
+
+Row-level SOR reads become member-only, replacing `using (true)`. **Super
+Admin bypasses membership and sees every record.**
+
+But the aggregate screens must not silently shrink. The Commission Dashboard,
+the register count and the Employee Opportunity Matrix read through a
+`SECURITY DEFINER` view that aggregates over **all** deals; Privacy Masking
+continues to decide what is *displayed*, exactly as it does today
+(client-side, per ADR 0002).
+
+*Why this split matters:* Privacy Masking is currently a presentation rule over
+a table everyone can read. Replacing it with a database filter would turn it
+into a data-integrity problem — a Finance user would see smaller company
+totals with no error and no indication why, which is the worst failure mode a
+money screen has.
+
+*Note the Super Admin bypass does not remove the need for the view.*
+`CONTEXT.md` grants full monetary visibility to **Super Admin, Management, and
+Finance & Accounting**. The latter two are not super admins, so without the
+aggregate view their dashboard totals would still silently shrink to the deals
+they happen to be members of.
+
+### D30 — Build order *(2026-08-25, Q40)*
+
+1. **Baseline the migrations** (Q32) — kills the existing conflicts and is a
+   prerequisite for the next step anyway.
+2. **Staging clone** (Q24, Q33) — nothing after this should be tested against
+   production, and right now there is nowhere else.
+3. **D6 gate engine** — `po_date` required at PO Received, the C12 code fix,
+   and every department-head checklist are all queued behind it.
+4. **Everything else**, with the Sales Offer Matrix last: biggest build, least
+   blocking.
+
 ---
 
 ## 7b. Deferred work — the "later" list
@@ -1239,6 +1309,7 @@ rows migrate to `po_date`; the seven forecasts stay where they are.
 | 2026-08-24 | Round 2 answered. D6–D12. Sales Offer Matrix and Finance OPEX structure captured (§3b) and its arithmetic verified; C8–C11 raised. OCR dropped, ITB removed entirely. |
 | 2026-08-24 | Round 3 answered. D13–D17. C12 raised and then confirmed against production: 119 SORs, **zero** Contract Dates, ₱4.0M of Realized pool unanchored. Q18 parked pending Finance. Q20 re-asked as Q23 — the user agreed without understanding it. |
 | 2026-08-25 | Round 4 answered. D18–D19. A second, fully populated Sales Offer Matrix supplied — §3b.3 added, every total verified, the two-level tender-line/component structure established, ABC confirmed as a used ceiling. |
+| 2026-08-25 | Round 9 answered — D27–D30. Frontier empty: stage-per-pipeline, gate vs group-task checklists separated, the RLS rewrite scoped so aggregates read past membership, and the build order fixed. |
 | 2026-08-25 | Meeting transcripts received (§3c). One usable, one mistranslated into Malay and needing a re-render. Confirmed D3, D6, D10, L9 and the `Incharge` reading; raised C13 (purchasing's entry stage disputed) and C14 (the room could not tell the two pipelines apart); flagged `Closed Lost`'s position. |
 | 2026-08-25 | Rounds 6–8 answered. D25–D26. "Purchase Date/Order" found to be `expected_award_date` mislabelled, with both meanings live in production (§7e) — split rather than renamed, and **implemented**. `stage_checkpoints` identified as the user's own backlogged start on D6. **C12 backfill executed**: 13 rows written, none invented, one deliberately left null. Vercel preview protection verified already on. |
 | 2026-08-25 | Round 5 answered. D20–D24 and the deferred list (§7b). **ITR solved exactly** as `(offer − 250,000) × 8%`. C12 re-measured — the earlier 11-deal figure was stale; production now holds 19 booked deals, 5 correctly stamped today, 14 needing backfill. Dry run published as an artifact; no rows written. |
