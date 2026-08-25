@@ -810,7 +810,7 @@ but it means `Qualified` is still reachable directly from `Lead`, which D15's
 
 ---
 
-## 3e. Earlier recordings, 2026-08-19 — scope this design never covered
+## 3f. Earlier recordings, 2026-08-19 — scope this design never covered
 
 Two sales meetings from **five days before** the meetings in §3c/§3d. Treated as
 *optional background*, per instruction: where they disagree with anything
@@ -898,7 +898,7 @@ resolved here.
 
 ---
 
-## 3f. ILPAS and the bid document — 2026-08-25
+## 3g. ILPAS and the bid document — 2026-08-25
 
 Two sources supplied together: purchasing's **ILPAS** sheet from Odoo, and the
 **Tagbilaran City bidding documents** (IB No. 2603-211, Rescue Truck —
@@ -1046,101 +1046,93 @@ Branches, in dependency order. A child cannot be settled before its parent.
 
 ## 5. Open questions
 
-Tracked by round. `?` open, `✓` settled (moves to §6), `~` superseded.
+One register, in order. **Session** names which of the two parallel sessions
+posed it: **A** worked the meeting transcripts and the artifacts, **B** worked
+the production transition log. Both are sound; they were renumbered twice after
+colliding (see the note at the end).
 
-| ID | Branch | Question | State |
-| --- | --- | --- | --- |
-| Q1 | 1.1 | One pipeline with branches, or one per deal type? | ✓ D1 |
-| Q2 | 3.1 | Bespoke gates, or a general requirement engine? | ~ re-asked as Q8 |
-| Q3 | 2.2 | What event is the anchor — NOA, Contract Agreement, or NTP? | ✓ D2 |
-| Q4 | 2.1 | Retention before or after Closed Won (C1)? | ✓ D3 |
-| Q5 | 1.2 | SOR/CRM — band, or boundary? | ✓ D4 |
-| Q6 | 4.2 | Membership static, or derived from stage? | ✓ D5 (partial — see Q12) |
-| Q7 | — | What does PMS stand for, and is it a stage (C7)? | ~ expanded; see Q9 |
-| Q8 | 3.1 | Re-ask of Q2 — "bespoke" contradicts the meeting note | ✓ D6 |
-| Q9 | 3.1 / 5 | PMS is a *system*, not a word. Stage, tracker, or module? | ✓ D7 |
-| Q10 | 1.1.1 | When is Deal Type chosen, and may it change mid-flight? | ✓ D8 (partial) |
-| Q11 | 3.2.1 | Award price — new field, or overwrite the quoted value? | ✓ D9 |
-| Q12 | 4.2.1 | Which members auto-join, which are assigned by the deal owner? | ✓ D10 |
-| Q13 | 3.2.3 | OCR — advisory or authoritative? | ✓ D11 — dropped |
-| Q14 | 1.1.2 | What happens to existing rows and to `itb_exempt`? | ✓ D12 |
-| Q15 | 2.3 | PB / CA / NTP — stages, or requirements on one stage? (C2, C5) | ✓ D13 |
-| Q16 | 2.1 | Do `Negotiation` and `Payment Verification` survive? (C4) | ✓ D14 |
-| Q17 | 6.1 | When is the Sales Offer Matrix filled — pre-bid or post-award? (C8) | ✓ D15 |
-| Q18 | 6.2 | Which Revenue definition is authoritative? (C9) | ⏸ parked — needs Finance |
-| Q19 | 4.2 | Does *every* stage have exactly one owning department? | ✓ D16 |
-| Q20 | 3.1.2 | Can a gate be overridden, and by whom? | ~ agreed but not understood; re-asked as Q23 |
-| Q21 | 3.1.3 | Config changes vs in-flight deals — snapshot or live? | ✓ D18 |
-| Q22 | 1.1.1 | What is the Outright pipeline? (observed flow only) | ✓ D19 |
-| Q23 | 3.1.2 | Re-ask of Q20, in plain terms | ~ "strict" chosen; consequence not yet understood — re-asked |
-| Q24 | — | Demo mode on prod — what kind, and how isolated? | ? — factual sub-question answered |
-| Q25 | C12 | How is the C12 anchor bug fixed, and are live rows affected? | ? — awaiting go/no-go on a dry run |
-| Q27 | 6.1 | Confirm the two-level matrix and its column ownership | ~ "categorized" — re-asked, the parent carries money |
-| Q28 | 4.2 | `Incharge` is per line — is assignment per line or per deal? | ✓ D20 |
-| Q29 | C9 | How is ITR actually computed? | ✓ D24 — solved exactly |
-| Q30 | 2.2 | Is Payment Verification the Outright anchor? | ✓ D22 |
-| Q31 | 6.1 | Stock check = the matrix's Status/Available columns. Manual or Odoo? | ✓ D23 |
-| Q32 | — | Stop tracking migrations? What replaces reproducible schema? | ✓ baseline + declarative, agreed |
-| Q33 | — | Vercel branch previews holding real client data — protection? | ✓ already safe — see below |
-| Q34 | 7e | "Purchase Date/Order" — rename or split? | ✓ D25, implemented |
-| Q35 | 8 | What is `stage_checkpoints`? | ✓ user's own backlogged start; D6 reuses it |
+`?` open · `✓` settled, see §6 · `~` superseded · `⏸` parked on someone else
+
+| ID | Session | Branch | Question | State |
+| --- | --- | --- | --- | --- |
+| Q1 | A | 1.1 | One pipeline with branches, or one per deal type? | ✓ D1 |
+| Q2 | A | 3.1 | Bespoke gates, or a general requirement engine? | ~ re-asked as Q8 |
+| Q3 | A | 2.2 | What event is the anchor — NOA, Contract Agreement, or NTP? | ✓ D2 |
+| Q4 | A | 2.1 | Retention before or after Closed Won (C1)? | ✓ D3 |
+| Q5 | A | 1.2 | SOR/CRM — band, or boundary? | ✓ D4 |
+| Q6 | A | 4.2 | Membership static, or derived from stage? | ✓ D5 (partial — see Q12) |
+| Q7 | A | — | What does PMS stand for, and is it a stage (C7)? | ~ expanded; see Q9 |
+| Q8 | A | 3.1 | Re-ask of Q2 — "bespoke" contradicts the meeting note | ✓ D6 |
+| Q9 | A | 3.1 / 5 | PMS is a *system*, not a word. Stage, tracker, or module? | ✓ D7 |
+| Q10 | A | 1.1.1 | When is Deal Type chosen, and may it change mid-flight? | ✓ D8 (partial) |
+| Q11 | A | 3.2.1 | Award price — new field, or overwrite the quoted value? | ✓ D9 |
+| Q12 | A | 4.2.1 | Which members auto-join, which are assigned by the deal owner? | ✓ D10 |
+| Q13 | A | 3.2.3 | OCR — advisory or authoritative? | ✓ D11 — dropped |
+| Q14 | A | 1.1.2 | What happens to existing rows and to `itb_exempt`? | ✓ D12 |
+| Q15 | A | 2.3 | PB / CA / NTP — stages, or requirements on one stage? (C2, C5) | ✓ D13 |
+| Q16 | A | 2.1 | Do `Negotiation` and `Payment Verification` survive? (C4) | ✓ D14 |
+| Q17 | A | 6.1 | When is the Sales Offer Matrix filled — pre-bid or post-award? (C8) | ✓ D15 |
+| Q18 | A | 6.2 | Which Revenue definition is authoritative? (C9) | ⏸ parked — needs Finance |
+| Q19 | A | 4.2 | Does *every* stage have exactly one owning department? | ✓ D16 |
+| Q20 | A | 3.1.2 | Can a gate be overridden, and by whom? | ~ agreed but not understood; re-asked as Q23 |
+| Q21 | A | 3.1.3 | Config changes vs in-flight deals — snapshot or live? | ✓ D18 |
+| Q22 | A | 1.1.1 | What is the Outright pipeline? (observed flow only) | ✓ D19 |
+| Q23 | A | 3.1.2 | Re-ask of Q20, in plain terms | ~ "strict" chosen; consequence not yet understood — re-asked |
+| Q24 | A | — | Demo mode on prod — what kind, and how isolated? | ? — factual sub-question answered |
+| Q25 | A | C12 | How is the C12 anchor bug fixed, and are live rows affected? | ? — awaiting go/no-go on a dry run |
+| Q27 | A | 6.1 | Confirm the two-level matrix and its column ownership | ~ "categorized" — re-asked, the parent carries money |
+| Q28 | A | 4.2 | `Incharge` is per line — is assignment per line or per deal? | ✓ D20 |
+| Q29 | A | C9 | How is ITR actually computed? | ✓ D24 — solved exactly |
+| Q30 | A | 2.2 | Is Payment Verification the Outright anchor? | ✓ D22 |
+| Q31 | A | 6.1 | Stock check = the matrix's Status/Available columns. Manual or Odoo? | ✓ D23 |
+| Q32 | A | — | Stop tracking migrations? What replaces reproducible schema? | ✓ baseline + declarative, agreed |
+| Q33 | A | — | Vercel branch previews holding real client data — protection? | ✓ already safe — see below |
+| Q34 | A | 7e | "Purchase Date/Order" — rename or split? | ✓ D25, implemented |
+| Q35 | A | 8 | What is `stage_checkpoints`? | ✓ user's own backlogged start; D6 reuses it |
+| Q36 | A | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ✓ both — §3d |
+| Q37 | A | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
+| Q38 | A | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
+| Q39 | A | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
+| Q40 | A | — | Build order | ✓ D30 |
+| Q41 | B | 2.1 | Qualified before or after Proposal Submitted (§3e)? | ✓ neither — a changeover, see §3e |
+| Q42 | B | 3.1.3 / 5.2 | What do a gate and a group task do on **re-entry**? | ✓ D31 |
+| Q43 | B | 2.2.1 | A deal moved backward *out of the booked region* — what happens to `contract_date`? | ✓ D32 |
+| Q44 | B | — | Is the C12 code fix in scope now, or behind D30's staging clone? | ✓ D33 |
+| Q45 | B | 3.1.3 | A requirement added while a deal was *past* the gate, on a deal that then re-enters — D18 vs D31 | ✓ D41 |
+| Q46 | B | C12 | Which date does the D33 trigger stamp on a non-anchor booked stage? | ✓ `coalesce(po_date, move date)`, proxy logged — unblocks D33 |
+| Q47 | A | C15 | Boss says don't separate private/government — does D1 survive? | ✓ D34 — yes, with one register |
+| Q48 | A | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D35 — D13 confirmed |
+| Q49 | A | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ✓ D39 — premise was wrong (F4) |
+| Q50 | A | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
+| Q51 | B | 2.1 / C11 | Losing a deal from the **booked** region — ordinary move, Stage Correction, or its own terminal stage? | ⏸ **pending — parked by request** |
+| Q52 | B | 3.1.4 | Unflag the live ITB gate now, or wait for D12? | ✓ D43 — gate stays |
+| Q53 | B | 2.1 | D37 keeps `FOR_BIDDING`, which §3e shows has **zero** transitions ever. Does it survive the renumber? | ? — posed |
+| Q55 | A | — | Scope: are N1/N2/N3 (§3f) in this build or after it? | ✓ D38 — pipeline only |
+| Q56 | A | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3g) | ✓ D42 |
+| Q57 | A | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
+| Q58 | A | 4.2 | Delivery tasks as a third kind beside gates and group tasks (F2) | ⏸ deferred with N3 |
+
+### Still open
+
+| ID | Question | Who can answer |
+| --- | --- | --- |
+| **Q51** | Losing a deal that is **already in the booked region** — ordinary move, Stage Correction (D32), or its own terminal stage? D36 covers losing *before* award only. | you — **parked for later by request** |
+| **Q53** | D37 keeps `FOR_BIDDING`, which the transition log shows has **zero transitions, ever**. Does it survive? | you |
+| **Q18** | Which Revenue definition is authoritative (C9) — and does the engine's 8% withholding reconcile with the OPEX 8%-above-₱250k? | Finance |
+| **§3g** | `AUTO PRICING %` is a constant ×2.0644 of Landed Cost. Origin unknown. | Purchasing |
+| **Q58** | Delivery tasks as a third kind beside gates and group tasks | ⏸ deferred with N3 (D38) |
 
 **Q33, resolved by inspection rather than by asking.** Vercel project
 `prj_fUJUIeWeEH3Qlqi55wUuElFvR7Qo` already has `ssoProtection.enabled: true`
-scoped to `all_except_custom_domains` — every preview deployment requires
-Vercel Authentication, and only the production custom domain is public. The
-planned staging clone with real production data is therefore already behind an
-auth wall. No action needed.
+scoped to `all_except_custom_domains`, so preview deployments already require
+Vercel Authentication. The planned staging clone with real production data is
+behind an auth wall. No action needed.
 
-Deferred: matrix schema shape (needs Q22 — outright may not use it),
-Retention-% and Liquidated Damages representation (needs Q18, C10, C11), the
-stage→department mapping table (needs Q22), auto-created group tasks vs stage
-checklists (needs Q21).
-
-| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ✓ both — §3d |
-| Q47 | C15 | Boss says don't separate private/government — does D1 survive? | ✓ D34 — yes, with one register |
-| Q48 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D35 — D13 confirmed |
-| Q49 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ✓ D39 — premise was wrong (F4) |
-| Q50 | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
-| Q55 | — | Scope: are N1/N2/N3 (§3e) in this build or after it? | ✓ D38 — pipeline only |
-| Q56 | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3f) | ✓ D42 |
-| Q57 | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
-| Q58 | 4.2 | Delivery tasks as a third kind beside gates and group tasks (F2) | ⏸ deferred with N3 |
-| Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
-| Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
-| Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
-| Q40 | — | Build order | ✓ D30 |
-
-| Q41 | 2.1 | Qualified before or after Proposal Submitted (§3e)? | ✓ neither — a changeover, see §3e |
-| Q45 | 3.1.3 | A requirement added while a deal was *past* the gate, on a deal that then re-enters — D18 vs D31 | ✓ D41 |
-| Q46 | C12 | Which date does the D33 trigger stamp on a non-anchor booked stage? | ✓ `coalesce(po_date, move date)`, proxy logged — unblocks D33 |
-| Q51 | 2.1 / C11 | Losing a deal from the **booked** region — ordinary move, Stage Correction, or its own terminal stage? | ? — posed |
-| Q52 | 3.1.4 | Unflag the live ITB gate now, or wait for D12? | ? — posed |
-| Q53 | 2.1 | D37 keeps `FOR_BIDDING`, which §3e shows has **zero** transitions ever. Does it survive the renumber? | ? — posed |
-| Q42 | 3.1.3 / 5.2 | What do a gate and a group task do on **re-entry**? | ✓ D31 |
-| Q43 | 2.2.1 | A deal moved backward *out of the booked region* — what happens to `contract_date`? | ✓ D32 |
-| Q44 | — | Is the C12 code fix in scope now, or behind D30's staging clone? | ✓ D33 |
-
-**Round 10 reopened the frontier.** §3e — the transition log — was a source
-this document had never read, and it falsified two claims (§2.3, C12's
-"never populated") and raised three questions the design tree had no branch
-for. The frontier is *not* empty; see the round-11 questions below.
-
-Still owed by other people: the IPAS acronym and the ITR reconciliation from
-Finance (Q18, L6, L7). **C13/Q36 is no longer owed — the re-rendered transcript
-answered it** (§3d): purchasing is named early at the GS and executes at PO
-Received, so D20 and Grace were both right.
-
-**⚠️ Two sessions have been editing this document.** D31–D33 and Q41–Q46 come
-from a parallel session working the transition log; D34–D37 and Q47–Q50 come
-from the session working the meeting transcripts, and were renumbered from
-D31–D34 / Q41–Q44 after the collision was found. Both bodies of work are
-sound and complementary; only the numbering clashed. **Open questions across
-both: Q45, Q46, Q49.**
-
-**Transcripts** — §3c (first render, one usable and one mistranslated into
-Malay) and §3d (re-rendered, authoritative). They confirmed D3, D6, D10, L9 and
-the `Incharge` reading; raised C13, C14, C15 and C16; and resolved all four.
+**⚠️ Two sessions edited this document at once.** Session A's decisions were
+renumbered from D31–D34 to **D34–D37** and its questions twice — Q41–Q44 to
+Q47–Q50, then Q51–Q54 to **Q55–Q58** — because Session B's numbers were already
+cited by its own later questions and by a published artifact. The numbering
+below is the surviving scheme. Nothing was dropped; only labels moved.
 
 ---
 
@@ -1756,7 +1748,7 @@ the rows are being written fresh anyway.
 
 ### D38 — Scope boundary: pipeline only. N1/N2/N3 are later phases *(2026-08-25, Q55)*
 
-This build is **D1–D37 plus the gate engine**. The three subsystems in §3e —
+This build is **D1–D37 plus the gate engine**. The three subsystems in §3f —
 omnichannel lead intake, the non-SOR Purchase Request register, and the
 post-delivery chain — are separate phases.
 
@@ -1771,7 +1763,7 @@ on the product line with a total, tag availability by hand (D23), and record
 `awarded_value` at Notice of Award.** No awarded state on line items.
 
 *Why it shrank:* the premise was wrong. ITB 29.4 forbids the quantity changing
-at award (F4, §3f), so no line was deleted on the Santa Lucia deal — it is a
+at award (F4, §3g), so no line was deleted on the Santa Lucia deal — it is a
 lot-level award. The user independently judged the line-item build "masyadong
 future"; the bid document says it would also have been modelling something that
 cannot legally happen.
@@ -1843,6 +1835,23 @@ calendar rather than to a missing document, and without this the three stages
 record only that something has not happened yet — never that it is late.
 
 *Cost:* an integer column on `stage_requirements` and a query. Small.
+
+### D43 — The ITB gate stays on until D12 removes it *(2026-08-25, Q52)*
+
+Not unflagged early. The gate is live, in use, and working — 10 of 114 deals
+carry an ITB number — and switching it off before D12 lands would leave the
+field unenforced while still present, which is the worst of both.
+
+The one rough edge it created has already been handled outside this design: for
+outright deals a **simple toast warns the operator before they jump**, so
+someone hitting the gate on a deal that was never going to bid now learns *why*
+instead of being blocked without explanation.
+
+*Note this is a band-aid with a known expiry.* It exists to make the gate
+survivable for the weeks until D12 deletes `is_itb_gate`, `itb_number`,
+`itb_exempt` and the branches in `opportunityService`. **Remove the toast with
+the gate** — a warning about a rule that no longer exists is worse than no
+warning.
 
 ---
 
