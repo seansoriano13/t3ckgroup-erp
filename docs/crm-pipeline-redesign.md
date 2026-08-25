@@ -911,10 +911,10 @@ stage→department mapping table (needs Q22), auto-created group tasks vs stage
 checklists (needs Q21).
 
 | Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ✓ both — §3d |
-| Q41 | C15 | Boss says don't separate private/government — does D1 survive? | ✓ D31 — yes, with one register |
-| Q42 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D32 — D13 confirmed |
-| Q43 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ? |
-| Q44 | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D33 |
+| Q47 | C15 | Boss says don't separate private/government — does D1 survive? | ✓ D34 — yes, with one register |
+| Q48 | C16 | Post-award order: NOA→NTP→PO/Contract, or NOA→PB→CA→NTP? | ✓ D35 — D13 confirmed |
+| Q49 | 3.2.1 | Award removes line items, not just value — how far does D9 grow? | ? |
+| Q50 | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
 | Q37 | 3.1 | Requirements per stage, or per (pipeline, stage)? | ✓ D27 |
 | Q38 | 5.3 | A stage's gate checklist vs its group task checklist | ✓ D28 |
 | Q39 | 4.3 | RLS rewrite from `using (true)` — what breaks? | ✓ D29 |
@@ -930,12 +930,21 @@ this document had never read, and it falsified two claims (§2.3, C12's
 "never populated") and raised three questions the design tree had no branch
 for. The frontier is *not* empty; see the round-11 questions below.
 
-Still owed by other people, unchanged: C13/Q36 from Grace, the IPAS acronym,
-and the ITR reconciliation from Finance (Q18, L6, L7).
+Still owed by other people: the IPAS acronym and the ITR reconciliation from
+Finance (Q18, L6, L7). **C13/Q36 is no longer owed — the re-rendered transcript
+answered it** (§3d): purchasing is named early at the GS and executes at PO
+Received, so D20 and Grace were both right.
 
-**Transcripts received 2026-08-25** — see §3c. One usable, one needs
-re-rendering (mistranslated into Malay). They confirmed D3, D6, D10, L9 and the
-`Incharge` reading; they raised C13 and C14 and put `Closed Lost` in question.
+**⚠️ Two sessions have been editing this document.** D31–D33 and Q41–Q46 come
+from a parallel session working the transition log; D34–D37 and Q47–Q50 come
+from the session working the meeting transcripts, and were renumbered from
+D31–D34 / Q41–Q44 after the collision was found. Both bodies of work are
+sound and complementary; only the numbering clashed. **Open questions across
+both: Q45, Q46, Q49.**
+
+**Transcripts** — §3c (first render, one usable and one mistranslated into
+Malay) and §3d (re-rendered, authoritative). They confirmed D3, D6, D10, L9 and
+the `Incharge` reading; raised C13, C14, C15 and C16; and resolved all four.
 
 ---
 
@@ -1458,7 +1467,7 @@ app-side C12 half) → 4. everything else, matrix last.
 *Open:* the trigger needs a rule for *which date to stamp* when a deal lands
 in a booked stage other than the anchor. See Q46 — this blocks the build.
 
-### D31 — Two pipelines underneath, one register on top *(2026-08-25, Q41)*
+### D34 — Two pipelines underneath, one register on top *(2026-08-25, Q47)*
 
 C15 resolved. The boss's *"ayoko namang ihiwalay yung private saka yung
 government"* is an objection to two separate **registers**, not to the data
@@ -1469,7 +1478,7 @@ deals from every pipeline together.** Nothing in the UI presents Bidding and
 Outright as separate places to go. A deal's pipeline governs which stages it
 can occupy, never which screen it appears on.
 
-### D32 — The post-award order is confirmed in writing *(2026-08-25, Q42)*
+### D35 — The post-award order is confirmed in writing *(2026-08-25, Q48)*
 
 The operations manager supplied a handwritten list. C16 resolved **in favour of
 D13**:
@@ -1490,7 +1499,7 @@ the strength of one verbal line. The written source overrides both. Recorded
 because the reasoning was right and the conclusion was wrong — a single spoken
 ordering is weak evidence against a written one.
 
-### D33 — Closed Lost is an exit, not a step. Record where deals leave *(2026-08-25, Q44)*
+### D36 — Closed Lost is an exit, not a step. Record where deals leave *(2026-08-25, Q50)*
 
 The operations manager drew `Closed Lost` immediately after `Post
 Qualification`, because post-qualification is where you learn whether you lost.
@@ -1512,7 +1521,7 @@ at **every** stage, not just the one the stage was drawn next to. "How many do
 we lose at Post-Qualification" and "how many at Bid Submitted" become the same
 one-line report.
 
-### D34 — The canonical Bidding pipeline *(2026-08-25)*
+### D37 — The canonical Bidding pipeline *(2026-08-25)*
 
 | `sort_order` | Code | Label | Note |
 | --- | --- | --- | --- |
@@ -1526,12 +1535,12 @@ one-line report.
 | **62** | **`PERFORMANCE_BOND`** | **Performance Bond** | **new** |
 | **64** | **`CONTRACT_AGREEMENT`** | **Contract Agreement** | **new** |
 | **66** | **`NOTICE_TO_PROCEED`** | **Notice To Proceed** | **new** |
-| 70 | `PO_RECEIVED` | **PMS** | relabelled (D32) |
+| 70 | `PO_RECEIVED` | **PMS** | relabelled (D35) |
 | 80 | `PROJECT_DELIVERY` | Project Delivery | |
 | 90 | `COLLECTION` | Collection | |
 | 95 | `RETENTION` | Retention | moved from 110 (D3) |
 | 100 | `CLOSED_WON` | Closed Won | `is_won` |
-| 120 | `CLOSED_LOST` | Closed Lost | `is_lost`, reachable from anywhere (D33) |
+| 120 | `CLOSED_LOST` | Closed Lost | `is_lost`, reachable from anywhere (D36) |
 
 Dropped: `NEGOTIATION` and `PAYMENT_VERIFICATION` — the latter moves to
 Outright (D14).
@@ -1546,7 +1555,7 @@ as designed.
 
 62/64/66 breaks the gap-of-ten convention to avoid renumbering the locked
 region now. **Renumber the whole Bidding list cleanly when the pipeline split
-(D1/D31) is built** — that is the one moment renumbering costs nothing, since
+(D1/D34) is built** — that is the one moment renumbering costs nothing, since
 the rows are being written fresh anyway.
 
 ---
@@ -1725,7 +1734,7 @@ rows migrate to `po_date`; the seven forecasts stay where they are.
 | 2026-08-24 | Round 2 answered. D6–D12. Sales Offer Matrix and Finance OPEX structure captured (§3b) and its arithmetic verified; C8–C11 raised. OCR dropped, ITB removed entirely. |
 | 2026-08-24 | Round 3 answered. D13–D17. C12 raised and then confirmed against production: 119 SORs, **zero** Contract Dates, ₱4.0M of Realized pool unanchored. Q18 parked pending Finance. Q20 re-asked as Q23 — the user agreed without understanding it. |
 | 2026-08-25 | Round 4 answered. D18–D19. A second, fully populated Sales Offer Matrix supplied — §3b.3 added, every total verified, the two-level tender-line/component structure established, ABC confirmed as a used ceiling. |
-| 2026-08-25 | Round 10 — D31–D34. C15 and C16 both resolved the day they were raised: ADR 0004 re-affirmed with a one-register constraint, and the operations manager's handwritten stage list confirmed D13's post-award order in writing. `PO Received` becomes `PMS`. Closed Lost stays an exit rather than a step, with `lost_from_stage` added to get the drop-off report she actually wanted. The canonical Bidding pipeline is settled (D34). |
+| 2026-08-25 | Round 11 (this session) — D34–D37, Q47–Q50. C15 and C16 both resolved the day they were raised: ADR 0004 re-affirmed with a one-register constraint, and the operations manager's handwritten stage list confirmed D13's post-award order in writing. `PO Received` becomes `PMS`. Closed Lost stays an exit rather than a step, with `lost_from_stage` added to get the drop-off report she actually wanted. The canonical Bidding pipeline is settled (D37). **Note: D31–D33 and Q41–Q46 belong to a parallel session working the same document; this session's decisions were renumbered from D31–D34 to D34–D37 and Q41–Q44 to Q47–Q50 to deconflict.** |
 | 2026-08-25 | Re-rendered SOR/CRM transcript folded in (§3d), superseding the reconstruction in §3c. C13 resolved — purchasing is assigned early and executes late, so D20 and Grace were both right. **C15 and C16 raised, reopening ADR 0004 and D13.** A live mispricing found: the Santa Lucia rubber boat is booked at its quote (₱424,800) not its award (₱242,400). The C12 backfill's derived date for that deal independently confirmed by the recording. |
 | 2026-08-25 | Round 9 answered — D27–D30. Frontier empty: stage-per-pipeline, gate vs group-task checklists separated, the RLS rewrite scoped so aggregates read past membership, and the build order fixed. |
 | 2026-08-25 | Meeting transcripts received (§3c). One usable, one mistranslated into Malay and needing a re-render. Confirmed D3, D6, D10, L9 and the `Incharge` reading; raised C13 (purchasing's entry stage disputed) and C14 (the room could not tell the two pipelines apart); flagged `Closed Lost`'s position. |
