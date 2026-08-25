@@ -16,7 +16,8 @@
         "test:watch": "vitest",
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
-        "mirror:brochures": "node scripts/mirror-brochures.mjs"
+        "mirror:brochures": "node scripts/mirror-brochures.mjs",
+        "db:sync-staging": "bash scripts/sync-staging-db.sh"
     },
     "dependencies": {
         "@base-ui/react": "^1.4.0",

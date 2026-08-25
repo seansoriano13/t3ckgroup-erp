@@ -23,8 +23,11 @@ export default function MentionTextarea({
   placeholder,
   rows = 2,
   className = "",
+  containerClassName = "w-full",
   onPaste,
   disabled,
+  maxLength,
+  onEnterSubmit,
 }) {
   const areaRef = useRef(null);
   const [query, setQuery] = useState(null);
@@ -50,25 +53,24 @@ export default function MentionTextarea({
   const insert = (person) => {
     if (!query) return;
     const before = value.slice(0, query.at);
-    const after = value.slice(query.at + 1 + query.token.length);
-    const next = `${before}@${person.name} ${after}`;
-
-    onChange(next);
+    const after = value.slice(query.at + query.token.length + 1);
+    const text = `${before}@${person.name} ${after}`;
+    onChange(text);
     if (!mentions.some((m) => m.id === person.id)) {
-      onMentionsChange?.([...mentions, { id: person.id, name: person.name }]);
+      onMentionsChange([...mentions, { id: person.id, name: person.name }]);
     }
     setQuery(null);
-
-    // Caret lands after the inserted name so typing continues naturally.
-    const caret = before.length + person.name.length + 2;
-    requestAnimationFrame(() => {
-      areaRef.current?.focus();
-      areaRef.current?.setSelectionRange?.(caret, caret);
-    });
+    setTimeout(() => {
+      if (areaRef.current) {
+        areaRef.current.focus();
+        const pos = before.length + person.name.length + 2;
+        areaRef.current.setSelectionRange(pos, pos);
+      }
+    }, 0);
   };
 
   return (
-    <div className="relative">
+    <div className={`relative ${containerClassName}`}>
       {isOpen && (
         <ul
           role="listbox"
@@ -107,6 +109,7 @@ export default function MentionTextarea({
         value={value}
         disabled={disabled}
         placeholder={placeholder}
+        maxLength={maxLength}
         onPaste={onPaste}
         onChange={(e) => {
           onChange(e.target.value);
@@ -119,7 +122,13 @@ export default function MentionTextarea({
           }
         }}
         onKeyDown={(e) => {
-          if (!isOpen) return;
+          if (!isOpen) {
+            if (e.key === "Enter" && !e.shiftKey && onEnterSubmit) {
+              e.preventDefault();
+              onEnterSubmit(e);
+            }
+            return;
+          }
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setActive((i) => Math.min(i + 1, matches.length - 1));

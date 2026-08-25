@@ -177,8 +177,27 @@ export const taskActivityService = {
         : "📷 Sent a photo";
 
       if (task) {
+        const notifiedSet = new Set();
+
+        if (metadata?.mentions?.length > 0) {
+          const uniqueMentionIds = [...new Set(metadata.mentions.map((m) => m.id))];
+          uniqueMentionIds.forEach((mentionId) => {
+            if (mentionId !== authorId) {
+              notificationService.createNotification({
+                recipient_id: mentionId,
+                sender_id: authorId,
+                type: "TASK_MENTION",
+                title: "You were mentioned in a task",
+                message: `${author?.name || "Someone"} mentioned you: "${snippet}"`,
+                reference_id: taskId,
+              });
+              notifiedSet.add(mentionId);
+            }
+          });
+        }
+
         // If commenter is the task owner → notify the assigned head
-        if (authorId === task.logged_by && task.reported_to) {
+        if (authorId === task.logged_by && task.reported_to && !notifiedSet.has(task.reported_to)) {
           notificationService.createNotification({
             recipient_id: task.reported_to,
             sender_id: authorId,
@@ -189,7 +208,7 @@ export const taskActivityService = {
           });
         }
         // If commenter is NOT the task owner → notify the task owner
-        else if (authorId !== task.logged_by) {
+        else if (authorId !== task.logged_by && !notifiedSet.has(task.logged_by)) {
           notificationService.createNotification({
             recipient_id: task.logged_by,
             sender_id: authorId,

@@ -76,15 +76,36 @@ export const groupTaskActivityService = {
           if (m.employee_id !== authorId) recipients.add(m.employee_id);
         });
 
-        for (const recipientId of recipients) {
-          notificationService.createNotification({
-            recipient_id: recipientId,
-            sender_id: authorId,
-            type: "GROUP_TASK_COMMENT",
-            title: "New Comment on Group Task",
-            message: `${author?.name || "Someone"} commented: "${snippet}"`,
-            reference_id: taskId,
+        const notifiedSet = new Set();
+
+        if (metadata?.mentions?.length > 0) {
+          const uniqueMentionIds = [...new Set(metadata.mentions.map((m) => m.id))];
+          uniqueMentionIds.forEach((mentionId) => {
+            if (mentionId !== authorId) {
+              notificationService.createNotification({
+                recipient_id: mentionId,
+                sender_id: authorId,
+                type: "GROUP_TASK_MENTION",
+                title: "You were mentioned in a group task",
+                message: `${author?.name || "Someone"} mentioned you: "${snippet}"`,
+                reference_id: taskId,
+              });
+              notifiedSet.add(mentionId);
+            }
           });
+        }
+
+        for (const recipientId of recipients) {
+          if (!notifiedSet.has(recipientId)) {
+            notificationService.createNotification({
+              recipient_id: recipientId,
+              sender_id: authorId,
+              type: "GROUP_TASK_COMMENT",
+              title: "New Comment on Group Task",
+              message: `${author?.name || "Someone"} commented: "${snippet}"`,
+              reference_id: taskId,
+            });
+          }
         }
       }
     } catch (err) {

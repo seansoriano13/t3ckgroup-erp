@@ -32,6 +32,8 @@ import {
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import MentionTextarea from "./ui/MentionTextarea";
+import { employeeService } from "../services/employeeService";
 import { supabase } from "../lib/supabase";
 import { cn } from "@/lib/utils";
 import TabGroup from "@/components/ui/TabGroup";
@@ -45,26 +47,43 @@ import HighlightText from "./HighlightText";
  * Splits text into plain-text segments and URL segments,
  * rendering URLs as clickable <a> tags.
  */
-function renderContent(text) {
+function renderContent(text, messageMentions = []) {
   if (!text) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const names = (messageMentions || []).map((m) => m.name).filter(Boolean);
+  const escaped = names.length > 0 ? names.slice().sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") : null;
+  const mentionRegex = escaped ? new RegExp(`(@(?:${escaped}))`, "g") : null;
+
   const parts = text.split(urlRegex);
-  return parts.map((part, i) =>
-    urlRegex.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {part}
-      </a>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={`url-${i}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    } else if (mentionRegex) {
+      const mParts = part.split(mentionRegex);
+      return mParts.map((mPart, j) => {
+        if (/^@/.test(mPart) && names.some((n) => `@${n}` === mPart)) {
+          return (
+            <span key={`mention-${i}-${j}`} className="rounded bg-primary/20 px-1 font-semibold text-primary/90">
+              {mPart}
+            </span>
+          );
+        }
+        return <span key={`text-${i}-${j}`}>{mPart}</span>;
+      });
+    }
+    return <span key={`text-${i}`}>{part}</span>;
+  });
 }
 const timeAgo = (dateString) => {
   if (!dateString) return "";
@@ -172,7 +191,12 @@ function MessageBubble({ entry, currentUserId }) {
           isMe ? "items-end" : "items-start",
         )}
       >
-        <div className="flex items-center gap-2 mb-1 px-1">
+        <div
+          className={cn(
+            "flex items-center gap-2 mb-1 px-1",
+            isMe ? "flex-row-reverse" : "flex-row"
+          )}
+        >
           <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-tight">
             {isMe ? "You" : entry.authorName}
           </span>
@@ -200,7 +224,7 @@ function MessageBubble({ entry, currentUserId }) {
               : "bg-card border border-border rounded-tl-none",
           )}
         >
-          {entry.content && <p>{renderContent(entry.content)}</p>}
+          {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
           {entry.metadata?.attachments?.length > 0 && (
             <div
               className={cn(
@@ -252,6 +276,7 @@ export default function ComprehensiveChatModal({
   const [selectedChat, setSelectedChat] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [messageContent, setMessageContent] = useState("");
+  const [mentions, setMentions] = useState([]);
   const [attachments, setAttachments] = useState([]); // [{ file, preview }]
   const [isUploading, setIsUploading] = useState(false);
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
@@ -285,6 +310,13 @@ export default function ComprehensiveChatModal({
     queryKey: ["activeChats", user?.id],
     queryFn: () => activeChatService.getActiveChats(user?.id),
     enabled: !!user?.id && internalOpen,
+  });
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+    enabled: !!user?.id && internalOpen,
+    staleTime: 5 * 60 * 1000,
   });
 
   // Global trigger for detail views
@@ -402,20 +434,22 @@ export default function ComprehensiveChatModal({
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ entityType, entityId, content, attachmentUrls = [] }) => {
-      const metadata =
-        attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
+    mutationFn: ({ entityType, entityId, content, attachmentUrls = [], messageMentions = [] }) => {
+      const metadata = {};
+      if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
+      if (messageMentions.length > 0) metadata.mentions = messageMentions;
       return entityType === "TASK"
-        ? taskActivityService.addComment(entityId, user.id, content, metadata)
+        ? taskActivityService.addComment(entityId, user.id, content, Object.keys(metadata).length > 0 ? metadata : null)
         : groupTaskActivityService.addComment(
             entityId,
             user.id,
             content,
-            metadata,
+            Object.keys(metadata).length > 0 ? metadata : null,
           );
     },
     onSuccess: () => {
       setMessageContent("");
+      setMentions([]);
       setAttachments([]);
       queryClient.invalidateQueries({
         queryKey: [
@@ -596,6 +630,7 @@ export default function ComprehensiveChatModal({
           entityId: selectedChat.entity_id,
           content: messageContent.trim(),
           attachmentUrls,
+          messageMentions: mentions,
         });
       } catch (err) {
         console.error("Failed to upload chat attachments:", err);
@@ -604,7 +639,7 @@ export default function ComprehensiveChatModal({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messageContent, attachments, selectedChat, isUploading],
+    [messageContent, attachments, selectedChat, isUploading, mentions],
   );
 
   const addFiles = useCallback((files) => {
@@ -1081,12 +1116,17 @@ export default function ComprehensiveChatModal({
                       </div>
                     )}
 
-                    <Input
+                    <MentionTextarea
                       value={messageContent}
-                      onChange={(e) => setMessageContent(e.target.value)}
+                      onChange={setMessageContent}
                       onPaste={handlePaste}
+                      onEnterSubmit={handleSend}
+                      people={employees}
+                      mentions={mentions}
+                      onMentionsChange={setMentions}
                       placeholder="Write a message or paste an image..."
-                      className="border-none shadow-none focus-visible:ring-0 text-sm h-10 disabled:opacity-50"
+                      className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-2.5 outline-none custom-scrollbar disabled:opacity-50"
+                      rows={1}
                       disabled={
                         sendMessageMutation.isPending ||
                         isUploading ||

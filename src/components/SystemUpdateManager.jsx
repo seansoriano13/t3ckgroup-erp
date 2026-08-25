@@ -4,6 +4,8 @@ import { systemUpdateService } from "../services/systemUpdateService";
 import { githubService } from "../services/githubService";
 import { aiService } from "../services/aiService";
 import { useAuth } from "../context/AuthContext";
+import { employeeService } from "../services/employeeService";
+import MentionTextarea from "./ui/MentionTextarea";
 import {
   Bot,
   Plus,
@@ -73,6 +75,12 @@ export default function SystemUpdateManager() {
   const [inlineEditContent, setInlineEditContent] = useState("");
   const [inlineEditType, setInlineEditType] = useState("feature");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [mentions, setMentions] = useState([]);
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  });
   const [historyPage, setHistoryPage] = useState(1);
   const [historyPageSize, setHistoryPageSize] = useState(10);
   const [historyFilter, setHistoryFilter] = useState("all");
@@ -247,12 +255,16 @@ export default function SystemUpdateManager() {
             </div>
 
             {/* Textarea */}
-            <textarea
-              className="w-full bg-muted/30 border border-border rounded-xl p-3.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[110px] resize-none transition-all"
+            <MentionTextarea
+              className="w-full bg-muted/30 border border-border rounded-xl p-3.5 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[110px] resize-none transition-all custom-scrollbar"
               placeholder="What's new? Announce a feature, fix, or important notice to the entire team…"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={setContent}
+              people={employees}
+              mentions={mentions}
+              onMentionsChange={setMentions}
               maxLength={MAX_CONTENT_LENGTH + 200}
+              rows={4}
             />
             <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
               {content.trim().length} / {MAX_CONTENT_LENGTH}

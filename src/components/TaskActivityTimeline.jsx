@@ -24,31 +24,50 @@ import Spinner from "@/components/ui/Spinner";
 import Avatar from "./Avatar";
 import TabGroup from "./ui/TabGroup";
 import HistoryTimeline from "./HistoryTimeline";
+import MentionTextarea from "./ui/MentionTextarea";
+import { employeeService } from "../services/employeeService";
 
 /**
  * Splits text into plain-text segments and URL segments,
  * rendering URLs as clickable <a> tags.
  */
-function renderContent(text) {
+function renderContent(text, messageMentions = []) {
   if (!text) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const names = (messageMentions || []).map((m) => m.name).filter(Boolean);
+  const escaped = names.length > 0 ? names.slice().sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") : null;
+  const mentionRegex = escaped ? new RegExp(`(@(?:${escaped}))`, "g") : null;
+
   const parts = text.split(urlRegex);
-  return parts.map((part, i) =>
-    urlRegex.test(part) ? (
-      <a
-        key={i}
-        href={part}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {part}
-      </a>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  );
+  return parts.map((part, i) => {
+    if (urlRegex.test(part)) {
+      return (
+        <a
+          key={`url-${i}`}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    } else if (mentionRegex) {
+      const mParts = part.split(mentionRegex);
+      return mParts.map((mPart, j) => {
+        if (/^@/.test(mPart) && names.some((n) => `@${n}` === mPart)) {
+          return (
+            <span key={`mention-${i}-${j}`} className="rounded bg-primary/20 px-1 font-semibold text-primary/90">
+              {mPart}
+            </span>
+          );
+        }
+        return <span key={`text-${i}-${j}`}>{mPart}</span>;
+      });
+    }
+    return <span key={`text-${i}`}>{part}</span>;
+  });
 }
 
 const formatTime = (isoString) => {
@@ -77,13 +96,12 @@ function ActivityEntry({ entry, currentUserId, avatarMap }) {
       <Avatar
         name={entry.authorName}
         src={avatarMap.get(entry.authorId) ?? undefined}
-        className={`w-9 h-9 text-xs font-black border rounded-full ${
-          entry.authorIsHead || entry.authorIsSuperAdmin
+        className={`w-9 h-9 text-xs font-black border rounded-full ${entry.authorIsHead || entry.authorIsSuperAdmin
             ? "bg-warning/15 text-amber-9 border-amber-500/30"
             : entry.authorIsHr
               ? "bg-blue-9/15 text-blue-9 border-blue-500/30"
               : "bg-muted/50 text-mauve-10 border-border"
-        }`}
+          }`}
       />
 
       {/* Bubble */}
@@ -101,13 +119,12 @@ function ActivityEntry({ entry, currentUserId, avatarMap }) {
           )}
         </div>
         <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${
-            isMe
+          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
               ? "bg-primary text-primary-foreground rounded-tr-none"
               : "bg-card text-foreground rounded-tl-none border border-border"
-          }`}
+            }`}
         >
-          {entry.content && <p>{renderContent(entry.content)}</p>}
+          {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
           {entry.metadata?.attachments?.length > 0 && (
             <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
               {entry.metadata.attachments.map((url, i) => (
@@ -130,9 +147,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap }) {
           )}
         </div>
         <p
-          className={`text-[9px] font-bold text-muted-foreground mt-1 uppercase tracking-widest ${
-            isMe ? "text-right" : "text-left"
-          } px-1`}
+          className={`text-[9px] font-bold text-muted-foreground mt-1 uppercase tracking-widest ${isMe ? "text-right" : "text-left"
+            } px-1`}
         >
           {formatTime(entry.createdAt)}
         </p>
@@ -196,17 +212,25 @@ export default function TaskActivityTimeline({
   grade,
   disabled = false,
   inputType = "textarea",
+  isSplitScreen = false,
 }) {
   const { user } = useAuth();
   const avatarMap = useEmployeeAvatarMap();
   const queryClient = useQueryClient();
   const scrollRef = useRef(null);
-  const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const [message, setMessage] = useState("");
+  const [mentions, setMentions] = useState([]);
   const [attachments, setAttachments] = useState([]); // [{ file, preview }]
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("ACTIVITY");
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+    enabled: true,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const instanceId = useRef(
     `-timeline-${Math.random().toString(36).substring(2, 9)}`,
@@ -237,6 +261,7 @@ export default function TaskActivityTimeline({
         queryKey: ["taskActivity", taskId, entityType],
       });
       setMessage("");
+      setMentions([]);
       setAttachments([]);
     },
   });
@@ -249,23 +274,23 @@ export default function TaskActivityTimeline({
     const channel =
       entityType === "GROUP_TASK"
         ? groupTaskActivityService.subscribeToActivity(
-            taskId,
-            () => {
-              queryClient.invalidateQueries({
-                queryKey: ["taskActivity", taskId, entityType],
-              });
-            },
-            suffix,
-          )
+          taskId,
+          () => {
+            queryClient.invalidateQueries({
+              queryKey: ["taskActivity", taskId, entityType],
+            });
+          },
+          suffix,
+        )
         : taskActivityService.subscribeToActivity(
-            taskId,
-            () => {
-              queryClient.invalidateQueries({
-                queryKey: ["taskActivity", taskId, entityType],
-              });
-            },
-            suffix,
-          );
+          taskId,
+          () => {
+            queryClient.invalidateQueries({
+              queryKey: ["taskActivity", taskId, entityType],
+            });
+          },
+          suffix,
+        );
 
     return () => {
       if (entityType === "GROUP_TASK") {
@@ -327,22 +352,18 @@ export default function TaskActivityTimeline({
           attachments.map((a) => storageService.uploadToCloudinary(a.file)),
         );
       }
-      const metadata = attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
-      postCommentMutation.mutate({ taskId, authorId: user.id, content: message.trim(), metadata });
+      const metadata = {};
+      if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
+      if (mentions.length > 0) metadata.mentions = mentions;
+
+      postCommentMutation.mutate({ taskId, authorId: user.id, content: message.trim(), metadata: Object.keys(metadata).length > 0 ? metadata : null });
     } catch (err) {
       console.error("Failed to upload chat attachments:", err);
     } finally {
       setIsUploading(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, attachments, taskId, user?.id, isUploading]);
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   // Only show legacy block when the task has NO real activity entries at all.
   // Modern tasks always get an APPROVED/HR_VERIFIED entry in history, so
@@ -350,8 +371,16 @@ export default function TaskActivityTimeline({
   const showLegacy = comments.length === 0 && history.length === 0 && (legacyRemarks || legacyHrRemarks);
 
   return (
-    <div className="flex flex-col border border-border rounded-xl overflow-hidden bg-card mt-4">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/50">
+    <div className={
+      isSplitScreen
+        ? "w-[380px] shrink-0 flex flex-col bg-card border-l border-border h-full"
+        : "flex flex-col border border-border rounded-xl overflow-hidden bg-card mt-4"
+    }>
+      <div className={
+        isSplitScreen
+          ? "flex items-center justify-between px-4 h-[61px] border-b border-border bg-muted/50 shrink-0"
+          : "flex items-center justify-between px-4 py-2 border-b border-border bg-muted/50"
+      }>
         <TabGroup
           variant="pill"
           tabs={[
@@ -366,7 +395,7 @@ export default function TaskActivityTimeline({
       <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
-        style={{ maxHeight: "500px", minHeight: "200px" }}
+        style={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
       >
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
@@ -446,31 +475,20 @@ export default function TaskActivityTimeline({
           )}
 
           <div className="flex items-start gap-2">
-            {inputType === "textarea" ? (
-              <Textarea
-                ref={inputRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder="Send a message or paste an image..."
-                disabled={postCommentMutation.isPending || isUploading}
-                className="flex-1 bg-card border-border rounded-xl px-4 py-3 text-sm min-h-[50px] max-h-[150px] shadow-sm"
-                rows={1}
-              />
-            ) : (
-              <Input
-                ref={inputRef}
-                type="text"
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                onPaste={handlePaste}
-                placeholder="Send a message or paste an image..."
-                disabled={postCommentMutation.isPending || isUploading}
-                className="flex-1 bg-card border-border rounded-xl px-4 h-11 shadow-sm"
-              />
-            )}
+            <MentionTextarea
+              value={message}
+              onChange={setMessage}
+              onPaste={handlePaste}
+              onEnterSubmit={handleSend}
+              people={employees}
+              mentions={mentions}
+              onMentionsChange={setMentions}
+              placeholder="Send a message or paste an image..."
+              containerClassName="flex-1"
+              className={`w-full bg-card border border-border rounded-xl px-4 text-sm shadow-sm custom-scrollbar resize-none focus:outline-none focus:ring-1 ring-mauve-7 disabled:opacity-50 ${inputType === "textarea" ? "py-3 min-h-[50px] max-h-[150px]" : "h-11 py-2.5"}`}
+              rows={1}
+              disabled={postCommentMutation.isPending || isUploading}
+            />
             <div className="flex flex-col gap-1 shrink-0">
               <Button
                 onClick={handleSend}

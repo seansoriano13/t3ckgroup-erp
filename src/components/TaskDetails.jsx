@@ -7,7 +7,6 @@ import StandardDetailsSection from "./StandardDetailsSection"
 import TaskBodySection from "./TaskBodySection"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import TaskEvaluationSection from "./TaskEvaluationSection"
-import InlineTaskChat from "./InlineTaskChat"
 import TaskActivityTimeline from "./TaskActivityTimeline"
 import { formatDate, toLocalDatetimeString } from "../utils/formatDate"
 import { isCategoryMetadataRemarks } from "../utils/taskFormatters"
@@ -37,7 +36,12 @@ export default function TaskDetails({
   const [isEditing, setIsEditing] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
-  const [isSplitScreen, setIsSplitScreen] = useState(false)
+  const [isSplitScreen, setIsSplitScreen] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 1024
+    }
+    return false
+  })
 
   const { data: appSettings } = useQuery({
     queryKey: ["appSettings"],
@@ -187,7 +191,7 @@ export default function TaskDetails({
         setIsEditing(false)
         setIsSubmitting(false)
         setIsExpanded(false)
-        setIsSplitScreen(false)
+        setIsSplitScreen(typeof window !== "undefined" && window.innerWidth >= 1024)
       }, 300)
     }
   }, [isOpen])
@@ -809,10 +813,14 @@ export default function TaskDetails({
 
           {/* INLINE CHAT PANEL */}
           {isSplitScreen && (
-            <InlineTaskChat
-              task={task}
-              isOpen={isOpen}
-              isSplitScreen={isSplitScreen}
+            <TaskActivityTimeline
+              taskId={task.id}
+              legacyRemarks={timelineLegacyRemarks}
+              legacyHrRemarks={task.hrRemarks}
+              evaluatedByName={task.evaluatedByName}
+              grade={task.grade}
+              disabled={task.status === TASK_STATUS.DELETED}
+              isSplitScreen={true}
             />
           )}
         </div>

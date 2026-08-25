@@ -531,15 +531,16 @@ export default function OpportunityDetailsModal({
     enabled: isOpen,
   });
 
-  const invalidate = () => {
+  const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
+    queryClient.invalidateQueries({ queryKey: ["opportunityItems", id] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     // Expected Value edits and stage moves (esp. into Awarded, which sets
     // Contract Date) both change what the Commission Pool panel should show.
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
-  };
+  }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
     if (!person?.name) return;
@@ -668,15 +669,14 @@ export default function OpportunityDetailsModal({
 
   useEffect(() => {
     if (!isOpen || !opportunity?.sales_reference || !id) return;
-    if (hasAutoSynced.current.has(id)) return;
-    
     const ref = normalizeSalesReference(opportunity.sales_reference);
     if (!isValidSalesReference(ref)) return;
+    if (hasAutoSynced.current.has(ref)) return;
 
     let isMounted = true;
     
     const syncOdoo = async () => {
-      hasAutoSynced.current.add(id);
+      hasAutoSynced.current.add(ref);
       setAutoSyncingOdoo(true);
       try {
         const result = await odooService.fetchOrderLines(ref);
@@ -700,7 +700,7 @@ export default function OpportunityDetailsModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, id, opportunity?.sales_reference, user?.id]);
+  }, [isOpen, id, opportunity, user?.id, invalidate]);
 
   const handlePostNote = async () => {
     const content = note.trim();
