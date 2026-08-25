@@ -36,7 +36,7 @@ import { buildReplySnapshot } from "../utils/chatReply";
  * Splits text into plain-text segments and URL segments,
  * rendering URLs as clickable <a> tags.
  */
-function renderContent(text, messageMentions = []) {
+function renderContent(text, messageMentions = [], isMe = false) {
   if (!text) return null;
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const names = (messageMentions || []).map((m) => m.name).filter(Boolean);
@@ -63,7 +63,10 @@ function renderContent(text, messageMentions = []) {
       return mParts.map((mPart, j) => {
         if (/^@/.test(mPart) && names.some((n) => `@${n}` === mPart)) {
           return (
-            <span key={`mention-${i}-${j}`} className="rounded bg-primary/20 px-1 font-semibold text-primary/90">
+            <span
+              key={`mention-${i}-${j}`}
+              className={`rounded px-1 font-semibold ${isMe ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary/90"}`}
+            >
               {mPart}
             </span>
           );
@@ -131,7 +134,7 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply }) {
               }`}
           >
             <ReplyQuote replyTo={entry.metadata?.replyTo} />
-            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
+            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
             {entry.metadata?.attachments?.length > 0 && (
               <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
                 {entry.metadata.attachments.map((url, i) => (
