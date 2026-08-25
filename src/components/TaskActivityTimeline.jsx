@@ -26,6 +26,11 @@ import TabGroup from "./ui/TabGroup";
 import HistoryTimeline from "./HistoryTimeline";
 import MentionTextarea from "./ui/MentionTextarea";
 import { employeeService } from "../services/employeeService";
+import EmojiPicker from "./ui/EmojiPicker";
+import ReplyPreviewBar from "./ui/ReplyPreviewBar";
+import ReplyQuote from "./ui/ReplyQuote";
+import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
+import { buildReplySnapshot } from "../utils/chatReply";
 
 /**
  * Splits text into plain-text segments and URL segments,
@@ -86,7 +91,7 @@ const formatTime = (isoString) => {
 /**
  * Renders a single activity entry based on its type
  */
-function ActivityEntry({ entry, currentUserId, avatarMap }) {
+function ActivityEntry({ entry, currentUserId, avatarMap, onReply }) {
   const isMe = entry.authorId === currentUserId;
 
   // --- COMMENT (Human message) ---
@@ -118,34 +123,37 @@ function ActivityEntry({ entry, currentUserId, avatarMap }) {
             </span>
           )}
         </div>
-        <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
-              ? "bg-primary text-primary-foreground rounded-tr-none"
-              : "bg-card text-foreground rounded-tl-none border border-border"
-            }`}
-        >
-          {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
-          {entry.metadata?.attachments?.length > 0 && (
-            <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
-              {entry.metadata.attachments.map((url, i) => (
-                <a
-                  key={i}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                >
-                  <img
-                    src={url}
-                    alt={`attachment-${i + 1}`}
-                    className="max-w-[200px] max-h-[200px] object-cover rounded-xl"
-                    loading="lazy"
-                  />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
+        <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+          <div
+            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
+                ? "bg-primary text-primary-foreground rounded-tr-none"
+                : "bg-card text-foreground rounded-tl-none border border-border"
+              }`}
+          >
+            <ReplyQuote replyTo={entry.metadata?.replyTo} />
+            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
+            {entry.metadata?.attachments?.length > 0 && (
+              <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
+                {entry.metadata.attachments.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={url}
+                      alt={`attachment-${i + 1}`}
+                      className="max-w-[200px] max-h-[200px] object-cover rounded-xl"
+                      loading="lazy"
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </SwipeToReplyWrapper>
         <p
           className={`text-[9px] font-bold text-muted-foreground mt-1 uppercase tracking-widest ${isMe ? "text-right" : "text-left"
             } px-1`}
@@ -221,6 +229,7 @@ export default function TaskActivityTimeline({
   const fileInputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [mentions, setMentions] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
   const [attachments, setAttachments] = useState([]); // [{ file, preview }]
   const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("ACTIVITY");
@@ -263,6 +272,7 @@ export default function TaskActivityTimeline({
       setMessage("");
       setMentions([]);
       setAttachments([]);
+      setReplyingTo(null);
     },
   });
 
@@ -355,6 +365,7 @@ export default function TaskActivityTimeline({
       const metadata = {};
       if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
       if (mentions.length > 0) metadata.mentions = mentions;
+      if (replyingTo) metadata.replyTo = replyingTo;
 
       postCommentMutation.mutate({ taskId, authorId: user.id, content: message.trim(), metadata: Object.keys(metadata).length > 0 ? metadata : null });
     } catch (err) {
@@ -363,7 +374,7 @@ export default function TaskActivityTimeline({
       setIsUploading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message, attachments, taskId, user?.id, isUploading]);
+  }, [message, attachments, taskId, user?.id, isUploading, replyingTo]);
 
   // Only show legacy block when the task has NO real activity entries at all.
   // Modern tasks always get an APPROVED/HR_VERIFIED entry in history, so
@@ -425,6 +436,7 @@ export default function TaskActivityTimeline({
                 entry={entry}
                 currentUserId={user?.id}
                 avatarMap={avatarMap}
+                onReply={(e) => setReplyingTo(buildReplySnapshot(e))}
               />
             ))}
           </div>
@@ -435,6 +447,11 @@ export default function TaskActivityTimeline({
 
       {activeTab === "ACTIVITY" && !disabled && (
         <div className="px-4 py-4 border-t border-border bg-muted/30">
+          <ReplyPreviewBar
+            replyingTo={replyingTo}
+            onCancel={() => setReplyingTo(null)}
+            className="rounded-xl mb-2"
+          />
           {/* Hidden file input */}
           <input
             ref={fileInputRef}
@@ -498,15 +515,22 @@ export default function TaskActivityTimeline({
               >
                 {isUploading ? <Spinner size="sm" /> : <Send size={18} />}
               </Button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={postCommentMutation.isPending || isUploading}
-                className="w-11 h-11 rounded-xl border border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-40"
-                title="Attach photo"
-              >
-                <Paperclip size={16} />
-              </button>
+              <div className="w-11 h-11 rounded-xl border border-border flex items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={postCommentMutation.isPending || isUploading}
+                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  title="Attach photo"
+                >
+                  <Paperclip size={15} />
+                </button>
+                <EmojiPicker
+                  align="end"
+                  onSelect={(emoji) => setMessage((prev) => prev + emoji)}
+                  disabled={postCommentMutation.isPending || isUploading}
+                />
+              </div>
             </div>
           </div>
         </div>

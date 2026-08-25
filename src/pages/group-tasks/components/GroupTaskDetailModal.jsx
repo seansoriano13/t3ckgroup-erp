@@ -52,6 +52,11 @@ import {
   hasChecklistContent,
   resolveAssignment,
 } from "@/utils/checklist";
+import EmojiPicker from "@/components/ui/EmojiPicker";
+import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
+import ReplyQuote from "@/components/ui/ReplyQuote";
+import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
+import { buildReplySnapshot } from "@/utils/chatReply";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -93,6 +98,7 @@ export default function GroupTaskDetailModal({
   const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
+  const [replyingTo, setReplyingTo] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
@@ -206,6 +212,7 @@ export default function GroupTaskDetailModal({
       setRejectRemarks("");
       setMessageContent("");
       setAttachments([]);
+      setReplyingTo(null);
       handleCancelEdit();
     }
   }, [isOpen]);
@@ -243,13 +250,21 @@ export default function GroupTaskDetailModal({
 
   // --- Inline chat: send message mutation ---
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, attachmentUrls = [] }) => {
-      const metadata = attachmentUrls.length > 0 ? { attachments: attachmentUrls } : null;
-      return groupTaskActivityService.addComment(task.id, user.id, content, metadata);
+    mutationFn: ({ content, attachmentUrls = [], replyTo = null }) => {
+      const metadata = {};
+      if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
+      if (replyTo) metadata.replyTo = replyTo;
+      return groupTaskActivityService.addComment(
+        task.id,
+        user.id,
+        content,
+        Object.keys(metadata).length > 0 ? metadata : null,
+      );
     },
     onSuccess: () => {
       setMessageContent("");
       setAttachments([]);
+      setReplyingTo(null);
       queryClient.invalidateQueries({
         queryKey: ["chatMessages", "GROUP_TASK", task?.id],
       });
@@ -301,7 +316,7 @@ export default function GroupTaskDetailModal({
             attachments.map((a) => storageService.uploadToCloudinary(a.file)),
           );
         }
-        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls });
+        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo });
       } catch (err) {
         toast.error("Failed to upload chat attachments");
         console.error("Failed to upload chat attachments:", err);
@@ -309,7 +324,7 @@ export default function GroupTaskDetailModal({
         setIsUploading(false);
       }
     },
-    [messageContent, attachments, task?.id, isUploading, sendMessageMutation],
+    [messageContent, attachments, task?.id, isUploading, sendMessageMutation, replyingTo],
   );
 
   // Helper: time ago
@@ -989,36 +1004,39 @@ export default function GroupTaskDetailModal({
                             <span className="text-[7px] bg-primary/10 text-foreground px-1 rounded font-black uppercase">Admin</span>
                           )}
                         </div>
-                        <div
-                          className={cn(
-                            "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words overflow-hidden",
-                            isMe
-                              ? "bg-primary text-primary-foreground rounded-tr-none"
-                              : "bg-muted border border-border rounded-tl-none",
-                          )}
-                        >
-                          {m.content && <p>{renderContent(m.content)}</p>}
-                          {m.metadata?.attachments?.length > 0 && (
-                            <div className={cn("flex flex-wrap gap-1.5", m.content ? "mt-2" : "")}>
-                              {m.metadata.attachments.map((url, i) => (
-                                <a
-                                  key={i}
-                                  href={url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="block rounded-lg overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                                >
-                                  <img
-                                    src={url}
-                                    alt={`attachment-${i + 1}`}
-                                    className="max-w-[160px] max-h-[160px] object-cover rounded-lg"
-                                    loading="lazy"
-                                  />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <SwipeToReplyWrapper isMe={isMe} onReply={() => setReplyingTo(buildReplySnapshot(m))}>
+                          <div
+                            className={cn(
+                              "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words overflow-hidden",
+                              isMe
+                                ? "bg-primary text-primary-foreground rounded-tr-none"
+                                : "bg-muted border border-border rounded-tl-none",
+                            )}
+                          >
+                            <ReplyQuote replyTo={m.metadata?.replyTo} />
+                            {m.content && <p>{renderContent(m.content)}</p>}
+                            {m.metadata?.attachments?.length > 0 && (
+                              <div className={cn("flex flex-wrap gap-1.5", m.content ? "mt-2" : "")}>
+                                {m.metadata.attachments.map((url, i) => (
+                                  <a
+                                    key={i}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block rounded-lg overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`attachment-${i + 1}`}
+                                      className="max-w-[160px] max-h-[160px] object-cover rounded-lg"
+                                      loading="lazy"
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </SwipeToReplyWrapper>
                         <span className="text-[8px] text-muted-foreground/60 mt-0.5 px-1 font-medium">
                           {timeAgo(m.createdAt)}
                         </span>
@@ -1044,6 +1062,11 @@ export default function GroupTaskDetailModal({
               />
 
               <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">
+                <ReplyPreviewBar
+                  replyingTo={replyingTo}
+                  onCancel={() => setReplyingTo(null)}
+                  className="rounded-t-xl -mx-1.5 -mt-1.5 mb-1.5"
+                />
                 {/* Image preview strip */}
                 {attachments.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 px-2 pt-2 pb-1">
@@ -1089,15 +1112,21 @@ export default function GroupTaskDetailModal({
                 />
 
                 <div className="flex items-center justify-between px-2 pt-0.5 pb-0.5">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={sendMessageMutation.isPending || isUploading}
-                    className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
-                    title="Attach photo"
-                  >
-                    <Paperclip size={14} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={sendMessageMutation.isPending || isUploading}
+                      className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                      title="Attach photo"
+                    >
+                      <Paperclip size={14} />
+                    </button>
+                    <EmojiPicker
+                      onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
+                      disabled={sendMessageMutation.isPending || isUploading}
+                    />
+                  </div>
                   <Button
                     disabled={
                       (!messageContent.trim() && attachments.length === 0) ||

@@ -38,6 +38,11 @@ import { supabase } from "../lib/supabase";
 import { cn } from "@/lib/utils";
 import TabGroup from "@/components/ui/TabGroup";
 import HighlightText from "./HighlightText";
+import EmojiPicker from "./ui/EmojiPicker";
+import ReplyPreviewBar from "./ui/ReplyPreviewBar";
+import ReplyQuote from "./ui/ReplyQuote";
+import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
+import { buildReplySnapshot } from "../utils/chatReply";
 
 // -------------------------------------------------------------
 //  HELPERS
@@ -104,7 +109,7 @@ const timeAgo = (dateString) => {
 //  SUB-COMPONENTS
 // -------------------------------------------------------------
 
-function MessageBubble({ entry, currentUserId }) {
+function MessageBubble({ entry, currentUserId, onReply }) {
   const isMe = entry.authorId === currentUserId;
   const avatarMap = useEmployeeAvatarMap();
 
@@ -187,7 +192,7 @@ function MessageBubble({ entry, currentUserId }) {
       />
       <div
         className={cn(
-          "max-w-[80%] min-w-0 flex flex-col overflow-hidden",
+          "max-w-[80%] min-w-0 flex flex-col",
           isMe ? "items-end" : "items-start",
         )}
       >
@@ -216,41 +221,44 @@ function MessageBubble({ entry, currentUserId }) {
             </span>
           )}
         </div>
-        <div
-          className={cn(
-            "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap wrap-break-word overflow-hidden",
-            isMe
-              ? "bg-primary text-primary-foreground rounded-tr-none"
-              : "bg-card border border-border rounded-tl-none",
-          )}
-        >
-          {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
-          {entry.metadata?.attachments?.length > 0 && (
-            <div
-              className={cn(
-                "flex flex-wrap gap-2",
-                entry.content ? "mt-2" : "",
-              )}
-            >
-              {entry.metadata.attachments.map((url, i) => (
-                <a
-                  key={i}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                >
-                  <img
-                    src={url}
-                    alt={`attachment-${i + 1}`}
-                    className="max-w-[220px] max-h-[220px] object-cover rounded-xl"
-                    loading="lazy"
-                  />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
+        <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+          <div
+            className={cn(
+              "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap wrap-break-word overflow-hidden",
+              isMe
+                ? "bg-primary text-primary-foreground rounded-tr-none"
+                : "bg-card border border-border rounded-tl-none",
+            )}
+          >
+            <ReplyQuote replyTo={entry.metadata?.replyTo} />
+            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions)}</p>}
+            {entry.metadata?.attachments?.length > 0 && (
+              <div
+                className={cn(
+                  "flex flex-wrap gap-2",
+                  entry.content ? "mt-2" : "",
+                )}
+              >
+                {entry.metadata.attachments.map((url, i) => (
+                  <a
+                    key={i}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
+                  >
+                    <img
+                      src={url}
+                      alt={`attachment-${i + 1}`}
+                      className="max-w-[220px] max-h-[220px] object-cover rounded-xl"
+                      loading="lazy"
+                    />
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </SwipeToReplyWrapper>
         <span className="text-[9px] text-muted-foreground/60 mt-1 px-1 font-medium">
           {timeAgo(entry.createdAt)}
         </span>
@@ -277,6 +285,7 @@ export default function ComprehensiveChatModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
   const [attachments, setAttachments] = useState([]); // [{ file, preview }]
   const [isUploading, setIsUploading] = useState(false);
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
@@ -434,10 +443,11 @@ export default function ComprehensiveChatModal({
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: ({ entityType, entityId, content, attachmentUrls = [], messageMentions = [] }) => {
+    mutationFn: ({ entityType, entityId, content, attachmentUrls = [], messageMentions = [], replyTo = null }) => {
       const metadata = {};
       if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
       if (messageMentions.length > 0) metadata.mentions = messageMentions;
+      if (replyTo) metadata.replyTo = replyTo;
       return entityType === "TASK"
         ? taskActivityService.addComment(entityId, user.id, content, Object.keys(metadata).length > 0 ? metadata : null)
         : groupTaskActivityService.addComment(
@@ -451,6 +461,7 @@ export default function ComprehensiveChatModal({
       setMessageContent("");
       setMentions([]);
       setAttachments([]);
+      setReplyingTo(null);
       queryClient.invalidateQueries({
         queryKey: [
           "chatMessages",
@@ -586,6 +597,7 @@ export default function ComprehensiveChatModal({
     }
 
     setSelectedChat(chat);
+    setReplyingTo(null);
     if (chat.is_unread) {
       markAsReadMutation.mutate({
         entityType: chat.entity_type,
@@ -631,6 +643,7 @@ export default function ComprehensiveChatModal({
           content: messageContent.trim(),
           attachmentUrls,
           messageMentions: mentions,
+          replyTo: replyingTo,
         });
       } catch (err) {
         console.error("Failed to upload chat attachments:", err);
@@ -639,7 +652,7 @@ export default function ComprehensiveChatModal({
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messageContent, attachments, selectedChat, isUploading, mentions],
+    [messageContent, attachments, selectedChat, isUploading, mentions, replyingTo],
   );
 
   const addFiles = useCallback((files) => {
@@ -1054,6 +1067,7 @@ export default function ComprehensiveChatModal({
                       key={m.id}
                       entry={m}
                       currentUserId={user.id}
+                      onReply={(entry) => setReplyingTo(buildReplySnapshot(entry))}
                     />
                   ))
                 )}
@@ -1083,6 +1097,11 @@ export default function ComprehensiveChatModal({
                   </div>
                 ) : (
                   <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">
+                    <ReplyPreviewBar
+                      replyingTo={replyingTo}
+                      onCancel={() => setReplyingTo(null)}
+                      className="rounded-t-xl -mx-1.5 -mt-1.5 mb-1.5"
+                    />
                     {/* Image preview strip */}
                     {attachments.length > 0 && (
                       <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
@@ -1148,6 +1167,14 @@ export default function ComprehensiveChatModal({
                         >
                           <Paperclip size={15} />
                         </button>
+                        <EmojiPicker
+                          onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
+                          disabled={
+                            sendMessageMutation.isPending ||
+                            isUploading ||
+                            isEntityDeleted
+                          }
+                        />
                         <span className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
                           <Clock size={10} /> Enter to send
                         </span>
