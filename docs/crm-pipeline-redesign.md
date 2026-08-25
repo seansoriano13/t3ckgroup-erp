@@ -500,6 +500,87 @@ This is post-award and per-project: it carries PO Date and PO No.
 
 ---
 
+## 3c. Meeting transcripts, 2026-08-24
+
+Two recordings. **Treat both as low-fidelity sources** — quote them, don't rely
+on them alone.
+
+| File | Quality |
+| --- | --- |
+| `Aug 24_ 2.01 PM MAAM GRACE.txt` | **Usable.** Correctly detected as Tagalog and *transcribed*. Degraded stretches at lines 232–262 (`hindi nga yun` ×30), 341–373 (`Okay.` ×33), 404–422. |
+| `Aug 24_ 1.20 PM SOR CRM.txt` | **Broken — needs re-rendering.** Tagalog detected as Malay and machine-*translated* into it. ~45% is the `Terima kasih kerana menonton` silence hallucination. Domain terms were translated into nonsense: `sifar berkualiti` = **Qualified**, `Komite PAS` = **committee task**, `forbidding` = **For Bidding**, `disetujui` = qualified/approved. Re-run with language forced to Tagalog and task set to *transcribe*, never *translate*. |
+
+Meaning survived the mistranslation well enough to extract the following. Every
+claim below is paraphrase, not quotation, unless quoted.
+
+### Confirms an existing decision
+
+- **D3** — Grace independently reached `… → Retention → Closed Won`: *"dito na
+  yung matatapos"* (this is where it ends). She also volunteered that the
+  current order was nobody's decision — *"Wala pong nagsabi. Ako lang po
+  nagpalagay"* (nobody said; I just put it there).
+- **D6** — uploading the **NOA or the NTP is what unlocks purchasing**:
+  "After NTP uploaded… you can purchase. After NOA uploaded, you can purchase."
+  An attachment requirement, exactly the shape the gate engine wants.
+- **D10** — purchasing always reports to the Purchasing head: *"Lagi pong kay
+  Ma'am [Roc]… kasi po yun yung head ng Purchasing."*
+- **L9** — group tasks fire on stage move, stated twice and unprompted:
+  "When he has moved, he will make group task. **Automatic. Automatic.**" On
+  the SOR side, submitting the proposal creates one.
+- **§3b.3** — the `Incharge` numbers are people: *"They have codes in GS."*
+- **D1** — see C14 below; the confusion is itself the argument.
+
+### Adds something new
+
+- **The PO is released at PO Received, not before.** Grace walked a full worked
+  example (cotton gloves): sales requests a price → purchasing sources it →
+  price returns → product is created in Odoo → Qualified → RFQ → **PO released
+  at PO Received**. Explicitly: sourcing does not produce an RFQ ("Hindi pa"),
+  and "sa PO receipt dun na sila mag-release ng PO".
+- **…with one exception, and it is the outright path.** *"unless yung
+  in-inquire ng sales na yun ay pu-purchase agad talaga… binayaran na ni
+  client"* — client has already paid, so buy immediately. This is the best
+  evidence yet for D19, and it comes from the person who does the work.
+- **For Bidding is checklist-heavy** — a document checklist collected by a
+  team, assembled in that stage. The first real customer for D6 after
+  `po_date`.
+- **Payment Verification is accounting's step** — "sa accounting po… i-verify".
+  Consistent with D14 placing it in Outright.
+
+### C13 — Purchasing's entry stage is disputed
+
+Grace, asked directly whether she enters at Negotiation or Awarded, answered
+**"At PO Receive, sir."** D20 says Proposal Submitted, on the user's later
+statement that "we have a new flow for it".
+
+The user's answer is more recent and supersedes for now, but the person who
+does the work said something different in the room. **Confirm before building.**
+Note the two are not necessarily in conflict: costing at Proposal Submitted
+(D15) and *procurement execution* at PO Received could both be true, with
+purchasing joining early to cost and returning later to buy — which would make
+D20 and Grace both right, and the membership additive exactly as D5 says.
+
+### C14 — Even the room could not tell the two pipelines apart
+
+> "Ay, itong pipeline na to ay para sa outright at dealer, tama ba?" — "Opo,
+> yun." — then immediately: "outright dealer, ah, government."
+
+The pipeline being reviewed contains For Bidding, Bid Submitted and Awarded; it
+is the government one. Two people looked at one stage list and could not agree
+which process it described. That is the clearest possible argument for D1.
+
+### Closed Lost sits in the wrong position
+
+> "Kung nag-fail yung bidding, doon na siya mag-closed. Wala na siyang kasunod
+> pa." — a failed bid ends at the award point.
+
+`CLOSED_LOST` is `sort_order` 120, dead last, after Retention. Nothing breaks —
+it is reachable from any stage by design — but on a board it renders at the far
+right, which is the opposite of where a lost bid belongs. Cosmetic, cheap,
+worth doing with the D3 reorder.
+
+---
+
 ## 4. The design tree
 
 Branches, in dependency order. A child cannot be settled before its parent.
@@ -601,8 +682,11 @@ Retention-% and Liquidated Damages representation (needs Q18, C10, C11), the
 stage→department mapping table (needs Q22), auto-created group tasks vs stage
 checklists (needs Q21).
 
-**Awaiting input:** the user is producing a transcript of the 2026-08-24
-meeting. Expect it to reshape §3b and possibly Q22.
+| Q36 | C13 | Does purchasing enter at Proposal Submitted, PO Received, or both? | ? |
+
+**Transcripts received 2026-08-25** — see §3c. One usable, one needs
+re-rendering (mistranslated into Malay). They confirmed D3, D6, D10, L9 and the
+`Incharge` reading; they raised C13 and C14 and put `Closed Lost` in question.
 
 ---
 
@@ -1155,5 +1239,6 @@ rows migrate to `po_date`; the seven forecasts stay where they are.
 | 2026-08-24 | Round 2 answered. D6–D12. Sales Offer Matrix and Finance OPEX structure captured (§3b) and its arithmetic verified; C8–C11 raised. OCR dropped, ITB removed entirely. |
 | 2026-08-24 | Round 3 answered. D13–D17. C12 raised and then confirmed against production: 119 SORs, **zero** Contract Dates, ₱4.0M of Realized pool unanchored. Q18 parked pending Finance. Q20 re-asked as Q23 — the user agreed without understanding it. |
 | 2026-08-25 | Round 4 answered. D18–D19. A second, fully populated Sales Offer Matrix supplied — §3b.3 added, every total verified, the two-level tender-line/component structure established, ABC confirmed as a used ceiling. |
+| 2026-08-25 | Meeting transcripts received (§3c). One usable, one mistranslated into Malay and needing a re-render. Confirmed D3, D6, D10, L9 and the `Incharge` reading; raised C13 (purchasing's entry stage disputed) and C14 (the room could not tell the two pipelines apart); flagged `Closed Lost`'s position. |
 | 2026-08-25 | Rounds 6–8 answered. D25–D26. "Purchase Date/Order" found to be `expected_award_date` mislabelled, with both meanings live in production (§7e) — split rather than renamed, and **implemented**. `stage_checkpoints` identified as the user's own backlogged start on D6. **C12 backfill executed**: 13 rows written, none invented, one deliberately left null. Vercel preview protection verified already on. |
 | 2026-08-25 | Round 5 answered. D20–D24 and the deferred list (§7b). **ITR solved exactly** as `(offer − 250,000) × 8%`. C12 re-measured — the earlier 11-deal figure was stale; production now holds 19 booked deals, 5 correctly stamped today, 14 needing backfill. Dry run published as an artifact; no rows written. |
