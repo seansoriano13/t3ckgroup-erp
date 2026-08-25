@@ -114,6 +114,7 @@ export const opportunityService = {
         sales_reference: cleanSalesReference(payload.sales_reference),
         itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
+        po_date: payload.po_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -171,6 +172,7 @@ export const opportunityService = {
         itb_number: (payload.itb_number || "").trim() || null,
         itb_exempt: Boolean(payload.itb_exempt),
         expected_award_date: payload.expected_award_date || null,
+        po_date: payload.po_date || null,
         deal_owner_id: payload.deal_owner_id || null,
         closing_sales_id: payload.closing_sales_id || null,
         support_sales_1_id: payload.support_sales_1_id || null,
@@ -210,7 +212,8 @@ export const opportunityService = {
           : 'Outright marking removed — an ITB Number applies again',
       );
     }
-    checkField('expected_award_date', 'Purchase Date/Order');
+    checkField('expected_award_date', 'Expected Award Date');
+    checkField('po_date', 'PO Date');
 
     const checkEmployee = (idField, objField, label) => {
       if (existing[idField] !== final[idField]) {

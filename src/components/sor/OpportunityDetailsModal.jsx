@@ -885,6 +885,7 @@ export default function OpportunityDetailsModal({
         project_type: opportunity.project_type || "SSP",
         registration_date: opportunity.registration_date || "",
         expected_award_date: opportunity.expected_award_date || "",
+        po_date: opportunity.po_date || "",
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
         itb_number: opportunity.itb_number || "",
@@ -1741,7 +1742,7 @@ export default function OpportunityDetailsModal({
                   </Detail>
 
                   <Detail
-                    label="Purchase Date/Order"
+                    label="Expected Award Date"
                     isEditing={isEditing}
                     control={
                       <Dropdown
@@ -1779,6 +1780,47 @@ export default function OpportunityDetailsModal({
                     }
                   >
                     {formatLongDate(opportunity.expected_award_date)}
+                  </Detail>
+
+                  <Detail
+                    label="PO Date"
+                    isEditing={isEditing}
+                    control={
+                      <Dropdown
+                        usePortal
+                        placement="bottom-start"
+                        className="w-full"
+                        trigger={() => (
+                          <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
+                            <span className={editForm.po_date ? "text-foreground" : "text-muted-foreground/50"}>
+                              {editForm.po_date || "Select date..."}
+                            </span>
+                          </div>
+                        )}
+                      >
+                        {({ close }) => (
+                          <div className="p-1">
+                            <DatePicker
+                              selected={editForm.po_date ? new Date(editForm.po_date) : null}
+                              onChange={(date) => {
+                                if (!date) {
+                                  setEditForm((f) => ({ ...f, po_date: "" }));
+                                } else {
+                                  const y = date.getFullYear();
+                                  const m = String(date.getMonth() + 1).padStart(2, "0");
+                                  const d = String(date.getDate()).padStart(2, "0");
+                                  setEditForm((f) => ({ ...f, po_date: `${y}-${m}-${d}` }));
+                                }
+                                close();
+                              }}
+                              inline
+                            />
+                          </div>
+                        )}
+                      </Dropdown>
+                    }
+                  >
+                    {formatLongDate(opportunity.po_date)}
                   </Detail>
 
                   <Detail

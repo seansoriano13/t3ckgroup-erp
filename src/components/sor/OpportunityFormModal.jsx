@@ -30,6 +30,7 @@ const blankForm = () => ({
   project_type: "SSP",
   sales_reference: "",
   expected_award_date: "",
+  po_date: "",
   deal_owner_id: "",
   closing_sales_id: "",
   support_sales_1_id: "",
@@ -47,6 +48,7 @@ const fromRecord = (o) => ({
   project_type: o.project_type || "SSP",
   sales_reference: o.sales_reference || "",
   expected_award_date: o.expected_award_date || "",
+  po_date: o.po_date || "",
   deal_owner_id: o.deal_owner_id || "",
   closing_sales_id: o.closing_sales_id || "",
   support_sales_1_id: o.support_sales_1_id || "",
@@ -337,11 +339,22 @@ export default function OpportunityFormModal({
               </span>
             </div>
           </div>
+          {/* Two dates, deliberately separate. `expected_award_date` is a
+              pre-award forecast; `po_date` is the date printed on the client's
+              PO. They shared one field labelled "Purchase Date/Order" until
+              migration 0039, which is why some rows hold a future date and
+              some a past one. */}
           <TextField
-            label="Purchase Date/Order"
+            label="Expected Award Date"
             type="date"
             value={form.expected_award_date}
             onChange={set("expected_award_date")}
+          />
+          <TextField
+            label="PO Date"
+            type="date"
+            value={form.po_date}
+            onChange={set("po_date")}
           />
           <div className="sm:col-span-2 flex gap-2">
             <TextField
