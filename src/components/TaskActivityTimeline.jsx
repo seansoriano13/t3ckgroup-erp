@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
+import { activeChatService } from "../services/tasks/activeChatService";
 import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../lib/supabase";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import {
   Send,
@@ -16,6 +18,7 @@ import {
   Paperclip,
   ImageIcon,
   X,
+  Reply,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,26 +97,29 @@ const formatTime = (isoString) => {
 /**
  * Renders a single activity entry based on its type
  */
-function ActivityEntry({ entry, currentUserId, avatarMap, onReply }) {
+function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
   const isMe = entry.authorId === currentUserId;
+
+  const reactions = entry.metadata?.reactions || {};
+  const hasReactions = Object.keys(reactions).length > 0;
 
   // --- COMMENT (Human message) ---
   return (
-    <div className={`flex gap-2.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+    <div className={`flex gap-2.5 group ${isMe ? "flex-row-reverse" : "flex-row"}`}>
       {/* Avatar */}
       <Avatar
         name={entry.authorName}
         src={avatarMap.get(entry.authorId) ?? undefined}
         className={`w-9 h-9 text-xs font-black border rounded-full ${entry.authorIsHead || entry.authorIsSuperAdmin
-            ? "bg-warning/15 text-amber-9 border-amber-500/30"
-            : entry.authorIsHr
-              ? "bg-blue-9/15 text-blue-9 border-blue-500/30"
-              : "bg-muted/50 text-mauve-10 border-border"
+          ? "bg-warning/15 text-amber-9 border-amber-500/30"
+          : entry.authorIsHr
+            ? "bg-blue-9/15 text-blue-9 border-blue-500/30"
+            : "bg-muted/50 text-mauve-10 border-border"
           }`}
       />
 
       {/* Bubble */}
-      <div className={`max-w-[85%] min-w-0 ${isMe ? "items-end" : "items-start"}`}>
+      <div className={`max-w-[85%] min-w-0 relative flex flex-col ${isMe ? "items-end" : "items-start"}`}>
         <div className="flex items-center gap-2 mb-1 px-1">
           {!isMe && (
             <span className="text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">
@@ -126,43 +132,97 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply }) {
             </span>
           )}
         </div>
-        <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
-          <div
-            className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
+
+        <div className="relative flex items-center gap-2">
+          {/* Action Buttons (Hover on desktop, visible on mobile) */}
+          <div className={`absolute top-1/2 -translate-y-1/2 transition-opacity z-10 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
+            <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
+              <EmojiPicker
+                onSelect={(emoji) => onReact && onReact(entry, emoji)}
+                align={isMe ? "end" : "start"}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => onReply?.(entry)}
+              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+            >
+              <Reply size={14} />
+            </button>
+          </div>
+
+          <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+            <div
+              className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
                 ? "bg-primary text-primary-foreground rounded-tr-none"
                 : "bg-card text-foreground rounded-tl-none border border-border"
-              }`}
-          >
-            <ReplyQuote replyTo={entry.metadata?.replyTo} />
-            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
-            {entry.metadata?.attachments?.length > 0 && (
-              <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
-                {entry.metadata.attachments.map((url, i) => (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                  >
-                    <img
-                      src={url}
-                      alt={`attachment-${i + 1}`}
-                      className="max-w-[200px] max-h-[200px] object-cover rounded-xl"
-                      loading="lazy"
-                    />
-                  </a>
-                ))}
-              </div>
-            )}
+                }`}
+            >
+              <ReplyQuote replyTo={entry.metadata?.replyTo} />
+              {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
+              {entry.metadata?.attachments?.length > 0 && (
+                <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
+                  {entry.metadata.attachments.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
+                    >
+                      <img
+                        src={url}
+                        alt={`attachment-${i + 1}`}
+                        className="max-w-[200px] max-h-[200px] object-cover rounded-xl"
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SwipeToReplyWrapper>
+        </div>
+
+        {/* Reaction Badges */}
+        {hasReactions && (
+          <div className={`flex flex-wrap gap-1 mt-1 z-10 ${isMe ? "justify-end" : "justify-start"}`}>
+            {Object.entries(reactions).map(([emoji, users]) => {
+              const iReacted = users.includes(currentUserId);
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => onReact && onReact(entry, emoji)}
+                  className={`flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors ${iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}
+                >
+                  <span>{emoji}</span>
+                  <span>{users.length}</span>
+                </button>
+              );
+            })}
           </div>
-        </SwipeToReplyWrapper>
-        <p
-          className={`text-[9px] font-bold text-muted-foreground mt-1 uppercase tracking-widest ${isMe ? "text-right" : "text-left"
-            } px-1`}
-        >
-          {formatTime(entry.createdAt)}
-        </p>
+        )}
+
+        <div className={`flex items-center gap-1 mt-1 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+          <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1">
+            {formatTime(entry.createdAt)}
+          </span>
+          {/* Read Receipts Avatars */}
+          {entry.seenBy?.length > 0 && (
+            <div className={`flex items-center gap-0.5 ${isMe ? "mr-1" : "ml-1"}`}>
+              {entry.seenBy.map(u => (
+                <Avatar
+                  key={u.id}
+                  name={u.name || "?"}
+                  src={u.src}
+                  size="xs"
+                  className="w-3.5 h-3.5 text-[7px]"
+                  title={`Seen by ${u.name}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -261,6 +321,124 @@ export default function TaskActivityTimeline({
 
   const comments = activity.filter(e => e.type === "COMMENT");
   const history = activity.filter(e => e.type !== "COMMENT");
+
+  // Read Receipts
+  const { data: readReceipts = [] } = useQuery({
+    queryKey: ["chatReadReceipts", entityType, taskId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_read_receipts")
+        .select("user_id, last_read_at")
+        .eq("entity_type", entityType)
+        .eq("entity_id", String(taskId));
+      return data || [];
+    },
+    enabled: !!taskId,
+  });
+
+  // Seen By Calculation
+  const commentsWithSeenBy = useMemo(() => {
+    if (!comments || comments.length === 0) return [];
+    const userToLastSeenMsgId = {};
+    for (const receipt of readReceipts) {
+      if (receipt.user_id === user?.id) continue;
+
+      const readAt = new Date(receipt.last_read_at).getTime();
+      let latestMsg = null;
+      for (const m of comments) {
+        if (new Date(m.createdAt).getTime() <= readAt) {
+          if (!latestMsg || new Date(m.createdAt).getTime() > new Date(latestMsg.createdAt).getTime()) {
+            latestMsg = m;
+          }
+        }
+      }
+      if (latestMsg) {
+        // Prevent showing someone's read receipt on their OWN message
+        // Usually you only care about who read YOUR messages (or other people's),
+        // not that a person read their own message.
+        if (latestMsg.authorId === receipt.user_id) {
+          // If the latest message they read is their own, find the latest message BEFORE it that is NOT theirs
+          let latestNotTheirs = null;
+          for (const m of comments) {
+            if (new Date(m.createdAt).getTime() <= readAt && m.authorId !== receipt.user_id) {
+              if (!latestNotTheirs || new Date(m.createdAt).getTime() > new Date(latestNotTheirs.createdAt).getTime()) {
+                latestNotTheirs = m;
+              }
+            }
+          }
+          if (latestNotTheirs) latestMsg = latestNotTheirs;
+          else latestMsg = null; // Don't show receipt if they only read their own messages and nothing else exists
+        }
+        
+        if (latestMsg) {
+          if (!userToLastSeenMsgId[latestMsg.id]) userToLastSeenMsgId[latestMsg.id] = [];
+          
+          // Try to get name from employees, fallback to looking through comments for authorName
+          const emp = employees.find(e => e.id === receipt.user_id);
+          let name = emp?.name;
+          if (!name) {
+            const commentByThem = comments.find(c => c.authorId === receipt.user_id);
+            name = commentByThem ? commentByThem.authorName : "Unknown";
+          }
+          
+          userToLastSeenMsgId[latestMsg.id].push({
+            id: receipt.user_id,
+            name: name,
+            src: avatarMap.get(receipt.user_id)
+          });
+        }
+      }
+    }
+    return comments.map(m => ({ ...m, seenBy: userToLastSeenMsgId[m.id] || [] }));
+  }, [comments, readReceipts, user, employees, avatarMap]);
+
+  // Real-time listener for read receipts
+  useEffect(() => {
+    if (!taskId) return;
+    const channel = supabase
+      .channel(`read-receipts-${taskId}-timeline`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_read_receipts",
+          filter: `entity_id=eq.${taskId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["chatReadReceipts", entityType, taskId],
+          });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [taskId, entityType, queryClient]);
+
+  const markAsReadMutation = useMutation({
+    mutationFn: ({ entityType, entityId, latestCreatedAt }) =>
+      activeChatService.markAsRead(user?.id, entityType, entityId, latestCreatedAt),
+  });
+
+  // Auto-bump read receipts
+  useEffect(() => {
+    if (!taskId || !user?.id) return;
+    if (comments.length > 0) {
+      markAsReadMutation.mutate({
+        entityType,
+        entityId: taskId,
+        latestCreatedAt: comments[comments.length - 1].createdAt
+      });
+    } else {
+      markAsReadMutation.mutate({
+        entityType,
+        entityId: taskId,
+        latestCreatedAt: new Date().toISOString()
+      });
+    }
+  }, [comments.length, taskId, user?.id]);
 
   // Post comment mutation
   const postCommentMutation = useMutation({
@@ -379,6 +557,39 @@ export default function TaskActivityTimeline({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message, attachments, taskId, user?.id, isUploading, replyingTo]);
 
+  const toggleReaction = async (message, emoji) => {
+    if (!message || !emoji) return;
+    const currentReactions = message.metadata?.reactions || {};
+    const usersWithEmoji = currentReactions[emoji] || [];
+    const hasReacted = usersWithEmoji.includes(user?.id);
+
+    let newReactions = { ...currentReactions };
+    if (hasReacted) {
+      newReactions[emoji] = usersWithEmoji.filter(id => id !== user?.id);
+      if (newReactions[emoji].length === 0) delete newReactions[emoji];
+    } else {
+      newReactions[emoji] = [...usersWithEmoji, user?.id];
+    }
+
+    const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
+    const table = entityType === "GROUP_TASK" ? "committee_task_activity" : "task_activity";
+
+    // Optimistic update
+    queryClient.setQueryData(
+      ["taskActivity", taskId, entityType],
+      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
+    );
+
+    try {
+      await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+      queryClient.invalidateQueries({
+        queryKey: ["taskActivity", taskId, entityType],
+      });
+    }
+  };
+
   // Only show legacy block when the task has NO real activity entries at all.
   // Modern tasks always get an APPROVED/HR_VERIFIED entry in history, so
   // history.length > 0 means this is not a legacy task.
@@ -433,13 +644,14 @@ export default function TaskActivityTimeline({
               </div>
             )}
 
-            {comments.map((entry) => (
+            {commentsWithSeenBy.map((entry) => (
               <ActivityEntry
                 key={entry.id}
                 entry={entry}
                 currentUserId={user?.id}
                 avatarMap={avatarMap}
                 onReply={(e) => setReplyingTo(buildReplySnapshot(e))}
+                onReact={toggleReaction}
               />
             ))}
           </div>

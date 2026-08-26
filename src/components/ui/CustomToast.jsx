@@ -1,4 +1,4 @@
-import { CheckCircle2, AlertCircle, Info, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertCircle, Info, AlertTriangle, X } from "lucide-react";
 import { toast, resolveValue } from "react-hot-toast";
 import Spinner from "@/components/ui/Spinner";
 
@@ -77,7 +77,7 @@ export function CustomToast({
         t.visible ? "animate-in fade-in slide-in-from-bottom-5" : "animate-out fade-out slide-out-to-bottom-5 opacity-0"
       } bg-card shadow-2xl rounded-2xl p-4 flex flex-col gap-4 min-w-[320px] max-w-[420px] pointer-events-auto border border-border transition-all duration-300`}
     >
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-4 relative">
         <div className={`${config.bg} p-2.5 rounded-xl border ${config.border} shrink-0`}>
           {config.spin ? (
             <Spinner size="sm" />
@@ -85,7 +85,7 @@ export function CustomToast({
             <Icon className={config.color} size={24} />
           )}
         </div>
-        <div className="flex flex-col justify-center min-h-[44px]">
+        <div className="flex flex-col justify-center min-h-[44px] pr-6">
           <span className="font-extrabold text-[15px] text-foreground tracking-tight">
             {displayTitle}
           </span>
@@ -95,7 +95,27 @@ export function CustomToast({
             </p>
           )}
         </div>
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="absolute top-0 right-0 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+        >
+          <X size={16} />
+        </button>
       </div>
+
+      {t.action && (
+        <div className="flex items-center justify-end pt-1">
+          <button
+            className="bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2 rounded-xl text-xs font-black transition-all shadow-xs uppercase tracking-widest"
+            onClick={() => {
+              t.action.onClick();
+              toast.dismiss(t.id);
+            }}
+          >
+            {t.action.label}
+          </button>
+        </div>
+      )}
       
       {resolvedVariant === "confirm" && (
         <div className="flex items-center justify-end gap-2 pt-1">

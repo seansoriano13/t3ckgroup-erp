@@ -99,13 +99,13 @@ export function ApprovalDetailPane({
         hrVerified: task.hrVerified || false,
         hrRemarks: task.hrRemarks || "",
       });
-      toast.success(isEditing ? "Task updated!" : "Task approved!", { id: toastId });
+      toast.success(isEditing ? "Task updated!" : "Task approved!", { id: toastId, duration: 4000 });
       setIsEditing(false);
       if (autoAdvance && onNavigateNext) {
         onNavigateNext();
       }
     } catch {
-      toast.error(isEditing ? "Failed to update task" : "Failed to approve task", { id: toastId });
+      toast.error(isEditing ? "Failed to update task" : "Failed to approve task", { id: toastId, duration: 4000 });
     }
   };
 
@@ -128,12 +128,12 @@ export function ApprovalDetailPane({
         hrVerified: false,
         hrRemarks: "",
       });
-      toast.success("Task returned to employee!", { id: toastId });
+      toast.success("Task returned to employee!", { id: toastId, duration: 4000 });
       if (autoAdvance && onNavigateNext) {
         onNavigateNext();
       }
     } catch {
-      toast.error("Failed to return task", { id: toastId });
+      toast.error("Failed to return task", { id: toastId, duration: 4000 });
     }
   };
 
@@ -149,13 +149,13 @@ export function ApprovalDetailPane({
         hrRemarks: hrRemarks,
         editedBy: currentUserId,
       });
-      toast.success(isEditing ? "Verification updated!" : "Task verified & signed!", { id: toastId });
+      toast.success(isEditing ? "Verification updated!" : "Task verified & signed!", { id: toastId, duration: 4000 });
       setIsEditing(false);
       if (autoAdvance && onNavigateNext) {
         onNavigateNext();
       }
     } catch {
-      toast.error("Failed to verify task", { id: toastId });
+      toast.error("Failed to verify task", { id: toastId, duration: 4000 });
     }
   };
 
@@ -176,12 +176,12 @@ export function ApprovalDetailPane({
         hrRemarks: hrRemarks,
         editedBy: currentUserId,
       });
-      toast.success("Task returned from HR!", { id: toastId });
+      toast.success("Task returned from HR!", { id: toastId, duration: 4000 });
       if (autoAdvance && onNavigateNext) {
         onNavigateNext();
       }
     } catch {
-      toast.error("Failed to return task", { id: toastId });
+      toast.error("Failed to return task", { id: toastId, duration: 4000 });
     }
   };
 

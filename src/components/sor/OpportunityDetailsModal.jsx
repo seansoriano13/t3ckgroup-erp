@@ -879,7 +879,6 @@ export default function OpportunityDetailsModal({
       setEditForm({
         project_title: opportunity.project_title || "",
         client_name: opportunity.client_name || "",
-        expected_value: opportunity.expected_value || "",
         lead_source: opportunity.lead_source || "",
         lead_source_detail: opportunity.lead_source_detail || "",
         project_type: opportunity.project_type || "SSP",
@@ -902,8 +901,9 @@ export default function OpportunityDetailsModal({
 
   if (!opportunity) return null;
 
+  const editItemsSum = (editForm.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
   const estimatedValueDisplay = isEditing
-    ? `₱${groupThousands(editForm.expected_value)}`
+    ? formatPHP(editItemsSum)
     : formatPHP(opportunity.expected_value);
   const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
 
@@ -1365,24 +1365,17 @@ export default function OpportunityDetailsModal({
                     )}
                   </div>
                   {isEditing ? (
-                    <div className={cn("flex items-center font-black tracking-tight text-foreground", estimatedValueSize)}>
-                      <span className="mr-1.5 text-muted-foreground/50">₱</span>
-                      <input
-                        type="text"
-                        value={groupThousands(editForm.expected_value)}
-                        onChange={(e) => {
-                          let raw = e.target.value.replace(/[^0-9.]/g, "");
-                          const parts = raw.split(".");
-                          if (parts.length > 2) raw = parts[0] + "." + parts.slice(1).join("");
-                          setEditForm((f) => ({ ...f, expected_value: raw }));
-                        }}
-                        className="w-full bg-transparent outline-none tabular-nums placeholder:text-muted-foreground/30"
-                        placeholder="0.00"
-                      />
+                    <div>
+                      <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums opacity-80", estimatedValueSize)}>
+                        {estimatedValueDisplay}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1 font-medium italic">
+                        Auto-calculated from Product List
+                      </p>
                     </div>
                   ) : (
                     <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>
-                      {formatPHP(opportunity.expected_value)}
+                      {estimatedValueDisplay}
                     </p>
                   )}
                 </div>

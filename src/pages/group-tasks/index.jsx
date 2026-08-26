@@ -95,6 +95,11 @@ export default function GroupTasksPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, ACTIVE, COMPLETED
   const [creatorFilter, setCreatorFilter] = useState("ALL");
+  const [memberFilter, setMemberFilter] = useState("ALL");
+  const [deptFilter, setDeptFilter] = useState("ALL");
+  const [subDeptFilter, setSubDeptFilter] = useState("ALL");
+  const [timeframe, setTimeframe] = useState("DAILY");
+  const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [dueDate, setDueDate] = useState(null);
 
   const [selectedTaskId, setSelectedTaskId] = useState(null);
@@ -105,15 +110,39 @@ export default function GroupTasksPage() {
   const [isRateOpen, setIsRateOpen] = useState(false);
 
   // --- Filtering ---
-  const { filteredTasks, uniqueCreators } = useGroupTaskFilters(
+  const { filteredTasks, uniqueCreators, uniqueMembers } = useGroupTaskFilters(
     groupTasks,
     {
       searchTerm,
       statusFilter,
       creatorFilter,
+      memberFilter,
+      deptFilter,
+      subDeptFilter,
+      timeframe,
+      selectedDateFilter,
       dueDate,
     },
   );
+
+  const uniqueDepts = useMemo(() => {
+    const fromEmps = employees.map((e) => e.department);
+    const fromTasks = groupTasks.flatMap(t => [
+      t.creator?.department,
+      ...t.members.map(m => m.employee?.department)
+    ]);
+    return [...new Set([...fromEmps, ...fromTasks].filter(Boolean))].sort();
+  }, [employees, groupTasks]);
+
+  const uniqueSubDepts = useMemo(() => {
+    const filteredEmps = deptFilter === "ALL" 
+      ? employees 
+      : employees.filter(e => e.department === deptFilter);
+      
+    const fromEmps = filteredEmps.map(e => e.subDepartment || e.sub_department);
+    return [...new Set(fromEmps.filter(Boolean))].sort();
+  }, [employees, deptFilter]);
+
 
   // --- Mutations ---
 
@@ -271,9 +300,23 @@ export default function GroupTasksPage() {
           setStatusFilter={setStatusFilter}
           creatorFilter={creatorFilter}
           setCreatorFilter={setCreatorFilter}
+          memberFilter={memberFilter}
+          setMemberFilter={setMemberFilter}
+          deptFilter={deptFilter}
+          setDeptFilter={setDeptFilter}
+          subDeptFilter={subDeptFilter}
+          setSubDeptFilter={setSubDeptFilter}
+          timeframe={timeframe}
+          setTimeframe={setTimeframe}
+          selectedDateFilter={selectedDateFilter}
+          setSelectedDateFilter={setSelectedDateFilter}
           dueDate={dueDate}
           setDueDate={setDueDate}
           uniqueCreators={uniqueCreators}
+          uniqueMembers={uniqueMembers}
+          uniqueDepts={uniqueDepts}
+          uniqueSubDepts={uniqueSubDepts}
+          isManagement={canManage}
           actions={
             <TabGroup
               variant="pill"

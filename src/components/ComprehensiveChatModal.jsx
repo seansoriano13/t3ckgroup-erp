@@ -28,6 +28,7 @@ import {
   Clock,
   Paperclip,
   ImageIcon,
+  Reply,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,7 @@ const timeAgo = (dateString) => {
 //  SUB-COMPONENTS
 // -------------------------------------------------------------
 
-function MessageBubble({ entry, currentUserId, onReply }) {
+function MessageBubble({ entry, currentUserId, onReply, onReact }) {
   const isMe = entry.authorId === currentUserId;
   const avatarMap = useEmployeeAvatarMap();
 
@@ -177,10 +178,13 @@ function MessageBubble({ entry, currentUserId, onReply }) {
     );
   }
 
+  const reactions = entry.metadata?.reactions || {};
+  const hasReactions = Object.keys(reactions).length > 0;
+
   return (
     <div
       className={cn(
-        "flex gap-3 px-4 py-2",
+        "flex gap-3 px-4 py-2 group",
         isMe ? "flex-row-reverse" : "flex-row",
       )}
     >
@@ -198,7 +202,7 @@ function MessageBubble({ entry, currentUserId, onReply }) {
       />
       <div
         className={cn(
-          "max-w-[80%] min-w-0 flex flex-col",
+          "max-w-[80%] min-w-0 flex flex-col relative",
           isMe ? "items-end" : "items-start",
         )}
       >
@@ -227,51 +231,117 @@ function MessageBubble({ entry, currentUserId, onReply }) {
             </span>
           )}
         </div>
-        <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
-          <div
-            className={cn(
-              "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap wrap-break-word overflow-hidden",
-              isMe
-                ? "bg-primary text-primary-foreground rounded-tr-none"
-                : "bg-card border border-border rounded-tl-none",
-            )}
-          >
-            <ReplyQuote replyTo={entry.metadata?.replyTo} />
-            {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
-            {entry.metadata?.attachments?.length > 0 && (
-              <div
-                className={cn(
-                  "flex flex-wrap gap-2",
-                  entry.content ? "mt-2" : "",
-                )}
-              >
-                {entry.metadata.attachments.map((url, i) => (
-                  <a
-                    key={i}
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                  >
-                    <img
-                      src={url}
-                      alt={`attachment-${i + 1}`}
-                      className="max-w-[220px] max-h-[220px] object-cover rounded-xl"
-                      loading="lazy"
-                    />
-                  </a>
-                ))}
-              </div>
-            )}
+        
+        <div className="relative flex items-center gap-2">
+          {/* Action Buttons (Hover on desktop, visible on mobile) */}
+          <div className={cn(
+            "absolute top-1/2 -translate-y-1/2 transition-opacity z-10 flex items-center gap-1",
+            "opacity-100 md:opacity-0 group-hover:opacity-100",
+            isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"
+          )}>
+            <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
+              <EmojiPicker 
+                onSelect={(emoji) => onReact && onReact(entry, emoji)}
+                align={isMe ? "end" : "start"}
+              />
+            </div>
+            {/* Mobile explicit reply button */}
+            <button
+              type="button"
+              onClick={() => onReply?.(entry)}
+              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+            >
+              <Reply size={14} />
+            </button>
           </div>
-        </SwipeToReplyWrapper>
-        <span className="text-[9px] text-muted-foreground/60 mt-1 px-1 font-medium">
-          {timeAgo(entry.createdAt)}
-        </span>
+
+          <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+            <div
+              className={cn(
+                "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap wrap-break-word overflow-hidden",
+                isMe
+                  ? "bg-primary text-primary-foreground rounded-tr-none"
+                  : "bg-card border border-border rounded-tl-none",
+              )}
+            >
+              <ReplyQuote replyTo={entry.metadata?.replyTo} />
+              {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
+              {entry.metadata?.attachments?.length > 0 && (
+                <div
+                  className={cn(
+                    "flex flex-wrap gap-2",
+                    entry.content ? "mt-2" : "",
+                  )}
+                >
+                  {entry.metadata.attachments.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
+                    >
+                      <img
+                        src={url}
+                        alt={`attachment-${i + 1}`}
+                        className="max-w-[220px] max-h-[220px] object-cover rounded-xl"
+                        loading="lazy"
+                      />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SwipeToReplyWrapper>
+        </div>
+
+        {/* Reaction Badges */}
+        {hasReactions && (
+          <div className={cn("flex flex-wrap gap-1 mt-1 z-10", isMe ? "justify-end" : "justify-start")}>
+            {Object.entries(reactions).map(([emoji, users]) => {
+              const iReacted = users.includes(currentUserId);
+              return (
+                <button
+                  key={emoji}
+                  onClick={() => onReact && onReact(entry, emoji)}
+                  className={cn(
+                    "flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors",
+                    iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+                  )}
+                >
+                  <span>{emoji}</span>
+                  <span>{users.length}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <div className={cn("flex items-center gap-1 mt-1", isMe ? "flex-row-reverse" : "flex-row")}>
+          <span className="text-[9px] text-muted-foreground/60 px-1 font-medium">
+            {timeAgo(entry.createdAt)}
+          </span>
+          {/* Read Receipts Avatars */}
+          {entry.seenBy?.length > 0 && (
+            <div className={cn("flex items-center gap-0.5", isMe ? "mr-1" : "ml-1")}>
+              {entry.seenBy.map(u => (
+                <Avatar
+                  key={u.id}
+                  name={u.name || "?"}
+                  src={u.src}
+                  size="xs"
+                  className="w-3.5 h-3.5 text-[7px]"
+                  title={`Seen by ${u.name}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
 
 // -------------------------------------------------------------
 //  MAIN COMPONENT
@@ -366,7 +436,7 @@ export default function ComprehensiveChatModal({
   }, [activeChats]);
 
   // -- Data: Messages for Selected Chat ----------------------
-  const { data: messages = [], isLoading: isLoadingMessages } = useQuery({
+  const { data: rawMessages = [], isLoading: isLoadingMessages } = useQuery({
     queryKey: [
       "chatMessages",
       selectedChat?.entity_type,
@@ -380,6 +450,78 @@ export default function ComprehensiveChatModal({
           ),
     enabled: !!selectedChat && internalOpen,
   });
+
+  // -- Data: Read Receipts for Selected Chat -------------------
+  const { data: readReceipts = [] } = useQuery({
+    queryKey: ["chatReadReceipts", selectedChat?.entity_type, selectedChat?.entity_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_read_receipts")
+        .select("user_id, last_read_at")
+        .eq("entity_type", selectedChat.entity_type)
+        .eq("entity_id", String(selectedChat.entity_id));
+      return data || [];
+    },
+    enabled: !!selectedChat && !selectedChat?.is_placeholder && internalOpen,
+  });
+
+  const avatarMap = useEmployeeAvatarMap();
+
+  const messages = useMemo(() => {
+    if (!rawMessages || rawMessages.length === 0) return [];
+    
+    // Calculate seenBy logic
+    const userToLastSeenMsgId = {};
+    for (const receipt of readReceipts) {
+      if (receipt.user_id === user?.id) continue;
+      
+      const readAt = new Date(receipt.last_read_at).getTime();
+      let latestMsg = null;
+      for (const m of rawMessages) {
+        if (new Date(m.createdAt).getTime() <= readAt) {
+          if (!latestMsg || new Date(m.createdAt).getTime() > new Date(latestMsg.createdAt).getTime()) {
+            latestMsg = m;
+          }
+        }
+      }
+      if (latestMsg) {
+        // Prevent showing someone's read receipt on their OWN message
+        if (latestMsg.authorId === receipt.user_id) {
+          let latestNotTheirs = null;
+          for (const m of rawMessages) {
+            if (new Date(m.createdAt).getTime() <= readAt && m.authorId !== receipt.user_id) {
+              if (!latestNotTheirs || new Date(m.createdAt).getTime() > new Date(latestNotTheirs.createdAt).getTime()) {
+                latestNotTheirs = m;
+              }
+            }
+          }
+          if (latestNotTheirs) latestMsg = latestNotTheirs;
+          else latestMsg = null;
+        }
+
+        if (latestMsg) {
+          if (!userToLastSeenMsgId[latestMsg.id]) userToLastSeenMsgId[latestMsg.id] = [];
+          const emp = employees.find(e => e.id === receipt.user_id);
+          let name = emp?.name;
+          if (!name) {
+            const commentByThem = rawMessages.find(c => c.authorId === receipt.user_id);
+            name = commentByThem ? commentByThem.authorName : "Unknown";
+          }
+          
+          userToLastSeenMsgId[latestMsg.id].push({
+            id: receipt.user_id,
+            name: name,
+            src: avatarMap.get(receipt.user_id)
+          });
+        }
+      }
+    }
+
+    return rawMessages.map(m => ({
+      ...m,
+      seenBy: userToLastSeenMsgId[m.id] || []
+    }));
+  }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
   // -- Data: Entity Details for Deletion Check ---------------
   const { data: selectedEntityData } = useQuery({
@@ -479,6 +621,40 @@ export default function ComprehensiveChatModal({
     },
   });
 
+  const toggleReaction = async (message, emoji) => {
+    if (!message || !emoji) return;
+    const currentReactions = message.metadata?.reactions || {};
+    const usersWithEmoji = currentReactions[emoji] || [];
+    const hasReacted = usersWithEmoji.includes(user.id);
+    
+    let newReactions = { ...currentReactions };
+    if (hasReacted) {
+      newReactions[emoji] = usersWithEmoji.filter(id => id !== user.id);
+      if (newReactions[emoji].length === 0) delete newReactions[emoji];
+    } else {
+      newReactions[emoji] = [...usersWithEmoji, user.id];
+    }
+    
+    const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
+    const table = selectedChat?.entity_type === "TASK" ? "task_activity" : "committee_task_activity";
+    
+    // Optimistic update
+    queryClient.setQueryData(
+      ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
+      (old = []) => old.map(m => m.id === message.id ? { ...m, metadata: newMetadata } : m)
+    );
+
+    try {
+      await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+    } catch (err) {
+      console.error("Failed to toggle reaction:", err);
+      // invalidate to revert
+      queryClient.invalidateQueries({
+        queryKey: ["chatMessages", selectedChat?.entity_type, selectedChat?.entity_id],
+      });
+    }
+  };
+
   // -- Effects -----------------------------------------------
   // Pre-select chat if initial entity provided
   useEffect(() => {
@@ -577,12 +753,47 @@ export default function ComprehensiveChatModal({
     };
   }, [selectedChat, internalOpen, queryClient]);
 
-  // Auto-scroll
+  // Real-time listener for read receipts for the selected chat
+  useEffect(() => {
+    if (!selectedChat || !internalOpen) return;
+
+    const channel = supabase
+      .channel(`read-receipts-${selectedChat.entity_id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_read_receipts",
+          filter: `entity_id=eq.${selectedChat.entity_id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["chatReadReceipts", selectedChat.entity_type, selectedChat.entity_id],
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedChat, internalOpen, queryClient]);
+
+  // Auto-scroll and auto-read-receipt on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+    // If the thread is open and new messages arrive, bump read receipt
+    if (messages.length > 0 && selectedChat && internalOpen) {
+      markAsReadMutation.mutate({
+        entityType: selectedChat.entity_type,
+        entityId: selectedChat.entity_id,
+        latestCreatedAt: messages[messages.length - 1].createdAt
+      });
+    }
+  }, [messages, selectedChat, internalOpen]); // Depend on messages array to trigger on new messages
 
   // -- Handlers ----------------------------------------------
   const handleClose = () => {
@@ -604,13 +815,14 @@ export default function ComprehensiveChatModal({
 
     setSelectedChat(chat);
     setReplyingTo(null);
-    if (chat.is_unread) {
-      markAsReadMutation.mutate({
-        entityType: chat.entity_type,
-        entityId: chat.entity_id,
-        latestCreatedAt: chat.latest_created_at,
-      });
-    }
+    
+    // Always mark as read when selecting, to bump last_read_at timestamp
+    markAsReadMutation.mutate({
+      entityType: chat.entity_type,
+      entityId: chat.entity_id,
+      latestCreatedAt: chat.latest_created_at || new Date().toISOString(),
+    });
+    
     setIsMobileListVisible(false);
   };
 
@@ -1074,6 +1286,7 @@ export default function ComprehensiveChatModal({
                       entry={m}
                       currentUserId={user.id}
                       onReply={(entry) => setReplyingTo(buildReplySnapshot(entry))}
+                      onReact={toggleReaction}
                     />
                   ))
                 )}

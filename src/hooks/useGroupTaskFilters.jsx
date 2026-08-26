@@ -1,10 +1,16 @@
 import { useMemo } from "react";
+import { formatDateToYMD } from "../utils/dateUtils";
 
 export function useGroupTaskFilters(rawTasks = [], filters = {}) {
   const {
     searchTerm = "",
     statusFilter = "ALL", // ALL, ACTIVE, COMPLETED
     creatorFilter = "ALL",
+    memberFilter = "ALL",
+    deptFilter = "ALL",
+    subDeptFilter = "ALL",
+    timeframe = "DAILY",
+    selectedDateFilter = "",
     dueDate = null,
   } = filters;
 
@@ -17,11 +23,11 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
       // 2. Search Filter
       if (searchTerm) {
         const q = searchTerm.toLowerCase();
-        const matchesTitle = task.title.toLowerCase().includes(q);
+        const matchesTitle = task.title?.toLowerCase().includes(q);
         const matchesDesc = (task.description || "").toLowerCase().includes(q);
-        const matchesCreator = task.creator?.name.toLowerCase().includes(q);
+        const matchesCreator = task.creator?.name?.toLowerCase().includes(q);
         const matchesMembers = task.members?.some((m) =>
-          m.employee?.name.toLowerCase().includes(q)
+          m.employee?.name?.toLowerCase().includes(q)
         );
 
         if (!(matchesTitle || matchesDesc || matchesCreator || matchesMembers)) {
@@ -34,7 +40,52 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
         return false;
       }
 
-      // 4. Due Date Filter
+      // 4. Member Filter
+      if (memberFilter !== "ALL") {
+        if (!task.members?.some(m => m.employee_id === memberFilter)) return false;
+      }
+
+      // 5. Dept Filter
+      // Match if creator is in dept OR any member is in dept
+      if (deptFilter !== "ALL") {
+        const creatorMatch = task.creator?.department === deptFilter;
+        const memberMatch = task.members?.some(m => m.employee?.department === deptFilter);
+        if (!creatorMatch && !memberMatch) return false;
+      }
+
+      // 6. SubDept Filter
+      if (subDeptFilter !== "ALL") {
+        const creatorMatch = task.creator?.sub_department === subDeptFilter || task.creator?.subDepartment === subDeptFilter;
+        const memberMatch = task.members?.some(m => m.employee?.sub_department === subDeptFilter || m.employee?.subDepartment === subDeptFilter);
+        if (!creatorMatch && !memberMatch) return false;
+      }
+
+      // 7. Created Date Filter
+      if (selectedDateFilter) {
+        const taskDate = new Date(task.created_at);
+        const taskDateStr = formatDateToYMD(taskDate);
+
+        if (timeframe === "DAILY") {
+          if (taskDateStr !== selectedDateFilter) return false;
+        } else if (timeframe === "MONTHLY" || timeframe === "YEARLY") {
+          if (!taskDateStr.startsWith(selectedDateFilter)) return false;
+        } else if (timeframe === "WEEKLY") {
+          const [y, m, d] = selectedDateFilter.split("-").map(Number);
+          const selectedD = new Date(y, m - 1, d);
+          const day = selectedD.getDay();
+          const diff = selectedD.getDate() - day + (day === 0 ? -6 : 1);
+          const startOfWeek = new Date(selectedD);
+          startOfWeek.setDate(diff);
+          startOfWeek.setHours(0, 0, 0, 0);
+          const endOfWeek = new Date(startOfWeek);
+          endOfWeek.setDate(startOfWeek.getDate() + 6);
+          endOfWeek.setHours(23, 59, 59, 999);
+
+          if (!(taskDate >= startOfWeek && taskDate <= endOfWeek)) return false;
+        }
+      }
+
+      // 8. Due Date Filter
       if (dueDate) {
         if (!task.due_date) return false;
         const taskDueDate = new Date(task.due_date);
@@ -50,7 +101,7 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
 
       return true;
     });
-  }, [rawTasks, searchTerm, statusFilter, creatorFilter, dueDate]);
+  }, [rawTasks, searchTerm, statusFilter, creatorFilter, memberFilter, deptFilter, subDeptFilter, timeframe, selectedDateFilter, dueDate]);
 
   const uniqueCreators = useMemo(() => {
     const creatorsMap = new Map();
@@ -62,8 +113,23 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
         });
       }
     });
-    return Array.from(creatorsMap.values());
+    return Array.from(creatorsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [rawTasks]);
 
-  return { filteredTasks, uniqueCreators };
+  const uniqueMembers = useMemo(() => {
+    const membersMap = new Map();
+    rawTasks.forEach((task) => {
+      task.members?.forEach(m => {
+        if (m.employee) {
+          membersMap.set(m.employee_id, {
+            id: m.employee_id,
+            name: m.employee.name,
+          });
+        }
+      });
+    });
+    return Array.from(membersMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [rawTasks]);
+
+  return { filteredTasks, uniqueCreators, uniqueMembers };
 }

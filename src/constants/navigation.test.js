@@ -115,7 +115,7 @@ describe("navigation registry", () => {
       const salesGroup = groups.find((g) => g.key === "sales");
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
-        "SOR Register",
+        "SOR / CRM",
         "Commission Dashboard",
         "Commission Formula",
       ]);
