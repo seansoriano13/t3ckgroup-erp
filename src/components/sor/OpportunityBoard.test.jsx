@@ -56,4 +56,55 @@ describe("OpportunityBoard", () => {
     await screen.findByText("Qualified")
     expect(screen.queryByText("Retired Stage")).not.toBeInTheDocument()
   })
+
+  describe("the deadline countdown (ticket 7)", () => {
+    const deadline = (overrides = {}) => ({
+      requirement: { label: "Confirm receipt" },
+      daysRemaining: 7,
+      isBreached: false,
+      isApproaching: false,
+      ...overrides,
+    })
+
+    it("shows days left on a card whose Stage carries a deadline", async () => {
+      makePipelineStage({ code: "QUALIFIED", label: "Qualified", sort_order: 10 })
+
+      renderWithProviders(
+        <OpportunityBoard
+          opportunities={[opportunity()]}
+          search=""
+          deadlineStatuses={{ "opp-1": deadline({ daysRemaining: 7 }) }}
+          onCardClick={() => {}}
+        />,
+      )
+
+      expect(await screen.findByText("7d left")).toBeInTheDocument()
+    })
+
+    it("reads as overdue once the deadline has breached", async () => {
+      makePipelineStage({ code: "QUALIFIED", label: "Qualified", sort_order: 10 })
+
+      renderWithProviders(
+        <OpportunityBoard
+          opportunities={[opportunity()]}
+          search=""
+          deadlineStatuses={{ "opp-1": deadline({ daysRemaining: -2, isBreached: true }) }}
+          onCardClick={() => {}}
+        />,
+      )
+
+      expect(await screen.findByText("2d overdue")).toBeInTheDocument()
+    })
+
+    it("shows nothing for a deal whose Stage carries no deadline", async () => {
+      makePipelineStage({ code: "QUALIFIED", label: "Qualified", sort_order: 10 })
+
+      renderWithProviders(
+        <OpportunityBoard opportunities={[opportunity()]} search="" onCardClick={() => {}} />,
+      )
+
+      await screen.findByText("Acme Corp")
+      expect(screen.queryByText(/left|overdue/)).not.toBeInTheDocument()
+    })
+  })
 })

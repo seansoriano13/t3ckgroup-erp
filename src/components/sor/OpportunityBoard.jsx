@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { Clock } from "lucide-react";
 import Avatar from "../Avatar";
 import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
@@ -22,7 +23,7 @@ const THEME_DOT = {
  * (Closed Lost requires a reason there — dragging a card wouldn't be able
  * to enforce that, so drag-and-drop is deliberately not offered here).
  */
-export default function OpportunityBoard({ opportunities, search, onCardClick }) {
+export default function OpportunityBoard({ opportunities, search, deadlineStatuses = {}, onCardClick }) {
   // Deactivating a stage removes it from pickers, never from opportunities
   // already sitting in it — so a column an opportunity here occupies stays
   // on the board even after a super admin retires it.
@@ -50,6 +51,7 @@ export default function OpportunityBoard({ opportunities, search, onCardClick })
           key={column.value}
           column={column}
           search={search}
+          deadlineStatuses={deadlineStatuses}
           onCardClick={onCardClick}
         />
       ))}
@@ -57,7 +59,7 @@ export default function OpportunityBoard({ opportunities, search, onCardClick })
   );
 }
 
-function BoardColumn({ column, search, onCardClick }) {
+function BoardColumn({ column, search, deadlineStatuses, onCardClick }) {
   // A configured stage carries its own theme; getStatusTheme is the fallback
   // for a code the palette map still knows about.
   const theme = column.theme || getStatusTheme(column.value);
@@ -93,6 +95,7 @@ function BoardColumn({ column, search, onCardClick }) {
               key={o.id}
               opportunity={o}
               search={search}
+              deadline={deadlineStatuses[o.id]}
               onClick={() => onCardClick(o)}
             />
           ))
@@ -102,7 +105,36 @@ function BoardColumn({ column, search, onCardClick }) {
   );
 }
 
-function BoardCard({ opportunity, search, onClick }) {
+/**
+ * Stage Gate Engine, ticket 7 (D42) — the board card countdown for a Stage
+ * carrying a `deadline` requirement. Shown at every distance, not just once
+ * urgent: D42 says the card shows the countdown, not just a warning, and
+ * story 16 is "I want to see a countdown", not "I want to be warned."
+ * Colour is the only thing that changes with urgency.
+ */
+function DeadlineBadge({ deadline }) {
+  if (!deadline) return null;
+  const { daysRemaining, isBreached, isApproaching, requirement } = deadline;
+
+  const tone = isBreached
+    ? "bg-red-500/10 text-red-600 dark:text-red-400"
+    : isApproaching
+      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+      : "bg-muted text-muted-foreground";
+  const text = isBreached ? `${Math.abs(daysRemaining)}d overdue` : `${daysRemaining}d left`;
+
+  return (
+    <span
+      title={requirement.label}
+      className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${tone}`}
+    >
+      <Clock size={10} />
+      {text}
+    </span>
+  );
+}
+
+function BoardCard({ opportunity, search, deadline, onClick }) {
   return (
     <button
       type="button"
@@ -123,9 +155,12 @@ function BoardCard({ opportunity, search, onClick }) {
       <p className="text-sm font-bold text-foreground truncate mb-0.5">
         <HighlightText text={opportunity.client_name} search={search} />
       </p>
-      <p className="text-xs text-muted-foreground truncate mb-2.5">
-        <HighlightText text={opportunity.project_title} search={search} />
-      </p>
+      <div className="flex items-center justify-between gap-2 mb-2.5">
+        <p className="text-xs text-muted-foreground truncate">
+          <HighlightText text={opportunity.project_title} search={search} />
+        </p>
+        <DeadlineBadge deadline={deadline} />
+      </div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-black text-foreground truncate">
           {formatPHP(opportunity.expected_value)}

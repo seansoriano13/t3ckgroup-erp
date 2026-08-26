@@ -143,10 +143,21 @@ export function evaluateRequirement(requirement, {
 }
 
 /**
- * Deadline arithmetic: days remaining (negative once breached) and whether
- * the deadline has been breached, from a Stage's entry timestamp and the
- * requirement's configured day count. The boundary day itself — exactly
- * `days` days after entry — is not yet breached; the day after is.
+ * How close to breaching counts as "approaching" for a notification (ticket
+ * 7, D42's "a notification fires as the date approaches and again when it
+ * passes") — not specified by the spec beyond that phrase, so fixed here at
+ * a flat 3 days regardless of the requirement's own day count. Both
+ * statutory examples (10 and 12 days) leave a multi-day window at 3, rather
+ * than the boundary day being the only warning anyone gets.
+ */
+export const DEADLINE_APPROACHING_DAYS = 3
+
+/**
+ * Deadline arithmetic: days remaining (negative once breached), whether the
+ * deadline has been breached, and whether it's close enough to warn about —
+ * from a Stage's entry timestamp and the requirement's configured day count.
+ * The boundary day itself — exactly `days` days after entry — is not yet
+ * breached; the day after is.
  *
  * Every deadline in this spec is a calendar-day count (RA 12009 and the
  * Philippine Bidding Documents count calendar days), so no business-day
@@ -155,13 +166,15 @@ export function evaluateRequirement(requirement, {
 export function deadlineStatus(requirement, { enteredAt, asOf } = {}) {
   const days = requirement.config?.days
   if (!enteredAt || !asOf || !Number.isFinite(days)) {
-    return { daysRemaining: null, isBreached: false }
+    return { daysRemaining: null, isBreached: false, isApproaching: false }
   }
 
   const msPerDay = 24 * 60 * 60 * 1000
   const due = new Date(enteredAt).getTime() + days * msPerDay
   const daysRemaining = Math.ceil((due - new Date(asOf).getTime()) / msPerDay)
-  return { daysRemaining, isBreached: daysRemaining < 0 }
+  const isBreached = daysRemaining < 0
+  const isApproaching = !isBreached && daysRemaining <= DEADLINE_APPROACHING_DAYS
+  return { daysRemaining, isBreached, isApproaching }
 }
 
 /**

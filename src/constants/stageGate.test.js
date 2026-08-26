@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   blockingRequirements,
+  DEADLINE_APPROACHING_DAYS,
   deadlineStatus,
   evaluateCrossing,
   evaluateRequirement,
@@ -244,7 +245,39 @@ describe("deadlineStatus", () => {
     expect(deadlineStatus(req, { enteredAt: null, asOf: "2026-06-01T00:00:00.000Z" })).toEqual({
       daysRemaining: null,
       isBreached: false,
+      isApproaching: false,
     })
+  })
+
+  it("is not yet approaching with days to spare", () => {
+    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const { isApproaching } = deadlineStatus(req, {
+      enteredAt: "2026-06-01T00:00:00.000Z",
+      asOf: "2026-06-04T00:00:00.000Z", // 7 days left
+    })
+    expect(isApproaching).toBe(false)
+  })
+
+  it(`is approaching at exactly the ${DEADLINE_APPROACHING_DAYS}-day threshold`, () => {
+    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const { daysRemaining, isApproaching } = deadlineStatus(req, {
+      enteredAt: "2026-06-01T00:00:00.000Z",
+      asOf: "2026-06-08T00:00:00.000Z", // 3 days left
+    })
+    // Literal, not DEADLINE_APPROACHING_DAYS — this test has to be able to
+    // disagree with the constant it's checking (docs/testing.md).
+    expect(daysRemaining).toBe(3)
+    expect(isApproaching).toBe(true)
+  })
+
+  it("is not \"approaching\" once it has already breached — that's a different state", () => {
+    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const { isBreached, isApproaching } = deadlineStatus(req, {
+      enteredAt: "2026-06-01T00:00:00.000Z",
+      asOf: "2026-06-12T00:00:00.000Z",
+    })
+    expect(isBreached).toBe(true)
+    expect(isApproaching).toBe(false)
   })
 })
 

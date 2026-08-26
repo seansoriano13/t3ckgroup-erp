@@ -18,6 +18,7 @@ import {
   SALES_REFERENCE_HINT,
 } from "../constants/sor";
 import {
+  deadlineStatus,
   evaluateCrossing,
   evaluateRequirement,
   REQUIREMENT_KINDS,
@@ -141,6 +142,30 @@ function attachmentsFromLog(log) {
   }));
 }
 
+/** Buckets `rows` by the value of `key` — the one grouping shape every batch read below needs, just on different columns. */
+function groupBy(rows, key) {
+  const groups = {};
+  for (const row of rows || []) {
+    (groups[row[key]] ??= []).push(row);
+  }
+  return groups;
+}
+
+/**
+ * Live (non-archived) `stage_requirements` for a set of Stage codes, grouped
+ * by Stage — the read every batch caller below starts from, before asking
+ * "what does THIS deal's own Stage carry". `narrow` lets a caller add its
+ * own filter (e.g. `getBlockedDeals`' is_required/kind) on top of the
+ * archived_at check every caller needs regardless.
+ */
+async function requirementsByStageFor(stageCodes, narrow = (query) => query) {
+  const { data: requirements, error } = await narrow(
+    supabase.from("stage_requirements").select("*").in("stage_code", stageCodes).is("archived_at", null),
+  );
+  if (error) throw error;
+  return { requirements: requirements || [], requirementsByStage: groupBy(requirements, "stage_code") };
+}
+
 /**
  * Everything `evaluateRequirement`/`evaluateCrossing` need to judge the
  * requirements configured on `stageCodes`, for one opportunity: the
@@ -151,18 +176,8 @@ function attachmentsFromLog(log) {
  * own fetch-and-shape.
  */
 async function gateContext(opportunityId, stageCodes) {
-  const { data: requirements, error: reqError } = await supabase
-    .from("stage_requirements")
-    .select("*")
-    .in("stage_code", stageCodes)
-    .is("archived_at", null);
-  if (reqError) throw reqError;
-
-  const requirementsByStage = {};
-  for (const requirement of requirements || []) {
-    (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
-  }
-  if (!requirements || requirements.length === 0) {
+  const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes);
+  if (requirements.length === 0) {
     return { requirementsByStage, attachments: [], members: [], statusRowsByRequirement: {} };
   }
 
@@ -240,6 +255,84 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     .join(", ");
   throw new Error(`Cannot move to ${STAGE_LABELS[toCode] || toCode} — missing: ${missing}.`);
 }
+
+/**
+ * D42 — a `deadline` requirement's "entry into the Stage" timestamp: the
+ * most recent STAGE_CHANGED note landing this opportunity on its current
+ * Stage (`metadata.to`), the same note `updateStatus` already writes on
+ * every move. A deal still sitting on its very first Stage never got one —
+ * nothing moved it there — so its own `created_at` stands in. No new
+ * timestamp column, per D42.
+ */
+function stageEnteredAt(opportunity, logs) {
+  const entries = (logs || [])
+    .filter(
+      (log) => log.metadata?.event === "STAGE_CHANGED" && log.metadata?.to === opportunity.status,
+    )
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return entries[0]?.created_at || opportunity.created_at;
+}
+
+/**
+ * Every active `deadline` requirement on each of the given opportunities'
+ * own current Stage, evaluated against "now" (`deadlineStatus`, ticket 1).
+ * Shared by the board countdown (`getDeadlineStatuses`) and the
+ * approach/breach notification check (`checkDeadlineNotifications`, ticket
+ * 7) so both read the same evaluation rather than each re-deriving it —
+ * same reasoning as `gateContext` for the blocking kinds.
+ *
+ * Returns `{ [opportunityId]: Array<{ requirement, daysRemaining, isBreached,
+ * isApproaching }> }` — a Stage carrying more than one `deadline`
+ * requirement is unusual (the spec's own examples never configure two on
+ * the same Stage) but not disallowed, so this returns all of them rather
+ * than assuming one.
+ */
+async function deadlineEvaluations(opportunities) {
+  if (opportunities.length === 0) return {};
+  const stageCodes = [...new Set(opportunities.map((o) => o.status))];
+
+  const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes, (query) =>
+    query.eq("kind", REQUIREMENT_KINDS.DEADLINE),
+  );
+  if (requirements.length === 0) return {};
+
+  const opportunityIds = opportunities.map((o) => o.id);
+  const { data: logs, error: logsError } = await supabase
+    .from("sales_opportunity_logs")
+    .select("opportunity_id, created_at, metadata")
+    .in("opportunity_id", opportunityIds);
+  if (logsError) throw logsError;
+
+  const logsByOpportunity = groupBy(logs, "opportunity_id");
+
+  const now = new Date().toISOString();
+  const result = {};
+  for (const opportunity of opportunities) {
+    const stageRequirements = requirementsByStage[opportunity.status];
+    if (!stageRequirements || stageRequirements.length === 0) continue;
+
+    const enteredAt = stageEnteredAt(opportunity, logsByOpportunity[opportunity.id]);
+    result[opportunity.id] = stageRequirements.map((requirement) => ({
+      requirement,
+      ...deadlineStatus(requirement, { enteredAt, asOf: now }),
+    }));
+  }
+  return result;
+}
+
+/** The two milestones `checkDeadlineNotifications` can fire, and how each reads — one place instead of branching on `isBreached` three separate times. */
+const DEADLINE_MILESTONES = {
+  BREACHED: {
+    title: "Deadline passed",
+    describe: (label, stageLabel, daysRemaining) =>
+      `Deadline passed: "${label}" (${stageLabel}), ${Math.abs(daysRemaining)} day(s) ago.`,
+  },
+  APPROACHING: {
+    title: "Deadline approaching",
+    describe: (label, stageLabel, daysRemaining) =>
+      `Deadline approaching: "${label}" (${stageLabel}), ${daysRemaining} day(s) left.`,
+  },
+};
 
 /**
  * How an opportunity is named in the GLOBAL audit log, which mixes records
@@ -1059,20 +1152,10 @@ export const opportunityService = {
     if (opportunities.length === 0) return {};
     const stageCodes = [...new Set(opportunities.map((o) => o.status))];
 
-    const { data: requirements, error: reqError } = await supabase
-      .from("stage_requirements")
-      .select("*")
-      .in("stage_code", stageCodes)
-      .is("archived_at", null)
-      .eq("is_required", true)
-      .neq("kind", REQUIREMENT_KINDS.DEADLINE);
-    if (reqError) throw reqError;
-    if (!requirements || requirements.length === 0) return {};
-
-    const requirementsByStage = {};
-    for (const requirement of requirements) {
-      (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
-    }
+    const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes, (query) =>
+      query.eq("is_required", true).neq("kind", REQUIREMENT_KINDS.DEADLINE),
+    );
+    if (requirements.length === 0) return {};
 
     const opportunityIds = opportunities.map((o) => o.id);
     const requirementIds = requirements.map((r) => r.id);
@@ -1105,10 +1188,7 @@ export const opportunityService = {
       (attachmentsByOpportunity[log.opportunity_id] ??= []).push(...attachments);
     }
 
-    const membersByOpportunity = {};
-    for (const row of memberRows || []) {
-      (membersByOpportunity[row.opportunity_id] ??= []).push(row);
-    }
+    const membersByOpportunity = groupBy(memberRows, "opportunity_id");
     for (const opportunityId of Object.keys(membersByOpportunity)) {
       membersByOpportunity[opportunityId] = membersForGate(membersByOpportunity[opportunityId]);
     }
@@ -1136,5 +1216,96 @@ export const opportunityService = {
     }
 
     return blocked;
+  },
+
+  // ── Deadline kind — countdown + notifications (ticket 7) ────────────────────
+
+  /**
+   * The board card countdown, and the register's "past a deadline" read
+   * (story 26): the most urgent active `deadline` requirement on each
+   * opportunity's own current Stage, evaluated against "now". Absent for an
+   * opportunity whose Stage carries no live `deadline` requirement.
+   */
+  async getDeadlineStatuses(opportunities = []) {
+    const evaluations = await deadlineEvaluations(opportunities);
+    const result = {};
+    for (const [opportunityId, items] of Object.entries(evaluations)) {
+      // Most urgent first — a card/badge shows one clock, not a list, so a
+      // Stage that (unusually) carries two deadlines leads with whichever is
+      // closer to breaching.
+      result[opportunityId] = [...items].sort((a, b) => a.daysRemaining - b.daysRemaining)[0];
+    }
+    return result;
+  },
+
+  /**
+   * D42 — fires the approach/breach notification (story 17) through the
+   * existing notification service. Never a gate (D42, story 18): this only
+   * ever narrates and notifies, it cannot block a move.
+   *
+   * There's no server-side cron in this app to trigger this on a schedule,
+   * so it's called client-side, opportunistically, wherever open deals are
+   * already loaded (the Opportunities register on page load). That's safe to
+   * do repeatedly because it's idempotent per milestone: a
+   * `STAGE_DEADLINE_APPROACHING`/`STAGE_DEADLINE_BREACHED` note on the
+   * opportunity's own timeline both tells the story (D42's "through the
+   * existing notification service" pairs naturally with this app's
+   * everything-narrates-to-the-timeline convention) and doubles as the dedup
+   * marker, so calling this on every page load never re-notifies the same
+   * milestone twice.
+   */
+  async checkDeadlineNotifications(opportunities = []) {
+    const evaluations = await deadlineEvaluations(opportunities);
+    if (Object.keys(evaluations).length === 0) return [];
+
+    const opportunityById = new Map(opportunities.map((o) => [o.id, o]));
+    const notified = [];
+
+    for (const [opportunityId, items] of Object.entries(evaluations)) {
+      const opportunity = opportunityById.get(opportunityId);
+      if (!opportunity?.deal_owner_id) continue; // nobody to tell
+
+      for (const { requirement, daysRemaining, isBreached, isApproaching } of items) {
+        const milestone = isBreached ? "BREACHED" : isApproaching ? "APPROACHING" : null;
+        if (!milestone) continue;
+
+        const event = `STAGE_DEADLINE_${milestone}`;
+        const { data: existing, error: existingError } = await supabase
+          .from("sales_opportunity_logs")
+          .select("id")
+          .eq("opportunity_id", opportunityId)
+          .eq("metadata->>event", event)
+          .eq("metadata->>requirementId", requirement.id)
+          .limit(1);
+        if (existingError) throw existingError;
+        if (existing && existing.length > 0) continue;
+
+        const stageLabel = STAGE_LABELS[opportunity.status] || opportunity.status;
+        const { title, describe } = DEADLINE_MILESTONES[milestone];
+        const content = describe(requirement.label, stageLabel, daysRemaining);
+
+        // No actorId — nobody did anything to cause this, time simply
+        // passed, so there's no human to attribute it to (addSystemNote
+        // defaults author_id to null for exactly this case).
+        await opportunityService.addSystemNote(opportunityId, content, {
+          event,
+          requirementId: requirement.id,
+          label: requirement.label,
+          daysRemaining,
+        });
+
+        await notificationService.createNotification({
+          recipient_id: opportunity.deal_owner_id,
+          type: `OPPORTUNITY_DEADLINE_${milestone}`,
+          title,
+          message: content,
+          reference_id: opportunityId,
+        });
+
+        notified.push({ opportunityId, requirementId: requirement.id, milestone });
+      }
+    }
+
+    return notified;
   },
 };

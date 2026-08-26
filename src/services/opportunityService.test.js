@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { opportunityService } from "./opportunityService"
+import { notificationService } from "./notificationService"
 import { db } from "@/test/db/store"
 import {
   makeEmployee,
@@ -1007,6 +1008,176 @@ describe("opportunityService", () => {
 
       it("returns nothing for an empty register", async () => {
         expect(await opportunityService.getBlockedDeals([])).toEqual({})
+      })
+    })
+  })
+
+  describe("Deadline kind — countdown + notifications (ticket 7)", () => {
+    // The fake store stamps created_at from its own deterministic internal
+    // clock (src/test/db/store.js), not the real one — vi.useFakeTimers()
+    // has no effect on it. Rather than fight two disconnected clocks, these
+    // tests backdate a row's own created_at directly (prior art: the "does
+    // not block on an archived requirement" test above pokes archived_at the
+    // same way) and let the service's `new Date()` stay real. daysAgo(n)
+    // keeps that arithmetic in one place instead of repeating it per test.
+    const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
+    const backdateOpportunity = (id, iso) => {
+      db.internal.rowsOf("sales_opportunities").find((o) => o.id === id).created_at = iso
+    }
+
+    describe("getDeadlineStatuses", () => {
+      it("counts down from the deal's Stage-entry time", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "deadline",
+          label: "Confirm receipt",
+          config: { days: 10 },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        // LEAD is its first Stage — nothing moved it there, so entry time
+        // falls back to the opportunity's own created_at (D42).
+        backdateOpportunity(created.id, daysAgo(3))
+
+        const statuses = await opportunityService.getDeadlineStatuses([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(statuses[created.id]).toMatchObject({ daysRemaining: 7, isBreached: false })
+        expect(statuses[created.id].requirement.label).toBe("Confirm receipt")
+      })
+
+      it("measures from the move into the current Stage, not from registration", async () => {
+        makeStageRequirement({ stage_code: "PROPOSAL_SUBMITTED", kind: "deadline", config: { days: 10 } })
+        const lead = await opportunityService.createOpportunity(
+          payload({ sales_reference: "S00999" }),
+          registrar.id,
+        )
+        // Registered a month ago...
+        backdateOpportunity(lead.id, daysAgo(30))
+        await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+        // ...but only entered the deadline's Stage 3 days ago — the clock has
+        // to start there, not a month early.
+        const moveLog = db.internal
+          .rowsOf("sales_opportunity_logs")
+          .find(
+            (l) =>
+              l.opportunity_id === lead.id &&
+              l.metadata?.event === "STAGE_CHANGED" &&
+              l.metadata?.to === "PROPOSAL_SUBMITTED",
+          )
+        moveLog.created_at = daysAgo(3)
+
+        const statuses = await opportunityService.getDeadlineStatuses([
+          await opportunityService.getOpportunityById(lead.id),
+        ])
+
+        expect(statuses[lead.id].daysRemaining).toBe(7)
+      })
+
+      it("is absent for a deal whose Stage carries no deadline requirement", async () => {
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const statuses = await opportunityService.getDeadlineStatuses([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(statuses[created.id]).toBeUndefined()
+      })
+    })
+
+    describe("checkDeadlineNotifications", () => {
+      it("notifies the Deal Owner once a deadline is approaching, and narrates it on the timeline", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "deadline",
+          label: "Confirm receipt",
+          config: { days: 10 },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        backdateOpportunity(created.id, daysAgo(7)) // 3 days left — the threshold
+
+        const notified = await opportunityService.checkDeadlineNotifications([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(notified).toHaveLength(1)
+        expect(notified[0]).toMatchObject({ opportunityId: created.id, milestone: "APPROACHING" })
+
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes.some((c) => c.includes('Deadline approaching: "Confirm receipt"'))).toBe(true)
+
+        const notifications = await notificationService.getMyNotifications(owner.id)
+        expect(notifications.some((n) => n.type === "OPPORTUNITY_DEADLINE_APPROACHING")).toBe(true)
+      })
+
+      it("fires its own notification once the deadline breaches, on top of the earlier approaching one", async () => {
+        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", label: "Confirm receipt", config: { days: 10 } })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        backdateOpportunity(created.id, daysAgo(7)) // approaching
+        await opportunityService.checkDeadlineNotifications([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        backdateOpportunity(created.id, daysAgo(11)) // now breached
+        const notified = await opportunityService.checkDeadlineNotifications([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(notified).toHaveLength(1)
+        expect(notified[0].milestone).toBe("BREACHED")
+
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes.filter((c) => c.includes("Deadline approaching"))).toHaveLength(1)
+        expect(notes.filter((c) => c.includes("Deadline passed"))).toHaveLength(1)
+      })
+
+      it("does not notify twice for the same milestone", async () => {
+        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        backdateOpportunity(created.id, daysAgo(11)) // breached
+
+        const opp = await opportunityService.getOpportunityById(created.id)
+        const first = await opportunityService.checkDeadlineNotifications([opp])
+        const second = await opportunityService.checkDeadlineNotifications([opp])
+
+        expect(first).toHaveLength(1)
+        expect(second).toHaveLength(0)
+      })
+
+      it("does nothing for a deal with no Deal Owner to tell", async () => {
+        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
+        const created = await opportunityService.createOpportunity(
+          payload({ deal_owner_id: null }),
+          registrar.id,
+        )
+        backdateOpportunity(created.id, daysAgo(11))
+
+        const notified = await opportunityService.checkDeadlineNotifications([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(notified).toEqual([])
+      })
+    })
+
+    describe("a breached deadline never blocks a move", () => {
+      it("lets a move proceed straight through a Stage whose deadline is months overdue", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "deadline",
+          is_required: true,
+          label: "Confirm receipt",
+          config: { days: 1 },
+        })
+        const lead = await opportunityService.createOpportunity(
+          payload({ sales_reference: "S00999" }),
+          registrar.id,
+        )
+        backdateOpportunity(lead.id, daysAgo(60)) // months late
+
+        const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+        expect(moved.status).toBe("PROPOSAL_SUBMITTED")
       })
     })
   })

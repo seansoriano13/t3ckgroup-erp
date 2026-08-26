@@ -53,6 +53,8 @@ vi.mock("../../services/opportunityService", () => ({
     getMembers: vi.fn(async () => []),
     getStageChecklist: vi.fn(async () => []),
     getBlockedDeals: vi.fn(async () => ({})),
+    getDeadlineStatuses: vi.fn(async () => ({})),
+    checkDeadlineNotifications: vi.fn(async () => []),
   },
 }));
 
@@ -181,5 +183,46 @@ describe("Sales Director visibility — blocked deals (ticket 6)", () => {
 
     await screen.findByText("Acme CCTV Rollout");
     expect(screen.queryByTitle(/Blocked on:/i)).toBeNull();
+  });
+});
+
+describe("Deadline kind — countdown + notifications (ticket 7)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    opportunityService.getOpportunities.mockResolvedValue([MOCK_OPP_1, MOCK_OPP_2]);
+  });
+
+  it("marks a deal past its deadline in the register", async () => {
+    opportunityService.getDeadlineStatuses.mockResolvedValue({
+      "opp-uuid-1": {
+        requirement: { label: "Confirm receipt" },
+        daysRemaining: -2,
+        isBreached: true,
+        isApproaching: false,
+      },
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Acme CCTV Rollout");
+    expect(await screen.findByTitle('Deadline passed: "Confirm receipt"')).toBeInTheDocument();
+  });
+
+  it("checks for approach/breach notifications once, against the open deals loaded", async () => {
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Acme CCTV Rollout");
+
+    await waitFor(() => expect(opportunityService.checkDeadlineNotifications).toHaveBeenCalledTimes(1));
+    const [checked] = opportunityService.checkDeadlineNotifications.mock.calls[0];
+    expect(checked.map((o) => o.id).sort()).toEqual(["opp-uuid-1", "opp-uuid-2"]);
   });
 });

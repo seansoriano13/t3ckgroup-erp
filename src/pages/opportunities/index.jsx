@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ import {
   ArrowUp,
   ArrowDown,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
@@ -211,29 +212,53 @@ export default function OpportunitiesPage() {
     [pipelineStages],
   );
 
-  // Stage Gate Engine, ticket 6 (Sales Director visibility, story 25) — every
-  // open deal blocked on its own current Stage, and what it's missing. Scoped
-  // to open deals only — story 25 is about unblocking the pipeline, and a
-  // Won/Lost deal isn't part of it even if a requirement were ever attached
-  // to a terminal Stage. One bulk read for the whole register rather than a
-  // checklist call per row. Keyed by id+status so a stage move (not just a
-  // new/removed deal) refetches it; content-level changes (e.g. an
-  // attachment satisfying a requirement) freshen the next time this key
-  // changes or the page is revisited, which is enough for a register-level
-  // indicator.
+  // Stage Gate Engine, tickets 6 & 7 — open deals only. Story 25 (blocked)
+  // is about unblocking the pipeline, and story 26 (deadlines) is scoped the
+  // same way; a Won/Lost deal isn't part of either even if a requirement
+  // were ever attached to a terminal Stage. Keyed by id+status so a stage
+  // move (not just a new/removed deal) refetches both; content-level changes
+  // (e.g. an attachment satisfying a requirement) freshen the next time this
+  // key changes or the page is revisited, which is enough for a
+  // register-level indicator.
   const openOpportunities = useMemo(
     () => opportunities.filter((o) => openStageCodes.includes(o.status)),
     [opportunities, openStageCodes],
   );
-  const blockedKey = useMemo(
+  const openOpportunitiesKey = useMemo(
     () => openOpportunities.map((o) => `${o.id}:${o.status}`).join(","),
     [openOpportunities],
   );
+
+  // Ticket 6 (Sales Director visibility, story 25) — every open deal blocked
+  // on its own current Stage, and what it's missing. One bulk read for the
+  // whole register rather than a checklist call per row.
   const { data: blockedDeals = {} } = useQuery({
-    queryKey: ["blockedDeals", blockedKey],
+    queryKey: ["blockedDeals", openOpportunitiesKey],
     queryFn: () => opportunityService.getBlockedDeals(openOpportunities),
     enabled: openOpportunities.length > 0,
   });
+
+  // Ticket 7 (deadline countdown, story 16/26) — the same bulk shape as
+  // blockedDeals, for the board card countdown and the register's "past a
+  // deadline" read.
+  const { data: deadlineStatuses = {} } = useQuery({
+    queryKey: ["deadlineStatuses", openOpportunitiesKey],
+    queryFn: () => opportunityService.getDeadlineStatuses(openOpportunities),
+    enabled: openOpportunities.length > 0,
+  });
+
+  // There's no server-side cron in this app (see opportunityService's own
+  // comment on checkDeadlineNotifications), so the approach/breach
+  // notification D42 asks for is triggered here instead: once per mount,
+  // opportunistically, whenever someone has the open register loaded. The
+  // check is idempotent per milestone, so a second visit — or another user's
+  // — is always safe, just a no-op for whatever already fired.
+  const hasCheckedDeadlines = useRef(false);
+  useEffect(() => {
+    if (hasCheckedDeadlines.current || openOpportunities.length === 0) return;
+    hasCheckedDeadlines.current = true;
+    opportunityService.checkDeadlineNotifications(openOpportunities).catch(console.error);
+  }, [openOpportunities]);
 
   const employeeFilterName = useMemo(
     () => opportunities.find((o) => o.deal_owner_id === employeeFilter)?.deal_owner?.name,
@@ -777,6 +802,7 @@ export default function OpportunitiesPage() {
             <OpportunityBoard
               opportunities={filtered}
               search={search}
+              deadlineStatuses={deadlineStatuses}
               onCardClick={(o) => setSelectedId(o.id)}
             />
           </div>
@@ -806,6 +832,7 @@ export default function OpportunitiesPage() {
                 </thead>
                 <tbody>
                   {sorted.map((o) => {
+                    const deadline = deadlineStatuses[o.id];
                     const leadSourceText = formatLeadSource(
                       o.lead_source,
                       o.lead_source_detail,
@@ -895,6 +922,25 @@ export default function OpportunitiesPage() {
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
                                 <AlertTriangle size={10} />
+                              </span>
+                            )}
+                            {/* Deadline kind (ticket 7, story 26) — deadlines
+                                never block, so this is informational only,
+                                separate from the "Blocked" badge above. */}
+                            {deadline?.isBreached && (
+                              <span
+                                title={`Deadline passed: "${deadline.requirement.label}"`}
+                                className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
+                              >
+                                <Clock size={10} />
+                              </span>
+                            )}
+                            {deadline && !deadline.isBreached && deadline.isApproaching && (
+                              <span
+                                title={`"${deadline.requirement.label}" — ${deadline.daysRemaining} day(s) left`}
+                                className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
+                              >
+                                <Clock size={10} />
                               </span>
                             )}
                           </div>
