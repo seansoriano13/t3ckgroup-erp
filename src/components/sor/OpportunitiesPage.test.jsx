@@ -1,8 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../../test/support";
 import OpportunitiesPage from "../../pages/opportunities/index";
+import { opportunityService } from "../../services/opportunityService";
 
 const MOCK_OPP_1 = {
   id: "opp-uuid-1",
@@ -48,6 +50,9 @@ vi.mock("../../services/opportunityService", () => ({
     }),
     getItems: vi.fn(async () => []),
     getNotes: vi.fn(async () => []),
+    getMembers: vi.fn(async () => []),
+    getStageChecklist: vi.fn(async () => []),
+    getBlockedDeals: vi.fn(async () => ({})),
   },
 }));
 
@@ -122,5 +127,59 @@ describe("OpportunitiesPage Deep Linking", () => {
     await waitFor(() => {
       expect(screen.getByText("Beta Network Upgrade")).toBeInTheDocument();
     });
+  });
+});
+
+describe("Sales Director visibility — blocked deals (ticket 6)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    opportunityService.getOpportunities.mockResolvedValue([MOCK_OPP_1, MOCK_OPP_2]);
+  });
+
+  it("flags a blocked deal in the register with what it's missing", async () => {
+    opportunityService.getBlockedDeals.mockResolvedValue({
+      "opp-uuid-1": [{ id: "req-1", label: "Bid documents checked" }],
+    });
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Acme CCTV Rollout");
+    expect(await screen.findByTitle(/Blocked on: Bid documents checked/i)).toBeInTheDocument();
+  });
+
+  it("lets a Sales Director filter the register down to only blocked deals", async () => {
+    opportunityService.getBlockedDeals.mockResolvedValue({
+      "opp-uuid-1": [{ id: "req-1", label: "Bid documents checked" }],
+    });
+    const user = userEvent.setup();
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Beta Network Upgrade");
+    await user.click(screen.getByRole("button", { name: /^blocked$/i }));
+
+    expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();
+    expect(screen.queryByText("Beta Network Upgrade")).toBeNull();
+  });
+
+  it("shows no blocked marker for a register with nothing outstanding", async () => {
+    opportunityService.getBlockedDeals.mockResolvedValue({});
+
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Acme CCTV Rollout");
+    expect(screen.queryByTitle(/Blocked on:/i)).toBeNull();
   });
 });

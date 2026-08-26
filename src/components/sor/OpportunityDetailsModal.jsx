@@ -42,6 +42,7 @@ import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import ProcurementPanel from "./ProcurementPanel";
+import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
@@ -1247,6 +1248,13 @@ export default function OpportunityDetailsModal({
               Pipeline Stage
             </p>
             {stageControl}
+
+            <StageChecklist
+              opportunity={opportunity}
+              employees={employees}
+              actorId={user?.id}
+              onChanged={invalidate}
+            />
 
             {isLostPending && (
               <div className="mt-3 flex items-end gap-2">

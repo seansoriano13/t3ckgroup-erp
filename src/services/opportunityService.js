@@ -125,6 +125,75 @@ async function narrateNewlySatisfied(opportunityId, stageCode, before, after, ac
 }
 
 /**
+ * A `sales_opportunity_logs` row's `metadata.attachments`, shaped into the
+ * `{ ...file, uploadedBy, uploadedAt }` evidence `evaluateRequirement`'s
+ * `attachment` kind expects (constants/stageGate.js) — a note's attachments
+ * are the only place a file lives today (addNote, below), read live rather
+ * than re-stored. Its own function because both `gateContext` (one
+ * opportunity) and `getBlockedDeals` (many, batched) need the same per-log
+ * shape, just grouped differently afterward.
+ */
+function attachmentsFromLog(log) {
+  return (log.metadata?.attachments || []).map((a) => ({
+    ...a,
+    uploadedBy: log.author_id,
+    uploadedAt: log.created_at,
+  }));
+}
+
+/**
+ * Everything `evaluateRequirement`/`evaluateCrossing` need to judge the
+ * requirements configured on `stageCodes`, for one opportunity: the
+ * requirements themselves (grouped by Stage), the attachment evidence, the
+ * SOR Members, and any `sor_requirement_status` rows. Shared by the live
+ * gate check (ticket 2) and the read-only checklist (ticket 6) so both agree
+ * on what "satisfied" means from a single place, rather than each doing its
+ * own fetch-and-shape.
+ */
+async function gateContext(opportunityId, stageCodes) {
+  const { data: requirements, error: reqError } = await supabase
+    .from("stage_requirements")
+    .select("*")
+    .in("stage_code", stageCodes)
+    .is("archived_at", null);
+  if (reqError) throw reqError;
+
+  const requirementsByStage = {};
+  for (const requirement of requirements || []) {
+    (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
+  }
+  if (!requirements || requirements.length === 0) {
+    return { requirementsByStage, attachments: [], members: [], statusRowsByRequirement: {} };
+  }
+
+  const requirementIds = requirements.map((r) => r.id);
+  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows] =
+    await Promise.all([
+      supabase
+        .from("sor_requirement_status")
+        .select("*")
+        .eq("opportunity_id", opportunityId)
+        .in("requirement_id", requirementIds),
+      supabase
+        .from("sales_opportunity_logs")
+        .select("author_id, created_at, metadata")
+        .eq("opportunity_id", opportunityId),
+      opportunityService.getMembers(opportunityId),
+    ]);
+  if (statusError) throw statusError;
+  if (logsError) throw logsError;
+
+  const attachments = (logs || []).flatMap(attachmentsFromLog);
+
+  const statusRowsByRequirement = {};
+  for (const row of statusRows || []) {
+    statusRowsByRequirement[row.requirement_id] = row;
+  }
+
+  return { requirementsByStage, attachments, members: membersForGate(memberRows), statusRowsByRequirement };
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required requirement
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -143,51 +212,11 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const crossed = stagesCrossed(fromCode, toCode, stages);
   if (crossed.length === 0) return;
 
-  const { data: requirements, error: reqError } = await supabase
-    .from("stage_requirements")
-    .select("*")
-    .in("stage_code", crossed.map((s) => s.code))
-    .is("archived_at", null);
-  if (reqError) throw reqError;
-  if (!requirements || requirements.length === 0) return;
-
-  const requirementIds = requirements.map((r) => r.id);
-  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }] =
-    await Promise.all([
-      supabase
-        .from("sor_requirement_status")
-        .select("*")
-        .eq("opportunity_id", opportunityId)
-        .in("requirement_id", requirementIds),
-      supabase
-        .from("sales_opportunity_logs")
-        .select("author_id, created_at, metadata")
-        .eq("opportunity_id", opportunityId),
-    ]);
-  if (statusError) throw statusError;
-  if (logsError) throw logsError;
-
-  // A note's `metadata.attachments` is the only place a file lives today
-  // (addNote, below) — the same evidence a Deal Owner already attaches,
-  // read live rather than re-stored.
-  const attachments = (logs || []).flatMap((log) =>
-    (log.metadata?.attachments || []).map((a) => ({
-      ...a,
-      uploadedBy: log.author_id,
-      uploadedAt: log.created_at,
-    })),
+  const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+    opportunityId,
+    crossed.map((s) => s.code),
   );
-
-  const requirementsByStage = {};
-  for (const requirement of requirements) {
-    (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
-  }
-  const statusRowsByRequirement = {};
-  for (const row of statusRows || []) {
-    statusRowsByRequirement[row.requirement_id] = row;
-  }
-
-  const members = membersForGate(await opportunityService.getMembers(opportunityId));
+  if (Object.keys(requirementsByStage).length === 0) return;
 
   const gateResult = evaluateCrossing({
     fromCode,
@@ -200,8 +229,8 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     statusRowsByRequirement,
     // No asOf: a live move is evaluated against whatever the read just
     // returned — there is no separate "now" to source it from. asOf only
-    // matters for a historical/audit read (ticket 6), which passes a
-    // Stage's past entry time instead.
+    // matters for a historical/audit read, which would pass a Stage's past
+    // entry time instead — not needed by anything in this spec.
   });
 
   if (!gateResult.blocked) return;
@@ -978,5 +1007,134 @@ export const opportunityService = {
     await noteRequirementSatisfied(opportunityId, requirement, actorId);
 
     return data;
+  },
+
+  // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
+
+  /**
+   * What the deal's current Stage owes, right now — every one of its live
+   * (non-archived, non-`deadline`) requirements alongside `evaluateRequirement`'s
+   * verdict, so a Deal Owner can see the whole list before trying to move
+   * instead of being refused one item at a time. Deadline requirements never
+   * block and have their own display surface (ticket 7), so they're left out.
+   *
+   * `opportunity` can be passed in when the caller already has it (the
+   * details modal always does) to skip a redundant read.
+   */
+  async getStageChecklist(opportunityId, opportunity = null) {
+    const target = opportunity || (await opportunityService.getOpportunityById(opportunityId));
+    if (!target) return [];
+    const stageCode = target.status;
+
+    const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+      opportunityId,
+      [stageCode],
+    );
+
+    const requirements = (requirementsByStage[stageCode] || [])
+      .filter((r) => r.kind !== REQUIREMENT_KINDS.DEADLINE)
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    return requirements.map((requirement) => ({
+      requirement,
+      ...evaluateRequirement(requirement, {
+        opportunity: target,
+        attachments,
+        members,
+        statusRow: statusRowsByRequirement[requirement.id] ?? null,
+      }),
+    }));
+  },
+
+  /**
+   * A Sales Director's register-level read (story 25): every one of the
+   * given deals that is blocked on its own current Stage, and what it's
+   * missing. One bulk read instead of one checklist call per row — `opportunities`
+   * is whatever the register already has loaded, not re-fetched here.
+   *
+   * Returns `{ [opportunityId]: requirement[] }`, present only for a deal
+   * that actually has something outstanding.
+   */
+  async getBlockedDeals(opportunities = []) {
+    if (opportunities.length === 0) return {};
+    const stageCodes = [...new Set(opportunities.map((o) => o.status))];
+
+    const { data: requirements, error: reqError } = await supabase
+      .from("stage_requirements")
+      .select("*")
+      .in("stage_code", stageCodes)
+      .is("archived_at", null)
+      .eq("is_required", true)
+      .neq("kind", REQUIREMENT_KINDS.DEADLINE);
+    if (reqError) throw reqError;
+    if (!requirements || requirements.length === 0) return {};
+
+    const requirementsByStage = {};
+    for (const requirement of requirements) {
+      (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
+    }
+
+    const opportunityIds = opportunities.map((o) => o.id);
+    const requirementIds = requirements.map((r) => r.id);
+    const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, { data: memberRows, error: memberError }] =
+      await Promise.all([
+        supabase
+          .from("sor_requirement_status")
+          .select("*")
+          .in("opportunity_id", opportunityIds)
+          .in("requirement_id", requirementIds),
+        supabase
+          .from("sales_opportunity_logs")
+          .select("opportunity_id, author_id, created_at, metadata")
+          .in("opportunity_id", opportunityIds),
+        supabase
+          .from("sales_opportunity_members")
+          .select(
+            "opportunity_id, employee_id, added_at, employee:employees!sales_opportunity_members_employee_id_fkey(department, sub_department)",
+          )
+          .in("opportunity_id", opportunityIds),
+      ]);
+    if (statusError) throw statusError;
+    if (logsError) throw logsError;
+    if (memberError) throw memberError;
+
+    const attachmentsByOpportunity = {};
+    for (const log of logs || []) {
+      const attachments = attachmentsFromLog(log);
+      if (attachments.length === 0) continue;
+      (attachmentsByOpportunity[log.opportunity_id] ??= []).push(...attachments);
+    }
+
+    const membersByOpportunity = {};
+    for (const row of memberRows || []) {
+      (membersByOpportunity[row.opportunity_id] ??= []).push(row);
+    }
+    for (const opportunityId of Object.keys(membersByOpportunity)) {
+      membersByOpportunity[opportunityId] = membersForGate(membersByOpportunity[opportunityId]);
+    }
+
+    const statusByOpportunity = {};
+    for (const row of statusRows || []) {
+      (statusByOpportunity[row.opportunity_id] ??= {})[row.requirement_id] = row;
+    }
+
+    const blocked = {};
+    for (const opportunity of opportunities) {
+      const stageRequirements = requirementsByStage[opportunity.status] || [];
+      if (stageRequirements.length === 0) continue;
+
+      const missing = stageRequirements.filter(
+        (requirement) =>
+          evaluateRequirement(requirement, {
+            opportunity,
+            attachments: attachmentsByOpportunity[opportunity.id] || [],
+            members: membersByOpportunity[opportunity.id] || [],
+            statusRow: (statusByOpportunity[opportunity.id] || {})[requirement.id] ?? null,
+          }).status === REQUIREMENT_STATUS.UNSATISFIED,
+      );
+      if (missing.length > 0) blocked[opportunity.id] = missing;
+    }
+
+    return blocked;
   },
 };

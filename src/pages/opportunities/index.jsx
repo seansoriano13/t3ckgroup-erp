@@ -13,6 +13,7 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
+  AlertTriangle,
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
@@ -109,6 +110,7 @@ export default function OpportunitiesPage() {
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [ownershipRole, setOwnershipRole] = useState("ALL");
   const [mineOnly, setMineOnly] = useState(false);
+  const [blockedOnly, setBlockedOnly] = useState(false);
   const [employeeFilter, setEmployeeFilter] = useState(
     () => location.state?.filterEmployeeId || "ALL",
   );
@@ -209,6 +211,30 @@ export default function OpportunitiesPage() {
     [pipelineStages],
   );
 
+  // Stage Gate Engine, ticket 6 (Sales Director visibility, story 25) — every
+  // open deal blocked on its own current Stage, and what it's missing. Scoped
+  // to open deals only — story 25 is about unblocking the pipeline, and a
+  // Won/Lost deal isn't part of it even if a requirement were ever attached
+  // to a terminal Stage. One bulk read for the whole register rather than a
+  // checklist call per row. Keyed by id+status so a stage move (not just a
+  // new/removed deal) refetches it; content-level changes (e.g. an
+  // attachment satisfying a requirement) freshen the next time this key
+  // changes or the page is revisited, which is enough for a register-level
+  // indicator.
+  const openOpportunities = useMemo(
+    () => opportunities.filter((o) => openStageCodes.includes(o.status)),
+    [opportunities, openStageCodes],
+  );
+  const blockedKey = useMemo(
+    () => openOpportunities.map((o) => `${o.id}:${o.status}`).join(","),
+    [openOpportunities],
+  );
+  const { data: blockedDeals = {} } = useQuery({
+    queryKey: ["blockedDeals", blockedKey],
+    queryFn: () => opportunityService.getBlockedDeals(openOpportunities),
+    enabled: openOpportunities.length > 0,
+  });
+
   const employeeFilterName = useMemo(
     () => opportunities.find((o) => o.deal_owner_id === employeeFilter)?.deal_owner?.name,
     [opportunities, employeeFilter],
@@ -247,6 +273,7 @@ export default function OpportunitiesPage() {
           o.sales_director_id === user?.id;
         if (!mine) return false;
       }
+      if (blockedOnly && !blockedDeals[o.id]?.length) return false;
       if (!q) return true;
       return [
         o.opportunity_no,
@@ -270,6 +297,8 @@ export default function OpportunitiesPage() {
     subDeptFilter,
     ownershipRole,
     mineOnly,
+    blockedOnly,
+    blockedDeals,
     employeeFilter,
     user?.id,
     openStageCodes,
@@ -429,7 +458,8 @@ export default function OpportunitiesPage() {
     subDeptFilter !== "ALL" ||
     ownershipRole !== "ALL" ||
     employeeFilter !== "ALL" ||
-    mineOnly;
+    mineOnly ||
+    blockedOnly;
 
   const handleClearAll = () => {
     setSearch("");
@@ -440,6 +470,7 @@ export default function OpportunitiesPage() {
     setSubDeptFilter("ALL");
     setOwnershipRole("ALL");
     setMineOnly(false);
+    setBlockedOnly(false);
     setEmployeeFilter("ALL");
   };
 
@@ -654,6 +685,19 @@ export default function OpportunitiesPage() {
           >
             My Deals
           </button>
+          {/* Sales Director visibility (Stage Gate Engine ticket 6, story 25) —
+              which deals are stuck on their own Stage, without hunting for it
+              deal by deal. */}
+          <button
+            onClick={() => setBlockedOnly((v) => !v)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold border transition-all shrink-0 ${blockedOnly
+              ? "bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400"
+              : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
+              }`}
+          >
+            <AlertTriangle size={13} />
+            Blocked
+          </button>
         </FilterBar>
 
         {employeeFilter && employeeFilter !== "ALL" && (
@@ -843,7 +887,17 @@ export default function OpportunitiesPage() {
                           )}
                         </td>
                         <td className="px-2.5 py-2.5 whitespace-nowrap">
-                          <StatusBadge status={o.status} />
+                          <div className="flex items-center gap-1.5">
+                            <StatusBadge status={o.status} />
+                            {blockedDeals[o.id]?.length > 0 && (
+                              <span
+                                title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}
+                                className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
+                              >
+                                <AlertTriangle size={10} />
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

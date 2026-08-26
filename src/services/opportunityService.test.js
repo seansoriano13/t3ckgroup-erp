@@ -895,6 +895,122 @@ describe("opportunityService", () => {
     })
   })
 
+  describe("Deal Owner visibility (ticket 6)", () => {
+    describe("getStageChecklist", () => {
+      it("lists the current Stage's live requirements with their status", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "field",
+          label: "PO Date on file",
+          config: { column: "po_date" },
+        })
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "attachment",
+          label: "Notice of Award",
+          config: { documentType: "NOA" },
+        })
+        const created = await opportunityService.createOpportunity(
+          payload({ po_date: "2026-04-01" }),
+          registrar.id,
+        )
+
+        const checklist = await opportunityService.getStageChecklist(created.id)
+
+        const byLabel = Object.fromEntries(checklist.map((c) => [c.requirement.label, c.status]))
+        expect(byLabel["PO Date on file"]).toBe("satisfied")
+        expect(byLabel["Notice of Award"]).toBe("unsatisfied")
+      })
+
+      it("leaves out a deadline requirement — it never blocks and has its own display surface", async () => {
+        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 5 } })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
+      })
+
+      it("leaves out an archived requirement", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "tickbox",
+          label: "Old check",
+          archived_at: "2026-01-01T00:00:00.000Z",
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
+      })
+
+      it("only reads the deal's own current Stage, not requirements configured elsewhere", async () => {
+        makeStageRequirement({ stage_code: "QUALIFIED", kind: "tickbox", label: "Elsewhere" })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id) // status LEAD
+
+        expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
+      })
+    })
+
+    describe("getBlockedDeals", () => {
+      it("flags a deal missing a required item, and leaves an unblocked one out of the result", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "field",
+          label: "PO Date on file",
+          config: { column: "po_date" },
+        })
+        const blocked = await opportunityService.createOpportunity(payload(), registrar.id)
+        const clear = await opportunityService.createOpportunity(
+          payload({ po_date: "2026-04-01" }),
+          registrar.id,
+        )
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(blocked.id),
+          await opportunityService.getOpportunityById(clear.id),
+        ])
+
+        expect(result[blocked.id].map((r) => r.label)).toEqual(["PO Date on file"])
+        expect(result[clear.id]).toBeUndefined()
+      })
+
+      it("does not flag a deal on an optional requirement", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "field",
+          label: "Nice to have",
+          is_required: false,
+          config: { column: "po_date" },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(result[created.id]).toBeUndefined()
+      })
+
+      it("does not flag a deal on a deadline requirement, even marked required — it never blocks", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "deadline",
+          is_required: true,
+          config: { days: 5 },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(result[created.id]).toBeUndefined()
+      })
+
+      it("returns nothing for an empty register", async () => {
+        expect(await opportunityService.getBlockedDeals([])).toEqual({})
+      })
+    })
+  })
+
   describe("editing an opportunity", () => {
     it("saves the edited fields", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
