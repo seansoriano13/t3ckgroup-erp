@@ -134,6 +134,18 @@ export function makeRequirementStatus(overrides = {}) {
   })
 }
 
+/** An SOR Member — someone added to a deal (docs/crm-pipeline-redesign.md's SOR Member). */
+export function makeOpportunityMember(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  return db.seed("sales_opportunity_members", {
+    added_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    employee_id: employeeId,
+  })
+}
+
 export function makeSilLeave(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee({ sil_hours_balance: 40 }).id
   return db.seed("sil_leaves", {

@@ -10,6 +10,7 @@ import {
   makeOffsetLeave,
   makeOpportunity,
   makeOpportunityItem,
+  makeOpportunityMember,
   makeOvertimeRequest,
   makeRequirementStatus,
   makeSilLeave,
@@ -43,6 +44,7 @@ describe("fixture factories", () => {
       makeNotification()
       makeStageRequirement()
       makeRequirementStatus()
+      makeOpportunityMember()
     }).not.toThrow()
   })
 

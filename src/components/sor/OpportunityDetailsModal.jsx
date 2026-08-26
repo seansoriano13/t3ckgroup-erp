@@ -17,6 +17,7 @@ import {
   FileDown,
   Copy,
   Check,
+  UserPlus,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -167,6 +168,88 @@ function PeopleRoster({ opportunity }) {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+/**
+ * SOR Members (docs/crm-pipeline-redesign.md) — everyone added to this deal,
+ * beyond the 5 fixed sales roles `PeopleRoster` already shows. Exists so the
+ * `assignment` requirement kind (docs/stage-gate-engine-spec.md) has an
+ * actual action to satisfy itself through — "assign a purchasing officer at
+ * Proposal Submitted" has nowhere else to happen. Additive only, per the
+ * glossary: no remove control here, because there isn't one in the service
+ * either (opportunityService.addMember).
+ */
+function MembersSection({ opportunityId, employees, actorId, onChanged }) {
+  const queryClient = useQueryClient();
+  const [selectedId, setSelectedId] = useState("");
+
+  const { data: members = [] } = useQuery({
+    queryKey: ["opportunityMembers", opportunityId],
+    queryFn: () => opportunityService.getMembers(opportunityId),
+    enabled: !!opportunityId,
+  });
+
+  const addMutation = useMutation({
+    mutationFn: (employeeId) => opportunityService.addMember(opportunityId, employeeId, actorId),
+    onSuccess: () => {
+      setSelectedId("");
+      queryClient.invalidateQueries({ queryKey: ["opportunityMembers", opportunityId] });
+      queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
+      onChanged?.();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const memberIds = new Set(members.map((m) => m.employee_id));
+  const available = employees.filter((e) => !memberIds.has(e.id));
+
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4">
+      <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        SOR Members
+      </p>
+      {members.length === 0 ? (
+        <p className="text-sm text-muted-foreground/60">No one added yet.</p>
+      ) : (
+        <div className="space-y-2.5">
+          {members.map((m) => (
+            <div key={m.id} className="flex items-center gap-3">
+              <Avatar name={m.employee?.name} src={m.employee?.avatar_path} size="sm" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-foreground">{m.employee?.name}</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {m.employee?.sub_department || m.employee?.department || "—"}
+                </p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-3 flex items-center gap-2">
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+        >
+          <option value="">Add a member…</option>
+          {available.map((e) => (
+            <option key={e.id} value={e.id}>
+              {e.name}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={!selectedId || addMutation.isPending}
+          onClick={() => addMutation.mutate(selectedId)}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+        >
+          <UserPlus size={13} />
+          Add
+        </button>
+      </div>
     </div>
   );
 }
@@ -1588,6 +1671,12 @@ export default function OpportunityDetailsModal({
                   ) : (
                     <PeopleRoster opportunity={opportunity} />
                   )}
+                  <MembersSection
+                    opportunityId={id}
+                    employees={employees}
+                    actorId={user?.id}
+                    onChanged={invalidate}
+                  />
                 </div>
               </div>
             </div>

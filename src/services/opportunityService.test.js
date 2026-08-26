@@ -661,6 +661,240 @@ describe("opportunityService", () => {
     })
   })
 
+  describe("per-kind satisfaction (ticket 5)", () => {
+    it("narrates a field requirement the moment the save that satisfies it lands", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "PO Date on file",
+        config: { column: "po_date" },
+      })
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ po_date: "2026-04-01" }),
+        registrar.id,
+      )
+
+      const notes = await opportunityService.getNotes(created.id)
+      expect(notes.at(-1).content).toBe('Requirement satisfied: "PO Date on file".')
+    })
+
+    it("does not narrate a save that leaves the field requirement unsatisfied", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "PO Date on file",
+        config: { column: "po_date" },
+      })
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ contact_person: "Engr. Santos" }),
+        registrar.id,
+      )
+
+      const notes = await opportunityService.getNotes(created.id)
+      expect(notes.some((n) => n.content.includes("Requirement satisfied"))).toBe(false)
+    })
+
+    it("does not narrate again once a field requirement is already satisfied", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "PO Date on file",
+        config: { column: "po_date" },
+      })
+      const created = await opportunityService.createOpportunity(
+        payload({ po_date: "2026-04-01" }),
+        registrar.id,
+      )
+
+      await opportunityService.updateOpportunity(
+        created.id,
+        payload({ po_date: "2026-04-02" }),
+        registrar.id,
+      )
+
+      const notes = await opportunityService.getNotes(created.id)
+      expect(notes.filter((n) => n.content.includes("Requirement satisfied"))).toHaveLength(0)
+    })
+
+    it("narrates an attachment requirement the moment the upload that satisfies it lands", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "attachment",
+        label: "Notice of Award",
+        config: { documentType: "NOA" },
+      })
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.addNote(created.id, registrar.id, "", [
+        { url: "https://cdn.test/noa.pdf", name: "noa.pdf", documentType: "NOA" },
+      ])
+
+      const notes = await opportunityService.getNotes(created.id)
+      expect(notes.some((n) => n.content === 'Requirement satisfied: "Notice of Award".')).toBe(true)
+    })
+
+    it("does not satisfy an attachment requirement with a file of the wrong document type", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "attachment",
+        label: "Notice of Award",
+        config: { documentType: "NOA" },
+      })
+      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      await opportunityService.addNote(created.id, registrar.id, "", [
+        { url: "https://cdn.test/quote.pdf", name: "quote.pdf", documentType: "QUOTE" },
+      ])
+
+      const notes = await opportunityService.getNotes(created.id)
+      expect(notes.some((n) => n.content.includes("Requirement satisfied"))).toBe(false)
+    })
+
+    describe("assignment / SOR Members", () => {
+      it("blocks a move until someone from the named department is a member, then unblocks", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "assignment",
+          label: "Purchasing officer assigned",
+          config: { department: "Purchasing" },
+        })
+        const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+        await expect(
+          opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id),
+        ).rejects.toThrow(/Purchasing officer assigned/)
+
+        const buyer = makeEmployee({
+          name: "Rey Santos",
+          department: "OPERATIONS",
+          sub_department: "Purchasing",
+        })
+        await opportunityService.addMember(lead.id, buyer.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+        expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+      })
+
+      it("matches a department-level config against a member's department, not just their sub-department", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "assignment",
+          label: "Someone from Operations",
+          config: { department: "OPERATIONS" },
+        })
+        const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+        const buyer = makeEmployee({ department: "OPERATIONS", sub_department: "Purchasing" })
+        await opportunityService.addMember(lead.id, buyer.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+        expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+      })
+
+      it("narrates who was added and, when it satisfies a requirement, that too", async () => {
+        makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "assignment",
+          label: "Purchasing officer assigned",
+          config: { department: "Purchasing" },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        const buyer = makeEmployee({ name: "Rey Santos", department: "Purchasing" })
+
+        await opportunityService.addMember(created.id, buyer.id, registrar.id)
+
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes).toContain("Rey Santos added as a member of this deal.")
+        expect(notes).toContain('Requirement satisfied: "Purchasing officer assigned".')
+      })
+
+      it("adding the same member twice is a no-op — no duplicate row, no duplicate note", async () => {
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        const buyer = makeEmployee({ name: "Rey Santos" })
+
+        await opportunityService.addMember(created.id, buyer.id, registrar.id)
+        await opportunityService.addMember(created.id, buyer.id, registrar.id)
+
+        const members = await opportunityService.getMembers(created.id)
+        expect(members).toHaveLength(1)
+
+        const addedNotes = (await opportunityService.getNotes(created.id)).filter((n) =>
+          n.content.includes("added as a member"),
+        )
+        expect(addedNotes).toHaveLength(1)
+      })
+    })
+
+    describe("tickbox", () => {
+      it("satisfies a tickbox requirement and records who and when", async () => {
+        const requirement = makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "tickbox",
+          label: "Bid documents transmitted",
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const status = await opportunityService.satisfyRequirement(
+          created.id,
+          requirement.id,
+          registrar.id,
+        )
+
+        expect(status.satisfied_by).toBe(registrar.id)
+        expect(status.satisfied_at).toBeTruthy()
+        const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
+        expect(notes).toContain('Requirement satisfied: "Bid documents transmitted".')
+      })
+
+      it("is idempotent — ticking an already-satisfied requirement again keeps the original satisfier", async () => {
+        const requirement = makeStageRequirement({ stage_code: "LEAD", kind: "tickbox" })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        const other = makeEmployee({ name: "Someone Else" })
+
+        const first = await opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id)
+        const second = await opportunityService.satisfyRequirement(created.id, requirement.id, other.id)
+
+        expect(second.id).toBe(first.id)
+        expect(second.satisfied_by).toBe(registrar.id)
+        const notes = (await opportunityService.getNotes(created.id)).filter((n) =>
+          n.content.includes("Requirement satisfied"),
+        )
+        expect(notes).toHaveLength(1)
+      })
+
+      it("refuses to satisfy a non-tickbox requirement this way", async () => {
+        const requirement = makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "field",
+          config: { column: "po_date" },
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        await expect(
+          opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id),
+        ).rejects.toThrow(/Only a tickbox requirement/)
+      })
+
+      it("refuses to satisfy an archived requirement", async () => {
+        const requirement = makeStageRequirement({
+          stage_code: "LEAD",
+          kind: "tickbox",
+          archived_at: "2026-01-01T00:00:00.000Z",
+        })
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        await expect(
+          opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id),
+        ).rejects.toThrow(/archived/)
+      })
+    })
+  })
+
   describe("editing an opportunity", () => {
     it("saves the edited fields", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)

@@ -292,5 +292,29 @@ describe("stageRequirementService", () => {
       expect(entry.author_id).toBe(admin.id)
       expect(entry.metadata.event).toBe("STAGE_REQUIREMENT_ARCHIVED")
     })
+
+    it("narrates onto the timeline of every deal currently sitting on that Stage", async () => {
+      const requirement = makeStageRequirement({ stage_code: "QUALIFIED", label: "Bid documents checked" })
+      const onStage = makeOpportunity({
+        registered_by: admin.id,
+        status: "QUALIFIED",
+        sales_reference: "S00999",
+      })
+      const elsewhere = makeOpportunity({ registered_by: admin.id, status: "LEAD" })
+
+      await stageRequirementService.archive(requirement.id, admin.id)
+
+      const onStageNotes = db
+        .rows("sales_opportunity_logs")
+        .filter((n) => n.opportunity_id === onStage.id)
+      expect(onStageNotes.some((n) => n.content.includes('Bid documents checked" (archived)'))).toBe(
+        true,
+      )
+
+      const elsewhereNotes = db
+        .rows("sales_opportunity_logs")
+        .filter((n) => n.opportunity_id === elsewhere.id)
+      expect(elsewhereNotes.some((n) => n.content.includes("archived"))).toBe(false)
+    })
   })
 })

@@ -17,7 +17,13 @@ import {
   requiresSalesReference,
   SALES_REFERENCE_HINT,
 } from "../constants/sor";
-import { evaluateCrossing, stagesCrossed } from "../constants/stageGate";
+import {
+  evaluateCrossing,
+  evaluateRequirement,
+  REQUIREMENT_KINDS,
+  REQUIREMENT_STATUS,
+  stagesCrossed,
+} from "../constants/stageGate";
 
 const PARTICIPANT_SELECT = `
   *,
@@ -47,6 +53,75 @@ function cleanSalesReference(value) {
  */
 function stripProductCode(name) {
   return (name || "").replace(/^\[[^\]]*\]\s*/, "");
+}
+
+/** The narration a requirement's satisfaction writes, however it got satisfied. */
+async function noteRequirementSatisfied(opportunityId, requirement, actorId) {
+  await opportunityService.addSystemNote(
+    opportunityId,
+    `Requirement satisfied: "${requirement.label}".`,
+    { event: "STAGE_REQUIREMENT_SATISFIED", requirementId: requirement.id, label: requirement.label, employeeId: actorId },
+    actorId,
+  );
+}
+
+/**
+ * Turns `sales_opportunity_members` rows into the `{ employeeId, department,
+ * assignedAt }` shape `evaluateRequirement`'s `assignment` kind expects
+ * (constants/stageGate.js). An `assignment` requirement's config names one
+ * department string (e.g. "Purchasing" or "OPERATIONS") without saying which
+ * level of `employees.department`/`sub_department` it means, so each member
+ * contributes one entry per level they actually have — a lookup against
+ * either matches.
+ */
+function membersForGate(rows = []) {
+  const entries = [];
+  for (const row of rows) {
+    const department = row.employee?.department;
+    const subDepartment = row.employee?.sub_department;
+    if (department) {
+      entries.push({ employeeId: row.employee_id, department, assignedAt: row.added_at });
+    }
+    if (subDepartment) {
+      entries.push({ employeeId: row.employee_id, department: subDepartment, assignedAt: row.added_at });
+    }
+  }
+  return entries;
+}
+
+/**
+ * Stage Gate Engine, ticket 5 (.scratch/stage-gate-engine/issues/05-per-kind-
+ * satisfaction.md) — narrates a Stage's live-evaluated requirements
+ * (attachment/field/assignment) that flip from unsatisfied to satisfied as a
+ * result of one action, the way a stage move already narrates itself.
+ * `tickbox` isn't included: it has no "before/after" to diff, since ticking
+ * it IS the satisfying action (see satisfyRequirement, below).
+ *
+ * Scoped to `stageCode`'s own requirements — the deal's current Stage, the
+ * one whose gate is actually still open. A Stage already left had every
+ * required item satisfied already (or the move would have been refused), so
+ * there is nothing there left to newly satisfy.
+ */
+async function narrateNewlySatisfied(opportunityId, stageCode, before, after, actorId) {
+  const { data: requirements, error } = await supabase
+    .from("stage_requirements")
+    .select("*")
+    .eq("stage_code", stageCode)
+    .is("archived_at", null)
+    .in("kind", [REQUIREMENT_KINDS.ATTACHMENT, REQUIREMENT_KINDS.FIELD, REQUIREMENT_KINDS.ASSIGNMENT]);
+  if (error) throw error;
+  if (!requirements || requirements.length === 0) return;
+
+  for (const requirement of requirements) {
+    const wasSatisfied =
+      evaluateRequirement(requirement, before).status === REQUIREMENT_STATUS.SATISFIED;
+    const isSatisfied =
+      evaluateRequirement(requirement, after).status === REQUIREMENT_STATUS.SATISFIED;
+
+    if (!wasSatisfied && isSatisfied) {
+      await noteRequirementSatisfied(opportunityId, requirement, actorId);
+    }
+  }
 }
 
 /**
@@ -112,6 +187,8 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     statusRowsByRequirement[row.requirement_id] = row;
   }
 
+  const members = membersForGate(await opportunityService.getMembers(opportunityId));
+
   const gateResult = evaluateCrossing({
     fromCode,
     toCode,
@@ -119,10 +196,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     requirementsByStage,
     opportunity: opportunityAfterMove,
     attachments,
-    // SOR Members (D29) has no table yet — sourcing it live is ticket 5's
-    // job. Until then an `assignment` requirement, if one is ever
-    // configured, blocks every move rather than silently passing.
-    members: [],
+    members,
     statusRowsByRequirement,
     // No asOf: a live move is evaluated against whatever the read just
     // returned — there is no separate "now" to source it from. asOf only
@@ -385,6 +459,18 @@ export const opportunityService = {
         actorId,
       ).catch(console.error);
     }
+
+    // A `field`-kind requirement on the Stage this deal is still sitting on
+    // (e.g. po_date at PMS) is satisfied the moment the field is saved —
+    // this call is "the existing field-save path" ticket 5 hooks into, not
+    // a separate satisfaction action.
+    await narrateNewlySatisfied(
+      id,
+      existing.status,
+      { opportunity: existing },
+      { opportunity: final },
+      actorId,
+    );
 
     return final;
   },
@@ -666,6 +752,30 @@ export const opportunityService = {
     if (files.length > 0) metadata.attachments = files;
     if (live.length > 0) metadata.mentions = live;
 
+    // Read the "before" evidence ahead of the insert below — once that
+    // insert lands, a read of this same opportunity's logs would already
+    // include the file this call is about to add, and no satisfied/
+    // unsatisfied transition could ever be detected.
+    let attachmentsBefore = null;
+    let stageCode = null;
+    if (files.length > 0) {
+      const [{ data: opportunity }, { data: priorLogs }] = await Promise.all([
+        supabase.from("sales_opportunities").select("status").eq("id", opportunityId).single(),
+        supabase
+          .from("sales_opportunity_logs")
+          .select("author_id, created_at, metadata")
+          .eq("opportunity_id", opportunityId),
+      ]);
+      stageCode = opportunity?.status;
+      attachmentsBefore = (priorLogs || []).flatMap((log) =>
+        (log.metadata?.attachments || []).map((a) => ({
+          ...a,
+          uploadedBy: log.author_id,
+          uploadedAt: log.created_at,
+        })),
+      );
+    }
+
     const { data, error } = await supabase
       .from("sales_opportunity_logs")
       .insert({
@@ -718,6 +828,21 @@ export const opportunityService = {
       );
     }
 
+    if (attachmentsBefore) {
+      const attachmentsAfter = [
+        ...attachmentsBefore,
+        ...files.map((a) => ({ ...a, uploadedBy: data.author_id, uploadedAt: data.created_at })),
+      ];
+
+      await narrateNewlySatisfied(
+        opportunityId,
+        stageCode,
+        { attachments: attachmentsBefore },
+        { attachments: attachmentsAfter },
+        authorId,
+      );
+    }
+
     return data;
   },
 
@@ -733,5 +858,125 @@ export const opportunityService = {
       metadata,
     });
     if (error) console.error("Failed to write opportunity system note:", error);
+  },
+
+  // ── SOR Members ────────────────────────────────────────────────────────────
+
+  /** Everyone added to this deal (docs/crm-pipeline-redesign.md's SOR Member), oldest first. */
+  async getMembers(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase
+      .from("sales_opportunity_members")
+      .select(
+        "*, employee:employees!sales_opportunity_members_employee_id_fkey(id, name, avatar_path, department, sub_department)",
+      )
+      .eq("opportunity_id", opportunityId)
+      .order("added_at", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Adds someone as an SOR Member — additive and permanent (the glossary's
+   * own words): there is no remove path, and re-adding an existing member is
+   * a safe no-op rather than a duplicate row or an error, enforced by
+   * `sales_opportunity_members_unique` (0044).
+   *
+   * This is "the existing assignment flow" ticket 5's `assignment` kind
+   * satisfies itself through — assigning a purchasing officer at Proposal
+   * Submitted is exactly this call.
+   */
+  async addMember(opportunityId, employeeId, actorId) {
+    if (!employeeId) throw new Error("Choose someone to add.");
+
+    const existingMembers = await opportunityService.getMembers(opportunityId);
+    const already = existingMembers.find((m) => m.employee_id === employeeId);
+    if (already) return already;
+
+    const { data: employee, error: employeeError } = await supabase
+      .from("employees")
+      .select("id, name, department, sub_department")
+      .eq("id", employeeId)
+      .single();
+    if (employeeError) throw employeeError;
+
+    const { data: opportunity, error: opportunityError } = await supabase
+      .from("sales_opportunities")
+      .select("status")
+      .eq("id", opportunityId)
+      .single();
+    if (opportunityError) throw opportunityError;
+
+    const { data, error } = await supabase
+      .from("sales_opportunity_members")
+      .insert({ opportunity_id: opportunityId, employee_id: employeeId, added_by: actorId })
+      .select(
+        "*, employee:employees!sales_opportunity_members_employee_id_fkey(id, name, avatar_path, department, sub_department)",
+      )
+      .single();
+    if (error) throw error;
+
+    await opportunityService.addSystemNote(
+      opportunityId,
+      `${employee.name} added as a member of this deal.`,
+      { event: "SOR_MEMBER_ADDED", memberEmployeeId: employee.id, employeeId: actorId },
+      actorId,
+    );
+
+    await narrateNewlySatisfied(
+      opportunityId,
+      opportunity.status,
+      { members: membersForGate(existingMembers) },
+      { members: membersForGate([...existingMembers, data]) },
+      actorId,
+    );
+
+    return data;
+  },
+
+  // ── Stage requirements — tickbox satisfaction ───────────────────────────────
+
+  /**
+   * Ticks a `tickbox` requirement for this deal. The one kind with no other
+   * evidence (docs/stage-gate-engine-spec.md), so the status row IS the
+   * certification — unlike attachment/field/assignment, there is no live
+   * record to evaluate, only this direct action. Idempotent: a requirement
+   * once satisfied stays satisfied (D31), so ticking it again is a no-op
+   * that returns the original row rather than overwriting who satisfied it.
+   */
+  async satisfyRequirement(opportunityId, requirementId, actorId) {
+    const { data: requirement, error: requirementError } = await supabase
+      .from("stage_requirements")
+      .select("*")
+      .eq("id", requirementId)
+      .single();
+    if (requirementError) throw requirementError;
+
+    if (requirement.kind !== REQUIREMENT_KINDS.TICKBOX) {
+      throw new Error("Only a tickbox requirement can be satisfied this way.");
+    }
+    if (requirement.archived_at) {
+      throw new Error("This requirement has been archived and no longer applies.");
+    }
+
+    const { data: existingStatus, error: statusError } = await supabase
+      .from("sor_requirement_status")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .eq("requirement_id", requirementId)
+      .maybeSingle();
+    if (statusError) throw statusError;
+    if (existingStatus) return existingStatus;
+
+    const { data, error } = await supabase
+      .from("sor_requirement_status")
+      .insert({ opportunity_id: opportunityId, requirement_id: requirementId, satisfied_by: actorId })
+      .select()
+      .single();
+    if (error) throw error;
+
+    await noteRequirementSatisfied(opportunityId, requirement, actorId);
+
+    return data;
   },
 };

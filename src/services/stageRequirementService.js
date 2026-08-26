@@ -25,6 +25,40 @@ async function requireSuperAdmin(actorId) {
 }
 
 /**
+ * Stage Gate Engine, ticket 5 (.scratch/stage-gate-engine/issues/05-per-kind-
+ * satisfaction.md) — "a satisfied requirement and an archived requirement
+ * both write timeline entries, as does an assignment". Every deal currently
+ * sitting on the archived requirement's Stage gets a note — those are the
+ * deals whose "what this Stage owes" view just lost an item. A deal that has
+ * already moved past this Stage isn't touched: its crossing was already
+ * evaluated (or blocked) under whatever requirements existed at the time.
+ *
+ * Not `opportunityService.addSystemNote` — this file replicates rather than
+ * imports across service modules (see `requireSuperAdmin`, above, and its
+ * own prior art in commissionService).
+ */
+async function noteArchivalOnDealsAtStage(requirement, actorId) {
+  const { data: deals, error } = await supabase
+    .from("sales_opportunities")
+    .select("id")
+    .eq("status", requirement.stage_code)
+    .neq("is_deleted", true);
+  if (error) throw error;
+  if (!deals || deals.length === 0) return;
+
+  const rows = deals.map((deal) => ({
+    opportunity_id: deal.id,
+    author_id: actorId,
+    type: "SYSTEM",
+    content: `Requirement no longer applies: "${requirement.label}" (archived).`,
+    metadata: { event: "STAGE_REQUIREMENT_ARCHIVED", requirementId: requirement.id, label: requirement.label, employeeId: actorId },
+  }));
+
+  const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
+  if (insertError) console.error("Failed to write requirement-archived notes:", insertError);
+}
+
+/**
  * Stage Gate Engine configuration (docs/stage-gate-engine-spec.md, ticket 3
  * of .scratch/stage-gate-engine/issues/) — add, reorder and archive a
  * Stage's requirements. Every write is Super-Admin-gated and audit-logged.
@@ -161,6 +195,8 @@ export const stageRequirementService = {
       { event: "STAGE_REQUIREMENT_ARCHIVED", stageCode: data.stage_code, label: data.label, employeeId: actorId },
       actorId,
     ).catch(console.error);
+
+    await noteArchivalOnDealsAtStage(data, actorId);
 
     return data;
   },
