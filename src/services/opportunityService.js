@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { procurementService } from "./procurementService";
 import { notificationService } from "./notificationService";
+import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
 import { deriveProjectType } from "../utils/commission";
 import {
@@ -16,6 +17,7 @@ import {
   requiresSalesReference,
   SALES_REFERENCE_HINT,
 } from "../constants/sor";
+import { evaluateCrossing, stagesCrossed } from "../constants/stageGate";
 
 const PARTICIPANT_SELECT = `
   *,
@@ -45,6 +47,95 @@ function cleanSalesReference(value) {
  */
 function stripProductCode(name) {
   return (name || "").replace(/^\[[^\]]*\]\s*/, "");
+}
+
+/**
+ * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
+ * .scratch/stage-gate-engine/issues/) — throws if any required requirement
+ * on any Stage the move crosses is unsatisfied, naming what's missing.
+ * Coexists with the ITB gate in `updateStatus`; either can block the same
+ * move, independently, on unrelated things.
+ *
+ * Evaluates every Stage in `[from, to)`, not just the destination, so a
+ * multi-Stage jump can't skip past a requirement it never satisfied.
+ * `opportunityAfterMove` should be `{ ...existing, ...patch }` — the same
+ * "as it will be after this move" rule the ITB check applies to itself — so
+ * a `field` requirement on a column this same call is about to set (e.g.
+ * Sales Reference) sees the incoming value, not the one it's replacing.
+ */
+async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportunityAfterMove) {
+  const stages = await pipelineStageService.getAllStages();
+  const crossed = stagesCrossed(fromCode, toCode, stages);
+  if (crossed.length === 0) return;
+
+  const { data: requirements, error: reqError } = await supabase
+    .from("stage_requirements")
+    .select("*")
+    .in("stage_code", crossed.map((s) => s.code))
+    .is("archived_at", null);
+  if (reqError) throw reqError;
+  if (!requirements || requirements.length === 0) return;
+
+  const requirementIds = requirements.map((r) => r.id);
+  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }] =
+    await Promise.all([
+      supabase
+        .from("sor_requirement_status")
+        .select("*")
+        .eq("opportunity_id", opportunityId)
+        .in("requirement_id", requirementIds),
+      supabase
+        .from("sales_opportunity_logs")
+        .select("author_id, created_at, metadata")
+        .eq("opportunity_id", opportunityId),
+    ]);
+  if (statusError) throw statusError;
+  if (logsError) throw logsError;
+
+  // A note's `metadata.attachments` is the only place a file lives today
+  // (addNote, below) — the same evidence a Deal Owner already attaches,
+  // read live rather than re-stored.
+  const attachments = (logs || []).flatMap((log) =>
+    (log.metadata?.attachments || []).map((a) => ({
+      ...a,
+      uploadedBy: log.author_id,
+      uploadedAt: log.created_at,
+    })),
+  );
+
+  const requirementsByStage = {};
+  for (const requirement of requirements) {
+    (requirementsByStage[requirement.stage_code] ??= []).push(requirement);
+  }
+  const statusRowsByRequirement = {};
+  for (const row of statusRows || []) {
+    statusRowsByRequirement[row.requirement_id] = row;
+  }
+
+  const gateResult = evaluateCrossing({
+    fromCode,
+    toCode,
+    stages,
+    requirementsByStage,
+    opportunity: opportunityAfterMove,
+    attachments,
+    // SOR Members (D29) has no table yet — sourcing it live is ticket 5's
+    // job. Until then an `assignment` requirement, if one is ever
+    // configured, blocks every move rather than silently passing.
+    members: [],
+    statusRowsByRequirement,
+    // No asOf: a live move is evaluated against whatever the read just
+    // returned — there is no separate "now" to source it from. asOf only
+    // matters for a historical/audit read (ticket 6), which passes a
+    // Stage's past entry time instead.
+  });
+
+  if (!gateResult.blocked) return;
+
+  const missing = gateResult.missing
+    .map(({ stage, requirement }) => `${requirement.label} (${STAGE_LABELS[stage.code] || stage.label})`)
+    .join(", ");
+  throw new Error(`Cannot move to ${STAGE_LABELS[toCode] || toCode} — missing: ${missing}.`);
 }
 
 /**
@@ -321,7 +412,11 @@ export const opportunityService = {
   ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      .select("id, client_name, status, sales_reference, contract_date, itb_number, itb_exempt")
+      // Full row, not a narrow column list: a `field`-kind requirement's
+      // `config.column` can name any column on this table, so the Stage Gate
+      // Engine check below needs whatever a Super Admin configured it to be,
+      // not a fixed set decided ahead of time.
+      .select("*")
       .eq("id", id)
       .single();
     if (readError) throw readError;
@@ -375,6 +470,8 @@ export const opportunityService = {
     if (isAnchorCode(nextStatus) && !existing.contract_date) {
       patch.contract_date = getCurrentLocalDate();
     }
+
+    await assertStageGateSatisfied(id, existing.status, nextStatus, { ...existing, ...patch });
 
     const { data, error } = await supabase
       .from("sales_opportunities")

@@ -102,6 +102,38 @@ export function makeOpportunityItem(opportunityId, overrides = {}) {
   })
 }
 
+/**
+ * A Stage's requirement. Required, active, `field`-kind by default — the
+ * kind that needs no attachment/member data to satisfy, so a bare call
+ * blocks a crossing without a test also having to fake evidence for it.
+ */
+export function makeStageRequirement(overrides = {}) {
+  const stageCode = overrides.stage_code ?? makePipelineStage().code
+  const n = next()
+  return db.seed("stage_requirements", {
+    kind: "field",
+    label: `Requirement ${n}`,
+    is_required: true,
+    sort_order: n,
+    config: {},
+    archived_at: null,
+    ...overrides,
+    stage_code: stageCode,
+  })
+}
+
+/** Satisfies a requirement for an opportunity — the row IS the satisfaction. */
+export function makeRequirementStatus(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const requirementId = overrides.requirement_id ?? makeStageRequirement().id
+  return db.seed("sor_requirement_status", {
+    satisfied_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    requirement_id: requirementId,
+  })
+}
+
 export function makeSilLeave(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee({ sil_hours_balance: 40 }).id
   return db.seed("sil_leaves", {

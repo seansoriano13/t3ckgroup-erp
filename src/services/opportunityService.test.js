@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { opportunityService } from "./opportunityService"
 import { db } from "@/test/db/store"
-import { makeEmployee, makeOpportunity, seedPipeline } from "@/test/factories"
+import {
+  makeEmployee,
+  makeOpportunity,
+  makeRequirementStatus,
+  makeStageRequirement,
+  seedPipeline,
+} from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
 
 /**
@@ -472,6 +478,186 @@ describe("opportunityService", () => {
       const reAwarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
 
       expect(reAwarded.contract_date).toBe(firstDate)
+    })
+  })
+
+  describe("the stage gate engine", () => {
+    // Real pipeline order below FOR_BIDDING (35, the ITB gate): LEAD (10) →
+    // PROPOSAL_SUBMITTED (20) → QUALIFIED (30). Leaving Lead always needs a
+    // Sales Reference (unrelated gate), so every fixture below supplies one.
+
+    it("refuses a move that leaves a required requirement unsatisfied, naming it, and writes nothing", async () => {
+      // On Lead itself — the origin, not the destination — so leaving it is
+      // what's being asked about, not arriving at Proposal Submitted.
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "Contact person on file",
+        config: { column: "contact_person" },
+      })
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id),
+      ).rejects.toThrow(/Contact person on file/)
+
+      const unchanged = await opportunityService.getOpportunityById(lead.id)
+      expect(unchanged.status).toBe("LEAD")
+      expect(await opportunityService.getNotes(lead.id)).toHaveLength(0)
+    })
+
+    it("blocks on a requirement at a stage skipped over, not just the destination", async () => {
+      makeStageRequirement({
+        stage_code: "PROPOSAL_SUBMITTED",
+        kind: "field",
+        label: "Contact person on file",
+        config: { column: "contact_person" },
+      })
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      // Jumps straight past Proposal Submitted to Qualified — the destination
+      // itself carries no requirement, but the stage it skipped does.
+      await expect(
+        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id),
+      ).rejects.toThrow(/Contact person on file/)
+    })
+
+    it("unblocks once the last outstanding requirement is satisfied", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "Contact person on file",
+        config: { column: "contact_person" },
+      })
+      const lead = makeOpportunity({
+        registered_by: registrar.id,
+        sales_reference: "S00999",
+        contact_person: "Juan Dela Cruz",
+      })
+
+      const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+
+      expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+    })
+
+    it("does not re-ask a requirement already satisfied, on re-entering its stage", async () => {
+      const requirement = makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "tickbox",
+        label: "Bid documents checked",
+      })
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      await expect(
+        opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id),
+      ).rejects.toThrow(/Bid documents checked/)
+
+      makeRequirementStatus({ opportunity_id: lead.id, requirement_id: requirement.id, satisfied_by: owner.id })
+      const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+      expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+
+      // Backward move crosses nothing, so re-entering doesn't re-derive the
+      // answer — the same status row is still what satisfies it.
+      await opportunityService.updateStatus(lead.id, "LEAD", registrar.id)
+      const reentered = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+      expect(reentered.status).toBe("PROPOSAL_SUBMITTED")
+    })
+
+    it("does not block a future move on a requirement added to a stage already left behind", async () => {
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+      await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id)
+
+      // Added after the deal already left Proposal Submitted behind.
+      makeStageRequirement({
+        stage_code: "PROPOSAL_SUBMITTED",
+        kind: "field",
+        label: "Contact person on file",
+        config: { column: "contact_person" },
+      })
+
+      const moved = await opportunityService.updateStatus(
+        lead.id,
+        "FOR_BIDDING",
+        registrar.id,
+        null,
+        null,
+        "ITB-2026-001",
+      )
+      expect(moved.status).toBe("FOR_BIDDING")
+    })
+
+    it("does not block on an archived requirement, and its prior satisfaction survives the archiving", async () => {
+      const requirement = makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "tickbox",
+        label: "Bid documents checked",
+      })
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+      const status = makeRequirementStatus({
+        opportunity_id: lead.id,
+        requirement_id: requirement.id,
+        satisfied_by: owner.id,
+      })
+
+      // Archiving is ticket 3's own action — simulated directly here, since
+      // ticket 2 only reads stage_requirements, never writes archived_at.
+      requirement.archived_at = "2026-01-01T00:00:00.000Z"
+      db.internal.rowsOf("stage_requirements").find((r) => r.id === requirement.id).archived_at =
+        requirement.archived_at
+
+      const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
+
+      expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+      expect(db.internal.rowsOf("sor_requirement_status").find((r) => r.id === status.id)).toBeTruthy()
+    })
+
+    it("evaluates a field requirement against the value this same move is about to set, not the one it's replacing", async () => {
+      makeStageRequirement({
+        stage_code: "LEAD",
+        kind: "field",
+        label: "Sales Reference on file",
+        config: { column: "sales_reference" },
+      })
+      // No Sales Reference on record — supplied with the move itself, the
+      // same way requiresSalesReference and requiresItbNumber already treat
+      // an incoming value as satisfying their own gate on the same call.
+      const lead = makeOpportunity({ registered_by: registrar.id })
+
+      const moved = await opportunityService.updateStatus(
+        lead.id,
+        "PROPOSAL_SUBMITTED",
+        registrar.id,
+        null,
+        "S01237",
+      )
+
+      expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+    })
+
+    it("coexists with the ITB gate — either can block the same move, independently", async () => {
+      // On Qualified — crossed on the way to For Bidding, so it's still in
+      // play the first time this deal tries to reach the gate stage.
+      makeStageRequirement({
+        stage_code: "QUALIFIED",
+        kind: "field",
+        label: "Contact person on file",
+        config: { column: "contact_person" },
+      })
+      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+
+      // The ITB gate blocks first — the engine's own check is never reached.
+      await expect(
+        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
+      ).rejects.toThrow(/ITB Number/i)
+
+      // Satisfying the ITB gate surfaces the engine's block underneath it.
+      await expect(
+        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id, null, null, "ITB-2026-001"),
+      ).rejects.toThrow(/Contact person on file/)
+
+      const unchanged = await opportunityService.getOpportunityById(lead.id)
+      expect(unchanged.status).toBe("LEAD")
     })
   })
 
