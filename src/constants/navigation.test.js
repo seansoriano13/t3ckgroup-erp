@@ -143,6 +143,7 @@ describe("navigation registry", () => {
         "System Admin",
         "Activity Log",
         "Pipeline Stages",
+        "Stage Requirements",
         "Commission Pool",
         "Lead Sources",
       ]);

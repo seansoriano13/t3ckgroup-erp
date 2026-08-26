@@ -46,6 +46,7 @@ export type Path =
   | `/super-admin/commission`
   | `/super-admin/lead-sources`
   | `/super-admin/pipeline-stages`
+  | `/super-admin/stage-requirements`
   | `/tasks`
 
 export type Params = {

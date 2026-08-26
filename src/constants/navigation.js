@@ -1,6 +1,7 @@
 import {
   LayoutList,
   ListCheck,
+  ListTodo,
   Clock,
   UsersRound,
   LayoutTemplate,
@@ -159,6 +160,12 @@ export const NAV_MODULES = {
         label: "Pipeline Stages",
         link: "/super-admin/pipeline-stages",
         icon: LayoutList,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
+      {
+        label: "Stage Requirements",
+        link: "/super-admin/stage-requirements",
+        icon: ListTodo,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
       {

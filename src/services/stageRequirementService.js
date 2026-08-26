@@ -64,6 +64,13 @@ export const stageRequirementService = {
     if (!trimmedLabel) {
       throw new Error("A requirement needs a label.");
     }
+    // The UI enforces `min="1"` on the days field, but that's client-side
+    // only — a `deadline` requirement with `config.days <= 0` would read to
+    // deadlineStatus (constants/stageGate.js) as already breached the
+    // instant it's created, which is never a real deadline.
+    if (kind === REQUIREMENT_KINDS.DEADLINE && !(Number(config?.days) > 0)) {
+      throw new Error("A deadline requirement needs a positive number of days.");
+    }
 
     // Read-then-write: two Super Admins adding to the same Stage at the
     // same instant could tie on sort_order. Accepted rather than guarded —

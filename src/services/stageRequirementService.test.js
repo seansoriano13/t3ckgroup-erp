@@ -160,6 +160,31 @@ describe("stageRequirementService", () => {
       ).rejects.toThrow(/needs a label/)
     })
 
+    it("rejects a deadline with zero or no days — a UI form's min=1 is client-side only", async () => {
+      await expect(
+        stageRequirementService.add(
+          { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt", config: { days: 0 } },
+          admin.id,
+        ),
+      ).rejects.toThrow(/positive number of days/)
+
+      await expect(
+        stageRequirementService.add(
+          { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt" },
+          admin.id,
+        ),
+      ).rejects.toThrow(/positive number of days/)
+    })
+
+    it("accepts a deadline with a positive day count", async () => {
+      const created = await stageRequirementService.add(
+        { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt", config: { days: 2 } },
+        admin.id,
+      )
+
+      expect(created.config).toEqual({ days: 2 })
+    })
+
     it("logs who added the requirement and when", async () => {
       const created = await stageRequirementService.add(
         { stageCode: "QUALIFIED", kind: "tickbox", label: "Bid documents checked" },
