@@ -16,6 +16,9 @@
 
 begin;
 
+-- Fail fast instead of bringing down the app if a lock cannot be acquired
+set local lock_timeout = '2s';
+
 -- ── 0. Refuse to run if entity_type holds anything unexpected ────────────────
 -- The constraint below enumerates the allowed values. If production has some
 -- value this migration does not know about, adding the constraint would fail
@@ -82,7 +85,13 @@ alter table public.chat_read_receipts
     'SALES'::text,
     'COMMITTEE_TASK'::text,  -- TODO: drop after the transition release
     'GROUP_TASK'::text
-  ]));
+  ])) not valid;
+
+-- Validate the constraint without taking an ACCESS EXCLUSIVE lock
+commit;
+alter table public.chat_read_receipts validate constraint chat_read_receipts_entity_type_check;
+begin;
+
 
 -- ── 2. Backfill entity_type ──────────────────────────────────────────────────
 -- entity_type is part of the primary key on both tables, so a straight UPDATE

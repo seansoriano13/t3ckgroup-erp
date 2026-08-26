@@ -8,7 +8,7 @@ ALTER TABLE public.employees ADD COLUMN IF NOT EXISTS sil_hours_balance NUMERIC 
 
 -- 2. Create sil_leaves table
 CREATE TABLE IF NOT EXISTS public.sil_leaves (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   employee_id UUID NOT NULL REFERENCES public.employees(id) ON DELETE CASCADE,
   date DATE NOT NULL,

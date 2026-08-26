@@ -356,7 +356,7 @@ create table if not exists public.committee_task_logs (
 );
 
 create table if not exists public.committee_roles (
-  id uuid not null default uuid_generate_v4(),
+  id uuid not null default gen_random_uuid(),
   role_name text not null unique,
   created_at timestamp with time zone default now(),
   constraint committee_roles_pkey primary key (id)
