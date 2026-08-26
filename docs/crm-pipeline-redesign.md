@@ -1078,9 +1078,9 @@ colliding (see the note at the end).
 | Q21 | A | 3.1.3 | Config changes vs in-flight deals — snapshot or live? | ✓ D18 |
 | Q22 | A | 1.1.1 | What is the Outright pipeline? (observed flow only) | ✓ D19 |
 | Q23 | A | 3.1.2 | Re-ask of Q20, in plain terms | ~ "strict" chosen; consequence not yet understood — re-asked |
-| Q24 | A | — | Demo mode on prod — what kind, and how isolated? | ? — factual sub-question answered |
-| Q25 | A | C12 | How is the C12 anchor bug fixed, and are live rows affected? | ? — awaiting go/no-go on a dry run |
-| Q27 | A | 6.1 | Confirm the two-level matrix and its column ownership | ~ "categorized" — re-asked, the parent carries money |
+| Q24 | A | — | Demo mode on prod — what kind, and how isolated? | ✓ separate Supabase project + Vercel preview; see Q32/Q33 |
+| Q25 | A | C12 | How is the C12 anchor bug fixed, and are live rows affected? | ✓ D26 executed; code half is D33 |
+| Q27 | A | 6.1 | Confirm the two-level matrix and its column ownership | ✓ parent carries ABC and FINAL OFFER; children carry cost — §3b.3 |
 | Q28 | A | 4.2 | `Incharge` is per line — is assignment per line or per deal? | ✓ D20 |
 | Q29 | A | C9 | How is ITR actually computed? | ✓ D24 — solved exactly |
 | Q30 | A | 2.2 | Is Payment Verification the Outright anchor? | ✓ D22 |
@@ -1106,7 +1106,7 @@ colliding (see the note at the end).
 | Q50 | A | 2.1 | How does a pipeline model a stage you lose *after*? | ✓ D36 |
 | Q51 | B | 2.1 / C11 | Losing a deal from the **booked** region — ordinary move, Stage Correction, or its own terminal stage? | ⏸ **pending — parked by request** |
 | Q52 | B | 3.1.4 | Unflag the live ITB gate now, or wait for D12? | ✓ D43 — gate stays |
-| Q53 | B | 2.1 | D37 keeps `FOR_BIDDING`, which §3e shows has **zero** transitions ever. Does it survive the renumber? | ? — posed |
+| Q53 | B | 2.1 | D37 keeps `FOR_BIDDING`, which §3e shows has **zero** transitions ever. Does it survive the renumber? | ✓ D44 — it stays |
 | Q55 | A | — | Scope: are N1/N2/N3 (§3f) in this build or after it? | ✓ D38 — pipeline only |
 | Q56 | A | 3.1 | D6 has no notion of **time** — and NOA has a statutory 10-day clock (§3g) | ✓ D42 |
 | Q57 | A | 4.2 | How many purchasing people, assigned by whom | ✓ D40 |
@@ -1117,7 +1117,6 @@ colliding (see the note at the end).
 | ID | Question | Who can answer |
 | --- | --- | --- |
 | **Q51** | Losing a deal that is **already in the booked region** — ordinary move, Stage Correction (D32), or its own terminal stage? D36 covers losing *before* award only. | you — **parked for later by request** |
-| **Q53** | D37 keeps `FOR_BIDDING`, which the transition log shows has **zero transitions, ever**. Does it survive? | you |
 | **Q18** | Which Revenue definition is authoritative (C9) — and does the engine's 8% withholding reconcile with the OPEX 8%-above-₱250k? | Finance |
 | **§3g** | `AUTO PRICING %` is a constant ×2.0644 of Landed Cost. Origin unknown. | Purchasing |
 | **Q58** | Delivery tasks as a third kind beside gates and group tasks | ⏸ deferred with N3 (D38) |
@@ -1852,6 +1851,26 @@ survivable for the weeks until D12 deletes `is_itb_gate`, `itb_number`,
 `itb_exempt` and the branches in `opportunityService`. **Remove the toast with
 the gate** — a warning about a rule that no longer exists is worse than no
 warning.
+
+### D44 — `FOR_BIDDING` stays, despite never having been occupied *(2026-08-25, Q53)*
+
+The transition log shows **zero** transitions into or out of `For Bidding`,
+ever. It is kept anyway.
+
+The emptiness is a symptom of the old flow, not of the stage being wrong: deals
+jumped `Lead → Awarded` because there was nothing to *do* in For Bidding, and
+§3d establishes that there is — it is where the bid documents are collected by
+a team. Once D6 puts a document checklist on it and L9 fires its group task,
+the stage acquires the work that was missing.
+
+*Contrast with `Negotiation` (D14), which was also empty and was dropped.* The
+difference is that Negotiation's content turned out to live somewhere else —
+inside the Sales Offer Matrix's FINAL ACQUIRE → FINAL OFFER approval chain — so
+the stage was a genuine ghost. For Bidding's content exists and simply has no
+home yet.
+
+*Watch it, though.* If For Bidding is still empty a quarter after the gate
+engine ships, the stage really is decoration and this decision was wrong.
 
 ---
 
