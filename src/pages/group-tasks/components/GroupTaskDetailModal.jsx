@@ -85,6 +85,8 @@ export default function GroupTaskDetailModal({
   onInlineCheck,
   onUpdateDescription,
   isUpdatingDescription,
+  onUpdateTask,
+  isUpdatingTask,
   onAddAttachment,
   isUploadingAttachment,
   searchTerm,
@@ -108,6 +110,9 @@ export default function GroupTaskDetailModal({
   
   const [editingDescriptionId, setEditingDescriptionId] = useState(null);
   const [editedDescription, setEditedDescription] = useState("");
+
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
@@ -185,6 +190,24 @@ export default function GroupTaskDetailModal({
     setDraft(null);
   };
 
+  const handleStartTaskEdit = () => {
+    setTaskEditDraft({
+      title: task.title || "",
+      description: task.description || "",
+      dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+    });
+    setIsEditingTask(true);
+  };
+
+  const handleSaveTaskEdit = async () => {
+    if (!taskEditDraft.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    await onUpdateTask(taskEditDraft);
+    setIsEditingTask(false);
+  };
+
   const handleRemoveMember = (memberId) => {
     confirmDeleteToast(
       "Remove Member",
@@ -220,6 +243,7 @@ export default function GroupTaskDetailModal({
       setAttachments([]);
       setEditingDescriptionId(null);
       setEditedDescription("");
+      setIsEditingTask(false);
       setReplyingTo(null);
       handleCancelEdit();
     }
@@ -472,39 +496,85 @@ export default function GroupTaskDetailModal({
 
         {/* HEADER */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
-          <div className="space-y-1 mt-1">
-            <div className="flex items-center gap-2 mb-2.5">
-              <StatusBadge status={displayStatus} />
-              {(isHrPending || isHrVerified) && (
-                <div
-                  title={
-                    isHrVerified ? "Verified by HR" : "Pending HR Verification"
-                  }
-                  className="flex items-center"
-                >
-                  {isHrVerified ? (
-                    <CheckCircle2 size={14} className="text-green-9" />
-                  ) : (
-                    <Clock size={14} className="text-amber-9" />
+          <div className="space-y-1 mt-1 flex-1 max-w-3xl">
+            <div className="flex items-center justify-between mb-2.5 w-full">
+              <div className="flex items-center gap-2">
+                <StatusBadge status={displayStatus} />
+                {(isHrPending || isHrVerified) && (
+                  <div
+                    title={
+                      isHrVerified ? "Verified by HR" : "Pending HR Verification"
+                    }
+                    className="flex items-center"
+                  >
+                    {isHrVerified ? (
+                      <CheckCircle2 size={14} className="text-green-9" />
+                    ) : (
+                      <Clock size={14} className="text-amber-9" />
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Edit button moved to footer */}
+            </div>
+
+            {isEditingTask ? (
+              <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2 w-full pr-4">
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title</label>
+                  <Input 
+                    value={taskEditDraft.title}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, title: e.target.value }))}
+                    className="h-9 text-base font-bold bg-background/50 border-border/50 w-full"
+                    placeholder="Task Title"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
+                  <textarea
+                    value={taskEditDraft.description}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
+                    className="w-full bg-background/50 border border-border/50 rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-y"
+                    placeholder="Task Description..."
+                  />
+                </div>
+                <div className="w-48">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
+                  <Input 
+                    type="date"
+                    value={taskEditDraft.dueDate}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
+                    className="h-9 bg-background/50 border-border/50 text-sm"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
+                    Cancel
+                  </Button>
+                  <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
+                    {isUpdatingTask ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
+                  {task.title}
+                </h2>
+                <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <Users size={14} className="text-primary/70" /> Created by{" "}
+                    {task.creator?.name || "Unknown"}
+                  </div>
+                  {task.due_date && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={14} className="text-primary/70" /> Due{" "}
+                      {formatDueDate(task.due_date)}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-            <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
-              {task.title}
-            </h2>
-            <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
-              <div className="flex items-center gap-1.5">
-                <Users size={14} className="text-primary/70" /> Created by{" "}
-                {task.creator?.name || "Unknown"}
-              </div>
-              {task.due_date && (
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-primary/70" /> Due{" "}
-                  {formatDueDate(task.due_date)}
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -590,7 +660,7 @@ export default function GroupTaskDetailModal({
           {activeTab === "overview" ? (
             <>
               {/* Description */}
-              {task.description && (
+              {!isEditingTask && task.description && (
                 <div className="animate-content-in stagger-1 mb-2">
                   <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
                     {task.description}
@@ -609,7 +679,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      task.status === "ACTIVE" ? handleStartAddMember : undefined
+                      ((task.status === "ACTIVE" && isCreator) || isSuperAdmin) ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -721,7 +791,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {task.status === "ACTIVE" && (
+                            {((task.status === "ACTIVE" && isCreator) || isSuperAdmin) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
@@ -1275,7 +1345,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* FOOTER */}
-        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-border bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 rounded-b-2xl">
           <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
             <div className="flex items-center gap-1">
               <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded text-muted-foreground font-sans text-[9px]">
@@ -1285,7 +1355,7 @@ export default function GroupTaskDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
             {(isCreator || isSuperAdmin) && (
               <Button
@@ -1293,14 +1363,11 @@ export default function GroupTaskDetailModal({
                 variant="ghost"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="text-[13px] font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-9 rounded-xl px-4 mr-2"
+                className="text-[13px] font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-9 rounded-xl px-2 sm:px-4 mr-1 sm:mr-2"
+                title="Delete Task"
               >
-                {isDeleting ? (
-                  "Deleting..."
-                ) : (
-                  <Trash2 size={14} className="mr-1.5" />
-                )}
-                {!isDeleting && "Delete Task"}
+                <Trash2 size={14} className={isDeleting ? "animate-pulse" : "sm:mr-1.5"} />
+                <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete Task"}</span>
               </Button>
             )}
 
@@ -1314,15 +1381,31 @@ export default function GroupTaskDetailModal({
               Close
             </Button>
 
+            {/* Edit Task Button */}
+            {((task.status === "ACTIVE" && isCreator) || isSuperAdmin) && !isEditingTask && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleStartTaskEdit}
+                className="text-[13px] font-bold h-9 rounded-xl px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
+                title="Edit Task"
+              >
+                <Edit3 size={14} />
+                <span className="hidden sm:inline">Edit Task</span>
+              </Button>
+            )}
+
             {/* Rate Button for Heads/Admins */}
             {(isCreator || isSuperAdmin) &&
               (task.status === "ACTIVE" || task.status === "COMPLETED") && (
                 <Button
                   onClick={onOpenRateModal}
-                  className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2"
+                  className="h-9 px-4 sm:px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-0 sm:gap-2"
+                  title={task.status === "ACTIVE" && task.hr_remarks ? "Resubmit" : "Rate"}
                 >
                   <Star size={16} fill="currentColor" />
-                  <span className="font-bold">
+                  <span className="font-bold hidden sm:inline">
                     {task.status === "ACTIVE" && task.hr_remarks
                       ? "Resubmit"
                       : "Rate"}

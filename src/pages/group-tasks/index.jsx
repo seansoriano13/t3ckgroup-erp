@@ -158,6 +158,15 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const updateTaskMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.updateGroupTask(selectedTask.id, payload, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const updateMemberDescriptionMutation = useMutation({
     mutationFn: ({ memberId, newDescription, oldDescription }) =>
       groupTaskService.updateMemberDescription(memberId, newDescription, oldDescription, user.id),
@@ -428,6 +437,8 @@ export default function GroupTasksPage() {
         onReject={(remarks) =>
           rejectMutation.mutate({ id: selectedTaskId, remarks })
         }
+        onUpdateTask={(payload) => updateTaskMutation.mutateAsync(payload)}
+        isUpdatingTask={updateTaskMutation.isPending}
         isMarkingDone={markDoneMutation.isPending}
         isReverting={revertDoneMutation.isPending}
         isUpdatingDescription={updateMemberDescriptionMutation.isPending}

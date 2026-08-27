@@ -131,6 +131,49 @@ export const groupTaskService = {
     return groupTask;
   },
 
+  // UPDATE - Global Group Task fields
+  async updateGroupTask(id, payload, actorId) {
+    const { title, description, dueDate } = payload;
+    
+    const { data: oldTask, error: fetchError } = await supabase
+      .from("committee_tasks")
+      .select("title, description, due_date")
+      .eq("id", id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const { data: groupTask, error } = await supabase
+      .from("committee_tasks")
+      .update({
+        title,
+        description,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      id,
+      "TASK_UPDATED",
+      {
+        old: oldTask,
+        new: { title, description, due_date: dueDate },
+      },
+      actorId
+    );
+    
+    groupTaskActivityService.addSystemEvent(
+      id,
+      "Group task details were updated.",
+      { event: "TASK_UPDATED" },
+    ).catch(console.error);
+
+    return groupTask;
+  },
+
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)
   async getGroupTasks(userId, isHead, isSuperAdmin) {
     let query = supabase

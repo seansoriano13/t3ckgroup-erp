@@ -172,7 +172,7 @@ export default function ChecklistTaskInput({
                 }
               }}
               placeholder="List detailed requirement..."
-              className="flex-1 bg-transparent border-none outline-none text-foreground font-medium text-sm py-1 placeholder:text-muted-foreground transition-all"
+              className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-sm py-1 placeholder:text-muted-foreground transition-all"
             />
             <button
               type="button"
