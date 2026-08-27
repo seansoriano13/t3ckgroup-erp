@@ -14,6 +14,8 @@ export function useLogTaskHandlers({
   employees,
   availableHeads,
   roles,
+  mode = "normal",
+  onSubmitOverride,
 }) {
   const queryClient = useQueryClient()
   const { isHr, isHead, isSuperAdmin } = roles
@@ -344,10 +346,27 @@ export function useLogTaskHandlers({
       return
     }
 
+    // An automation has no task description at configuration time — the
+    // project title is the only name it carries, and actionTitle() reads
+    // config.projectTitle to label it on the canvas and in StageActionManager.
+    // A normal task has always let the title stay blank; requiring it there
+    // too would block a submission this form has accepted for as long as it
+    // has existed.
+    if (mode === "automation" && !formData.projectTitle.trim()) {
+      toast.error("Please enter a project title")
+      return
+    }
+
+    // ── Normal Mode Validations ─────────────────────────────────
+    if (mode !== "automation" && !formData.loggedById) {
+      toast.error("Please assign the task to someone")
+      return
+    }
+
     // Validate: at least one of description or checklist must be filled
     const hasDescription = formData.taskDescription?.trim()
     const hasChecklist = hasChecklistContent(formData.checklist)
-    if (!hasDescription && !hasChecklist) {
+    if (mode !== "automation" && !hasDescription && !hasChecklist) {
       toast.error("Please add a description or checklist items.")
       return
     }
@@ -376,6 +395,7 @@ export function useLogTaskHandlers({
 
     const payload = {
       ...formData,
+      endAt: mode === "automation" ? null : formData.endAt,
       isAutoVerified: false,
       remarks: mergedRemarks,
       paymentVoucher: formData.paymentVoucher?.trim() || null,
@@ -383,6 +403,14 @@ export function useLogTaskHandlers({
       submittedByName: user.name,
       reportedTo: selectedHead || null,
     }
+
+    if (mode === "automation") {
+      if (onSubmitOverride) {
+        onSubmitOverride(payload)
+      }
+      return
+    }
+
     addTaskMutation.mutate(payload)
   }
 

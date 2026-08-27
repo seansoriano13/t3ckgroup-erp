@@ -16,7 +16,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
-export default function LogTaskModal({ isOpen, onClose }) {
+export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmitOverride }) {
   const { user } = useAuth();
 
   const titleRef = useRef(null);
@@ -65,6 +65,8 @@ export default function LogTaskModal({ isOpen, onClose }) {
     employees,
     availableHeads,
     roles,
+    mode,
+    onSubmitOverride,
   });
 
   // ── Auto-scroll Helper ────────────────────────────────────
@@ -245,6 +247,7 @@ export default function LogTaskModal({ isOpen, onClose }) {
             setOthersRemarks={setOthersRemarks}
             openPopover={openPopover}
             onTogglePopover={togglePopoverWithScroll}
+            mode={mode}
           />
 
           {/* Committee / Others details */}
@@ -323,6 +326,7 @@ export default function LogTaskModal({ isOpen, onClose }) {
             user={user}
             openPopover={openPopover}
             onTogglePopover={togglePopoverWithScroll}
+            mode={mode}
           />
         </form>
 

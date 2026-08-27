@@ -652,3 +652,96 @@
     @apply font-sans;
   }
 }
+/*
+  Flow Canvas — React Flow ships its own chrome (controls, minimap, attribution,
+  connection line) with a light-only stylesheet of hardcoded greys. Left alone
+  it is the one part of the screen that belongs to no design system and goes
+  invisible in dark mode, so it is themed here from the same tokens as the rest.
+*/
+.flow-canvas .react-flow__controls {
+  box-shadow: none;
+  border-radius: 0.85rem;
+  overflow: hidden;
+  background: var(--mauve-2);
+  outline: 1px solid var(--mauve-6);
+  outline-offset: -1px;
+}
+
+.flow-canvas .react-flow__controls-button {
+  background: transparent;
+  border-bottom: 1px solid var(--mauve-5);
+  fill: var(--mauve-11);
+  width: 30px;
+  height: 30px;
+  transition: background-color 0.15s ease-out;
+}
+
+.flow-canvas .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+
+.flow-canvas .react-flow__controls-button:hover {
+  background: var(--mauve-a3);
+  fill: var(--mauve-12);
+}
+
+.flow-canvas .react-flow__minimap {
+  outline: 1px solid var(--mauve-6);
+  outline-offset: -1px;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+.flow-canvas .react-flow__attribution {
+  background: transparent;
+  padding: 0 6px;
+}
+
+.flow-canvas .react-flow__attribution a {
+  color: var(--mauve-9);
+  font-size: 9px;
+}
+
+/* A move is worth pointing at: it thickens under the cursor and takes the
+   brand colour once selected, so Delete never lands on a guess. */
+.flow-canvas .react-flow__edge-path {
+  transition:
+    stroke 0.15s ease-out,
+    stroke-width 0.15s ease-out;
+}
+
+.flow-canvas .react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--mauve-11);
+  stroke-width: 2.5;
+}
+
+.flow-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--red-9);
+  stroke-width: 2.5;
+}
+
+.flow-canvas .react-flow__connectionline .react-flow__connection-path {
+  stroke: var(--red-9);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+}
+
+/*
+  The handle a move is dragged from grows a halo on approach. A ring rather than
+  a scale: React Flow centres every handle with a `transform: translate(...)` of
+  its own, and overriding that to add a scale would slide the handle off the
+  node edge it is meant to sit on.
+*/
+.flow-canvas .react-flow__handle {
+  transition: box-shadow 0.15s ease-out;
+}
+
+.flow-canvas .react-flow__node:hover .react-flow__handle-left,
+.flow-canvas .react-flow__node:hover .react-flow__handle-right {
+  box-shadow: 0 0 0 4px var(--mauve-a4);
+}
+
+.flow-canvas .react-flow__handle-left:hover,
+.flow-canvas .react-flow__handle-right:hover {
+  box-shadow: 0 0 0 6px var(--red-a5);
+}

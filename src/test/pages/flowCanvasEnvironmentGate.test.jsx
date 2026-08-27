@@ -35,7 +35,10 @@ describe("FlowCanvasAdminPage", () => {
 
     renderWithProviders(<FlowCanvasAdminPage />);
 
-    expect(await screen.findByText("Sale Types")).toBeInTheDocument();
+    // The canvas names its own empty state; the Sale Type menu is the control
+    // that only ever exists on the drawable canvas.
+    expect(await screen.findByText("No Sale Types yet")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sale Type options" })).toBeInTheDocument();
     expect(screen.queryByText("The Flow Canvas is not available here")).not.toBeInTheDocument();
   });
 
@@ -47,6 +50,6 @@ describe("FlowCanvasAdminPage", () => {
     renderWithProviders(<FlowCanvasAdminPage />);
 
     expect(await screen.findByText("The Flow Canvas is not available here")).toBeInTheDocument();
-    expect(screen.queryByText("Sale Types")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sale Type options" })).not.toBeInTheDocument();
   });
 });

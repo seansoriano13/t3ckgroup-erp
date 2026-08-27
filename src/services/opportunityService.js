@@ -24,6 +24,7 @@ import {
   REQUIREMENT_KINDS,
   REQUIREMENT_STATUS,
   stagesCrossed,
+  blockingRequirements,
 } from "../constants/stageGate";
 import { entryStage, isLegalMove } from "../constants/salesFlow";
 
@@ -104,11 +105,15 @@ function membersForGate(rows = []) {
  * required item satisfied already (or the move would have been refused), so
  * there is nothing there left to newly satisfy.
  */
-async function narrateNewlySatisfied(opportunityId, stageCode, before, after, actorId) {
+async function narrateNewlySatisfied(opportunityId, stageId, before, after, actorId) {
+  if (!stageId) return;
+
+  // 5. Stage Requirements Configuration (Flow Stages only)
+  // Which Stage Gate Requirements are currently configured for this deal's flow stage?
   const { data: requirements, error } = await supabase
     .from("stage_requirements")
     .select("*")
-    .eq("stage_code", stageCode)
+    .eq("stage_id", stageId)
     .is("archived_at", null)
     .in("kind", [REQUIREMENT_KINDS.ATTACHMENT, REQUIREMENT_KINDS.FIELD, REQUIREMENT_KINDS.ASSIGNMENT]);
   if (error) throw error;
@@ -159,12 +164,12 @@ function groupBy(rows, key) {
  * own filter (e.g. `getBlockedDeals`' is_required/kind) on top of the
  * archived_at check every caller needs regardless.
  */
-async function requirementsByStageFor(stageCodes, narrow = (query) => query) {
+async function requirementsByStageFor(stageIds, narrow = (query) => query) {
   const { data: requirements, error } = await narrow(
-    supabase.from("stage_requirements").select("*").in("stage_code", stageCodes).is("archived_at", null),
+    supabase.from("stage_requirements").select("*").in("stage_id", stageIds).is("archived_at", null),
   );
   if (error) throw error;
-  return { requirements: requirements || [], requirementsByStage: groupBy(requirements, "stage_code") };
+  return { requirements: requirements || [], requirementsByStage: groupBy(requirements, "stage_id") };
 }
 
 /**
@@ -176,8 +181,8 @@ async function requirementsByStageFor(stageCodes, narrow = (query) => query) {
  * on what "satisfied" means from a single place, rather than each doing its
  * own fetch-and-shape.
  */
-async function gateContext(opportunityId, stageCodes) {
-  const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes);
+async function gateContext(opportunityId, stageIds) {
+  const { requirements, requirementsByStage } = await requirementsByStageFor(stageIds);
   if (requirements.length === 0) {
     return { requirementsByStage, attachments: [], members: [], statusRowsByRequirement: {} };
   }
@@ -243,10 +248,6 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     attachments,
     members,
     statusRowsByRequirement,
-    // No asOf: a live move is evaluated against whatever the read just
-    // returned — there is no separate "now" to source it from. asOf only
-    // matters for a historical/audit read, which would pass a Stage's past
-    // entry time instead — not needed by anything in this spec.
   });
 
   if (!gateResult.blocked) return;
@@ -324,11 +325,10 @@ async function hasEverMoved(opportunityId) {
  * the one being left. That is simpler than the interval rather than a
  * replacement for it.
  *
- * The legacy gates — Sales Reference, ITB, and `stage_requirements` — are not
- * applied, because every one of them is keyed to a `crm_pipeline_stages` code
- * and a flow Stage is not one. The flow's own Stage Conditions are what gate
- * these moves, and they are a later ticket; until then a flow-built deal is
- * gated by its edges alone.
+ *
+ * The legacy gates — Sales Reference and ITB — are not
+ * applied to flow-built deals. `stage_requirements` DO apply to flow-built
+ * deals, because they are keyed to `flow_stages(id)`.
  */
 async function moveAlongFlow(existing, nextStageId, actorId) {
   const { flow, stages, edges } = await flowContextFor(existing.sale_type_id);
@@ -340,18 +340,50 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }
   if (from?.id === to.id) return existing;
 
-  if (!isLegalMove(existing.flow_stage_id, nextStageId, edges)) {
-    throw new Error(
-      `${from?.name || "This deal's Stage"} cannot move straight to ${to.name} — that move is not part of this flow.`,
-    );
+  if (from?.is_terminal) {
+    throw new Error("A terminal stage cannot be left.");
   }
 
+  // ADR 0006: a move traverses exactly one edge. There is no canonical path
+  // between two Stages in a graph, so "is Qualified reachable from Lead" is
+  // meaningless — only "did somebody draw that edge" is. Checked ahead of the
+  // requirement gate: an illegal move should refuse for being illegal, not
+  // report itself as blocked by whatever requirements the destination
+  // happens to carry.
+  if (!isLegalMove(from?.id, to.id, edges)) {
+    throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
+  }
+
+  // 1. Evaluate Stage Requirements for the stage being left
+  const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+    existing.id,
+    [from.id]
+  );
+
+  const missing = [];
+  const requirements = blockingRequirements(requirementsByStage[from.id] ?? []);
+  for (const requirement of requirements) {
+    const result = evaluateRequirement(requirement, {
+      opportunity: existing,
+      attachments,
+      members,
+      statusRow: statusRowsByRequirement[requirement.id] ?? null,
+    });
+    if (result.status === REQUIREMENT_STATUS.UNSATISFIED) {
+      missing.push({ stage: from, requirement });
+    }
+  }
+
+  if (missing.length > 0) {
+    const error = new Error(`Cannot leave ${from.name}. Required items missing.`);
+    error.isGateBlock = true;
+    error.missingRequirements = missing;
+    throw error;
+  }
+
+  // 2. Perform move
   const patch = { flow_stage_id: to.id };
 
-  // The flow's Won Stage stamps Contract Date, which is what makes the deal
-  // Realized (ADR 0006). Stamped once and never overwritten: a deal that loops
-  // back out of the Won Stage was still won, and a later rate change must not
-  // reprice an already-priced deal.
   if (flow.won_stage_id === to.id && !existing.contract_date) {
     patch.contract_date = getCurrentLocalDate();
   }
@@ -379,6 +411,69 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
     actorId,
   ).catch(console.error);
+
+  // 3. Execute Stage Actions (Automations) for the new stage
+  // We fire these asynchronously so they don't block the move itself,
+  // but we catch errors so they don't crash the user.
+  import("./stageActionService").then(async ({ stageActionService }) => {
+    try {
+      const actions = await stageActionService.getForStage(to.id);
+      if (actions.length > 0) {
+        const { groupTaskService } = await import("./groupTaskService");
+        const { taskService } = await import("./taskService");
+
+        for (const action of actions) {
+          const config = action.config;
+          const oppName = existing.sales_reference ? `${existing.sales_reference} - ${existing.client_name}` : existing.client_name;
+          
+          if (action.kind === "create_group_task") {
+            // Group Task Automation
+            const payload = {
+              title: config.title || `Action: ${to.name}`,
+              description: config.description 
+                ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
+                : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
+              createdBy: actorId,
+              templateId: config.templateId || null,
+              members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }]
+            };
+
+            if (config.dueDateOffsetDays) {
+              const due = new Date();
+              due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
+              payload.dueDate = due.toISOString();
+            }
+
+            await groupTaskService.createGroupTask(payload).catch(console.error);
+
+          } else if (action.kind === "create_individual_task") {
+            // Individual Task Automation
+            const payload = {
+              taskDescription: config.title 
+                ? `${config.title}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
+                : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
+              categoryId: config.categoryId,
+              priority: config.priority || "MEDIUM",
+              checklist: config.checklist || null,
+              projectTitle: oppName,
+              loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
+              submittedById: actorId,
+            };
+
+            if (config.dueOffsetDays) {
+              const due = new Date();
+              due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
+              payload.endAt = due.toISOString();
+            }
+
+            await taskService.createTask(payload).catch(console.error);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("Failed to execute stage actions:", err);
+    }
+  }).catch(console.error);
 
   return data;
 }
@@ -735,7 +830,7 @@ export const opportunityService = {
     // a separate satisfaction action.
     await narrateNewlySatisfied(
       id,
-      existing.status,
+      existing.flow_stage_id,
       { opportunity: existing },
       { opportunity: final },
       actorId,
@@ -1115,13 +1210,13 @@ export const opportunityService = {
     let stageCode = null;
     if (files.length > 0) {
       const [{ data: opportunity }, { data: priorLogs }] = await Promise.all([
-        supabase.from("sales_opportunities").select("status").eq("id", opportunityId).single(),
+        supabase.from("sales_opportunities").select("flow_stage_id").eq("id", opportunityId).single(),
         supabase
           .from("sales_opportunity_logs")
           .select("author_id, created_at, metadata")
           .eq("opportunity_id", opportunityId),
       ]);
-      stageCode = opportunity?.status;
+      stageCode = opportunity?.flow_stage_id;
       attachmentsBefore = (priorLogs || []).flatMap((log) =>
         (log.metadata?.attachments || []).map((a) => ({
           ...a,
@@ -1314,14 +1409,14 @@ export const opportunityService = {
       throw new Error("This requirement has been archived and no longer applies.");
     }
 
-    const { data: existingStatus, error: statusError } = await supabase
-      .from("sor_requirement_status")
-      .select("*")
-      .eq("opportunity_id", opportunityId)
-      .eq("requirement_id", requirementId)
-      .maybeSingle();
-    if (statusError) throw statusError;
-    if (existingStatus) return existingStatus;
+    const { data: satisfied, error: satisfiedError } = await supabase
+    .from("sor_requirement_status")
+    .select("requirement_id, satisfied_at")
+    .eq("opportunity_id", opportunityId)
+    .eq("requirement_id", requirementId)
+    .maybeSingle();
+    if (satisfiedError) throw satisfiedError;
+    if (satisfied) return satisfied;
 
     const { data, error } = await supabase
       .from("sor_requirement_status")

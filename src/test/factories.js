@@ -108,7 +108,7 @@ export function makeOpportunityItem(opportunityId, overrides = {}) {
  * blocks a crossing without a test also having to fake evidence for it.
  */
 export function makeStageRequirement(overrides = {}) {
-  const stageCode = overrides.stage_code ?? makePipelineStage().code
+  const stageId = overrides.stage_id ?? makeFlowStage().id
   const n = next()
   return db.seed("stage_requirements", {
     kind: "field",
@@ -118,7 +118,7 @@ export function makeStageRequirement(overrides = {}) {
     config: {},
     archived_at: null,
     ...overrides,
-    stage_code: stageCode,
+    stage_id: stageId,
   })
 }
 
@@ -309,6 +309,8 @@ export function makeFlowStage(overrides = {}) {
     name: `Stage ${n}`,
     sort_order: n,
     is_terminal: false,
+    pos_x: 0,
+    pos_y: 0,
     ...overrides,
     flow_id: flowId,
   })

@@ -8,6 +8,11 @@ export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
 
+  // Editor screens fill the frame instead of sitting in the centred page
+  // column: a canvas that pans and zooms wants every pixel of it, and its own
+  // floating toolbar already says what a page header would.
+  const isFullBleed = location.pathname.startsWith("/super-admin/flow-canvas");
+
   if (location.pathname === "/login") {
     return <Outlet />;
   }
@@ -30,11 +35,17 @@ export default function AppLayout() {
       {user && <SideNav />}
 
       <main className="flex-1 flex flex-col min-w-0 bg-background md:my-2 md:mr-2 md:ml-2 md:rounded-2xl border-l md:border border-border shadow-sm overflow-hidden relative z-10 transition-transform">
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <div className="wrapper py-10 px-4 md:px-6">
+        {isFullBleed ? (
+          <div className="flex-1 min-h-0 overflow-hidden">
             <Outlet />
           </div>
-        </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="wrapper py-10 px-4 md:px-6">
+              <Outlet />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

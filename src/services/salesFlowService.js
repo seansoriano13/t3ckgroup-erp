@@ -235,7 +235,7 @@ export const salesFlowService = {
    * matters for one reason only: the Stage that sorts first is where deals
    * enter (constants/salesFlow.js). Reordering is how she changes that.
    */
-  async addStage(flowId, name, actorId) {
+  async addStage(flowId, name, actorId, posX = 0, posY = 0) {
     await requireSuperAdmin(actorId);
     await requireDraft(flowId);
 
@@ -247,7 +247,7 @@ export const salesFlowService = {
 
     const { data, error } = await supabase
       .from("flow_stages")
-      .insert({ flow_id: flowId, name: trimmed, sort_order: siblings.length })
+      .insert({ flow_id: flowId, name: trimmed, sort_order: siblings.length, pos_x: Math.round(posX), pos_y: Math.round(posY) })
       .select()
       .single();
     if (error) throw error;
@@ -290,6 +290,25 @@ export const salesFlowService = {
       actorId,
     ).catch(console.error);
 
+    return data;
+  },
+
+  /** Updates the visual position of a Stage on the canvas. */
+  async updateStagePosition(stageId, x, y, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ pos_x: Math.round(x), pos_y: Math.round(y), updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // No audit event emitted: visual layout changes do not affect flow execution
+    // and dragging nodes fires frequently.
+    
     return data;
   },
 
@@ -473,9 +492,14 @@ export const salesFlowService = {
     await requireSuperAdmin(actorId);
     await requireDraft(flowId);
 
-    const stages = await stagesOf(flowId);
-    if (!stages.some((s) => s.id === stageId)) {
-      throw new Error("A flow's Won Stage must be one of its own Stages.");
+    let stageName = "None";
+    if (stageId !== null) {
+      const stages = await stagesOf(flowId);
+      const stage = stages.find((s) => s.id === stageId);
+      if (!stage) {
+        throw new Error("A flow's Won Stage must be one of its own Stages.");
+      }
+      stageName = stage.name;
     }
 
     const { data, error } = await supabase
@@ -493,7 +517,7 @@ export const salesFlowService = {
     systemAuditLogService.addSystemEvent(
       "SALES_FLOW",
       flowId,
-      `Won Stage set to "${stages.find((s) => s.id === stageId)?.name}".`,
+      `Won Stage set to "${stageName}".`,
       { event: "FLOW_WON_STAGE_SET", flowId, stageId, employeeId: actorId },
       actorId,
     ).catch(console.error);

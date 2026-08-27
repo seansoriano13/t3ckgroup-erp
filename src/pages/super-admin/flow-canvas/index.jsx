@@ -1,12 +1,16 @@
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
-import PageHeader from "../../../components/ui/PageHeader";
-import PageContainer from "../../../components/ui/PageContainer";
 import FlowCanvas from "../../../components/settings/FlowCanvas.jsx";
 import { isProductionSupabase } from "../../../lib/supabase.js";
 
 /**
  * The Flow Canvas (issue #36) — where the CRM process gets built with the
  * Operations Manager rather than described to her.
+ *
+ * Full-bleed: this screen is an editor, not a report. A page header and a
+ * centred column would spend the two things the canvas needs most — vertical
+ * room and edge-to-edge width — on chrome that says what the toolbar already
+ * says. `_app.jsx` drops its wrapper for this route; every control lives on the
+ * canvas, floating over the surface it acts on.
  *
  * Super-Admin only, and deliberately no finer permission model than that: the
  * canvas is scaffolding, scheduled to be hidden once the flow it produces is
@@ -22,29 +26,22 @@ import { isProductionSupabase } from "../../../lib/supabase.js";
 export default function FlowCanvasAdminPage() {
   return (
     <ProtectedRoute requireSuperAdmin={true}>
-      <PageContainer maxWidth="7xl" className="pt-4">
-        <PageHeader
-          title="Flow Canvas"
-          description="Build each Sale Type's Sales Flow — its Stages, and the moves a deal may make between them."
-        />
-
-        <div className="mt-6">
-          {isProductionSupabase ? (
-            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-6 text-center">
-              <p className="text-sm font-black text-foreground">
-                The Flow Canvas is not available here
-              </p>
-              <p className="mx-auto mt-1 max-w-prose text-xs text-muted-foreground">
-                It draws against staging only — every Sale Type, Stage and Scratch SOR it creates
-                is a real row, and production is never the drafting surface. Open this screen on
-                staging instead.
-              </p>
-            </div>
-          ) : (
-            <FlowCanvas />
-          )}
+      {isProductionSupabase ? (
+        <div className="flex h-full items-center justify-center p-8">
+          <div className="max-w-md rounded-2xl bg-amber-a2 px-8 py-7 text-center outline outline-1 -outline-offset-1 outline-amber-a6">
+            <p className="text-base font-bold tracking-[-0.01em] text-foreground">
+              The Flow Canvas is not available here
+            </p>
+            <p className="mx-auto mt-2 text-sm leading-relaxed text-muted-foreground">
+              It draws against staging only — every Sale Type, Stage and Scratch SOR it creates
+              is a real row, and production is never the drafting surface. Open this screen on
+              staging instead.
+            </p>
+          </div>
         </div>
-      </PageContainer>
+      ) : (
+        <FlowCanvas />
+      )}
     </ProtectedRoute>
   );
 }

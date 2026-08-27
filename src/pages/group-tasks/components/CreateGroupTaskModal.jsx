@@ -51,12 +51,14 @@ export default function CreateGroupTaskModal({
   employees,
   onSubmit,
   isSubmitting,
+  mode = "normal",
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState(null);
+  const [dueOffsetDays, setDueOffsetDays] = useState("");
   const [members, setMembers] = useState(() => [makeMember()]);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [appliedTemplateId, setAppliedTemplateId] = useState(null);
@@ -76,6 +78,7 @@ export default function CreateGroupTaskModal({
       setTitle("");
       setDescription("");
       setDueDate(null);
+      setDueOffsetDays("");
       setMembers([first]);
       setSelectedMemberId(first.id);
       setAppliedTemplateId(null);
@@ -221,7 +224,8 @@ export default function CreateGroupTaskModal({
     onSubmit({
       title,
       description,
-      dueDate,
+      dueDate: mode === "automation" ? null : dueDate,
+      dueDateOffsetDays: mode === "automation" ? dueOffsetDays : undefined,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
@@ -359,19 +363,38 @@ export default function CreateGroupTaskModal({
                     Target Due Date
                   </span>
                   <div className="relative">
-                    <DatePicker
-                      selected={dueDate}
-                      onChange={(date) => setDueDate(date)}
-                      showTimeSelect
-                      timeIntervals={15}
-                      dateFormat="MMMM d, yyyy h:mm aa"
-                      placeholderText="Optional due date & time"
-                      className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
-                    />
-                    <Calendar
-                      size={13}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    />
+                    {mode === "automation" ? (
+                      <>
+                        <input
+                          type="number"
+                          min="0"
+                          value={dueOffsetDays || ""}
+                          onChange={(e) => setDueOffsetDays(e.target.value)}
+                          placeholder="Offset Days (e.g. 3)"
+                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
+                        />
+                        <Calendar
+                          size={13}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        />
+                      </>
+                    ) : (
+                      <>
+                        <DatePicker
+                          selected={dueDate}
+                          onChange={(date) => setDueDate(date)}
+                          showTimeSelect
+                          timeIntervals={15}
+                          dateFormat="MMMM d, yyyy h:mm aa"
+                          placeholderText="Optional due date & time"
+                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
+                        />
+                        <Calendar
+                          size={13}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -38,6 +38,16 @@ beforeAll(() => {
   if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {}
   }
+  // jsdom has no ResizeObserver. React Flow constructs one the moment it
+  // mounts, so every test that renders the Flow Canvas — or any screen that
+  // embeds it — throws before its first assertion without this.
+  if (!globalThis.ResizeObserver) {
+    globalThis.ResizeObserver = class ResizeObserver {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    }
+  }
   // Anything not described by a handler is a bug in the test, not something to
   // quietly let through to the real internet.
   server.listen({ onUnhandledRequest: "error" })

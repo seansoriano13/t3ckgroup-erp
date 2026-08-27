@@ -370,6 +370,21 @@ function applyCreateTable(sql, registry) {
   }
 }
 
+function applyDropTable(sql, registry) {
+  const pattern = /drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s*(?:cascade)?\s*;/gi
+  let match
+  while ((match = pattern.exec(sql)) !== null) {
+    const tableName = match[1]
+    delete registry.tables[tableName]
+    // Also remove any relations that point from this table
+    for (const [constraintName, relation] of Object.entries(registry.relationsByConstraint)) {
+      if (relation.fromTable === tableName) {
+        delete registry.relationsByConstraint[constraintName]
+      }
+    }
+  }
+}
+
 /**
  * ALTER statements must be replayed in source order: 0007 drops a constraint
  * and re-adds it under the same name, so applying every drop after every add
@@ -447,6 +462,7 @@ function build() {
   const registry = { tables: {}, relationsByConstraint: {} }
   for (const source of sqlSources()) {
     const sql = stripComments(source)
+    applyDropTable(sql, registry)
     applyCreateTable(sql, registry)
     applyAlterTable(sql, registry)
     applyCreateIndex(sql, registry)

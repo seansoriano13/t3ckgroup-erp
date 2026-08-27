@@ -7,7 +7,9 @@ import {
   makeRequirementStatus,
   makeStageRequirement,
   makeSuperAdmin,
-  seedPipeline,
+  makeSaleType,
+  makeSalesFlow,
+  makeFlowStage,
 } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
 
@@ -20,45 +22,50 @@ import { waitForNetworkIdle } from "@/test/network"
 describe("stageRequirementService", () => {
   let admin
   let regular
+  let saleType
+  let flow
+  let stage
 
   beforeEach(() => {
     admin = makeSuperAdmin({ name: "Admin Ana" })
     regular = makeEmployee({ name: "Regular Rey" })
-    seedPipeline()
+    saleType = makeSaleType()
+    flow = makeSalesFlow({ sale_type_id: saleType.id })
+    stage = makeFlowStage({ flow_id: flow.id })
   })
 
   describe("getForStage", () => {
     it("returns a stage's requirements in sort order", async () => {
-      makeStageRequirement({ stage_code: "QUALIFIED", label: "Second", sort_order: 1 })
-      makeStageRequirement({ stage_code: "QUALIFIED", label: "First", sort_order: 0 })
+      makeStageRequirement({ stage_id: stage.id, label: "Second", sort_order: 1 })
+      makeStageRequirement({ stage_id: stage.id, label: "First", sort_order: 0 })
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED")
+      const requirements = await stageRequirementService.getForStage(stage.id)
 
       expect(requirements.map((r) => r.label)).toEqual(["First", "Second"])
     })
 
     it("excludes archived requirements by default", async () => {
-      makeStageRequirement({ stage_code: "QUALIFIED", label: "Live" })
+      makeStageRequirement({ stage_id: stage.id, label: "Live" })
       makeStageRequirement({
-        stage_code: "QUALIFIED",
+        stage_id: stage.id,
         label: "Archived",
         archived_at: "2026-01-01T00:00:00.000Z",
       })
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED")
+      const requirements = await stageRequirementService.getForStage(stage.id)
 
       expect(requirements.map((r) => r.label)).toEqual(["Live"])
     })
 
     it("includes archived requirements when asked", async () => {
-      makeStageRequirement({ stage_code: "QUALIFIED", label: "Live" })
+      makeStageRequirement({ stage_id: stage.id, label: "Live" })
       makeStageRequirement({
-        stage_code: "QUALIFIED",
+        stage_id: stage.id,
         label: "Archived",
         archived_at: "2026-01-01T00:00:00.000Z",
       })
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED", {
+      const requirements = await stageRequirementService.getForStage(stage.id, {
         includeArchived: true,
       })
 
@@ -66,7 +73,7 @@ describe("stageRequirementService", () => {
     })
 
     it("returns nothing for a stage with no requirements configured", async () => {
-      expect(await stageRequirementService.getForStage("QUALIFIED")).toEqual([])
+      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
     })
   })
 
@@ -74,18 +81,18 @@ describe("stageRequirementService", () => {
     it("refuses for a non-Super-Admin", async () => {
       await expect(
         stageRequirementService.add(
-          { stageCode: "QUALIFIED", kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
+          { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
           regular.id,
         ),
       ).rejects.toThrow(/Only a Super Admin/)
 
-      expect(await stageRequirementService.getForStage("QUALIFIED")).toEqual([])
+      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
     })
 
     it("lets a Super Admin add a requirement", async () => {
       const created = await stageRequirementService.add(
         {
-          stageCode: "QUALIFIED",
+          stageId: stage.id,
           kind: "field",
           label: "Contact person on file",
           isRequired: true,
@@ -95,7 +102,7 @@ describe("stageRequirementService", () => {
       )
 
       expect(created).toMatchObject({
-        stage_code: "QUALIFIED",
+        stage_id: stage.id,
         kind: "field",
         label: "Contact person on file",
         is_required: true,
@@ -105,7 +112,7 @@ describe("stageRequirementService", () => {
 
     it("defaults a new requirement to required", async () => {
       const created = await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "tickbox", label: "Bid documents checked" },
+        { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
         admin.id,
       )
 
@@ -114,20 +121,20 @@ describe("stageRequirementService", () => {
 
     it("persists and round-trips an optional requirement", async () => {
       await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "tickbox", label: "Nice to have", isRequired: false },
+        { stageId: stage.id, kind: "tickbox", label: "Nice to have", isRequired: false },
         admin.id,
       )
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED")
+      const requirements = await stageRequirementService.getForStage(stage.id)
       expect(requirements[0].is_required).toBe(false)
     })
 
     it("appends after a stage's existing requirements", async () => {
-      makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 0 })
-      makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 1 })
+      makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
+      makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
 
       const created = await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "tickbox", label: "Third" },
+        { stageId: stage.id, kind: "tickbox", label: "Third" },
         admin.id,
       )
 
@@ -135,10 +142,10 @@ describe("stageRequirementService", () => {
     })
 
     it("counts an archived sibling when computing the next position", async () => {
-      makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 0, archived_at: "2026-01-01T00:00:00.000Z" })
+      makeStageRequirement({ stage_id: stage.id, sort_order: 0, archived_at: "2026-01-01T00:00:00.000Z" })
 
       const created = await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "tickbox", label: "Second" },
+        { stageId: stage.id, kind: "tickbox", label: "Second" },
         admin.id,
       )
 
@@ -148,7 +155,7 @@ describe("stageRequirementService", () => {
     it("rejects a kind outside the five supported ones", async () => {
       await expect(
         stageRequirementService.add(
-          { stageCode: "QUALIFIED", kind: "signature", label: "Something" },
+          { stageId: stage.id, kind: "signature", label: "Something" },
           admin.id,
         ),
       ).rejects.toThrow(/Kind must be one of/)
@@ -156,21 +163,21 @@ describe("stageRequirementService", () => {
 
     it("rejects a blank label", async () => {
       await expect(
-        stageRequirementService.add({ stageCode: "QUALIFIED", kind: "tickbox", label: "   " }, admin.id),
+        stageRequirementService.add({ stageId: stage.id, kind: "tickbox", label: "   " }, admin.id),
       ).rejects.toThrow(/needs a label/)
     })
 
     it("rejects a deadline with zero or no days — a UI form's min=1 is client-side only", async () => {
       await expect(
         stageRequirementService.add(
-          { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt", config: { days: 0 } },
+          { stageId: stage.id, kind: "deadline", label: "Confirm receipt", config: { days: 0 } },
           admin.id,
         ),
       ).rejects.toThrow(/positive number of days/)
 
       await expect(
         stageRequirementService.add(
-          { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt" },
+          { stageId: stage.id, kind: "deadline", label: "Confirm receipt" },
           admin.id,
         ),
       ).rejects.toThrow(/positive number of days/)
@@ -178,7 +185,7 @@ describe("stageRequirementService", () => {
 
     it("accepts a deadline with a positive day count", async () => {
       const created = await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "deadline", label: "Confirm receipt", config: { days: 2 } },
+        { stageId: stage.id, kind: "deadline", label: "Confirm receipt", config: { days: 2 } },
         admin.id,
       )
 
@@ -187,7 +194,7 @@ describe("stageRequirementService", () => {
 
     it("logs who added the requirement and when", async () => {
       const created = await stageRequirementService.add(
-        { stageCode: "QUALIFIED", kind: "tickbox", label: "Bid documents checked" },
+        { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
         admin.id,
       )
       await waitForNetworkIdle()
@@ -201,8 +208,8 @@ describe("stageRequirementService", () => {
 
   describe("reorder", () => {
     it("refuses for a non-Super-Admin", async () => {
-      const first = makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 0 })
-      const second = makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 1 })
+      const first = makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
+      const second = makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
 
       await expect(
         stageRequirementService.reorder(
@@ -211,26 +218,26 @@ describe("stageRequirementService", () => {
         ),
       ).rejects.toThrow(/Only a Super Admin/)
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED")
+      const requirements = await stageRequirementService.getForStage(stage.id)
       expect(requirements.map((r) => r.id)).toEqual([first.id, second.id])
     })
 
     it("persists a new order and round-trips through getForStage", async () => {
-      const first = makeStageRequirement({ stage_code: "QUALIFIED", label: "First", sort_order: 0 })
-      const second = makeStageRequirement({ stage_code: "QUALIFIED", label: "Second", sort_order: 1 })
+      const first = makeStageRequirement({ stage_id: stage.id, label: "First", sort_order: 0 })
+      const second = makeStageRequirement({ stage_id: stage.id, label: "Second", sort_order: 1 })
 
       await stageRequirementService.reorder(
         [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
         admin.id,
       )
 
-      const requirements = await stageRequirementService.getForStage("QUALIFIED")
+      const requirements = await stageRequirementService.getForStage(stage.id)
       expect(requirements.map((r) => r.label)).toEqual(["Second", "First"])
     })
 
     it("logs the reorder", async () => {
-      const first = makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 0 })
-      const second = makeStageRequirement({ stage_code: "QUALIFIED", sort_order: 1 })
+      const first = makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
+      const second = makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
 
       await stageRequirementService.reorder(
         [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
@@ -246,29 +253,29 @@ describe("stageRequirementService", () => {
 
   describe("archive", () => {
     it("refuses for a non-Super-Admin", async () => {
-      const requirement = makeStageRequirement({ stage_code: "QUALIFIED" })
+      const requirement = makeStageRequirement({ stage_id: stage.id })
 
       await expect(stageRequirementService.archive(requirement.id, regular.id)).rejects.toThrow(
         /Only a Super Admin/,
       )
 
-      expect(await stageRequirementService.getForStage("QUALIFIED")).toHaveLength(1)
+      expect(await stageRequirementService.getForStage(stage.id)).toHaveLength(1)
     })
 
     it("soft-archives — the row survives, just stops showing as live", async () => {
-      const requirement = makeStageRequirement({ stage_code: "QUALIFIED" })
+      const requirement = makeStageRequirement({ stage_id: stage.id })
 
       const archived = await stageRequirementService.archive(requirement.id, admin.id)
 
       expect(archived.archived_at).toBeTruthy()
-      expect(await stageRequirementService.getForStage("QUALIFIED")).toEqual([])
+      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
       expect(
-        await stageRequirementService.getForStage("QUALIFIED", { includeArchived: true }),
+        await stageRequirementService.getForStage(stage.id, { includeArchived: true }),
       ).toHaveLength(1)
     })
 
     it("does not disturb an existing satisfaction row (D21 — no hard delete, no retroactive rewrite)", async () => {
-      const requirement = makeStageRequirement({ stage_code: "QUALIFIED", kind: "tickbox" })
+      const requirement = makeStageRequirement({ stage_id: stage.id, kind: "tickbox" })
       const opportunity = makeOpportunity({ registered_by: admin.id })
       const status = makeRequirementStatus({
         opportunity_id: opportunity.id,
@@ -282,7 +289,7 @@ describe("stageRequirementService", () => {
     })
 
     it("logs who archived the requirement and when", async () => {
-      const requirement = makeStageRequirement({ stage_code: "QUALIFIED", label: "Bid documents checked" })
+      const requirement = makeStageRequirement({ stage_id: stage.id, label: "Bid documents checked" })
 
       await stageRequirementService.archive(requirement.id, admin.id)
       await waitForNetworkIdle()
@@ -294,10 +301,10 @@ describe("stageRequirementService", () => {
     })
 
     it("narrates onto the timeline of every deal currently sitting on that Stage", async () => {
-      const requirement = makeStageRequirement({ stage_code: "QUALIFIED", label: "Bid documents checked" })
+      const requirement = makeStageRequirement({ stage_id: stage.id, label: "Bid documents checked" })
       const onStage = makeOpportunity({
         registered_by: admin.id,
-        status: "QUALIFIED",
+        flow_stage_id: stage.id, sale_type_id: saleType.id,
         sales_reference: "S00999",
       })
       const elsewhere = makeOpportunity({ registered_by: admin.id, status: "LEAD" })

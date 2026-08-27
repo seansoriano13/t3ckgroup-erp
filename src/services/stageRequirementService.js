@@ -41,7 +41,7 @@ async function noteArchivalOnDealsAtStage(requirement, actorId) {
   const { data: deals, error } = await supabase
     .from("sales_opportunities")
     .select("id")
-    .eq("status", requirement.stage_code)
+    .eq("flow_stage_id", requirement.stage_id)
     .neq("is_deleted", true)
     // Issue #36, migration 0046 — a Scratch SOR has no timeline anybody reads
     // for its own sake, so a config-change note on one is noise.
@@ -72,13 +72,13 @@ async function noteArchivalOnDealsAtStage(requirement, actorId) {
  */
 export const stageRequirementService = {
   /** A Stage's requirements, in sort order. Archived rows excluded by default — a config screen edits the live set, not history. */
-  async getForStage(stageCode, { includeArchived = false } = {}) {
-    if (!stageCode) return [];
+  async getForStage(stageId, { includeArchived = false } = {}) {
+    if (!stageId) return [];
 
     let query = supabase
       .from("stage_requirements")
       .select("*")
-      .eq("stage_code", stageCode)
+      .eq("stage_id", stageId)
       .order("sort_order", { ascending: true });
     if (!includeArchived) query = query.is("archived_at", null);
 
@@ -88,10 +88,37 @@ export const stageRequirementService = {
   },
 
   /**
+   * Every listed Stage's requirements in one round trip, grouped by stage id.
+   *
+   * The Flow Canvas draws every Stage's gate at once, so asking per Stage would
+   * fire one request per node on every flow switch. Stages with no requirements
+   * are present as empty arrays — a caller reading `byStage[id]` never has to
+   * distinguish "none" from "not fetched".
+   */
+  async getForStages(stageIds = [], { includeArchived = false } = {}) {
+    const ids = [...new Set(stageIds.filter(Boolean))];
+    if (ids.length === 0) return {};
+
+    let query = supabase
+      .from("stage_requirements")
+      .select("*")
+      .in("stage_id", ids)
+      .order("sort_order", { ascending: true });
+    if (!includeArchived) query = query.is("archived_at", null);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const byStage = Object.fromEntries(ids.map((id) => [id, []]));
+    for (const row of data || []) byStage[row.stage_id]?.push(row);
+    return byStage;
+  },
+
+  /**
    * Adds a requirement to a Stage, appended after its current requirements.
    * Super-Admin-only.
    */
-  async add({ stageCode, kind, label, isRequired = true, config = {} }, actorId) {
+  async add({ stageId, kind, label, isRequired = true, config = {} }, actorId) {
     await requireSuperAdmin(actorId);
 
     if (!VALID_KINDS.includes(kind)) {
@@ -115,12 +142,12 @@ export const stageRequirementService = {
     // tie doesn't error, just leaves order between the two down to
     // incidental read order, and this is a rare, one-admin-in-a-meeting
     // action, not a bulk or concurrent write path.
-    const siblings = await this.getForStage(stageCode, { includeArchived: true });
+    const siblings = await this.getForStage(stageId, { includeArchived: true });
 
     const { data, error } = await supabase
       .from("stage_requirements")
       .insert({
-        stage_code: stageCode,
+        stage_id: stageId,
         kind,
         label: trimmedLabel,
         is_required: Boolean(isRequired),
@@ -134,8 +161,8 @@ export const stageRequirementService = {
     systemAuditLogService.addSystemEvent(
       "STAGE_REQUIREMENT",
       data.id,
-      `Requirement added to ${stageCode}: "${trimmedLabel}" (${kind}).`,
-      { event: "STAGE_REQUIREMENT_ADDED", stageCode, kind, label: trimmedLabel, employeeId: actorId },
+      `Requirement added to stage: "${trimmedLabel}" (${kind}).`,
+      { event: "STAGE_REQUIREMENT_ADDED", stageId, kind, label: trimmedLabel, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
@@ -194,8 +221,8 @@ export const stageRequirementService = {
     systemAuditLogService.addSystemEvent(
       "STAGE_REQUIREMENT",
       id,
-      `Requirement archived: "${data.label}" (${data.stage_code}).`,
-      { event: "STAGE_REQUIREMENT_ARCHIVED", stageCode: data.stage_code, label: data.label, employeeId: actorId },
+      `Requirement archived: "${data.label}" (${data.stage_id}).`,
+      { event: "STAGE_REQUIREMENT_ARCHIVED", stageId: data.stage_id, label: data.label, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
