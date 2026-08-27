@@ -236,6 +236,69 @@ export const groupTaskService = {
     return true;
   },
 
+  async addMemberAttachment(memberId, attachmentUrl, userId) {
+    const { data: member, error: fetchErr } = await supabase
+      .from("committee_task_members")
+      .select("*, committee_tasks(*)")
+      .eq("id", memberId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
+    const existing = member.attachments || [];
+    const newAttachments = [...existing, attachmentUrl];
+
+    const { error } = await supabase
+      .from("committee_task_members")
+      .update({ attachments: newAttachments })
+      .eq("id", memberId);
+
+    if (error) throw error;
+
+    const { data: currentUser } = await supabase.from("employees").select("name").eq("id", userId).single();
+    const userName = currentUser?.name || "A member";
+    
+    await groupTaskActivityService.addComment(
+      member.committee_task_id,
+      userId,
+      `${userName} uploaded a file.`,
+      { attachments: [attachmentUrl] }
+    );
+    
+    return true;
+  },
+
+  async updateMemberDescription(memberId, taskDescription, oldDescription, userId) {
+    const { data: member, error: fetchErr } = await supabase
+      .from("committee_task_members")
+      .select("*, committee_tasks(*)")
+      .eq("id", memberId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+    if (member.employee_id !== userId && member.committee_tasks.created_by !== userId) {
+      throw new Error("Unauthorized to update this task description");
+    }
+
+    const { error } = await supabase
+      .from("committee_task_members")
+      .update({ task_description: taskDescription })
+      .eq("id", memberId);
+
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      member.committee_task_id,
+      "DESCRIPTION_UPDATED",
+      {
+        memberId,
+        old: oldDescription,
+        new: taskDescription,
+      },
+      userId
+    );
+  },
+
   // UPDATE - Mark Complete manually
   async markGroupTaskComplete(groupTaskId, actorId) {
     const { data, error } = await supabase

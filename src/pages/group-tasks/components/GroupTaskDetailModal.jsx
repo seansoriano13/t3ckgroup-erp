@@ -79,11 +79,14 @@ export default function GroupTaskDetailModal({
   onRemoveMember,
   isUpdatingMember,
   isRemovingMember,
-  onVerify,
   onReject,
   isVerifying,
   isRejecting,
   onInlineCheck,
+  onUpdateDescription,
+  isUpdatingDescription,
+  onAddAttachment,
+  isUploadingAttachment,
   searchTerm,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -102,6 +105,9 @@ export default function GroupTaskDetailModal({
   const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
+  
+  const [editingDescriptionId, setEditingDescriptionId] = useState(null);
+  const [editedDescription, setEditedDescription] = useState("");
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
@@ -212,6 +218,8 @@ export default function GroupTaskDetailModal({
       setRejectRemarks("");
       setMessageContent("");
       setAttachments([]);
+      setEditingDescriptionId(null);
+      setEditedDescription("");
       setReplyingTo(null);
       handleCancelEdit();
     }
@@ -737,14 +745,71 @@ export default function GroupTaskDetailModal({
                           </div>
 
                           {/* Description */}
-                          {memberDescription?.trim() && (
-                            <div className="flex flex-col gap-1.5">
+                          {editingDescriptionId === member.id ? (
+                            <div className="flex flex-col gap-2">
                               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Specific Task
+                                Edit Task Description
                               </label>
-                              <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
-                                {memberDescription}
+                              <textarea
+                                value={editedDescription}
+                                onChange={(e) => setEditedDescription(e.target.value)}
+                                className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-28 resize-y"
+                                placeholder="Update your task details..."
+                              />
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setEditingDescriptionId(null)}
+                                  className="h-7 px-3 text-[11px]"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  disabled={isUpdatingDescription}
+                                  onClick={() => {
+                                    if (editedDescription !== memberDescription) {
+                                      onUpdateDescription(member.id, editedDescription, memberDescription);
+                                    }
+                                    setEditingDescriptionId(null);
+                                  }}
+                                  className="h-7 px-3 text-[11px]"
+                                >
+                                  {isUpdatingDescription ? "Saving..." : "Save Changes"}
+                                </Button>
                               </div>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                  Specific Task
+                                </label>
+                                {isMe && task.status === "ACTIVE" && member.status === "PENDING" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingDescriptionId(member.id);
+                                      setEditedDescription(memberDescription || "");
+                                    }}
+                                    className="text-[10px] text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1"
+                                  >
+                                    <Edit3 size={10} /> Edit
+                                  </button>
+                                )}
+                              </div>
+                              {memberDescription?.trim() ? (
+                                <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
+                                  {memberDescription}
+                                </div>
+                              ) : (
+                                <p className="text-[13px] text-muted-foreground italic">
+                                  No assignment details recorded.
+                                </p>
+                              )}
                             </div>
                           )}
 
@@ -791,12 +856,68 @@ export default function GroupTaskDetailModal({
                             </div>
                           )}
 
-                          {!memberDescription?.trim() &&
-                            checklistItems.length === 0 && (
-                              <p className="text-[13px] text-muted-foreground italic">
-                                No assignment details recorded.
-                              </p>
+                          {/* The "no assignment details" fallback was merged into the description render block above */}
+
+                          {/* Attachments Section */}
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            <div className="flex items-center justify-between">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Attachments
+                              </label>
+                              {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
+                                <div className="relative">
+                                  <input
+                                    type="file"
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    multiple
+                                    accept="image/*"
+                                    disabled={isUploadingAttachment}
+                                    title="Upload attachments"
+                                    onChange={async (e) => {
+                                      const files = Array.from(e.target.files).filter((f) => f.type.startsWith("image/"));
+                                      if (files.length > 0) {
+                                        for (const file of files) {
+                                          try {
+                                            const url = await storageService.uploadToCloudinary(file);
+                                            onAddAttachment(member.id, url);
+                                          } catch (err) {
+                                            toast.error(`Failed to upload ${file.name}`);
+                                          }
+                                        }
+                                      }
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isUploadingAttachment}
+                                    className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    <Paperclip size={10} />
+                                    {isUploadingAttachment ? "Uploading..." : "Add File"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {member.attachments && member.attachments.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-xl border border-border/50">
+                                {member.attachments.map((url, i) => (
+                                  <a
+                                    key={i}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 hover:opacity-80 transition-opacity bg-muted flex items-center justify-center"
+                                  >
+                                    <img src={url} alt={`Attachment ${i}`} className="w-full h-full object-cover" />
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[13px] text-muted-foreground italic">No attachments.</p>
                             )}
+                          </div>
 
                           {/* Grade + actions */}
                           <div className="flex items-end justify-between gap-4 pt-1 mt-auto">
