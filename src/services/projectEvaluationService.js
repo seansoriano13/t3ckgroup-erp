@@ -1,10 +1,13 @@
 import { supabase } from "../lib/supabase";
 import {
   COMPLETENESS,
+  COST_SOURCE,
   applyWinner,
   canSetSourcing,
   isCompleteness,
   isSourcing,
+  resolveCost,
+  winningOffer,
 } from "../constants/projectEvaluation";
 
 /**
@@ -414,15 +417,21 @@ export const projectEvaluationService = {
    * sor_canvass_offers_one_winner_per_canvass (0059) is never hit transiently.
    * applyWinner is what decides the shape; this is only the two writes it
    * implies.
+   *
+   * Issue #47: when the Canvass belongs to an Inclusion, its winning price is
+   * also stamped onto that Inclusion's cost basis — the same write a purchaser
+   * would otherwise have to make twice, once here and once by hand.
    */
   async markWinner(canvassId, winnerId) {
     if (!canvassId) throw new Error("A Canvass id is required.");
 
-    const { data: offers, error: listError } = await supabase
-      .from("sor_canvass_offers")
-      .select("id, is_winner")
-      .eq("canvass_id", canvassId);
+    const [{ data: offers, error: listError }, { data: canvassRow, error: canvassError }] =
+      await Promise.all([
+        supabase.from("sor_canvass_offers").select("id, is_winner").eq("canvass_id", canvassId),
+        supabase.from("sor_canvasses").select("inclusion_id").eq("id", canvassId).single(),
+      ]);
     if (listError) throw listError;
+    if (canvassError) throw canvassError;
 
     // Throws if winnerId isn't one of this Canvass's offers — the same check
     // a bad write would otherwise skip straight past.
@@ -444,6 +453,13 @@ export const projectEvaluationService = {
       .select()
       .single();
     if (error) throw error;
+
+    if (canvassRow.inclusion_id) {
+      await this.stampInclusionCost(canvassRow.inclusion_id, {
+        amount: data.unit_price,
+        source: COST_SOURCE.CANVASS_OFFER,
+      });
+    }
 
     return data;
   },
@@ -511,5 +527,78 @@ export const projectEvaluationService = {
 
     if (error) throw error;
     return data;
+  },
+
+  // ── Cost basis (issue #47) ───────────────────────────────────────────────
+
+  /**
+   * Writes an Inclusion's cost basis, stamped with the moment it was
+   * established. Internal — callers go through markWinner or
+   * refreshInclusionCost, which decide *what* amount and source apply; this
+   * is only the write. A null amount clears all three columns together,
+   * since "not costed" has to mean none of them are set, not a stale
+   * timestamp sitting under an empty figure.
+   */
+  async stampInclusionCost(inclusionId, { amount, source }) {
+    const hasCost = amount !== null && amount !== undefined;
+
+    const { data, error } = await supabase
+      .from("sor_inclusions")
+      .update({
+        cost_amount: hasCost ? amount : null,
+        cost_source: hasCost ? source : null,
+        cost_established_at: hasCost ? new Date().toISOString() : null,
+      })
+      .eq("id", inclusionId)
+      .select(INCLUSION_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Re-resolves and re-stamps an Inclusion's cost basis on demand — the only
+   * way any input other than a fresh Canvass win moves the figure, matching
+   * the policy that cost is a snapshot a purchaser controls, not a live read.
+   *
+   * `manualAmount` is the fallback tier: pass a number to record a hand-typed
+   * figure, or omit it to re-check only the higher tiers (a winning offer, if
+   * the Canvass changed since) against whatever manual figure is already on
+   * file.
+   *
+   * Odoo's catalog price (the middle tier) is not wired here — an Inclusion
+   * carries no Odoo product reference to key such a lookup on, and issue #38
+   * already scoped live Odoo reads out of this feature. resolveCost() already
+   * supports the tier, so wiring it later is additive, not a rewrite.
+   */
+  async refreshInclusionCost(inclusionId, { manualAmount } = {}) {
+    if (!inclusionId) throw new Error("An inclusion id is required.");
+
+    const [canvass, { data: current, error: readError }] = await Promise.all([
+      this.getCanvass({ inclusionId }),
+      supabase
+        .from("sor_inclusions")
+        .select("cost_amount, cost_source")
+        .eq("id", inclusionId)
+        .single(),
+    ]);
+    if (readError) throw readError;
+
+    const winner = canvass ? winningOffer(canvass.offers) : null;
+    const fallbackManual =
+      manualAmount !== undefined
+        ? manualAmount
+        : current.cost_source === COST_SOURCE.MANUAL
+          ? current.cost_amount
+          : null;
+
+    const { amount, source } = resolveCost({
+      winningOfferPrice: winner?.unit_price ?? null,
+      odooCatalogPrice: null,
+      manualAmount: fallbackManual,
+    });
+
+    return this.stampInclusionCost(inclusionId, { amount, source });
   },
 };

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ChevronDown, ListChecks, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ListChecks, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Dropdown from "../ui/Dropdown";
@@ -9,12 +9,15 @@ import { FilterOptionList } from "../ui/FilterDropdown";
 import { confirmDeleteToast } from "../ui/CustomToast";
 import { useAuth } from "../../context/AuthContext";
 import { projectEvaluationService } from "../../services/projectEvaluationService";
+import CanvassPanel, { CanvassTriggerButton } from "../CanvassPanel";
 import {
   COMPLETENESS,
   COMPLETENESS_LABELS,
   COMPLETENESS_VALUES,
+  COST_SOURCE_LABELS,
   SOURCING_LABELS,
   SOURCING_VALUES,
+  costAgeDays,
   summariseCompleteness,
 } from "../../constants/projectEvaluation";
 import { REQUEST_UNITS } from "../../constants/procurement";
@@ -80,8 +83,50 @@ function PillSelect({ label, tone, options, value, onChange, disabled }) {
   );
 }
 
-function InclusionRow({ inclusion, canEdit, onPatch, onRemove, isPending }) {
+/** Cost basis, or an honest "not costed yet" — never a bare 0. */
+function CostLine({ inclusion }) {
+  if (inclusion.cost_amount === null || inclusion.cost_amount === undefined) {
+    return <span className="text-muted-foreground/70">No cost yet</span>;
+  }
+
+  const age = costAgeDays(inclusion.cost_established_at);
+  const ageLabel = age === null ? "" : age === 0 ? "today" : age === 1 ? "1 day ago" : `${age} days ago`;
+
+  return (
+    <span>
+      ₱{Number(inclusion.cost_amount).toLocaleString()}
+      <span className="text-muted-foreground/70">
+        {" "}
+        · {COST_SOURCE_LABELS[inclusion.cost_source] || inclusion.cost_source}
+        {ageLabel && ` · ${ageLabel}`}
+      </span>
+    </span>
+  );
+}
+
+function InclusionRow({
+  inclusion,
+  canEdit,
+  canEditCanvass,
+  userId,
+  onPatch,
+  onRemove,
+  onRefreshCost,
+  onSetManualCost,
+  isPending,
+}) {
   const completeness = inclusion.completeness;
+  const [isCanvassOpen, setIsCanvassOpen] = useState(false);
+  const [isEditingCost, setIsEditingCost] = useState(false);
+  const [manualAmount, setManualAmount] = useState("");
+
+  const submitManualCost = (e) => {
+    e.preventDefault();
+    if (manualAmount === "") return;
+    onSetManualCost(inclusion.id, Number(manualAmount));
+    setIsEditingCost(false);
+    setManualAmount("");
+  };
 
   return (
     <div className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-mauve-8">
@@ -93,9 +138,70 @@ function InclusionRow({ inclusion, canEdit, onPatch, onRemove, isPending }) {
           {Number(inclusion.quantity)} {inclusion.unit || "unit"}
           {inclusion.note ? ` · ${inclusion.note}` : ""}
         </p>
+
+        {isEditingCost ? (
+          <form onSubmit={submitManualCost} className="mt-1 flex items-center gap-1.5">
+            <input
+              autoFocus
+              type="number"
+              min="0"
+              step="any"
+              value={manualAmount}
+              onChange={(e) => setManualAmount(e.target.value)}
+              placeholder="Manual cost"
+              className="w-28 rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
+            />
+            <button type="submit" className="text-[11px] font-bold text-primary hover:underline">
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditingCost(false)}
+              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+            >
+              Cancel
+            </button>
+          </form>
+        ) : (
+          <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
+            <CostLine inclusion={inclusion} />
+            {canEditCanvass && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onRefreshCost(inclusion.id)}
+                  title="Refresh cost"
+                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                >
+                  <RefreshCw size={11} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditingCost(true)}
+                  title="Set manual cost"
+                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                >
+                  <Pencil size={11} />
+                </button>
+              </>
+            )}
+          </p>
+        )}
       </div>
 
       <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+        <CanvassTriggerButton onClick={() => setIsCanvassOpen(true)} />
+        {isCanvassOpen && (
+          <CanvassPanel
+            open={isCanvassOpen}
+            onOpenChange={setIsCanvassOpen}
+            subject={{ inclusionId: inclusion.id }}
+            subjectLabel={inclusion.description}
+            userId={userId}
+            canEdit={canEditCanvass}
+          />
+        )}
+
         <PillSelect
           label={COMPLETENESS_LABELS[completeness] || completeness}
           tone={COMPLETENESS_TONE[completeness] || COMPLETENESS_TONE[COMPLETENESS.MISSING]}
@@ -228,6 +334,18 @@ export default function InclusionsPanel({ opportunity }) {
         opportunity?.sales_director_id,
       ].includes(user.id));
 
+  // Mirrors sor_canvasses_write (0059): canvassing is purchasing's job
+  // regardless of which subject a Canvass hangs off, independent of whether
+  // this viewer is also one of the SOR's sales participants above.
+  const canEditCanvass =
+    !!user &&
+    (user.has_purchasing_flow ||
+      user.hasPurchasingFlow ||
+      user.is_head ||
+      user.isHead ||
+      user.is_super_admin ||
+      user.isSuperAdmin);
+
   const invalidate = () =>
     queryClient.invalidateQueries({ queryKey: ["inclusions", opportunityId] });
 
@@ -254,6 +372,19 @@ export default function InclusionsPanel({ opportunity }) {
       invalidate();
       toast.success("Inclusion removed.");
     },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const refreshCostMutation = useMutation({
+    mutationFn: (id) => projectEvaluationService.refreshInclusionCost(id),
+    onSuccess: invalidate,
+    onError: (err) => toast.error(err.message),
+  });
+
+  const setManualCostMutation = useMutation({
+    mutationFn: ({ id, amount }) =>
+      projectEvaluationService.refreshInclusionCost(id, { manualAmount: amount }),
+    onSuccess: invalidate,
     onError: (err) => toast.error(err.message),
   });
 
@@ -316,8 +447,12 @@ export default function InclusionsPanel({ opportunity }) {
                   key={inclusion.id}
                   inclusion={inclusion}
                   canEdit={canEdit}
+                  canEditCanvass={canEditCanvass}
+                  userId={user?.id}
                   isPending={isPending}
                   onPatch={(id, patch) => patchMutation.mutate({ id, patch })}
+                  onRefreshCost={(id) => refreshCostMutation.mutate(id)}
+                  onSetManualCost={(id, amount) => setManualCostMutation.mutate({ id, amount })}
                   onRemove={(row) =>
                     confirmDeleteToast(
                       "Remove this inclusion?",

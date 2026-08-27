@@ -215,3 +215,54 @@ export function applyWinner(offers = [], winnerId) {
   }
   return list.map((offer) => ({ ...offer, is_winner: offer.id === winnerId }))
 }
+
+// ── Cost basis (issue #47) ───────────────────────────────────────────────
+// An Inclusion's cost resolves in a fixed priority order — the winning
+// Canvass offer, then Odoo's catalog price for a stocked item, then whatever
+// was typed in by hand — and is stored as a stamped snapshot (migration
+// 0060) rather than read live, so a decision stays reproducible after the
+// market moves under it.
+
+export const COST_SOURCE = {
+  CANVASS_OFFER: "CANVASS_OFFER",
+  ODOO_CATALOG: "ODOO_CATALOG",
+  MANUAL: "MANUAL",
+}
+
+export const COST_SOURCE_LABELS = {
+  [COST_SOURCE.CANVASS_OFFER]: "Canvass winner",
+  [COST_SOURCE.ODOO_CATALOG]: "Odoo catalog",
+  [COST_SOURCE.MANUAL]: "Manual entry",
+}
+
+/**
+ * Resolves an Inclusion's cost basis from whatever is available, in the
+ * fixed priority order the policy sets. Returns `{ amount: null, source:
+ * null }` when none of the three exist yet — a state distinct from a cost of
+ * zero, which is why callers must check `amount === null` rather than
+ * `!amount` before rendering a number.
+ */
+export function resolveCost({ winningOfferPrice, odooCatalogPrice, manualAmount } = {}) {
+  if (winningOfferPrice !== null && winningOfferPrice !== undefined) {
+    return { amount: Number(winningOfferPrice), source: COST_SOURCE.CANVASS_OFFER }
+  }
+  if (odooCatalogPrice !== null && odooCatalogPrice !== undefined) {
+    return { amount: Number(odooCatalogPrice), source: COST_SOURCE.ODOO_CATALOG }
+  }
+  if (manualAmount !== null && manualAmount !== undefined) {
+    return { amount: Number(manualAmount), source: COST_SOURCE.MANUAL }
+  }
+  return { amount: null, source: null }
+}
+
+/**
+ * Whole days since a cost figure was stamped, or null when nothing has been
+ * stamped yet. The screen's job is to say "no cost yet," never "0 days old."
+ */
+export function costAgeDays(establishedAt, now = new Date()) {
+  if (!establishedAt) return null
+  const then = new Date(establishedAt)
+  if (Number.isNaN(then.getTime())) return null
+  const ms = now.getTime() - then.getTime()
+  return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)))
+}

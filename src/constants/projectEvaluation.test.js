@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   COMPLETENESS,
   COMPLETENESS_VALUES,
+  COST_SOURCE,
   MIN_CANVASS_OFFERS,
   SOURCING,
   SOURCING_VALUES,
@@ -9,10 +10,12 @@ import {
   canSetSourcing,
   canvassNeedsMoreOffers,
   completenessForOutcome,
+  costAgeDays,
   countsTowardCompleteness,
   isCompleteness,
   isSourcing,
   outstandingInclusions,
+  resolveCost,
   summariseCompleteness,
   winningOffer,
 } from "./projectEvaluation"
@@ -291,5 +294,59 @@ describe("applyWinner", () => {
 
   it("refuses a missing winner id", () => {
     expect(() => applyWinner([{ id: "1", is_winner: false }], null)).toThrow()
+  })
+})
+
+// Issue #47.
+describe("resolveCost", () => {
+  it("prefers the winning Canvass offer over everything else", () => {
+    expect(
+      resolveCost({ winningOfferPrice: 850000, odooCatalogPrice: 900000, manualAmount: 1000000 }),
+    ).toEqual({ amount: 850000, source: COST_SOURCE.CANVASS_OFFER })
+  })
+
+  it("falls back to the Odoo catalog price when there is no winning offer", () => {
+    expect(resolveCost({ odooCatalogPrice: 900000, manualAmount: 1000000 })).toEqual({
+      amount: 900000,
+      source: COST_SOURCE.ODOO_CATALOG,
+    })
+  })
+
+  it("falls back to a manual entry when neither of the first two exist", () => {
+    expect(resolveCost({ manualAmount: 1000000 })).toEqual({
+      amount: 1000000,
+      source: COST_SOURCE.MANUAL,
+    })
+  })
+
+  // A cost of zero is a real, resolvable figure — it must not be treated the
+  // same as "nothing has been entered."
+  it("treats an explicit zero as a real value, not as absent", () => {
+    expect(resolveCost({ winningOfferPrice: 0, manualAmount: 500 })).toEqual({
+      amount: 0,
+      source: COST_SOURCE.CANVASS_OFFER,
+    })
+  })
+
+  it("resolves to nothing established when none of the three exist", () => {
+    expect(resolveCost({})).toEqual({ amount: null, source: null })
+    expect(resolveCost()).toEqual({ amount: null, source: null })
+  })
+})
+
+describe("costAgeDays", () => {
+  it("counts whole days since the cost was stamped", () => {
+    const now = new Date("2026-08-27T12:00:00Z")
+    expect(costAgeDays("2026-08-27T09:00:00Z", now)).toBe(0)
+    expect(costAgeDays("2026-08-20T12:00:00Z", now)).toBe(7)
+  })
+
+  it("is null when nothing has been stamped yet — not zero", () => {
+    expect(costAgeDays(null)).toBeNull()
+    expect(costAgeDays(undefined)).toBeNull()
+  })
+
+  it("is null for an unparseable timestamp rather than throwing", () => {
+    expect(costAgeDays("not-a-date")).toBeNull()
   })
 })

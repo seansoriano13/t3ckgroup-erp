@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { projectEvaluationService } from "./projectEvaluationService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
-import { COMPLETENESS, SOURCING, summariseCompleteness } from "@/constants/projectEvaluation"
+import { COMPLETENESS, COST_SOURCE, SOURCING, summariseCompleteness } from "@/constants/projectEvaluation"
 
 /**
  * Inclusions (issue #43), exercised through the service's public methods
@@ -548,6 +548,163 @@ describe("projectEvaluationService — canvass", () => {
         descriptor.url,
       )
       expect(withoutAttachment.attachments).toEqual([])
+    })
+  })
+})
+
+/**
+ * Canvass on an Inclusion, and the winning Offer as stamped cost basis
+ * (issue #47), exercised through the service's public methods.
+ *
+ * What is asserted is what a salesperson reads off the breakdown: whether an
+ * Inclusion has a cost yet, what it is, where it came from, and that only a
+ * winner change or an explicit refresh ever moves it — never how the write
+ * got there.
+ */
+describe("projectEvaluationService — inclusion canvass and cost basis", () => {
+  let purchaser
+  let opportunity
+  let inclusion
+
+  beforeEach(async () => {
+    purchaser = makeEmployee({ name: "Marco Dizon", has_purchasing_flow: true })
+    opportunity = makeOpportunity({ registered_by: purchaser.id, sales_reference: "S04602" })
+    inclusion = await projectEvaluationService.addInclusion(
+      { opportunityId: opportunity.id, description: "Boom Lift 12m" },
+      purchaser.id,
+    )
+  })
+
+  describe("canvassing an inclusion directly", () => {
+    it("opens a Canvass on the Inclusion, using the same Offers as a Procurement Request's", async () => {
+      const canvass = await projectEvaluationService.getOrCreateCanvass(
+        { inclusionId: inclusion.id },
+        purchaser.id,
+      )
+      await projectEvaluationService.addOffer(canvass.id, { brand: "Genie", unitPrice: 850000 }, purchaser.id)
+
+      const reloaded = await projectEvaluationService.getCanvass({ inclusionId: inclusion.id })
+      expect(reloaded.inclusion_id).toBe(inclusion.id)
+      expect(reloaded.offers).toHaveLength(1)
+    })
+  })
+
+  describe("reading an uncosted inclusion", () => {
+    it("reads as not costed, never as a cost of zero", async () => {
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.cost_amount).toBeNull()
+      expect(row.cost_source).toBeNull()
+      expect(row.cost_established_at).toBeNull()
+    })
+  })
+
+  describe("winning an offer stamps the cost", () => {
+    it("writes the winning offer's price as the inclusion's cost basis", async () => {
+      const canvass = await projectEvaluationService.getOrCreateCanvass(
+        { inclusionId: inclusion.id },
+        purchaser.id,
+      )
+      const offer = await projectEvaluationService.addOffer(
+        canvass.id,
+        { brand: "Genie", unitPrice: 850000 },
+        purchaser.id,
+      )
+
+      await projectEvaluationService.markWinner(canvass.id, offer.id)
+
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.cost_amount).toBe(850000)
+      expect(row.cost_source).toBe(COST_SOURCE.CANVASS_OFFER)
+      expect(row.cost_established_at).toBeTruthy()
+    })
+
+    it("re-stamps the cost when the winner changes", async () => {
+      const canvass = await projectEvaluationService.getOrCreateCanvass(
+        { inclusionId: inclusion.id },
+        purchaser.id,
+      )
+      const offerA = await projectEvaluationService.addOffer(
+        canvass.id,
+        { brand: "A", unitPrice: 850000 },
+        purchaser.id,
+      )
+      const offerB = await projectEvaluationService.addOffer(
+        canvass.id,
+        { brand: "B", unitPrice: 720000 },
+        purchaser.id,
+      )
+
+      await projectEvaluationService.markWinner(canvass.id, offerA.id)
+      await projectEvaluationService.markWinner(canvass.id, offerB.id)
+
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.cost_amount).toBe(720000)
+    })
+
+    // Marking a winner on a Procurement Request's Canvass must not go
+    // looking for an Inclusion to stamp — there isn't one.
+    it("leaves every other inclusion's cost untouched", async () => {
+      const other = await projectEvaluationService.addInclusion(
+        { opportunityId: opportunity.id, description: "Stretcher" },
+        purchaser.id,
+      )
+      const canvass = await projectEvaluationService.getOrCreateCanvass(
+        { inclusionId: inclusion.id },
+        purchaser.id,
+      )
+      const offer = await projectEvaluationService.addOffer(
+        canvass.id,
+        { brand: "Genie", unitPrice: 850000 },
+        purchaser.id,
+      )
+
+      await projectEvaluationService.markWinner(canvass.id, offer.id)
+
+      const [, otherRow] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(otherRow.id).toBe(other.id)
+      expect(otherRow.cost_amount).toBeNull()
+    })
+  })
+
+  describe("refreshing the cost", () => {
+    it("records a manually typed figure when nothing else is available", async () => {
+      await projectEvaluationService.refreshInclusionCost(inclusion.id, { manualAmount: 500000 })
+
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.cost_amount).toBe(500000)
+      expect(row.cost_source).toBe(COST_SOURCE.MANUAL)
+    })
+
+    it("prefers a winning offer over a manual figure already on file", async () => {
+      await projectEvaluationService.refreshInclusionCost(inclusion.id, { manualAmount: 500000 })
+
+      const canvass = await projectEvaluationService.getOrCreateCanvass(
+        { inclusionId: inclusion.id },
+        purchaser.id,
+      )
+      const offer = await projectEvaluationService.addOffer(
+        canvass.id,
+        { brand: "Genie", unitPrice: 850000 },
+        purchaser.id,
+      )
+      await projectEvaluationService.markWinner(canvass.id, offer.id)
+
+      // Re-checking without a new manualAmount must not clobber the winner
+      // with the stale manual figure, nor drop it — the winner still wins.
+      await projectEvaluationService.refreshInclusionCost(inclusion.id)
+
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.cost_amount).toBe(850000)
+      expect(row.cost_source).toBe(COST_SOURCE.CANVASS_OFFER)
+    })
+
+    it("changes nothing else about the inclusion", async () => {
+      await projectEvaluationService.updateInclusion(inclusion.id, { note: "Spec sheet page 3" })
+      await projectEvaluationService.refreshInclusionCost(inclusion.id, { manualAmount: 500000 })
+
+      const [row] = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(row.note).toBe("Spec sheet page 3")
+      expect(row.description).toBe("Boom Lift 12m")
     })
   })
 })
