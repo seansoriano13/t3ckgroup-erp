@@ -679,7 +679,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      ((task.status === "ACTIVE" && isCreator) || isSuperAdmin) ? handleStartAddMember : undefined
+                      (isCreator || isSuperAdmin) ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -791,7 +791,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {((task.status === "ACTIVE" && isCreator) || isSuperAdmin) && (
+                            {(isCreator || isSuperAdmin) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
@@ -1382,7 +1382,7 @@ export default function GroupTaskDetailModal({
             </Button>
 
             {/* Edit Task Button */}
-            {((task.status === "ACTIVE" && isCreator) || isSuperAdmin) && !isEditingTask && (
+            {(isCreator || isSuperAdmin) && !isEditingTask && (
               <Button
                 type="button"
                 variant="outline"
