@@ -280,6 +280,9 @@ describe("a named product is what creates the request", () => {
         unit: "set",
         description: "Client wants 5m, high pressure",
         images: [],
+        // Issue #45. Null is the ordinary case: a product typed into the
+        // composer was not raised from a row on the client's breakdown.
+        inclusionId: null,
       },
     ])
   })

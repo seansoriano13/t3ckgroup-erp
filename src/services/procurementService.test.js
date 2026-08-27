@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { procurementService } from "./procurementService"
 import { opportunityService } from "./opportunityService"
+import { projectEvaluationService } from "./projectEvaluationService"
 import { db, updateRow } from "@/test/db/store"
 import { makeEmployee, makeOpportunity, makeCategory } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { PROCUREMENT_OUTCOME, PO_VERIFICATION } from "@/constants/procurement"
 import { TASK_STATUS } from "@/constants/status"
+import { COMPLETENESS, summariseCompleteness } from "@/constants/projectEvaluation"
 
 /**
  * SOR → Purchasing procurement, exercised through the service's public methods
@@ -804,6 +806,156 @@ describe("procurementService", () => {
 
     it("is empty rather than failing when nothing is outstanding", async () => {
       expect(await procurementService.listOpenQueue()).toEqual([])
+    })
+  })
+  /**
+   * Purchasing's answer, carried back to the client's specification (#45).
+   *
+   * Without this the spec check is only as current as whoever remembered to
+   * update it in two places — which is the failure the breakdown exists to
+   * remove.
+   */
+  describe("answering an item on the client's breakdown", () => {
+    const raiseFromInclusion = async (description = "Hydraulic rescue tool") => {
+      const inclusion = await projectEvaluationService.addInclusion(
+        { opportunityId: opportunity.id, description },
+        salesperson.id,
+      )
+      await procurementService.createRequest({
+        opportunityId: opportunity.id,
+        items: [{ product_name: description, quantity: 1, inclusionId: inclusion.id }],
+        assigneeId: buyer.id,
+        requesterId: salesperson.id,
+      })
+      const requests = await procurementService.listForOpportunity(opportunity.id)
+      return { inclusion, request: requests.find((r) => r.inclusion_id === inclusion.id) }
+    }
+
+    const completenessOf = async (inclusionId) => {
+      const rows = await projectEvaluationService.listInclusions(opportunity.id)
+      return rows.find((r) => r.id === inclusionId)?.completeness
+    }
+
+    it("remembers which item on the breakdown it was raised for", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+      expect(request.inclusion_id).toBe(inclusion.id)
+    })
+
+    it("marks the item missing when it cannot be sourced", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE, note: "Discontinued" },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.MISSING)
+    })
+
+    it("marks the item substituted when purchasing sourced something else", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+
+      await procurementService.resolveRequest(
+        request.id,
+        {
+          outcome: PROCUREMENT_OUTCOME.SUBSTITUTED,
+          // A substitution means something was bought, so the PO is required —
+          // outcomeRequiresPo, unchanged by this ticket.
+          poNumber: "P02561",
+          note: "Equivalent from another brand",
+        },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.SUBSTITUTED)
+    })
+
+    it("marks the item covered once it is bought", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.COVERED)
+    })
+
+    // Purchasing found it in Odoo under another name and bought nothing. The
+    // client gets what they asked for, so sales has nothing to re-price.
+    it("marks the item covered when it turned out to exist already", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.ALREADY_EXISTS, note: "Odoo: HYD-TOOL-01" },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.COVERED)
+    })
+
+    it("un-answers the item when purchasing reverts to still working on it", async () => {
+      const { inclusion, request } = await raiseFromInclusion()
+
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
+        buyer.id,
+      )
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.IN_PROGRESS },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.MISSING)
+    })
+
+    it("moves the SOR's completeness figure without anyone re-entering it", async () => {
+      const { request } = await raiseFromInclusion("Hydraulic rescue tool")
+      await projectEvaluationService.addInclusion(
+        { opportunityId: opportunity.id, description: "Stretcher" },
+        salesperson.id,
+      )
+
+      await procurementService.resolveRequest(
+        request.id,
+        { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      const rows = await projectEvaluationService.listInclusions(opportunity.id)
+      expect(summariseCompleteness(rows)).toMatchObject({ counted: 2, answered: 1, percent: 50 })
+    })
+
+    // The 0017 case, and still the common one: a product that was never on a
+    // spec sheet. It must resolve exactly as it always has.
+    it("changes no breakdown when the request was raised on its own", async () => {
+      const inclusion = await projectEvaluationService.addInclusion(
+        { opportunityId: opportunity.id, description: "Stretcher" },
+        salesperson.id,
+      )
+      await raise()
+      const [standalone] = await procurementService.listForOpportunity(opportunity.id)
+
+      await procurementService.resolveRequest(
+        standalone.id,
+        { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      expect(standalone.inclusion_id).toBeNull()
+      expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.MISSING)
     })
   })
 })

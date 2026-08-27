@@ -15,6 +15,8 @@
  * projectEvaluationService's job and nothing here knows it exists.
  */
 
+import { PROCUREMENT_OUTCOME, normalizeOutcome } from "./procurement"
+
 // ── Completeness ────────────────────────────────────────────────────────────
 // "Is the client's specification answered?" — the question Odoo cannot answer,
 // because it bundles a complex product into one order line whose inclusions are
@@ -139,3 +141,42 @@ export const outstandingInclusions = (inclusions = []) =>
   (Array.isArray(inclusions) ? inclusions : []).filter(
     (r) => countsTowardCompleteness(r) && r?.completeness === COMPLETENESS.MISSING,
   )
+
+// ── Purchasing's answer, in the breakdown's vocabulary ──────────────────────
+
+/**
+ * What a resolved Procurement Request says about the Inclusion it came from
+ * (issue #45). Null when the outcome says nothing about the specification.
+ *
+ * This mapping lives here rather than in the procurement service because it is
+ * a statement about completeness, and completeness is this module's word. The
+ * service's job is to write what this function returns.
+ *
+ * ALREADY_EXISTS reads as COVERED: purchasing found the item in Odoo under a
+ * different name and bought nothing. Nothing was substituted — the client gets
+ * exactly what they asked for — so calling it SUBSTITUTED would send sales off
+ * to re-price a line that has not changed.
+ *
+ * IN_PROGRESS maps to MISSING rather than to null. It is the outcome a
+ * purchaser reverts to, and reverting an answer has to un-answer the Inclusion;
+ * leaving it COVERED would keep a spec reading as satisfied by a request that
+ * has gone back to being an open question.
+ */
+export function completenessForOutcome(outcome) {
+  // normalizeOutcome first: rows written by an earlier build still carry
+  // ON_ORDER, which 0019 renamed to PURCHASED, and a spec check that silently
+  // skipped those rows would be wrong exactly on the oldest deals.
+  switch (normalizeOutcome(outcome)) {
+    case PROCUREMENT_OUTCOME.PURCHASED:
+    case PROCUREMENT_OUTCOME.DELIVERED:
+    case PROCUREMENT_OUTCOME.ALREADY_EXISTS:
+      return COMPLETENESS.COVERED
+    case PROCUREMENT_OUTCOME.SUBSTITUTED:
+      return COMPLETENESS.SUBSTITUTED
+    case PROCUREMENT_OUTCOME.UNAVAILABLE:
+    case PROCUREMENT_OUTCOME.IN_PROGRESS:
+      return COMPLETENESS.MISSING
+    default:
+      return null
+  }
+}

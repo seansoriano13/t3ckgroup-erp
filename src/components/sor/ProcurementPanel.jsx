@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { procurementService } from "../../services/procurementService";
+import { projectEvaluationService } from "../../services/projectEvaluationService";
 import { employeeService } from "../../services/employeeService";
 import { supabase } from "../../lib/supabase";
 import { cn } from "@/lib/utils";
@@ -35,15 +36,20 @@ import {
   isTerminalOutcome,
   procurementAffinity,
 } from "../../constants/procurement";
+import { outstandingInclusions } from "../../constants/projectEvaluation";
 import { useAuth } from "../../context/AuthContext";
 
 let draftSeq = 0;
-const blankDraft = () => ({
+const blankDraft = (seed = {}) => ({
   key: `draft-${(draftSeq += 1)}`,
   product_name: "",
   quantity: 1,
   unit: "unit",
   description: "",
+  // Issue #45. Set only when the draft was started from a row on the client's
+  // breakdown; null is the ordinary case and means "raised on its own".
+  inclusionId: null,
+  ...seed,
 });
 
 /** A request already sent, with whatever purchasing has said about it. */
@@ -674,6 +680,11 @@ export default function ProcurementPanel({ opportunity }) {
             queryClient.invalidateQueries({
               queryKey: ["opportunityNotes", opportunity.id],
             });
+            // Issue #45: an outcome can move an Inclusion's completeness, so
+            // the breakdown's figure has to refetch with the request list.
+            queryClient.invalidateQueries({
+              queryKey: ["inclusions", opportunity.id],
+            });
           }
         },
       )
@@ -687,6 +698,16 @@ export default function ProcurementPanel({ opportunity }) {
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  // Issue #45. The breakdown is the list of things the client actually asked
+  // for, so an item still missing from it is the most likely thing anybody is
+  // about to send to purchasing. Starting the draft here is what carries the
+  // link, and the link is what lets purchasing's answer come back on its own.
+  const { data: inclusions = [] } = useQuery({
+    queryKey: ["inclusions", opportunity?.id],
+    queryFn: () => projectEvaluationService.listInclusions(opportunity.id),
+    enabled: Boolean(opportunity?.id),
   });
 
   const recipients = useMemo(() => {
@@ -738,6 +759,34 @@ export default function ProcurementPanel({ opportunity }) {
 
   const named = drafts.filter((d) => d.product_name.trim());
 
+  // Outstanding rows on the breakdown that nobody has drafted yet. Offering one
+  // that is already in the composer would invite two requests for one item.
+  const drafted = new Set(drafts.map((d) => d.inclusionId).filter(Boolean));
+  const unsourced = outstandingInclusions(inclusions).filter((i) => !drafted.has(i.id));
+  const isComposerFull =
+    drafts.length >= MAX_DRAFTS && drafts.some((d) => d.product_name.trim());
+
+  const startFromInclusion = (inclusion) => {
+    const seed = {
+      product_name: inclusion.description,
+      quantity: Number(inclusion.quantity) || 1,
+      unit: inclusion.unit || "unit",
+      description: inclusion.note || "",
+      inclusionId: inclusion.id,
+    };
+    // An untouched first draft is filled rather than added to, so picking one
+    // item does not leave an empty row above it.
+    //
+    // The cap is MAX_DRAFTS because there are exactly that many attachment
+    // buckets and the submit path indexes them by draft position — a fourth
+    // draft would read an undefined bucket and take the whole send down.
+    setDrafts((prev) => {
+      if (prev.length === 1 && !prev[0].product_name.trim()) return [blankDraft(seed)];
+      if (prev.length >= MAX_DRAFTS) return prev;
+      return [...prev, blankDraft(seed)];
+    });
+  };
+
   const resetComposer = () => {
     buckets.forEach((b) => b.clear());
     setDrafts([blankDraft()]);
@@ -756,6 +805,7 @@ export default function ProcurementPanel({ opportunity }) {
               quantity: Number(d.quantity) || 1,
               unit: d.unit,
               description: d.description.trim(),
+              inclusionId: d.inclusionId || null,
               images: await buckets[i].upload(),
             }
             : null,
@@ -773,6 +823,7 @@ export default function ProcurementPanel({ opportunity }) {
     },
     onSuccess: (rows) => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
+      queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunity.id] });
       const toTeam = recipient?.kind === "team";
       resetComposer();
@@ -794,6 +845,7 @@ export default function ProcurementPanel({ opportunity }) {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
+      queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });
       setAssignTo(null);
       toast.success("Buyer assigned and task opened.");
     },
@@ -805,6 +857,7 @@ export default function ProcurementPanel({ opportunity }) {
       procurementService.updateRequest(requestId, payload, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
+      queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["procurement"] });
       toast.success("Procurement request updated.");
@@ -817,6 +870,7 @@ export default function ProcurementPanel({ opportunity }) {
       procurementService.deleteRequest(requestId, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
+      queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["procurement"] });
       toast.success("Procurement request cancelled.");
@@ -935,6 +989,30 @@ export default function ProcurementPanel({ opportunity }) {
                   For products the company does not carry yet — everything on the
                   product list already exists in Odoo.
                 </p>
+
+                {unsourced.length > 0 && (
+                  <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      From the breakdown
+                    </span>
+                    {unsourced.map((inclusion) => (
+                      <button
+                        key={inclusion.id}
+                        type="button"
+                        onClick={() => startFromInclusion(inclusion)}
+                        disabled={isComposerFull}
+                        className="max-w-[14rem] truncate rounded-full border border-dashed border-amber-7 bg-amber-a2 px-2 py-0.5 text-[11px] font-semibold text-amber-11 transition-colors hover:bg-amber-a3 disabled:cursor-not-allowed disabled:opacity-40"
+                        title={
+                          isComposerFull
+                            ? `Send these ${MAX_DRAFTS} first — the composer takes ${MAX_DRAFTS} products at a time.`
+                            : inclusion.description
+                        }
+                      >
+                        + {inclusion.description}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 <div className="divide-y divide-border/60">
                   {drafts.map((draft, i) => (

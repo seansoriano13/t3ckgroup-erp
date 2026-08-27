@@ -17,6 +17,7 @@ import {
   outcomeRequiresPo,
   PO_NUMBER_HINT,
 } from "../constants/procurement";
+import { completenessForOutcome } from "../constants/projectEvaluation";
 import { formatDueDate } from "../utils/formatDate";
 
 /**
@@ -190,6 +191,36 @@ async function announceAddedToTask({ task, opportunity, assignee, items, request
   });
 }
 
+/**
+ * Carries purchasing's answer back onto the Inclusion the request came from
+ * (issue #45).
+ *
+ * Without this the spec check is only as current as whoever remembered to
+ * update it in two places, which is exactly the failure the breakdown exists to
+ * remove. What an outcome means in completeness terms is
+ * constants/projectEvaluation.js's answer, not this file's.
+ *
+ * Logged rather than thrown. The resolution is the act the purchaser performed
+ * and it has already been written; failing their save because a derived field
+ * could not be updated would lose the answer they just gave. A request raised
+ * on its own — the majority — has no link and returns immediately.
+ */
+async function writeBackToInclusion(request) {
+  if (!request?.inclusion_id) return;
+
+  const completeness = completenessForOutcome(request.outcome);
+  if (!completeness) return;
+
+  const { error } = await supabase
+    .from("sor_inclusions")
+    .update({ completeness })
+    .eq("id", request.inclusion_id);
+
+  if (error) {
+    console.error("Failed to carry a procurement outcome back to its inclusion:", error);
+  }
+}
+
 /** Remarks are stored as one text column; lines are joined with this. */
 const NEWLINE = "\n";
 
@@ -344,6 +375,9 @@ export const procurementService = {
       requested_quantity: Number(item.quantity) || 0,
       requested_description: item.description?.trim() || null,
       requested_images: item.images || [],
+      // Issue #45. Null for a product that was never on a spec sheet, which is
+      // the original 0017 case and stays the common one.
+      inclusion_id: item.inclusionId || null,
       requested_by: requesterId,
       assigned_to: assignee?.id || null,
     }));
@@ -807,6 +841,8 @@ export const procurementService = {
       .select(REQUEST_SELECT)
       .single();
     if (error) throw error;
+
+    await writeBackToInclusion(data);
 
     await procurementService.announceIfComplete(data, actorId);
 

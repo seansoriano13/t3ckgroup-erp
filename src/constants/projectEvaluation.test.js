@@ -5,12 +5,14 @@ import {
   SOURCING,
   SOURCING_VALUES,
   canSetSourcing,
+  completenessForOutcome,
   countsTowardCompleteness,
   isCompleteness,
   isSourcing,
   outstandingInclusions,
   summariseCompleteness,
 } from "./projectEvaluation"
+import { PROCUREMENT_OUTCOME } from "./procurement"
 
 /**
  * Issue #43. What is asserted here is what somebody reads off the screen — how
@@ -170,5 +172,52 @@ describe("outstandingInclusions", () => {
     expect(outstandingInclusions(rows).map((r) => r.description)).toEqual([
       "Oxygen tank",
     ])
+  })
+})
+
+describe("completenessForOutcome", () => {
+  it("reads a buy as covering the requirement", () => {
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.PURCHASED)).toBe(COMPLETENESS.COVERED)
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.DELIVERED)).toBe(COMPLETENESS.COVERED)
+  })
+
+  // Purchasing found it in Odoo under a different name and bought nothing. The
+  // client gets exactly what they asked for, so calling this SUBSTITUTED would
+  // send sales off to re-price a line that has not changed.
+  it("reads 'already in Odoo' as covered, not substituted", () => {
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.ALREADY_EXISTS)).toBe(
+      COMPLETENESS.COVERED,
+    )
+  })
+
+  it("reads a different product sourced as a substitution", () => {
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.SUBSTITUTED)).toBe(
+      COMPLETENESS.SUBSTITUTED,
+    )
+  })
+
+  it("puts an unsourceable item back on the outstanding list", () => {
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.UNAVAILABLE)).toBe(
+      COMPLETENESS.MISSING,
+    )
+  })
+
+  // Reverting an answer has to un-answer the Inclusion, or a spec keeps
+  // reading as satisfied by a request that is an open question again.
+  it("un-answers the item when purchasing reverts to in-progress", () => {
+    expect(completenessForOutcome(PROCUREMENT_OUTCOME.IN_PROGRESS)).toBe(
+      COMPLETENESS.MISSING,
+    )
+  })
+
+  // 0019 renamed ON_ORDER to PURCHASED. Rows written before it still say
+  // ON_ORDER, and skipping them would be wrong on exactly the oldest deals.
+  it("still understands the outcome an earlier build wrote", () => {
+    expect(completenessForOutcome("ON_ORDER")).toBe(COMPLETENESS.COVERED)
+  })
+
+  it("says nothing about an unresolved request", () => {
+    expect(completenessForOutcome(null)).toBeNull()
+    expect(completenessForOutcome(undefined)).toBeNull()
   })
 })
