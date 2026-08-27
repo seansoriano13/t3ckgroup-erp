@@ -96,5 +96,18 @@ describe("flowStageKinds", () => {
     it("has nothing to add for a tickbox", () => {
       expect(requirementDetail({ kind: REQUIREMENT_KINDS.TICKBOX, config: {} })).toBeNull()
     })
+
+    // Issue #50.
+    it("surfaces a Project Evaluation requirement's optional reference link", () => {
+      expect(
+        requirementDetail({
+          kind: REQUIREMENT_KINDS.PROJECT_EVALUATION,
+          config: { referenceLink: "https://example.com/template" },
+        }),
+      ).toBe("https://example.com/template")
+      expect(
+        requirementDetail({ kind: REQUIREMENT_KINDS.PROJECT_EVALUATION, config: {} }),
+      ).toBeNull()
+    })
   })
 })

@@ -24,6 +24,10 @@ export const REQUIREMENT_KINDS = {
   TICKBOX: "tickbox",
   ASSIGNMENT: "assignment",
   DEADLINE: "deadline",
+  // Issue #50: gates on a Project Evaluation (issue #48) existing for the
+  // deal. Existence alone satisfies it — sign-off is recorded but never
+  // required, the decision needs an owner, not a second approval step.
+  PROJECT_EVALUATION: "project_evaluation",
 }
 
 export const REQUIREMENT_STATUS = {
@@ -104,6 +108,10 @@ const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
  *   evidence, so the row IS the certification.
  * - **deadline** is always reported satisfied here because it never gates;
  *   call `deadlineStatus` for its actual display/notify state.
+ * - **project_evaluation** is satisfied iff `hasProjectEvaluation` is true —
+ *   evaluated live against whether a Project Evaluation row exists for the
+ *   deal (issue #48), the same way `field` is evaluated live against the
+ *   record rather than a status row.
  */
 export function evaluateRequirement(requirement, {
   opportunity = {},
@@ -111,6 +119,7 @@ export function evaluateRequirement(requirement, {
   members = [],
   statusRow = null,
   asOf = null,
+  hasProjectEvaluation = false,
 } = {}) {
   if (requirement.archived_at) return notApplicable()
   if (asOf && requirement.created_at && requirement.created_at > asOf) return notApplicable()
@@ -136,6 +145,9 @@ export function evaluateRequirement(requirement, {
     }
     case REQUIREMENT_KINDS.DEADLINE: {
       return satisfied()
+    }
+    case REQUIREMENT_KINDS.PROJECT_EVALUATION: {
+      return hasProjectEvaluation ? satisfied() : unsatisfied()
     }
     default:
       return unsatisfied()
@@ -193,6 +205,7 @@ export function evaluateCrossing({
   members = [],
   statusRowsByRequirement = {},
   asOf = null,
+  hasProjectEvaluation = false,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -206,6 +219,7 @@ export function evaluateCrossing({
         members,
         statusRow: statusRowsByRequirement[requirement.id] ?? null,
         asOf,
+        hasProjectEvaluation,
       })
       if (result.status === REQUIREMENT_STATUS.UNSATISFIED) {
         missing.push({ stage, requirement })

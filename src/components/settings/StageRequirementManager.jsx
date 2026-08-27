@@ -25,6 +25,8 @@ const emptyConfigFor = (kind) => {
       return { department: "" };
     case REQUIREMENT_KINDS.DEADLINE:
       return { days: "" };
+    case REQUIREMENT_KINDS.PROJECT_EVALUATION:
+      return { referenceLink: "" };
     default:
       return {};
   }
@@ -41,6 +43,8 @@ function configFor(kind, config) {
       return { department: config.department?.trim() || "" };
     case REQUIREMENT_KINDS.DEADLINE:
       return { days: Number(config.days) || 0 };
+    case REQUIREMENT_KINDS.PROJECT_EVALUATION:
+      return config.referenceLink?.trim() ? { referenceLink: config.referenceLink.trim() } : {};
     default:
       return {};
   }
@@ -271,6 +275,15 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
                 onChange={(e) => setConfig({ days: e.target.value })}
                 placeholder="10"
                 required
+              />
+            )}
+
+            {kind === REQUIREMENT_KINDS.PROJECT_EVALUATION && (
+              <Input
+                label="Reference link (optional)"
+                value={config.referenceLink || ""}
+                onChange={(e) => setConfig({ referenceLink: e.target.value })}
+                placeholder="Link to the source sheet or template this Stage expects"
               />
             )}
 

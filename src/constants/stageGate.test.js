@@ -175,6 +175,34 @@ describe("evaluateRequirement — tickbox kind", () => {
   })
 })
 
+// Issue #50.
+describe("evaluateRequirement — project_evaluation kind", () => {
+  it("is satisfied by existence alone, whether or not it was signed off", () => {
+    const req = makeRequirement({ kind: "project_evaluation", config: {} })
+
+    const missing = evaluateRequirement(req, { hasProjectEvaluation: false })
+    const unsigned = evaluateRequirement(req, { hasProjectEvaluation: true })
+
+    expect(missing.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    expect(unsigned.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+  })
+
+  it("defaults to unsatisfied when the caller says nothing about it", () => {
+    const req = makeRequirement({ kind: "project_evaluation", config: {} })
+    expect(evaluateRequirement(req).status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+  })
+
+  it("evaluates only the Stage being left — no positional comparison enters into it", () => {
+    // hasProjectEvaluation is a fact about the deal, not about any Stage, so
+    // nothing here reads stage_code, sort_order, or any other Stage besides
+    // the one the requirement itself lives on.
+    const req = makeRequirement({ kind: "project_evaluation", stage_code: "PROPOSAL" })
+    expect(evaluateRequirement(req, { hasProjectEvaluation: true }).status).toBe(
+      REQUIREMENT_STATUS.SATISFIED,
+    )
+  })
+})
+
 describe("evaluateRequirement — never applied vs unsatisfied", () => {
   it("is not_applicable when the requirement was created after the crossing being evaluated", () => {
     const req = makeRequirement({
@@ -205,6 +233,22 @@ describe("evaluateRequirement — never applied vs unsatisfied", () => {
   it("is not_applicable once archived, regardless of satisfaction", () => {
     const req = makeRequirement({ kind: "tickbox", archived_at: "2026-02-01T00:00:00.000Z" })
     const result = evaluateRequirement(req, { statusRow: null })
+    expect(result.status).toBe(REQUIREMENT_STATUS.NOT_APPLICABLE)
+  })
+
+  // Issue #50's own acceptance criterion: a deal that already crossed the
+  // Stage before a Project Evaluation requirement existed reads as
+  // not_applicable, never as blocked after the fact.
+  it("is not_applicable for a project_evaluation requirement added after the deal already crossed", () => {
+    const req = makeRequirement({
+      kind: "project_evaluation",
+      config: {},
+      created_at: "2026-06-01T00:00:00.000Z",
+    })
+    const result = evaluateRequirement(req, {
+      hasProjectEvaluation: false,
+      asOf: "2026-05-01T00:00:00.000Z",
+    })
     expect(result.status).toBe(REQUIREMENT_STATUS.NOT_APPLICABLE)
   })
 })

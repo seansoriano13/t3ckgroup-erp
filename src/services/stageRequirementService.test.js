@@ -110,6 +110,25 @@ describe("stageRequirementService", () => {
       })
     })
 
+    // Issue #50: configurable like every other kind, no special validation.
+    it("lets a Super Admin add a project_evaluation requirement, with an optional reference link", async () => {
+      const created = await stageRequirementService.add(
+        {
+          stageId: stage.id,
+          kind: "project_evaluation",
+          label: "Go/no-go decided",
+          config: { referenceLink: "https://example.com/template" },
+        },
+        admin.id,
+      )
+
+      expect(created).toMatchObject({
+        kind: "project_evaluation",
+        label: "Go/no-go decided",
+        config: { referenceLink: "https://example.com/template" },
+      })
+    })
+
     it("defaults a new requirement to required", async () => {
       const created = await stageRequirementService.add(
         { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },

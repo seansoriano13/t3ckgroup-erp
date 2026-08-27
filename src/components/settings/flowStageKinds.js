@@ -13,6 +13,7 @@ import {
   CheckSquare,
   UserCheck,
   Timer,
+  Calculator,
   Users,
   User,
 } from "lucide-react"
@@ -44,6 +45,11 @@ export const REQUIREMENT_KIND_META = {
     label: "Deadline",
     icon: Timer,
     hint: "Counts days from Stage entry. Warns and breaches — never blocks.",
+  },
+  [REQUIREMENT_KINDS.PROJECT_EVALUATION]: {
+    label: "Project Evaluation",
+    icon: Calculator,
+    hint: "A Project Evaluation has to exist for the deal. Sign-off is not required.",
   },
 }
 
@@ -78,6 +84,8 @@ export function requirementDetail(requirement) {
       return Number.isFinite(Number(config.days)) && Number(config.days) > 0
         ? `${config.days} day${Number(config.days) === 1 ? "" : "s"}`
         : null
+    case REQUIREMENT_KINDS.PROJECT_EVALUATION:
+      return config.referenceLink || null
     default:
       return null
   }

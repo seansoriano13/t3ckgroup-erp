@@ -1333,6 +1333,61 @@ describe("opportunityService", () => {
       expect(moved.flow_stage_id).toBeNull()
       expect(lost.id).toBeTruthy()
     })
+
+    // Issue #50.
+    describe("a Stage requiring a Project Evaluation", () => {
+      it("blocks leaving the Stage until a Project Evaluation exists for the deal", async () => {
+        makeStageRequirement({
+          stage_id: lead.id,
+          kind: "project_evaluation",
+          label: "Go/no-go decided",
+        })
+        const deal = await register()
+
+        let caught
+        try {
+          await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        } catch (err) {
+          caught = err
+        }
+
+        expect(caught?.isGateBlock).toBe(true)
+        expect(caught.missingRequirements.map((m) => m.requirement.label)).toContain(
+          "Go/no-go decided",
+        )
+
+        const unchanged = await opportunityService.getOpportunityById(deal.id)
+        expect(unchanged.flow_stage_id).toBe(lead.id)
+      })
+
+      it("passes once a Project Evaluation exists, whether or not it has been signed off", async () => {
+        makeStageRequirement({
+          stage_id: lead.id,
+          kind: "project_evaluation",
+          label: "Go/no-go decided",
+        })
+        const deal = await register()
+        db.seed("sor_project_evaluations", { opportunity_id: deal.id })
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("never blocks a deal already past the Stage a requirement was added to — only the Stage being left is asked about", async () => {
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        // Added to Lead only after the deal already left it.
+        makeStageRequirement({
+          stage_id: lead.id,
+          kind: "project_evaluation",
+          label: "Go/no-go decided",
+        })
+
+        const moved = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(awarded.id)
+      })
+    })
   })
 
   describe("changing an SOR's Sale Type", () => {

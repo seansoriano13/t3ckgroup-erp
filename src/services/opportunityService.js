@@ -215,6 +215,22 @@ async function gateContext(opportunityId, stageIds) {
 }
 
 /**
+ * Whether a deal has a Project Evaluation on record at all (issue #48) — what
+ * a `project_evaluation` Stage requirement (issue #50) gates on. Existence
+ * only; sign-off is recorded but never checked here, matching that ticket's
+ * own decision that the gate needs an owner, not a second approval step.
+ */
+async function hasProjectEvaluationFor(opportunityId) {
+  const { data, error } = await supabase
+    .from("sor_project_evaluations")
+    .select("id")
+    .eq("opportunity_id", opportunityId)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required requirement
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -239,6 +255,13 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   );
   if (Object.keys(requirementsByStage).length === 0) return;
 
+  const needsProjectEvaluation = Object.values(requirementsByStage)
+    .flat()
+    .some((r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION);
+  const hasProjectEvaluation = needsProjectEvaluation
+    ? await hasProjectEvaluationFor(opportunityId)
+    : false;
+
   const gateResult = evaluateCrossing({
     fromCode,
     toCode,
@@ -248,6 +271,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     attachments,
     members,
     statusRowsByRequirement,
+    hasProjectEvaluation,
   });
 
   if (!gateResult.blocked) return;
@@ -362,12 +386,20 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
 
   const missing = [];
   const requirements = blockingRequirements(requirementsByStage[from.id] ?? []);
+  const needsProjectEvaluation = requirements.some(
+    (r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION,
+  );
+  const hasProjectEvaluation = needsProjectEvaluation
+    ? await hasProjectEvaluationFor(existing.id)
+    : false;
+
   for (const requirement of requirements) {
     const result = evaluateRequirement(requirement, {
       opportunity: existing,
       attachments,
       members,
       statusRow: statusRowsByRequirement[requirement.id] ?? null,
+      hasProjectEvaluation,
     });
     if (result.status === REQUIREMENT_STATUS.UNSATISFIED) {
       missing.push({ stage: from, requirement });
