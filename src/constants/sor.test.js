@@ -7,8 +7,7 @@ import {
   isAnchorCode,
   isLostCode,
   isOpenRegionStage,
-  isRealizedCode,
-  isRealizedStage,
+  isRealizedOpportunity,
   isTerminalStage,
   isWonCode,
   renderableStages,
@@ -22,8 +21,6 @@ import {
   PROJECT_TYPE_SHORT,
   itbGateSatisfiedBy,
   itbGateStage,
-  realizedStageCodes,
-  REALIZED_STAGES,
   requiresItbNumber,
   requiresSalesReference,
   STAGE_LABELS,
@@ -121,21 +118,6 @@ describe("pipeline definition", () => {
     expect(PROJECT_TYPE_SHORT.STRATEGIC).toBe("Strategic")
   })
 
-  it("identifies realized stages as the anchor and everything after it, less lost", () => {
-    // Payment Verification joined this set when it was added after Awarded.
-    // That is the intended consequence of putting a stage past the anchor: the
-    // deal is awarded and priced, so accounting still checking the payment
-    // does not move it back into the Projected pool.
-    expect(REALIZED_STAGES).toEqual([
-      "AWARDED",
-      "PAYMENT_VERIFICATION",
-      "PO_RECEIVED",
-      "PROJECT_DELIVERY",
-      "COLLECTION",
-      "CLOSED_WON",
-      "RETENTION",
-    ])
-  })
 })
 
 describe("formatPHP", () => {
@@ -235,55 +217,61 @@ describe("pipeline stage seed", () => {
   })
 })
 
-describe("deriving realized stages from stage order", () => {
-  it("reproduces the policy Realized set exactly from the seed", () => {
-    // The regression that makes the whole refactor safe: derivation must not
-    // move a single deal between the Realized and Projected Commission Pool.
-    expect(realizedStageCodes(PIPELINE_STAGE_SEED)).toEqual(REALIZED_STAGES)
+/**
+ * ADR 0006 — Realized is a fact about the deal, not a position in a list. A
+ * Sales Flow is a graph, so "at or past the anchor" has no meaning; the
+ * question is answered by the Contract Date the Won Stage already stamps and
+ * never un-stamps.
+ */
+describe("realized is having a contract date", () => {
+  it("counts a deal that has a contract date", () => {
+    expect(isRealizedOpportunity({ status: "AWARDED", contract_date: "2026-03-04" })).toBe(true)
   })
 
-  it("finds the Anchor Stage that stamps Contract Date", () => {
+  it("does not count a deal that has never been awarded", () => {
+    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: null })).toBe(false)
+    expect(isRealizedOpportunity({ status: "NEGOTIATION" })).toBe(false)
+  })
+
+  it("still counts a deal that has since moved backwards", () => {
+    // The case the positional rule got wrong and had a special case for: the
+    // Contract Date records that the deal was won, and a later move cannot
+    // unsay it. Under a graph there is no "backwards" to detect anyway.
+    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
+  })
+
+  it("never counts a lost deal, whatever its contract date says", () => {
+    // The one guard the positional rule carried that survives: a deal that was
+    // awarded and then lost is not booked money.
+    expect(isRealizedOpportunity({ status: "CLOSED_LOST", contract_date: "2026-03-04" })).toBe(false)
+  })
+
+  it("does not depend on where the deal's stage sorts", () => {
+    // Two deals on the same Stage, classified differently — impossible under
+    // the positional rule, and the whole point of the fact-based one.
+    const stage = "PAYMENT_VERIFICATION"
+    expect(isRealizedOpportunity({ status: stage, contract_date: "2026-03-04" })).toBe(true)
+    expect(isRealizedOpportunity({ status: stage, contract_date: null })).toBe(false)
+  })
+
+  it("treats a missing opportunity as not realized", () => {
+    // Under-reporting is the safe direction: the alternative silently promotes
+    // pipeline deals into booked money.
+    expect(isRealizedOpportunity(null)).toBe(false)
+    expect(isRealizedOpportunity(undefined)).toBe(false)
+  })
+
+  it("follows a caller's own stage list when deciding what lost means", () => {
+    const renamed = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_lost: s.code === "NEGOTIATION" }))
+    const deal = { status: "NEGOTIATION", contract_date: "2026-03-04" }
+    expect(isRealizedOpportunity(deal, renamed)).toBe(false)
+    expect(isRealizedOpportunity(deal)).toBe(true)
+  })
+
+  it("still finds the Stage that stamps Contract Date", () => {
+    // The anchor keeps its stamping job; it just no longer answers the
+    // Realized question by position.
     expect(anchorStage(PIPELINE_STAGE_SEED).code).toBe("AWARDED")
-  })
-
-  it("counts a stage at or after the anchor as realized", () => {
-    const at = (code) => PIPELINE_STAGE_SEED.find((s) => s.code === code)
-    expect(isRealizedStage(at("AWARDED"), PIPELINE_STAGE_SEED)).toBe(true)
-    expect(isRealizedStage(at("COLLECTION"), PIPELINE_STAGE_SEED)).toBe(true)
-    expect(isRealizedStage(at("NEGOTIATION"), PIPELINE_STAGE_SEED)).toBe(false)
-  })
-
-  it("never counts the lost stage as realized despite it sorting last", () => {
-    const lost = PIPELINE_STAGE_SEED.find((s) => s.is_lost)
-    expect(lost.sort_order).toBeGreaterThan(anchorStage(PIPELINE_STAGE_SEED).sort_order)
-    expect(isRealizedStage(lost, PIPELINE_STAGE_SEED)).toBe(false)
-  })
-
-  it("puts a newly added open-region stage in the Projected pool", () => {
-    const stages = [
-      ...PIPELINE_STAGE_SEED,
-      {
-        code: "SITE_SURVEY",
-        label: "Site Survey",
-        sort_order: 45,
-        theme: "blue",
-        is_active: true,
-        is_system: false,
-        is_default: false,
-        is_anchor: false,
-        is_won: false,
-        is_lost: false,
-      },
-    ]
-    expect(realizedStageCodes(stages)).toEqual(REALIZED_STAGES)
-  })
-
-  it("treats a stage list with no anchor as having nothing realized", () => {
-    // A truncated or corrupt stage list must under-report the Realized pool
-    // rather than silently promoting pipeline deals into it.
-    const anchorless = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_anchor: false }))
-    expect(anchorStage(anchorless)).toBeNull()
-    expect(realizedStageCodes(anchorless)).toEqual([])
   })
 })
 
@@ -298,14 +286,11 @@ describe("asking about a stage by the code stored on an opportunity", () => {
     expect(stageByCode(null)).toBeNull()
   })
 
-  it("answers won, lost and realized without the caller knowing a code", () => {
+  it("answers won and lost without the caller knowing a code", () => {
     expect(isWonCode("CLOSED_WON")).toBe(true)
     expect(isWonCode("AWARDED")).toBe(false)
     expect(isLostCode("CLOSED_LOST")).toBe(true)
     expect(isLostCode("CLOSED_WON")).toBe(false)
-    expect(isRealizedCode("PO_RECEIVED")).toBe(true)
-    expect(isRealizedCode("QUALIFIED")).toBe(false)
-    expect(isRealizedCode("CLOSED_LOST")).toBe(false)
   })
 
   it("identifies the stage that stamps Contract Date", () => {
@@ -313,19 +298,9 @@ describe("asking about a stage by the code stored on an opportunity", () => {
     expect(isAnchorCode("CLOSED_WON")).toBe(false)
   })
 
-  it("treats an unknown status as neither won, lost nor realized", () => {
+  it("treats an unknown status as neither won nor lost", () => {
     expect(isWonCode("SOME_RETIRED_STAGE")).toBe(false)
     expect(isLostCode("SOME_RETIRED_STAGE")).toBe(false)
-    expect(isRealizedCode("SOME_RETIRED_STAGE")).toBe(false)
-  })
-
-  it("follows a caller's own stage list rather than the seed", () => {
-    // What the register does once it has loaded crm_pipeline_stages.
-    const renamed = PIPELINE_STAGE_SEED.map((s) =>
-      s.code === "AWARDED" ? { ...s, is_anchor: false } : { ...s, is_anchor: s.code === "NEGOTIATION" },
-    )
-    expect(isRealizedCode("NEGOTIATION", renamed)).toBe(true)
-    expect(isRealizedCode("NEGOTIATION")).toBe(false)
   })
 })
 

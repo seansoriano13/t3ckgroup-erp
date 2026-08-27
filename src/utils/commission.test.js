@@ -436,6 +436,46 @@ describe("aggregateOpportunityCommissions", () => {
     expect(sumRepShares).toBeCloseTo(agg.salesDeptTotal, 2);
   });
 
+  // ADR 0006 — the two cases that tell the fact-based rule apart from the
+  // positional one it replaced. Both deals below sit on Stages whose
+  // sort_order gives the opposite answer to the one the Contract Date gives.
+  it("books a deal that has moved backwards but keeps its contract date", () => {
+    const reopened = { ...opp1, id: "opp-reopened", status: "NEGOTIATION" };
+
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [reopened],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    // Negotiation sorts before the anchor, so the positional rule dropped this
+    // deal out of the pool the moment it was re-opened. It was awarded; the
+    // award has not been undone.
+    expect(agg.totalDealsCount).toBe(1);
+    expect(agg.wonDealsCount).toBe(1);
+    expect(agg.totalContractValue).toBe(1_000_000);
+  });
+
+  it("does not book a deal sitting past the anchor with no contract date", () => {
+    const unstamped = { ...opp1, id: "opp-unstamped", contract_date: null };
+
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [unstamped],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    // The positional rule booked this on position alone. Nothing recorded that
+    // the deal was ever won, so nothing books it.
+    expect(agg.totalDealsCount).toBe(0);
+    expect(agg.totalContractValue).toBe(0);
+    expect(agg.totalCommissionPool).toBe(0);
+  });
+
   it("includes early pipeline deals when scope is FORECAST", () => {
     const agg = aggregateOpportunityCommissions({
       opportunities: [opp1, opp2, oppPipeline, oppLost],

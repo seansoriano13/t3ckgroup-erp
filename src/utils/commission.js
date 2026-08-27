@@ -1,6 +1,6 @@
 import {
   isLostCode,
-  isRealizedCode,
+  isRealizedOpportunity,
   PIPELINE_STAGE_SEED,
 } from "../constants/sor";
 
@@ -186,10 +186,11 @@ export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
   };
 }
 
-// The realized set used to be a second hard-coded copy of REALIZED_STAGES,
-// free to drift from the one in constants/sor.js. It is now derived from the
-// stage list, so a stage added to the pipeline is classified once, in one
-// place. Callers that have loaded crm_pipeline_stages pass it in; the rest get
+// The realized set used to be a second hard-coded copy of a stage-code list,
+// free to drift from the one in constants/sor.js. It is now asked of each deal
+// directly (ADR 0006): Realized means the deal has a Contract Date. The stage
+// list is still passed through, because deciding what "lost" means still needs
+// it — callers that have loaded crm_pipeline_stages pass theirs, the rest get
 // the policy seed.
 
 /**
@@ -211,7 +212,7 @@ export function aggregateOpportunityCommissions({
     if (isLostCode(opp.status, stages)) return false;
 
     if (scope === "REALIZED") {
-      if (!isRealizedCode(opp.status, stages)) return false;
+      if (!isRealizedOpportunity(opp, stages)) return false;
     }
 
     if (dateFilter?.startDate || dateFilter?.endDate) {
@@ -247,7 +248,7 @@ export function aggregateOpportunityCommissions({
   const dealLedger = [];
 
   for (const opp of filteredOpps) {
-    const isWon = isRealizedCode(opp.status, stages);
+    const isWon = isRealizedOpportunity(opp, stages);
     if (isWon) wonDealsCount += 1;
 
     const contractValue = Number(opp.expected_value) || 0;

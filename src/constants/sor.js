@@ -40,9 +40,10 @@ export const PROJECT_TYPES = [
 //               commission, and reachable from any stage.
 //   is_system   seeded by policy; cannot be deactivated or reordered.
 //
-// Realized-vs-Projected is deliberately NOT a flag here. It is derived from
-// position relative to the anchor (see `isRealizedStage`), so that no settings
-// screen anywhere can move an opportunity between the two pools.
+// Realized-vs-Projected is deliberately NOT a flag here, and as of ADR 0006 it
+// is not a property of a stage at all. It is a property of the deal: whether it
+// has a Contract Date (see `isRealizedOpportunity`). No settings screen can move
+// an opportunity between the two pools, because no stage carries the answer.
 //
 // sort_order is gapped by ten so inserting a stage never renumbers its
 // neighbours, which would otherwise rewrite every row on an ordering change.
@@ -50,12 +51,12 @@ export const PROJECT_TYPES = [
 // after the fact, which is the mechanism working as intended: no existing
 // stage moved.
 //
-// Payment Verification sits AFTER the anchor, so an opportunity there counts
-// toward the Realized Commission Pool. That is correct — it has been awarded
-// and its Contract Date is already stamped; accounting still checking the
-// payment does not un-award it. It also means adding it was a change to the
-// realized set, which is why a stage this side of the anchor is a migration
-// and a policy decision rather than something a settings screen can do.
+// Payment Verification sits AFTER the anchor. Under the retired positional
+// rule that placement was itself a change to the Realized set, which is why
+// adding a stage there was a migration and a policy decision. Under ADR 0006
+// it is no longer load-bearing: a deal at Payment Verification counts as
+// Realized because its Contract Date was stamped at Awarded, not because of
+// where the stage sorts.
 
 const stage = (code, label, sort_order, theme, flags = {}) => ({
   code,
@@ -108,22 +109,30 @@ export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_itb_gate) ?? null;
 
 /**
- * Whether an opportunity in this stage counts toward the Realized Commission
- * Pool rather than the Projected one.
+ * Whether an opportunity counts toward the Realized Commission Pool rather
+ * than the Projected one.
  *
- * Derived, never stored: a stage at or past the anchor has been awarded, and a
- * lost deal never counts however late it sorts. A stage list with no anchor
- * yields nothing realized — under-reporting is the safe direction to fail,
- * because the alternative silently promotes pipeline deals into booked money.
+ * A fact about the deal, not a position in a list (ADR 0006). The Contract
+ * Date is stamped the first time the deal reaches the Stage that wins it and
+ * is never un-stamped, so it answers "has this been booked" without asking
+ * where the deal currently sits — which is the only thing that still works
+ * once a Sales Flow is a graph and "at or past the anchor" has no meaning.
+ *
+ * Two consequences, both deliberate. A deal that has since moved backwards
+ * stays Realized: its history already answered the question, and the
+ * positional rule's special case for exactly this existed only because
+ * position kept contradicting it. A lost deal never counts, whatever its
+ * Contract Date says — the one guard the positional rule carried that is
+ * about the deal rather than about the ordering.
+ *
+ * An opportunity with no Contract Date is not Realized. Under-reporting is
+ * the safe direction to fail, because the alternative silently promotes
+ * pipeline deals into booked money.
  */
-export const isRealizedStage = (s, stages = PIPELINE_STAGE_SEED) => {
-  const anchor = anchorStage(stages);
-  if (!anchor || !s) return false;
-  return s.sort_order >= anchor.sort_order && !s.is_lost;
+export const isRealizedOpportunity = (opportunity, stages = PIPELINE_STAGE_SEED) => {
+  if (!opportunity?.contract_date) return false;
+  return !isLostCode(opportunity.status, stages);
 };
-
-export const realizedStageCodes = (stages = PIPELINE_STAGE_SEED) =>
-  stages.filter((s) => isRealizedStage(s, stages)).map((s) => s.code);
 
 /** Won or lost — an opportunity here has stopped moving. */
 export const isTerminalStage = (s) => Boolean(s?.is_won || s?.is_lost);
@@ -177,9 +186,6 @@ export const isLostCode = (code, stages = PIPELINE_STAGE_SEED) =>
 export const isAnchorCode = (code, stages = PIPELINE_STAGE_SEED) =>
   Boolean(stageByCode(code, stages)?.is_anchor);
 
-export const isRealizedCode = (code, stages = PIPELINE_STAGE_SEED) =>
-  isRealizedStage(stageByCode(code, stages), stages);
-
 export const isTerminalCode = (code, stages = PIPELINE_STAGE_SEED) =>
   isTerminalStage(stageByCode(code, stages));
 
@@ -196,8 +202,6 @@ export const OPPORTUNITY_STAGES = PIPELINE_STAGE_SEED.map((s) => ({
   value: s.code,
   label: s.label,
 }));
-
-export const REALIZED_STAGES = realizedStageCodes(PIPELINE_STAGE_SEED);
 
 export const STAGE_LABELS = Object.fromEntries(
   PIPELINE_STAGE_SEED.map((s) => [s.code, s.label]),
@@ -258,8 +262,8 @@ export const requiresSalesReference = (
  *
  * Compared against the gate stage's own sort_order, not a literal — reordering
  * or renaming For Bidding must move the gate with it. A stage list with no
- * gate stage requires nothing, the same fail-safe direction isRealizedStage
- * takes when a list has no anchor.
+ * gate stage requires nothing, the same fail-safe direction
+ * isRealizedOpportunity takes for a deal with no Contract Date.
  *
  * This answers only "does the gate stand in the way of this move" — never
  * "has this opportunity already satisfied it". Ask itbGateSatisfiedBy() for
