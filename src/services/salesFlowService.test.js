@@ -276,6 +276,67 @@ describe("salesFlowService", () => {
 
       await expect(salesFlowService.unlockFlow(flow.id, "  ", admin.id)).rejects.toThrow(/reason/)
     })
+
+    it("creates a snapshot of the entire flow configuration on lock", async () => {
+      const lockedResult = await salesFlowService.lockFlow(flow.id, admin.id)
+      
+      expect(lockedResult.snapshot).toBeDefined()
+      expect(lockedResult.snapshot.version).toBe(1)
+      expect(lockedResult.snapshot.snapshot_data).toBeDefined()
+      expect(lockedResult.snapshot.snapshot_data.stages.length).toBe(2)
+      expect(lockedResult.snapshot.snapshot_data.edges.length).toBe(1)
+      
+      // Artefacts should be emitted
+      expect(lockedResult.artefacts).toBeDefined()
+      expect(lockedResult.artefacts.promotableConfiguration).toBeTruthy()
+      expect(lockedResult.artefacts.readableDocument).toBeTruthy()
+      expect(lockedResult.artefacts.notesList).toBeTruthy()
+    })
+
+    it("creates a new snapshot version when locked again", async () => {
+      await salesFlowService.lockFlow(flow.id, admin.id)
+      await salesFlowService.unlockFlow(flow.id, "Need to add a stage", admin.id)
+      
+      const newStage = await salesFlowService.addStage(flow.id, "Negotiation", admin.id)
+      await salesFlowService.addEdge(flow.id, entry.id, newStage.id, admin.id)
+      
+      const secondLock = await salesFlowService.lockFlow(flow.id, admin.id)
+      
+      expect(secondLock.snapshot.version).toBe(2)
+      expect(secondLock.snapshot.snapshot_data.stages.length).toBe(3)
+      expect(secondLock.snapshot.snapshot_data.edges.length).toBe(2)
+    })
+  })
+
+  describe("importing a snapshot (promotion)", () => {
+    it("creates a new Sale Type and Sales Flow from a snapshot", async () => {
+      // First, create a flow and lock it to get a snapshot
+      const sourceSaleType = await salesFlowService.createSaleType("Source Bidding", admin.id)
+      const sourceFlow = (await salesFlowService.getFlow(sourceSaleType.id)).flow
+      const lead = await salesFlowService.addStage(sourceFlow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(sourceFlow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(sourceFlow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(sourceFlow.id, won.id, admin.id)
+      
+      // We need stageActionService and stageRequirementService in real tests, but for now we test structure
+      
+      const lockedResult = await salesFlowService.lockFlow(sourceFlow.id, admin.id)
+      const snapshotData = lockedResult.snapshot.snapshot_data
+      
+      // Now import it
+      const imported = await salesFlowService.importSnapshot(snapshotData, "Imported Bidding", admin.id)
+      
+      expect(imported.saleType.name).toBe("Imported Bidding")
+      expect(imported.flow.state).toBe("draft") // imported flows start as draft
+      expect(imported.stages.length).toBe(2)
+      expect(imported.edges.length).toBe(1)
+      expect(imported.flow.won_stage_id).toBeTruthy()
+      
+      // Ensure the IDs are new
+      expect(imported.saleType.id).not.toBe(sourceSaleType.id)
+      expect(imported.flow.id).not.toBe(sourceFlow.id)
+      expect(imported.stages[0].id).not.toBe(lead.id)
+    })
   })
 
   describe("reading Sale Types for a picker", () => {

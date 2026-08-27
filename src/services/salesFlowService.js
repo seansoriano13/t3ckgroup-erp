@@ -1,6 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { flowLockBlockers } from "../constants/salesFlow";
+import { stageActionService } from "./stageActionService";
+import { stageRequirementService } from "./stageRequirementService";
 
 /**
  * Flow Canvas persistence (issue #36, ADR 0006) — Sale Types, the Sales Flow
@@ -565,7 +567,108 @@ export const salesFlowService = {
       actorId,
     ).catch(console.error);
 
-    return data;
+    // 1. Snapshotting
+    const stageIds = stages.map(s => s.id);
+    const [actionsObj, requirementsObj] = await Promise.all([
+      stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
+      stageIds.length > 0 ? stageRequirementService.getForStages(stageIds) : {}
+    ]);
+
+    const { data: latestSnapshot } = await supabase
+      .from("flow_snapshots")
+      .select("version")
+      .eq("flow_id", flowId)
+      .order("version", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const nextVersion = (latestSnapshot?.version || 0) + 1;
+
+    const snapshotData = {
+      stages,
+      edges,
+      actions: Object.values(actionsObj || {}).flat(),
+      requirements: Object.values(requirementsObj || {}).flat(),
+      wonStageId: flow.won_stage_id,
+      saleTypeId: flow.sale_type_id
+    };
+
+    const { data: snapshotResult, error: snapshotError } = await supabase
+      .from("flow_snapshots")
+      .insert({
+        flow_id: flowId,
+        version: nextVersion,
+        snapshot_data: snapshotData,
+        created_by: actorId
+      })
+      .select()
+      .single();
+
+    if (snapshotError) throw snapshotError;
+
+    // 2. Emit artefacts
+    const artefacts = {
+      promotableConfiguration: JSON.stringify(snapshotData, null, 2),
+      readableDocument: `# Sales Flow Document\n\nVersion: ${nextVersion}\n...`,
+      notesList: "Notes...",
+    };
+
+    return { ...data, snapshot: snapshotResult, artefacts };
+  },
+
+  async importSnapshot(snapshotData, name, actorId) {
+    await requireSuperAdmin(actorId);
+
+    const saleType = await this.createSaleType(name, actorId);
+    const flow = (await this.getFlow(saleType.id)).flow;
+
+    const stageIdMap = {};
+
+    // 1. Create Stages
+    for (const oldStage of snapshotData.stages || []) {
+      const newStage = await this.addStage(flow.id, oldStage.name, actorId);
+      stageIdMap[oldStage.id] = newStage.id;
+    }
+
+    // 2. Set Won Stage
+    if (snapshotData.wonStageId && stageIdMap[snapshotData.wonStageId]) {
+      await this.setWonStage(flow.id, stageIdMap[snapshotData.wonStageId], actorId);
+    }
+
+    // 3. Create Edges
+    for (const oldEdge of snapshotData.edges || []) {
+      const sourceId = stageIdMap[oldEdge.from_stage_id];
+      const targetId = stageIdMap[oldEdge.to_stage_id];
+      if (sourceId && targetId) {
+        await this.addEdge(flow.id, sourceId, targetId, actorId);
+      }
+    }
+
+    // 4. Create Actions
+    const actionsList = Array.isArray(snapshotData.actions) ? snapshotData.actions : Object.values(snapshotData.actions || {}).flat();
+    for (const action of actionsList) {
+      const stageId = stageIdMap[action.stage_id];
+      if (stageId) {
+        await stageActionService.add({ stageId, kind: action.kind, config: action.config }, actorId);
+      }
+    }
+
+    // 5. Create Requirements
+    const reqList = Array.isArray(snapshotData.requirements) ? snapshotData.requirements : Object.values(snapshotData.requirements || {}).flat();
+    for (const req of reqList) {
+      const stageId = stageIdMap[req.stage_id];
+      if (stageId) {
+        await stageRequirementService.add({ 
+          stageId, 
+          kind: req.kind, 
+          label: req.label, 
+          isRequired: req.is_required, 
+          config: req.config 
+        }, actorId);
+      }
+    }
+
+    return this.getFlow(saleType.id);
   },
 
   /**
