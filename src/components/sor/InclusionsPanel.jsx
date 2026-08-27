@@ -346,8 +346,14 @@ export default function InclusionsPanel({ opportunity }) {
       user.is_super_admin ||
       user.isSuperAdmin);
 
-  const invalidate = () =>
+  // Issue #48: the Project Evaluation's base cost and margin roll up from
+  // Inclusions, so any write here has to refresh that panel's cache too, or
+  // the margin figure sits stale until something else happens to invalidate
+  // it — the same class of gap found and fixed in CanvassPanel for #47.
+  const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["inclusions", opportunityId] });
+    queryClient.invalidateQueries({ queryKey: ["projectEvaluation", opportunityId] });
+  };
 
   const addMutation = useMutation({
     mutationFn: (entry) =>

@@ -323,12 +323,15 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
     mutationFn: (offerId) => projectEvaluationService.markWinner(canvass.id, offerId),
     onSuccess: () => {
       invalidate();
-      // Issue #47: winning an Inclusion's Canvass re-stamps that Inclusion's
-      // cost server-side. Without this, the breakdown keeps showing the old
-      // figure until something unrelated happens to invalidate its own query —
-      // up to the 15-minute staleTime. Harmless no-op when the subject is a
-      // Procurement Request, since nothing reads an "inclusions" key then.
+      // Issue #47/#48: winning an Inclusion's Canvass re-stamps that
+      // Inclusion's cost server-side, which the Project Evaluation's base
+      // cost and margin roll up from. Without this, both breakdowns keep
+      // showing the old figures until something unrelated happens to
+      // invalidate their own queries — up to the 15-minute staleTime.
+      // Harmless no-op when the subject is a Procurement Request, since
+      // nothing reads these keys then.
       queryClient.invalidateQueries({ queryKey: ["inclusions"] });
+      queryClient.invalidateQueries({ queryKey: ["projectEvaluation"] });
       toast.success("Winner recorded.");
     },
     onError: (err) => toast.error(err.message),

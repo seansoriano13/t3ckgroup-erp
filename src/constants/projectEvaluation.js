@@ -16,6 +16,7 @@
  */
 
 import { PROCUREMENT_OUTCOME, normalizeOutcome } from "./procurement"
+import { calculateCommissionableRevenue } from "../utils/commission"
 
 // ── Completeness ────────────────────────────────────────────────────────────
 // "Is the client's specification answered?" — the question Odoo cannot answer,
@@ -265,4 +266,81 @@ export function costAgeDays(establishedAt, now = new Date()) {
   if (Number.isNaN(then.getTime())) return null
   const ms = now.getTime() - then.getTime()
   return Math.max(0, Math.floor(ms / (24 * 60 * 60 * 1000)))
+}
+
+// ── Project Evaluation (issue #48) ──────────────────────────────────────────
+// The go/no-go: base cost rolled up from Inclusions against a candidate sales
+// price, government deductions when they apply, and the resulting margin.
+
+/**
+ * The SOR's base cost, rolled up from its Inclusions' stamped cost basis
+ * (migration 0060) times each Inclusion's quantity.
+ *
+ * `amount` is null — not zero — whenever there is nothing to roll up: no
+ * Inclusions at all, or Inclusions that exist but none of them costed yet.
+ * `isComplete` says whether every Inclusion has contributed, so a screen can
+ * show a partial total as partial rather than as a finished figure.
+ */
+export function rollUpBaseCost(inclusions = []) {
+  const rows = Array.isArray(inclusions) ? inclusions : []
+  const costed = rows.filter((row) => row?.cost_amount !== null && row?.cost_amount !== undefined)
+
+  const amount = costed.length === 0
+    ? null
+    : costed.reduce((sum, row) => sum + Number(row.cost_amount) * (Number(row.quantity) || 1), 0)
+
+  return {
+    amount,
+    costedCount: costed.length,
+    totalCount: rows.length,
+    isComplete: rows.length > 0 && costed.length === rows.length,
+  }
+}
+
+/**
+ * The go/no-go figure: candidate revenue — net of the VAT/Withholding/
+ * Retention sequence when the client is a government body, untouched
+ * otherwise — less base cost, less estimated operating expense. Reuses
+ * calculateCommissionableRevenue rather than a second deduction calculation,
+ * per issue #48's own decision: two systems computing "what did this deal
+ * earn" will disagree, and the one people trust is whichever they saw last.
+ *
+ * `marginPercent` is measured against net revenue, matching how a margin is
+ * conventionally read (profit over what was actually collected, not over the
+ * sticker price) — and is null rather than a divide-by-zero when revenue is
+ * nothing at all.
+ */
+export function calculateProjectMargin({
+  candidateSalesPrice,
+  baseCost,
+  estimatedOpex,
+  isGovernmentClient,
+  vatPercent,
+  withholdingPercent,
+  retentionPercent,
+} = {}) {
+  const price = Number(candidateSalesPrice) || 0
+  const cost = Number(baseCost) || 0
+  const opex = Number(estimatedOpex) || 0
+
+  const netRevenue = isGovernmentClient
+    ? calculateCommissionableRevenue(price, { vatPercent, withholdingPercent, retentionPercent })
+    : price
+
+  const marginAmount = netRevenue - cost - opex
+  const marginPercent = netRevenue > 0 ? (marginAmount / netRevenue) * 100 : null
+
+  return { netRevenue, marginAmount, marginPercent }
+}
+
+/**
+ * How far the ERP's candidate price sits from Odoo's own order price, once
+ * there is an Odoo order to compare against. Null when either side is
+ * unknown — an unbound evaluation has no Odoo price to drift from, and that
+ * is a different statement from a delta of zero.
+ */
+export function priceDelta(candidatePrice, odooOrderPrice) {
+  if (candidatePrice === null || candidatePrice === undefined) return null
+  if (odooOrderPrice === null || odooOrderPrice === undefined) return null
+  return Number(odooOrderPrice) - Number(candidatePrice)
 }

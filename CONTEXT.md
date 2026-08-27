@@ -219,6 +219,10 @@ _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 One supplier's answer within a Canvass — brand, description, source link, brochure, remarks, unit price, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before.
 _Avoid_: Quote, Bid, Supplier Response
 
+**Project Evaluation**:
+The go/no-go: one record per SOR holding a candidate sales price, an estimated operating expense figure, and a government-client toggle, weighed against the base cost rolled up live from the SOR's Inclusions. May exist before the SOR has a Sales Reference — an evaluation with none is visibly marked an estimate. Markup and final pricing stay in Odoo; this record never writes a price back, and where its candidate price differs from Odoo's own order price, both are shown with the delta.
+_Avoid_: Quotation, Pricing Sheet, Deal Sizing
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is

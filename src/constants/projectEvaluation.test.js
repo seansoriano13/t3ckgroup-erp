@@ -7,6 +7,7 @@ import {
   SOURCING,
   SOURCING_VALUES,
   applyWinner,
+  calculateProjectMargin,
   canSetSourcing,
   canvassNeedsMoreOffers,
   completenessForOutcome,
@@ -15,7 +16,9 @@ import {
   isCompleteness,
   isSourcing,
   outstandingInclusions,
+  priceDelta,
   resolveCost,
+  rollUpBaseCost,
   summariseCompleteness,
   winningOffer,
 } from "./projectEvaluation"
@@ -348,5 +351,128 @@ describe("costAgeDays", () => {
 
   it("is null for an unparseable timestamp rather than throwing", () => {
     expect(costAgeDays("not-a-date")).toBeNull()
+  })
+})
+
+// Issue #48.
+describe("rollUpBaseCost", () => {
+  it("sums each costed inclusion's cost times its quantity", () => {
+    const result = rollUpBaseCost([
+      { cost_amount: 850000, quantity: 1 },
+      { cost_amount: 100, quantity: 3 },
+    ])
+
+    expect(result.amount).toBe(850300)
+    expect(result.costedCount).toBe(2)
+    expect(result.totalCount).toBe(2)
+    expect(result.isComplete).toBe(true)
+  })
+
+  it("reads as no base cost, not zero, when nothing is costed yet", () => {
+    const result = rollUpBaseCost([{ cost_amount: null, quantity: 1 }])
+    expect(result.amount).toBeNull()
+    expect(result.isComplete).toBe(false)
+  })
+
+  it("reads as no base cost on an SOR with no Inclusions at all", () => {
+    expect(rollUpBaseCost([]).amount).toBeNull()
+    expect(rollUpBaseCost().amount).toBeNull()
+  })
+
+  it("reports a partial roll-up as partial, not as finished", () => {
+    const result = rollUpBaseCost([
+      { cost_amount: 500, quantity: 1 },
+      { cost_amount: null, quantity: 1 },
+    ])
+
+    expect(result.amount).toBe(500)
+    expect(result.costedCount).toBe(1)
+    expect(result.totalCount).toBe(2)
+    expect(result.isComplete).toBe(false)
+  })
+
+  it("defaults a missing quantity to one rather than zeroing the line out", () => {
+    const result = rollUpBaseCost([{ cost_amount: 500, quantity: null }])
+    expect(result.amount).toBe(500)
+  })
+})
+
+describe("calculateProjectMargin", () => {
+  // Worked example, government client: matches the Commission Pool's own
+  // worked example (1,000,000 @ 12% VAT, 8% withholding, 1% retention) so the
+  // two screens are checked against the same arithmetic.
+  // 1,000,000 / 1.12 = 892,857.142857... (VAT-exclusive)
+  // 892,857.142857... * 0.92 = 821,428.571428... (after withholding)
+  // 821,428.571428... * 0.99 = 813,214.285714... (after retention)
+  it("nets government deductions out of the candidate price before margin", () => {
+    const result = calculateProjectMargin({
+      candidateSalesPrice: 1_000_000,
+      baseCost: 500_000,
+      estimatedOpex: 50_000,
+      isGovernmentClient: true,
+      vatPercent: 12,
+      withholdingPercent: 8,
+      retentionPercent: 1,
+    })
+
+    expect(result.netRevenue).toBeCloseTo(813_214.29, 2)
+    expect(result.marginAmount).toBeCloseTo(263_214.29, 2)
+    expect(result.marginPercent).toBeCloseTo(32.37, 2)
+  })
+
+  it("takes the candidate price as-is for a private client — no deductions", () => {
+    const result = calculateProjectMargin({
+      candidateSalesPrice: 1_000_000,
+      baseCost: 500_000,
+      estimatedOpex: 50_000,
+      isGovernmentClient: false,
+    })
+
+    expect(result.netRevenue).toBe(1_000_000)
+    expect(result.marginAmount).toBe(450_000)
+    expect(result.marginPercent).toBe(45)
+  })
+
+  it("reports a negative margin as a negative number and percentage, not a floor of zero", () => {
+    const result = calculateProjectMargin({
+      candidateSalesPrice: 100_000,
+      baseCost: 90_000,
+      estimatedOpex: 20_000,
+      isGovernmentClient: false,
+    })
+
+    expect(result.marginAmount).toBe(-10_000)
+    expect(result.marginPercent).toBe(-10)
+  })
+
+  it("treats a missing base cost or opex as zero, not as a thrown error", () => {
+    const result = calculateProjectMargin({
+      candidateSalesPrice: 100_000,
+      isGovernmentClient: false,
+    })
+
+    expect(result.marginAmount).toBe(100_000)
+  })
+
+  it("is null, never a division error, when net revenue is nothing at all", () => {
+    const result = calculateProjectMargin({ candidateSalesPrice: 0, isGovernmentClient: false })
+    expect(result.marginPercent).toBeNull()
+  })
+})
+
+describe("priceDelta", () => {
+  it("reports how far the Odoo order price sits from the candidate price", () => {
+    expect(priceDelta(900_000, 950_000)).toBe(50_000)
+    expect(priceDelta(950_000, 900_000)).toBe(-50_000)
+  })
+
+  it("is null, not zero, when either side is unknown", () => {
+    expect(priceDelta(null, 950_000)).toBeNull()
+    expect(priceDelta(900_000, null)).toBeNull()
+    expect(priceDelta(undefined, undefined)).toBeNull()
+  })
+
+  it("reports no drift at all as an honest zero", () => {
+    expect(priceDelta(900_000, 900_000)).toBe(0)
   })
 })

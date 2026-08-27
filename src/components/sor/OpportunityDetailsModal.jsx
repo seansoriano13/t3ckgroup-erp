@@ -43,6 +43,7 @@ import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import ProcurementPanel from "./ProcurementPanel";
 import InclusionsPanel from "./InclusionsPanel";
+import ProjectEvaluationPanel from "./ProjectEvaluationPanel";
 import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { procurementService } from "../../services/procurementService";
@@ -1461,6 +1462,15 @@ export default function OpportunityDetailsModal({
                 Lost Reason
               </p>
               <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
+            </div>
+          )}
+
+          {/* Issue #48. The go/no-go frames the breakdown below it — base cost
+              in the margin figure here is the same roll-up InclusionsPanel
+              shows per line, just totalled. */}
+          {!isEditing && (
+            <div className="rounded-xl border border-border/50 p-6">
+              <ProjectEvaluationPanel opportunity={opportunity} />
             </div>
           )}
 

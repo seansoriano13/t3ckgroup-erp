@@ -46,5 +46,8 @@ describe("CanvassPanel — winning an offer refreshes the Inclusion's cost", () 
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["inclusions"] }),
     )
+    // Issue #48: base cost and margin roll up from Inclusions, so this has to
+    // refresh the Project Evaluation's own cache too.
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["projectEvaluation"] })
   })
 })
