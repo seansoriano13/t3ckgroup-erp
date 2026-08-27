@@ -144,6 +144,9 @@ describe("navigation registry", () => {
         "Activity Log",
         "Pipeline Stages",
         "Stage Requirements",
+        // Issue #36 — scaffolding, removed again once the locked flows are
+        // implemented as the production pipeline.
+        "Flow Canvas",
         "Commission Pool",
         "Lead Sources",
       ]);

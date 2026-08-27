@@ -13,6 +13,7 @@ import {
   SquarePen,
   Percent,
   Shuffle,
+  Workflow,
 } from "lucide-react";
 
 export const NAV_MODULES = {
@@ -166,6 +167,14 @@ export const NAV_MODULES = {
         label: "Stage Requirements",
         link: "/super-admin/stage-requirements",
         icon: ListTodo,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
+      // Issue #36 — scaffolding. This entry comes back out once the locked
+      // flows are implemented as the production pipeline.
+      {
+        label: "Flow Canvas",
+        link: "/super-admin/flow-canvas",
+        icon: Workflow,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
       {

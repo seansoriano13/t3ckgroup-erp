@@ -44,6 +44,7 @@ export type Path =
   | `/super-admin`
   | `/super-admin/activity-log`
   | `/super-admin/commission`
+  | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
   | `/super-admin/pipeline-stages`
   | `/super-admin/stage-requirements`
