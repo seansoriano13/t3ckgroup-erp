@@ -4,6 +4,7 @@ import {
   REQUEST_UNITS,
   buildRequisitionTitle,
   countResolved,
+  daysWaiting,
   isValidPoNumber,
   normalizePoNumber,
   openRequests,
@@ -87,5 +88,28 @@ describe("request units", () => {
 
   it("has no duplicates", () => {
     expect(new Set(REQUEST_UNITS).size).toBe(REQUEST_UNITS.length)
+  })
+})
+
+describe("daysWaiting", () => {
+  const NOW = Date.parse("2026-08-27T09:00:00.000Z")
+
+  it("counts whole days a request has been waiting", () => {
+    expect(daysWaiting({ created_at: "2026-08-20T09:00:00.000Z" }, NOW)).toBe(7)
+  })
+
+  it("reads a request raised earlier today as 0 days, not 1", () => {
+    expect(daysWaiting({ created_at: "2026-08-27T01:00:00.000Z" }, NOW)).toBe(0)
+  })
+
+  // A missing timestamp is not "raised today". Rendering it as 0 would tell a
+  // purchaser the oldest thing on the queue is the newest.
+  it("has no answer when there is nothing to measure from", () => {
+    expect(daysWaiting({}, NOW)).toBeNull()
+    expect(daysWaiting({ created_at: "not a date" }, NOW)).toBeNull()
+  })
+
+  it("does not go negative on a clock that disagrees", () => {
+    expect(daysWaiting({ created_at: "2026-09-01T00:00:00.000Z" }, NOW)).toBe(0)
   })
 })

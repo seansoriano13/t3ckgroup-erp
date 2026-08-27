@@ -40,6 +40,25 @@ const REQUEST_SELECT = `
   resolver:employees!sor_procurement_requests_resolved_by_fkey(id, name, avatar_path)
 `;
 
+/**
+ * The queue's row. REQUEST_SELECT plus the deal it came from, because a
+ * cross-SOR list is unreadable without it — "Hydraulic hose kit" means nothing
+ * until you know which project asked for it.
+ *
+ * A Scratch SOR (0046) runs identical code paths and so raises real request
+ * rows. They stay visible on the SOR itself, which is what watching a flow
+ * means; a purchaser's work list is not the place to make somebody triage a
+ * rehearsal.
+ */
+const QUEUE_SELECT = `
+  *,
+  requester:employees!sor_procurement_requests_requested_by_fkey(id, name, avatar_path),
+  assignee:employees!sor_procurement_requests_assigned_to_fkey(id, name, avatar_path, department),
+  opportunity:sales_opportunities!sor_procurement_requests_opportunity_id_fkey!inner(
+    id, sales_reference, client_name, project_title, status, is_deleted, is_scratch
+  )
+`;
+
 /** How an opportunity is named in a notification or audit line. */
 const dealLabel = (opportunity) =>
   opportunity?.sales_reference || opportunity?.client_name || "an opportunity";
@@ -196,6 +215,37 @@ export const procurementService = {
       .select(REQUEST_SELECT)
       .eq("task_id", taskId)
       .order("created_at", { ascending: true });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Every unresolved request across every SOR — the Purchasing Module's queue.
+   *
+   * The other reads here each answer a question about one thing: one deal, one
+   * task, one purchaser. None of them answers "what is purchasing sourcing
+   * this week", and answering it by opening Tasks one at a time is why that
+   * answer currently lives in a spreadsheet.
+   *
+   * "Open" here is `isResolved`'s definition, not "outcome is null": 0019 made
+   * IN_PROGRESS a real stored outcome meaning purchasing is actively canvassing
+   * suppliers. Those are precisely the rows a purchaser is working on, so a
+   * null-only filter would empty the queue of the week's actual work.
+   *
+   * The opportunity is joined `!inner` rather than left, because both filters
+   * below sit on it: without `!inner` PostgREST empties the embed and keeps the
+   * parent row, so a withdrawn deal's requests would still appear — with a null
+   * SOR next to them, which is worse than either outcome.
+   */
+  async listOpenQueue() {
+    const { data, error } = await supabase
+      .from("sor_procurement_requests")
+      .select(QUEUE_SELECT)
+      .or(`outcome.is.null,outcome.eq.${PROCUREMENT_OUTCOME.IN_PROGRESS}`)
+      .eq("opportunity.is_deleted", false)
+      .eq("opportunity.is_scratch", false)
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
     return data || [];

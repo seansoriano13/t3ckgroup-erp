@@ -6,12 +6,13 @@ import {
 } from "./navigation";
 
 describe("navigation registry", () => {
-  it("defines the 6 canonical ERP modules adhering to CONTEXT.md", () => {
+  it("defines the 7 canonical ERP modules adhering to CONTEXT.md", () => {
     const moduleKeys = Object.keys(NAV_MODULES);
     expect(moduleKeys).toEqual([
       "workspace",
       "operations",
       "sales",
+      "purchasing",
       "approvals",
       "human_resources",
       "administration",
@@ -121,7 +122,7 @@ describe("navigation registry", () => {
       ]);
     });
 
-    it("returns all 6 modules for Super Admin", () => {
+    it("returns all 7 modules for Super Admin", () => {
       const superAdminUser = {
         id: "admin-1",
         isSuperAdmin: true,
@@ -133,6 +134,7 @@ describe("navigation registry", () => {
         "workspace",
         "operations",
         "sales",
+        "purchasing",
         "approvals",
         "human_resources",
         "administration",
@@ -142,14 +144,54 @@ describe("navigation registry", () => {
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         "System Admin",
         "Activity Log",
-        "Pipeline Stages",
-        "Stage Requirements",
         // Issue #36 — scaffolding, removed again once the locked flows are
         // implemented as the production pipeline.
         "Flow Canvas",
         "Commission Pool",
         "Lead Sources",
       ]);
+    });
+
+    // Issue #39. The Module is gated on an explicit flag rather than on the
+    // free-text `department` column: the org files purchasing as a
+    // sub-department under OPERATIONS, so a string match would work on the day
+    // it was written and then hide a purchaser's whole queue, with no error
+    // anywhere, the first time somebody typed it differently.
+    it("returns Purchasing for a user with purchasing flow", () => {
+      const purchaser = {
+        id: "buyer-1",
+        has_purchasing_flow: true,
+      };
+
+      const groups = getFilteredNavigationGroups(purchaser);
+      const purchasingGroup = groups.find((g) => g.key === "purchasing");
+      expect(purchasingGroup).toBeDefined();
+      expect(purchasingGroup.links.map((l) => l.label)).toEqual([
+        "Procurement Queue",
+      ]);
+    });
+
+    it("hides Purchasing from an employee in a purchasing department without the flag", () => {
+      const buyerWithoutAccess = {
+        id: "buyer-2",
+        department: "OPERATIONS",
+        sub_department: "PURCHASING",
+        has_task_flow: true,
+      };
+
+      const groups = getFilteredNavigationGroups(buyerWithoutAccess);
+      expect(groups.map((g) => g.key)).not.toContain("purchasing");
+    });
+
+    it("does not grant Purchasing to sales or task flow", () => {
+      const salesUser = {
+        id: "sales-2",
+        has_sales_flow: true,
+        has_task_flow: true,
+      };
+
+      const groups = getFilteredNavigationGroups(salesUser);
+      expect(groups.map((g) => g.key)).not.toContain("purchasing");
     });
   });
 

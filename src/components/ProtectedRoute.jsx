@@ -6,6 +6,7 @@ export default function ProtectedRoute({
   requireHead = false,
   requireHr = false,
   requireSuperAdmin = false,
+  requirePurchasing = false,
   excludeSuperAdmin = false,
 }) {
   const { user, isAuthLoading } = useAuth();
@@ -44,6 +45,14 @@ export default function ProtectedRoute({
 
   //   if not HR (Super Admins bypass this to access HR pages)
   if (requireHr && !isHrUser && !isSA) {
+    return <Navigate to="/" replace />;
+  }
+
+  // Purchasing (issue #39). Deliberately not satisfied by Head or HR: the
+  // Module is granted per employee, and being somebody's manager is not the
+  // same as doing the sourcing.
+  const hasPurchasing = user.has_purchasing_flow || user.hasPurchasingFlow;
+  if (requirePurchasing && !hasPurchasing && !isSA) {
     return <Navigate to="/" replace />;
   }
 

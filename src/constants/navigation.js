@@ -14,6 +14,7 @@ import {
   Percent,
   Shuffle,
   Workflow,
+  ShoppingCart,
 } from "lucide-react";
 
 export const NAV_MODULES = {
@@ -90,6 +91,20 @@ export const NAV_MODULES = {
       },
     ],
   },
+  purchasing: {
+    key: "purchasing",
+    label: "Purchasing",
+    defaultExpanded: true,
+    links: [
+      {
+        label: "Procurement Queue",
+        link: "/purchasing",
+        icon: ShoppingCart,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,
+        exactMatch: true,
+      },
+    ],
+  },
   approvals: {
     key: "approvals",
     label: "Approvals",
@@ -157,18 +172,7 @@ export const NAV_MODULES = {
         icon: ClipboardList,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
       },
-      {
-        label: "Pipeline Stages",
-        link: "/super-admin/pipeline-stages",
-        icon: LayoutList,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-      },
-      {
-        label: "Stage Requirements",
-        link: "/super-admin/stage-requirements",
-        icon: ListTodo,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-      },
+
       // Issue #36 — scaffolding. This entry comes back out once the locked
       // flows are implemented as the production pipeline.
       {
@@ -202,6 +206,7 @@ export function buildUserPermissionContext(user) {
   const isHr = !!(user?.is_hr || user?.isHr);
   const hasSalesFlow = !!(user?.has_sales_flow ?? user?.hasSalesFlow);
   const hasTaskFlow = !!(user?.has_task_flow ?? user?.hasTaskFlow);
+  const hasPurchasingFlow = !!(user?.has_purchasing_flow ?? user?.hasPurchasingFlow);
   const subDepartment = user?.subDepartment || user?.sub_department || null;
   const canManage = isHead || isSuperAdmin;
 
@@ -212,6 +217,7 @@ export function buildUserPermissionContext(user) {
     isHr,
     hasSalesFlow,
     hasTaskFlow,
+    hasPurchasingFlow,
     subDepartment,
     canManage,
   };

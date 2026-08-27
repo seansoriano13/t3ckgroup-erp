@@ -683,4 +683,127 @@ describe("procurementService", () => {
       expect(task.status).toBe(TASK_STATUS.DELETED)
     })
   })
+
+  /**
+   * The Purchasing queue (issue #39).
+   *
+   * Every read the service already has is scoped to one thing — one
+   * opportunity, one task, one purchaser. None of them answers "what is
+   * purchasing sourcing this week", which is the question the Module exists
+   * for, and which is why that answer currently lives in a spreadsheet.
+   */
+  describe("the purchasing queue", () => {
+    it("gathers open requests from every SOR, not just one", async () => {
+      const second = makeOpportunity({
+        registered_by: salesperson.id,
+        deal_owner_id: salesperson.id,
+        client_name: "Beta Industries",
+        sales_reference: "S01238",
+      })
+
+      await raise()
+      await raise({ opportunityId: second.id, items: [{ product_name: "Winch", quantity: 1 }] })
+
+      const queue = await procurementService.listOpenQueue()
+
+      expect(queue.map((r) => r.requested_name).sort()).toEqual([
+        "Hydraulic hose kit",
+        "Safety harness",
+        "Winch",
+      ])
+    })
+
+    it("carries the SOR, the requester and the assignee on every row", async () => {
+      await raise()
+
+      const [row] = await procurementService.listOpenQueue()
+
+      expect(row.opportunity.sales_reference).toBe("S01237")
+      expect(row.opportunity.client_name).toBe("ACME Corp")
+      expect(row.requester.name).toBe("Ana Reyes")
+      expect(row.assignee.name).toBe("Cjay Espina")
+    })
+
+    // 0019 made IN_PROGRESS a stored outcome meaning "actively canvassing
+    // suppliers". Filtering on `outcome is null` alone would empty the queue of
+    // exactly the rows somebody is working on this week.
+    it("keeps a request that purchasing has started but not answered", async () => {
+      await raise()
+      const [first] = await procurementService.listForOpportunity(opportunity.id)
+
+      await procurementService.resolveRequest(
+        first.id,
+        { outcome: PROCUREMENT_OUTCOME.IN_PROGRESS },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      const queue = await procurementService.listOpenQueue()
+      expect(queue.map((r) => r.id)).toContain(first.id)
+    })
+
+    it("drops a request once purchasing has answered it", async () => {
+      await raise()
+      const [first] = await procurementService.listForOpportunity(opportunity.id)
+
+      await procurementService.resolveRequest(
+        first.id,
+        { outcome: PROCUREMENT_OUTCOME.ALREADY_EXISTS, note: "in Odoo as HOSE-5M" },
+        buyer.id,
+      )
+      await waitForNetworkIdle()
+
+      const queue = await procurementService.listOpenQueue()
+      expect(queue.map((r) => r.id)).not.toContain(first.id)
+    })
+
+    // A withdrawn deal is not work. The request rows survive the soft delete
+    // by design — they are the record of what was asked for — so the queue
+    // has to be the thing that stops showing them.
+    it("shows nothing from a soft-deleted SOR", async () => {
+      await raise()
+      updateRow("sales_opportunities", db.internal.rowsOf("sales_opportunities").find((o) => o.id === opportunity.id), { is_deleted: true })
+
+      const queue = await procurementService.listOpenQueue()
+      expect(queue).toEqual([])
+    })
+
+    // Consistent with 0046: a Scratch SOR runs identical code paths, so it can
+    // and does raise real request rows. They stay visible on the SOR itself —
+    // that is what watching a flow means — but a cross-deal work list is not
+    // the place to make a purchaser triage a rehearsal.
+    it("shows nothing from a Scratch SOR", async () => {
+      await raise()
+      updateRow("sales_opportunities", db.internal.rowsOf("sales_opportunities").find((o) => o.id === opportunity.id), { is_scratch: true })
+
+      const queue = await procurementService.listOpenQueue()
+      expect(queue).toEqual([])
+    })
+
+    it("puts the newest ask at the top", async () => {
+      const second = makeOpportunity({
+        registered_by: salesperson.id,
+        deal_owner_id: salesperson.id,
+        sales_reference: "S01239",
+      })
+
+      await raise({ items: [{ product_name: "Older ask", quantity: 1 }] })
+      const [older] = db.internal.rowsOf("sor_procurement_requests")
+      updateRow("sor_procurement_requests", older, {
+        created_at: "2026-01-01T00:00:00.000Z",
+      })
+
+      await raise({
+        opportunityId: second.id,
+        items: [{ product_name: "Newer ask", quantity: 1 }],
+      })
+
+      const queue = await procurementService.listOpenQueue()
+      expect(queue[0].requested_name).toBe("Newer ask")
+    })
+
+    it("is empty rather than failing when nothing is outstanding", async () => {
+      expect(await procurementService.listOpenQueue()).toEqual([])
+    })
+  })
 })

@@ -38,6 +38,7 @@ export type Path =
   | `/opportunities/commission`
   | `/opportunities/commission-formula`
   | `/profile`
+  | `/purchasing`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`
@@ -46,8 +47,6 @@ export type Path =
   | `/super-admin/commission`
   | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
-  | `/super-admin/pipeline-stages`
-  | `/super-admin/stage-requirements`
   | `/tasks`
 
 export type Params = {

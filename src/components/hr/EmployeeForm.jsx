@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ChevronDown } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
@@ -23,6 +23,7 @@ export default function EmployeeForm({
     isSuperAdmin: false,
     has_sales_flow: false,
     has_task_flow: true,
+    has_purchasing_flow: false,
     employment_status: "",
     sil_hours_balance: 0,
     offset_hours_balance: 0,
@@ -44,6 +45,7 @@ export default function EmployeeForm({
       isSuperAdmin: false,
       has_sales_flow: false,
       has_task_flow: true,
+      has_purchasing_flow: false,
       employment_status: "",
       sil_hours_balance: 0,
       offset_hours_balance: 0,
@@ -281,6 +283,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-green-3 text-green-10"
             hoverColor="group-hover:bg-green-2"
+          />
+
+          {/* Purchasing — issue #39 */}
+          <AccessSwitch
+            label="Purchasing"
+            description="Access to the Procurement Queue"
+            icon={ShoppingCart}
+            checked={formData.has_purchasing_flow}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_purchasing_flow: val }))
+            }
+            activeColor="bg-amber-3 text-amber-10"
+            hoverColor="group-hover:bg-amber-2"
           />
 
           {/* Task Flow */}

@@ -317,3 +317,20 @@ export function countResolved(requests = []) {
 
 /** Requests still awaiting an outcome, for the stage-gate warning. */
 export const openRequests = (requests = []) => requests.filter((r) => !isResolved(r));
+
+/**
+ * Whole days a request has been waiting for an answer (issue #39).
+ *
+ * `now` is an argument rather than a call to Date.now() so the queue's age
+ * column is a function of its inputs and can be tested without freezing a
+ * clock. Returns null when there is nothing to measure from — a missing or
+ * unparseable timestamp is not "0 days old", and rendering it as such would
+ * quietly tell a purchaser the oldest thing on their list arrived today.
+ */
+export function daysWaiting(request, now = Date.now()) {
+  const raised = Date.parse(request?.created_at ?? "");
+  if (Number.isNaN(raised)) return null;
+  const elapsed = Number(now) - raised;
+  if (!Number.isFinite(elapsed) || elapsed < 0) return 0;
+  return Math.floor(elapsed / 86_400_000);
+}

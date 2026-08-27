@@ -187,6 +187,18 @@ importable as a new flow's starting point, so the baseline template and the
 version history are one thing.
 _Avoid_: Version, Backup, Export
 
+### Project Evaluation
+
+Terms introduced by the Project Evaluation feature (issue #38 and its tickets #39–#50). The feature exists because four jobs are currently done in a Google Sheet that the rest of the business cannot see: checking a bundled Odoo order against the client's spec, totalling the many purchase orders one project spawns, evidencing the three-supplier comparison, and deciding go/no-go on the resulting margin.
+
+**Purchasing**:
+The Module carrying purchasing's own work — the Procurement Queue, and the Canvasses raised from it. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
+_Avoid_: Procurement (when meaning the Module), PMS
+
+**Procurement Queue**:
+The cross-SOR list of every Procurement Request still awaiting an answer. Open means unresolved in the domain's sense — a request purchasing has started canvassing is still on the queue.
+_Avoid_: Purchasing Dashboard, Sourcing List
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is
