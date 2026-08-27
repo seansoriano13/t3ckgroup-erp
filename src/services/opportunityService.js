@@ -231,6 +231,16 @@ async function hasProjectEvaluationFor(opportunityId) {
 }
 
 /**
+ * Fetches Project Evaluation existence only when a set of requirements
+ * actually asks about it — shared by both gate check call sites so the
+ * "does anything here need this" guard is written once.
+ */
+async function resolveHasProjectEvaluation(requirements, opportunityId) {
+  const needsIt = requirements.some((r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION);
+  return needsIt ? hasProjectEvaluationFor(opportunityId) : false;
+}
+
+/**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
  * .scratch/stage-gate-engine/issues/) — throws if any required requirement
  * on any Stage the move crosses is unsatisfied, naming what's missing.
@@ -255,13 +265,13 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   );
   if (Object.keys(requirementsByStage).length === 0) return;
 
-  const needsProjectEvaluation = Object.values(requirementsByStage)
-    .flat()
-    .some((r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION);
-  const hasProjectEvaluation = needsProjectEvaluation
-    ? await hasProjectEvaluationFor(opportunityId)
-    : false;
-
+  // No hasProjectEvaluation here, unlike moveAlongFlow below: this is the
+  // pre-ADR-0006 global pipeline gate, and stage_requirements rows can only
+  // be created through the Flow Canvas (StageRequirementManager), which is
+  // scoped to flow_stages. A project_evaluation requirement can never
+  // actually exist on a legacy pipeline stage, so wiring the lookup in here
+  // would be a query with nothing to find — see issue #50, scoped to Flow
+  // Canvas Stages only.
   const gateResult = evaluateCrossing({
     fromCode,
     toCode,
@@ -271,7 +281,6 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     attachments,
     members,
     statusRowsByRequirement,
-    hasProjectEvaluation,
   });
 
   if (!gateResult.blocked) return;
@@ -386,12 +395,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
 
   const missing = [];
   const requirements = blockingRequirements(requirementsByStage[from.id] ?? []);
-  const needsProjectEvaluation = requirements.some(
-    (r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION,
-  );
-  const hasProjectEvaluation = needsProjectEvaluation
-    ? await hasProjectEvaluationFor(existing.id)
-    : false;
+  const hasProjectEvaluation = await resolveHasProjectEvaluation(requirements, existing.id);
 
   for (const requirement of requirements) {
     const result = evaluateRequirement(requirement, {
@@ -407,7 +411,18 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }
 
   if (missing.length > 0) {
-    const error = new Error(`Cannot leave ${from.name}. Required items missing.`);
+    // Named, not generic — a "required items missing" toast with nothing
+    // named in it sends whoever is blocked hunting for what changed. A
+    // requirement's optional reference link (issue #50's own config) rides
+    // along here too, since a toast is the only surface a Flow deal's
+    // stage control has for a blocked move.
+    const details = missing
+      .map(({ requirement }) => {
+        const link = requirement.config?.referenceLink;
+        return link ? `${requirement.label} (${link})` : requirement.label;
+      })
+      .join(", ");
+    const error = new Error(`Cannot leave ${from.name} — missing: ${details}.`);
     error.isGateBlock = true;
     error.missingRequirements = missing;
     throw error;

@@ -329,7 +329,10 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
       // showing the old figures until something unrelated happens to
       // invalidate their own queries — up to the 15-minute staleTime.
       // Harmless no-op when the subject is a Procurement Request, since
-      // nothing reads these keys then.
+      // nothing reads these keys then. Unscoped by opportunityId (unlike
+      // InclusionsPanel's own invalidate, which has it to hand) because this
+      // component only knows the Inclusion/Procurement Request id, not which
+      // SOR it belongs to.
       queryClient.invalidateQueries({ queryKey: ["inclusions"] });
       queryClient.invalidateQueries({ queryKey: ["projectEvaluation"] });
       toast.success("Winner recorded.");

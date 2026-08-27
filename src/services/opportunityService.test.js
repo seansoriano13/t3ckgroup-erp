@@ -1336,7 +1336,7 @@ describe("opportunityService", () => {
 
     // Issue #50.
     describe("a Stage requiring a Project Evaluation", () => {
-      it("blocks leaving the Stage until a Project Evaluation exists for the deal", async () => {
+      it("blocks leaving the Stage until a Project Evaluation exists for the deal, naming it in the error", async () => {
         makeStageRequirement({
           stage_id: lead.id,
           kind: "project_evaluation",
@@ -1355,9 +1355,26 @@ describe("opportunityService", () => {
         expect(caught.missingRequirements.map((m) => m.requirement.label)).toContain(
           "Go/no-go decided",
         )
+        // The toast a blocked user actually sees reads err.message — it has to
+        // name the requirement, not just say "required items missing".
+        expect(caught.message).toContain("Go/no-go decided")
 
         const unchanged = await opportunityService.getOpportunityById(deal.id)
         expect(unchanged.flow_stage_id).toBe(lead.id)
+      })
+
+      it("includes the requirement's reference link in the blocked message, when configured", async () => {
+        makeStageRequirement({
+          stage_id: lead.id,
+          kind: "project_evaluation",
+          label: "Go/no-go decided",
+          config: { referenceLink: "https://example.com/template" },
+        })
+        const deal = await register()
+
+        await expect(
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
+        ).rejects.toThrow(/https:\/\/example\.com\/template/)
       })
 
       it("passes once a Project Evaluation exists, whether or not it has been signed off", async () => {
