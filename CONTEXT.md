@@ -101,6 +101,92 @@ Role-based UI presentation masking where standard employees view only their own 
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
 
+### CRM Flow
+
+Terms introduced by the Flow Canvas (issue #36). These supersede the Deal Type
+vocabulary in ADR 0004 and deprecate `docs/crm-pipeline-redesign.md` as an
+authority — that document is retained as history only.
+
+**Sale Type**:
+What kind of sale an SOR is. The set is configured by Operations, never fixed
+in code, and starts empty — the system proposes no values. Each Sale Type owns
+exactly one Sales Flow. Chosen when an SOR is registered; changeable only while
+the SOR still sits at its flow's first Stage, and locked from its first move
+onward. Orthogonal to Commission Split (SSP / CP / Strategic), which selects
+how money is divided and has nothing to do with which flow a deal follows.
+_Avoid_: Deal Type, Project Type, Type
+
+**Sales Flow**:
+The whole process one Sale Type follows — its Stages and the moves permitted
+between them. A directed graph, not an ordered list: a flow may loop back, skip
+ahead, or branch, because deals are re-opened and fast-tracked in reality.
+_Avoid_: Pipeline (when meaning a specific Sale Type's process), Workflow
+
+**Stage** (within a Sales Flow):
+A named point an SOR occupies. **Private to its Sales Flow** — two flows may
+each contain a Stage named "Proposal Submitted" and they are unrelated objects.
+Grouping SORs across Sale Types by Stage therefore requires an explicit
+mapping; same-named Stages are genuinely two different things.
+_Avoid_: Status, Step
+
+**Stage Action**:
+Something that happens when an SOR *enters* a Stage — create a Group Task,
+notify, stamp a date, start a countdown, raise a purchase request, or a note.
+Fires once per (SOR, Stage), permanently: re-entering a Stage creates nothing
+new. Distinct from a Stage Condition by what it does — an Action *happens*, a
+Condition *blocks*.
+_Avoid_: Trigger, Automation, Hook
+
+**Stage Condition**:
+Something that must be true before an SOR may *leave* a Stage. Five verifiable
+kinds — attachment, field, tickbox, assignment, deadline — plus Note
+Conditions. A deadline never blocks; it warns on approach and marks the deal
+overdue on breach.
+_Avoid_: Gate, Requirement, Rule
+
+**Note Condition**:
+A condition written in plain words because the system cannot express it, kept
+verbatim in the author's own wording. Operations chooses per note whether it
+blocks; a blocking note behaves as a tickbox — a human certifies it and the
+system verifies nothing. Notes are the record of what was asked for and not yet
+built, and they export as the implementation list.
+_Avoid_: Comment, TODO, Placeholder
+
+**Won Stage**:
+The one Stage per Sales Flow that means the deal has been won. Reaching it
+stamps the Contract Date, which fixes that SOR's commission pricing forever.
+Exactly one per flow; a flow cannot be locked without one. Set by the
+developer, never presented to Operations in commission vocabulary.
+_Avoid_: Anchor, Anchor Stage, Award Stage
+
+**Realized** (redefined):
+An SOR counts as booked money once it **has a Contract Date** — no longer a
+comparison of its position against an anchor's. Position ceased to mean
+anything when a Sales Flow became a graph, and the positional rule already
+misfired when a deal moved backwards.
+_Avoid_: Booked, Closed (when meaning the money pool)
+
+**Flow Canvas**:
+The temporary super-admin module in which the developer and Operations build
+Sales Flows together, on staging. Scaffolding: once a flow is locked and
+implemented, the canvas is hidden. The engine underneath it is not scaffolding
+— it is the automation being shipped.
+_Avoid_: Builder, Planner, Designer
+
+**Scratch SOR**:
+An SOR that exists only to be pushed through a Sales Flow so its behaviour can
+be observed. An ordinary SOR carrying a scratch flag, running identical code to
+a real one — which is what makes "it works" an observation rather than a claim.
+Excluded from every register, dashboard, and commission total.
+_Avoid_: Test Deal, Dummy, Fixture
+
+**Flow Snapshot**:
+The entire Sales Flow captured at the moment it was locked. Answers "what did
+we agree on the day of the meeting" by being opened. A snapshot is also
+importable as a new flow's starting point, so the baseline template and the
+version history are one thing.
+_Avoid_: Version, Backup, Export
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is
