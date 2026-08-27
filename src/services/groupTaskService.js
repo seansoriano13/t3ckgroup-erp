@@ -231,18 +231,7 @@ export const groupTaskService = {
       }
     }
 
-    // Check if ALL members are done to auto-complete
-    if (status === "DONE") {
-      const { data: allMembers } = await supabase
-        .from("committee_task_members")
-        .select("status")
-        .eq("committee_task_id", member.committee_task_id);
 
-      const allDone = allMembers.every((m) => m.status === "DONE");
-      if (allDone) {
-        await this.markGroupTaskComplete(member.committee_task_id, userId);
-      }
-    }
 
     return true;
   },
