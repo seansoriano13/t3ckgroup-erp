@@ -176,9 +176,15 @@ is one component wired to a service.
 ### Factories — `@/test/factories`
 
 `makeEmployee`, `makeHrEmployee`, `makeHead`, `makeSuperAdmin`, `makeCategory`,
-`makeTask`, `makeOpportunity`, `makeOpportunityItem`, `makeSilLeave`,
-`makeOvertimeRequest`, `makeOffsetLeave`, `makeGroupTask`,
-`makeLeadSource`, `makeNotification`.
+`makeTask`, `makeOpportunity`, `makeOpportunityItem`, `makeStageRequirement`,
+`makeRequirementStatus`, `makeOpportunityMember`, `makeSilLeave`,
+`makeOvertimeRequest`, `makeOffsetLeave`, `makeGroupTask`, `makeLeadSource`,
+`makePipelineStage`, `makeCommissionRate`, `makeCommissionDepartment`,
+`makeCommissionPosition`, `makeCommissionSplit`, `makeNotification`,
+`makeSaleType`, `makeSalesFlow`, `makeFlowStage`, `makeFlowEdge` (issue #36 —
+`makeSaleType` creates the Sale Type only, not its flow: the two stay separate
+factories so "a Sale Type with no flow" is representable for the one test that
+needs it, the same way the service is what guarantees it never really happens).
 
 Each seeds the minimum its table's constraints require and creates its owning
 rows on demand — `makeTask()` with no arguments produces a valid task, its
@@ -308,3 +314,12 @@ Worth knowing before you trust a green test too far:
 - **Transactions are not modelled.** A multi-statement service call that fails
   halfway leaves its earlier writes in place, as it would with PostgREST's
   per-statement behaviour, but a real `BEGIN/ROLLBACK` would differ.
+- **A unique index over an expression is unenforced.** `create unique index …
+  on t (lower(btrim(name)))` is understood as a partial-index predicate when it
+  is a bare column list, but a real expression like `lower(btrim(name))` is
+  left unenforced rather than evaluated — the same direction an unrecognised
+  CHECK is handled. `sale_types_live_name_key` and `flow_stages_name_per_flow_key`
+  (issue #36) are two examples: the case-insensitive name clash they guarantee
+  in production is enforced only in `salesFlowService`'s own name checks, not
+  by the fake. A service that needs the guarantee tested has to assert it
+  where it enforces it, not lean on the fake to catch a collision.

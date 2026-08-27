@@ -1387,6 +1387,30 @@ describe("opportunityService", () => {
       ).rejects.toThrow(/already moved/)
     })
 
+    it("refuses to adopt a legacy deal that has already moved through the global pipeline", async () => {
+      // A deal with no Sale Type has still moved: it has a position on the
+      // global pipeline and a history behind it. Adopting it onto a flow
+      // would land it on that flow's first Stage and throw both away.
+      const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
+      await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, null, "S01237")
+
+      await expect(
+        opportunityService.updateSaleType(legacy.id, bidding.id, registrar.id),
+      ).rejects.toThrow(/already moved/)
+    })
+
+    it("adopts a legacy deal that has never moved", async () => {
+      // Still sitting where it was registered, so there is no position and no
+      // history to lose. This is the path that migrates a fresh deal onto a
+      // flow once the Operations Manager has drawn one.
+      const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      const adopted = await opportunityService.updateSaleType(legacy.id, bidding.id, registrar.id)
+
+      expect(adopted.sale_type_id).toBe(bidding.id)
+      expect(adopted.flow_stage_id).toBe(biddingLead.id)
+    })
+
     it("refuses even when a loop has brought the deal back to its first Stage", async () => {
       // Sitting on the entry Stage is not the same as never having left it:
       // the deal has a history in this flow that the other one cannot account

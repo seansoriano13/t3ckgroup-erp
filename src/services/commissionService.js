@@ -350,12 +350,13 @@ async function getCommissionDashboardData({
     supabase
       .from("sales_opportunities")
       .select(
-        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
+        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at, sale_type_id,
          deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
          closing_sales:employees!sales_opportunities_closing_sales_id_fkey(id, name, avatar_path),
          support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
          support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
-         sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
+         sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path),
+         flow_stage:flow_stages(id, is_terminal, flow:sales_flows!flow_stages_flow_id_fkey(won_stage_id))`,
       )
       .neq("is_deleted", true)
       // Issue #36, migration 0046 — a Scratch SOR carries a value and a

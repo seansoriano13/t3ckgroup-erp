@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { commissionService } from "./commissionService"
+import { db } from "@/test/db/store"
 import {
   makeCommissionDepartment,
   makeCommissionPosition,
   makeCommissionRate,
   makeCommissionSplit,
   makeEmployee,
+  makeFlowEdge,
+  makeFlowStage,
   makeOpportunity,
+  makeSaleType,
+  makeSalesFlow,
   makeSuperAdmin,
 } from "@/test/factories"
 
@@ -500,6 +505,67 @@ describe("commissionService", () => {
       expect(dashboard.totalDealsCount).toBe(1)
       expect(dashboard.totalContractValue).toBe(1_000_000)
       expect(dashboard.dealLedger).toHaveLength(1)
+    })
+
+    // Issue #36 — a flow-built deal's `status` never changes after
+    // registration (it moves via flow_stage_id instead), so a deal that was
+    // won and then reached a Lost Stage in its own flow must not stay in the
+    // Realized pool on a stale status code.
+    it("drops a flow-built deal from the pool once it reaches a Lost Stage in its flow", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      const saleType = makeSaleType({ name: "Government Bidding" })
+      const flow = makeSalesFlow({ sale_type_id: saleType.id })
+      const won = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 0 })
+      const lost = makeFlowStage({
+        flow_id: flow.id,
+        name: "Lost to Competitor",
+        sort_order: 1,
+        is_terminal: true,
+      })
+      makeFlowEdge(won, lost)
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+
+      makeOpportunity({
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+        sale_type_id: saleType.id,
+        flow_stage_id: lost.id,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(0)
+      expect(dashboard.totalContractValue).toBe(0)
+    })
+
+    it("counts a flow-built deal sitting on its flow's Won Stage", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      const saleType = makeSaleType({ name: "Government Bidding" })
+      const flow = makeSalesFlow({ sale_type_id: saleType.id })
+      const won = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 0 })
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+
+      makeOpportunity({
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+        sale_type_id: saleType.id,
+        flow_stage_id: won.id,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
     })
   })
 })

@@ -127,4 +127,21 @@ if (!globalThis._supabaseInstance) {
   });
 }
 
-export const supabase = globalThis._supabaseInstance;
+export const supabase = globalThis._supabaseInstance;
+
+/**
+ * Whether this build is pointed at the production Supabase project.
+ *
+ * There is no `VITE_APP_ENV` — staging and production are separated by which
+ * Supabase project the deploy's `VITE_SUPABASE_URL` points at (ADR 0005), not
+ * by an app-level flag. epqmberwewztzbrkhhss is that production project ref;
+ * everything else (the staging project, the fake `supabase.test` origin the
+ * test harness uses) is not production.
+ *
+ * The one caller today is the Flow Canvas (issue #36): "The canvas and its
+ * Scratch SORs live on staging. Production is never the drafting surface."
+ * Fragile in the sense that a production project migration would need this
+ * updated too — accepted, because inventing a second, independently
+ * maintained "which environment am I" signal risks the two disagreeing.
+ */
+export const isProductionSupabase = Boolean(supabaseUrl?.includes("epqmberwewztzbrkhhss"));

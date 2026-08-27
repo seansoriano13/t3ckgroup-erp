@@ -273,6 +273,41 @@ describe("realized is having a contract date", () => {
     // Realized question by position.
     expect(anchorStage(PIPELINE_STAGE_SEED).code).toBe("AWARDED")
   })
+
+  // Issue #36 — a flow-built deal (it carries a sale_type_id) has no
+  // crm_pipeline_stages code, so `status` never answers "is this lost" for
+  // it. The caller has to embed the deal's flow_stage instead.
+  describe("for a deal that runs a Sales Flow", () => {
+    const wonThenLost = {
+      sale_type_id: "st-1",
+      status: "LEAD", // stale — a flow deal's status never changes
+      contract_date: "2026-03-04",
+      flow_stage: { id: "s-lost", is_terminal: true, flow: { won_stage_id: "s-won" } },
+    }
+
+    it("never counts a deal that reached a terminal Stage other than Won", () => {
+      expect(isRealizedOpportunity(wonThenLost)).toBe(false)
+    })
+
+    it("counts a deal sitting on its flow's Won Stage", () => {
+      const won = { ...wonThenLost, flow_stage: { id: "s-won", is_terminal: true, flow: { won_stage_id: "s-won" } } }
+      expect(isRealizedOpportunity(won)).toBe(true)
+    })
+
+    it("counts a deal on a non-terminal Stage — still in play, not lost", () => {
+      const inProgress = {
+        ...wonThenLost,
+        flow_stage: { id: "s-mid", is_terminal: false, flow: { won_stage_id: "s-won" } },
+      }
+      expect(isRealizedOpportunity(inProgress)).toBe(true)
+    })
+
+    it("does not count it when the flow_stage embed is missing", () => {
+      // Under-reporting is the safe direction: a caller that forgot to embed
+      // flow_stage must not silently overcount a lost deal as booked money.
+      expect(isRealizedOpportunity({ ...wonThenLost, flow_stage: undefined })).toBe(false)
+    })
+  })
 })
 
 describe("asking about a stage by the code stored on an opportunity", () => {

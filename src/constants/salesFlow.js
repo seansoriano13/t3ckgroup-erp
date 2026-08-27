@@ -150,3 +150,21 @@ export function isAtEntryStage(opportunity, stages = []) {
   if (!entry || !opportunity?.flow_stage_id) return false
   return opportunity.flow_stage_id === entry.id
 }
+
+/**
+ * Whether a deal sitting on `flowStage` counts as lost.
+ *
+ * A flow Stage carries no `is_lost` flag — the global pipeline's kind of
+ * terminal is `is_won` / `is_lost` as two separate flags, but a flow only
+ * designates one special Stage (`won_stage_id`, on the flow, not the Stage —
+ * see 0047/0048). So "lost" here is a terminal Stage that is not that one:
+ * the deal has stopped moving somewhere other than where it was won.
+ *
+ * This is what `isRealizedOpportunity` (constants/sor.js) asks for a
+ * flow-built deal instead of `isLostCode`, which only knows
+ * `crm_pipeline_stages` codes a flow deal never carries.
+ */
+export function isLostFlowStage(flowStage, wonStageId) {
+  if (!flowStage?.is_terminal) return false
+  return flowStage.id !== wonStageId
+}

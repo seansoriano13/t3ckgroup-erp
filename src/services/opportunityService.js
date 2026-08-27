@@ -932,6 +932,9 @@ export const opportunityService = {
    * because a flow may loop back to its own entry and sitting there again is
    * not the same as never having left.
    *
+   * This also covers a legacy deal being adopted onto a flow for the first
+   * time: one that has never moved can be, one that has cannot.
+   *
    * The deal lands on the new flow's first Stage. That is not a fallback: it
    * is the only destination a flow with private Stages can offer.
    */
@@ -939,7 +942,11 @@ export const opportunityService = {
     const existing = await opportunityService.getOpportunityById(id);
     if (existing.sale_type_id === saleTypeId) return existing;
 
-    if (existing.sale_type_id && (await hasEverMoved(id))) {
+    // Asked of every deal, not only of one already on a flow. A legacy deal
+    // has moved too — it has a position on the global pipeline and a history
+    // behind it — and adopting it onto a flow lands it on that flow's first
+    // Stage, which would throw both away.
+    if (await hasEverMoved(id)) {
       throw new Error(
         "This deal has already moved past its first Stage, so its Sale Type is fixed. Its history belongs to the flow it is on.",
       );

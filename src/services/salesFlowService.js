@@ -18,8 +18,10 @@ import { flowLockBlockers } from "../constants/salesFlow";
  * Operations Manager work on one screen.
  */
 
-const norm = (value) => (value || "").trim();
-const foldName = (value) => norm(value).toLowerCase();
+/** Trims a free-text name field to what a human actually typed. */
+const trimName = (value) => (value || "").trim();
+/** Case/whitespace-insensitive comparison key for a name clash check. */
+const foldName = (value) => trimName(value).toLowerCase();
 
 /**
  * Throws unless `actorId` is a Super Admin. Enforced independently at the
@@ -148,7 +150,7 @@ export const salesFlowService = {
   async createSaleType(name, actorId) {
     await requireSuperAdmin(actorId);
 
-    const trimmed = norm(name);
+    const trimmed = trimName(name);
     if (!trimmed) throw new Error("A Sale Type needs a name.");
     await assertSaleTypeNameFree(trimmed);
 
@@ -179,7 +181,7 @@ export const salesFlowService = {
   async renameSaleType(saleTypeId, name, actorId) {
     await requireSuperAdmin(actorId);
 
-    const trimmed = norm(name);
+    const trimmed = trimName(name);
     if (!trimmed) throw new Error("A Sale Type needs a name.");
     await assertSaleTypeNameFree(trimmed, saleTypeId);
 
@@ -237,7 +239,7 @@ export const salesFlowService = {
     await requireSuperAdmin(actorId);
     await requireDraft(flowId);
 
-    const trimmed = norm(name);
+    const trimmed = trimName(name);
     if (!trimmed) throw new Error("A Stage needs a name.");
 
     const siblings = await stagesOf(flowId);
@@ -266,7 +268,7 @@ export const salesFlowService = {
     await requireSuperAdmin(actorId);
     const { stage } = await requireDraftStage(stageId);
 
-    const trimmed = norm(name);
+    const trimmed = trimName(name);
     if (!trimmed) throw new Error("A Stage needs a name.");
 
     const siblings = await stagesOf(stage.flow_id);
@@ -332,6 +334,14 @@ export const salesFlowService = {
       .select()
       .single();
     if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "FLOW_STAGE",
+      stageId,
+      `Stage "${data.name}" marked ${data.is_terminal ? "terminal" : "not terminal"}.`,
+      { event: "FLOW_STAGE_TERMINAL_SET", isTerminal: data.is_terminal, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
 
     return data;
   },
@@ -411,6 +421,14 @@ export const salesFlowService = {
       .single();
     if (error) throw error;
 
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Move drawn: ${stages.find((s) => s.id === fromStageId)?.name} → ${stages.find((s) => s.id === toStageId)?.name}.`,
+      { event: "FLOW_EDGE_ADDED", flowId, fromStageId, toStageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
     return data;
   },
 
@@ -429,6 +447,14 @@ export const salesFlowService = {
 
     const { error } = await supabase.from("flow_edges").delete().eq("id", edgeId);
     if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      edge.flow_id,
+      `Move removed.`,
+      { event: "FLOW_EDGE_REMOVED", flowId: edge.flow_id, fromStageId: edge.from_stage_id, toStageId: edge.to_stage_id, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
 
     return true;
   },
@@ -459,6 +485,18 @@ export const salesFlowService = {
       .select()
       .single();
     if (error) throw error;
+
+    // This is the one write on this screen with a downstream effect beyond
+    // the canvas itself: it decides which Stage stamps Contract Date, which
+    // is what isRealizedOpportunity ultimately asks. Worth an audit trail
+    // independent of the flow's own lock/unlock history.
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Won Stage set to "${stages.find((s) => s.id === stageId)?.name}".`,
+      { event: "FLOW_WON_STAGE_SET", flowId, stageId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
 
     return data;
   },
@@ -517,7 +555,7 @@ export const salesFlowService = {
   async unlockFlow(flowId, reason, actorId) {
     await requireSuperAdmin(actorId);
 
-    const trimmedReason = norm(reason);
+    const trimmedReason = trimName(reason);
     if (!trimmedReason) {
       throw new Error("Unlocking a Sales Flow needs a reason.");
     }
@@ -553,22 +591,35 @@ export const salesFlowService = {
 };
 
 /**
- * Name checks live in the service as well as the database (0047/0048 carry
- * partial and expression unique indexes) for the same reason
+ * Refuses a name that case/whitespace-insensitively clashes with one already
+ * in `candidates`. Name checks live in the service as well as the database
+ * (0047/0048 carry expression unique indexes the fake harness can't enforce —
+ * see docs/testing.md's "Known limitations") for the same reason
  * `requireSuperAdmin` does: the failure is immediate and legible rather than a
  * 23505 surfacing in a modal, and it is testable without a real database.
+ *
+ * Shared by Sale Type names (global) and Stage names (per flow) — same shape,
+ * different candidate list and message.
  */
-async function assertSaleTypeNameFree(name, exceptId = null) {
-  const existing = await salesFlowService.getSaleTypes();
-  const clash = existing.find((t) => foldName(t.name) === foldName(name) && t.id !== exceptId);
+function assertNameFree(candidates, name, message, exceptId = null) {
+  const clash = candidates.find((c) => foldName(c.name) === foldName(name) && c.id !== exceptId);
   if (clash) {
-    throw new Error(`There is already a Sale Type called "${clash.name}".`);
+    throw new Error(message(clash.name));
   }
 }
 
-function assertStageNameFree(siblings, name, exceptId = null) {
-  const clash = siblings.find((s) => foldName(s.name) === foldName(name) && s.id !== exceptId);
-  if (clash) {
-    throw new Error(`There is already a Stage called "${clash.name}" in this flow.`);
-  }
-}
+const assertSaleTypeNameFree = async (name, exceptId = null) =>
+  assertNameFree(
+    await salesFlowService.getSaleTypes(),
+    name,
+    (clashName) => `There is already a Sale Type called "${clashName}".`,
+    exceptId,
+  );
+
+const assertStageNameFree = (siblings, name, exceptId = null) =>
+  assertNameFree(
+    siblings,
+    name,
+    (clashName) => `There is already a Stage called "${clashName}" in this flow.`,
+    exceptId,
+  );

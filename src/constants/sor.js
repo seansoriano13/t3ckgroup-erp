@@ -8,6 +8,7 @@
  */
 
 import { STATUS_THEME } from "./statusTheme";
+import { isLostFlowStage } from "./salesFlow";
 
 // Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
 // Previously, they were hardcoded here as LEAD_SOURCES.
@@ -131,6 +132,19 @@ export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
  */
 export const isRealizedOpportunity = (opportunity, stages = PIPELINE_STAGE_SEED) => {
   if (!opportunity?.contract_date) return false;
+
+  // Issue #36 — a flow-built deal carries a Sale Type and has no
+  // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
+  // cannot answer "is this lost". `isLostFlowStage` asks the same question
+  // of the flow instead: a terminal Stage that is not the one the flow was
+  // won at. Requires the caller to have embedded `flow_stage` — a missing
+  // embed answers false rather than trusting an absence, the same
+  // under-reporting direction a deal with no Contract Date fails in.
+  if (opportunity.sale_type_id) {
+    if (!opportunity.flow_stage) return false;
+    return !isLostFlowStage(opportunity.flow_stage, opportunity.flow_stage.flow?.won_stage_id);
+  }
+
   return !isLostCode(opportunity.status, stages);
 };
 
