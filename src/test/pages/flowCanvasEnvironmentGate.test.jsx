@@ -27,12 +27,24 @@ function chainable() {
   return { from: () => query };
 }
 
+let mockIsProduction = false;
+vi.mock("../../lib/supabase.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    supabase: chainable(),
+    get isProductionSupabase() {
+      return mockIsProduction;
+    },
+  };
+});
+
+import FlowCanvasAdminPage from "../../pages/super-admin/flow-canvas/index.jsx";
+
 describe("FlowCanvasAdminPage", () => {
   it("shows the canvas when the build is not pointed at production", async () => {
-    vi.resetModules();
-    vi.doMock("../../lib/supabase.js", () => ({ supabase: chainable(), isProductionSupabase: false }));
-    const { default: FlowCanvasAdminPage } = await import("../../pages/super-admin/flow-canvas/index.jsx");
-
+    mockIsProduction = false;
+    
     renderWithProviders(<FlowCanvasAdminPage />);
 
     // The canvas names its own empty state; the Sale Type menu is the control
@@ -43,10 +55,8 @@ describe("FlowCanvasAdminPage", () => {
   });
 
   it("refuses to draw against production", async () => {
-    vi.resetModules();
-    vi.doMock("../../lib/supabase.js", () => ({ supabase: chainable(), isProductionSupabase: true }));
-    const { default: FlowCanvasAdminPage } = await import("../../pages/super-admin/flow-canvas/index.jsx");
-
+    mockIsProduction = true;
+    
     renderWithProviders(<FlowCanvasAdminPage />);
 
     expect(await screen.findByText("The Flow Canvas is not available here")).toBeInTheDocument();

@@ -6,19 +6,19 @@ import { cn } from "@/lib/utils";
 import { SAT_H, SAT_W } from "./flowCanvasLayout";
 import {
   ACTION_KIND_META,
-  REQUIREMENT_KIND_META,
+  CONDITION_KIND_META,
   actionTitle,
-  requirementDetail,
+  conditionDetail,
 } from "./flowStageKinds";
 
 /**
- * The small nodes that hang off a Stage: one per requirement on the gate side,
+ * The small nodes that hang off a Stage: one per condition on the gate side,
  * one per action on the run side, plus the overflow and add-slot nodes that
  * stand in for what is not drawn.
  *
  * They are children of their Stage node (`parentId`), so React Flow moves them
  * when the Stage is dragged and they never drift out of alignment with it.
- * None of them is draggable or connectable on its own — a requirement is not a
+ * None of them is draggable or connectable on its own — a condition is not a
  * step in the flow, it is a property of the Stage that owns it, and letting one
  * be wired to a second Stage would say something the model cannot store.
  */
@@ -82,20 +82,20 @@ function FlowSatelliteNode({ data, selected }) {
   const { column, variant } = data;
 
   const body = () => {
-    if (variant === "requirement") {
-      const meta = REQUIREMENT_KIND_META[data.requirement.kind];
-      const detail = requirementDetail(data.requirement);
+    if (variant === "condition") {
+      const meta = CONDITION_KIND_META[data.condition.kind];
+      const detail = conditionDetail(data.condition);
       return (
         <SatelliteBody
           column={column}
           selected={selected}
           icon={meta?.icon ?? MoreHorizontal}
-          title={data.requirement.label}
+          title={data.condition.label}
           detail={
-            detail ? `${meta?.label ?? data.requirement.kind} · ${detail}` : meta?.label
+            detail ? `${meta?.label ?? data.condition.kind} · ${detail}` : meta?.label
           }
           badge={
-            !data.requirement.is_required && (
+            !data.condition.is_required && (
               <span className="shrink-0 rounded bg-mauve-a3 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
                 Optional
               </span>

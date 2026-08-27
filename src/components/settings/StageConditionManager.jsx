@@ -10,22 +10,22 @@ import { Switch } from "@/components/ui/switch";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
-import { stageRequirementService } from "../../services/stageRequirementService";
-import { REQUIREMENT_KINDS } from "../../constants/stageGate";
-import { REQUIREMENT_KIND_META, requirementDetail } from "./flowStageKinds";
+import { stageConditionService } from "../../services/stageConditionService";
+import { CONDITION_KINDS } from "../../constants/stageGate";
+import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
-    case REQUIREMENT_KINDS.ATTACHMENT:
+    case CONDITION_KINDS.ATTACHMENT:
       return { documentType: "" };
-    case REQUIREMENT_KINDS.FIELD:
+    case CONDITION_KINDS.FIELD:
       return { column: "" };
-    case REQUIREMENT_KINDS.ASSIGNMENT:
+    case CONDITION_KINDS.ASSIGNMENT:
       return { department: "" };
-    case REQUIREMENT_KINDS.DEADLINE:
+    case CONDITION_KINDS.DEADLINE:
       return { days: "" };
-    case REQUIREMENT_KINDS.PROJECT_EVALUATION:
+    case CONDITION_KINDS.PROJECT_EVALUATION:
       return { referenceLink: "" };
     default:
       return {};
@@ -35,15 +35,15 @@ const emptyConfigFor = (kind) => {
 /** Strips the config down to what the chosen kind actually reads, and blanks to null. */
 function configFor(kind, config) {
   switch (kind) {
-    case REQUIREMENT_KINDS.ATTACHMENT:
+    case CONDITION_KINDS.ATTACHMENT:
       return config.documentType?.trim() ? { documentType: config.documentType.trim() } : {};
-    case REQUIREMENT_KINDS.FIELD:
+    case CONDITION_KINDS.FIELD:
       return { column: config.column?.trim() || "" };
-    case REQUIREMENT_KINDS.ASSIGNMENT:
+    case CONDITION_KINDS.ASSIGNMENT:
       return { department: config.department?.trim() || "" };
-    case REQUIREMENT_KINDS.DEADLINE:
+    case CONDITION_KINDS.DEADLINE:
       return { days: Number(config.days) || 0 };
-    case REQUIREMENT_KINDS.PROJECT_EVALUATION:
+    case CONDITION_KINDS.PROJECT_EVALUATION:
       return config.referenceLink?.trim() ? { referenceLink: config.referenceLink.trim() } : {};
     default:
       return {};
@@ -53,52 +53,52 @@ function configFor(kind, config) {
 /**
  * A Stage's gate: what a deal owes before it may leave.
  *
- * Wired to stageRequirementService only — the same "no direct table access from
+ * Wired to stageConditionService only — the same "no direct table access from
  * the UI" rule the rest of the flow follows. Every write also invalidates the
- * canvas's batched read, because a requirement added here is a satellite that
+ * canvas's batched read, because a condition added here is a satellite that
  * has to appear out on the canvas in the same beat.
  */
-export default function StageRequirementManager({ stageId, disabled = false }) {
+export default function StageConditionManager({ stageId, disabled = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
-  const [kind, setKind] = useState(REQUIREMENT_KINDS.FIELD);
+  const [kind, setKind] = useState(CONDITION_KINDS.FIELD);
   const [label, setLabel] = useState("");
   const [isRequired, setIsRequired] = useState(true);
-  const [config, setConfig] = useState(emptyConfigFor(REQUIREMENT_KINDS.FIELD));
+  const [config, setConfig] = useState(emptyConfigFor(CONDITION_KINDS.FIELD));
   const [pendingArchive, setPendingArchive] = useState(null);
 
-  const { data: requirements, isLoading } = useQuery({
-    queryKey: ["stageRequirements", stageId],
-    queryFn: () => stageRequirementService.getForStage(stageId),
+  const { data: conditions, isLoading } = useQuery({
+    queryKey: ["stageConditions", stageId],
+    queryFn: () => stageConditionService.getForStage(stageId),
     enabled: Boolean(stageId),
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["stageRequirements", stageId] });
-    queryClient.invalidateQueries({ queryKey: ["stageRequirementsByStage"] });
+    queryClient.invalidateQueries({ queryKey: ["stageConditions", stageId] });
+    queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
   };
 
   const resetForm = () => {
     setLabel("");
     setIsRequired(true);
-    setKind(REQUIREMENT_KINDS.FIELD);
-    setConfig(emptyConfigFor(REQUIREMENT_KINDS.FIELD));
+    setKind(CONDITION_KINDS.FIELD);
+    setConfig(emptyConfigFor(CONDITION_KINDS.FIELD));
     setIsAdding(false);
   };
 
   const addMutation = useMutation({
-    mutationFn: (payload) => stageRequirementService.add(payload, user?.id),
+    mutationFn: (payload) => stageConditionService.add(payload, user?.id),
     onSuccess: () => {
       invalidate();
-      toast.success("Requirement added.");
+      toast.success("Condition added.");
       resetForm();
     },
     onError: (err) => toast.error(err.message),
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (updates) => stageRequirementService.reorder(updates, user?.id),
+    mutationFn: (updates) => stageConditionService.reorder(updates, user?.id),
     onSuccess: invalidate,
     onError: (err) => {
       toast.error(err.message);
@@ -107,10 +107,10 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
   });
 
   const archiveMutation = useMutation({
-    mutationFn: (id) => stageRequirementService.archive(id, user?.id),
+    mutationFn: (id) => stageConditionService.archive(id, user?.id),
     onSuccess: () => {
       invalidate();
-      toast.success("Requirement archived.");
+      toast.success("Condition archived.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -133,20 +133,20 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
     });
   };
 
-  const moveRequirement = (index, direction) => {
-    if (!requirements) return;
+  const moveCondition = (index, direction) => {
+    if (!conditions) return;
     const newIndex = direction === "up" ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= requirements.length) return;
+    if (newIndex < 0 || newIndex >= conditions.length) return;
 
-    const a = requirements[index];
-    const b = requirements[newIndex];
+    const a = conditions[index];
+    const b = conditions[newIndex];
     reorderMutation.mutate([
       { id: a.id, sortOrder: b.sort_order },
       { id: b.id, sortOrder: a.sort_order },
     ]);
   };
 
-  const activeKind = REQUIREMENT_KIND_META[kind];
+  const activeKind = CONDITION_KIND_META[kind];
 
   return (
     <div className="flex flex-col">
@@ -169,7 +169,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
           >
             <div className="flex items-center justify-between">
               <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                New requirement
+                New condition
               </h4>
               <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
                 <X />
@@ -205,7 +205,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               >
                 {({ close }) => (
                   <div className="flex flex-col">
-                    {Object.entries(REQUIREMENT_KIND_META).map(([value, meta]) => (
+                    {Object.entries(CONDITION_KIND_META).map(([value, meta]) => (
                       <button
                         key={value}
                         type="button"
@@ -236,7 +236,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               </Dropdown>
             </div>
 
-            {kind === REQUIREMENT_KINDS.ATTACHMENT && (
+            {kind === CONDITION_KINDS.ATTACHMENT && (
               <Input
                 label="Document type"
                 value={config.documentType || ""}
@@ -245,7 +245,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               />
             )}
 
-            {kind === REQUIREMENT_KINDS.FIELD && (
+            {kind === CONDITION_KINDS.FIELD && (
               <Input
                 label="Column on the deal"
                 value={config.column || ""}
@@ -256,7 +256,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               />
             )}
 
-            {kind === REQUIREMENT_KINDS.ASSIGNMENT && (
+            {kind === CONDITION_KINDS.ASSIGNMENT && (
               <Input
                 label="Department"
                 value={config.department || ""}
@@ -266,7 +266,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               />
             )}
 
-            {kind === REQUIREMENT_KINDS.DEADLINE && (
+            {kind === CONDITION_KINDS.DEADLINE && (
               <Input
                 label="Days from Stage entry"
                 type="number"
@@ -278,7 +278,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
               />
             )}
 
-            {kind === REQUIREMENT_KINDS.PROJECT_EVALUATION && (
+            {kind === CONDITION_KINDS.PROJECT_EVALUATION && (
               <Input
                 label="Reference link (optional)"
                 value={config.referenceLink || ""}
@@ -306,7 +306,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
                 Cancel
               </Button>
               <Button type="submit" size="lg" disabled={addMutation.isPending}>
-                {addMutation.isPending ? "Saving…" : "Save requirement"}
+                {addMutation.isPending ? "Saving…" : "Save condition"}
               </Button>
             </div>
           </form>
@@ -314,9 +314,9 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
 
         {isLoading ? (
           <p className="animate-pulse py-6 text-center text-sm text-muted-foreground">
-            Loading requirements…
+            Loading conditions…
           </p>
-        ) : requirements?.length === 0 && !isAdding ? (
+        ) : conditions?.length === 0 && !isAdding ? (
           <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-8 text-center">
             <ListTodo size={22} className="mx-auto mb-2 text-muted-foreground/60" />
             <p className="text-sm font-semibold text-foreground">Nothing gates this Stage</p>
@@ -325,30 +325,30 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
             </p>
           </div>
         ) : (
-          requirements?.map((requirement, index) => {
-            const meta = REQUIREMENT_KIND_META[requirement.kind];
-            const detail = requirementDetail(requirement);
+          conditions?.map((condition, index) => {
+            const meta = CONDITION_KIND_META[condition.kind];
+            const detail = conditionDetail(condition);
             const Icon = meta?.icon ?? ListTodo;
 
             return (
               <div
-                key={requirement.id}
+                key={condition.id}
                 className="group flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8"
               >
                 {!disabled && (
                   <div className="flex shrink-0 flex-col">
                     <button
-                      onClick={() => moveRequirement(index, "up")}
+                      onClick={() => moveCondition(index, "up")}
                       disabled={index === 0 || reorderMutation.isPending}
-                      aria-label={`Move ${requirement.label} earlier`}
+                      aria-label={`Move ${condition.label} earlier`}
                       className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
                     >
                       <ArrowUp size={13} />
                     </button>
                     <button
-                      onClick={() => moveRequirement(index, "down")}
-                      disabled={index === requirements.length - 1 || reorderMutation.isPending}
-                      aria-label={`Move ${requirement.label} later`}
+                      onClick={() => moveCondition(index, "down")}
+                      disabled={index === conditions.length - 1 || reorderMutation.isPending}
+                      aria-label={`Move ${condition.label} later`}
                       className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
                     >
                       <ArrowDown size={13} />
@@ -363,16 +363,16 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <p className="truncate text-sm font-bold text-foreground">
-                      {requirement.label}
+                      {condition.label}
                     </p>
-                    {!requirement.is_required && (
+                    {!condition.is_required && (
                       <span className="shrink-0 rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
                         Optional
                       </span>
                     )}
                   </div>
                   <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {meta?.label ?? requirement.kind}
+                    {meta?.label ?? condition.kind}
                     {detail && <span className="text-mauve-10"> · {detail}</span>}
                   </p>
                 </div>
@@ -381,9 +381,9 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => setPendingArchive(requirement)}
+                    onClick={() => setPendingArchive(condition)}
                     disabled={archiveMutation.isPending}
-                    aria-label={`Archive ${requirement.label}`}
+                    aria-label={`Archive ${condition.label}`}
                     className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
                   >
                     <Archive />
@@ -399,7 +399,7 @@ export default function StageRequirementManager({ stageId, disabled = false }) {
         open={Boolean(pendingArchive)}
         onOpenChange={(open) => !open && setPendingArchive(null)}
         title={`Archive “${pendingArchive?.label}”?`}
-        description="Archiving is the only way to remove a requirement. It stops blocking future moves, and every deal that already satisfied it keeps that record."
+        description="Archiving is the only way to remove a condition. It stops blocking future moves, and every deal that already satisfied it keeps that record."
         confirmLabel="Archive"
         tone="destructive"
         onConfirm={() => archiveMutation.mutate(pendingArchive.id)}

@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { stageRequirementService } from "./stageRequirementService"
+import { stageConditionService } from "./stageConditionService"
 import { db } from "@/test/db/store"
 import {
   makeEmployee,
   makeOpportunity,
-  makeRequirementStatus,
-  makeStageRequirement,
+  makeConditionStatus,
+  makeStageCondition,
   makeSuperAdmin,
   makeSaleType,
   makeSalesFlow,
@@ -15,11 +15,11 @@ import { waitForNetworkIdle } from "@/test/network"
 
 /**
  * Stage Gate Engine configuration (docs/stage-gate-engine-spec.md, ticket 3):
- * add / reorder / archive a Stage's requirements. Reading them for the live
+ * add / reorder / archive a Stage's conditions. Reading them for the live
  * gate is ticket 1/2's job — opportunityService.test.js already covers an
- * archived requirement's effect on a move, so that case isn't repeated here.
+ * archived condition's effect on a move, so that case isn't repeated here.
  */
-describe("stageRequirementService", () => {
+describe("stageConditionService", () => {
   let admin
   let regular
   let saleType
@@ -35,62 +35,62 @@ describe("stageRequirementService", () => {
   })
 
   describe("getForStage", () => {
-    it("returns a stage's requirements in sort order", async () => {
-      makeStageRequirement({ stage_id: stage.id, label: "Second", sort_order: 1 })
-      makeStageRequirement({ stage_id: stage.id, label: "First", sort_order: 0 })
+    it("returns a stage's conditions in sort order", async () => {
+      makeStageCondition({ stage_id: stage.id, label: "Second", sort_order: 1 })
+      makeStageCondition({ stage_id: stage.id, label: "First", sort_order: 0 })
 
-      const requirements = await stageRequirementService.getForStage(stage.id)
+      const conditions = await stageConditionService.getForStage(stage.id)
 
-      expect(requirements.map((r) => r.label)).toEqual(["First", "Second"])
+      expect(conditions.map((r) => r.label)).toEqual(["First", "Second"])
     })
 
-    it("excludes archived requirements by default", async () => {
-      makeStageRequirement({ stage_id: stage.id, label: "Live" })
-      makeStageRequirement({
+    it("excludes archived conditions by default", async () => {
+      makeStageCondition({ stage_id: stage.id, label: "Live" })
+      makeStageCondition({
         stage_id: stage.id,
         label: "Archived",
         archived_at: "2026-01-01T00:00:00.000Z",
       })
 
-      const requirements = await stageRequirementService.getForStage(stage.id)
+      const conditions = await stageConditionService.getForStage(stage.id)
 
-      expect(requirements.map((r) => r.label)).toEqual(["Live"])
+      expect(conditions.map((r) => r.label)).toEqual(["Live"])
     })
 
-    it("includes archived requirements when asked", async () => {
-      makeStageRequirement({ stage_id: stage.id, label: "Live" })
-      makeStageRequirement({
+    it("includes archived conditions when asked", async () => {
+      makeStageCondition({ stage_id: stage.id, label: "Live" })
+      makeStageCondition({
         stage_id: stage.id,
         label: "Archived",
         archived_at: "2026-01-01T00:00:00.000Z",
       })
 
-      const requirements = await stageRequirementService.getForStage(stage.id, {
+      const conditions = await stageConditionService.getForStage(stage.id, {
         includeArchived: true,
       })
 
-      expect(requirements.map((r) => r.label).sort()).toEqual(["Archived", "Live"])
+      expect(conditions.map((r) => r.label).sort()).toEqual(["Archived", "Live"])
     })
 
-    it("returns nothing for a stage with no requirements configured", async () => {
-      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
+    it("returns nothing for a stage with no conditions configured", async () => {
+      expect(await stageConditionService.getForStage(stage.id)).toEqual([])
     })
   })
 
   describe("add", () => {
     it("refuses for a non-Super-Admin", async () => {
       await expect(
-        stageRequirementService.add(
+        stageConditionService.add(
           { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
           regular.id,
         ),
       ).rejects.toThrow(/Only a Super Admin/)
 
-      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
+      expect(await stageConditionService.getForStage(stage.id)).toEqual([])
     })
 
-    it("lets a Super Admin add a requirement", async () => {
-      const created = await stageRequirementService.add(
+    it("lets a Super Admin add a condition", async () => {
+      const created = await stageConditionService.add(
         {
           stageId: stage.id,
           kind: "field",
@@ -111,8 +111,8 @@ describe("stageRequirementService", () => {
     })
 
     // Issue #50: configurable like every other kind, no special validation.
-    it("lets a Super Admin add a project_evaluation requirement, with an optional reference link", async () => {
-      const created = await stageRequirementService.add(
+    it("lets a Super Admin add a project_evaluation condition, with an optional reference link", async () => {
+      const created = await stageConditionService.add(
         {
           stageId: stage.id,
           kind: "project_evaluation",
@@ -129,8 +129,8 @@ describe("stageRequirementService", () => {
       })
     })
 
-    it("defaults a new requirement to required", async () => {
-      const created = await stageRequirementService.add(
+    it("defaults a new condition to required", async () => {
+      const created = await stageConditionService.add(
         { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
         admin.id,
       )
@@ -138,21 +138,21 @@ describe("stageRequirementService", () => {
       expect(created.is_required).toBe(true)
     })
 
-    it("persists and round-trips an optional requirement", async () => {
-      await stageRequirementService.add(
+    it("persists and round-trips an optional condition", async () => {
+      await stageConditionService.add(
         { stageId: stage.id, kind: "tickbox", label: "Nice to have", isRequired: false },
         admin.id,
       )
 
-      const requirements = await stageRequirementService.getForStage(stage.id)
-      expect(requirements[0].is_required).toBe(false)
+      const conditions = await stageConditionService.getForStage(stage.id)
+      expect(conditions[0].is_required).toBe(false)
     })
 
-    it("appends after a stage's existing requirements", async () => {
-      makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
-      makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
+    it("appends after a stage's existing conditions", async () => {
+      makeStageCondition({ stage_id: stage.id, sort_order: 0 })
+      makeStageCondition({ stage_id: stage.id, sort_order: 1 })
 
-      const created = await stageRequirementService.add(
+      const created = await stageConditionService.add(
         { stageId: stage.id, kind: "tickbox", label: "Third" },
         admin.id,
       )
@@ -161,9 +161,9 @@ describe("stageRequirementService", () => {
     })
 
     it("counts an archived sibling when computing the next position", async () => {
-      makeStageRequirement({ stage_id: stage.id, sort_order: 0, archived_at: "2026-01-01T00:00:00.000Z" })
+      makeStageCondition({ stage_id: stage.id, sort_order: 0, archived_at: "2026-01-01T00:00:00.000Z" })
 
-      const created = await stageRequirementService.add(
+      const created = await stageConditionService.add(
         { stageId: stage.id, kind: "tickbox", label: "Second" },
         admin.id,
       )
@@ -173,7 +173,7 @@ describe("stageRequirementService", () => {
 
     it("rejects a kind outside the five supported ones", async () => {
       await expect(
-        stageRequirementService.add(
+        stageConditionService.add(
           { stageId: stage.id, kind: "signature", label: "Something" },
           admin.id,
         ),
@@ -182,20 +182,20 @@ describe("stageRequirementService", () => {
 
     it("rejects a blank label", async () => {
       await expect(
-        stageRequirementService.add({ stageId: stage.id, kind: "tickbox", label: "   " }, admin.id),
+        stageConditionService.add({ stageId: stage.id, kind: "tickbox", label: "   " }, admin.id),
       ).rejects.toThrow(/needs a label/)
     })
 
     it("rejects a deadline with zero or no days — a UI form's min=1 is client-side only", async () => {
       await expect(
-        stageRequirementService.add(
+        stageConditionService.add(
           { stageId: stage.id, kind: "deadline", label: "Confirm receipt", config: { days: 0 } },
           admin.id,
         ),
       ).rejects.toThrow(/positive number of days/)
 
       await expect(
-        stageRequirementService.add(
+        stageConditionService.add(
           { stageId: stage.id, kind: "deadline", label: "Confirm receipt" },
           admin.id,
         ),
@@ -203,7 +203,7 @@ describe("stageRequirementService", () => {
     })
 
     it("accepts a deadline with a positive day count", async () => {
-      const created = await stageRequirementService.add(
+      const created = await stageConditionService.add(
         { stageId: stage.id, kind: "deadline", label: "Confirm receipt", config: { days: 2 } },
         admin.id,
       )
@@ -211,8 +211,8 @@ describe("stageRequirementService", () => {
       expect(created.config).toEqual({ days: 2 })
     })
 
-    it("logs who added the requirement and when", async () => {
-      const created = await stageRequirementService.add(
+    it("logs who added the condition and when", async () => {
+      const created = await stageConditionService.add(
         { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
         admin.id,
       )
@@ -221,106 +221,106 @@ describe("stageRequirementService", () => {
       const entry = db.rows("system_audit_logs").find((e) => e.entity_id === created.id)
       expect(entry.content).toContain("Bid documents checked")
       expect(entry.author_id).toBe(admin.id)
-      expect(entry.metadata.event).toBe("STAGE_REQUIREMENT_ADDED")
+      expect(entry.metadata.event).toBe("STAGE_CONDITION_ADDED")
     })
   })
 
   describe("reorder", () => {
     it("refuses for a non-Super-Admin", async () => {
-      const first = makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
-      const second = makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
+      const first = makeStageCondition({ stage_id: stage.id, sort_order: 0 })
+      const second = makeStageCondition({ stage_id: stage.id, sort_order: 1 })
 
       await expect(
-        stageRequirementService.reorder(
+        stageConditionService.reorder(
           [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
           regular.id,
         ),
       ).rejects.toThrow(/Only a Super Admin/)
 
-      const requirements = await stageRequirementService.getForStage(stage.id)
-      expect(requirements.map((r) => r.id)).toEqual([first.id, second.id])
+      const conditions = await stageConditionService.getForStage(stage.id)
+      expect(conditions.map((r) => r.id)).toEqual([first.id, second.id])
     })
 
     it("persists a new order and round-trips through getForStage", async () => {
-      const first = makeStageRequirement({ stage_id: stage.id, label: "First", sort_order: 0 })
-      const second = makeStageRequirement({ stage_id: stage.id, label: "Second", sort_order: 1 })
+      const first = makeStageCondition({ stage_id: stage.id, label: "First", sort_order: 0 })
+      const second = makeStageCondition({ stage_id: stage.id, label: "Second", sort_order: 1 })
 
-      await stageRequirementService.reorder(
+      await stageConditionService.reorder(
         [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
         admin.id,
       )
 
-      const requirements = await stageRequirementService.getForStage(stage.id)
-      expect(requirements.map((r) => r.label)).toEqual(["Second", "First"])
+      const conditions = await stageConditionService.getForStage(stage.id)
+      expect(conditions.map((r) => r.label)).toEqual(["Second", "First"])
     })
 
     it("logs the reorder", async () => {
-      const first = makeStageRequirement({ stage_id: stage.id, sort_order: 0 })
-      const second = makeStageRequirement({ stage_id: stage.id, sort_order: 1 })
+      const first = makeStageCondition({ stage_id: stage.id, sort_order: 0 })
+      const second = makeStageCondition({ stage_id: stage.id, sort_order: 1 })
 
-      await stageRequirementService.reorder(
+      await stageConditionService.reorder(
         [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
         admin.id,
       )
       await waitForNetworkIdle()
 
       const entry = db.rows("system_audit_logs").at(-1)
-      expect(entry.metadata.event).toBe("STAGE_REQUIREMENT_REORDERED")
+      expect(entry.metadata.event).toBe("STAGE_CONDITION_REORDERED")
       expect(entry.author_id).toBe(admin.id)
     })
   })
 
   describe("archive", () => {
     it("refuses for a non-Super-Admin", async () => {
-      const requirement = makeStageRequirement({ stage_id: stage.id })
+      const condition = makeStageCondition({ stage_id: stage.id })
 
-      await expect(stageRequirementService.archive(requirement.id, regular.id)).rejects.toThrow(
+      await expect(stageConditionService.archive(condition.id, regular.id)).rejects.toThrow(
         /Only a Super Admin/,
       )
 
-      expect(await stageRequirementService.getForStage(stage.id)).toHaveLength(1)
+      expect(await stageConditionService.getForStage(stage.id)).toHaveLength(1)
     })
 
     it("soft-archives — the row survives, just stops showing as live", async () => {
-      const requirement = makeStageRequirement({ stage_id: stage.id })
+      const condition = makeStageCondition({ stage_id: stage.id })
 
-      const archived = await stageRequirementService.archive(requirement.id, admin.id)
+      const archived = await stageConditionService.archive(condition.id, admin.id)
 
       expect(archived.archived_at).toBeTruthy()
-      expect(await stageRequirementService.getForStage(stage.id)).toEqual([])
+      expect(await stageConditionService.getForStage(stage.id)).toEqual([])
       expect(
-        await stageRequirementService.getForStage(stage.id, { includeArchived: true }),
+        await stageConditionService.getForStage(stage.id, { includeArchived: true }),
       ).toHaveLength(1)
     })
 
     it("does not disturb an existing satisfaction row (D21 — no hard delete, no retroactive rewrite)", async () => {
-      const requirement = makeStageRequirement({ stage_id: stage.id, kind: "tickbox" })
+      const condition = makeStageCondition({ stage_id: stage.id, kind: "tickbox" })
       const opportunity = makeOpportunity({ registered_by: admin.id })
-      const status = makeRequirementStatus({
+      const status = makeConditionStatus({
         opportunity_id: opportunity.id,
-        requirement_id: requirement.id,
+        condition_id: condition.id,
         satisfied_by: admin.id,
       })
 
-      await stageRequirementService.archive(requirement.id, admin.id)
+      await stageConditionService.archive(condition.id, admin.id)
 
-      expect(db.rows("sor_requirement_status").find((r) => r.id === status.id)).toBeTruthy()
+      expect(db.rows("sor_condition_status").find((r) => r.id === status.id)).toBeTruthy()
     })
 
-    it("logs who archived the requirement and when", async () => {
-      const requirement = makeStageRequirement({ stage_id: stage.id, label: "Bid documents checked" })
+    it("logs who archived the condition and when", async () => {
+      const condition = makeStageCondition({ stage_id: stage.id, label: "Bid documents checked" })
 
-      await stageRequirementService.archive(requirement.id, admin.id)
+      await stageConditionService.archive(condition.id, admin.id)
       await waitForNetworkIdle()
 
-      const entry = db.rows("system_audit_logs").find((e) => e.entity_id === requirement.id)
+      const entry = db.rows("system_audit_logs").find((e) => e.entity_id === condition.id)
       expect(entry.content).toContain("Bid documents checked")
       expect(entry.author_id).toBe(admin.id)
-      expect(entry.metadata.event).toBe("STAGE_REQUIREMENT_ARCHIVED")
+      expect(entry.metadata.event).toBe("STAGE_CONDITION_ARCHIVED")
     })
 
     it("narrates onto the timeline of every deal currently sitting on that Stage", async () => {
-      const requirement = makeStageRequirement({ stage_id: stage.id, label: "Bid documents checked" })
+      const condition = makeStageCondition({ stage_id: stage.id, label: "Bid documents checked" })
       const onStage = makeOpportunity({
         registered_by: admin.id,
         flow_stage_id: stage.id, sale_type_id: saleType.id,
@@ -328,7 +328,7 @@ describe("stageRequirementService", () => {
       })
       const elsewhere = makeOpportunity({ registered_by: admin.id, status: "LEAD" })
 
-      await stageRequirementService.archive(requirement.id, admin.id)
+      await stageConditionService.archive(condition.id, admin.id)
 
       const onStageNotes = db
         .rows("sales_opportunity_logs")

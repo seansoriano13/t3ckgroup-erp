@@ -224,7 +224,7 @@ async function writeBackToInclusion(request) {
 /** Remarks are stored as one text column; lines are joined with this. */
 const NEWLINE = "\n";
 
-export const procurementService = {
+export const purchasingService = {
   // ── Reads ─────────────────────────────────────────────────────────────────
 
   async listForOpportunity(opportunityId) {
@@ -358,7 +358,7 @@ export const procurementService = {
           requesterId,
         });
       } else {
-        taskId = await procurementService.openTaskFor({
+        taskId = await purchasingService.openTaskFor({
           opportunity,
           assignee,
           items,
@@ -391,7 +391,7 @@ export const procurementService = {
     const count = rows.length;
     const summary = `${count} product${count === 1 ? "" : "s"} sent to purchasing`;
 
-    await procurementService.addOpportunityNote(
+    await purchasingService.addOpportunityNote(
       opportunityId,
       `${summary}${assignee ? ` — assigned to ${assignee.name}` : " — awaiting assignment"}.`,
       { event: "PROCUREMENT_REQUESTED", count, assigneeId: assignee?.id || null },
@@ -589,7 +589,7 @@ export const procurementService = {
         requesterId: requests[0].requested_by,
       });
     } else {
-      taskId = await procurementService.openTaskFor({
+      taskId = await purchasingService.openTaskFor({
         opportunity,
         assignee,
         items,
@@ -603,7 +603,7 @@ export const procurementService = {
       .in("id", requestIds);
     if (error) throw error;
 
-    await procurementService.addOpportunityNote(
+    await purchasingService.addOpportunityNote(
       requests[0].opportunity_id,
       `Procurement assigned to ${assignee?.name || "a buyer"}.`,
       { event: "PROCUREMENT_ASSIGNED", assigneeId, taskId },
@@ -668,7 +668,7 @@ export const procurementService = {
       .eq("id", actorId)
       .single();
 
-    await procurementService.addOpportunityNote(
+    await purchasingService.addOpportunityNote(
       existing.opportunity_id,
       `Procurement request updated by ${actor?.name || "sales"}: ${name} (Qty: ${qty} ${patch.requested_unit}).`,
       { event: "PROCUREMENT_UPDATED", requestId, productName: name, quantity: qty },
@@ -769,7 +769,7 @@ export const procurementService = {
       }
     }
 
-    await procurementService.addOpportunityNote(
+    await purchasingService.addOpportunityNote(
       existing.opportunity_id,
       `Procurement request for "${existing.requested_name}" was cancelled by ${actor?.name || "sales"}.`,
       { event: "PROCUREMENT_DELETED", requestId, productName: existing.requested_name },
@@ -809,7 +809,7 @@ export const procurementService = {
     if (cleanedPo && !isValidPoNumber(cleanedPo)) throw new Error(PO_NUMBER_HINT);
 
     const verification = cleanedPo
-      ? await procurementService.verifyPoNumber(cleanedPo)
+      ? await purchasingService.verifyPoNumber(cleanedPo)
       : { state: PO_VERIFICATION.UNVERIFIED, productRef: null };
 
     const isRevertingToInProgress = outcome === PROCUREMENT_OUTCOME.IN_PROGRESS;
@@ -844,7 +844,7 @@ export const procurementService = {
 
     await writeBackToInclusion(data);
 
-    await procurementService.announceIfComplete(data, actorId);
+    await purchasingService.announceIfComplete(data, actorId);
 
     // Record milestone update in Opportunity Log Notes on PURCHASED and DELIVERED
     if (
@@ -902,7 +902,7 @@ export const procurementService = {
 
     if (outcome === PROCUREMENT_OUTCOME.DELIVERED && data.task_id) {
       try {
-        const taskRequests = await procurementService.listForTask(data.task_id);
+        const taskRequests = await purchasingService.listForTask(data.task_id);
         const isAllDelivered =
           taskRequests.length > 0 &&
           taskRequests.every(
@@ -973,7 +973,7 @@ export const procurementService = {
    * one produced the announcement "Procurement resolved — 3 In progress".
    */
   async announceIfComplete(request, actorId) {
-    const siblings = await procurementService.listForOpportunity(request.opportunity_id);
+    const siblings = await purchasingService.listForOpportunity(request.opportunity_id);
     const unresolved = siblings.filter((r) => !isResolved(r));
     if (unresolved.length) return false;
 
@@ -1036,7 +1036,7 @@ export const procurementService = {
    * an outcome.
    */
   async notifyDealClosed(opportunityId, actorId, reason = "") {
-    const requests = await procurementService.listForOpportunity(opportunityId);
+    const requests = await purchasingService.listForOpportunity(opportunityId);
     const open = requests.filter((r) => !r.outcome && r.assigned_to);
     if (!open.length) return 0;
 
@@ -1084,7 +1084,7 @@ export const procurementService = {
    * - If a PO was already issued: Keeps the task with a warning so spend records aren't lost.
    */
   async handleOpportunityDeleted(opportunityId, actorId, opportunity) {
-    const requests = await procurementService.listForOpportunity(opportunityId);
+    const requests = await purchasingService.listForOpportunity(opportunityId);
     if (!requests.length) return;
 
     const taskIds = [...new Set(requests.map((r) => r.task_id).filter(Boolean))];

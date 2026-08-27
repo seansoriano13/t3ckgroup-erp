@@ -103,16 +103,16 @@ export function makeOpportunityItem(opportunityId, overrides = {}) {
 }
 
 /**
- * A Stage's requirement. Required, active, `field`-kind by default — the
+ * A Stage's condition. Required, active, `field`-kind by default — the
  * kind that needs no attachment/member data to satisfy, so a bare call
  * blocks a crossing without a test also having to fake evidence for it.
  */
-export function makeStageRequirement(overrides = {}) {
+export function makeStageCondition(overrides = {}) {
   const stageId = overrides.stage_id ?? makeFlowStage().id
   const n = next()
-  return db.seed("stage_requirements", {
+  return db.seed("stage_conditions", {
     kind: "field",
-    label: `Requirement ${n}`,
+    label: `Condition ${n}`,
     is_required: true,
     sort_order: n,
     config: {},
@@ -122,15 +122,15 @@ export function makeStageRequirement(overrides = {}) {
   })
 }
 
-/** Satisfies a requirement for an opportunity — the row IS the satisfaction. */
-export function makeRequirementStatus(overrides = {}) {
+/** Satisfies a condition for an opportunity — the row IS the satisfaction. */
+export function makeConditionStatus(overrides = {}) {
   const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
-  const requirementId = overrides.requirement_id ?? makeStageRequirement().id
-  return db.seed("sor_requirement_status", {
+  const conditionId = overrides.condition_id ?? makeStageCondition().id
+  return db.seed("sor_condition_status", {
     satisfied_by: null,
     ...overrides,
     opportunity_id: opportunityId,
-    requirement_id: requirementId,
+    condition_id: conditionId,
   })
 }
 

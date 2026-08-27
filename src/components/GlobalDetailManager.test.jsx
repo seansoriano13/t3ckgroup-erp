@@ -55,8 +55,8 @@ vi.mock("../services/leadSourceService", () => ({
   },
 }));
 
-vi.mock("../services/procurementService", () => ({
-  procurementService: {
+vi.mock("../services/purchasingService", () => ({
+  purchasingService: {
     listForOpportunity: vi.fn(async () => []),
   },
 }));

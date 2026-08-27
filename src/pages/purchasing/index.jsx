@@ -8,7 +8,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
-import { procurementService } from "../../services/procurementService";
+import { purchasingService } from "../../services/purchasingService";
 import { daysWaiting, displayOutcome } from "../../constants/procurement";
 
 /**
@@ -130,7 +130,7 @@ function PurchasingQueue() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ["procurementQueue"],
     queryFn: async () => ({
-      rows: await procurementService.listOpenQueue(),
+      rows: await purchasingService.listOpenQueue(),
       fetchedAt: Date.now(),
     }),
   });
@@ -146,7 +146,7 @@ function PurchasingQueue() {
   return (
     <PageContainer maxWidth="7xl" className="pt-4">
       <PageHeader
-        title="Procurement Queue"
+        title="Purchasing Queue"
         description="Every product still waiting on purchasing, across all SORs."
       />
 

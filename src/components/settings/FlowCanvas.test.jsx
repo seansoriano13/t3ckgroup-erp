@@ -71,7 +71,7 @@ describe("FlowCanvas", () => {
   it("names the handles a move runs between", async () => {
     // React Flow resolves an edge that names no handle to whichever source
     // handle it finds first. A Stage node also carries the two bottom anchors
-    // its requirements and actions hang from, so an unnamed output meant every
+    // its conditions and actions hang from, so an unnamed output meant every
     // move drew from under the node's bottom-left corner instead of its right
     // edge. Both flow handles are named, and the satellite anchors are not
     // reachable by that name.

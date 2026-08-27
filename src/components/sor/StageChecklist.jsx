@@ -3,28 +3,28 @@ import toast from "react-hot-toast";
 import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare } from "lucide-react";
 import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
-import { REQUIREMENT_KINDS, REQUIREMENT_STATUS } from "../../constants/stageGate";
+import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
 import { formatDate } from "../../utils/formatDate";
 import { confirmActionToast } from "../ui/CustomToast";
 
 const KIND_LABELS = {
-  [REQUIREMENT_KINDS.ATTACHMENT]: "Attachment",
-  [REQUIREMENT_KINDS.FIELD]: "Field on record",
-  [REQUIREMENT_KINDS.TICKBOX]: "Self-certified",
-  [REQUIREMENT_KINDS.ASSIGNMENT]: "Assignment",
+  [CONDITION_KINDS.ATTACHMENT]: "Attachment",
+  [CONDITION_KINDS.FIELD]: "Field on record",
+  [CONDITION_KINDS.TICKBOX]: "Self-certified",
+  [CONDITION_KINDS.ASSIGNMENT]: "Assignment",
 };
 
 const KIND_ICONS = {
-  [REQUIREMENT_KINDS.ATTACHMENT]: Paperclip,
-  [REQUIREMENT_KINDS.FIELD]: ListChecks,
-  [REQUIREMENT_KINDS.TICKBOX]: CheckSquare,
-  [REQUIREMENT_KINDS.ASSIGNMENT]: UserCheck,
+  [CONDITION_KINDS.ATTACHMENT]: Paperclip,
+  [CONDITION_KINDS.FIELD]: ListChecks,
+  [CONDITION_KINDS.TICKBOX]: CheckSquare,
+  [CONDITION_KINDS.ASSIGNMENT]: UserCheck,
 };
 
 /**
  * Stage Gate Engine, ticket 6 (.scratch/stage-gate-engine/issues/06-deal-
  * owner-visibility.md) — what the deal's current Stage owes, before a Deal
- * Owner tries to move it: every live requirement, whether it's satisfied,
+ * Owner tries to move it: every live condition, whether it's satisfied,
  * and who/when for the kinds that carry that. This is also the "specific,
  * named reason" a blocked move gets refused with (ticket 2's
  * `assertStageGateSatisfied` throws the same labels this list already
@@ -46,8 +46,8 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   });
 
   const satisfyMutation = useMutation({
-    mutationFn: (requirementId) =>
-      opportunityService.satisfyRequirement(opportunityId, requirementId, actorId),
+    mutationFn: (conditionId) =>
+      opportunityService.satisfyCondition(opportunityId, conditionId, actorId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
@@ -58,13 +58,13 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
 
   const nameFor = (employeeId) => employees.find((e) => e.id === employeeId)?.name || null;
 
-  const handleTick = (requirement) => {
+  const handleTick = (condition) => {
     confirmActionToast(
-      `Certify "${requirement.label}"?`,
-      "This records your name against it — the requirement has no other evidence, so ticking it is the certification.",
+      `Certify "${condition.label}"?`,
+      "This records your name against it — the condition has no other evidence, so ticking it is the certification.",
       "Certify",
       "warning",
-      () => satisfyMutation.mutate(requirement.id),
+      () => satisfyMutation.mutate(condition.id),
     );
   };
 
@@ -76,23 +76,23 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
         What {opportunity?.status ? "this Stage" : "the Stage"} owes
       </p>
       <div className="space-y-2.5">
-        {checklist.map(({ requirement, status, satisfiedBy, satisfiedAt }) => {
-          const Icon = KIND_ICONS[requirement.kind] || Circle;
-          const isSatisfied = status === REQUIREMENT_STATUS.SATISFIED;
+        {checklist.map(({ condition, status, satisfiedBy, satisfiedAt }) => {
+          const Icon = KIND_ICONS[condition.kind] || Circle;
+          const isSatisfied = status === CONDITION_STATUS.SATISFIED;
           const isTickable =
-            !isSatisfied && requirement.kind === REQUIREMENT_KINDS.TICKBOX;
+            !isSatisfied && condition.kind === CONDITION_KINDS.TICKBOX;
           const who = nameFor(satisfiedBy);
 
           return (
             <div
-              key={requirement.id}
+              key={condition.id}
               className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-background px-3 py-2.5"
             >
               <button
                 type="button"
                 disabled={!isTickable || satisfyMutation.isPending}
-                onClick={() => isTickable && handleTick(requirement)}
-                aria-label={isTickable ? `Certify ${requirement.label}` : undefined}
+                onClick={() => isTickable && handleTick(condition)}
+                aria-label={isTickable ? `Certify ${condition.label}` : undefined}
                 className={
                   isSatisfied
                     ? "mt-0.5 shrink-0 text-green-9"
@@ -119,13 +119,13 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                         : "text-sm font-semibold text-foreground"
                     }
                   >
-                    {requirement.label}
+                    {condition.label}
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
                     <Icon size={10} />
-                    {KIND_LABELS[requirement.kind] || requirement.kind}
+                    {KIND_LABELS[condition.kind] || condition.kind}
                   </span>
-                  {!requirement.is_required && (
+                  {!condition.is_required && (
                     <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
                       Optional
                     </span>
@@ -146,7 +146,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 ) : (
                   <p
                     className={
-                      requirement.is_required
+                      condition.is_required
                         ? "mt-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400"
                         : "mt-0.5 text-[11px] text-muted-foreground"
                     }

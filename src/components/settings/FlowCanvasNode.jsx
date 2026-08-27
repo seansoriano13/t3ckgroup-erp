@@ -10,7 +10,7 @@ import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
  *
  * Left and right handles carry the flow itself — the moves a deal may make.
  * The two handles on the bottom edge carry no moves at all: they anchor the
- * Stage's gate (its requirements, hanging below-left) and its run (its actions,
+ * Stage's gate (its conditions, hanging below-left) and its run (its actions,
  * hanging below-right), so what a Stage *demands* and what it *does* are read
  * off the canvas rather than found by clicking through to a panel.
  *
@@ -97,7 +97,7 @@ const SubHandle = ({ id, left, tone, count, label }) => (
 );
 
 function FlowCanvasNode({ data, isConnectable, selected }) {
-  const { stage, isEntry, isWon, disabled, requirementCount = 0, actionCount = 0 } = data;
+  const { stage, isEntry, isWon, disabled, conditionCount = 0, actionCount = 0 } = data;
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
   const RoleIcon = role.icon;
 
@@ -166,7 +166,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
       <SubHandle
         id="gate"
         left="24%"
-        count={requirementCount}
+        count={conditionCount}
         label="Gate"
         tone="bg-amber-a3 text-amber-11"
       />
@@ -180,7 +180,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
 
       {/* Screen-reader summary: the two chips above read as counts out of context. */}
       <span className="sr-only">
-        {requirementCount} requirement{requirementCount === 1 ? "" : "s"} to leave,{" "}
+        {conditionCount} condition{conditionCount === 1 ? "" : "s"} to leave,{" "}
         {actionCount} action{actionCount === 1 ? "" : "s"} on entry.
       </span>
     </div>

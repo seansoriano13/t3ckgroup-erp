@@ -3,7 +3,7 @@
  * owner-visibility.md) — what a Stage owes, shown before a move is tried,
  * not discovered one refusal at a time.
  *
- * `opportunityService` is mocked wholesale (prior art: ProcurementPanel.test.jsx)
+ * `opportunityService` is mocked wholesale (prior art: PurchasingPanel.test.jsx)
  * — per-kind evaluation already has its own coverage in stageGate.test.js and
  * opportunityService.test.js; what this file protects is what the Deal Owner
  * actually sees and can do: which items still block, who satisfied what, and
@@ -16,7 +16,7 @@ import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "../../test/support"
 import StageChecklist from "./StageChecklist"
 import { opportunityService } from "../../services/opportunityService"
-import { REQUIREMENT_STATUS } from "../../constants/stageGate"
+import { CONDITION_STATUS } from "../../constants/stageGate"
 
 const OPPORTUNITY = { id: "opp-1", status: "PROPOSAL_SUBMITTED" }
 const EMPLOYEES = [{ id: "emp-1", name: "Ana Reyes" }]
@@ -24,7 +24,7 @@ const EMPLOYEES = [{ id: "emp-1", name: "Ana Reyes" }]
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: {
     getStageChecklist: vi.fn(async () => []),
-    satisfyRequirement: vi.fn(async () => ({})),
+    satisfyCondition: vi.fn(async () => ({})),
   },
 }))
 
@@ -37,20 +37,20 @@ vi.mock("../ui/CustomToast", () => ({
   // The real confirmActionToast renders its confirm button inside a
   // toast.custom(...) callback that needs a live <Toaster/> portal — nothing
   // here mounts one. Skipping straight to onConfirm tests what this
-  // component is responsible for (wiring the tick to satisfyRequirement),
+  // component is responsible for (wiring the tick to satisfyCondition),
   // not the generic confirm-toast widget.
   confirmActionToast: (_title, _description, _confirmText, _tone, onConfirm) => onConfirm(),
 }))
 
 const item = (overrides = {}) => ({
-  requirement: {
+  condition: {
     id: "req-1",
     kind: "field",
     label: "Contact person on file",
     is_required: true,
     sort_order: 0,
   },
-  status: REQUIREMENT_STATUS.UNSATISFIED,
+  status: CONDITION_STATUS.UNSATISFIED,
   satisfiedBy: null,
   satisfiedAt: null,
   ...overrides,
@@ -61,7 +61,7 @@ beforeEach(() => {
 })
 
 describe("nothing configured", () => {
-  it("renders nothing when the current Stage has no requirements", async () => {
+  it("renders nothing when the current Stage has no conditions", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([])
     const { container } = renderWithProviders(
       <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
@@ -83,7 +83,7 @@ describe("what's outstanding", () => {
 
   it("marks an optional item as optional rather than implying it blocks", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([
-      item({ requirement: { ...item().requirement, is_required: false } }),
+      item({ condition: { ...item().condition, is_required: false } }),
     ])
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
@@ -95,8 +95,8 @@ describe("who satisfied what and when", () => {
   it("shows the satisfier's name and date on a satisfied item", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([
       item({
-        requirement: { ...item().requirement, kind: "attachment", label: "Notice of Award" },
-        status: REQUIREMENT_STATUS.SATISFIED,
+        condition: { ...item().condition, kind: "attachment", label: "Notice of Award" },
+        status: CONDITION_STATUS.SATISFIED,
         satisfiedBy: "emp-1",
         satisfiedAt: "2026-03-01T00:00:00.000Z",
       }),
@@ -109,7 +109,7 @@ describe("who satisfied what and when", () => {
 
   it("still shows a satisfied field with no attributed satisfier, rather than a blank", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([
-      item({ status: REQUIREMENT_STATUS.SATISFIED, satisfiedBy: null, satisfiedAt: null }),
+      item({ status: CONDITION_STATUS.SATISFIED, satisfiedBy: null, satisfiedAt: null }),
     ])
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
@@ -121,14 +121,14 @@ describe("tickbox — the one item this list can also act on", () => {
   it("lets an unsatisfied tickbox be certified from here", async () => {
     const user = userEvent.setup()
     opportunityService.getStageChecklist.mockResolvedValue([
-      item({ requirement: { ...item().requirement, kind: "tickbox", label: "Bid documents checked" } }),
+      item({ condition: { ...item().condition, kind: "tickbox", label: "Bid documents checked" } }),
     ])
     renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
     await user.click(await screen.findByRole("button", { name: /certify bid documents checked/i }))
 
     await waitFor(() =>
-      expect(opportunityService.satisfyRequirement).toHaveBeenCalledWith("opp-1", "req-1", "emp-1"),
+      expect(opportunityService.satisfyCondition).toHaveBeenCalledWith("opp-1", "req-1", "emp-1"),
     )
   })
 
@@ -143,8 +143,8 @@ describe("tickbox — the one item this list can also act on", () => {
   it("does not offer a tick control once already satisfied", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([
       item({
-        requirement: { ...item().requirement, kind: "tickbox", label: "Bid documents checked" },
-        status: REQUIREMENT_STATUS.SATISFIED,
+        condition: { ...item().condition, kind: "tickbox", label: "Bid documents checked" },
+        status: CONDITION_STATUS.SATISFIED,
         satisfiedBy: "emp-1",
       }),
     ])

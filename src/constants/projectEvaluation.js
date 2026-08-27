@@ -108,7 +108,7 @@ export const countsTowardCompleteness = (inclusion) =>
  * this spec is covered", and a progress bar that renders the two the same way
  * tells a salesperson their untouched breakdown is failing.
  *
- * SUBSTITUTED counts as answered. The client's requirement has been met, just
+ * SUBSTITUTED counts as answered. The client's condition has been met, just
  * not with the thing they named — the consequence is that sales must re-price,
  * not that the spec has a hole in it. It is reported separately so the screen
  * can say so.

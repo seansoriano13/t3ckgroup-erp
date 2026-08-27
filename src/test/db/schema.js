@@ -407,13 +407,28 @@ function applyAlterTable(sql, registry) {
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+drop\s+constraint\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/gi,
     },
+    {
+      kind: "renameTable",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
+    {
+      kind: "renameColumn",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+column\s+"?([a-z_0-9]+)"?\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
+    {
+      kind: "renameConstraint",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+constraint\s+"?([a-z_0-9]+)"?\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
   ]
 
   const statements = []
   for (const { kind, regex } of patterns) {
     let match
     while ((match = regex.exec(sql)) !== null) {
-      statements.push({ kind, at: match.index, table: match[1], payload: match[2] })
+      statements.push({ kind, at: match.index, table: match[1], payload: match[2], extra: match[3] })
     }
   }
   statements.sort((a, b) => a.at - b.at)
@@ -426,11 +441,44 @@ function applyAlterTable(sql, registry) {
       parseColumn(table, statement.payload.trim(), registry)
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
-    } else {
+    } else if (statement.kind === "dropConstraint") {
       table.checks = table.checks.filter((c) => c.name !== statement.payload)
       if (table.foreignKeys[statement.payload]) {
         delete table.foreignKeys[statement.payload]
         delete registry.relationsByConstraint[statement.payload]
+      }
+    } else if (statement.kind === "renameTable") {
+      const newTableName = statement.payload
+      registry.tables[newTableName] = table
+      delete registry.tables[statement.table]
+      
+      for (const relation of Object.values(registry.relationsByConstraint)) {
+        if (relation.toTable === statement.table) relation.toTable = newTableName
+        if (relation.fromTable === statement.table) relation.fromTable = newTableName
+      }
+    } else if (statement.kind === "renameColumn") {
+      const oldCol = statement.payload
+      const newCol = statement.extra
+      if (table.columns[oldCol]) {
+        table.columns[newCol] = table.columns[oldCol]
+        table.columns[newCol].name = newCol
+        delete table.columns[oldCol]
+        
+        table.primaryKey = table.primaryKey.map(c => c === oldCol ? newCol : c)
+        table.unique = table.unique.map(cols => cols.map(c => c === oldCol ? newCol : c))
+      }
+    } else if (statement.kind === "renameConstraint") {
+      const oldConst = statement.payload
+      const newConst = statement.extra
+      if (table.foreignKeys[oldConst]) {
+        table.foreignKeys[newConst] = table.foreignKeys[oldConst]
+        table.foreignKeys[newConst].constraint = newConst
+        delete table.foreignKeys[oldConst]
+        registry.relationsByConstraint[newConst] = registry.relationsByConstraint[oldConst]
+        delete registry.relationsByConstraint[oldConst]
+      }
+      for (const check of table.checks) {
+        if (check.name === oldConst) check.name = newConst
       }
     }
   }

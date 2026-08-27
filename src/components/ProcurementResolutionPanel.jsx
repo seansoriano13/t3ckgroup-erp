@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 
-import { procurementService } from "../services/procurementService";
+import { purchasingService } from "../services/purchasingService";
 import { supabase } from "../lib/supabase";
 import { AttachmentList } from "./ui/Attachments";
 import { AttachmentEvidence } from "./ui/AttachmentEvidence";
@@ -216,7 +216,7 @@ function ProcurementEditForm({
     const timer = setTimeout(async () => {
       setLiveVerification((prev) => ({ ...prev, isChecking: true }));
       try {
-        const res = await procurementService.verifyPoNumber(cleaned);
+        const res = await purchasingService.verifyPoNumber(cleaned);
         setLiveVerification({
           status: res.state,
           productRef: res.productRef || null,
@@ -684,7 +684,7 @@ export default function ProcurementResolutionPanel({
 
   const { data: requests = [] } = useQuery({
     queryKey: ["procurement", "task", taskId],
-    queryFn: () => procurementService.listForTask(taskId),
+    queryFn: () => purchasingService.listForTask(taskId),
     enabled: !!taskId,
   });
 
@@ -716,7 +716,7 @@ export default function ProcurementResolutionPanel({
 
   const resolveMutation = useMutation({
     mutationFn: ({ requestId, payload }) =>
-      procurementService.resolveRequest(requestId, payload, userId),
+      purchasingService.resolveRequest(requestId, payload, userId),
     onMutate: () => {
       onSubmittingChange?.(true);
     },

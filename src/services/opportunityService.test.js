@@ -7,10 +7,10 @@ import {
   makeFlowEdge,
   makeFlowStage,
   makeOpportunity,
-  makeRequirementStatus,
+  makeConditionStatus,
   makeSaleType,
   makeSalesFlow,
-  makeStageRequirement,
+  makeStageCondition,
   seedPipeline,
 } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
@@ -512,10 +512,10 @@ describe("opportunityService", () => {
     // PROPOSAL_SUBMITTED (20) → QUALIFIED (30). Leaving Lead always needs a
     // Sales Reference (unrelated gate), so every fixture below supplies one.
 
-    it("refuses a move that leaves a required requirement unsatisfied, naming it, and writes nothing", async () => {
+    it("refuses a move that leaves a required condition unsatisfied, naming it, and writes nothing", async () => {
       // On Lead itself — the origin, not the destination — so leaving it is
       // what's being asked about, not arriving at Proposal Submitted.
-      makeStageRequirement({
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "Contact person on file",
@@ -532,8 +532,8 @@ describe("opportunityService", () => {
       expect(await opportunityService.getNotes(lead.id)).toHaveLength(0)
     })
 
-    it("blocks on a requirement at a stage skipped over, not just the destination", async () => {
-      makeStageRequirement({
+    it("blocks on a condition at a stage skipped over, not just the destination", async () => {
+      makeStageCondition({
         stage_code: "PROPOSAL_SUBMITTED",
         kind: "field",
         label: "Contact person on file",
@@ -542,14 +542,14 @@ describe("opportunityService", () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
       // Jumps straight past Proposal Submitted to Qualified — the destination
-      // itself carries no requirement, but the stage it skipped does.
+      // itself carries no condition, but the stage it skipped does.
       await expect(
         opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id),
       ).rejects.toThrow(/Contact person on file/)
     })
 
-    it("unblocks once the last outstanding requirement is satisfied", async () => {
-      makeStageRequirement({
+    it("unblocks once the last outstanding condition is satisfied", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "Contact person on file",
@@ -566,8 +566,8 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
     })
 
-    it("does not re-ask a requirement already satisfied, on re-entering its stage", async () => {
-      const requirement = makeStageRequirement({
+    it("does not re-ask a condition already satisfied, on re-entering its stage", async () => {
+      const condition = makeStageCondition({
         stage_code: "LEAD",
         kind: "tickbox",
         label: "Bid documents checked",
@@ -578,7 +578,7 @@ describe("opportunityService", () => {
         opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id),
       ).rejects.toThrow(/Bid documents checked/)
 
-      makeRequirementStatus({ opportunity_id: lead.id, requirement_id: requirement.id, satisfied_by: owner.id })
+      makeConditionStatus({ opportunity_id: lead.id, condition_id: condition.id, satisfied_by: owner.id })
       const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
 
@@ -589,13 +589,13 @@ describe("opportunityService", () => {
       expect(reentered.status).toBe("PROPOSAL_SUBMITTED")
     })
 
-    it("does not block a future move on a requirement added to a stage already left behind", async () => {
+    it("does not block a future move on a condition added to a stage already left behind", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
       await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
       await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id)
 
       // Added after the deal already left Proposal Submitted behind.
-      makeStageRequirement({
+      makeStageCondition({
         stage_code: "PROPOSAL_SUBMITTED",
         kind: "field",
         label: "Contact person on file",
@@ -613,33 +613,33 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("FOR_BIDDING")
     })
 
-    it("does not block on an archived requirement, and its prior satisfaction survives the archiving", async () => {
-      const requirement = makeStageRequirement({
+    it("does not block on an archived condition, and its prior satisfaction survives the archiving", async () => {
+      const condition = makeStageCondition({
         stage_code: "LEAD",
         kind: "tickbox",
         label: "Bid documents checked",
       })
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-      const status = makeRequirementStatus({
+      const status = makeConditionStatus({
         opportunity_id: lead.id,
-        requirement_id: requirement.id,
+        condition_id: condition.id,
         satisfied_by: owner.id,
       })
 
       // Archiving is ticket 3's own action — simulated directly here, since
-      // ticket 2 only reads stage_requirements, never writes archived_at.
-      requirement.archived_at = "2026-01-01T00:00:00.000Z"
-      db.internal.rowsOf("stage_requirements").find((r) => r.id === requirement.id).archived_at =
-        requirement.archived_at
+      // ticket 2 only reads stage_conditions, never writes archived_at.
+      condition.archived_at = "2026-01-01T00:00:00.000Z"
+      db.internal.rowsOf("stage_conditions").find((r) => r.id === condition.id).archived_at =
+        condition.archived_at
 
       const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
 
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
-      expect(db.internal.rowsOf("sor_requirement_status").find((r) => r.id === status.id)).toBeTruthy()
+      expect(db.internal.rowsOf("sor_condition_status").find((r) => r.id === status.id)).toBeTruthy()
     })
 
-    it("evaluates a field requirement against the value this same move is about to set, not the one it's replacing", async () => {
-      makeStageRequirement({
+    it("evaluates a field condition against the value this same move is about to set, not the one it's replacing", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "Sales Reference on file",
@@ -664,7 +664,7 @@ describe("opportunityService", () => {
     it("coexists with the ITB gate — either can block the same move, independently", async () => {
       // On Qualified — crossed on the way to For Bidding, so it's still in
       // play the first time this deal tries to reach the gate stage.
-      makeStageRequirement({
+      makeStageCondition({
         stage_code: "QUALIFIED",
         kind: "field",
         label: "Contact person on file",
@@ -688,8 +688,8 @@ describe("opportunityService", () => {
   })
 
   describe.skip("per-kind satisfaction (ticket 5)", () => {
-    it("narrates a field requirement the moment the save that satisfies it lands", async () => {
-      makeStageRequirement({
+    it("narrates a field condition the moment the save that satisfies it lands", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "PO Date on file",
@@ -704,11 +704,11 @@ describe("opportunityService", () => {
       )
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.at(-1).content).toBe('Requirement satisfied: "PO Date on file".')
+      expect(notes.at(-1).content).toBe('Condition satisfied: "PO Date on file".')
     })
 
-    it("does not narrate a save that leaves the field requirement unsatisfied", async () => {
-      makeStageRequirement({
+    it("does not narrate a save that leaves the field condition unsatisfied", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "PO Date on file",
@@ -723,11 +723,11 @@ describe("opportunityService", () => {
       )
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.some((n) => n.content.includes("Requirement satisfied"))).toBe(false)
+      expect(notes.some((n) => n.content.includes("Condition satisfied"))).toBe(false)
     })
 
-    it("does not narrate again once a field requirement is already satisfied", async () => {
-      makeStageRequirement({
+    it("does not narrate again once a field condition is already satisfied", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "field",
         label: "PO Date on file",
@@ -745,11 +745,11 @@ describe("opportunityService", () => {
       )
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.filter((n) => n.content.includes("Requirement satisfied"))).toHaveLength(0)
+      expect(notes.filter((n) => n.content.includes("Condition satisfied"))).toHaveLength(0)
     })
 
-    it("narrates an attachment requirement the moment the upload that satisfies it lands", async () => {
-      makeStageRequirement({
+    it("narrates an attachment condition the moment the upload that satisfies it lands", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "attachment",
         label: "Notice of Award",
@@ -762,11 +762,11 @@ describe("opportunityService", () => {
       ])
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.some((n) => n.content === 'Requirement satisfied: "Notice of Award".')).toBe(true)
+      expect(notes.some((n) => n.content === 'Condition satisfied: "Notice of Award".')).toBe(true)
     })
 
-    it("does not satisfy an attachment requirement with a file of the wrong document type", async () => {
-      makeStageRequirement({
+    it("does not satisfy an attachment condition with a file of the wrong document type", async () => {
+      makeStageCondition({
         stage_code: "LEAD",
         kind: "attachment",
         label: "Notice of Award",
@@ -779,12 +779,12 @@ describe("opportunityService", () => {
       ])
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.some((n) => n.content.includes("Requirement satisfied"))).toBe(false)
+      expect(notes.some((n) => n.content.includes("Condition satisfied"))).toBe(false)
     })
 
     describe("assignment / SOR Members", () => {
       it("blocks a move until someone from the named department is a member, then unblocks", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "assignment",
           label: "Purchasing officer assigned",
@@ -808,7 +808,7 @@ describe("opportunityService", () => {
       })
 
       it("matches a department-level config against a member's department, not just their sub-department", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "assignment",
           label: "Someone from Operations",
@@ -822,8 +822,8 @@ describe("opportunityService", () => {
         expect(moved.status).toBe("PROPOSAL_SUBMITTED")
       })
 
-      it("narrates who was added and, when it satisfies a requirement, that too", async () => {
-        makeStageRequirement({
+      it("narrates who was added and, when it satisfies a condition, that too", async () => {
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "assignment",
           label: "Purchasing officer assigned",
@@ -836,7 +836,7 @@ describe("opportunityService", () => {
 
         const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
         expect(notes).toContain("Rey Santos added as a member of this deal.")
-        expect(notes).toContain('Requirement satisfied: "Purchasing officer assigned".')
+        expect(notes).toContain('Condition satisfied: "Purchasing officer assigned".')
       })
 
       it("adding the same member twice is a no-op — no duplicate row, no duplicate note", async () => {
@@ -857,44 +857,44 @@ describe("opportunityService", () => {
     })
 
     describe("tickbox", () => {
-      it("satisfies a tickbox requirement and records who and when", async () => {
-        const requirement = makeStageRequirement({
+      it("satisfies a tickbox condition and records who and when", async () => {
+        const condition = makeStageCondition({
           stage_code: "LEAD",
           kind: "tickbox",
           label: "Bid documents transmitted",
         })
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
-        const status = await opportunityService.satisfyRequirement(
+        const status = await opportunityService.satisfyCondition(
           created.id,
-          requirement.id,
+          condition.id,
           registrar.id,
         )
 
         expect(status.satisfied_by).toBe(registrar.id)
         expect(status.satisfied_at).toBeTruthy()
         const notes = (await opportunityService.getNotes(created.id)).map((n) => n.content)
-        expect(notes).toContain('Requirement satisfied: "Bid documents transmitted".')
+        expect(notes).toContain('Condition satisfied: "Bid documents transmitted".')
       })
 
-      it("is idempotent — ticking an already-satisfied requirement again keeps the original satisfier", async () => {
-        const requirement = makeStageRequirement({ stage_code: "LEAD", kind: "tickbox" })
+      it("is idempotent — ticking an already-satisfied condition again keeps the original satisfier", async () => {
+        const condition = makeStageCondition({ stage_code: "LEAD", kind: "tickbox" })
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
         const other = makeEmployee({ name: "Someone Else" })
 
-        const first = await opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id)
-        const second = await opportunityService.satisfyRequirement(created.id, requirement.id, other.id)
+        const first = await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
+        const second = await opportunityService.satisfyCondition(created.id, condition.id, other.id)
 
         expect(second.id).toBe(first.id)
         expect(second.satisfied_by).toBe(registrar.id)
         const notes = (await opportunityService.getNotes(created.id)).filter((n) =>
-          n.content.includes("Requirement satisfied"),
+          n.content.includes("Condition satisfied"),
         )
         expect(notes).toHaveLength(1)
       })
 
-      it("refuses to satisfy a non-tickbox requirement this way", async () => {
-        const requirement = makeStageRequirement({
+      it("refuses to satisfy a non-tickbox condition this way", async () => {
+        const condition = makeStageCondition({
           stage_code: "LEAD",
           kind: "field",
           config: { column: "po_date" },
@@ -902,12 +902,12 @@ describe("opportunityService", () => {
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
         await expect(
-          opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id),
-        ).rejects.toThrow(/Only a tickbox requirement/)
+          opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
+        ).rejects.toThrow(/Only a tickbox condition/)
       })
 
-      it("refuses to satisfy an archived requirement", async () => {
-        const requirement = makeStageRequirement({
+      it("refuses to satisfy an archived condition", async () => {
+        const condition = makeStageCondition({
           stage_code: "LEAD",
           kind: "tickbox",
           archived_at: "2026-01-01T00:00:00.000Z",
@@ -915,7 +915,7 @@ describe("opportunityService", () => {
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
         await expect(
-          opportunityService.satisfyRequirement(created.id, requirement.id, registrar.id),
+          opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
         ).rejects.toThrow(/archived/)
       })
     })
@@ -923,14 +923,14 @@ describe("opportunityService", () => {
 
   describe.skip("Deal Owner visibility (ticket 6)", () => {
     describe("getStageChecklist", () => {
-      it("lists the current Stage's live requirements with their status", async () => {
-        makeStageRequirement({
+      it("lists the current Stage's live conditions with their status", async () => {
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "field",
           label: "PO Date on file",
           config: { column: "po_date" },
         })
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "attachment",
           label: "Notice of Award",
@@ -943,20 +943,20 @@ describe("opportunityService", () => {
 
         const checklist = await opportunityService.getStageChecklist(created.id)
 
-        const byLabel = Object.fromEntries(checklist.map((c) => [c.requirement.label, c.status]))
+        const byLabel = Object.fromEntries(checklist.map((c) => [c.condition.label, c.status]))
         expect(byLabel["PO Date on file"]).toBe("satisfied")
         expect(byLabel["Notice of Award"]).toBe("unsatisfied")
       })
 
-      it("leaves out a deadline requirement — it never blocks and has its own display surface", async () => {
-        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 5 } })
+      it("leaves out a deadline condition — it never blocks and has its own display surface", async () => {
+        makeStageCondition({ stage_code: "LEAD", kind: "deadline", config: { days: 5 } })
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
 
-      it("leaves out an archived requirement", async () => {
-        makeStageRequirement({
+      it("leaves out an archived condition", async () => {
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "tickbox",
           label: "Old check",
@@ -967,8 +967,8 @@ describe("opportunityService", () => {
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
 
-      it("only reads the deal's own current Stage, not requirements configured elsewhere", async () => {
-        makeStageRequirement({ stage_code: "QUALIFIED", kind: "tickbox", label: "Elsewhere" })
+      it("only reads the deal's own current Stage, not conditions configured elsewhere", async () => {
+        makeStageCondition({ stage_code: "QUALIFIED", kind: "tickbox", label: "Elsewhere" })
         const created = await opportunityService.createOpportunity(payload(), registrar.id) // status LEAD
 
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
@@ -977,7 +977,7 @@ describe("opportunityService", () => {
 
     describe("getBlockedDeals", () => {
       it("flags a deal missing a required item, and leaves an unblocked one out of the result", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "field",
           label: "PO Date on file",
@@ -998,8 +998,8 @@ describe("opportunityService", () => {
         expect(result[clear.id]).toBeUndefined()
       })
 
-      it("does not flag a deal on an optional requirement", async () => {
-        makeStageRequirement({
+      it("does not flag a deal on an optional condition", async () => {
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "field",
           label: "Nice to have",
@@ -1015,8 +1015,8 @@ describe("opportunityService", () => {
         expect(result[created.id]).toBeUndefined()
       })
 
-      it("does not flag a deal on a deadline requirement, even marked required — it never blocks", async () => {
-        makeStageRequirement({
+      it("does not flag a deal on a deadline condition, even marked required — it never blocks", async () => {
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "deadline",
           is_required: true,
@@ -1042,7 +1042,7 @@ describe("opportunityService", () => {
     // clock (src/test/db/store.js), not the real one — vi.useFakeTimers()
     // has no effect on it. Rather than fight two disconnected clocks, these
     // tests backdate a row's own created_at directly (prior art: the "does
-    // not block on an archived requirement" test above pokes archived_at the
+    // not block on an archived condition" test above pokes archived_at the
     // same way) and let the service's `new Date()` stay real. daysAgo(n)
     // keeps that arithmetic in one place instead of repeating it per test.
     const daysAgo = (n) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString()
@@ -1052,7 +1052,7 @@ describe("opportunityService", () => {
 
     describe("getDeadlineStatuses", () => {
       it("counts down from the deal's Stage-entry time", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "deadline",
           label: "Confirm receipt",
@@ -1068,11 +1068,11 @@ describe("opportunityService", () => {
         ])
 
         expect(statuses[created.id]).toMatchObject({ daysRemaining: 7, isBreached: false })
-        expect(statuses[created.id].requirement.label).toBe("Confirm receipt")
+        expect(statuses[created.id].condition.label).toBe("Confirm receipt")
       })
 
       it("measures from the move into the current Stage, not from registration", async () => {
-        makeStageRequirement({ stage_code: "PROPOSAL_SUBMITTED", kind: "deadline", config: { days: 10 } })
+        makeStageCondition({ stage_code: "PROPOSAL_SUBMITTED", kind: "deadline", config: { days: 10 } })
         const lead = await opportunityService.createOpportunity(
           payload({ sales_reference: "S00999" }),
           registrar.id,
@@ -1099,7 +1099,7 @@ describe("opportunityService", () => {
         expect(statuses[lead.id].daysRemaining).toBe(7)
       })
 
-      it("is absent for a deal whose Stage carries no deadline requirement", async () => {
+      it("is absent for a deal whose Stage carries no deadline condition", async () => {
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
         const statuses = await opportunityService.getDeadlineStatuses([
@@ -1112,7 +1112,7 @@ describe("opportunityService", () => {
 
     describe("checkDeadlineNotifications", () => {
       it("notifies the Deal Owner once a deadline is approaching, and narrates it on the timeline", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "deadline",
           label: "Confirm receipt",
@@ -1136,7 +1136,7 @@ describe("opportunityService", () => {
       })
 
       it("fires its own notification once the deadline breaches, on top of the earlier approaching one", async () => {
-        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", label: "Confirm receipt", config: { days: 10 } })
+        makeStageCondition({ stage_code: "LEAD", kind: "deadline", label: "Confirm receipt", config: { days: 10 } })
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
 
         backdateOpportunity(created.id, daysAgo(7)) // approaching
@@ -1158,7 +1158,7 @@ describe("opportunityService", () => {
       })
 
       it("does not notify twice for the same milestone", async () => {
-        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
+        makeStageCondition({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
         const created = await opportunityService.createOpportunity(payload(), registrar.id)
         backdateOpportunity(created.id, daysAgo(11)) // breached
 
@@ -1171,7 +1171,7 @@ describe("opportunityService", () => {
       })
 
       it("does nothing for a deal with no Deal Owner to tell", async () => {
-        makeStageRequirement({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
+        makeStageCondition({ stage_code: "LEAD", kind: "deadline", config: { days: 10 } })
         const created = await opportunityService.createOpportunity(
           payload({ deal_owner_id: null }),
           registrar.id,
@@ -1188,7 +1188,7 @@ describe("opportunityService", () => {
 
     describe("a breached deadline never blocks a move", () => {
       it("lets a move proceed straight through a Stage whose deadline is months overdue", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_code: "LEAD",
           kind: "deadline",
           is_required: true,
@@ -1337,7 +1337,7 @@ describe("opportunityService", () => {
     // Issue #50.
     describe("a Stage requiring a Project Evaluation", () => {
       it("blocks leaving the Stage until a Project Evaluation exists for the deal, naming it in the error", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_id: lead.id,
           kind: "project_evaluation",
           label: "Go/no-go decided",
@@ -1352,19 +1352,19 @@ describe("opportunityService", () => {
         }
 
         expect(caught?.isGateBlock).toBe(true)
-        expect(caught.missingRequirements.map((m) => m.requirement.label)).toContain(
+        expect(caught.missingConditions.map((m) => m.condition.label)).toContain(
           "Go/no-go decided",
         )
         // The toast a blocked user actually sees reads err.message — it has to
-        // name the requirement, not just say "required items missing".
+        // name the condition, not just say "required items missing".
         expect(caught.message).toContain("Go/no-go decided")
 
         const unchanged = await opportunityService.getOpportunityById(deal.id)
         expect(unchanged.flow_stage_id).toBe(lead.id)
       })
 
-      it("includes the requirement's reference link in the blocked message, when configured", async () => {
-        makeStageRequirement({
+      it("includes the condition's reference link in the blocked message, when configured", async () => {
+        makeStageCondition({
           stage_id: lead.id,
           kind: "project_evaluation",
           label: "Go/no-go decided",
@@ -1378,7 +1378,7 @@ describe("opportunityService", () => {
       })
 
       it("passes once a Project Evaluation exists, whether or not it has been signed off", async () => {
-        makeStageRequirement({
+        makeStageCondition({
           stage_id: lead.id,
           kind: "project_evaluation",
           label: "Go/no-go decided",
@@ -1390,12 +1390,12 @@ describe("opportunityService", () => {
         expect(moved.flow_stage_id).toBe(qualified.id)
       })
 
-      it("never blocks a deal already past the Stage a requirement was added to — only the Stage being left is asked about", async () => {
+      it("never blocks a deal already past the Stage a condition was added to — only the Stage being left is asked about", async () => {
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
         // Added to Lead only after the deal already left it.
-        makeStageRequirement({
+        makeStageCondition({
           stage_id: lead.id,
           kind: "project_evaluation",
           label: "Go/no-go decided",

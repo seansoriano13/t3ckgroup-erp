@@ -2,7 +2,7 @@
  * Asking purchasing to source a product the company doesn't carry.
  *
  * ── Written to survive a UI rework ──────────────────────────────────────────
- * These assert on the *payload handed to procurementService* and on
+ * These assert on the *payload handed to purchasingService* and on
  * accessible names — never on class names, DOM structure, or copy. Restyle the
  * panel, move the controls, rewrite the labels, and these should still pass;
  * if one fails after a redesign, a rule actually changed and that is the point.
@@ -24,8 +24,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "../../test/support"
-import ProcurementPanel from "./ProcurementPanel"
-import { procurementService } from "../../services/procurementService"
+import PurchasingPanel from "./PurchasingPanel"
+import { purchasingService } from "../../services/purchasingService"
 
 const SALES_ID = "11111111-1111-4111-8111-111111111111"
 const BUYER_ID = "22222222-2222-4222-8222-222222222222"
@@ -61,8 +61,8 @@ vi.mock("../../services/employeeService", () => ({
   employeeService: { getAllEmployees: vi.fn(async () => EMPLOYEES) },
 }))
 
-vi.mock("../../services/procurementService", () => ({
-  procurementService: {
+vi.mock("../../services/purchasingService", () => ({
+  purchasingService: {
     listForOpportunity: vi.fn(async () => []),
     createRequest: vi.fn(async (payload) => payload.items),
     assignRequests: vi.fn(async () => "task-1"),
@@ -85,7 +85,7 @@ vi.mock("../ui/CustomToast", () => ({
   // toast.custom(...) callback, which needs a live <Toaster/> portal to ever
   // reach the DOM — nothing here mounts one. Skipping straight to onConfirm
   // tests what this panel is responsible for (wiring delete to
-  // procurementService), not the generic confirm-toast widget itself, which
+  // purchasingService), not the generic confirm-toast widget itself, which
   // has no test of its own to duplicate here.
   confirmDeleteToast: (_title, _description, onConfirm) => onConfirm(),
 }))
@@ -123,8 +123,8 @@ const request = (overrides = {}) => ({
 })
 
 async function renderPanel({ requests = [] } = {}) {
-  procurementService.listForOpportunity.mockResolvedValue(requests)
-  const view = renderWithProviders(<ProcurementPanel opportunity={OPPORTUNITY} />)
+  purchasingService.listForOpportunity.mockResolvedValue(requests)
+  const view = renderWithProviders(<PurchasingPanel opportunity={OPPORTUNITY} />)
 
   // Two independent queries feed this panel. Requests may arrive first or
   // second, so an assertion made before both land reads as "the rule did not
@@ -166,8 +166,8 @@ const sendButton = () =>
 beforeEach(() => {
   vi.clearAllMocks()
   authUser = { id: SALES_ID, isSuperAdmin: false, is_head: false }
-  procurementService.listForOpportunity.mockResolvedValue([])
-  procurementService.createRequest.mockImplementation(async (p) => p.items)
+  purchasingService.listForOpportunity.mockResolvedValue([])
+  purchasingService.createRequest.mockImplementation(async (p) => p.items)
 })
 
 describe("the form stays collapsed until asked for", () => {
@@ -218,7 +218,7 @@ describe("the form stays collapsed until asked for", () => {
     await user.click(screen.getByRole("button", { name: /^cancel$/i }))
 
     expect(screen.queryByRole("textbox", { name: "Product name 1" })).toBeNull()
-    expect(procurementService.createRequest).not.toHaveBeenCalled()
+    expect(purchasingService.createRequest).not.toHaveBeenCalled()
   })
 })
 
@@ -232,7 +232,7 @@ describe("a named product is what creates the request", () => {
 
     // A blank product name submitted is a comment, not a request. Letting it
     // through fills the purchasing task list with chatter nobody can action.
-    expect(procurementService.createRequest).not.toHaveBeenCalled()
+    expect(purchasingService.createRequest).not.toHaveBeenCalled()
   })
 
   it("will not send a name with nobody chosen to receive it", async () => {
@@ -244,7 +244,7 @@ describe("a named product is what creates the request", () => {
 
     // A task with no owner is the group-task failure mode this flow exists to
     // avoid: visible to everyone, owned by nobody.
-    expect(procurementService.createRequest).not.toHaveBeenCalled()
+    expect(purchasingService.createRequest).not.toHaveBeenCalled()
   })
 
   it("sends the name, quantity, unit and description together", async () => {
@@ -265,9 +265,9 @@ describe("a named product is what creates the request", () => {
     await mention(user, "cjay", /Cjay Espina/)
     await user.click(sendButton())
 
-    await waitFor(() => expect(procurementService.createRequest).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(purchasingService.createRequest).toHaveBeenCalledTimes(1))
 
-    const payload = procurementService.createRequest.mock.calls[0][0]
+    const payload = purchasingService.createRequest.mock.calls[0][0]
     expect(payload).toMatchObject({
       opportunityId: OPPORTUNITY.id,
       assigneeId: BUYER_ID,
@@ -298,9 +298,9 @@ describe("a named product is what creates the request", () => {
     await mention(user, "cjay", /Cjay Espina/)
     await user.click(sendButton())
 
-    await waitFor(() => expect(procurementService.createRequest).toHaveBeenCalled())
+    await waitFor(() => expect(purchasingService.createRequest).toHaveBeenCalled())
     expect(
-      procurementService.createRequest.mock.calls[0][0].items.map((i) => i.product_name),
+      purchasingService.createRequest.mock.calls[0][0].items.map((i) => i.product_name),
     ).toEqual(["Hydraulic hose kit", "Safety harness"])
   })
 
@@ -315,8 +315,8 @@ describe("a named product is what creates the request", () => {
     await mention(user, "cjay", /Cjay Espina/)
     await user.click(sendButton())
 
-    await waitFor(() => expect(procurementService.createRequest).toHaveBeenCalled())
-    expect(procurementService.createRequest.mock.calls[0][0].items).toHaveLength(1)
+    await waitFor(() => expect(purchasingService.createRequest).toHaveBeenCalled())
+    expect(purchasingService.createRequest.mock.calls[0][0].items).toHaveLength(1)
   })
 })
 
@@ -329,8 +329,8 @@ describe("who ends up owning it", () => {
     await mention(user, "cjay", /Cjay Espina/)
     await user.click(sendButton())
 
-    await waitFor(() => expect(procurementService.createRequest).toHaveBeenCalled())
-    expect(procurementService.createRequest.mock.calls[0][0]).toMatchObject({
+    await waitFor(() => expect(purchasingService.createRequest).toHaveBeenCalled())
+    expect(purchasingService.createRequest.mock.calls[0][0]).toMatchObject({
       assigneeId: BUYER_ID,
       department: null,
       subDepartment: null,
@@ -345,12 +345,12 @@ describe("who ends up owning it", () => {
     await mention(user, "purchasing", "OPERATIONS › PURCHASING")
     await user.click(sendButton())
 
-    await waitFor(() => expect(procurementService.createRequest).toHaveBeenCalled())
+    await waitFor(() => expect(purchasingService.createRequest).toHaveBeenCalled())
 
     // Purchasing sits under OPERATIONS. Sending the department alone routes to
     // the head with no sub-department — the Operations Manager — the wrong
     // desk, and an extra hop before anyone can act.
-    expect(procurementService.createRequest.mock.calls[0][0]).toMatchObject({
+    expect(purchasingService.createRequest.mock.calls[0][0]).toMatchObject({
       assigneeId: null,
       department: "OPERATIONS",
       subDepartment: "PURCHASING",
@@ -407,8 +407,8 @@ describe("who ends up owning it", () => {
     await user.click(await screen.findByRole("option", { name: /Cjay Espina/ }))
     await user.click(screen.getByRole("button", { name: /^assign$/i }))
 
-    await waitFor(() => expect(procurementService.assignRequests).toHaveBeenCalled())
-    const [ids, assignee, actor] = procurementService.assignRequests.mock.calls[0]
+    await waitFor(() => expect(purchasingService.assignRequests).toHaveBeenCalled())
+    const [ids, assignee, actor] = purchasingService.assignRequests.mock.calls[0]
     expect(ids).toEqual(["req-1", "req-2"])
     expect(assignee).toBe(BUYER_ID)
     expect(actor).toBe(HEAD_ID)
@@ -440,7 +440,7 @@ describe("a request already sent", () => {
     })
 
     // A fully-resolved request folds by default (see "the header earns its
-    // space only once there is something to report" in ProcurementPanel) —
+    // space only once there is something to report" in PurchasingPanel) —
     // expand it before asserting on what's inside.
     await user.click(screen.getByRole("button", { name: /procurement/i }))
 
@@ -503,8 +503,8 @@ describe("a request already sent", () => {
     await user.type(input, "Hydraulic hose kit (Heavy Duty)")
     await user.click(screen.getByRole("button", { name: /save/i }))
 
-    await waitFor(() => expect(procurementService.updateRequest).toHaveBeenCalled())
-    const [id, payload] = procurementService.updateRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.updateRequest).toHaveBeenCalled())
+    const [id, payload] = purchasingService.updateRequest.mock.calls[0]
     expect(id).toBe("req-1")
     expect(payload.product_name).toBe("Hydraulic hose kit (Heavy Duty)")
   })
@@ -515,8 +515,8 @@ describe("a request already sent", () => {
 
     await user.click(screen.getByRole("button", { name: /delete hydraulic hose kit/i }))
 
-    await waitFor(() => expect(procurementService.deleteRequest).toHaveBeenCalled())
-    const [id] = procurementService.deleteRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.deleteRequest).toHaveBeenCalled())
+    const [id] = purchasingService.deleteRequest.mock.calls[0]
     expect(id).toBe("req-1")
   })
 

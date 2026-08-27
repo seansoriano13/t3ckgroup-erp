@@ -59,7 +59,7 @@ describe("OpportunityBoard", () => {
 
   describe("the deadline countdown (ticket 7)", () => {
     const deadline = (overrides = {}) => ({
-      requirement: { label: "Confirm receipt" },
+      condition: { label: "Confirm receipt" },
       daysRemaining: 7,
       isBreached: false,
       isApproaching: false,

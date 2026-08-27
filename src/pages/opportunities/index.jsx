@@ -214,10 +214,10 @@ export default function OpportunitiesPage() {
 
   // Stage Gate Engine, tickets 6 & 7 — open deals only. Story 25 (blocked)
   // is about unblocking the pipeline, and story 26 (deadlines) is scoped the
-  // same way; a Won/Lost deal isn't part of either even if a requirement
+  // same way; a Won/Lost deal isn't part of either even if a condition
   // were ever attached to a terminal Stage. Keyed by id+status so a stage
   // move (not just a new/removed deal) refetches both; content-level changes
-  // (e.g. an attachment satisfying a requirement) freshen the next time this
+  // (e.g. an attachment satisfying a condition) freshen the next time this
   // key changes or the page is revisited, which is enough for a
   // register-level indicator.
   const openOpportunities = useMemo(
@@ -929,7 +929,7 @@ export default function OpportunitiesPage() {
                                 separate from the "Blocked" badge above. */}
                             {deadline?.isBreached && (
                               <span
-                                title={`Deadline passed: "${deadline.requirement.label}"`}
+                                title={`Deadline passed: "${deadline.condition.label}"`}
                                 className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600 dark:text-red-400"
                               >
                                 <Clock size={10} />
@@ -937,7 +937,7 @@ export default function OpportunitiesPage() {
                             )}
                             {deadline && !deadline.isBreached && deadline.isApproaching && (
                               <span
-                                title={`"${deadline.requirement.label}" — ${deadline.daysRemaining} day(s) left`}
+                                title={`"${deadline.condition.label}" — ${deadline.daysRemaining} day(s) left`}
                                 className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-bold text-amber-600 dark:text-amber-400"
                               >
                                 <Clock size={10} />

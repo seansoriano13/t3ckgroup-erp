@@ -2,7 +2,7 @@
  * Flow Canvas geometry — pure arithmetic, no React and no React Flow.
  *
  * A Stage on the canvas is not one box. It is a Stage node with two columns of
- * satellites hanging off it: the requirements that gate a deal on the way out,
+ * satellites hanging off it: the conditions that gate a deal on the way out,
  * and the actions that fire on the way in. Every consumer of that shape needs
  * the same numbers — the node builder places the satellites, auto-layout has to
  * reserve room for them, and neither may disagree with the other about where a
@@ -12,7 +12,7 @@
  * questions are answered by a pure module rather than inside a component.
  *
  * Coordinates: a satellite's position is relative to its Stage node's top-left,
- * which is what React Flow wants from a child node (`parentId`). Requirements
+ * which is what React Flow wants from a child node (`parentId`). Conditions
  * hang below-left, actions below-right, and both start below the Stage's own
  * band so they never cross the horizontal edges of the flow itself.
  */
@@ -31,7 +31,7 @@ export const SAT_GAP_X = 32
 
 /**
  * Satellites shown per column before the rest collapse into one "+N more" node.
- * A Stage with fourteen requirements is a Stage whose gate is read in the panel,
+ * A Stage with fourteen conditions is a Stage whose gate is read in the panel,
  * not on the canvas; drawing all fourteen would push its neighbours off screen.
  */
 export const SAT_VISIBLE = 4
@@ -84,8 +84,8 @@ export function columnRows(total) {
  * node, so a flow that has not been configured yet lays out as tightly as it
  * did before any of this existed.
  */
-export function stageBox({ requirementCount = 0, actionCount = 0 } = {}) {
-  const gateRows = columnRows(requirementCount)
+export function stageBox({ conditionCount = 0, actionCount = 0 } = {}) {
+  const gateRows = columnRows(conditionCount)
   const runRows = columnRows(actionCount)
 
   const left = gateRows > 0 ? COLUMN_X[GATE] : 0

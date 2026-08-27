@@ -76,8 +76,8 @@ vi.mock("../../services/leadSourceService", () => ({
   },
 }));
 
-vi.mock("../../services/procurementService", () => ({
-  procurementService: {
+vi.mock("../../services/purchasingService", () => ({
+  purchasingService: {
     listForOpportunity: vi.fn(async () => []),
   },
 }));
@@ -195,7 +195,7 @@ describe("Deadline kind — countdown + notifications (ticket 7)", () => {
   it("marks a deal past its deadline in the register", async () => {
     opportunityService.getDeadlineStatuses.mockResolvedValue({
       "opp-uuid-1": {
-        requirement: { label: "Confirm receipt" },
+        condition: { label: "Confirm receipt" },
         daysRemaining: -2,
         isBreached: true,
         isApproaching: false,

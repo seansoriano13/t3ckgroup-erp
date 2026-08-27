@@ -9,16 +9,16 @@
  * Ticket: .scratch/stage-gate-engine/issues/01-schema-and-evaluation-engine.md
  *
  * This module answers what the gate needs asked of it; it does not call
- * updateStage, does not read stage_requirements, and does not write
- * sor_requirement_status — those are ticket 2 and ticket 5's job. Everything
+ * updateStage, does not read stage_conditions, and does not write
+ * sor_condition_status — those are ticket 2 and ticket 5's job. Everything
  * here is the shared logic both the live gate check and a historical/audit
  * read can call, told apart by the `asOf` timestamp each passes in (see
- * evaluateRequirement).
+ * evaluateCondition).
  */
 
 import { stageByCode } from "./sor"
 
-export const REQUIREMENT_KINDS = {
+export const CONDITION_KINDS = {
   ATTACHMENT: "attachment",
   FIELD: "field",
   TICKBOX: "tickbox",
@@ -30,12 +30,12 @@ export const REQUIREMENT_KINDS = {
   PROJECT_EVALUATION: "project_evaluation",
 }
 
-export const REQUIREMENT_STATUS = {
+export const CONDITION_STATUS = {
   SATISFIED: "satisfied",
   UNSATISFIED: "unsatisfied",
-  // Absence is the answer, not a gap: a requirement created after the SOR
+  // Absence is the answer, not a gap: a condition created after the SOR
   // already crossed its Stage never applied to it (D18, D41), and an
-  // archived requirement stops applying from the moment it is archived.
+  // archived condition stops applying from the moment it is archived.
   NOT_APPLICABLE: "not_applicable",
 }
 
@@ -59,13 +59,13 @@ export function stagesCrossed(fromCode, toCode, stages = []) {
 }
 
 /**
- * Requirements that can actually stand in the way of a move: active, marked
+ * Conditions that can actually stand in the way of a move: active, marked
  * required, and not a `deadline` — deadlines never gate by kind, regardless
  * of is_required (D42).
  */
-export function blockingRequirements(requirements = []) {
-  return requirements.filter(
-    (r) => !r.archived_at && r.is_required && r.kind !== REQUIREMENT_KINDS.DEADLINE,
+export function blockingConditions(conditions = []) {
+  return conditions.filter(
+    (r) => !r.archived_at && r.is_required && r.kind !== CONDITION_KINDS.DEADLINE,
   )
 }
 
@@ -74,31 +74,31 @@ function isNonEmpty(value) {
 }
 
 const notApplicable = () => ({
-  status: REQUIREMENT_STATUS.NOT_APPLICABLE,
+  status: CONDITION_STATUS.NOT_APPLICABLE,
   satisfiedBy: null,
   satisfiedAt: null,
 })
 const unsatisfied = () => ({
-  status: REQUIREMENT_STATUS.UNSATISFIED,
+  status: CONDITION_STATUS.UNSATISFIED,
   satisfiedBy: null,
   satisfiedAt: null,
 })
 const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
-  status: REQUIREMENT_STATUS.SATISFIED,
+  status: CONDITION_STATUS.SATISFIED,
   satisfiedBy,
   satisfiedAt,
 })
 
 /**
- * Whether a single requirement is satisfied, unsatisfied, or never applied,
+ * Whether a single condition is satisfied, unsatisfied, or never applied,
  * as of a point in time.
  *
  * `asOf` is the crossing being evaluated: "now" for a live move (ticket 2
  * passes the current time), or a Stage's historical entry time for an audit
- * read (ticket 6/story 32). A requirement whose `created_at` is after `asOf`
+ * read (ticket 6/story 32). A condition whose `created_at` is after `asOf`
  * never applied to that crossing — its absence is correct, not missing data.
  * Callers that don't care about that distinction (a live check evaluated the
- * instant a requirement is read back will never trip it) can omit `asOf`.
+ * instant a condition is read back will never trip it) can omit `asOf`.
  *
  * - **attachment** and **field** are evaluated live against the record — no
  *   status row, because the record itself is the evidence and can change
@@ -113,7 +113,7 @@ const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
  *   deal (issue #48), the same way `field` is evaluated live against the
  *   record rather than a status row.
  */
-export function evaluateRequirement(requirement, {
+export function evaluateCondition(condition, {
   opportunity = {},
   attachments = [],
   members = [],
@@ -121,32 +121,32 @@ export function evaluateRequirement(requirement, {
   asOf = null,
   hasProjectEvaluation = false,
 } = {}) {
-  if (requirement.archived_at) return notApplicable()
-  if (asOf && requirement.created_at && requirement.created_at > asOf) return notApplicable()
+  if (condition.archived_at) return notApplicable()
+  if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
 
-  switch (requirement.kind) {
-    case REQUIREMENT_KINDS.ATTACHMENT: {
-      const documentType = requirement.config?.documentType ?? null
+  switch (condition.kind) {
+    case CONDITION_KINDS.ATTACHMENT: {
+      const documentType = condition.config?.documentType ?? null
       const match = attachments.find((a) => !documentType || a.documentType === documentType)
       return match ? satisfied(match.uploadedBy ?? null, match.uploadedAt ?? null) : unsatisfied()
     }
-    case REQUIREMENT_KINDS.FIELD: {
-      const column = requirement.config?.column
+    case CONDITION_KINDS.FIELD: {
+      const column = condition.config?.column
       const value = column ? opportunity[column] : undefined
       return isNonEmpty(value) ? satisfied() : unsatisfied()
     }
-    case REQUIREMENT_KINDS.ASSIGNMENT: {
-      const department = requirement.config?.department ?? null
+    case CONDITION_KINDS.ASSIGNMENT: {
+      const department = condition.config?.department ?? null
       const match = members.find((m) => !department || m.department === department)
       return match ? satisfied(match.employeeId ?? match.employee_id ?? null, match.assignedAt ?? null) : unsatisfied()
     }
-    case REQUIREMENT_KINDS.TICKBOX: {
+    case CONDITION_KINDS.TICKBOX: {
       return statusRow ? satisfied(statusRow.satisfied_by ?? null, statusRow.satisfied_at ?? null) : unsatisfied()
     }
-    case REQUIREMENT_KINDS.DEADLINE: {
+    case CONDITION_KINDS.DEADLINE: {
       return satisfied()
     }
-    case REQUIREMENT_KINDS.PROJECT_EVALUATION: {
+    case CONDITION_KINDS.PROJECT_EVALUATION: {
       return hasProjectEvaluation ? satisfied() : unsatisfied()
     }
     default:
@@ -158,7 +158,7 @@ export function evaluateRequirement(requirement, {
  * How close to breaching counts as "approaching" for a notification (ticket
  * 7, D42's "a notification fires as the date approaches and again when it
  * passes") — not specified by the spec beyond that phrase, so fixed here at
- * a flat 3 days regardless of the requirement's own day count. Both
+ * a flat 3 days regardless of the condition's own day count. Both
  * statutory examples (10 and 12 days) leave a multi-day window at 3, rather
  * than the boundary day being the only warning anyone gets.
  */
@@ -167,7 +167,7 @@ export const DEADLINE_APPROACHING_DAYS = 3
 /**
  * Deadline arithmetic: days remaining (negative once breached), whether the
  * deadline has been breached, and whether it's close enough to warn about —
- * from a Stage's entry timestamp and the requirement's configured day count.
+ * from a Stage's entry timestamp and the condition's configured day count.
  * The boundary day itself — exactly `days` days after entry — is not yet
  * breached; the day after is.
  *
@@ -175,8 +175,8 @@ export const DEADLINE_APPROACHING_DAYS = 3
  * Philippine Bidding Documents count calendar days), so no business-day
  * arithmetic is implemented.
  */
-export function deadlineStatus(requirement, { enteredAt, asOf } = {}) {
-  const days = requirement.config?.days
+export function deadlineStatus(condition, { enteredAt, asOf } = {}) {
+  const days = condition.config?.days
   if (!enteredAt || !asOf || !Number.isFinite(days)) {
     return { daysRemaining: null, isBreached: false, isApproaching: false }
   }
@@ -191,19 +191,19 @@ export function deadlineStatus(requirement, { enteredAt, asOf } = {}) {
 
 /**
  * The full gate check for one move: every Stage crossed, and every blocking
- * requirement on those Stages that is not satisfied. `requirementsByStage`
- * maps a Stage code to its requirements; `statusRowsByRequirement` maps a
- * requirement id to its `sor_requirement_status` row, if any.
+ * condition on those Stages that is not satisfied. `conditionsByStage`
+ * maps a Stage code to its conditions; `statusRowsByCondition` maps a
+ * condition id to its `sor_condition_status` row, if any.
  */
 export function evaluateCrossing({
   fromCode,
   toCode,
   stages = [],
-  requirementsByStage = {},
+  conditionsByStage = {},
   opportunity = {},
   attachments = [],
   members = [],
-  statusRowsByRequirement = {},
+  statusRowsByCondition = {},
   asOf = null,
   hasProjectEvaluation = false,
 }) {
@@ -211,18 +211,18 @@ export function evaluateCrossing({
   const missing = []
 
   for (const stage of crossed) {
-    const requirements = blockingRequirements(requirementsByStage[stage.code] ?? [])
-    for (const requirement of requirements) {
-      const result = evaluateRequirement(requirement, {
+    const conditions = blockingConditions(conditionsByStage[stage.code] ?? [])
+    for (const condition of conditions) {
+      const result = evaluateCondition(condition, {
         opportunity,
         attachments,
         members,
-        statusRow: statusRowsByRequirement[requirement.id] ?? null,
+        statusRow: statusRowsByCondition[condition.id] ?? null,
         asOf,
         hasProjectEvaluation,
       })
-      if (result.status === REQUIREMENT_STATUS.UNSATISFIED) {
-        missing.push({ stage, requirement })
+      if (result.status === CONDITION_STATUS.UNSATISFIED) {
+        missing.push({ stage, condition })
       }
     }
   }

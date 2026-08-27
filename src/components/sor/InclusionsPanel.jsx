@@ -27,7 +27,7 @@ import { REQUEST_UNITS } from "../../constants/procurement";
  *
  * Odoo bundles: an Ambulance Commuter is one order line whose inclusions live
  * as free text in the description. This panel is the only place the spec can be
- * walked item by item and each requirement confirmed, which is what an
+ * walked item by item and each condition confirmed, which is what an
  * apple-to-apple comparison against a tender demands and what the team
  * currently rebuilds in a spreadsheet on every deal.
  *
@@ -479,7 +479,7 @@ export default function InclusionsPanel({ opportunity }) {
               </p>
               <p className="mx-auto mt-1 max-w-md text-[11px] leading-relaxed text-muted-foreground">
                 Odoo bundles this into one order line. Enter the client&apos;s spec
-                sheet here to check each requirement is answered.
+                sheet here to check each condition is answered.
               </p>
             </div>
           )}

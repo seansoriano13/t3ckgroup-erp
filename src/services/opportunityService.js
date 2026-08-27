@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { procurementService } from "./procurementService";
+import { purchasingService } from "./purchasingService";
 import { notificationService } from "./notificationService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -20,11 +20,11 @@ import {
 import {
   deadlineStatus,
   evaluateCrossing,
-  evaluateRequirement,
-  REQUIREMENT_KINDS,
-  REQUIREMENT_STATUS,
+  evaluateCondition,
+  CONDITION_KINDS,
+  CONDITION_STATUS,
   stagesCrossed,
-  blockingRequirements,
+  blockingConditions,
 } from "../constants/stageGate";
 import { entryStage, isLegalMove } from "../constants/salesFlow";
 
@@ -58,20 +58,20 @@ function stripProductCode(name) {
   return (name || "").replace(/^\[[^\]]*\]\s*/, "");
 }
 
-/** The narration a requirement's satisfaction writes, however it got satisfied. */
-async function noteRequirementSatisfied(opportunityId, requirement, actorId) {
+/** The narration a condition's satisfaction writes, however it got satisfied. */
+async function noteConditionSatisfied(opportunityId, condition, actorId) {
   await opportunityService.addSystemNote(
     opportunityId,
-    `Requirement satisfied: "${requirement.label}".`,
-    { event: "STAGE_REQUIREMENT_SATISFIED", requirementId: requirement.id, label: requirement.label, employeeId: actorId },
+    `Condition satisfied: "${condition.label}".`,
+    { event: "STAGE_CONDITION_SATISFIED", conditionId: condition.id, label: condition.label, employeeId: actorId },
     actorId,
   );
 }
 
 /**
  * Turns `sales_opportunity_members` rows into the `{ employeeId, department,
- * assignedAt }` shape `evaluateRequirement`'s `assignment` kind expects
- * (constants/stageGate.js). An `assignment` requirement's config names one
+ * assignedAt }` shape `evaluateCondition`'s `assignment` kind expects
+ * (constants/stageGate.js). An `assignment` condition's config names one
  * department string (e.g. "Purchasing" or "OPERATIONS") without saying which
  * level of `employees.department`/`sub_department` it means, so each member
  * contributes one entry per level they actually have — a lookup against
@@ -94,13 +94,13 @@ function membersForGate(rows = []) {
 
 /**
  * Stage Gate Engine, ticket 5 (.scratch/stage-gate-engine/issues/05-per-kind-
- * satisfaction.md) — narrates a Stage's live-evaluated requirements
+ * satisfaction.md) — narrates a Stage's live-evaluated conditions
  * (attachment/field/assignment) that flip from unsatisfied to satisfied as a
  * result of one action, the way a stage move already narrates itself.
  * `tickbox` isn't included: it has no "before/after" to diff, since ticking
- * it IS the satisfying action (see satisfyRequirement, below).
+ * it IS the satisfying action (see satisfyCondition, below).
  *
- * Scoped to `stageCode`'s own requirements — the deal's current Stage, the
+ * Scoped to `stageCode`'s own conditions — the deal's current Stage, the
  * one whose gate is actually still open. A Stage already left had every
  * required item satisfied already (or the move would have been refused), so
  * there is nothing there left to newly satisfy.
@@ -108,32 +108,32 @@ function membersForGate(rows = []) {
 async function narrateNewlySatisfied(opportunityId, stageId, before, after, actorId) {
   if (!stageId) return;
 
-  // 5. Stage Requirements Configuration (Flow Stages only)
-  // Which Stage Gate Requirements are currently configured for this deal's flow stage?
-  const { data: requirements, error } = await supabase
-    .from("stage_requirements")
+  // 5. Stage Conditions Configuration (Flow Stages only)
+  // Which Stage Gate Conditions are currently configured for this deal's flow stage?
+  const { data: conditions, error } = await supabase
+    .from("stage_conditions")
     .select("*")
     .eq("stage_id", stageId)
     .is("archived_at", null)
-    .in("kind", [REQUIREMENT_KINDS.ATTACHMENT, REQUIREMENT_KINDS.FIELD, REQUIREMENT_KINDS.ASSIGNMENT]);
+    .in("kind", [CONDITION_KINDS.ATTACHMENT, CONDITION_KINDS.FIELD, CONDITION_KINDS.ASSIGNMENT]);
   if (error) throw error;
-  if (!requirements || requirements.length === 0) return;
+  if (!conditions || conditions.length === 0) return;
 
-  for (const requirement of requirements) {
+  for (const condition of conditions) {
     const wasSatisfied =
-      evaluateRequirement(requirement, before).status === REQUIREMENT_STATUS.SATISFIED;
+      evaluateCondition(condition, before).status === CONDITION_STATUS.SATISFIED;
     const isSatisfied =
-      evaluateRequirement(requirement, after).status === REQUIREMENT_STATUS.SATISFIED;
+      evaluateCondition(condition, after).status === CONDITION_STATUS.SATISFIED;
 
     if (!wasSatisfied && isSatisfied) {
-      await noteRequirementSatisfied(opportunityId, requirement, actorId);
+      await noteConditionSatisfied(opportunityId, condition, actorId);
     }
   }
 }
 
 /**
  * A `sales_opportunity_logs` row's `metadata.attachments`, shaped into the
- * `{ ...file, uploadedBy, uploadedAt }` evidence `evaluateRequirement`'s
+ * `{ ...file, uploadedBy, uploadedAt }` evidence `evaluateCondition`'s
  * `attachment` kind expects (constants/stageGate.js) — a note's attachments
  * are the only place a file lives today (addNote, below), read live rather
  * than re-stored. Its own function because both `gateContext` (one
@@ -158,43 +158,43 @@ function groupBy(rows, key) {
 }
 
 /**
- * Live (non-archived) `stage_requirements` for a set of Stage codes, grouped
+ * Live (non-archived) `stage_conditions` for a set of Stage codes, grouped
  * by Stage — the read every batch caller below starts from, before asking
  * "what does THIS deal's own Stage carry". `narrow` lets a caller add its
  * own filter (e.g. `getBlockedDeals`' is_required/kind) on top of the
  * archived_at check every caller needs regardless.
  */
-async function requirementsByStageFor(stageIds, narrow = (query) => query) {
-  const { data: requirements, error } = await narrow(
-    supabase.from("stage_requirements").select("*").in("stage_id", stageIds).is("archived_at", null),
+async function conditionsByStageFor(stageIds, narrow = (query) => query) {
+  const { data: conditions, error } = await narrow(
+    supabase.from("stage_conditions").select("*").in("stage_id", stageIds).is("archived_at", null),
   );
   if (error) throw error;
-  return { requirements: requirements || [], requirementsByStage: groupBy(requirements, "stage_id") };
+  return { conditions: conditions || [], conditionsByStage: groupBy(conditions, "stage_id") };
 }
 
 /**
- * Everything `evaluateRequirement`/`evaluateCrossing` need to judge the
- * requirements configured on `stageCodes`, for one opportunity: the
- * requirements themselves (grouped by Stage), the attachment evidence, the
- * SOR Members, and any `sor_requirement_status` rows. Shared by the live
+ * Everything `evaluateCondition`/`evaluateCrossing` need to judge the
+ * conditions configured on `stageCodes`, for one opportunity: the
+ * conditions themselves (grouped by Stage), the attachment evidence, the
+ * SOR Members, and any `sor_condition_status` rows. Shared by the live
  * gate check (ticket 2) and the read-only checklist (ticket 6) so both agree
  * on what "satisfied" means from a single place, rather than each doing its
  * own fetch-and-shape.
  */
 async function gateContext(opportunityId, stageIds) {
-  const { requirements, requirementsByStage } = await requirementsByStageFor(stageIds);
-  if (requirements.length === 0) {
-    return { requirementsByStage, attachments: [], members: [], statusRowsByRequirement: {} };
+  const { conditions, conditionsByStage } = await conditionsByStageFor(stageIds);
+  if (conditions.length === 0) {
+    return { conditionsByStage, attachments: [], members: [], statusRowsByCondition: {} };
   }
 
-  const requirementIds = requirements.map((r) => r.id);
+  const conditionIds = conditions.map((r) => r.id);
   const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows] =
     await Promise.all([
       supabase
-        .from("sor_requirement_status")
+        .from("sor_condition_status")
         .select("*")
         .eq("opportunity_id", opportunityId)
-        .in("requirement_id", requirementIds),
+        .in("condition_id", conditionIds),
       supabase
         .from("sales_opportunity_logs")
         .select("author_id, created_at, metadata")
@@ -206,17 +206,17 @@ async function gateContext(opportunityId, stageIds) {
 
   const attachments = (logs || []).flatMap(attachmentsFromLog);
 
-  const statusRowsByRequirement = {};
+  const statusRowsByCondition = {};
   for (const row of statusRows || []) {
-    statusRowsByRequirement[row.requirement_id] = row;
+    statusRowsByCondition[row.condition_id] = row;
   }
 
-  return { requirementsByStage, attachments, members: membersForGate(memberRows), statusRowsByRequirement };
+  return { conditionsByStage, attachments, members: membersForGate(memberRows), statusRowsByCondition };
 }
 
 /**
  * Whether a deal has a Project Evaluation on record at all (issue #48) — what
- * a `project_evaluation` Stage requirement (issue #50) gates on. Existence
+ * a `project_evaluation` Stage condition (issue #50) gates on. Existence
  * only; sign-off is recorded but never checked here, matching that ticket's
  * own decision that the gate needs an owner, not a second approval step.
  */
@@ -231,27 +231,27 @@ async function hasProjectEvaluationFor(opportunityId) {
 }
 
 /**
- * Fetches Project Evaluation existence only when a set of requirements
+ * Fetches Project Evaluation existence only when a set of conditions
  * actually asks about it — shared by both gate check call sites so the
  * "does anything here need this" guard is written once.
  */
-async function resolveHasProjectEvaluation(requirements, opportunityId) {
-  const needsIt = requirements.some((r) => r.kind === REQUIREMENT_KINDS.PROJECT_EVALUATION);
+async function resolveHasProjectEvaluation(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PROJECT_EVALUATION);
   return needsIt ? hasProjectEvaluationFor(opportunityId) : false;
 }
 
 /**
  * Stage Gate Engine (docs/stage-gate-engine-spec.md, ticket 2 of
- * .scratch/stage-gate-engine/issues/) — throws if any required requirement
+ * .scratch/stage-gate-engine/issues/) — throws if any required condition
  * on any Stage the move crosses is unsatisfied, naming what's missing.
  * Coexists with the ITB gate in `updateStatus`; either can block the same
  * move, independently, on unrelated things.
  *
  * Evaluates every Stage in `[from, to)`, not just the destination, so a
- * multi-Stage jump can't skip past a requirement it never satisfied.
+ * multi-Stage jump can't skip past a condition it never satisfied.
  * `opportunityAfterMove` should be `{ ...existing, ...patch }` — the same
  * "as it will be after this move" rule the ITB check applies to itself — so
- * a `field` requirement on a column this same call is about to set (e.g.
+ * a `field` condition on a column this same call is about to set (e.g.
  * Sales Reference) sees the incoming value, not the one it's replacing.
  */
 async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportunityAfterMove) {
@@ -259,16 +259,16 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   const crossed = stagesCrossed(fromCode, toCode, stages);
   if (crossed.length === 0) return;
 
-  const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+  const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
     opportunityId,
     crossed.map((s) => s.code),
   );
-  if (Object.keys(requirementsByStage).length === 0) return;
+  if (Object.keys(conditionsByStage).length === 0) return;
 
   // No hasProjectEvaluation here, unlike moveAlongFlow below: this is the
-  // pre-ADR-0006 global pipeline gate, and stage_requirements rows can only
-  // be created through the Flow Canvas (StageRequirementManager), which is
-  // scoped to flow_stages. A project_evaluation requirement can never
+  // pre-ADR-0006 global pipeline gate, and stage_conditions rows can only
+  // be created through the Flow Canvas (StageConditionManager), which is
+  // scoped to flow_stages. A project_evaluation condition can never
   // actually exist on a legacy pipeline stage, so wiring the lookup in here
   // would be a query with nothing to find — see issue #50, scoped to Flow
   // Canvas Stages only.
@@ -276,17 +276,17 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     fromCode,
     toCode,
     stages,
-    requirementsByStage,
+    conditionsByStage,
     opportunity: opportunityAfterMove,
     attachments,
     members,
-    statusRowsByRequirement,
+    statusRowsByCondition,
   });
 
   if (!gateResult.blocked) return;
 
   const missing = gateResult.missing
-    .map(({ stage, requirement }) => `${requirement.label} (${STAGE_LABELS[stage.code] || stage.label})`)
+    .map(({ stage, condition }) => `${condition.label} (${STAGE_LABELS[stage.code] || stage.label})`)
     .join(", ");
   throw new Error(`Cannot move to ${STAGE_LABELS[toCode] || toCode} — missing: ${missing}.`);
 }
@@ -360,7 +360,7 @@ async function hasEverMoved(opportunityId) {
  *
  *
  * The legacy gates — Sales Reference and ITB — are not
- * applied to flow-built deals. `stage_requirements` DO apply to flow-built
+ * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
 async function moveAlongFlow(existing, nextStageId, actorId) {
@@ -380,51 +380,51 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // ADR 0006: a move traverses exactly one edge. There is no canonical path
   // between two Stages in a graph, so "is Qualified reachable from Lead" is
   // meaningless — only "did somebody draw that edge" is. Checked ahead of the
-  // requirement gate: an illegal move should refuse for being illegal, not
-  // report itself as blocked by whatever requirements the destination
+  // condition gate: an illegal move should refuse for being illegal, not
+  // report itself as blocked by whatever conditions the destination
   // happens to carry.
   if (!isLegalMove(from?.id, to.id, edges)) {
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
-  // 1. Evaluate Stage Requirements for the stage being left
-  const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+  // 1. Evaluate Stage Conditions for the stage being left
+  const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
     existing.id,
     [from.id]
   );
 
   const missing = [];
-  const requirements = blockingRequirements(requirementsByStage[from.id] ?? []);
-  const hasProjectEvaluation = await resolveHasProjectEvaluation(requirements, existing.id);
+  const conditions = blockingConditions(conditionsByStage[from.id] ?? []);
+  const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, existing.id);
 
-  for (const requirement of requirements) {
-    const result = evaluateRequirement(requirement, {
+  for (const condition of conditions) {
+    const result = evaluateCondition(condition, {
       opportunity: existing,
       attachments,
       members,
-      statusRow: statusRowsByRequirement[requirement.id] ?? null,
+      statusRow: statusRowsByCondition[condition.id] ?? null,
       hasProjectEvaluation,
     });
-    if (result.status === REQUIREMENT_STATUS.UNSATISFIED) {
-      missing.push({ stage: from, requirement });
+    if (result.status === CONDITION_STATUS.UNSATISFIED) {
+      missing.push({ stage: from, condition });
     }
   }
 
   if (missing.length > 0) {
     // Named, not generic — a "required items missing" toast with nothing
     // named in it sends whoever is blocked hunting for what changed. A
-    // requirement's optional reference link (issue #50's own config) rides
+    // condition's optional reference link (issue #50's own config) rides
     // along here too, since a toast is the only surface a Flow deal's
     // stage control has for a blocked move.
     const details = missing
-      .map(({ requirement }) => {
-        const link = requirement.config?.referenceLink;
-        return link ? `${requirement.label} (${link})` : requirement.label;
+      .map(({ condition }) => {
+        const link = condition.config?.referenceLink;
+        return link ? `${condition.label} (${link})` : condition.label;
       })
       .join(", ");
     const error = new Error(`Cannot leave ${from.name} — missing: ${details}.`);
     error.isGateBlock = true;
-    error.missingRequirements = missing;
+    error.missingConditions = missing;
     throw error;
   }
 
@@ -526,7 +526,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
 }
 
 /**
- * D42 — a `deadline` requirement's "entry into the Stage" timestamp: the
+ * D42 — a `deadline` condition's "entry into the Stage" timestamp: the
  * most recent STAGE_CHANGED note landing this opportunity on its current
  * Stage (`metadata.to`), the same note `updateStatus` already writes on
  * every move. A deal still sitting on its very first Stage never got one —
@@ -543,16 +543,16 @@ function stageEnteredAt(opportunity, logs) {
 }
 
 /**
- * Every active `deadline` requirement on each of the given opportunities'
+ * Every active `deadline` condition on each of the given opportunities'
  * own current Stage, evaluated against "now" (`deadlineStatus`, ticket 1).
  * Shared by the board countdown (`getDeadlineStatuses`) and the
  * approach/breach notification check (`checkDeadlineNotifications`, ticket
  * 7) so both read the same evaluation rather than each re-deriving it —
  * same reasoning as `gateContext` for the blocking kinds.
  *
- * Returns `{ [opportunityId]: Array<{ requirement, daysRemaining, isBreached,
+ * Returns `{ [opportunityId]: Array<{ condition, daysRemaining, isBreached,
  * isApproaching }> }` — a Stage carrying more than one `deadline`
- * requirement is unusual (the spec's own examples never configure two on
+ * condition is unusual (the spec's own examples never configure two on
  * the same Stage) but not disallowed, so this returns all of them rather
  * than assuming one.
  */
@@ -560,10 +560,10 @@ async function deadlineEvaluations(opportunities) {
   if (opportunities.length === 0) return {};
   const stageCodes = [...new Set(opportunities.map((o) => o.status))];
 
-  const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes, (query) =>
-    query.eq("kind", REQUIREMENT_KINDS.DEADLINE),
+  const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
+    query.eq("kind", CONDITION_KINDS.DEADLINE),
   );
-  if (requirements.length === 0) return {};
+  if (conditions.length === 0) return {};
 
   const opportunityIds = opportunities.map((o) => o.id);
   const { data: logs, error: logsError } = await supabase
@@ -577,13 +577,13 @@ async function deadlineEvaluations(opportunities) {
   const now = new Date().toISOString();
   const result = {};
   for (const opportunity of opportunities) {
-    const stageRequirements = requirementsByStage[opportunity.status];
-    if (!stageRequirements || stageRequirements.length === 0) continue;
+    const stageConditions = conditionsByStage[opportunity.status];
+    if (!stageConditions || stageConditions.length === 0) continue;
 
     const enteredAt = stageEnteredAt(opportunity, logsByOpportunity[opportunity.id]);
-    result[opportunity.id] = stageRequirements.map((requirement) => ({
-      requirement,
-      ...deadlineStatus(requirement, { enteredAt, asOf: now }),
+    result[opportunity.id] = stageConditions.map((condition) => ({
+      condition,
+      ...deadlineStatus(condition, { enteredAt, asOf: now }),
     }));
   }
   return result;
@@ -871,7 +871,7 @@ export const opportunityService = {
       ).catch(console.error);
     }
 
-    // A `field`-kind requirement on the Stage this deal is still sitting on
+    // A `field`-kind condition on the Stage this deal is still sitting on
     // (e.g. po_date at PMS) is satisfied the moment the field is saved —
     // this call is "the existing field-save path" ticket 5 hooks into, not
     // a separate satisfaction action.
@@ -909,7 +909,7 @@ export const opportunityService = {
   ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
-      // Full row, not a narrow column list: a `field`-kind requirement's
+      // Full row, not a narrow column list: a `field`-kind condition's
       // `config.column` can name any column on this table, so the Stage Gate
       // Engine check below needs whatever a Super Admin configured it to be,
       // not a fixed set decided ahead of time.
@@ -1056,7 +1056,7 @@ export const opportunityService = {
     // that silently vanished would take the evidence of that spend with it.
     // Fire-and-forget: losing the deal must not fail because a notification did.
     if (isLostCode(nextStatus)) {
-      procurementService
+      purchasingService
         .notifyDealClosed(id, actorId, lostReason)
         .catch(console.error);
     }
@@ -1148,7 +1148,7 @@ export const opportunityService = {
 
     if (error) throw error;
 
-    procurementService
+    purchasingService
       .handleOpportunityDeleted(id, actorId, data)
       .catch(console.error);
 
@@ -1431,48 +1431,48 @@ export const opportunityService = {
     return data;
   },
 
-  // ── Stage requirements — tickbox satisfaction ───────────────────────────────
+  // ── Stage conditions — tickbox satisfaction ───────────────────────────────
 
   /**
-   * Ticks a `tickbox` requirement for this deal. The one kind with no other
+   * Ticks a `tickbox` condition for this deal. The one kind with no other
    * evidence (docs/stage-gate-engine-spec.md), so the status row IS the
    * certification — unlike attachment/field/assignment, there is no live
-   * record to evaluate, only this direct action. Idempotent: a requirement
+   * record to evaluate, only this direct action. Idempotent: a condition
    * once satisfied stays satisfied (D31), so ticking it again is a no-op
    * that returns the original row rather than overwriting who satisfied it.
    */
-  async satisfyRequirement(opportunityId, requirementId, actorId) {
-    const { data: requirement, error: requirementError } = await supabase
-      .from("stage_requirements")
+  async satisfyCondition(opportunityId, conditionId, actorId) {
+    const { data: condition, error: conditionError } = await supabase
+      .from("stage_conditions")
       .select("*")
-      .eq("id", requirementId)
+      .eq("id", conditionId)
       .single();
-    if (requirementError) throw requirementError;
+    if (conditionError) throw conditionError;
 
-    if (requirement.kind !== REQUIREMENT_KINDS.TICKBOX) {
-      throw new Error("Only a tickbox requirement can be satisfied this way.");
+    if (condition.kind !== CONDITION_KINDS.TICKBOX) {
+      throw new Error("Only a tickbox condition can be satisfied this way.");
     }
-    if (requirement.archived_at) {
-      throw new Error("This requirement has been archived and no longer applies.");
+    if (condition.archived_at) {
+      throw new Error("This condition has been archived and no longer applies.");
     }
 
     const { data: satisfied, error: satisfiedError } = await supabase
-    .from("sor_requirement_status")
-    .select("requirement_id, satisfied_at")
+    .from("sor_condition_status")
+    .select("condition_id, satisfied_at")
     .eq("opportunity_id", opportunityId)
-    .eq("requirement_id", requirementId)
+    .eq("condition_id", conditionId)
     .maybeSingle();
     if (satisfiedError) throw satisfiedError;
     if (satisfied) return satisfied;
 
     const { data, error } = await supabase
-      .from("sor_requirement_status")
-      .insert({ opportunity_id: opportunityId, requirement_id: requirementId, satisfied_by: actorId })
+      .from("sor_condition_status")
+      .insert({ opportunity_id: opportunityId, condition_id: conditionId, satisfied_by: actorId })
       .select()
       .single();
     if (error) throw error;
 
-    await noteRequirementSatisfied(opportunityId, requirement, actorId);
+    await noteConditionSatisfied(opportunityId, condition, actorId);
 
     return data;
   },
@@ -1481,9 +1481,9 @@ export const opportunityService = {
 
   /**
    * What the deal's current Stage owes, right now — every one of its live
-   * (non-archived, non-`deadline`) requirements alongside `evaluateRequirement`'s
+   * (non-archived, non-`deadline`) conditions alongside `evaluateCondition`'s
    * verdict, so a Deal Owner can see the whole list before trying to move
-   * instead of being refused one item at a time. Deadline requirements never
+   * instead of being refused one item at a time. Deadline conditions never
    * block and have their own display surface (ticket 7), so they're left out.
    *
    * `opportunity` can be passed in when the caller already has it (the
@@ -1494,22 +1494,22 @@ export const opportunityService = {
     if (!target) return [];
     const stageCode = target.status;
 
-    const { requirementsByStage, attachments, members, statusRowsByRequirement } = await gateContext(
+    const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
       opportunityId,
       [stageCode],
     );
 
-    const requirements = (requirementsByStage[stageCode] || [])
-      .filter((r) => r.kind !== REQUIREMENT_KINDS.DEADLINE)
+    const conditions = (conditionsByStage[stageCode] || [])
+      .filter((r) => r.kind !== CONDITION_KINDS.DEADLINE)
       .sort((a, b) => a.sort_order - b.sort_order);
 
-    return requirements.map((requirement) => ({
-      requirement,
-      ...evaluateRequirement(requirement, {
+    return conditions.map((condition) => ({
+      condition,
+      ...evaluateCondition(condition, {
         opportunity: target,
         attachments,
         members,
-        statusRow: statusRowsByRequirement[requirement.id] ?? null,
+        statusRow: statusRowsByCondition[condition.id] ?? null,
       }),
     }));
   },
@@ -1520,27 +1520,27 @@ export const opportunityService = {
    * missing. One bulk read instead of one checklist call per row — `opportunities`
    * is whatever the register already has loaded, not re-fetched here.
    *
-   * Returns `{ [opportunityId]: requirement[] }`, present only for a deal
+   * Returns `{ [opportunityId]: condition[] }`, present only for a deal
    * that actually has something outstanding.
    */
   async getBlockedDeals(opportunities = []) {
     if (opportunities.length === 0) return {};
     const stageCodes = [...new Set(opportunities.map((o) => o.status))];
 
-    const { requirements, requirementsByStage } = await requirementsByStageFor(stageCodes, (query) =>
-      query.eq("is_required", true).neq("kind", REQUIREMENT_KINDS.DEADLINE),
+    const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
+      query.eq("is_required", true).neq("kind", CONDITION_KINDS.DEADLINE),
     );
-    if (requirements.length === 0) return {};
+    if (conditions.length === 0) return {};
 
     const opportunityIds = opportunities.map((o) => o.id);
-    const requirementIds = requirements.map((r) => r.id);
+    const conditionIds = conditions.map((r) => r.id);
     const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, { data: memberRows, error: memberError }] =
       await Promise.all([
         supabase
-          .from("sor_requirement_status")
+          .from("sor_condition_status")
           .select("*")
           .in("opportunity_id", opportunityIds)
-          .in("requirement_id", requirementIds),
+          .in("condition_id", conditionIds),
         supabase
           .from("sales_opportunity_logs")
           .select("opportunity_id, author_id, created_at, metadata")
@@ -1570,22 +1570,22 @@ export const opportunityService = {
 
     const statusByOpportunity = {};
     for (const row of statusRows || []) {
-      (statusByOpportunity[row.opportunity_id] ??= {})[row.requirement_id] = row;
+      (statusByOpportunity[row.opportunity_id] ??= {})[row.condition_id] = row;
     }
 
     const blocked = {};
     for (const opportunity of opportunities) {
-      const stageRequirements = requirementsByStage[opportunity.status] || [];
-      if (stageRequirements.length === 0) continue;
+      const stageConditions = conditionsByStage[opportunity.status] || [];
+      if (stageConditions.length === 0) continue;
 
-      const missing = stageRequirements.filter(
-        (requirement) =>
-          evaluateRequirement(requirement, {
+      const missing = stageConditions.filter(
+        (condition) =>
+          evaluateCondition(condition, {
             opportunity,
             attachments: attachmentsByOpportunity[opportunity.id] || [],
             members: membersByOpportunity[opportunity.id] || [],
-            statusRow: (statusByOpportunity[opportunity.id] || {})[requirement.id] ?? null,
-          }).status === REQUIREMENT_STATUS.UNSATISFIED,
+            statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
+          }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;
     }
@@ -1597,9 +1597,9 @@ export const opportunityService = {
 
   /**
    * The board card countdown, and the register's "past a deadline" read
-   * (story 26): the most urgent active `deadline` requirement on each
+   * (story 26): the most urgent active `deadline` condition on each
    * opportunity's own current Stage, evaluated against "now". Absent for an
-   * opportunity whose Stage carries no live `deadline` requirement.
+   * opportunity whose Stage carries no live `deadline` condition.
    */
   async getDeadlineStatuses(opportunities = []) {
     const evaluations = await deadlineEvaluations(opportunities);
@@ -1640,7 +1640,7 @@ export const opportunityService = {
       const opportunity = opportunityById.get(opportunityId);
       if (!opportunity?.deal_owner_id) continue; // nobody to tell
 
-      for (const { requirement, daysRemaining, isBreached, isApproaching } of items) {
+      for (const { condition, daysRemaining, isBreached, isApproaching } of items) {
         const milestone = isBreached ? "BREACHED" : isApproaching ? "APPROACHING" : null;
         if (!milestone) continue;
 
@@ -1650,22 +1650,22 @@ export const opportunityService = {
           .select("id")
           .eq("opportunity_id", opportunityId)
           .eq("metadata->>event", event)
-          .eq("metadata->>requirementId", requirement.id)
+          .eq("metadata->>conditionId", condition.id)
           .limit(1);
         if (existingError) throw existingError;
         if (existing && existing.length > 0) continue;
 
         const stageLabel = STAGE_LABELS[opportunity.status] || opportunity.status;
         const { title, describe } = DEADLINE_MILESTONES[milestone];
-        const content = describe(requirement.label, stageLabel, daysRemaining);
+        const content = describe(condition.label, stageLabel, daysRemaining);
 
         // No actorId — nobody did anything to cause this, time simply
         // passed, so there's no human to attribute it to (addSystemNote
         // defaults author_id to null for exactly this case).
         await opportunityService.addSystemNote(opportunityId, content, {
           event,
-          requirementId: requirement.id,
-          label: requirement.label,
+          conditionId: condition.id,
+          label: condition.label,
           daysRemaining,
         });
 
@@ -1677,7 +1677,7 @@ export const opportunityService = {
           reference_id: opportunityId,
         });
 
-        notified.push({ opportunityId, requirementId: requirement.id, milestone });
+        notified.push({ opportunityId, conditionId: condition.id, milestone });
       }
     }
 

@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
  *
  * This is a leaf module on purpose. The guard belongs to procurement — the
  * generic task service has no business knowing that `sor_procurement_requests`
- * exists — but `procurementService` already imports `taskMutationService`, so
+ * exists — but `purchasingService` already imports `taskMutationService`, so
  * putting it there and importing back would close a cycle. Keeping the query
  * in a module that imports nothing but the client lets both sides depend on it
  * and neither depend on the other.

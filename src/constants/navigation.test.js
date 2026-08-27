@@ -167,7 +167,7 @@ describe("navigation registry", () => {
       const purchasingGroup = groups.find((g) => g.key === "purchasing");
       expect(purchasingGroup).toBeDefined();
       expect(purchasingGroup.links.map((l) => l.label)).toEqual([
-        "Procurement Queue",
+        "Purchasing Queue",
       ]);
     });
 

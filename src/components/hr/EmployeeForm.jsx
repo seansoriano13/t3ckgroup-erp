@@ -288,7 +288,7 @@ export default function EmployeeForm({
           {/* Purchasing — issue #39 */}
           <AccessSwitch
             label="Purchasing"
-            description="Access to the Procurement Queue"
+            description="Access to the Purchasing Queue"
             icon={ShoppingCart}
             checked={formData.has_purchasing_flow}
             onChange={(val) =>

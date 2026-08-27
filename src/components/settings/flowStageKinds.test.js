@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest"
 
-import { REQUIREMENT_KINDS } from "../../constants/stageGate"
+import { CONDITION_KINDS } from "../../constants/stageGate"
 import {
   ACTION_KIND_META,
-  REQUIREMENT_KIND_META,
+  CONDITION_KIND_META,
   actionSummary,
   actionTitle,
-  requirementDetail,
+  conditionDetail,
 } from "./flowStageKinds"
 
 describe("flowStageKinds", () => {
   it("names every kind the database will accept", () => {
-    for (const kind of Object.values(REQUIREMENT_KINDS)) {
-      expect(REQUIREMENT_KIND_META[kind]?.label).toBeTruthy()
+    for (const kind of Object.values(CONDITION_KINDS)) {
+      expect(CONDITION_KIND_META[kind]?.label).toBeTruthy()
     }
     // Mirrors flow_stage_actions_kind_chk (migration 0053).
     expect(Object.keys(ACTION_KIND_META).sort()).toEqual([
@@ -69,44 +69,44 @@ describe("flowStageKinds", () => {
     })
   })
 
-  describe("requirementDetail", () => {
-    it("surfaces the column a field requirement watches", () => {
+  describe("conditionDetail", () => {
+    it("surfaces the column a field condition watches", () => {
       expect(
-        requirementDetail({ kind: REQUIREMENT_KINDS.FIELD, config: { column: "po_date" } }),
+        conditionDetail({ kind: CONDITION_KINDS.FIELD, config: { column: "po_date" } }),
       ).toBe("po_date")
     })
 
     it("says what an unconfigured attachment or assignment actually accepts", () => {
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.ATTACHMENT, config: {} })).toBe(
+      expect(conditionDetail({ kind: CONDITION_KINDS.ATTACHMENT, config: {} })).toBe(
         "Any document",
       )
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.ASSIGNMENT, config: {} })).toBe("Anyone")
+      expect(conditionDetail({ kind: CONDITION_KINDS.ASSIGNMENT, config: {} })).toBe("Anyone")
     })
 
     it("pluralises a deadline and refuses a nonsensical one", () => {
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.DEADLINE, config: { days: 1 } })).toBe(
+      expect(conditionDetail({ kind: CONDITION_KINDS.DEADLINE, config: { days: 1 } })).toBe(
         "1 day",
       )
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.DEADLINE, config: { days: 10 } })).toBe(
+      expect(conditionDetail({ kind: CONDITION_KINDS.DEADLINE, config: { days: 10 } })).toBe(
         "10 days",
       )
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.DEADLINE, config: { days: 0 } })).toBeNull()
+      expect(conditionDetail({ kind: CONDITION_KINDS.DEADLINE, config: { days: 0 } })).toBeNull()
     })
 
     it("has nothing to add for a tickbox", () => {
-      expect(requirementDetail({ kind: REQUIREMENT_KINDS.TICKBOX, config: {} })).toBeNull()
+      expect(conditionDetail({ kind: CONDITION_KINDS.TICKBOX, config: {} })).toBeNull()
     })
 
     // Issue #50.
-    it("surfaces a Project Evaluation requirement's optional reference link", () => {
+    it("surfaces a Project Evaluation condition's optional reference link", () => {
       expect(
-        requirementDetail({
-          kind: REQUIREMENT_KINDS.PROJECT_EVALUATION,
+        conditionDetail({
+          kind: CONDITION_KINDS.PROJECT_EVALUATION,
           config: { referenceLink: "https://example.com/template" },
         }),
       ).toBe("https://example.com/template")
       expect(
-        requirementDetail({ kind: REQUIREMENT_KINDS.PROJECT_EVALUATION, config: {} }),
+        conditionDetail({ kind: CONDITION_KINDS.PROJECT_EVALUATION, config: {} }),
       ).toBeNull()
     })
   })

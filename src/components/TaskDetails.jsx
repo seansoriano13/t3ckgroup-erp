@@ -19,7 +19,7 @@ import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
-import { procurementService } from "@/services/procurementService"
+import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -74,7 +74,7 @@ export default function TaskDetails({
 
   const { data: procurementRequests = [] } = useQuery({
     queryKey: ["procurement", "task", activeTask?.id],
-    queryFn: () => procurementService.listForTask(activeTask?.id),
+    queryFn: () => purchasingService.listForTask(activeTask?.id),
     enabled: isOpen && !!activeTask?.id && isProcurement,
   })
 

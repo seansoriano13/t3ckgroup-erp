@@ -197,7 +197,7 @@ export const projectEvaluationService = {
    * from a spec sheet has not been answered yet, and defaulting the other way
    * would make every fresh breakdown read as a complete one.
    *
-   * Read-then-write on sort_order, matching stageRequirementService.add: the
+   * Read-then-write on sort_order, matching stageConditionService.add: the
    * column carries no unique constraint, so two people adding at the same
    * instant tie rather than error, and the order between those two rows falls
    * back to created_at. This is somebody typing a spec sheet, not a bulk path.

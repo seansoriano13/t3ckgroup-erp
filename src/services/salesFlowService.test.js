@@ -4,7 +4,7 @@ import { makeEmployee, makeFlowStage, makeSaleType, makeSalesFlow, makeSuperAdmi
 
 /**
  * The Flow Canvas's persistence layer (issue #36, ADR 0006). Tested against
- * the in-memory fake database, the same tier as stageRequirementService and
+ * the in-memory fake database, the same tier as stageConditionService and
  * pipelineStageService — the query shapes here are ones real PostgREST would
  * accept.
  *
@@ -318,7 +318,7 @@ describe("salesFlowService", () => {
       await salesFlowService.addEdge(sourceFlow.id, lead.id, won.id, admin.id)
       await salesFlowService.setWonStage(sourceFlow.id, won.id, admin.id)
       
-      // We need stageActionService and stageRequirementService in real tests, but for now we test structure
+      // We need stageActionService and stageConditionService in real tests, but for now we test structure
       
       const lockedResult = await salesFlowService.lockFlow(sourceFlow.id, admin.id)
       const snapshotData = lockedResult.snapshot.snapshot_data

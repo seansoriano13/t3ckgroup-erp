@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest"
-import { procurementService } from "./procurementService"
+import { purchasingService } from "./purchasingService"
 import { opportunityService } from "./opportunityService"
 import { projectEvaluationService } from "./projectEvaluationService"
 import { db, updateRow } from "@/test/db/store"
@@ -18,7 +18,7 @@ import { COMPLETENESS, summariseCompleteness } from "@/constants/projectEvaluati
  * asked, what came back per product, and who got told — not how the service got
  * there. See docs/sor-procurement-flow-decisions.md.
  */
-describe("procurementService", () => {
+describe("purchasingService", () => {
   let salesperson
   let buyer
   let purchasingHead
@@ -104,7 +104,7 @@ describe("procurementService", () => {
   })
 
   const raise = (overrides = {}) =>
-    procurementService.createRequest({
+    purchasingService.createRequest({
       opportunityId: opportunity.id,
       items,
       assigneeId: buyer.id,
@@ -148,7 +148,7 @@ describe("procurementService", () => {
 
     it("freezes what sales asked for, including the client's own wording and images", async () => {
       await raise()
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
 
       expect(requests).toHaveLength(2)
       expect(requests[0]).toMatchObject({
@@ -166,7 +166,7 @@ describe("procurementService", () => {
 
     it("leaves the description null rather than an empty string when nothing was written", async () => {
       await raise()
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
       expect(requests[1].requested_description).toBeNull()
     })
 
@@ -184,7 +184,7 @@ describe("procurementService", () => {
       expect(db.rows("tasks")).toHaveLength(1)
 
       // Send another product to the same buyer on the same deal
-      await procurementService.createRequest({
+      await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [
           {
@@ -203,7 +203,7 @@ describe("procurementService", () => {
       // Should still be only 1 task, reused
       expect(db.rows("tasks")).toHaveLength(1)
 
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
       expect(requests).toHaveLength(3)
       expect(requests.every((r) => r.task_id === firstTask.id)).toBe(true)
 
@@ -227,7 +227,7 @@ describe("procurementService", () => {
       updateRow("tasks", firstTask, { status: TASK_STATUS.AWAITING_APPROVAL, end_at: "2026-08-18T10:00:00Z" })
 
       // Sales adds another item before head approves
-      await procurementService.createRequest({
+      await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [{ product_name: "Extension cord 20m", quantity: 1, unit: "pc" }],
         assigneeId: buyer.id,
@@ -256,7 +256,7 @@ describe("procurementService", () => {
       updateRow("tasks", firstTask, { status: TASK_STATUS.COMPLETE })
 
       // Send another product
-      await procurementService.createRequest({
+      await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [{ product_name: "Extension cord 20m", quantity: 1, unit: "pc" }],
         assigneeId: buyer.id,
@@ -282,7 +282,7 @@ describe("procurementService", () => {
       await waitForNetworkIdle()
 
       expect(db.rows("tasks")).toHaveLength(0)
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
       expect(requests.every((r) => r.assigned_to === null)).toBe(true)
     })
 
@@ -304,9 +304,9 @@ describe("procurementService", () => {
 
     it("opens the task once the head assigns it", async () => {
       await mentionPurchasing()
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
 
-      const taskId = await procurementService.assignRequests(
+      const taskId = await purchasingService.assignRequests(
         requests.map((r) => r.id),
         buyer.id,
         purchasingHead.id,
@@ -314,7 +314,7 @@ describe("procurementService", () => {
       await waitForNetworkIdle()
 
       expect(db.rows("tasks")).toHaveLength(1)
-      const after = await procurementService.listForOpportunity(opportunity.id)
+      const after = await purchasingService.listForOpportunity(opportunity.id)
       expect(after.every((r) => r.assigned_to === buyer.id)).toBe(true)
       expect(after.every((r) => r.task_id === taskId)).toBe(true)
     })
@@ -324,8 +324,8 @@ describe("procurementService", () => {
       // composer's. A head assigning a follow-up ask to the same buyer on the
       // same deal is the same situation: they already hold a requisition for it.
       await mentionPurchasing()
-      const first = await procurementService.listForOpportunity(opportunity.id)
-      const taskId = await procurementService.assignRequests(
+      const first = await purchasingService.listForOpportunity(opportunity.id)
+      const taskId = await purchasingService.assignRequests(
         first.map((r) => r.id),
         buyer.id,
         purchasingHead.id,
@@ -342,11 +342,11 @@ describe("procurementService", () => {
       await waitForNetworkIdle()
 
       const unassigned = (
-        await procurementService.listForOpportunity(opportunity.id)
+        await purchasingService.listForOpportunity(opportunity.id)
       ).filter((r) => !r.assigned_to)
       expect(unassigned).toHaveLength(1)
 
-      const secondTaskId = await procurementService.assignRequests(
+      const secondTaskId = await purchasingService.assignRequests(
         unassigned.map((r) => r.id),
         buyer.id,
         purchasingHead.id,
@@ -356,7 +356,7 @@ describe("procurementService", () => {
       expect(secondTaskId).toBe(taskId)
       expect(db.rows("tasks")).toHaveLength(1)
 
-      const all = await procurementService.listForOpportunity(opportunity.id)
+      const all = await purchasingService.listForOpportunity(opportunity.id)
       expect(all).toHaveLength(3)
       expect(all.every((r) => r.task_id === taskId)).toBe(true)
     })
@@ -367,12 +367,12 @@ describe("procurementService", () => {
 
     beforeEach(async () => {
       await raise()
-      requests = await procurementService.listForOpportunity(opportunity.id)
+      requests = await purchasingService.listForOpportunity(opportunity.id)
     })
 
     it("demands the PO number for an outcome that claims a buy happened", async () => {
       await expect(
-        procurementService.resolveRequest(
+        purchasingService.resolveRequest(
           requests[0].id,
           { outcome: PROCUREMENT_OUTCOME.PURCHASED },
           buyer.id,
@@ -381,7 +381,7 @@ describe("procurementService", () => {
     })
 
     it("does not demand one when nothing was bought", async () => {
-      const row = await procurementService.resolveRequest(
+      const row = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.ALREADY_EXISTS, odooProductRef: "BOOM LIFT, 12M" },
         buyer.id,
@@ -398,7 +398,7 @@ describe("procurementService", () => {
         order: { supplier: "Firewolf Motors" },
         products: [{ name: "HOSE KIT, HYD, 5M" }],
       })
-      const purchased = await procurementService.resolveRequest(
+      const purchased = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
@@ -406,7 +406,7 @@ describe("procurementService", () => {
       expect(purchased.odoo_vendor).toBe("Firewolf Motors")
 
       // Revert to In Progress
-      const reverted = await procurementService.resolveRequest(
+      const reverted = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.IN_PROGRESS, poNumber: "P01234" },
         buyer.id,
@@ -420,7 +420,7 @@ describe("procurementService", () => {
 
     it("rejects a sales order number typed in the PO field", async () => {
       await expect(
-        procurementService.resolveRequest(
+        purchasingService.resolveRequest(
           requests[0].id,
           { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "S01237" },
           buyer.id,
@@ -429,7 +429,7 @@ describe("procurementService", () => {
     })
 
     it("parks the row rather than failing when Odoo cannot be reached", async () => {
-      const row = await procurementService.resolveRequest(
+      const row = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
@@ -448,7 +448,7 @@ describe("procurementService", () => {
         products: [{ name: "HOSE KIT, HYD, 5M" }],
       })
 
-      const row = await procurementService.resolveRequest(
+      const row = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
@@ -466,7 +466,7 @@ describe("procurementService", () => {
         products: [{ name: "HOSE KIT, HYD, 5M" }],
       })
 
-      const row = await procurementService.resolveRequest(
+      const row = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
@@ -478,7 +478,7 @@ describe("procurementService", () => {
     it("distinguishes 'Odoo says no' from 'Odoo did not answer'", async () => {
       stubEdgeFunction("odoo-po-verify", { success: true, found: false })
 
-      const row = await procurementService.resolveRequest(
+      const row = await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P09999" },
         buyer.id,
@@ -487,7 +487,7 @@ describe("procurementService", () => {
     })
 
     it("stays quiet until every product has an answer", async () => {
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE, note: "Discontinued" },
         buyer.id,
@@ -503,12 +503,12 @@ describe("procurementService", () => {
     })
 
     it("tells sales once the last product is answered, and says what happened", async () => {
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE, note: "Discontinued" },
         buyer.id,
       )
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         requests[1].id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
@@ -528,12 +528,12 @@ describe("procurementService", () => {
     })
 
     it("points sales at the deal, not at purchasing's task", async () => {
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         requests[0].id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE },
         buyer.id,
       )
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         requests[1].id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE },
         buyer.id,
@@ -573,7 +573,7 @@ describe("procurementService", () => {
       // and a task that vanished would take the evidence with it.
       const [task] = db.rows("tasks")
       expect(task.status).toBe("INCOMPLETE")
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
       expect(requests.every((r) => r.outcome === null)).toBe(true)
     })
 
@@ -594,7 +594,7 @@ describe("procurementService", () => {
 
   describe("sales editing and cancelling requests", () => {
     it("updates product name, quantity and notes before a PO is recorded", async () => {
-      const [req] = await procurementService.createRequest({
+      const [req] = await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [
           {
@@ -609,7 +609,7 @@ describe("procurementService", () => {
         requesterId: salesperson.id,
       })
 
-      const updated = await procurementService.updateRequest(
+      const updated = await purchasingService.updateRequest(
         req.id,
         {
           product_name: "Updated Hose (Heavy Duty)",
@@ -628,21 +628,21 @@ describe("procurementService", () => {
     })
 
     it("rejects edit when item is already purchased with a PO", async () => {
-      const [req] = await procurementService.createRequest({
+      const [req] = await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [{ product_name: "Original Hose", quantity: 2, unit: "pcs" }],
         assigneeId: buyer.id,
         requesterId: salesperson.id,
       })
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         req.id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P01234" },
         buyer.id,
       )
 
       await expect(
-        procurementService.updateRequest(
+        purchasingService.updateRequest(
           req.id,
           { product_name: "New Name", quantity: 3, unit: "pcs" },
           salesperson.id,
@@ -651,16 +651,16 @@ describe("procurementService", () => {
     })
 
     it("deletes/cancels an open request before a PO is recorded", async () => {
-      const [req] = await procurementService.createRequest({
+      const [req] = await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [{ product_name: "Cancelled Item", quantity: 1, unit: "unit" }],
         assigneeId: buyer.id,
         requesterId: salesperson.id,
       })
 
-      await procurementService.deleteRequest(req.id, salesperson.id)
+      await purchasingService.deleteRequest(req.id, salesperson.id)
 
-      const remaining = await procurementService.listForOpportunity(opportunity.id)
+      const remaining = await purchasingService.listForOpportunity(opportunity.id)
       expect(remaining.find((r) => r.id === req.id)).toBeUndefined()
     })
   })
@@ -671,14 +671,14 @@ describe("procurementService", () => {
 
     it("soft-cancels the linked purchasing task when no PO was issued", async () => {
       await mentionPurchasing()
-      const requests = await procurementService.listForOpportunity(opportunity.id)
-      const taskId = await procurementService.assignRequests(
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
+      const taskId = await purchasingService.assignRequests(
         requests.map((r) => r.id),
         buyer.id,
         purchasingHead.id,
       )
 
-      await procurementService.handleOpportunityDeleted(opportunity.id, salesperson.id, opportunity)
+      await purchasingService.handleOpportunityDeleted(opportunity.id, salesperson.id, opportunity)
       await waitForNetworkIdle()
 
       const task = db.rows("tasks").find((t) => t.id === taskId)
@@ -706,7 +706,7 @@ describe("procurementService", () => {
       await raise()
       await raise({ opportunityId: second.id, items: [{ product_name: "Winch", quantity: 1 }] })
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
 
       expect(queue.map((r) => r.requested_name).sort()).toEqual([
         "Hydraulic hose kit",
@@ -718,7 +718,7 @@ describe("procurementService", () => {
     it("carries the SOR, the requester and the assignee on every row", async () => {
       await raise()
 
-      const [row] = await procurementService.listOpenQueue()
+      const [row] = await purchasingService.listOpenQueue()
 
       expect(row.opportunity.sales_reference).toBe("S01237")
       expect(row.opportunity.client_name).toBe("ACME Corp")
@@ -731,31 +731,31 @@ describe("procurementService", () => {
     // exactly the rows somebody is working on this week.
     it("keeps a request that purchasing has started but not answered", async () => {
       await raise()
-      const [first] = await procurementService.listForOpportunity(opportunity.id)
+      const [first] = await purchasingService.listForOpportunity(opportunity.id)
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         first.id,
         { outcome: PROCUREMENT_OUTCOME.IN_PROGRESS },
         buyer.id,
       )
       await waitForNetworkIdle()
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
       expect(queue.map((r) => r.id)).toContain(first.id)
     })
 
     it("drops a request once purchasing has answered it", async () => {
       await raise()
-      const [first] = await procurementService.listForOpportunity(opportunity.id)
+      const [first] = await purchasingService.listForOpportunity(opportunity.id)
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         first.id,
         { outcome: PROCUREMENT_OUTCOME.ALREADY_EXISTS, note: "in Odoo as HOSE-5M" },
         buyer.id,
       )
       await waitForNetworkIdle()
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
       expect(queue.map((r) => r.id)).not.toContain(first.id)
     })
 
@@ -766,7 +766,7 @@ describe("procurementService", () => {
       await raise()
       updateRow("sales_opportunities", db.internal.rowsOf("sales_opportunities").find((o) => o.id === opportunity.id), { is_deleted: true })
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
       expect(queue).toEqual([])
     })
 
@@ -778,7 +778,7 @@ describe("procurementService", () => {
       await raise()
       updateRow("sales_opportunities", db.internal.rowsOf("sales_opportunities").find((o) => o.id === opportunity.id), { is_scratch: true })
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
       expect(queue).toEqual([])
     })
 
@@ -800,12 +800,12 @@ describe("procurementService", () => {
         items: [{ product_name: "Newer ask", quantity: 1 }],
       })
 
-      const queue = await procurementService.listOpenQueue()
+      const queue = await purchasingService.listOpenQueue()
       expect(queue[0].requested_name).toBe("Newer ask")
     })
 
     it("is empty rather than failing when nothing is outstanding", async () => {
-      expect(await procurementService.listOpenQueue()).toEqual([])
+      expect(await purchasingService.listOpenQueue()).toEqual([])
     })
   })
   /**
@@ -821,13 +821,13 @@ describe("procurementService", () => {
         { opportunityId: opportunity.id, description },
         salesperson.id,
       )
-      await procurementService.createRequest({
+      await purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: [{ product_name: description, quantity: 1, inclusionId: inclusion.id }],
         assigneeId: buyer.id,
         requesterId: salesperson.id,
       })
-      const requests = await procurementService.listForOpportunity(opportunity.id)
+      const requests = await purchasingService.listForOpportunity(opportunity.id)
       return { inclusion, request: requests.find((r) => r.inclusion_id === inclusion.id) }
     }
 
@@ -844,7 +844,7 @@ describe("procurementService", () => {
     it("marks the item missing when it cannot be sourced", async () => {
       const { inclusion, request } = await raiseFromInclusion()
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE, note: "Discontinued" },
         buyer.id,
@@ -857,7 +857,7 @@ describe("procurementService", () => {
     it("marks the item substituted when purchasing sourced something else", async () => {
       const { inclusion, request } = await raiseFromInclusion()
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         {
           outcome: PROCUREMENT_OUTCOME.SUBSTITUTED,
@@ -876,7 +876,7 @@ describe("procurementService", () => {
     it("marks the item covered once it is bought", async () => {
       const { inclusion, request } = await raiseFromInclusion()
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
         buyer.id,
@@ -891,7 +891,7 @@ describe("procurementService", () => {
     it("marks the item covered when it turned out to exist already", async () => {
       const { inclusion, request } = await raiseFromInclusion()
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.ALREADY_EXISTS, note: "Odoo: HYD-TOOL-01" },
         buyer.id,
@@ -904,12 +904,12 @@ describe("procurementService", () => {
     it("un-answers the item when purchasing reverts to still working on it", async () => {
       const { inclusion, request } = await raiseFromInclusion()
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
         buyer.id,
       )
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.IN_PROGRESS },
         buyer.id,
@@ -926,7 +926,7 @@ describe("procurementService", () => {
         salesperson.id,
       )
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         request.id,
         { outcome: PROCUREMENT_OUTCOME.PURCHASED, poNumber: "P02560" },
         buyer.id,
@@ -945,9 +945,9 @@ describe("procurementService", () => {
         salesperson.id,
       )
       await raise()
-      const [standalone] = await procurementService.listForOpportunity(opportunity.id)
+      const [standalone] = await purchasingService.listForOpportunity(opportunity.id)
 
-      await procurementService.resolveRequest(
+      await purchasingService.resolveRequest(
         standalone.id,
         { outcome: PROCUREMENT_OUTCOME.UNAVAILABLE },
         buyer.id,

@@ -107,14 +107,14 @@ function BoardColumn({ column, search, deadlineStatuses, onCardClick }) {
 
 /**
  * Stage Gate Engine, ticket 7 (D42) — the board card countdown for a Stage
- * carrying a `deadline` requirement. Shown at every distance, not just once
+ * carrying a `deadline` condition. Shown at every distance, not just once
  * urgent: D42 says the card shows the countdown, not just a warning, and
  * story 16 is "I want to see a countdown", not "I want to be warned."
  * Colour is the only thing that changes with urgency.
  */
 function DeadlineBadge({ deadline }) {
   if (!deadline) return null;
-  const { daysRemaining, isBreached, isApproaching, requirement } = deadline;
+  const { daysRemaining, isBreached, isApproaching, condition } = deadline;
 
   const tone = isBreached
     ? "bg-red-500/10 text-red-600 dark:text-red-400"
@@ -125,7 +125,7 @@ function DeadlineBadge({ deadline }) {
 
   return (
     <span
-      title={requirement.label}
+      title={condition.label}
       className={`inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${tone}`}
     >
       <Clock size={10} />

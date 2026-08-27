@@ -1,12 +1,12 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { REQUIREMENT_KINDS } from "../constants/stageGate";
+import { CONDITION_KINDS } from "../constants/stageGate";
 
-const VALID_KINDS = Object.values(REQUIREMENT_KINDS);
+const VALID_KINDS = Object.values(CONDITION_KINDS);
 
 /**
  * Throws unless `actorId` is a Super Admin. Enforced independently at the
- * database via RLS (0041's `stage_requirements_write` policy) — this check
+ * database via RLS (0041's `stage_conditions_write` policy) — this check
  * exists so the failure is immediate, testable without a real database, and
  * doesn't depend on trusting a client-supplied permission flag. Prior art:
  * commissionService.requireSuperAdmin.
@@ -20,28 +20,28 @@ async function requireSuperAdmin(actorId) {
   if (error) throw error;
 
   if (!data?.is_super_admin) {
-    throw new Error("Only a Super Admin can change a Stage's requirements.");
+    throw new Error("Only a Super Admin can change a Stage's conditions.");
   }
 }
 
 /**
  * Stage Gate Engine, ticket 5 (.scratch/stage-gate-engine/issues/05-per-kind-
- * satisfaction.md) — "a satisfied requirement and an archived requirement
+ * satisfaction.md) — "a satisfied condition and an archived condition
  * both write timeline entries, as does an assignment". Every deal currently
- * sitting on the archived requirement's Stage gets a note — those are the
+ * sitting on the archived condition's Stage gets a note — those are the
  * deals whose "what this Stage owes" view just lost an item. A deal that has
  * already moved past this Stage isn't touched: its crossing was already
- * evaluated (or blocked) under whatever requirements existed at the time.
+ * evaluated (or blocked) under whatever conditions existed at the time.
  *
  * Not `opportunityService.addSystemNote` — this file replicates rather than
  * imports across service modules (see `requireSuperAdmin`, above, and its
  * own prior art in commissionService).
  */
-async function noteArchivalOnDealsAtStage(requirement, actorId) {
+async function noteArchivalOnDealsAtStage(condition, actorId) {
   const { data: deals, error } = await supabase
     .from("sales_opportunities")
     .select("id")
-    .eq("flow_stage_id", requirement.stage_id)
+    .eq("flow_stage_id", condition.stage_id)
     .neq("is_deleted", true)
     // Issue #36, migration 0046 — a Scratch SOR has no timeline anybody reads
     // for its own sake, so a config-change note on one is noise.
@@ -53,30 +53,30 @@ async function noteArchivalOnDealsAtStage(requirement, actorId) {
     opportunity_id: deal.id,
     author_id: actorId,
     type: "SYSTEM",
-    content: `Requirement no longer applies: "${requirement.label}" (archived).`,
-    metadata: { event: "STAGE_REQUIREMENT_ARCHIVED", requirementId: requirement.id, label: requirement.label, employeeId: actorId },
+    content: `Condition no longer applies: "${condition.label}" (archived).`,
+    metadata: { event: "STAGE_CONDITION_ARCHIVED", conditionId: condition.id, label: condition.label, employeeId: actorId },
   }));
 
   const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
-  if (insertError) console.error("Failed to write requirement-archived notes:", insertError);
+  if (insertError) console.error("Failed to write condition-archived notes:", insertError);
 }
 
 /**
  * Stage Gate Engine configuration (docs/stage-gate-engine-spec.md, ticket 3
  * of .scratch/stage-gate-engine/issues/) — add, reorder and archive a
- * Stage's requirements. Every write is Super-Admin-gated and audit-logged.
+ * Stage's conditions. Every write is Super-Admin-gated and audit-logged.
  *
- * Reading `stage_requirements` for evaluation is ticket 1's pure module,
+ * Reading `stage_conditions` for evaluation is ticket 1's pure module,
  * called from ticket 2's gate check — not this service. `getForStage` here
  * exists for ticket 4's settings screen, not the live gate.
  */
-export const stageRequirementService = {
-  /** A Stage's requirements, in sort order. Archived rows excluded by default — a config screen edits the live set, not history. */
+export const stageConditionService = {
+  /** A Stage's conditions, in sort order. Archived rows excluded by default — a config screen edits the live set, not history. */
   async getForStage(stageId, { includeArchived = false } = {}) {
     if (!stageId) return [];
 
     let query = supabase
-      .from("stage_requirements")
+      .from("stage_conditions")
       .select("*")
       .eq("stage_id", stageId)
       .order("sort_order", { ascending: true });
@@ -88,10 +88,10 @@ export const stageRequirementService = {
   },
 
   /**
-   * Every listed Stage's requirements in one round trip, grouped by stage id.
+   * Every listed Stage's conditions in one round trip, grouped by stage id.
    *
    * The Flow Canvas draws every Stage's gate at once, so asking per Stage would
-   * fire one request per node on every flow switch. Stages with no requirements
+   * fire one request per node on every flow switch. Stages with no conditions
    * are present as empty arrays — a caller reading `byStage[id]` never has to
    * distinguish "none" from "not fetched".
    */
@@ -100,7 +100,7 @@ export const stageRequirementService = {
     if (ids.length === 0) return {};
 
     let query = supabase
-      .from("stage_requirements")
+      .from("stage_conditions")
       .select("*")
       .in("stage_id", ids)
       .order("sort_order", { ascending: true });
@@ -115,7 +115,7 @@ export const stageRequirementService = {
   },
 
   /**
-   * Adds a requirement to a Stage, appended after its current requirements.
+   * Adds a condition to a Stage, appended after its current conditions.
    * Super-Admin-only.
    */
   async add({ stageId, kind, label, isRequired = true, config = {} }, actorId) {
@@ -126,14 +126,14 @@ export const stageRequirementService = {
     }
     const trimmedLabel = (label || "").trim();
     if (!trimmedLabel) {
-      throw new Error("A requirement needs a label.");
+      throw new Error("A condition needs a label.");
     }
     // The UI enforces `min="1"` on the days field, but that's client-side
-    // only — a `deadline` requirement with `config.days <= 0` would read to
+    // only — a `deadline` condition with `config.days <= 0` would read to
     // deadlineStatus (constants/stageGate.js) as already breached the
     // instant it's created, which is never a real deadline.
-    if (kind === REQUIREMENT_KINDS.DEADLINE && !(Number(config?.days) > 0)) {
-      throw new Error("A deadline requirement needs a positive number of days.");
+    if (kind === CONDITION_KINDS.DEADLINE && !(Number(config?.days) > 0)) {
+      throw new Error("A deadline condition needs a positive number of days.");
     }
 
     // Read-then-write: two Super Admins adding to the same Stage at the
@@ -145,7 +145,7 @@ export const stageRequirementService = {
     const siblings = await this.getForStage(stageId, { includeArchived: true });
 
     const { data, error } = await supabase
-      .from("stage_requirements")
+      .from("stage_conditions")
       .insert({
         stage_id: stageId,
         kind,
@@ -159,10 +159,10 @@ export const stageRequirementService = {
     if (error) throw error;
 
     systemAuditLogService.addSystemEvent(
-      "STAGE_REQUIREMENT",
+      "STAGE_CONDITION",
       data.id,
-      `Requirement added to stage: "${trimmedLabel}" (${kind}).`,
-      { event: "STAGE_REQUIREMENT_ADDED", stageId, kind, label: trimmedLabel, employeeId: actorId },
+      `Condition added to stage: "${trimmedLabel}" (${kind}).`,
+      { event: "STAGE_CONDITION_ADDED", stageId, kind, label: trimmedLabel, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
@@ -170,8 +170,8 @@ export const stageRequirementService = {
   },
 
   /**
-   * Reorders requirements — `updates` is `[{ id, sortOrder }]`. Unlike
-   * `pipelineStageService.reorderStages`, `stage_requirements.sort_order`
+   * Reorders conditions — `updates` is `[{ id, sortOrder }]`. Unlike
+   * `pipelineStageService.reorderStages`, `stage_conditions.sort_order`
    * carries no unique constraint (0041), so a plain batch write is safe —
    * no placeholder-swap needed to dodge a collision that can't happen.
    * Super-Admin-only.
@@ -182,7 +182,7 @@ export const stageRequirementService = {
     await Promise.all(
       updates.map(async ({ id, sortOrder }) => {
         const { error } = await supabase
-          .from("stage_requirements")
+          .from("stage_conditions")
           .update({ sort_order: sortOrder })
           .eq("id", id);
         if (error) throw error;
@@ -190,10 +190,10 @@ export const stageRequirementService = {
     );
 
     systemAuditLogService.addSystemEvent(
-      "STAGE_REQUIREMENT",
+      "STAGE_CONDITION",
       null,
-      `Reordered ${updates.length} requirement(s).`,
-      { event: "STAGE_REQUIREMENT_REORDERED", updates, employeeId: actorId },
+      `Reordered ${updates.length} condition(s).`,
+      { event: "STAGE_CONDITION_REORDERED", updates, employeeId: actorId },
       actorId,
     ).catch(console.error);
 
@@ -201,17 +201,17 @@ export const stageRequirementService = {
   },
 
   /**
-   * Archives a requirement — soft only (D21): stops it from blocking future
+   * Archives a condition — soft only (D21): stops it from blocking future
    * moves (ticket 2's gate reads `archived_at is null`), but never deletes
-   * the row or the `sor_requirement_status` history that satisfied it. The
-   * only escape route from a requirement — no per-deal override exists.
+   * the row or the `sor_condition_status` history that satisfied it. The
+   * only escape route from a condition — no per-deal override exists.
    * Super-Admin-only.
    */
   async archive(id, actorId) {
     await requireSuperAdmin(actorId);
 
     const { data, error } = await supabase
-      .from("stage_requirements")
+      .from("stage_conditions")
       .update({ archived_at: new Date().toISOString() })
       .eq("id", id)
       .select()
@@ -219,10 +219,10 @@ export const stageRequirementService = {
     if (error) throw error;
 
     systemAuditLogService.addSystemEvent(
-      "STAGE_REQUIREMENT",
+      "STAGE_CONDITION",
       id,
-      `Requirement archived: "${data.label}" (${data.stage_id}).`,
-      { event: "STAGE_REQUIREMENT_ARCHIVED", stageId: data.stage_id, label: data.label, employeeId: actorId },
+      `Condition archived: "${data.label}" (${data.stage_id}).`,
+      { event: "STAGE_CONDITION_ARCHIVED", stageId: data.stage_id, label: data.label, employeeId: actorId },
       actorId,
     ).catch(console.error);
 

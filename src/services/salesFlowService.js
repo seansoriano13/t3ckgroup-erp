@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { flowLockBlockers } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
-import { stageRequirementService } from "./stageRequirementService";
+import { stageConditionService } from "./stageConditionService";
 
 /**
  * Flow Canvas persistence (issue #36, ADR 0006) — Sale Types, the Sales Flow
@@ -30,7 +30,7 @@ const foldName = (value) => trimName(value).toLowerCase();
  * database via RLS (0047/0048) — this check exists so the failure is
  * immediate, testable without a real database, and doesn't depend on trusting
  * a client-supplied permission flag. Prior art:
- * stageRequirementService.requireSuperAdmin.
+ * stageConditionService.requireSuperAdmin.
  */
 async function requireSuperAdmin(actorId) {
   const { data, error } = await supabase
@@ -569,9 +569,9 @@ export const salesFlowService = {
 
     // 1. Snapshotting
     const stageIds = stages.map(s => s.id);
-    const [actionsObj, requirementsObj] = await Promise.all([
+    const [actionsObj, conditionsObj] = await Promise.all([
       stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
-      stageIds.length > 0 ? stageRequirementService.getForStages(stageIds) : {}
+      stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {}
     ]);
 
     const { data: latestSnapshot } = await supabase
@@ -588,7 +588,7 @@ export const salesFlowService = {
       stages,
       edges,
       actions: Object.values(actionsObj || {}).flat(),
-      requirements: Object.values(requirementsObj || {}).flat(),
+      conditions: Object.values(conditionsObj || {}).flat(),
       wonStageId: flow.won_stage_id,
       saleTypeId: flow.sale_type_id
     };
@@ -653,12 +653,12 @@ export const salesFlowService = {
       }
     }
 
-    // 5. Create Requirements
-    const reqList = Array.isArray(snapshotData.requirements) ? snapshotData.requirements : Object.values(snapshotData.requirements || {}).flat();
+    // 5. Create Conditions
+    const reqList = Array.isArray(snapshotData.conditions) ? snapshotData.conditions : Object.values(snapshotData.conditions || {}).flat();
     for (const req of reqList) {
       const stageId = stageIdMap[req.stage_id];
       if (stageId) {
-        await stageRequirementService.add({ 
+        await stageConditionService.add({ 
           stageId, 
           kind: req.kind, 
           label: req.label, 

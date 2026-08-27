@@ -16,15 +16,15 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import TabGroup from "@/components/ui/TabGroup";
-import StageRequirementManager from "./StageRequirementManager";
+import StageConditionManager from "./StageConditionManager";
 import StageActionManager from "./StageActionManager";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
  *
  * The tab is controlled by the canvas rather than owned here, because the
- * canvas is what knows which tab the click meant: selecting a requirement
- * satellite opens Requirements, an action satellite opens Actions, and the
+ * canvas is what knows which tab the click meant: selecting a condition
+ * satellite opens Conditions, an action satellite opens Actions, and the
  * Stage node itself opens General.
  */
 
@@ -63,7 +63,7 @@ export default function StageSettingsPanel({
 
   const tabs = [
     { value: "settings", label: "General", icon: Settings2 },
-    { value: "requirements", label: "Requirements", icon: ListTodo },
+    { value: "conditions", label: "Conditions", icon: ListTodo },
     { value: "actions", label: "Actions", icon: Wand2 },
   ];
 
@@ -192,14 +192,14 @@ export default function StageSettingsPanel({
             </section>
 
             <p className="text-xs leading-relaxed text-muted-foreground">
-              A Stage moves a deal on only along the edges drawn from it. Requirements block the
+              A Stage moves a deal on only along the edges drawn from it. Conditions block the
               way out; actions fire on the way in.
             </p>
           </div>
         )}
 
-        {activeTab === "requirements" && (
-          <StageRequirementManager stageId={stage.id} disabled={disabled} />
+        {activeTab === "conditions" && (
+          <StageConditionManager stageId={stage.id} disabled={disabled} />
         )}
 
         {activeTab === "actions" && (

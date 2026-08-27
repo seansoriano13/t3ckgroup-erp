@@ -17,7 +17,7 @@ import {
 
 describe("flowCanvasLayout", () => {
   describe("satellitePosition", () => {
-    it("hangs requirements to the left and actions to the right of the Stage", () => {
+    it("hangs conditions to the left and actions to the right of the Stage", () => {
       expect(satellitePosition(GATE, 0).x).toBeLessThan(0)
       expect(satellitePosition(RUN, 0).x).toBeGreaterThanOrEqual(STAGE_W)
     })
@@ -66,11 +66,11 @@ describe("flowCanvasLayout", () => {
       })
     })
 
-    it("widens left for requirements and right for actions", () => {
-      const gateOnly = stageBox({ requirementCount: 2 })
+    it("widens left for conditions and right for actions", () => {
+      const gateOnly = stageBox({ conditionCount: 2 })
       const runOnly = stageBox({ actionCount: 2 })
 
-      // The requirement column sits left of the node, so the node's own origin
+      // The condition column sits left of the node, so the node's own origin
       // moves right inside the box; the action column adds width but no offset.
       expect(gateOnly.offsetX).toBeGreaterThan(0)
       expect(runOnly.offsetX).toBe(0)
@@ -79,16 +79,16 @@ describe("flowCanvasLayout", () => {
     })
 
     it("grows tall enough for the longer of the two columns", () => {
-      const short = stageBox({ requirementCount: 1, actionCount: 1 })
-      const tall = stageBox({ requirementCount: 1, actionCount: 3 })
+      const short = stageBox({ conditionCount: 1, actionCount: 1 })
+      const tall = stageBox({ conditionCount: 1, actionCount: 3 })
       expect(tall.height).toBeGreaterThan(short.height)
-      expect(tall.height).toBe(stageBox({ requirementCount: 3, actionCount: 1 }).height)
+      expect(tall.height).toBe(stageBox({ conditionCount: 3, actionCount: 1 }).height)
     })
 
     it("reserves room for the overflow node, not just the drawn items", () => {
-      const capped = stageBox({ requirementCount: SAT_VISIBLE })
-      const overflowing = stageBox({ requirementCount: SAT_VISIBLE + 9 })
-      // Nine extra requirements collapse into one node — one extra row, no more.
+      const capped = stageBox({ conditionCount: SAT_VISIBLE })
+      const overflowing = stageBox({ conditionCount: SAT_VISIBLE + 9 })
+      // Nine extra conditions collapse into one node — one extra row, no more.
       expect(overflowing.height).toBe(capped.height + SAT_H + SAT_GAP_Y)
     })
   })

@@ -41,12 +41,12 @@ import { odooService } from "../../services/odooService";
 import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
-import ProcurementPanel from "./ProcurementPanel";
+import PurchasingPanel from "./PurchasingPanel";
 import InclusionsPanel from "./InclusionsPanel";
 import ProjectEvaluationPanel from "./ProjectEvaluationPanel";
 import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
-import { procurementService } from "../../services/procurementService";
+import { purchasingService } from "../../services/purchasingService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
@@ -179,7 +179,7 @@ function PeopleRoster({ opportunity }) {
 /**
  * SOR Members (docs/crm-pipeline-redesign.md) — everyone added to this deal,
  * beyond the 5 fixed sales roles `PeopleRoster` already shows. Exists so the
- * `assignment` requirement kind (docs/stage-gate-engine-spec.md) has an
+ * `assignment` condition kind (docs/stage-gate-engine-spec.md) has an
  * actual action to satisfy itself through — "assign a purchasing officer at
  * Proposal Submitted" has nowhere else to happen. Additive only, per the
  * glossary: no remove control here, because there isn't one in the service
@@ -266,7 +266,7 @@ function MembersSection({ opportunityId, employees, actorId, onChanged }) {
  * normalised name — impossible by construction, since this list is read from
  * `sale.order.line` and therefore every row in it already exists in Odoo. What
  * purchasing gets asked for is a product that was never on the order at all,
- * so it lives in `sor_procurement_requests` and renders in ProcurementPanel.
+ * so it lives in `sor_procurement_requests` and renders in PurchasingPanel.
  * See the "Revision" section of docs/sor-procurement-flow-decisions.md.
  */
 function ItemsList({ items, isSyncing }) {
@@ -602,7 +602,7 @@ export default function OpportunityDetailsModal({
 
   const { data: procurementRequests = [] } = useQuery({
     queryKey: ["procurementRequests", id],
-    queryFn: () => procurementService.listForOpportunity(id),
+    queryFn: () => purchasingService.listForOpportunity(id),
     enabled: !!id && isOpen,
   });
 
@@ -1275,7 +1275,7 @@ export default function OpportunityDetailsModal({
               stageControl
             )}
 
-            {/* The checklist reads `stage_requirements`, which are keyed to a
+            {/* The checklist reads `stage_conditions`, which are keyed to a
                 crm_pipeline_stages code. A flow Stage is not one, so it has
                 nothing to say about a flow-built deal until Stage Conditions
                 are wired to flow Stages. */}
@@ -1487,7 +1487,7 @@ export default function OpportunityDetailsModal({
               above the fact grid/notes stack rather than at the very bottom. */}
           {!isEditing && (
             <div className="rounded-xl border border-border/50 p-6">
-              <ProcurementPanel opportunity={opportunity} />
+              <PurchasingPanel opportunity={opportunity} />
             </div>
           )}
 

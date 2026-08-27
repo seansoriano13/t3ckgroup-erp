@@ -20,7 +20,7 @@ import LogTaskModal from "../LogTaskModal";
 /**
  * A Stage's run: what fires on its own when a deal arrives.
  *
- * The counterpart to StageRequirementManager — requirements block the way out,
+ * The counterpart to StageConditionManager — conditions block the way out,
  * actions happen on the way in — and it invalidates the canvas's batched read
  * for the same reason: an action added here is a satellite out on the canvas.
  */

@@ -97,7 +97,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
-        label: "Procurement Queue",
+        label: "Purchasing Queue",
         link: "/purchasing",
         icon: ShoppingCart,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasPurchasingFlow,

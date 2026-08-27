@@ -18,7 +18,7 @@ import { isProductionSupabase } from "../../../lib/supabase.js";
  * with a removal date is the scope creep this project exists to prevent.
  *
  * Staging only. "The canvas and its Scratch SORs live on staging. Production
- * is never the drafting surface" is a spec requirement, not a nicety —
+ * is never the drafting surface" is a spec condition, not a nicety —
  * Scratch SORs are real rows on whatever database they are created against,
  * and the whole reason they are safe to create and discard freely is that
  * staging can never be a production record.

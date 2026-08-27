@@ -33,7 +33,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 
 import { salesFlowService } from "../../services/salesFlowService";
-import { stageRequirementService } from "../../services/stageRequirementService";
+import { stageConditionService } from "../../services/stageConditionService";
 import { stageActionService } from "../../services/stageActionService";
 import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
@@ -80,12 +80,12 @@ const defaultEdgeOptions = {
  * the CRM process together on this one screen, against staging.
  *
  * The canvas shows the whole contract of a flow, not just its shape: every
- * Stage carries its requirements below-left and its actions below-right, drawn
+ * Stage carries its conditions below-left and its actions below-right, drawn
  * as satellites of the Stage that owns them. What blocks a deal from leaving
  * and what fires when it arrives are properties of a Stage, so they are read in
  * the same glance as the Stage — no panel, no click.
  *
- * Wired to salesFlowService, stageRequirementService and stageActionService.
+ * Wired to salesFlowService, stageConditionService and stageActionService.
  * Every question about the flow itself is asked of constants/salesFlow.js, and
  * every question about where a satellite sits is asked of flowCanvasLayout.js,
  * so this component can never disagree with either about the answer.
@@ -97,7 +97,7 @@ export default function FlowCanvas() {
   const [newSaleTypeName, setNewSaleTypeName] = useState("");
   const [newStageName, setNewStageName] = useState("");
   // { nodeId, stageId, tab } — one selection covers the Stage and its satellites,
-  // because clicking a requirement should open the Stage that owns it.
+  // because clicking a condition should open the Stage that owns it.
   const [selection, setSelection] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [dialogValue, setDialogValue] = useState("");
@@ -129,9 +129,9 @@ export default function FlowCanvas() {
 
   // One request per flow rather than one per Stage: a twelve-Stage flow drew
   // twenty-four requests on every switch when each node fetched its own.
-  const { data: requirementsByStage = NO_SATELLITES } = useQuery({
-    queryKey: ["stageRequirementsByStage", stageKey],
-    queryFn: () => stageRequirementService.getForStages(stageIds),
+  const { data: conditionsByStage = NO_SATELLITES } = useQuery({
+    queryKey: ["stageConditionsByStage", stageKey],
+    queryFn: () => stageConditionService.getForStages(stageIds),
     enabled: stageIds.length > 0,
   });
 
@@ -144,7 +144,7 @@ export default function FlowCanvas() {
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["saleTypes"] });
     queryClient.invalidateQueries({ queryKey: ["salesFlow", effectiveSaleTypeId] });
-    queryClient.invalidateQueries({ queryKey: ["stageRequirementsByStage"] });
+    queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
   }, [queryClient, effectiveSaleTypeId]);
 
@@ -206,7 +206,7 @@ export default function FlowCanvas() {
     ask({
       title: `Delete “${stage.name}”?`,
       description:
-        "Every move drawn to or from it goes too, along with its requirements and its actions. Deals already sitting on it keep the Stage name they were given.",
+        "Every move drawn to or from it goes too, along with its conditions and its actions. Deals already sitting on it keep the Stage name they were given.",
       confirmLabel: "Delete Stage",
       tone: "destructive",
       onConfirm: () => {
@@ -224,7 +224,7 @@ export default function FlowCanvas() {
     ask({
       title: "Lock this flow?",
       description:
-        "It becomes read-only — no Stages, moves, requirements or actions can be changed until somebody unlocks it and says why.",
+        "It becomes read-only — no Stages, moves, conditions or actions can be changed until somebody unlocks it and says why.",
       confirmLabel: "Lock flow",
       onConfirm: () => run(() => salesFlowService.lockFlow(flow.id, user?.id), "Flow locked."),
     });
@@ -272,7 +272,7 @@ export default function FlowCanvas() {
           isEntry: entry?.id === stage.id,
           isWon: flow?.won_stage_id === stage.id,
           disabled: isLocked,
-          requirementCount: (requirementsByStage[stage.id] ?? []).length,
+          conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
         },
         draggable: !isLocked,
@@ -315,7 +315,7 @@ export default function FlowCanvas() {
       const isSelected = selection?.stageId === stage.id;
 
       const columns = [
-        { column: GATE, items: requirementsByStage[stage.id] ?? [], variant: "requirement", addLabel: "Requirement" },
+        { column: GATE, items: conditionsByStage[stage.id] ?? [], variant: "condition", addLabel: "Condition" },
         { column: RUN, items: actionsByStage[stage.id] ?? [], variant: "action", addLabel: "Action" },
       ];
 
@@ -376,7 +376,7 @@ export default function FlowCanvas() {
     flow,
     isLocked,
     entry,
-    requirementsByStage,
+    conditionsByStage,
     actionsByStage,
     selection,
     handleRemoveEdge,
@@ -462,7 +462,7 @@ export default function FlowCanvas() {
     setSelection({
       nodeId: node.id,
       stageId: node.data.stageId,
-      tab: node.data.column === GATE ? "requirements" : "actions",
+      tab: node.data.column === GATE ? "conditions" : "actions",
     });
   }, []);
 
@@ -476,11 +476,11 @@ export default function FlowCanvas() {
     g.setDefaultEdgeLabel(() => ({}));
 
     // A Stage is as wide and as tall as its satellites make it — laying out the
-    // bare node would tuck every requirement column under its neighbour.
+    // bare node would tuck every condition column under its neighbour.
     const boxes = {};
     stages.forEach((stage) => {
       const box = stageBox({
-        requirementCount: (requirementsByStage[stage.id] ?? []).length,
+        conditionCount: (conditionsByStage[stage.id] ?? []).length,
         actionCount: (actionsByStage[stage.id] ?? []).length,
       });
       boxes[stage.id] = box;
@@ -511,7 +511,7 @@ export default function FlowCanvas() {
         console.error(err);
         toast.error("The layout could not be saved. Try again.");
       });
-  }, [isLocked, stages, edges, requirementsByStage, actionsByStage, user?.id, refresh]);
+  }, [isLocked, stages, edges, conditionsByStage, actionsByStage, user?.id, refresh]);
 
   const selectedSaleType = saleTypes?.find((t) => t.id === effectiveSaleTypeId) ?? null;
   const showEmptySaleTypes = !effectiveSaleTypeId && !loadingTypes;
@@ -763,7 +763,7 @@ export default function FlowCanvas() {
       {flow && stages.length === 0 && (
         <CanvasEmptyState
           title="No Stages yet"
-          body="Name the first Stage below. Drag a node to place it, drag from its right edge to another node's left edge to draw a move, and select a Stage to hang requirements and actions off it."
+          body="Name the first Stage below. Drag a node to place it, drag from its right edge to another node's left edge to draw a move, and select a Stage to hang conditions and actions off it."
         />
       )}
 

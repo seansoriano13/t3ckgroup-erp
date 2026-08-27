@@ -16,7 +16,7 @@ import {
   X,
 } from "lucide-react";
 
-import { procurementService } from "../../services/procurementService";
+import { purchasingService } from "../../services/purchasingService";
 import { projectEvaluationService } from "../../services/projectEvaluationService";
 import { employeeService } from "../../services/employeeService";
 import { supabase } from "../../lib/supabase";
@@ -624,7 +624,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
   );
 }
 
-export default function ProcurementPanel({ opportunity }) {
+export default function PurchasingPanel({ opportunity }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -654,7 +654,7 @@ export default function ProcurementPanel({ opportunity }) {
 
   const { data: requests = [] } = useQuery({
     queryKey: ["procurementRequests", opportunity?.id],
-    queryFn: () => procurementService.listForOpportunity(opportunity.id),
+    queryFn: () => purchasingService.listForOpportunity(opportunity.id),
     enabled: !!opportunity?.id,
   });
 
@@ -812,7 +812,7 @@ export default function ProcurementPanel({ opportunity }) {
         ),
       );
 
-      return procurementService.createRequest({
+      return purchasingService.createRequest({
         opportunityId: opportunity.id,
         items: withImages.filter(Boolean),
         assigneeId: recipient?.kind === "person" ? recipient.employeeId : null,
@@ -838,7 +838,7 @@ export default function ProcurementPanel({ opportunity }) {
 
   const assignMutation = useMutation({
     mutationFn: () =>
-      procurementService.assignRequests(
+      purchasingService.assignRequests(
         unassigned.map((r) => r.id),
         assignTo?.employeeId,
         user?.id,
@@ -854,7 +854,7 @@ export default function ProcurementPanel({ opportunity }) {
 
   const updateMutation = useMutation({
     mutationFn: ({ requestId, payload }) =>
-      procurementService.updateRequest(requestId, payload, user?.id),
+      purchasingService.updateRequest(requestId, payload, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });
@@ -867,7 +867,7 @@ export default function ProcurementPanel({ opportunity }) {
 
   const deleteMutation = useMutation({
     mutationFn: (requestId) =>
-      procurementService.deleteRequest(requestId, user?.id),
+      purchasingService.deleteRequest(requestId, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["procurementRequests", opportunity.id] });
       queryClient.invalidateQueries({ queryKey: ["inclusions", opportunity.id] });

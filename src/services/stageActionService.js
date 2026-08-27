@@ -42,7 +42,7 @@ export const stageActionService = {
   /**
    * Every listed Stage's actions in one round trip, grouped by stage id.
    * The batched read behind the Flow Canvas — see the note on
-   * stageRequirementService.getForStages.
+   * stageConditionService.getForStages.
    */
   async getForStages(stageIds = [], { includeArchived = false } = {}) {
     const ids = [...new Set(stageIds.filter(Boolean))];

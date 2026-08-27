@@ -100,7 +100,7 @@ describe("summariseCompleteness", () => {
     expect(summary.isComplete).toBe(false)
   })
 
-  // The requirement is met, just not with the thing the client named. The
+  // The condition is met, just not with the thing the client named. The
   // consequence is that sales must re-price, not that the spec has a hole.
   it("counts a substituted item as answered, and says so separately", () => {
     const summary = summariseCompleteness([
@@ -188,7 +188,7 @@ describe("outstandingInclusions", () => {
 })
 
 describe("completenessForOutcome", () => {
-  it("reads a buy as covering the requirement", () => {
+  it("reads a buy as covering the condition", () => {
     expect(completenessForOutcome(PROCUREMENT_OUTCOME.PURCHASED)).toBe(COMPLETENESS.COVERED)
     expect(completenessForOutcome(PROCUREMENT_OUTCOME.DELIVERED)).toBe(COMPLETENESS.COVERED)
   })

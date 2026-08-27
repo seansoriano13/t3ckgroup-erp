@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
-  blockingRequirements,
+  blockingConditions,
   DEADLINE_APPROACHING_DAYS,
   deadlineStatus,
   evaluateCrossing,
-  evaluateRequirement,
-  REQUIREMENT_STATUS,
+  evaluateCondition,
+  CONDITION_STATUS,
   stagesCrossed,
 } from "./stageGate"
 import { PIPELINE_STAGE_SEED } from "./sor"
@@ -17,7 +17,7 @@ import { PIPELINE_STAGE_SEED } from "./sor"
  * see .scratch/stage-gate-engine/issues/01-schema-and-evaluation-engine.md.
  */
 
-const makeRequirement = (overrides = {}) => ({
+const makeCondition = (overrides = {}) => ({
   id: "req-1",
   stage_code: "AWARDED",
   kind: "attachment",
@@ -69,193 +69,193 @@ describe("stagesCrossed", () => {
   })
 })
 
-describe("blockingRequirements", () => {
-  it("keeps a required, active, non-deadline requirement", () => {
-    const req = makeRequirement()
-    expect(blockingRequirements([req])).toEqual([req])
+describe("blockingConditions", () => {
+  it("keeps a required, active, non-deadline condition", () => {
+    const req = makeCondition()
+    expect(blockingConditions([req])).toEqual([req])
   })
 
-  it("drops an archived requirement", () => {
-    const req = makeRequirement({ archived_at: "2026-02-01T00:00:00.000Z" })
-    expect(blockingRequirements([req])).toEqual([])
+  it("drops an archived condition", () => {
+    const req = makeCondition({ archived_at: "2026-02-01T00:00:00.000Z" })
+    expect(blockingConditions([req])).toEqual([])
   })
 
-  it("drops an optional requirement — advisory items never block", () => {
-    const req = makeRequirement({ is_required: false })
-    expect(blockingRequirements([req])).toEqual([])
+  it("drops an optional condition — advisory items never block", () => {
+    const req = makeCondition({ is_required: false })
+    expect(blockingConditions([req])).toEqual([])
   })
 
-  it("drops a deadline requirement — deadlines never block by kind, regardless of is_required", () => {
-    const req = makeRequirement({ kind: "deadline", is_required: true })
-    expect(blockingRequirements([req])).toEqual([])
+  it("drops a deadline condition — deadlines never block by kind, regardless of is_required", () => {
+    const req = makeCondition({ kind: "deadline", is_required: true })
+    expect(blockingConditions([req])).toEqual([])
   })
 })
 
-describe("evaluateRequirement — attachment kind", () => {
+describe("evaluateCondition — attachment kind", () => {
   it("is satisfied when a matching document is on file", () => {
-    const req = makeRequirement({
+    const req = makeCondition({
       kind: "attachment",
       config: { documentType: "NOTICE_OF_AWARD" },
     })
-    const result = evaluateRequirement(req, {
+    const result = evaluateCondition(req, {
       attachments: [{ documentType: "NOTICE_OF_AWARD", uploadedBy: "emp-1", uploadedAt: "2026-03-01" }],
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
     expect(result.satisfiedBy).toBe("emp-1")
   })
 
   it("is unsatisfied when no document of the named type is on file", () => {
-    const req = makeRequirement({
+    const req = makeCondition({
       kind: "attachment",
       config: { documentType: "NOTICE_OF_AWARD" },
     })
-    const result = evaluateRequirement(req, {
+    const result = evaluateCondition(req, {
       attachments: [{ documentType: "PERFORMANCE_BOND" }],
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 
   it("accepts any attachment when no document type is configured", () => {
-    const req = makeRequirement({ kind: "attachment", config: {} })
-    const result = evaluateRequirement(req, { attachments: [{ documentType: "ANYTHING" }] })
-    expect(result.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    const req = makeCondition({ kind: "attachment", config: {} })
+    const result = evaluateCondition(req, { attachments: [{ documentType: "ANYTHING" }] })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
   })
 })
 
-describe("evaluateRequirement — field kind", () => {
+describe("evaluateCondition — field kind", () => {
   it("is satisfied when the named column is non-empty", () => {
-    const req = makeRequirement({ kind: "field", config: { column: "po_date" } })
-    const result = evaluateRequirement(req, { opportunity: { po_date: "2026-04-01" } })
-    expect(result.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    const req = makeCondition({ kind: "field", config: { column: "po_date" } })
+    const result = evaluateCondition(req, { opportunity: { po_date: "2026-04-01" } })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
   })
 
   it("is unsatisfied when the named column is empty", () => {
-    const req = makeRequirement({ kind: "field", config: { column: "po_date" } })
-    const result = evaluateRequirement(req, { opportunity: { po_date: null } })
-    expect(result.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    const req = makeCondition({ kind: "field", config: { column: "po_date" } })
+    const result = evaluateCondition(req, { opportunity: { po_date: null } })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 
   it("un-satisfies again once a filled field is cleared — the record is the evidence, not a cached answer", () => {
-    const req = makeRequirement({ kind: "field", config: { column: "po_date" } })
-    const filled = evaluateRequirement(req, { opportunity: { po_date: "2026-04-01" } })
-    const cleared = evaluateRequirement(req, { opportunity: { po_date: "" } })
-    expect(filled.status).toBe(REQUIREMENT_STATUS.SATISFIED)
-    expect(cleared.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    const req = makeCondition({ kind: "field", config: { column: "po_date" } })
+    const filled = evaluateCondition(req, { opportunity: { po_date: "2026-04-01" } })
+    const cleared = evaluateCondition(req, { opportunity: { po_date: "" } })
+    expect(filled.status).toBe(CONDITION_STATUS.SATISFIED)
+    expect(cleared.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 })
 
-describe("evaluateRequirement — assignment kind", () => {
+describe("evaluateCondition — assignment kind", () => {
   it("is satisfied when a member from the named department is on the SOR", () => {
-    const req = makeRequirement({ kind: "assignment", config: { department: "Purchasing" } })
-    const result = evaluateRequirement(req, {
+    const req = makeCondition({ kind: "assignment", config: { department: "Purchasing" } })
+    const result = evaluateCondition(req, {
       members: [{ employeeId: "emp-2", department: "Purchasing" }],
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
     expect(result.satisfiedBy).toBe("emp-2")
   })
 
   it("is unsatisfied when nobody from the named department is a member", () => {
-    const req = makeRequirement({ kind: "assignment", config: { department: "Purchasing" } })
-    const result = evaluateRequirement(req, { members: [{ employeeId: "emp-3", department: "Sales" }] })
-    expect(result.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    const req = makeCondition({ kind: "assignment", config: { department: "Purchasing" } })
+    const result = evaluateCondition(req, { members: [{ employeeId: "emp-3", department: "Sales" }] })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 })
 
-describe("evaluateRequirement — tickbox kind", () => {
+describe("evaluateCondition — tickbox kind", () => {
   it("is satisfied only once a status row exists, and records who and when", () => {
-    const req = makeRequirement({ kind: "tickbox", config: {} })
-    const unticked = evaluateRequirement(req, { statusRow: null })
-    const ticked = evaluateRequirement(req, {
+    const req = makeCondition({ kind: "tickbox", config: {} })
+    const unticked = evaluateCondition(req, { statusRow: null })
+    const ticked = evaluateCondition(req, {
       statusRow: { satisfied_by: "emp-4", satisfied_at: "2026-05-01T00:00:00.000Z" },
     })
-    expect(unticked.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
-    expect(ticked.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    expect(unticked.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(ticked.status).toBe(CONDITION_STATUS.SATISFIED)
     expect(ticked.satisfiedBy).toBe("emp-4")
     expect(ticked.satisfiedAt).toBe("2026-05-01T00:00:00.000Z")
   })
 })
 
 // Issue #50.
-describe("evaluateRequirement — project_evaluation kind", () => {
+describe("evaluateCondition — project_evaluation kind", () => {
   it("is satisfied by existence alone, whether or not it was signed off", () => {
-    const req = makeRequirement({ kind: "project_evaluation", config: {} })
+    const req = makeCondition({ kind: "project_evaluation", config: {} })
 
-    const missing = evaluateRequirement(req, { hasProjectEvaluation: false })
-    const unsigned = evaluateRequirement(req, { hasProjectEvaluation: true })
+    const missing = evaluateCondition(req, { hasProjectEvaluation: false })
+    const unsigned = evaluateCondition(req, { hasProjectEvaluation: true })
 
-    expect(missing.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
-    expect(unsigned.status).toBe(REQUIREMENT_STATUS.SATISFIED)
+    expect(missing.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(unsigned.status).toBe(CONDITION_STATUS.SATISFIED)
   })
 
   it("defaults to unsatisfied when the caller says nothing about it", () => {
-    const req = makeRequirement({ kind: "project_evaluation", config: {} })
-    expect(evaluateRequirement(req).status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    const req = makeCondition({ kind: "project_evaluation", config: {} })
+    expect(evaluateCondition(req).status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 
   it("evaluates only the Stage being left — no positional comparison enters into it", () => {
     // hasProjectEvaluation is a fact about the deal, not about any Stage, so
     // nothing here reads stage_code, sort_order, or any other Stage besides
-    // the one the requirement itself lives on.
-    const req = makeRequirement({ kind: "project_evaluation", stage_code: "PROPOSAL" })
-    expect(evaluateRequirement(req, { hasProjectEvaluation: true }).status).toBe(
-      REQUIREMENT_STATUS.SATISFIED,
+    // the one the condition itself lives on.
+    const req = makeCondition({ kind: "project_evaluation", stage_code: "PROPOSAL" })
+    expect(evaluateCondition(req, { hasProjectEvaluation: true }).status).toBe(
+      CONDITION_STATUS.SATISFIED,
     )
   })
 })
 
-describe("evaluateRequirement — never applied vs unsatisfied", () => {
-  it("is not_applicable when the requirement was created after the crossing being evaluated", () => {
-    const req = makeRequirement({
+describe("evaluateCondition — never applied vs unsatisfied", () => {
+  it("is not_applicable when the condition was created after the crossing being evaluated", () => {
+    const req = makeCondition({
       kind: "field",
       config: { column: "po_date" },
       created_at: "2026-06-01T00:00:00.000Z",
     })
-    const result = evaluateRequirement(req, {
+    const result = evaluateCondition(req, {
       opportunity: { po_date: null },
-      asOf: "2026-05-01T00:00:00.000Z", // the deal crossed before this requirement existed
+      asOf: "2026-05-01T00:00:00.000Z", // the deal crossed before this condition existed
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.NOT_APPLICABLE)
+    expect(result.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 
-  it("is evaluated normally when the requirement predates the crossing", () => {
-    const req = makeRequirement({
+  it("is evaluated normally when the condition predates the crossing", () => {
+    const req = makeCondition({
       kind: "field",
       config: { column: "po_date" },
       created_at: "2026-01-01T00:00:00.000Z",
     })
-    const result = evaluateRequirement(req, {
+    const result = evaluateCondition(req, {
       opportunity: { po_date: null },
       asOf: "2026-05-01T00:00:00.000Z",
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.UNSATISFIED)
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 
   it("is not_applicable once archived, regardless of satisfaction", () => {
-    const req = makeRequirement({ kind: "tickbox", archived_at: "2026-02-01T00:00:00.000Z" })
-    const result = evaluateRequirement(req, { statusRow: null })
-    expect(result.status).toBe(REQUIREMENT_STATUS.NOT_APPLICABLE)
+    const req = makeCondition({ kind: "tickbox", archived_at: "2026-02-01T00:00:00.000Z" })
+    const result = evaluateCondition(req, { statusRow: null })
+    expect(result.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 
   // Issue #50's own acceptance criterion: a deal that already crossed the
-  // Stage before a Project Evaluation requirement existed reads as
+  // Stage before a Project Evaluation condition existed reads as
   // not_applicable, never as blocked after the fact.
-  it("is not_applicable for a project_evaluation requirement added after the deal already crossed", () => {
-    const req = makeRequirement({
+  it("is not_applicable for a project_evaluation condition added after the deal already crossed", () => {
+    const req = makeCondition({
       kind: "project_evaluation",
       config: {},
       created_at: "2026-06-01T00:00:00.000Z",
     })
-    const result = evaluateRequirement(req, {
+    const result = evaluateCondition(req, {
       hasProjectEvaluation: false,
       asOf: "2026-05-01T00:00:00.000Z",
     })
-    expect(result.status).toBe(REQUIREMENT_STATUS.NOT_APPLICABLE)
+    expect(result.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 })
 
 describe("deadlineStatus", () => {
   it("counts days remaining before the due date", () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { daysRemaining, isBreached } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-04T00:00:00.000Z",
@@ -265,7 +265,7 @@ describe("deadlineStatus", () => {
   })
 
   it("is not breached on the boundary day itself", () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { daysRemaining, isBreached } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-11T00:00:00.000Z", // exactly ten days later
@@ -275,7 +275,7 @@ describe("deadlineStatus", () => {
   })
 
   it("is breached the day after the boundary", () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { daysRemaining, isBreached } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-12T00:00:00.000Z",
@@ -285,7 +285,7 @@ describe("deadlineStatus", () => {
   })
 
   it("returns nulls rather than throwing when it cannot compute", () => {
-    const req = makeRequirement({ kind: "deadline", config: {} })
+    const req = makeCondition({ kind: "deadline", config: {} })
     expect(deadlineStatus(req, { enteredAt: null, asOf: "2026-06-01T00:00:00.000Z" })).toEqual({
       daysRemaining: null,
       isBreached: false,
@@ -294,7 +294,7 @@ describe("deadlineStatus", () => {
   })
 
   it("is not yet approaching with days to spare", () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { isApproaching } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-04T00:00:00.000Z", // 7 days left
@@ -303,7 +303,7 @@ describe("deadlineStatus", () => {
   })
 
   it(`is approaching at exactly the ${DEADLINE_APPROACHING_DAYS}-day threshold`, () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { daysRemaining, isApproaching } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-08T00:00:00.000Z", // 3 days left
@@ -315,7 +315,7 @@ describe("deadlineStatus", () => {
   })
 
   it("is not \"approaching\" once it has already breached — that's a different state", () => {
-    const req = makeRequirement({ kind: "deadline", config: { days: 10 } })
+    const req = makeCondition({ kind: "deadline", config: { days: 10 } })
     const { isBreached, isApproaching } = deadlineStatus(req, {
       enteredAt: "2026-06-01T00:00:00.000Z",
       asOf: "2026-06-12T00:00:00.000Z",
@@ -326,10 +326,10 @@ describe("deadlineStatus", () => {
 })
 
 describe("evaluateCrossing", () => {
-  const requirementsByStage = {
-    LEAD: [makeRequirement({ id: "r-lead", stage_code: "LEAD", kind: "tickbox", label: "Lead checklist" })],
+  const conditionsByStage = {
+    LEAD: [makeCondition({ id: "r-lead", stage_code: "LEAD", kind: "tickbox", label: "Lead checklist" })],
     QUALIFIED: [
-      makeRequirement({ id: "r-qual", stage_code: "QUALIFIED", kind: "field", config: { column: "budget_confirmed" }, label: "Budget confirmed" }),
+      makeCondition({ id: "r-qual", stage_code: "QUALIFIED", kind: "field", config: { column: "budget_confirmed" }, label: "Budget confirmed" }),
     ],
   }
 
@@ -338,9 +338,9 @@ describe("evaluateCrossing", () => {
       fromCode: "LEAD",
       toCode: "AWARDED",
       stages: PIPELINE_STAGE_SEED,
-      requirementsByStage,
+      conditionsByStage,
       opportunity: { budget_confirmed: null },
-      statusRowsByRequirement: {},
+      statusRowsByCondition: {},
       asOf: "2026-07-01T00:00:00.000Z",
     })
     expect(result.blocked).toBe(true)
@@ -348,14 +348,14 @@ describe("evaluateCrossing", () => {
     expect(stageCodes).toEqual(expect.arrayContaining(["LEAD", "QUALIFIED"]))
   })
 
-  it("unblocks once the last outstanding requirement is satisfied", () => {
+  it("unblocks once the last outstanding condition is satisfied", () => {
     const result = evaluateCrossing({
       fromCode: "LEAD",
       toCode: "AWARDED",
       stages: PIPELINE_STAGE_SEED,
-      requirementsByStage,
+      conditionsByStage,
       opportunity: { budget_confirmed: "Yes" },
-      statusRowsByRequirement: { "r-lead": { satisfied_by: "emp-1", satisfied_at: "2026-07-01" } },
+      statusRowsByCondition: { "r-lead": { satisfied_by: "emp-1", satisfied_at: "2026-07-01" } },
       asOf: "2026-07-01T00:00:00.000Z",
     })
     expect(result.blocked).toBe(false)
@@ -367,7 +367,7 @@ describe("evaluateCrossing", () => {
       fromCode: "AWARDED",
       toCode: "LEAD",
       stages: PIPELINE_STAGE_SEED,
-      requirementsByStage,
+      conditionsByStage,
       opportunity: {},
       asOf: "2026-07-01T00:00:00.000Z",
     })
@@ -375,10 +375,10 @@ describe("evaluateCrossing", () => {
     expect(result.blocked).toBe(false)
   })
 
-  it("a requirement added after the deal already crossed does not block it", () => {
-    const lateRequirement = {
+  it("a condition added after the deal already crossed does not block it", () => {
+    const lateCondition = {
       LEAD: [
-        makeRequirement({
+        makeCondition({
           id: "r-late",
           stage_code: "LEAD",
           kind: "tickbox",
@@ -390,9 +390,9 @@ describe("evaluateCrossing", () => {
       fromCode: "LEAD",
       toCode: "QUALIFIED",
       stages: PIPELINE_STAGE_SEED,
-      requirementsByStage: lateRequirement,
+      conditionsByStage: lateCondition,
       opportunity: {},
-      asOf: "2026-07-01T00:00:00.000Z", // before the requirement existed
+      asOf: "2026-07-01T00:00:00.000Z", // before the condition existed
     })
     expect(result.blocked).toBe(false)
   })
