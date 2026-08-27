@@ -57,6 +57,27 @@ describe("commissionService", () => {
     })
   })
 
+  describe("getEffectiveRetentionPercent", () => {
+    it("returns null when no Retention rate has ever been set", async () => {
+      expect(await commissionService.getEffectiveRetentionPercent()).toBeNull()
+    })
+
+    it("does not affect getEffectiveRates, which stays VAT/Withholding/Pool only", async () => {
+      makeCommissionRate({ rate_type: "RETENTION", percent: 1, effective_from: "2000-01-01" })
+
+      const rates = await commissionService.getEffectiveRates()
+      expect(rates).toEqual({ vatPercent: 12, withholdingPercent: 8, poolPercent: 1 })
+    })
+
+    it("picks the latest Retention rate on or before the given date", async () => {
+      makeCommissionRate({ rate_type: "RETENTION", percent: 1, effective_from: "2026-01-01" })
+      makeCommissionRate({ rate_type: "RETENTION", percent: 2, effective_from: "2026-06-01" })
+
+      expect(await commissionService.getEffectiveRetentionPercent("2026-03-01")).toBe(1)
+      expect(await commissionService.getEffectiveRetentionPercent("2026-07-01")).toBe(2)
+    })
+  })
+
   describe("getDepartments", () => {
     it("returns every Commission Department with its allocation percentage", async () => {
       const departments = await commissionService.getDepartments()
@@ -225,6 +246,19 @@ describe("commissionService", () => {
       await expect(
         commissionService.createRate({ rateType: "SALES_TAX", percent: 1, effectiveFrom: "2027-01-01" }, admin.id),
       ).rejects.toThrow(/Rate type must be one of/)
+    })
+
+    // Issue #42.
+    it("accepts a Retention rate, even though it's not required by getEffectiveRates", async () => {
+      const admin = makeSuperAdmin()
+
+      await commissionService.createRate(
+        { rateType: "RETENTION", percent: 1, effectiveFrom: "2027-01-01" },
+        admin.id,
+      )
+
+      const retention = await commissionService.getEffectiveRetentionPercent("2027-02-01")
+      expect(retention).toBe(1)
     })
 
     it("rejects a non-Super-Admin without writing anything", async () => {

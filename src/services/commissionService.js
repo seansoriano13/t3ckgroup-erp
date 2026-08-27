@@ -11,6 +11,12 @@ import { getCurrentLocalDate } from "../utils/formatDate";
 
 const RATE_TYPE_LIST = [RATE_TYPES.VAT, RATE_TYPES.WITHHOLDING, RATE_TYPES.POOL];
 
+// Retention (issue #42) is creatable and listable like any other rate, but
+// deliberately absent from RATE_TYPE_LIST above: that list is what
+// getEffectiveRates treats as required, and a Retention rate is optional —
+// read only by Project Evaluation.
+const CREATABLE_RATE_TYPES = [...RATE_TYPE_LIST, RATE_TYPES.RETENTION];
+
 /**
  * Throws unless `actorId` is a Super Admin. This is enforced independently
  * at the database via RLS (see supabase/migrations/0028, 0031) — this check
@@ -96,6 +102,25 @@ async function getEffectiveRates(asOfDate = getCurrentLocalDate()) {
   };
 }
 
+/**
+ * The Retention rate in force as of a date, or null if none has ever been
+ * set (issue #42). Read only by Project Evaluation — getEffectiveRates above
+ * never calls this, so a Commission Pool figure is never affected by whether
+ * a Retention rate exists.
+ */
+async function getEffectiveRetentionPercent(asOfDate = getCurrentLocalDate()) {
+  const { data, error } = await supabase
+    .from("commission_rates")
+    .select("percent, effective_from")
+    .eq("rate_type", RATE_TYPES.RETENTION)
+    .lte("effective_from", asOfDate)
+    .order("effective_from", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  return data?.[0] ? Number(data[0].percent) : null;
+}
+
 /** The current Commission Department allocations. */
 async function getDepartments() {
   const { data, error } = await supabase
@@ -139,8 +164,8 @@ async function listRateHistory() {
 async function createRate({ rateType, percent, effectiveFrom }, actorId) {
   await requireSuperAdmin(actorId);
 
-  if (!RATE_TYPE_LIST.includes(rateType)) {
-    throw new Error(`Rate type must be one of ${RATE_TYPE_LIST.join(", ")}.`);
+  if (!CREATABLE_RATE_TYPES.includes(rateType)) {
+    throw new Error(`Rate type must be one of ${CREATABLE_RATE_TYPES.join(", ")}.`);
   }
   if (!effectiveFrom) {
     throw new Error("Effective-from date is required.");
@@ -399,6 +424,7 @@ async function getCommissionDashboardData({
 
 export const commissionService = {
   getEffectiveRates,
+  getEffectiveRetentionPercent,
   getDepartments,
   getSplitsForProjectType,
   getCommissionBreakdownForOpportunity,

@@ -30,21 +30,37 @@ export const RATE_TYPES = {
   VAT: "VAT",
   WITHHOLDING: "WITHHOLDING",
   POOL: "POOL",
+  RETENTION: "RETENTION",
 };
 
 export const RATE_TYPE_LABELS = {
   [RATE_TYPES.VAT]: "VAT",
   [RATE_TYPES.WITHHOLDING]: "Withholding (ITR)",
   [RATE_TYPES.POOL]: "Pool",
+  [RATE_TYPES.RETENTION]: "Retention",
 };
+
+// Required for every Commission Pool calculation. RETENTION (issue #42) is
+// deliberately excluded — it's a rate type read only by Project Evaluation,
+// and requiring it here would make every existing Commission Pool figure
+// throw the moment a company that has never set one asks for a breakdown.
+const REQUIRED_RATE_TYPES = [RATE_TYPES.VAT, RATE_TYPES.WITHHOLDING, RATE_TYPES.POOL];
 
 /**
  * Contract Value, less VAT (divided out), less Withholding (applied to the
- * VAT-exclusive amount).
+ * VAT-exclusive amount), less Retention (applied on top of that, issue #42).
+ *
+ * `retentionPercent` defaults to 0 — every existing caller (Commission Pool)
+ * omits it, and 0 retention is a no-op multiplier, so those figures are
+ * unchanged whether or not a Retention rate has ever been configured.
  */
-export function calculateCommissionableRevenue(contractValue, { vatPercent, withholdingPercent }) {
+export function calculateCommissionableRevenue(
+  contractValue,
+  { vatPercent, withholdingPercent, retentionPercent = 0 },
+) {
   const netOfVat = contractValue / (1 + vatPercent / 100);
-  return netOfVat * (1 - withholdingPercent / 100);
+  const afterWithholding = netOfVat * (1 - withholdingPercent / 100);
+  return afterWithholding * (1 - (retentionPercent || 0) / 100);
 }
 
 /** The Commission Pool: a percentage of Commissionable Revenue. */
@@ -150,12 +166,14 @@ export function calculateCommissionBreakdown({
   contractValue,
   vatPercent,
   withholdingPercent,
+  retentionPercent,
   poolPercent,
   departments,
 }) {
   const commissionableRevenue = calculateCommissionableRevenue(contractValue, {
     vatPercent,
     withholdingPercent,
+    retentionPercent,
   });
   const commissionPool = calculateCommissionPool(commissionableRevenue, poolPercent);
   const departmentShares = splitByDepartment(commissionPool, departments);
@@ -164,20 +182,34 @@ export function calculateCommissionBreakdown({
 }
 
 /**
+ * The latest rate of one type effective on or before a date, or null if none
+ * has ever been set. Unlike resolveEffectiveRatesFromList this never throws —
+ * for optional rate types like Retention (issue #42), an unconfigured value
+ * is a legitimate "not applicable," not an error.
+ */
+export function resolveOptionalRateFromList(rateList = [], asOfDate, rateType) {
+  const matching = rateList
+    .filter((r) => r.rate_type === rateType && (!r.effective_from || r.effective_from <= asOfDate))
+    .sort((a, b) => (b.effective_from || "").localeCompare(a.effective_from || ""));
+  const latest = matching[0];
+  return latest ? Number(latest.percent) : null;
+}
+
+/**
  * Resolves effective rates for a given date from an array of dated rate records
- * [ { rate_type, percent, effective_from } ]
+ * [ { rate_type, percent, effective_from } ]. Throws if VAT, Withholding or
+ * Pool has no rate effective by that date — those three are load-bearing for
+ * every Commission Pool figure. Retention is resolved separately, by
+ * resolveOptionalRateFromList, exactly because it must never throw here.
  */
 export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
   const rates = {};
-  for (const type of Object.values(RATE_TYPES)) {
-    const matching = rateList
-      .filter((r) => r.rate_type === type && (!r.effective_from || r.effective_from <= asOfDate))
-      .sort((a, b) => (b.effective_from || "").localeCompare(a.effective_from || ""));
-    const latest = matching[0];
-    if (!latest) {
+  for (const type of REQUIRED_RATE_TYPES) {
+    const percent = resolveOptionalRateFromList(rateList, asOfDate, type);
+    if (percent === null) {
       throw new Error(`No effective Commission Rate found for ${type} as of ${asOfDate}.`);
     }
-    rates[type] = Number(latest.percent);
+    rates[type] = percent;
   }
   return {
     vatPercent: rates[RATE_TYPES.VAT],
