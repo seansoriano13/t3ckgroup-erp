@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Calculator, ChevronDown, ShieldCheck } from "lucide-react";
+import { Calculator, ChevronDown, Plus, ShieldCheck, TriangleAlert, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../context/AuthContext";
@@ -54,6 +54,7 @@ export default function ProjectEvaluationPanel({ opportunity }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isFolded, setIsFolded] = useState(false);
+  const [attachNumber, setAttachNumber] = useState("");
 
   const opportunityId = opportunity?.id;
 
@@ -112,6 +113,22 @@ export default function ProjectEvaluationPanel({ opportunity }) {
       invalidate();
       toast.success("Project Evaluation signed off.");
     },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const attachMutation = useMutation({
+    mutationFn: (poNumber) =>
+      projectEvaluationService.attachPurchaseOrder(opportunityId, poNumber, user?.id),
+    onSuccess: () => {
+      invalidate();
+      setAttachNumber("");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const detachMutation = useMutation({
+    mutationFn: (poNumber) => projectEvaluationService.detachPurchaseOrder(opportunityId, poNumber),
+    onSuccess: invalidate,
     onError: (err) => toast.error(err.message),
   });
 
@@ -260,7 +277,108 @@ export default function ProjectEvaluationPanel({ opportunity }) {
                     </p>
                   </div>
                 )}
+
+                {summary?.isBound && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                      Actual cost
+                    </p>
+                    {summary.actualCost.status === "unreachable" ? (
+                      <p className="flex items-center gap-1 text-xs font-semibold text-amber-11">
+                        <TriangleAlert size={12} /> Odoo unreachable
+                      </p>
+                    ) : (
+                      <p className="text-sm font-bold text-foreground">
+                        {summary.actualCost.total.amount === null
+                          ? "No actuals yet"
+                          : money(summary.actualCost.total.amount)}
+                        {summary.actualCost.variance !== null &&
+                          summary.actualCost.variance !== undefined &&
+                          summary.actualCost.variance !== 0 && (
+                            <span
+                              className={cn(
+                                "ml-1 text-[11px] font-semibold",
+                                summary.actualCost.variance > 0 ? "text-red-11" : "text-green-11",
+                              )}
+                            >
+                              ({summary.actualCost.variance > 0 ? "+" : ""}
+                              {money(summary.actualCost.variance)} vs estimate)
+                            </span>
+                          )}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {summary?.isBound && summary.actualCost.status === "ok" && (
+                <div className="space-y-1.5 border-t border-border/60 pt-3">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Purchase orders ({summary.actualCost.orders.length})
+                  </span>
+
+                  {summary.actualCost.orders.length > 0 && (
+                    <div className="space-y-1">
+                      {summary.actualCost.orders.map((order) => (
+                        <div
+                          key={order.name}
+                          className="group flex items-center justify-between gap-2 rounded-lg border border-border/50 bg-muted/20 px-2.5 py-1.5"
+                        >
+                          <span className="text-[12px] font-semibold text-foreground">
+                            {order.name}
+                            {order.supplier && (
+                              <span className="ml-1.5 font-normal text-muted-foreground">
+                                — {order.supplier}
+                              </span>
+                            )}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[12px] font-bold tabular-nums text-foreground">
+                              {money(order.amount_untaxed)}
+                            </span>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => detachMutation.mutate(order.name)}
+                                aria-label={`Detach ${order.name}`}
+                                title="Detach — this PO was picked up wrongly"
+                                className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-red-11 group-hover:opacity-100"
+                              >
+                                <X size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {canEdit && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!attachNumber.trim()) return;
+                        attachMutation.mutate(attachNumber.trim());
+                      }}
+                      className="flex items-center gap-1.5"
+                    >
+                      <input
+                        value={attachNumber}
+                        onChange={(e) => setAttachNumber(e.target.value)}
+                        placeholder="Attach a PO the rollup missed, e.g. P02563"
+                        className="min-w-0 flex-1 rounded-lg border border-dashed border-mauve-7 bg-transparent px-2.5 py-1 text-[12px] text-foreground outline-none focus:border-mauve-8"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!attachNumber.trim() || attachMutation.isPending}
+                        className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+                      >
+                        <Plus size={11} /> Attach
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
 
               {canEdit && (
                 <div className="flex justify-end border-t border-border/60 pt-3">

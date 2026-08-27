@@ -344,3 +344,44 @@ export function priceDelta(candidatePrice, odooOrderPrice) {
   if (odooOrderPrice === null || odooOrderPrice === undefined) return null
   return Number(odooOrderPrice) - Number(candidatePrice)
 }
+
+// ── Actual cost (issue #49) ─────────────────────────────────────────────────
+// The purchase orders one project actually spawned, rolled up by Source
+// Document, reconciled against local attach/detach overrides
+// (sor_purchase_order_links, migration 0062).
+
+/**
+ * The purchase orders actually visible for a project: every Odoo match minus
+ * whatever has been detached, in the order Odoo returned them. A detach
+ * always wins over a fresh Odoo match — that is the entire reason the
+ * override is recorded rather than left to the next search to rediscover.
+ *
+ * `localLinks` is `[{ po_number, origin, is_detached }]` — the small set of
+ * rows that exist specifically because they disagree with a plain Odoo
+ * search, per migration 0062's own reasoning. A po_number with no override
+ * needs no lookup here at all: it is simply whatever `odooOrders` says.
+ */
+export function visiblePurchaseOrders(odooOrders = [], localLinks = []) {
+  const detached = new Set(
+    (Array.isArray(localLinks) ? localLinks : [])
+      .filter((link) => link?.is_detached)
+      .map((link) => link.po_number),
+  )
+
+  return (Array.isArray(odooOrders) ? odooOrders : []).filter((order) => !detached.has(order.name))
+}
+
+/**
+ * The SOR's actual cost: the sum of every visible purchase order's
+ * tax-exclusive total. `amount` is null — not zero — when there is nothing to
+ * total yet, the same distinction rollUpBaseCost makes for the estimate side.
+ */
+export function sumActualCost(orders = []) {
+  const rows = Array.isArray(orders) ? orders : []
+  if (rows.length === 0) return { amount: null, orderCount: 0 }
+
+  return {
+    amount: rows.reduce((sum, order) => sum + (Number(order.amount_untaxed) || 0), 0),
+    orderCount: rows.length,
+  }
+}

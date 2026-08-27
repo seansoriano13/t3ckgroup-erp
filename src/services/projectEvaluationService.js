@@ -11,6 +11,8 @@ import {
   priceDelta,
   resolveCost,
   rollUpBaseCost,
+  sumActualCost,
+  visiblePurchaseOrders,
   winningOffer,
 } from "../constants/projectEvaluation";
 
@@ -716,15 +718,141 @@ export const projectEvaluationService = {
     return { ...rates, retentionPercent };
   },
 
+  // ── Actual cost (issue #49) ───────────────────────────────────────────────
+
+  /** Every local override recorded for an SOR's purchase-order rollup. */
+  async listPurchaseOrderLinks(opportunityId) {
+    if (!opportunityId) return [];
+
+    const { data, error } = await supabase
+      .from("sor_purchase_order_links")
+      .select("*")
+      .eq("opportunity_id", opportunityId);
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Calls the Odoo PO rollup edge function. Never throws — an unreachable
+   * Odoo is a status on the result the caller displays, the same soft-fail
+   * contract odoo-po-verify and odoo-sor-lookup already use, not an error
+   * anyone has to catch.
+   */
+  async fetchOdooPurchaseOrders(salesReference, additionalPoNumbers = []) {
+    if (!salesReference) return { status: "ok", orders: [] };
+
+    try {
+      const { data, error } = await supabase.functions.invoke("odoo-po-rollup", {
+        body: { saleOrderRef: salesReference, additionalPoNumbers },
+      });
+      if (error || !data?.success) return { status: "unreachable", orders: [] };
+      return { status: "ok", orders: data.orders || [] };
+    } catch {
+      return { status: "unreachable", orders: [] };
+    }
+  },
+
+  /**
+   * The SOR's actual cost: live Odoo purchase orders matched by Source
+   * Document, plus any manually attached (looked up by number in the same
+   * call so their totals are real Odoo figures), minus whatever has been
+   * detached. `status` is "unreachable" when Odoo could not be asked at all —
+   * distinct from "ok" with an empty set, which means Odoo answered and there
+   * is genuinely nothing yet.
+   */
+  async getActualCostRollup(opportunityId, salesReference) {
+    const links = await this.listPurchaseOrderLinks(opportunityId);
+    const manualNumbers = links
+      .filter((link) => link.origin === "MANUAL" && !link.is_detached)
+      .map((link) => link.po_number);
+
+    const { status, orders } = await this.fetchOdooPurchaseOrders(salesReference, manualNumbers);
+    const visible = visiblePurchaseOrders(orders, links);
+
+    return { status, orders: visible, total: sumActualCost(visible), links };
+  },
+
+  /** Attaches a purchase order the rollup did not find, by its Odoo number. */
+  async attachPurchaseOrder(opportunityId, poNumber, actorId) {
+    if (!opportunityId || !poNumber) {
+      throw new Error("An SOR and a PO number are required.");
+    }
+
+    const { data, error } = await supabase
+      .from("sor_purchase_order_links")
+      .upsert(
+        {
+          opportunity_id: opportunityId,
+          po_number: poNumber.trim().toUpperCase(),
+          origin: "MANUAL",
+          is_detached: false,
+          created_by: actorId || null,
+        },
+        { onConflict: "opportunity_id,po_number" },
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /**
+   * Detaches a purchase order the rollup picked up wrongly.
+   *
+   * A manually attached PO is un-attached by deleting its override — nothing
+   * is left to record once neither Odoo's search nor a human claims the
+   * number. A PO Odoo's own search found is detached by recording that
+   * override, so it stays excluded across the next refresh (0062).
+   */
+  async detachPurchaseOrder(opportunityId, poNumber) {
+    if (!opportunityId || !poNumber) {
+      throw new Error("An SOR and a PO number are required.");
+    }
+    const number = poNumber.trim().toUpperCase();
+
+    const { data: existing, error: readError } = await supabase
+      .from("sor_purchase_order_links")
+      .select("id, origin")
+      .eq("opportunity_id", opportunityId)
+      .eq("po_number", number)
+      .maybeSingle();
+    if (readError) throw readError;
+
+    if (existing?.origin === "MANUAL") {
+      const { error } = await supabase
+        .from("sor_purchase_order_links")
+        .delete()
+        .eq("id", existing.id);
+      if (error) throw error;
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("sor_purchase_order_links")
+      .upsert(
+        { opportunity_id: opportunityId, po_number: number, origin: "ODOO_ORIGIN", is_detached: true },
+        { onConflict: "opportunity_id,po_number" },
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   /**
    * Everything one screen needs to show the go/no-go: the evaluation record
    * itself, the base cost rolled up from Inclusions, whether the evaluation
-   * is bound to a live Odoo order (and if so, how its price compares), and
-   * the resulting margin.
+   * is bound to a live Odoo order (and if so, how its price and its actual
+   * spend compare), and the resulting margin.
    *
    * Deduction rates are only fetched when the evaluation is flagged as a
    * government client — a private-sector evaluation needs no rate at all,
-   * and skipping the query is one fewer round trip on the common case.
+   * and skipping the query is one fewer round trip on the common case. The
+   * actual-cost rollup is likewise skipped entirely when unbound: with no
+   * Sales Reference there is no Odoo sale order for a purchase order to name.
    */
   async getEvaluationSummary(opportunityId) {
     if (!opportunityId) throw new Error("An SOR is required.");
@@ -758,6 +886,10 @@ export const projectEvaluationService = {
       ...rates,
     });
 
+    const actualCost = isBound
+      ? await this.getActualCostRollup(opportunityId, opportunity.sales_reference)
+      : { status: "ok", orders: [], total: { amount: null, orderCount: 0 }, links: [] };
+
     return {
       evaluation,
       baseCost,
@@ -765,6 +897,12 @@ export const projectEvaluationService = {
       odooOrderPrice,
       delta: priceDelta(evaluation?.candidate_sales_price ?? null, odooOrderPrice),
       margin,
+      actualCost: {
+        ...actualCost,
+        // The estimate is never overwritten by this — it is only ever the
+        // difference read alongside it (issue #49's own decision).
+        variance: priceDelta(baseCost.amount, actualCost.total.amount),
+      },
     };
   },
 };

@@ -20,6 +20,8 @@ import {
   resolveCost,
   rollUpBaseCost,
   summariseCompleteness,
+  sumActualCost,
+  visiblePurchaseOrders,
   winningOffer,
 } from "./projectEvaluation"
 import { PROCUREMENT_OUTCOME } from "./procurement"
@@ -474,5 +476,54 @@ describe("priceDelta", () => {
 
   it("reports no drift at all as an honest zero", () => {
     expect(priceDelta(900_000, 900_000)).toBe(0)
+  })
+})
+
+// Issue #49.
+describe("visiblePurchaseOrders", () => {
+  const orders = [
+    { name: "P02560", amount_untaxed: 117 },
+    { name: "P02561", amount_untaxed: 238 },
+    { name: "P02562", amount_untaxed: 375 },
+  ]
+
+  it("returns every Odoo match when nothing has been detached", () => {
+    expect(visiblePurchaseOrders(orders, [])).toEqual(orders)
+  })
+
+  it("excludes a purchase order that was detached, even though Odoo still matches it", () => {
+    const visible = visiblePurchaseOrders(orders, [
+      { po_number: "P02561", origin: "ODOO_ORIGIN", is_detached: true },
+    ])
+
+    expect(visible.map((o) => o.name)).toEqual(["P02560", "P02562"])
+  })
+
+  it("is unaffected by a non-detached override — a manual attach is already inside odooOrders by then", () => {
+    const visible = visiblePurchaseOrders(orders, [
+      { po_number: "P02560", origin: "MANUAL", is_detached: false },
+    ])
+    expect(visible).toEqual(orders)
+  })
+
+  it("survives being handed nothing at all", () => {
+    expect(visiblePurchaseOrders()).toEqual([])
+    expect(visiblePurchaseOrders(null, null)).toEqual([])
+  })
+})
+
+describe("sumActualCost", () => {
+  it("totals the tax-exclusive amount across every visible order", () => {
+    const result = sumActualCost([
+      { name: "P02560", amount_untaxed: 117 },
+      { name: "P02561", amount_untaxed: 238 },
+    ])
+    expect(result.amount).toBe(355)
+    expect(result.orderCount).toBe(2)
+  })
+
+  it("reads as no actuals yet, not as zero spend, when there is nothing to total", () => {
+    expect(sumActualCost([]).amount).toBeNull()
+    expect(sumActualCost().amount).toBeNull()
   })
 })
