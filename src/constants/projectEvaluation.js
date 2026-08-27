@@ -180,3 +180,38 @@ export function completenessForOutcome(outcome) {
       return null
   }
 }
+
+// ── Canvass (issue #46, Inclusion side #47) ─────────────────────────────────
+// The three-or-more supplier comparison, recorded as structured Offers rather
+// than an ad-hoc sheet. Everything here is a pure function over an offers
+// array; persistence and the database's backstop unique index are the
+// service's and the migration's job respectively.
+
+/** Policy: compare at least this many suppliers before choosing one. */
+export const MIN_CANVASS_OFFERS = 3
+
+/** Whether signing off this Canvass should warn for sitting under the policy minimum. */
+export const canvassNeedsMoreOffers = (offers = []) =>
+  (Array.isArray(offers) ? offers : []).length < MIN_CANVASS_OFFERS
+
+/** The Offer currently marked the winner, or null if none is. */
+export const winningOffer = (offers = []) =>
+  (Array.isArray(offers) ? offers : []).find((offer) => offer?.is_winner) ?? null
+
+/**
+ * The offers array after marking `winnerId` the winner — that one id carries
+ * `is_winner: true`, every other id in the set carries `is_winner: false`,
+ * always exactly one winner. Never two: whichever offer sits at `is_winner`
+ * beforehand loses it here, unconditionally.
+ *
+ * The service performs this as two sequential writes (clear the old winner,
+ * then set the new one) so `sor_canvass_offers_one_winner_per_canvass` is
+ * never hit transiently. That index is a backstop; this function is the rule.
+ */
+export function applyWinner(offers = [], winnerId) {
+  const list = Array.isArray(offers) ? offers : []
+  if (!winnerId || !list.some((offer) => offer?.id === winnerId)) {
+    throw new Error("Cannot mark an offer that isn't part of this Canvass as the winner.")
+  }
+  return list.map((offer) => ({ ...offer, is_winner: offer.id === winnerId }))
+}

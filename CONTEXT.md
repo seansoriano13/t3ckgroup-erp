@@ -211,6 +211,14 @@ _Avoid_: Status, Progress
 How an Inclusion would be obtained — In stock, Stocked but needs ordering, or Source out. Three values rather than a boolean: a stockable item with none on hand still needs ordering and is explicitly not source-out, and that middle case is most of purchasing's work. Null until somebody assesses it.
 _Avoid_: Source out (as a boolean), Availability
 
+**Canvass**:
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Procurement Request or Inclusion — never both, never neither. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
+_Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
+
+**Offer**:
+One supplier's answer within a Canvass — brand, description, source link, brochure, remarks, unit price, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before.
+_Avoid_: Quote, Bid, Supplier Response
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is

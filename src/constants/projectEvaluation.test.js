@@ -2,15 +2,19 @@ import { describe, expect, it } from "vitest"
 import {
   COMPLETENESS,
   COMPLETENESS_VALUES,
+  MIN_CANVASS_OFFERS,
   SOURCING,
   SOURCING_VALUES,
+  applyWinner,
   canSetSourcing,
+  canvassNeedsMoreOffers,
   completenessForOutcome,
   countsTowardCompleteness,
   isCompleteness,
   isSourcing,
   outstandingInclusions,
   summariseCompleteness,
+  winningOffer,
 } from "./projectEvaluation"
 import { PROCUREMENT_OUTCOME } from "./procurement"
 
@@ -219,5 +223,73 @@ describe("completenessForOutcome", () => {
   it("says nothing about an unresolved request", () => {
     expect(completenessForOutcome(null)).toBeNull()
     expect(completenessForOutcome(undefined)).toBeNull()
+  })
+})
+
+// Issue #46/#47.
+describe("canvassNeedsMoreOffers", () => {
+  it("warns under the three-offer policy minimum", () => {
+    expect(MIN_CANVASS_OFFERS).toBe(3)
+    expect(canvassNeedsMoreOffers([])).toBe(true)
+    expect(canvassNeedsMoreOffers([{ id: "1" }, { id: "2" }])).toBe(true)
+  })
+
+  it("stops warning once the minimum is met, and never blocks past it", () => {
+    expect(canvassNeedsMoreOffers([{ id: "1" }, { id: "2" }, { id: "3" }])).toBe(false)
+    expect(
+      canvassNeedsMoreOffers([{ id: "1" }, { id: "2" }, { id: "3" }, { id: "4" }]),
+    ).toBe(false)
+  })
+
+  it("survives being handed nothing at all", () => {
+    expect(canvassNeedsMoreOffers()).toBe(true)
+    expect(canvassNeedsMoreOffers(null)).toBe(true)
+  })
+})
+
+describe("winningOffer", () => {
+  it("finds the offer marked the winner", () => {
+    const offers = [
+      { id: "1", is_winner: false },
+      { id: "2", is_winner: true },
+      { id: "3", is_winner: false },
+    ]
+    expect(winningOffer(offers)?.id).toBe("2")
+  })
+
+  it("returns null when no offer has won yet", () => {
+    expect(winningOffer([{ id: "1", is_winner: false }])).toBeNull()
+    expect(winningOffer([])).toBeNull()
+  })
+})
+
+describe("applyWinner", () => {
+  it("marks exactly the given offer the winner and clears every other", () => {
+    const offers = [
+      { id: "1", is_winner: true },
+      { id: "2", is_winner: false },
+      { id: "3", is_winner: false },
+    ]
+
+    const next = applyWinner(offers, "2")
+
+    expect(next.find((o) => o.id === "1").is_winner).toBe(false)
+    expect(next.find((o) => o.id === "2").is_winner).toBe(true)
+    expect(next.find((o) => o.id === "3").is_winner).toBe(false)
+  })
+
+  it("leaves at most one winner even when the input already had none", () => {
+    const offers = [{ id: "1", is_winner: false }, { id: "2", is_winner: false }]
+    const next = applyWinner(offers, "1")
+    expect(next.filter((o) => o.is_winner)).toHaveLength(1)
+  })
+
+  it("refuses to crown an offer that isn't part of the Canvass", () => {
+    const offers = [{ id: "1", is_winner: false }]
+    expect(() => applyWinner(offers, "not-here")).toThrow(/isn't part of this Canvass/)
+  })
+
+  it("refuses a missing winner id", () => {
+    expect(() => applyWinner([{ id: "1", is_winner: false }], null)).toThrow()
   })
 })

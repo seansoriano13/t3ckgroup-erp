@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import {
   COMPLETENESS,
+  applyWinner,
   canSetSourcing,
   isCompleteness,
   isSourcing,
@@ -70,6 +71,64 @@ function cleanInclusionInput(input = {}, { partial = false } = {}) {
       throw new Error(`"${input.sourcing}" is not a sourcing state.`);
     }
     row.sourcing = sourcing;
+  }
+
+  return row;
+}
+
+/** Every column a caller reads for a Canvass, including its Offers. */
+const CANVASS_SELECT = `
+  *,
+  signer:employees!sor_canvasses_signed_off_by_fkey(id, name, avatar_path),
+  offers:sor_canvass_offers(*)
+`;
+
+/**
+ * Resolves the exactly-one-subject columns for a Canvass from a caller's
+ * `{ procurementRequestId }` or `{ inclusionId }`. Throws rather than letting
+ * a caller silently write a Canvass that satisfies neither, or both, of the
+ * two — the database CHECK (0059) backs this up, but that surfaces as an
+ * opaque Postgres error string no purchaser should ever see.
+ */
+function subjectColumns({ procurementRequestId, inclusionId } = {}) {
+  const provided = [procurementRequestId, inclusionId].filter(Boolean);
+  if (provided.length !== 1) {
+    throw new Error("A Canvass belongs to exactly one Procurement Request or Inclusion.");
+  }
+  return {
+    procurement_request_id: procurementRequestId || null,
+    inclusion_id: inclusionId || null,
+  };
+}
+
+/** Normalises and checks what a caller wants written for an Offer. */
+function cleanOfferInput(input = {}, { partial = false } = {}) {
+  const row = {};
+
+  const setText = (key, column) => {
+    if (input[key] === undefined) return;
+    row[column] = String(input[key] ?? "").trim() || null;
+  };
+
+  setText("brand", "brand");
+  setText("description", "description");
+  setText("sourceLink", "source_link");
+  setText("remarks", "remarks");
+  setText("leadTime", "lead_time");
+  setText("qualityNote", "quality_note");
+
+  if (input.brochure !== undefined) row.brochure = input.brochure || [];
+
+  if (input.unitPrice !== undefined) {
+    const unitPrice = input.unitPrice === null || input.unitPrice === "" ? null : Number(input.unitPrice);
+    if (unitPrice !== null && !Number.isFinite(unitPrice)) {
+      throw new Error("Unit price has to be a number.");
+    }
+    row.unit_price = unitPrice;
+  }
+
+  if (!partial && !row.brand && !row.description) {
+    throw new Error("An offer needs at least a brand or a description.");
   }
 
   return row;
@@ -248,5 +307,209 @@ export const projectEvaluationService = {
     const results = await Promise.all(writes);
     const failure = results.find((r) => r.error);
     if (failure) throw failure.error;
+  },
+
+  // ── Canvass (issue #46, Inclusion side #47) ──────────────────────────────
+
+  /**
+   * The Canvass for a subject, with its Offers, or null when nobody has
+   * started canvassing it yet. Offers are ordered the way they were entered,
+   * matching Inclusions.
+   */
+  async getCanvass(subject) {
+    const columns = subjectColumns(subject);
+    const filterKey = columns.procurement_request_id ? "procurement_request_id" : "inclusion_id";
+    const filterValue = columns.procurement_request_id || columns.inclusion_id;
+
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .select(CANVASS_SELECT)
+      .eq(filterKey, filterValue)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    return {
+      ...data,
+      offers: (data.offers || []).sort(
+        (a, b) => a.sort_order - b.sort_order || a.created_at.localeCompare(b.created_at),
+      ),
+    };
+  },
+
+  /** The Canvass for a subject, creating an empty one on first touch. */
+  async getOrCreateCanvass(subject, actorId) {
+    const existing = await this.getCanvass(subject);
+    if (existing) return existing;
+
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .insert({ ...subjectColumns(subject), created_by: actorId || null })
+      .select(CANVASS_SELECT)
+      .single();
+
+    if (error) throw error;
+    return { ...data, offers: [] };
+  },
+
+  /** Adds one Offer to a Canvass, appended after its current rows. */
+  async addOffer(canvassId, input, actorId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+
+    const row = cleanOfferInput(input);
+    const { data: siblings, error: siblingsError } = await supabase
+      .from("sor_canvass_offers")
+      .select("id")
+      .eq("canvass_id", canvassId);
+    if (siblingsError) throw siblingsError;
+
+    const { data, error } = await supabase
+      .from("sor_canvass_offers")
+      .insert({
+        canvass_id: canvassId,
+        brochure: [],
+        ...row,
+        sort_order: (siblings || []).length,
+        created_by: actorId || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /** Edits one Offer. Only the fields named in `patch` are touched. */
+  async updateOffer(offerId, patch = {}) {
+    if (!offerId) throw new Error("An offer id is required.");
+
+    const row = cleanOfferInput(patch, { partial: true });
+    if (Object.keys(row).length === 0) return null;
+
+    const { data, error } = await supabase
+      .from("sor_canvass_offers")
+      .update(row)
+      .eq("id", offerId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes an Offer outright — a comparison being built up is a draft. */
+  async removeOffer(offerId) {
+    if (!offerId) throw new Error("An offer id is required.");
+
+    const { error } = await supabase.from("sor_canvass_offers").delete().eq("id", offerId);
+    if (error) throw error;
+  },
+
+  /**
+   * Marks one Offer the winner of a Canvass.
+   *
+   * Written as two sequential, awaited updates — clear whoever held it, then
+   * set the new one — rather than one bulk write, so
+   * sor_canvass_offers_one_winner_per_canvass (0059) is never hit transiently.
+   * applyWinner is what decides the shape; this is only the two writes it
+   * implies.
+   */
+  async markWinner(canvassId, winnerId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+
+    const { data: offers, error: listError } = await supabase
+      .from("sor_canvass_offers")
+      .select("id, is_winner")
+      .eq("canvass_id", canvassId);
+    if (listError) throw listError;
+
+    // Throws if winnerId isn't one of this Canvass's offers — the same check
+    // a bad write would otherwise skip straight past.
+    applyWinner(offers || [], winnerId);
+
+    const previousWinner = (offers || []).find((o) => o.is_winner && o.id !== winnerId);
+    if (previousWinner) {
+      const { error } = await supabase
+        .from("sor_canvass_offers")
+        .update({ is_winner: false })
+        .eq("id", previousWinner.id);
+      if (error) throw error;
+    }
+
+    const { data, error } = await supabase
+      .from("sor_canvass_offers")
+      .update({ is_winner: true })
+      .eq("id", winnerId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    return data;
+  },
+
+  /**
+   * Records sign-off on a Canvass. The under-three-offers warning is a UI
+   * confirmation (constants/projectEvaluation.js's canvassNeedsMoreOffers) —
+   * this call itself never blocks, matching the policy that research must be
+   * saveable half-finished.
+   */
+  async signOffCanvass(canvassId, actorId) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+    if (!actorId) throw new Error("An actor is required to sign off a Canvass.");
+
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .update({ signed_off_by: actorId, signed_off_at: new Date().toISOString() })
+      .eq("id", canvassId)
+      .select(CANVASS_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /** Appends one attachment descriptor to a Canvass's evidence sheet. */
+  async addCanvassAttachment(canvassId, descriptor) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+
+    const { data: canvass, error: readError } = await supabase
+      .from("sor_canvasses")
+      .select("attachments")
+      .eq("id", canvassId)
+      .single();
+    if (readError) throw readError;
+
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .update({ attachments: [...(canvass.attachments || []), descriptor] })
+      .eq("id", canvassId)
+      .select(CANVASS_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  /** Removes one attachment from a Canvass's evidence sheet, matched by URL. */
+  async removeCanvassAttachment(canvassId, url) {
+    if (!canvassId) throw new Error("A Canvass id is required.");
+
+    const { data: canvass, error: readError } = await supabase
+      .from("sor_canvasses")
+      .select("attachments")
+      .eq("id", canvassId)
+      .single();
+    if (readError) throw readError;
+
+    const { data, error } = await supabase
+      .from("sor_canvasses")
+      .update({ attachments: (canvass.attachments || []).filter((a) => a.url !== url) })
+      .eq("id", canvassId)
+      .select(CANVASS_SELECT)
+      .single();
+
+    if (error) throw error;
+    return data;
   },
 };

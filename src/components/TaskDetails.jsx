@@ -608,6 +608,18 @@ export default function TaskDetails({
                 <ProcurementResolutionPanel
                   taskId={activeTask?.id}
                   userId={user?.id}
+                  // Mirrors sor_canvasses_write (0059): canvassing is
+                  // purchasing's job regardless of which subject a Canvass
+                  // hangs off.
+                  canEditCanvass={Boolean(
+                    user &&
+                      (user.has_purchasing_flow ||
+                        user.hasPurchasingFlow ||
+                        user.is_head ||
+                        user.isHead ||
+                        user.is_super_admin ||
+                        user.isSuperAdmin),
+                  )}
                   onSubmittingChange={setIsSubmitting}
                   onDeliveredComplete={() => {
                     onClose?.()

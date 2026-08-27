@@ -23,6 +23,7 @@ import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import StatusBadge from "./StatusBadge";
 import ProcurementMetaFooter from "./ProcurementMetaFooter";
+import CanvassPanel, { CanvassTriggerButton } from "./CanvassPanel";
 import {
   PO_VERIFICATION,
   PROCUREMENT_OUTCOME,
@@ -109,6 +110,31 @@ function OutcomeDropdown({
         </div>
       )}
     </Dropdown>
+  );
+}
+
+/**
+ * Trigger + dialog for a Procurement Request's Canvass (issue #46), together
+ * so OpenRow and ResolvedRow each add one line rather than wiring dialog
+ * state twice.
+ */
+function CanvassLauncher({ request, canEdit, userId }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <CanvassTriggerButton onClick={() => setOpen(true)} />
+      {open && (
+        <CanvassPanel
+          open={open}
+          onOpenChange={setOpen}
+          subject={{ procurementRequestId: request.id }}
+          subjectLabel={request.requested_name}
+          userId={userId}
+          canEdit={canEdit}
+        />
+      )}
+    </>
   );
 }
 
@@ -441,7 +467,7 @@ function ProcurementEditForm({
   );
 }
 
-function ResolvedRow({ request, onResolve, isPending }) {
+function ResolvedRow({ request, onResolve, isPending, userId, canEdit }) {
   const [isEditing, setIsEditing] = useState(false);
   const [initialOutcomeToOpen, setInitialOutcomeToOpen] = useState(request.outcome);
 
@@ -506,6 +532,8 @@ function ResolvedRow({ request, onResolve, isPending }) {
             label={PROCUREMENT_OUTCOME_LABELS[request.outcome] || request.outcome}
           />
 
+          <CanvassLauncher request={request} canEdit={canEdit} userId={userId} />
+
           {/* Prominent Action Button for In Progress */}
           {request.outcome === PROCUREMENT_OUTCOME.IN_PROGRESS && (
             <button
@@ -561,7 +589,7 @@ function ResolvedRow({ request, onResolve, isPending }) {
   );
 }
 
-function OpenRow({ request, onResolve, isPending }) {
+function OpenRow({ request, onResolve, isPending, userId, canEdit }) {
   const [isEditing, setIsEditing] = useState(false);
   const [initialOutcomeToOpen, setInitialOutcomeToOpen] = useState("");
 
@@ -618,6 +646,8 @@ function OpenRow({ request, onResolve, isPending }) {
         <div className="flex items-center gap-2 shrink-0">
           <StatusBadge status={statusRaw} label={statusLabel} />
 
+          <CanvassLauncher request={request} canEdit={canEdit} userId={userId} />
+
           <OutcomeDropdown
             value=""
             disabled={isPending}
@@ -646,6 +676,7 @@ function OpenRow({ request, onResolve, isPending }) {
 export default function ProcurementResolutionPanel({
   taskId,
   userId,
+  canEditCanvass = false,
   onSubmittingChange,
   onDeliveredComplete,
 }) {
@@ -777,6 +808,8 @@ export default function ProcurementResolutionPanel({
             key={r.id}
             request={r}
             isPending={resolveMutation.isPending}
+            userId={userId}
+            canEdit={canEditCanvass}
             onResolve={(payload) =>
               resolveMutation.mutate({ requestId: r.id, payload })
             }
@@ -787,6 +820,8 @@ export default function ProcurementResolutionPanel({
             key={r.id}
             request={r}
             isPending={resolveMutation.isPending}
+            userId={userId}
+            canEdit={canEditCanvass}
             onResolve={(payload) =>
               resolveMutation.mutateAsync({ requestId: r.id, payload })
             }
