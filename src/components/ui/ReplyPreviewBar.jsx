@@ -10,16 +10,16 @@ export default function ReplyPreviewBar({ replyingTo, onCancel, className }) {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-3 py-2 border-b border-border/60 bg-muted/40",
+        "flex items-center gap-2 px-3 py-2 border-b border-border/60 bg-muted/40 w-full min-w-0",
         className,
       )}
     >
       <Reply size={14} className="text-primary shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] font-bold text-primary truncate">
+      <div className="flex-1 min-w-0 overflow-hidden">
+        <p className="text-[10px] font-bold text-primary truncate w-full">
           Replying to {replyingTo.authorName}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="text-xs text-muted-foreground truncate w-full">
           {replyingTo.content}
         </p>
       </div>

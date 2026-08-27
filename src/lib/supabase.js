@@ -2,8 +2,16 @@
 
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const isProdDbEnabled = import.meta.env.DEV && localStorage.getItem('t3ckgroup-use-prod-db') === 'true';
+
+const supabaseUrl = isProdDbEnabled 
+  ? import.meta.env.VITE_SUPABASE_URL_PROD 
+  : import.meta.env.VITE_SUPABASE_URL;
+
+const supabaseKey = isProdDbEnabled 
+  ? import.meta.env.VITE_SUPABASE_ANON_KEY_PROD 
+  : import.meta.env.VITE_SUPABASE_ANON_KEY;
+
 
 // Simple delay helper
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));

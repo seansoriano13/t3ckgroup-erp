@@ -99,12 +99,18 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
       </button>
 
       {open && (
-        <div
-          className={cn(
-            "popover-enter absolute bottom-full mb-2 z-[70] w-[264px] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden",
-            align === "end" ? "right-0" : "left-0",
-          )}
-        >
+        <>
+          <div className="fixed inset-0 z-[60] md:hidden" onClick={() => setOpen(false)} />
+          <div
+            className={cn(
+              "popover-enter z-[70] w-[264px] rounded-xl border border-border bg-popover shadow-2xl overflow-hidden",
+              // Mobile: Fixed center
+              "fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2",
+              // Desktop: Absolute above button
+              "md:absolute md:top-auto md:bottom-full md:mb-2 md:transform-none",
+              align === "end" ? "md:right-0 md:left-auto" : "md:left-0 md:right-auto",
+            )}
+          >
           <div className="flex items-center gap-0.5 border-b border-border p-1.5 overflow-x-auto custom-scrollbar">
             {EMOJI_CATEGORIES.map((cat, i) => (
               <button
@@ -156,6 +162,7 @@ export default function EmojiPicker({ onSelect, className, align = "start", disa
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );

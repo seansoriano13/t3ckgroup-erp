@@ -134,12 +134,12 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
         </div>
 
         <div className="relative flex items-center gap-2">
-          {/* Action Buttons (Hover on desktop, visible on mobile) */}
-          <div className={`absolute top-1/2 -translate-y-1/2 transition-opacity z-10 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
+          {/* Hover Actions (Reply, React) */}
+          <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker
                 onSelect={(emoji) => onReact && onReact(entry, emoji)}
-                align={isMe ? "end" : "start"}
+                align={isMe ? "start" : "end"}
               />
             </div>
             <button
@@ -151,7 +151,11 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
             </button>
           </div>
 
-          <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+          <SwipeToReplyWrapper 
+            isMe={isMe} 
+            onReply={() => onReply?.(entry)}
+            onReact={(emoji) => onReact && onReact(entry, emoji)}
+          >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
                 ? "bg-primary text-primary-foreground rounded-tr-none"
@@ -619,7 +623,7 @@ export default function TaskActivityTimeline({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar px-4 py-4"
         style={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
       >
         {isLoading ? (
@@ -661,7 +665,7 @@ export default function TaskActivityTimeline({
       </div>
 
       {activeTab === "ACTIVITY" && !disabled && (
-        <div className="px-4 py-4 border-t border-border bg-muted/30">
+        <form onSubmit={handleSend} className="bg-muted/30 border-t border-border p-3 min-w-0 w-full flex-none">
           <ReplyPreviewBar
             replyingTo={replyingTo}
             onCancel={() => setReplyingTo(null)}
@@ -748,7 +752,7 @@ export default function TaskActivityTimeline({
               </div>
             </div>
           </div>
-        </div>
+        </form>
       )}
     </div>
   );

@@ -229,7 +229,7 @@ export default function GroupTaskDetailModal({
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatMessages]);
+  }, [chatMessages?.length]);
 
   // Real-time subscription for inline chat
   useEffect(() => {
@@ -450,10 +450,10 @@ export default function GroupTaskDetailModal({
           isExpanded
             ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
             : isSplitScreen
-              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:w-[1400px] rounded-2xl"
+              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:max-w-[1400px] rounded-2xl"
               : // Widened from 960px: the member area is a master/detail pair
                 // now, and a 240px rail off 960px left the panel too narrow.
-                "max-h-[90vh] sm:max-w-none w-[1120px] max-w-[95vw] rounded-2xl",
+                "max-h-[90vh] sm:max-w-none w-[95vw] max-w-[1120px] rounded-2xl",
         )}
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
@@ -506,7 +506,7 @@ export default function GroupTaskDetailModal({
                 onClick={() => {
                   window.dispatchEvent(
                     new CustomEvent("OPEN_CHAT_MODAL", {
-                      detail: { entityId: task.id, entityType: "GROUP_TASK" },
+                      detail: { entityId: task.id, entityType: "GROUP_TASK", entityTitle: task.title },
                     }),
                   );
                 }}
@@ -591,8 +591,8 @@ export default function GroupTaskDetailModal({
               )}
 
               {/* MEMBERS — master / detail */}
-              <div className="animate-content-in stagger-2 flex-1 flex min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
-                <div className="w-[240px] shrink-0 min-h-0">
+              <div className="animate-content-in stagger-2 flex-1 flex flex-col md:flex-row min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
+                <div className="w-full md:w-[240px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-b md:border-b-0 md:border-r border-border">
                   <GroupTaskMemberRail
                     members={orderedMembers}
                     selectedId={draft && !draft.id ? null : selectedMemberId}
@@ -1204,7 +1204,7 @@ export default function GroupTaskDetailModal({
                   <span className="font-bold">
                     {task.status === "ACTIVE" && task.hr_remarks
                       ? "Resubmit"
-                      : "Rate & Complete"}
+                      : "Rate"}
                   </span>
                 </Button>
               )}

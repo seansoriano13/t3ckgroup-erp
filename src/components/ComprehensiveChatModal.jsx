@@ -233,16 +233,15 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
         </div>
         
         <div className="relative flex items-center gap-2">
-          {/* Action Buttons (Hover on desktop, visible on mobile) */}
+          {/* Desktop / Hover Actions */}
           <div className={cn(
-            "absolute top-1/2 -translate-y-1/2 transition-opacity z-10 flex items-center gap-1",
-            "opacity-100 md:opacity-0 group-hover:opacity-100",
+            "hidden md:flex absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 z-10",
             isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"
           )}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker 
                 onSelect={(emoji) => onReact && onReact(entry, emoji)}
-                align={isMe ? "end" : "start"}
+                align={isMe ? "start" : "end"}
               />
             </div>
             {/* Mobile explicit reply button */}
@@ -255,14 +254,23 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             </button>
           </div>
 
-          <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+          <SwipeToReplyWrapper 
+            isMe={isMe} 
+            onReply={() => onReply?.(entry)}
+            onReact={(emoji) => onReact && onReact(entry, emoji)}
+          >
             <div
               className={cn(
-                "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap wrap-break-word overflow-hidden",
+                "px-4 py-2.5 rounded-2xl text-sm shadow-sm transition-all whitespace-pre-wrap break-words min-w-0",
                 isMe
                   ? "bg-primary text-primary-foreground rounded-tr-none"
                   : "bg-card border border-border rounded-tl-none",
+                entry.metadata?.reactions &&
+                  Object.keys(entry.metadata.reactions).length > 0
+                  ? "mb-3"
+                  : "",
               )}
+              style={{ wordBreak: "break-word" }}
             >
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
@@ -407,23 +415,23 @@ export default function ComprehensiveChatModal({
   // Global trigger for detail views
   useEffect(() => {
     const handleOpenChat = (e) => {
-      const { entityId, entityType } = e.detail;
+      const { entityId, entityType, entityTitle } = e.detail;
       if (entityId && entityType) {
         // Find existing chat or prepare to select it
         const chat = activeChats.find(
           (c) => c.entity_id === entityId && c.entity_type === entityType,
         );
         if (chat) {
-          setSelectedChat(chat);
+          setSelectedChat(entityTitle ? { ...chat, title: entityTitle } : chat);
         } else {
           // If not in active chats (no messages yet), we create a synthetic placeholder
           setSelectedChat({
             entity_id: entityId,
             entity_type: entityType,
             title:
-              entityType === "TASK"
+              entityTitle || (entityType === "TASK"
                 ? "New Task Thread"
-                : "New Group Thread",
+                : "New Group Thread"),
             is_placeholder: true,
           });
         }
@@ -793,7 +801,7 @@ export default function ComprehensiveChatModal({
         latestCreatedAt: messages[messages.length - 1].createdAt
       });
     }
-  }, [messages, selectedChat, internalOpen]); // Depend on messages array to trigger on new messages
+  }, [messages?.length, selectedChat, internalOpen]); // Depend on messages array to trigger on new messages
 
   // -- Handlers ----------------------------------------------
   const handleClose = () => {
@@ -942,7 +950,7 @@ export default function ComprehensiveChatModal({
     >
       <DialogContent
         showCloseButton={false}
-        className="p-0 gap-0 z-100 bg-card border-border shadow-2xl w-[calc(100%-2rem)] sm:max-w-[90vw] md:max-w-5xl h-[90vh] md:h-[85vh] rounded-2xl overflow-hidden flex flex-row border-none ring-0 outline-none"
+        className="p-0 gap-0 z-100 bg-card border-border shadow-2xl w-[95vw] max-w-[95vw] sm:max-w-[90vw] md:max-w-5xl h-[90vh] md:h-[85vh] rounded-2xl overflow-hidden flex flex-row border-none ring-0 outline-none"
       >
         {/* SIDEBAR: Conversation List */}
         <div
@@ -1160,7 +1168,7 @@ export default function ComprehensiveChatModal({
         {/* MAIN AREA: Chat Thread */}
         <div
           className={cn(
-            "flex-1 flex flex-col bg-card relative",
+            "flex-1 flex flex-col min-w-0 bg-card relative",
             isMobileListVisible && "hidden md:flex",
           )}
         >
@@ -1266,7 +1274,7 @@ export default function ComprehensiveChatModal({
               {/* Messages Area */}
               <div
                 ref={scrollRef}
-                className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-1"
+                className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar py-4 space-y-1"
               >
                 {isLoadingMessages ? (
                   <div className="flex items-center justify-center h-full gap-2 text-muted-foreground italic text-xs">
@@ -1295,7 +1303,7 @@ export default function ComprehensiveChatModal({
               {/* Input Area */}
               <form
                 onSubmit={handleSend}
-                className="p-4 border-t border-border bg-muted/10"
+                className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full overflow-hidden flex flex-col"
               >
                 {/* Hidden file input */}
                 <input
@@ -1315,7 +1323,7 @@ export default function ComprehensiveChatModal({
                     Input disabled. The associated record has been deleted.
                   </div>
                 ) : (
-                  <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">
+                  <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow min-w-0 w-full max-w-full overflow-hidden flex flex-col">
                     <ReplyPreviewBar
                       replyingTo={replyingTo}
                       onCancel={() => setReplyingTo(null)}
