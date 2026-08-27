@@ -199,6 +199,18 @@ _Avoid_: Procurement (when meaning the Module), PMS
 The cross-SOR list of every Procurement Request still awaiting an answer. Open means unresolved in the domain's sense — a request purchasing has started canvassing is still on the queue.
 _Avoid_: Purchasing Dashboard, Sourcing List
 
+**Inclusion**:
+One item on the client's specification, entered against an SOR. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Deliberately not a sale opportunity line item — those are destroyed and re-created on every SOR save, so nothing durable can hang off one.
+_Avoid_: Line item, Product, BOM entry
+
+**Completeness**:
+Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%.
+_Avoid_: Status, Progress
+
+**Sourcing**:
+How an Inclusion would be obtained — In stock, Stocked but needs ordering, or Source out. Three values rather than a boolean: a stockable item with none on hand still needs ordering and is explicitly not source-out, and that middle case is most of purchasing's work. Null until somebody assesses it.
+_Avoid_: Source out (as a boolean), Availability
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is

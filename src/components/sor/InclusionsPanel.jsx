@@ -1,0 +1,367 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { ChevronDown, ListChecks, Plus, Trash2, X } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import Dropdown from "../ui/Dropdown";
+import { FilterOptionList } from "../ui/FilterDropdown";
+import { confirmDeleteToast } from "../ui/CustomToast";
+import { useAuth } from "../../context/AuthContext";
+import { projectEvaluationService } from "../../services/projectEvaluationService";
+import {
+  COMPLETENESS,
+  COMPLETENESS_LABELS,
+  COMPLETENESS_VALUES,
+  SOURCING_LABELS,
+  SOURCING_VALUES,
+  summariseCompleteness,
+} from "../../constants/projectEvaluation";
+import { REQUEST_UNITS } from "../../constants/procurement";
+
+/**
+ * Inclusions (issue #43) — the client's specification, broken out.
+ *
+ * Odoo bundles: an Ambulance Commuter is one order line whose inclusions live
+ * as free text in the description. This panel is the only place the spec can be
+ * walked item by item and each requirement confirmed, which is what an
+ * apple-to-apple comparison against a tender demands and what the team
+ * currently rebuilds in a spreadsheet on every deal.
+ *
+ * The arithmetic is constants/projectEvaluation.js. Nothing here recomputes it.
+ */
+
+const COMPLETENESS_TONE = {
+  [COMPLETENESS.COVERED]: "bg-green-a3 text-green-11",
+  [COMPLETENESS.MISSING]: "bg-amber-a3 text-amber-11",
+  [COMPLETENESS.SUBSTITUTED]: "bg-violet-a3 text-violet-11",
+  [COMPLETENESS.NOT_REQUIRED]: "bg-mauve-a3 text-mauve-11",
+};
+
+const asOptions = (values, labels) =>
+  values.map((value) => ({ value, label: labels[value] }));
+
+const COMPLETENESS_OPTIONS = asOptions(COMPLETENESS_VALUES, COMPLETENESS_LABELS);
+const SOURCING_OPTIONS = [
+  { value: "", label: "Not assessed" },
+  ...asOptions(SOURCING_VALUES, SOURCING_LABELS),
+];
+
+/** A small dropdown that reads as a pill until you click it. */
+function PillSelect({ label, tone, options, value, onChange, disabled }) {
+  return (
+    <Dropdown
+      usePortal
+      placement="bottom-end"
+      disabled={disabled}
+      popoverClassName="popover-enter z-[10001] w-56 rounded-xl bg-popover p-1 shadow-2xl ring-1 ring-mauve-6"
+      trigger={() => (
+        <span
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+            tone,
+            disabled ? "opacity-70" : "cursor-pointer hover:brightness-110",
+          )}
+        >
+          {label}
+          {!disabled && <ChevronDown size={10} />}
+        </span>
+      )}
+    >
+      {({ close }) => (
+        <FilterOptionList
+          options={options}
+          value={value ?? ""}
+          onChange={onChange}
+          close={close}
+        />
+      )}
+    </Dropdown>
+  );
+}
+
+function InclusionRow({ inclusion, canEdit, onPatch, onRemove, isPending }) {
+  const completeness = inclusion.completeness;
+
+  return (
+    <div className="group flex items-start gap-3 rounded-xl border border-border/60 bg-card px-3 py-2.5 transition-colors hover:border-mauve-8">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold leading-snug text-foreground">
+          {inclusion.description}
+        </p>
+        <p className="mt-0.5 text-[11px] font-medium text-muted-foreground">
+          {Number(inclusion.quantity)} {inclusion.unit || "unit"}
+          {inclusion.note ? ` · ${inclusion.note}` : ""}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 items-center gap-1.5 pt-0.5">
+        <PillSelect
+          label={COMPLETENESS_LABELS[completeness] || completeness}
+          tone={COMPLETENESS_TONE[completeness] || COMPLETENESS_TONE[COMPLETENESS.MISSING]}
+          options={COMPLETENESS_OPTIONS}
+          value={completeness}
+          disabled={!canEdit || isPending}
+          onChange={(next) => onPatch(inclusion.id, { completeness: next })}
+        />
+
+        <PillSelect
+          label={SOURCING_LABELS[inclusion.sourcing] || "Not assessed"}
+          tone="bg-mauve-a3 text-mauve-11"
+          options={SOURCING_OPTIONS}
+          value={inclusion.sourcing ?? ""}
+          disabled={!canEdit || isPending}
+          onChange={(next) => onPatch(inclusion.id, { sourcing: next || null })}
+        />
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onRemove(inclusion)}
+            disabled={isPending}
+            aria-label={`Remove ${inclusion.description}`}
+            className="rounded-lg p-1 text-muted-foreground opacity-0 transition-all hover:bg-red-a3 hover:text-red-11 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-30"
+          >
+            <Trash2 size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Composer({ onAdd, onCancel, isPending }) {
+  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState(1);
+  const [unit, setUnit] = useState("unit");
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (!description.trim()) return;
+    onAdd({ description, quantity, unit });
+    setDescription("");
+    setQuantity(1);
+  };
+
+  return (
+    <form
+      onSubmit={submit}
+      className="flex items-center gap-2 rounded-xl border border-dashed border-mauve-7 bg-muted/30 px-3 py-2"
+    >
+      <input
+        autoFocus
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        placeholder="What the client asked for…"
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+      />
+      <input
+        type="number"
+        min="0"
+        step="any"
+        value={quantity}
+        onChange={(e) => setQuantity(e.target.value)}
+        aria-label="Quantity"
+        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+      />
+      <select
+        value={unit}
+        onChange={(e) => setUnit(e.target.value)}
+        aria-label="Unit"
+        className="rounded-md border border-border bg-card px-2 py-1 text-[13px] font-semibold text-foreground outline-none focus:border-mauve-4"
+      >
+        {REQUEST_UNITS.map((u) => (
+          <option key={u} value={u}>
+            {u}
+          </option>
+        ))}
+      </select>
+
+      <button
+        type="submit"
+        disabled={!description.trim() || isPending}
+        className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+      >
+        Add
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Close"
+        className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+      >
+        <X size={14} />
+      </button>
+    </form>
+  );
+}
+
+export default function InclusionsPanel({ opportunity }) {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [isComposing, setIsComposing] = useState(false);
+  const [isFolded, setIsFolded] = useState(false);
+
+  const opportunityId = opportunity?.id;
+
+  const { data: inclusions = [] } = useQuery({
+    queryKey: ["inclusions", opportunityId],
+    queryFn: () => projectEvaluationService.listInclusions(opportunityId),
+    enabled: Boolean(opportunityId),
+  });
+
+  // Mirrors sor_can_edit_opportunity (0003), which is what the database will
+  // actually enforce. Kept in step deliberately: a UI that offers a control RLS
+  // then refuses produces a write of zero rows and no error, which is the
+  // worst way for a permission problem to present.
+  const canEdit =
+    !!user &&
+    (user.isSuperAdmin ||
+      user.is_super_admin ||
+      user.isHead ||
+      user.is_head ||
+      [
+        opportunity?.registered_by,
+        opportunity?.deal_owner_id,
+        opportunity?.support_sales_1_id,
+        opportunity?.support_sales_2_id,
+        opportunity?.sales_director_id,
+      ].includes(user.id));
+
+  const invalidate = () =>
+    queryClient.invalidateQueries({ queryKey: ["inclusions", opportunityId] });
+
+  const addMutation = useMutation({
+    mutationFn: (entry) =>
+      projectEvaluationService.addInclusion({ opportunityId, ...entry }, user?.id),
+    onSuccess: invalidate,
+    onError: (err) => toast.error(err.message),
+  });
+
+  const patchMutation = useMutation({
+    mutationFn: ({ id, patch }) =>
+      projectEvaluationService.updateInclusion(id, patch),
+    onSuccess: invalidate,
+    onError: (err) => {
+      toast.error(err.message);
+      invalidate();
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id) => projectEvaluationService.removeInclusion(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Inclusion removed.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const summary = summariseCompleteness(inclusions);
+  const isPending = patchMutation.isPending || removeMutation.isPending;
+
+  if (!opportunity) return null;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setIsFolded(!isFolded)}
+          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronDown
+            size={12}
+            className={cn("transition-transform duration-150", isFolded && "-rotate-90")}
+          />
+          Inclusions
+        </button>
+
+        {/* An untouched breakdown has no percentage, deliberately — "0%" would
+            tell a salesperson their spec is failing when nobody has looked. */}
+        {summary.percent !== null && (
+          <div className="flex items-center gap-2">
+            {summary.substituted > 0 && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-violet-11">
+                {summary.substituted} substituted
+              </span>
+            )}
+            <span
+              className={cn(
+                "text-[11px] font-bold tabular-nums",
+                summary.isComplete ? "text-green-11" : "text-amber-11",
+              )}
+            >
+              {summary.answered}/{summary.counted} answered
+            </span>
+            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-mauve-a4">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-300",
+                  summary.isComplete ? "bg-green-9" : "bg-amber-9",
+                )}
+                style={{ width: `${summary.percent}%` }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!isFolded && (
+        <>
+          {inclusions.length > 0 && (
+            <div className="space-y-1.5">
+              {inclusions.map((inclusion) => (
+                <InclusionRow
+                  key={inclusion.id}
+                  inclusion={inclusion}
+                  canEdit={canEdit}
+                  isPending={isPending}
+                  onPatch={(id, patch) => patchMutation.mutate({ id, patch })}
+                  onRemove={(row) =>
+                    confirmDeleteToast(
+                      "Remove this inclusion?",
+                      `"${row.description}" comes off the client's breakdown.`,
+                      () => removeMutation.mutate(row.id),
+                    )
+                  }
+                />
+              ))}
+            </div>
+          )}
+
+          {inclusions.length === 0 && !isComposing && (
+            <div className="rounded-xl border border-dashed border-mauve-7 px-4 py-6 text-center">
+              <ListChecks size={20} className="mx-auto mb-2 text-muted-foreground/60" />
+              <p className="text-[13px] font-semibold text-foreground">
+                No breakdown yet
+              </p>
+              <p className="mx-auto mt-1 max-w-md text-[11px] leading-relaxed text-muted-foreground">
+                Odoo bundles this into one order line. Enter the client&apos;s spec
+                sheet here to check each requirement is answered.
+              </p>
+            </div>
+          )}
+
+          {isComposing && canEdit && (
+            <Composer
+              onAdd={(entry) => addMutation.mutate(entry)}
+              onCancel={() => setIsComposing(false)}
+              isPending={addMutation.isPending}
+            />
+          )}
+
+          {canEdit && !isComposing && (
+            <button
+              type="button"
+              onClick={() => setIsComposing(true)}
+              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+            >
+              <Plus size={14} /> Add Inclusion
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

@@ -42,6 +42,7 @@ import { quotationService } from "../../services/quotationService";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import ProcurementPanel from "./ProcurementPanel";
+import InclusionsPanel from "./InclusionsPanel";
 import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { procurementService } from "../../services/procurementService";
@@ -1460,6 +1461,15 @@ export default function OpportunityDetailsModal({
                 Lost Reason
               </p>
               <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
+            </div>
+          )}
+
+          {/* Issue #43. The spec check comes before sourcing, because "is the
+              client's specification answered" is the question that decides
+              whether anything needs sourcing at all. */}
+          {!isEditing && (
+            <div className="rounded-xl border border-border/50 p-6">
+              <InclusionsPanel opportunity={opportunity} />
             </div>
           )}
 
