@@ -285,3 +285,40 @@ export function makeNotification(overrides = {}) {
     recipient_id: recipientId,
   })
 }
+
+// ── Sales Flows (issue #36) ─────────────────────────────────────────────────
+// A Sale Type owns exactly one Sales Flow. The two factories stay separate so
+// that "a Sale Type with no flow" is representable here — the service is what
+// guarantees it never happens, and a factory that pre-empted the guarantee
+// would make the test proving it impossible to write.
+
+export function makeSaleType(overrides = {}) {
+  const n = next()
+  return db.seed("sale_types", { name: `Sale Type ${n}`, ...overrides })
+}
+
+export function makeSalesFlow(overrides = {}) {
+  const saleTypeId = overrides.sale_type_id ?? makeSaleType().id
+  return db.seed("sales_flows", { state: "draft", ...overrides, sale_type_id: saleTypeId })
+}
+
+export function makeFlowStage(overrides = {}) {
+  const flowId = overrides.flow_id ?? makeSalesFlow().id
+  const n = next()
+  return db.seed("flow_stages", {
+    name: `Stage ${n}`,
+    sort_order: n,
+    is_terminal: false,
+    ...overrides,
+    flow_id: flowId,
+  })
+}
+
+export function makeFlowEdge(fromStage, toStage, overrides = {}) {
+  return db.seed("flow_edges", {
+    flow_id: fromStage.flow_id,
+    from_stage_id: fromStage.id,
+    to_stage_id: toStage.id,
+    ...overrides,
+  })
+}

@@ -328,10 +328,22 @@ function applyCreateIndex(sql, registry) {
       where = { column, negated }
     }
 
-    // A key list of column names dedupes on those columns; anything else is an
-    // expression over constants, where every matching row shares one key.
+    // A key list of column names dedupes on those columns. A key list that
+    // mentions no column at all is an expression over constants — `((true))` —
+    // where every row the predicate selects shares one key, which is how "at
+    // most one row may set this flag" is spelled.
+    //
+    // A key list that references columns but is not a bare list of them is an
+    // expression this harness cannot evaluate — `lower(btrim(name))`, say.
+    // Treating that as a constant would collapse every row onto one key and
+    // make the table hold a single row, so it is left UNENFORCED instead, the
+    // same way an unrecognised CHECK or index predicate is. A service that
+    // needs the guarantee tested has to assert it where it enforces it.
     const parts = keyBody.split(",").map((c) => c.trim().replace(/"/g, ""))
     const columns = parts.every((c) => table.columns[c]) ? parts : null
+    if (columns === null && Object.keys(table.columns).some((c) => new RegExp(`\\b${c}\\b`).test(keyBody))) {
+      continue
+    }
 
     table.uniqueIndexes.push({ name, columns, where })
   }
