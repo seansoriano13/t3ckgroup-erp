@@ -4,8 +4,12 @@ import { notificationService } from "./notificationService"
 import { db } from "@/test/db/store"
 import {
   makeEmployee,
+  makeFlowEdge,
+  makeFlowStage,
   makeOpportunity,
   makeRequirementStatus,
+  makeSaleType,
+  makeSalesFlow,
   makeStageRequirement,
   seedPipeline,
 } from "@/test/factories"
@@ -1200,6 +1204,201 @@ describe("opportunityService", () => {
         const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
         expect(moved.status).toBe("PROPOSAL_SUBMITTED")
       })
+    })
+  })
+
+  /**
+   * Issue #36 / ADR 0006 — a deal that carries a Sale Type runs its own Sales
+   * Flow. Its moves are the edges the Operations Manager drew, and a move
+   * traverses exactly one of them: there is no canonical path between two
+   * arbitrary Stages in a graph, so the crossed-Stages interval has no meaning
+   * and only the Stage being left is evaluated.
+   */
+  describe("deals that run a Sales Flow", () => {
+    let saleType
+    let flow
+    let lead
+    let qualified
+    let awarded
+    let lost
+
+    beforeEach(() => {
+      saleType = makeSaleType({ name: "Government Bidding" })
+      flow = makeSalesFlow({ sale_type_id: saleType.id })
+      lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      qualified = makeFlowStage({ flow_id: flow.id, name: "Qualified", sort_order: 1 })
+      awarded = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 2 })
+      lost = makeFlowStage({ flow_id: flow.id, name: "Lost", sort_order: 3, is_terminal: true })
+      makeFlowEdge(lead, qualified)
+      makeFlowEdge(qualified, awarded)
+      makeFlowEdge(awarded, qualified)
+      makeFlowEdge(lead, lost)
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = awarded.id
+    })
+
+    const register = (overrides = {}) =>
+      opportunityService.createOpportunity(
+        payload({ sale_type_id: saleType.id, ...overrides }),
+        registrar.id,
+      )
+
+    it("lands a newly registered deal on the Stage its flow starts at", async () => {
+      const created = await register()
+
+      expect(created.sale_type_id).toBe(saleType.id)
+      expect(created.flow_stage_id).toBe(lead.id)
+    })
+
+    it("moves a deal along an edge that was drawn", async () => {
+      const deal = await register()
+
+      const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      expect(moved.flow_stage_id).toBe(qualified.id)
+    })
+
+    it("refuses a move along an edge that does not exist", async () => {
+      const deal = await register()
+
+      await expect(opportunityService.updateStatus(deal.id, awarded.id, registrar.id)).rejects.toThrow(
+        /Lead cannot move straight to Awarded/,
+      )
+    })
+
+    it("permits a loop back that was drawn", async () => {
+      const deal = await register()
+      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      expect(looped.flow_stage_id).toBe(qualified.id)
+    })
+
+    it("stamps a Contract Date the first time the deal reaches its flow's Won Stage", async () => {
+      const deal = await register()
+      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+      expect(won.contract_date).toBeTruthy()
+    })
+
+    it("keeps the Contract Date when the deal loops back out of the Won Stage", async () => {
+      // ADR 0006 — Realized is a fact about the deal, and a later move cannot
+      // unsay that it was won. The positional rule needed a special case here.
+      const deal = await register()
+      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      expect(reopened.contract_date).toBe(won.contract_date)
+    })
+
+    it("records the move on the timeline with both Stage names", async () => {
+      const deal = await register()
+      await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      const notes = await opportunityService.getNotes(deal.id)
+      const move = notes.find((n) => n.metadata?.event === "STAGE_CHANGED")
+      expect(move.content).toContain("Lead")
+      expect(move.content).toContain("Qualified")
+    })
+
+    it("refuses a move naming a Stage from another flow", async () => {
+      const deal = await register()
+      const elsewhere = makeFlowStage({ name: "Somewhere Else" })
+
+      await expect(
+        opportunityService.updateStatus(deal.id, elsewhere.id, registrar.id),
+      ).rejects.toThrow(/not a Stage in this deal's flow/)
+    })
+
+    it("leaves a legacy deal on the global pipeline entirely alone", async () => {
+      // The expand half of an expand–contract: until existing SORs are
+      // migrated onto the locked flows, a deal with no Sale Type is gated
+      // exactly as it was before any of this existed.
+      const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
+
+      const moved = await opportunityService.updateStatus(
+        legacy.id,
+        "QUALIFIED",
+        registrar.id,
+        null,
+        "S01237",
+      )
+
+      expect(moved.status).toBe("QUALIFIED")
+      expect(moved.flow_stage_id).toBeNull()
+      expect(lost.id).toBeTruthy()
+    })
+  })
+
+  describe("changing an SOR's Sale Type", () => {
+    let bidding
+    let outright
+    let biddingLead
+    let biddingQualified
+    let outrightLead
+
+    beforeEach(() => {
+      bidding = makeSaleType({ name: "Bidding" })
+      const biddingFlow = makeSalesFlow({ sale_type_id: bidding.id })
+      biddingLead = makeFlowStage({ flow_id: biddingFlow.id, name: "Lead", sort_order: 0 })
+      biddingQualified = makeFlowStage({ flow_id: biddingFlow.id, name: "Qualified", sort_order: 1 })
+      makeFlowEdge(biddingLead, biddingQualified)
+
+      outright = makeSaleType({ name: "Outright" })
+      const outrightFlow = makeSalesFlow({ sale_type_id: outright.id })
+      outrightLead = makeFlowStage({ flow_id: outrightFlow.id, name: "Enquiry", sort_order: 0 })
+    })
+
+    const register = () =>
+      opportunityService.createOpportunity(payload({ sale_type_id: bidding.id }), registrar.id)
+
+    it("re-routes a deal that has not moved yet, landing it on the new flow's first Stage", async () => {
+      // No cross-flow Stage mapping exists, and private Stages make one
+      // impossible, so the only correct destination is where deals start.
+      const deal = await register()
+
+      const changed = await opportunityService.updateSaleType(deal.id, outright.id, registrar.id)
+
+      expect(changed.sale_type_id).toBe(outright.id)
+      expect(changed.flow_stage_id).toBe(outrightLead.id)
+    })
+
+    it("logs the change with both the old and the new value", async () => {
+      const deal = await register()
+      await opportunityService.updateSaleType(deal.id, outright.id, registrar.id)
+
+      const notes = await opportunityService.getNotes(deal.id)
+      const change = notes.find((n) => n.metadata?.event === "SALE_TYPE_CHANGED")
+      expect(change.content).toContain("Bidding")
+      expect(change.content).toContain("Outright")
+    })
+
+    it("refuses once the deal has moved past its first Stage", async () => {
+      const deal = await register()
+      await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
+
+      await expect(
+        opportunityService.updateSaleType(deal.id, outright.id, registrar.id),
+      ).rejects.toThrow(/already moved/)
+    })
+
+    it("refuses even when a loop has brought the deal back to its first Stage", async () => {
+      // Sitting on the entry Stage is not the same as never having left it:
+      // the deal has a history in this flow that the other one cannot account
+      // for.
+      const deal = await register()
+      makeFlowEdge(biddingQualified, biddingLead)
+      await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
+      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id)
+
+      await expect(
+        opportunityService.updateSaleType(deal.id, outright.id, registrar.id),
+      ).rejects.toThrow(/already moved/)
     })
   })
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   entryStage,
   flowLockBlockers,
+  isAtEntryStage,
   isFlowLockable,
   isLegalMove,
   outgoingStages,
@@ -182,4 +183,27 @@ describe("whether a flow may be locked", () => {
       "Orphan cannot be reached from Lead.",
     ])
   })
+})
+
+describe("whether a deal is sitting where it entered", () => {
+  it("is true while it is still on the Stage deals enter at", () => {
+    expect(isAtEntryStage({ flow_stage_id: "s-lead" }, STAGES)).toBe(true)
+  })
+
+  it("is false once it has moved on", () => {
+    expect(isAtEntryStage({ flow_stage_id: "s-qualified" }, STAGES)).toBe(false)
+  })
+
+  it("is false when the deal is not on a flow at all", () => {
+    expect(isAtEntryStage({ flow_stage_id: null }, STAGES)).toBe(false)
+    expect(isAtEntryStage(null, STAGES)).toBe(false)
+  })
+
+  it("is false for a flow with no Stages, rather than throwing", () => {
+    expect(isAtEntryStage({ flow_stage_id: "s-lead" }, [])).toBe(false)
+  })
+
+  // Whether the deal has EVER moved is a different question, and a loop back
+  // to the entry Stage makes the two disagree. That one needs the deal's
+  // history, so it is asked in opportunityService rather than here.
 })

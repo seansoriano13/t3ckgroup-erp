@@ -48,6 +48,7 @@ import { procurementService } from "../../services/procurementService";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
+import FlowStageControl from "./FlowStageControl";
 import {
   isLostCode,
   PROJECT_TYPE_LABELS,
@@ -1046,6 +1047,10 @@ export default function OpportunityDetailsModal({
 
   const isPosting = isUploading || addNoteMutation.isPending;
 
+  // Issue #36 — the deal is on a Sales Flow rather than the global ordered
+  // pipeline. Both columns are set together or neither is (migration 0049).
+  const isFlowDeal = Boolean(opportunity.sale_type_id);
+
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
   const lastIndex = pipelineStages.length - 1;
 
@@ -1245,16 +1250,41 @@ export default function OpportunityDetailsModal({
           {/* Pipeline Stage Tracker */}
           <div className="w-full">
             <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              Pipeline Stage
+              {isFlowDeal ? "Sales Flow" : "Pipeline Stage"}
             </p>
-            {stageControl}
+            {/* Issue #36 — a deal that carries a Sale Type runs a graph, not a
+                line, so it gets a control that shows where it is and what it
+                may move to. The chevron ribbon below colours steps by their
+                position, which a graph has no answer for. */}
+            {isFlowDeal ? (
+              <FlowStageControl
+                opportunity={opportunity}
+                isMoving={stageMutation.isPending}
+                onMove={(flowStageId) =>
+                  stageMutation.mutate({
+                    next: flowStageId,
+                    reason: null,
+                    salesReference: null,
+                    itbNumber: null,
+                  })
+                }
+              />
+            ) : (
+              stageControl
+            )}
 
-            <StageChecklist
-              opportunity={opportunity}
-              employees={employees}
-              actorId={user?.id}
-              onChanged={invalidate}
-            />
+            {/* The checklist reads `stage_requirements`, which are keyed to a
+                crm_pipeline_stages code. A flow Stage is not one, so it has
+                nothing to say about a flow-built deal until Stage Conditions
+                are wired to flow Stages. */}
+            {!isFlowDeal && (
+              <StageChecklist
+                opportunity={opportunity}
+                employees={employees}
+                actorId={user?.id}
+                onChanged={invalidate}
+              />
+            )}
 
             {isLostPending && (
               <div className="mt-3 flex items-end gap-2">

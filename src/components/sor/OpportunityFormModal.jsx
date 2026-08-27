@@ -17,6 +17,7 @@ import {
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
 import { leadSourceService } from "../../services/leadSourceService";
+import { salesFlowService } from "../../services/salesFlowService";
 
 const FORM_ID = "opportunity-form";
 
@@ -28,6 +29,7 @@ const blankForm = () => ({
   contact_person: "",
   project_title: "",
   project_type: "SSP",
+  sale_type_id: "",
   sales_reference: "",
   expected_award_date: "",
   po_date: "",
@@ -46,6 +48,7 @@ const fromRecord = (o) => ({
   contact_person: o.contact_person || "",
   project_title: o.project_title || "",
   project_type: o.project_type || "SSP",
+  sale_type_id: o.sale_type_id || "",
   sales_reference: o.sales_reference || "",
   expected_award_date: o.expected_award_date || "",
   po_date: o.po_date || "",
@@ -93,6 +96,15 @@ export default function OpportunityFormModal({
     enabled: isOpen,
   });
 
+  // Issue #36 — the Sale Type a deal is registered against decides which
+  // Sales Flow it runs. The list is whatever the Operations Manager has drawn
+  // on the Flow Canvas, and is empty until she has drawn one; the field hides
+  // itself in that case rather than offering an empty picker.
+  const { data: saleTypes = [] } = useQuery({
+    queryKey: ["saleTypes"],
+    queryFn: () => salesFlowService.getSaleTypes(),
+  });
+
   const { data: activeLeadSources = [] } = useQuery({
     queryKey: ["leadSources", "active"],
     queryFn: () => leadSourceService.getActiveLeadSources(),
@@ -124,6 +136,8 @@ export default function OpportunityFormModal({
       label: e.subDepartment ? `${e.name} — ${e.subDepartment}` : e.name,
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+
+  const saleTypeOptions = saleTypes.map((t) => ({ value: t.id, label: t.name }));
 
   const leadSourceOptions = activeLeadSources.map((s) => ({
     value: s.value,
@@ -220,6 +234,7 @@ export default function OpportunityFormModal({
     onSubmit({
       ...form,
       project_type: derivedType,
+      sale_type_id: form.sale_type_id || null,
       sales_reference,
       sales_director_id: effectiveSalesDirectorId,
       items,
@@ -269,6 +284,20 @@ export default function OpportunityFormModal({
             onChange={set("lead_source")}
           />
         </div>
+
+        {/* Issue #36 — chosen at registration, and changeable afterwards only
+            while the deal is still on its flow's first Stage, which is why the
+            edit form does not offer it. That change goes through
+            opportunityService.updateSaleType, from the deal's own screen. */}
+        {!isEdit && saleTypes.length > 0 && (
+          <SelectField
+            label="Sale Type"
+            placeholder="Select sale type…"
+            options={saleTypeOptions}
+            value={form.sale_type_id}
+            onChange={set("sale_type_id")}
+          />
+        )}
 
         {form.lead_source === "OTHERS" && (
           <TextField

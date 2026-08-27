@@ -25,6 +25,7 @@ import {
   REQUIREMENT_STATUS,
   stagesCrossed,
 } from "../constants/stageGate";
+import { entryStage, isLegalMove } from "../constants/salesFlow";
 
 const PARTICIPANT_SELECT = `
   *,
@@ -256,6 +257,132 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   throw new Error(`Cannot move to ${STAGE_LABELS[toCode] || toCode} — missing: ${missing}.`);
 }
 
+// ── Deals that run a Sales Flow (issue #36, ADR 0006) ───────────────────────
+// A deal carrying a `sale_type_id` moves through the graph the Operations
+// Manager drew rather than through the global ordered pipeline. Everything
+// below serves the one branch inside `updateStatus`; there is deliberately no
+// second public way to move an SOR, because two transition paths is exactly
+// the defect reusing the funnel prevents.
+
+/**
+ * The Sales Flow a deal runs: its flow row, its private Stages in canvas
+ * order, and its edges.
+ */
+async function flowContextFor(saleTypeId) {
+  const { data: flow, error: flowError } = await supabase
+    .from("sales_flows")
+    .select("*")
+    .eq("sale_type_id", saleTypeId)
+    .single();
+  if (flowError) throw flowError;
+
+  const [{ data: stages, error: stageError }, { data: edges, error: edgeError }] = await Promise.all([
+    supabase.from("flow_stages").select("*").eq("flow_id", flow.id).order("sort_order", { ascending: true }),
+    supabase.from("flow_edges").select("*").eq("flow_id", flow.id),
+  ]);
+  if (stageError) throw stageError;
+  if (edgeError) throw edgeError;
+
+  return { flow, stages: stages || [], edges: edges || [] };
+}
+
+/** Where a deal entering `saleTypeId`'s flow lands. Throws if the flow has no Stages to land on. */
+async function entryStageFor(saleTypeId) {
+  const { stages } = await flowContextFor(saleTypeId);
+  const entry = entryStage(stages);
+  if (!entry) {
+    throw new Error("That Sale Type's flow has no Stages yet, so a deal cannot be placed on it.");
+  }
+  return entry;
+}
+
+/**
+ * Whether this deal has ever changed Stage, from its own timeline.
+ *
+ * Not the same question as "is it on its flow's first Stage": a flow may loop
+ * back to its own entry, so a deal can be sitting there having already been
+ * round once. Changing a Sale Type is permitted only before the first move
+ * (issue #36), and it is the history that answers that, not the position.
+ */
+async function hasEverMoved(opportunityId) {
+  const { data, error } = await supabase
+    .from("sales_opportunity_logs")
+    .select("metadata")
+    .eq("opportunity_id", opportunityId);
+  if (error) throw error;
+
+  return (data || []).some((log) => log.metadata?.event === "STAGE_CHANGED");
+}
+
+/**
+ * The whole of a flow-built deal's stage move — the branch `updateStatus`
+ * takes when the deal carries a Sale Type.
+ *
+ * A move traverses EXACTLY ONE EDGE (ADR 0006). There is no canonical path
+ * between two arbitrary Stages in a graph, so the crossed-Stages interval the
+ * global pipeline uses has no meaning here, and the only Stage evaluated is
+ * the one being left. That is simpler than the interval rather than a
+ * replacement for it.
+ *
+ * The legacy gates — Sales Reference, ITB, and `stage_requirements` — are not
+ * applied, because every one of them is keyed to a `crm_pipeline_stages` code
+ * and a flow Stage is not one. The flow's own Stage Conditions are what gate
+ * these moves, and they are a later ticket; until then a flow-built deal is
+ * gated by its edges alone.
+ */
+async function moveAlongFlow(existing, nextStageId, actorId) {
+  const { flow, stages, edges } = await flowContextFor(existing.sale_type_id);
+
+  const from = stages.find((s) => s.id === existing.flow_stage_id) || null;
+  const to = stages.find((s) => s.id === nextStageId) || null;
+  if (!to) {
+    throw new Error("That is not a Stage in this deal's flow.");
+  }
+  if (from?.id === to.id) return existing;
+
+  if (!isLegalMove(existing.flow_stage_id, nextStageId, edges)) {
+    throw new Error(
+      `${from?.name || "This deal's Stage"} cannot move straight to ${to.name} — that move is not part of this flow.`,
+    );
+  }
+
+  const patch = { flow_stage_id: to.id };
+
+  // The flow's Won Stage stamps Contract Date, which is what makes the deal
+  // Realized (ADR 0006). Stamped once and never overwritten: a deal that loops
+  // back out of the Won Stage was still won, and a later rate change must not
+  // reprice an already-priced deal.
+  if (flow.won_stage_id === to.id && !existing.contract_date) {
+    patch.contract_date = getCurrentLocalDate();
+  }
+
+  const { data, error } = await supabase
+    .from("sales_opportunities")
+    .update(patch)
+    .eq("id", existing.id)
+    .select(PARTICIPANT_SELECT)
+    .single();
+  if (error) throw error;
+
+  const fromName = from?.name || "—";
+  await opportunityService.addSystemNote(
+    existing.id,
+    `Stage moved: ${fromName} → ${to.name}`,
+    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
+    actorId,
+  );
+
+  systemAuditLogService.addSystemEvent(
+    "OPPORTUNITY",
+    existing.id,
+    `${auditLabel(existing)}: ${fromName} → ${to.name}`,
+    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
+    actorId,
+  ).catch(console.error);
+
+  return data;
+}
+
 /**
  * D42 — a `deadline` requirement's "entry into the Stage" timestamp: the
  * most recent STAGE_CHANGED note landing this opportunity on its current
@@ -395,9 +522,17 @@ export const opportunityService = {
    * registrations cannot collide.
    */
   async createOpportunity(payload, actorId) {
+    // Issue #36 — a deal registered against a Sale Type enters that Sale
+    // Type's flow at its first Stage. Both columns are set together or neither
+    // is (migration 0049's CHECK), because a deal with a Sale Type and no
+    // Stage in its flow is a deal nothing can move.
+    const flowEntry = payload.sale_type_id ? await entryStageFor(payload.sale_type_id) : null;
+
     const { data, error } = await supabase
       .from("sales_opportunities")
       .insert({
+        sale_type_id: payload.sale_type_id || null,
+        flow_stage_id: flowEntry?.id || null,
         registration_date: payload.registration_date,
         registered_by: actorId,
         lead_source: payload.lead_source,
@@ -641,6 +776,18 @@ export const opportunityService = {
       .single();
     if (readError) throw readError;
 
+    // Issue #36 / ADR 0006 — the one funnel, two spaces. A deal carrying a
+    // Sale Type sits on a Stage of its own Sales Flow, so `nextStatus` is a
+    // flow Stage id and the move is validated against the edges the Operations
+    // Manager drew. A deal without one is on the global ordered pipeline and
+    // everything below this line applies to it unchanged.
+    //
+    // Branching here rather than adding a second public method is deliberate:
+    // two ways to move an SOR is the defect that reusing this funnel prevents.
+    if (existing.sale_type_id) {
+      return moveAlongFlow(existing, nextStatus, actorId);
+    }
+
     if (existing.status === nextStatus) return existing;
 
     const providedRef = cleanSalesReference(salesReference);
@@ -771,6 +918,73 @@ export const opportunityService = {
         .notifyDealClosed(id, actorId, lostReason)
         .catch(console.error);
     }
+
+    return data;
+  },
+
+  /**
+   * Re-routes a deal onto a different Sale Type's flow (issue #36).
+   *
+   * Permitted only before the deal's first move, and refused after it — by
+   * then the deal has visited Stages the other flow does not have, and since
+   * Stages are private to their flow there is no mapping that could say where
+   * it belongs. The check reads the deal's history rather than its position,
+   * because a flow may loop back to its own entry and sitting there again is
+   * not the same as never having left.
+   *
+   * The deal lands on the new flow's first Stage. That is not a fallback: it
+   * is the only destination a flow with private Stages can offer.
+   */
+  async updateSaleType(id, saleTypeId, actorId) {
+    const existing = await opportunityService.getOpportunityById(id);
+    if (existing.sale_type_id === saleTypeId) return existing;
+
+    if (existing.sale_type_id && (await hasEverMoved(id))) {
+      throw new Error(
+        "This deal has already moved past its first Stage, so its Sale Type is fixed. Its history belongs to the flow it is on.",
+      );
+    }
+
+    const entry = await entryStageFor(saleTypeId);
+
+    const { data: saleTypes, error: nameError } = await supabase
+      .from("sale_types")
+      .select("id, name")
+      .in("id", [saleTypeId, existing.sale_type_id].filter(Boolean));
+    if (nameError) throw nameError;
+    const nameOf = (typeId) => saleTypes?.find((t) => t.id === typeId)?.name || "—";
+
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .update({ sale_type_id: saleTypeId, flow_stage_id: entry.id })
+      .eq("id", id)
+      .select(PARTICIPANT_SELECT)
+      .single();
+    if (error) throw error;
+
+    // Both values, always: a deal's history has to explain itself, and "Sale
+    // Type changed" without saying from what explains nothing.
+    const change = `Sale Type changed: ${nameOf(existing.sale_type_id)} → ${nameOf(saleTypeId)}`;
+    await opportunityService.addSystemNote(
+      id,
+      `${change}. Now at ${entry.name}.`,
+      {
+        event: "SALE_TYPE_CHANGED",
+        from: existing.sale_type_id,
+        to: saleTypeId,
+        flowStageId: entry.id,
+        employeeId: actorId,
+      },
+      actorId,
+    );
+
+    systemAuditLogService.addSystemEvent(
+      "OPPORTUNITY",
+      id,
+      `${auditLabel(existing)}: ${change}.`,
+      { event: "SALE_TYPE_CHANGED", from: existing.sale_type_id, to: saleTypeId, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
 
     return data;
   },

@@ -134,3 +134,19 @@ export function flowLockBlockers({ stages = [], edges = [], wonStageId = null } 
 export function isFlowLockable(flow) {
   return flowLockBlockers(flow).length === 0
 }
+
+/**
+ * Whether this deal is sitting on the Stage its flow's deals enter at.
+ *
+ * Note what this does NOT answer: whether the deal has ever moved. A flow may
+ * loop back to its own entry, so a deal can be sitting here having already
+ * been round once. Where that difference matters — changing an SOR's Sale
+ * Type, which is permitted only before the first move (issue #36) — the
+ * caller has to consult the deal's history as well, and that read belongs in
+ * a service rather than in a pure module.
+ */
+export function isAtEntryStage(opportunity, stages = []) {
+  const entry = entryStage(stages)
+  if (!entry || !opportunity?.flow_stage_id) return false
+  return opportunity.flow_stage_id === entry.id
+}
