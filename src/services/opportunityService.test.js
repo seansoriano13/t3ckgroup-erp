@@ -152,6 +152,27 @@ describe("opportunityService", () => {
     it("returns null for a missing id rather than throwing", async () => {
       expect(await opportunityService.getOpportunityById(null)).toBeNull()
     })
+
+    // Issue #36 — a Scratch SOR runs identical code paths to a real deal, so
+    // it is indistinguishable to any query that does not ask. The Register is
+    // the read every count, board and matrix starts from; it asks.
+    it("hides Scratch SORs from the register", async () => {
+      const real = makeOpportunity({ registered_by: registrar.id, client_name: "Real" })
+      makeOpportunity({ registered_by: registrar.id, client_name: "Scratch", is_scratch: true })
+
+      const list = await opportunityService.getOpportunities()
+
+      expect(list.map((o) => o.id)).toEqual([real.id])
+    })
+
+    it("still opens a Scratch SOR by id, so the canvas can watch it", async () => {
+      const scratch = makeOpportunity({ registered_by: registrar.id, is_scratch: true })
+
+      const found = await opportunityService.getOpportunityById(scratch.id)
+
+      expect(found.id).toBe(scratch.id)
+      expect(found.is_scratch).toBe(true)
+    })
   })
 
   describe("moving through the pipeline", () => {

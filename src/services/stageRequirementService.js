@@ -42,7 +42,10 @@ async function noteArchivalOnDealsAtStage(requirement, actorId) {
     .from("sales_opportunities")
     .select("id")
     .eq("status", requirement.stage_code)
-    .neq("is_deleted", true);
+    .neq("is_deleted", true)
+    // Issue #36, migration 0046 — a Scratch SOR has no timeline anybody reads
+    // for its own sake, so a config-change note on one is noise.
+    .eq("is_scratch", false);
   if (error) throw error;
   if (!deals || deals.length === 0) return;
 

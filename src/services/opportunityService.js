@@ -353,11 +353,23 @@ function auditLabel({ sales_reference, client_name }) {
 }
 
 export const opportunityService = {
+  /**
+   * The SOR Register. Every register count, the board, the matrix, and the
+   * batched blocked-deal and deadline reads all take this list as their
+   * input, which makes it the one place the Scratch SOR exclusion has to be
+   * right (issue #36, migration 0046). A Scratch SOR runs identical code
+   * paths to a real deal, so nothing else here can tell them apart.
+   *
+   * `getOpportunityById` deliberately does NOT filter: the canvas opens a
+   * Scratch SOR to watch it, and a record that cannot be opened cannot be
+   * watched.
+   */
   async getOpportunities() {
     const { data, error } = await supabase
       .from("sales_opportunities")
       .select(PARTICIPANT_SELECT)
       .neq("is_deleted", true)
+      .eq("is_scratch", false)
       .order("registration_date", { ascending: false })
       .order("created_at", { ascending: false });
 

@@ -35,12 +35,18 @@ async function requireSuperAdmin(actorId) {
  * set as `sales_director_id` on at least one opportunity. Checked here
  * rather than trusting a client-supplied role, for the same reason as
  * requireSuperAdmin.
+ *
+ * Scratch SORs are excluded (issue #36, migration 0046) because this is an
+ * authorization check rather than a report: a deal drawn on the Flow Canvas
+ * to watch a Stage fire must not be able to grant somebody the Commission
+ * Dashboard as a side effect of being named on it.
  */
 async function isSalesDirector(actorId) {
   const { data, error } = await supabase
     .from("sales_opportunities")
     .select("id")
     .eq("sales_director_id", actorId)
+    .eq("is_scratch", false)
     .limit(1);
   if (error) throw error;
 
@@ -352,6 +358,10 @@ async function getCommissionDashboardData({
          sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
       )
       .neq("is_deleted", true)
+      // Issue #36, migration 0046 — a Scratch SOR carries a value and a
+      // Contract Date like any other deal, so the flag is the only thing
+      // keeping it out of the company's booked money.
+      .eq("is_scratch", false)
       .order("contract_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     supabase

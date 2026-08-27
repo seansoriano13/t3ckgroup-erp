@@ -345,6 +345,16 @@ describe("commissionService", () => {
 
       expect(await commissionService.isSalesDirector(regular.id)).toBe(false)
     })
+
+    // Issue #36 — this is an authorization check, not a report. A Scratch SOR
+    // is drawn by whoever is at the canvas; naming somebody Sales Director on
+    // one must not hand them the Commission Dashboard.
+    it("is false for an employee who is only a sales director on a Scratch SOR", async () => {
+      const director = makeEmployee({ name: "Scratch Director" })
+      makeOpportunity({ sales_director_id: director.id, is_scratch: true })
+
+      expect(await commissionService.isSalesDirector(director.id)).toBe(false)
+    })
   })
 
   describe("saveSplitsForProjectType", () => {
@@ -454,6 +464,42 @@ describe("commissionService", () => {
       expect(bob.totalCommissionShare).toBeCloseTo(2_464.29, 2)
 
       expect(dashboard.dealLedger).toHaveLength(2)
+    })
+
+    // Issue #36 — the Scratch SOR below carries a Contract Date and a value,
+    // so under every rule the dashboard applies it is booked money. The only
+    // thing keeping it out of the company's commission totals is the flag.
+    it("leaves Scratch SORs out of the commission totals entirely", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      makeOpportunity({
+        sales_reference: "S02001",
+        itb_number: "ITB-2026-101",
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+      })
+
+      makeOpportunity({
+        sales_reference: "S02002",
+        itb_number: "ITB-2026-102",
+        project_type: "SSP",
+        expected_value: 9_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-11",
+        deal_owner_id: owner.id,
+        is_scratch: true,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
+      expect(dashboard.dealLedger).toHaveLength(1)
     })
   })
 })
