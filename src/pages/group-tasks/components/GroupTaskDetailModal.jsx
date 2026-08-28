@@ -57,6 +57,8 @@ import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
 import ReplyQuote from "@/components/ui/ReplyQuote";
 import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
+import MentionTextarea from "@/components/ui/MentionTextarea";
+import { supabase } from "@/lib/supabase";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -101,6 +103,7 @@ export default function GroupTaskDetailModal({
   const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
+  const [mentions, setMentions] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
@@ -237,6 +240,7 @@ export default function GroupTaskDetailModal({
       setShowRejectForm(false);
       setRejectRemarks("");
       setMessageContent("");
+      setMentions([]);
       setAttachments([]);
 
       setIsEditingTask(false);
@@ -246,11 +250,79 @@ export default function GroupTaskDetailModal({
   }, [isOpen]);
 
   // --- Inline chat: fetch messages ---
-  const { data: chatMessages = [], isLoading: isLoadingChat } = useQuery({
+  const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
     queryKey: ["chatMessages", "GROUP_TASK", task?.id],
     queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
+
+  const { data: readReceipts = [] } = useQuery({
+    queryKey: ["chatReadReceipts", "GROUP_TASK", task?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_read_receipts")
+        .select("user_id, last_read_at")
+        .eq("entity_type", "GROUP_TASK")
+        .eq("entity_id", String(task.id));
+      return data || [];
+    },
+    enabled: !!task?.id && isOpen && isSplitScreen,
+  });
+
+  const chatMessages = useMemo(() => {
+    if (!rawMessages || rawMessages.length === 0) return [];
+    
+    // Calculate seenBy logic
+    const userToLastSeenMsgId = {};
+    for (const receipt of readReceipts) {
+      if (receipt.user_id === user?.id) continue;
+      
+      const readAt = new Date(receipt.last_read_at).getTime();
+      let latestMsg = null;
+      for (const m of rawMessages) {
+        if (new Date(m.createdAt).getTime() <= readAt) {
+          if (!latestMsg || new Date(m.createdAt).getTime() > new Date(latestMsg.createdAt).getTime()) {
+            latestMsg = m;
+          }
+        }
+      }
+      if (latestMsg) {
+        if (latestMsg.authorId === receipt.user_id) {
+          let latestNotTheirs = null;
+          for (const m of rawMessages) {
+            if (new Date(m.createdAt).getTime() <= readAt && m.authorId !== receipt.user_id) {
+              if (!latestNotTheirs || new Date(m.createdAt).getTime() > new Date(latestNotTheirs.createdAt).getTime()) {
+                latestNotTheirs = m;
+              }
+            }
+          }
+          if (latestNotTheirs) latestMsg = latestNotTheirs;
+          else latestMsg = null;
+        }
+
+        if (latestMsg) {
+          if (!userToLastSeenMsgId[latestMsg.id]) userToLastSeenMsgId[latestMsg.id] = [];
+          const emp = employees.find(e => e.id === receipt.user_id);
+          let name = emp?.name;
+          if (!name) {
+            const commentByThem = rawMessages.find(c => c.authorId === receipt.user_id);
+            name = commentByThem ? commentByThem.authorName : "Unknown";
+          }
+          
+          userToLastSeenMsgId[latestMsg.id].push({
+            id: receipt.user_id,
+            name: name,
+            src: avatarMap.get(receipt.user_id)
+          });
+        }
+      }
+    }
+
+    return rawMessages.map(m => ({
+      ...m,
+      seenBy: userToLastSeenMsgId[m.id] || []
+    }));
+  }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -276,12 +348,40 @@ export default function GroupTaskDetailModal({
     };
   }, [isSplitScreen, task?.id, isOpen, queryClient]);
 
+  // Real-time listener for read receipts
+  useEffect(() => {
+    if (!isSplitScreen || !task?.id || !isOpen) return;
+
+    const channel = supabase
+      .channel(`read-receipts-grouptask-${task.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_read_receipts",
+          filter: `entity_id=eq.${task.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["chatReadReceipts", "GROUP_TASK", task.id],
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isSplitScreen, task?.id, isOpen, queryClient]);
+
   // --- Inline chat: send message mutation ---
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, attachmentUrls = [], replyTo = null }) => {
+    mutationFn: ({ content, attachmentUrls = [], replyTo = null, messageMentions = [] }) => {
       const metadata = {};
       if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
       if (replyTo) metadata.replyTo = replyTo;
+      if (messageMentions.length > 0) metadata.mentions = messageMentions;
       return groupTaskActivityService.addComment(
         task.id,
         user.id,
@@ -292,6 +392,7 @@ export default function GroupTaskDetailModal({
     onSuccess: () => {
       setMessageContent("");
       setAttachments([]);
+      setMentions([]);
       setReplyingTo(null);
       queryClient.invalidateQueries({
         queryKey: ["chatMessages", "GROUP_TASK", task?.id],
@@ -344,7 +445,7 @@ export default function GroupTaskDetailModal({
             attachments.map((a) => storageService.uploadToCloudinary(a.file)),
           );
         }
-        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo });
+        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo, messageMentions: mentions });
       } catch (err) {
         toast.error("Failed to upload chat attachments");
         console.error("Failed to upload chat attachments:", err);
@@ -371,26 +472,49 @@ export default function GroupTaskDetailModal({
   };
 
   // Helper: render URLs as links
-  const renderContent = (text) => {
+  const renderContent = (text, messageMentions = [], isMe = false) => {
     if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const names = (messageMentions || []).map((m) => m.name).filter(Boolean);
+    const escaped = names.length > 0 ? names.slice().sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") : null;
+    const mentionRegex = escaped ? new RegExp(`(@(?:${escaped}))`, "g") : null;
+
     const parts = text.split(urlRegex);
-    return parts.map((part, i) =>
-      urlRegex.test(part) ? (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      ) : (
-        <span key={i}>{part}</span>
-      ),
-    );
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        return (
+          <a
+            key={`url-${i}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      } else if (mentionRegex) {
+        const mParts = part.split(mentionRegex);
+        return mParts.map((mPart, j) => {
+          if (/^@/.test(mPart) && names.some((n) => `@${n}` === mPart)) {
+            return (
+              <span
+                key={`mention-${i}-${j}`}
+                className={cn(
+                  "rounded px-1 font-semibold",
+                  isMe ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary/90",
+                )}
+              >
+                {mPart}
+              </span>
+            );
+          }
+          return <span key={`text-${i}-${j}`}>{mPart}</span>;
+        });
+      }
+      return <span key={`text-${i}`}>{part}</span>;
+    });
   };
 
   // Mark as read when opened (same pattern as TaskDetails)
@@ -1150,7 +1274,7 @@ export default function GroupTaskDetailModal({
                             )}
                           >
                             <ReplyQuote replyTo={m.metadata?.replyTo} />
-                            {m.content && <p>{renderContent(m.content)}</p>}
+                            {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
                             {m.metadata?.attachments?.length > 0 && (
                               <div className={cn("flex flex-wrap gap-1.5", m.content ? "mt-2" : "")}>
                                 {m.metadata.attachments.map((url, i) => (
@@ -1173,9 +1297,26 @@ export default function GroupTaskDetailModal({
                             )}
                           </div>
                         </SwipeToReplyWrapper>
-                        <span className="text-[8px] text-muted-foreground/60 mt-0.5 px-1 font-medium">
-                          {timeAgo(m.createdAt)}
-                        </span>
+                        <div className={cn("flex items-center gap-1 mt-0.5", isMe ? "flex-row-reverse" : "flex-row")}>
+                          <span className="text-[8px] text-muted-foreground/60 px-1 font-medium">
+                            {timeAgo(m.createdAt)}
+                          </span>
+                          {/* Read Receipts Avatars */}
+                          {m.seenBy?.length > 0 && (
+                            <div className={cn("flex items-center gap-0.5", isMe ? "mr-1" : "ml-1")}>
+                              {m.seenBy.map(u => (
+                                <Avatar
+                                  key={u.id}
+                                  name={u.name || "?"}
+                                  src={u.src}
+                                  size="xs"
+                                  className="w-3.5 h-3.5 text-[7px]"
+                                  title={`Seen by ${u.name}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1232,18 +1373,17 @@ export default function GroupTaskDetailModal({
                   </div>
                 )}
 
-                <Input
+                <MentionTextarea
                   value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
+                  onChange={setMessageContent}
                   onPaste={handlePaste}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
+                  onEnterSubmit={handleSendMessage}
+                  people={employees}
+                  mentions={mentions}
+                  onMentionsChange={setMentions}
                   placeholder="Write a message..."
-                  className="border-none shadow-none focus-visible:ring-0 text-sm h-9"
+                  className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-1.5 outline-none custom-scrollbar disabled:opacity-50 min-h-[36px]"
+                  rows={1}
                   disabled={sendMessageMutation.isPending || isUploading}
                 />
 
