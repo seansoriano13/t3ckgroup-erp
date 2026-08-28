@@ -286,6 +286,60 @@ describe("groupTaskService", () => {
     })
   })
 
+  describe("adding a member after the task was already closed out", () => {
+    it("reopens a completed task so the new member's work can be done", async () => {
+      const task = await createTask()
+      await groupTaskService.markGroupTaskComplete(task.id, creator.id)
+
+      const carol = makeEmployee({ name: "Carol Reyes" })
+      await groupTaskService.addMemberToTask(
+        task.id,
+        { employeeId: carol.id, taskDescription: "Count aisle C" },
+        creator.id,
+      )
+
+      const reopened = await groupTaskService.getGroupTaskById(task.id)
+      expect(reopened.status).toBe("ACTIVE")
+    })
+
+    it("reopens a task that was already sent to HR", async () => {
+      const task = await createTask()
+      const members = await membersOf(task.id)
+      for (const member of members) {
+        await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
+      }
+      await groupTaskService.rateMembers(
+        task.id,
+        members.map((m) => ({ memberId: m.id, grade: 90, gradeRemarks: "Good" })),
+        creator.id,
+      )
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("HR_PENDING")
+
+      const carol = makeEmployee({ name: "Carol Reyes" })
+      await groupTaskService.addMemberToTask(
+        task.id,
+        { employeeId: carol.id, taskDescription: "Count aisle C" },
+        creator.id,
+      )
+
+      const reopened = await groupTaskService.getGroupTaskById(task.id)
+      expect(reopened.status).toBe("ACTIVE")
+    })
+
+    it("leaves an already-active task's status alone", async () => {
+      const task = await createTask()
+
+      const carol = makeEmployee({ name: "Carol Reyes" })
+      await groupTaskService.addMemberToTask(
+        task.id,
+        { employeeId: carol.id, taskDescription: "Count aisle C" },
+        creator.id,
+      )
+
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
+    })
+  })
+
   describe("editing assignments", () => {
     it("changes what a member was asked to do", async () => {
       const task = await createTask()

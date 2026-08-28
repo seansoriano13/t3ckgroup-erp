@@ -651,6 +651,32 @@ export const groupTaskService = {
       .eq("id", groupTaskId)
       .single();
 
+    // A new member arrives PENDING, with work still to do — a task the group
+    // had already closed out (COMPLETED, or somewhere in the HR hand-off) is
+    // no longer an accurate description of it, and every "mark done" control
+    // in the UI is gated on ACTIVE, which would leave the new member with no
+    // way to ever mark their assignment done. Reopen it so it does not sit
+    // permanently locked at a status that predates the new work.
+    if (ct && ["COMPLETED", "HR_PENDING", "HR_VERIFIED"].includes(ct.status)) {
+      const { error: reopenError } = await supabase
+        .from("committee_tasks")
+        .update({ status: "ACTIVE", hr_remarks: null })
+        .eq("id", groupTaskId);
+      if (reopenError) throw reopenError;
+
+      await logGroupTaskActivity(
+        groupTaskId,
+        "REOPENED",
+        { reason: "MEMBER_ADDED", employeeId },
+        actorId
+      );
+      groupTaskActivityService.addSystemEvent(
+        groupTaskId,
+        "Group task reopened — a new member was added after it was closed out.",
+        { event: "REOPENED" },
+      ).catch(console.error);
+    }
+
     notificationService.createNotification({
       recipient_id: employeeId,
       sender_id: actorId,
