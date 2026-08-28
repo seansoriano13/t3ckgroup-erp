@@ -589,7 +589,12 @@ export default function TaskActivityTimeline({
     );
 
     try {
-      const { error } = await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      const { error } = await supabase.rpc('toggle_chat_reaction', {
+        p_table: table,
+        p_message_id: message.id,
+        p_user_id: user?.id,
+        p_emoji: emoji
+      });
       if (error) throw error;
 
       if (isAdding && message.authorId && message.authorId !== user?.id) {
