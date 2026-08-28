@@ -159,9 +159,9 @@ export default function OpportunityFormModal({
       project_type:
         prev.project_type === "STRATEGIC"
           ? deriveProjectType({
-              supportSales1Id: prev.support_sales_1_id,
-              supportSales2Id: prev.support_sales_2_id,
-            })
+            supportSales1Id: prev.support_sales_1_id,
+            supportSales2Id: prev.support_sales_2_id,
+          })
           : "STRATEGIC",
     }));
   };
@@ -190,7 +190,7 @@ export default function OpportunityFormModal({
       if (!result?.success) {
         toast.error(
           result?.message ||
-            "Could not fetch items from Odoo — enter them manually.",
+          "Could not fetch items from Odoo — enter them manually.",
         );
         return;
       }
@@ -282,7 +282,7 @@ export default function OpportunityFormModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TextField
-            label="Client"
+            label="Company Name"
             required
             placeholder="e.g. Acme Corp"
             value={form.client_name}
@@ -314,11 +314,10 @@ export default function OpportunityFormModal({
               <button
                 type="button"
                 onClick={toggleStrategic}
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${
-                  form.project_type === "STRATEGIC"
+                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                     : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
-                }`}
+                  }`}
                 title="Toggle Strategic project override"
               >
                 {form.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
@@ -327,13 +326,12 @@ export default function OpportunityFormModal({
             <div className="flex items-center gap-2 pt-0.5">
               <span
                 data-testid="project-type-badge"
-                className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg border ${
-                  form.project_type === "STRATEGIC"
+                className={`inline-flex items-center text-xs font-semibold px-2.5 py-1 rounded-lg border ${form.project_type === "STRATEGIC"
                     ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                     : form.project_type === "CP"
-                    ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                }`}
+                      ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                      : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                  }`}
               >
                 {PROJECT_TYPE_LABELS[form.project_type] || form.project_type}
               </span>
