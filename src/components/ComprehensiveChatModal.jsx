@@ -232,7 +232,7 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
           )}
         </div>
         
-        <div className="relative flex items-center gap-2">
+        <div className="relative flex items-center gap-2 min-w-0">
           {/* Desktop / Hover Actions */}
           <div className={cn(
             "hidden md:flex absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 z-10",

@@ -133,7 +133,7 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
           )}
         </div>
 
-        <div className="relative flex items-center gap-2">
+        <div className="relative flex items-center gap-2 min-w-0">
           {/* Hover Actions (Reply, React) */}
           <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
