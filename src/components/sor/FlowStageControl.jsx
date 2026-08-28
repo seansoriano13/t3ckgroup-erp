@@ -77,19 +77,25 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
           <div className="flex w-max min-w-full items-end gap-[2px] mb-2">
             {runs.map((run) => (
               <div key={run.stages[0].id} className="flex flex-col">
-                {run.label && (
-                  <div className="mx-1 mb-1.5 flex flex-col items-center gap-1">
+                {run.label ? (
+                  <div className="mx-1 mb-1.5 flex">
                     <span
                       className="max-w-full truncate rounded-full bg-violet-9 px-2 py-0.5 text-[9px] font-black tracking-[0.12em] text-white uppercase shadow-sm"
                       title={run.label}
                     >
                       {run.label}
                     </span>
-                    <div className="h-0 w-full border-t-2 border-violet-8" />
                   </div>
+                ) : (
+                  <div className="mb-1.5 h-[19px]" />
                 )}
 
-                <ul className="flex h-11 gap-[2px]">
+                <ul
+                  className={cn(
+                    "flex h-11 gap-[2px]",
+                    run.label && "border-t-2 border-violet-8 pt-1",
+                  )}
+                >
                   {run.stages.map((s) => {
                     const index = ++globalIndex;
                     const isCompleted = index < currentIndex;
