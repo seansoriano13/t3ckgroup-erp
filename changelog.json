@@ -1,5 +1,7 @@
 {
   "changes": [
+    "Fixed a bug where chat emoji reactions were not visible to receivers by applying proper RLS UPDATE policies for Realtime events.",
+    "Fixed a bug where group task chat reactions were not firing realtime events by adding committee_task_activity to the supabase_realtime publication and updating the subscription listener.",
     "Fixed a bug where viewing a SOR would sometimes incorrectly log 'items updated' when nothing was actually modified."
   ]
 }
