@@ -45,7 +45,7 @@ export default function SwipeToReplyWrapper({ children, onReply, onReact, isMe, 
   }, [showReactions]);
 
   return (
-    <div className={cn("relative group/bubble max-w-full", className)}>
+    <div className={cn("relative group/bubble max-w-full min-w-0", className)}>
       <AnimatePresence>
         {showReactions && (
           <motion.div
@@ -101,7 +101,7 @@ export default function SwipeToReplyWrapper({ children, onReply, onReact, isMe, 
         onPointerDown={startLongPress}
         onPointerUp={cancelLongPress}
         onPointerCancel={cancelLongPress}
-        className="touch-pan-y max-w-full"
+        className="touch-pan-y max-w-full min-w-0"
       >
         {children}
       </motion.div>
