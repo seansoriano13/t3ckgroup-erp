@@ -167,16 +167,6 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message),
   });
 
-  const updateMemberDescriptionMutation = useMutation({
-    mutationFn: ({ memberId, newDescription, oldDescription }) =>
-      groupTaskService.updateMemberDescription(memberId, newDescription, oldDescription, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
-      toast.success("Task description updated!");
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
   const addMemberAttachmentMutation = useMutation({
     mutationFn: ({ memberId, url }) =>
       groupTaskService.addMemberAttachment(memberId, url, user.id),
@@ -415,9 +405,7 @@ export default function GroupTasksPage() {
         employees={employees}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
-        onUpdateDescription={(memberId, newDescription, oldDescription) =>
-          updateMemberDescriptionMutation.mutate({ memberId, newDescription, oldDescription })
-        }
+
         onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutate({ memberId, url })}
         onOpenRateModal={() => setIsRateOpen(true)}
         onDelete={() => deleteMutation.mutate(selectedTaskId)}
@@ -441,7 +429,7 @@ export default function GroupTasksPage() {
         isUpdatingTask={updateTaskMutation.isPending}
         isMarkingDone={markDoneMutation.isPending}
         isReverting={revertDoneMutation.isPending}
-        isUpdatingDescription={updateMemberDescriptionMutation.isPending}
+
         isUploadingAttachment={addMemberAttachmentMutation.isPending}
         isDeleting={deleteMutation.isPending}
         isAddingMember={addMemberMutation.isPending}

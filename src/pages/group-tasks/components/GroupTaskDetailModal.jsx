@@ -83,8 +83,6 @@ export default function GroupTaskDetailModal({
   isVerifying,
   isRejecting,
   onInlineCheck,
-  onUpdateDescription,
-  isUpdatingDescription,
   onUpdateTask,
   isUpdatingTask,
   onAddAttachment,
@@ -108,8 +106,7 @@ export default function GroupTaskDetailModal({
   const [isUploading, setIsUploading] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
   
-  const [editingDescriptionId, setEditingDescriptionId] = useState(null);
-  const [editedDescription, setEditedDescription] = useState("");
+
 
   const [isEditingTask, setIsEditingTask] = useState(false);
   const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
@@ -241,8 +238,7 @@ export default function GroupTaskDetailModal({
       setRejectRemarks("");
       setMessageContent("");
       setAttachments([]);
-      setEditingDescriptionId(null);
-      setEditedDescription("");
+
       setIsEditingTask(false);
       setReplyingTo(null);
       handleCancelEdit();
@@ -791,7 +787,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {(isCreator || isSuperAdmin) && (
+                            {(isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
@@ -801,87 +797,36 @@ export default function GroupTaskDetailModal({
                                 >
                                   <Edit3 size={14} />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveMember(member.id)}
-                                  disabled={isRemovingMember}
-                                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
-                                  title="Remove Member"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {(isCreator || isSuperAdmin) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMember(member.id)}
+                                    disabled={isRemovingMember}
+                                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                                    title="Remove Member"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
 
                           {/* Description */}
-                          {editingDescriptionId === member.id ? (
-                            <div className="flex flex-col gap-2">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Edit Task Description
-                              </label>
-                              <textarea
-                                value={editedDescription}
-                                onChange={(e) => setEditedDescription(e.target.value)}
-                                className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-28 resize-y"
-                                placeholder="Update your task details..."
-                              />
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => setEditingDescriptionId(null)}
-                                  className="h-7 px-3 text-[11px]"
-                                >
-                                  Cancel
-                                </Button>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  disabled={isUpdatingDescription}
-                                  onClick={() => {
-                                    if (editedDescription !== memberDescription) {
-                                      onUpdateDescription(member.id, editedDescription, memberDescription);
-                                    }
-                                    setEditingDescriptionId(null);
-                                  }}
-                                  className="h-7 px-3 text-[11px]"
-                                >
-                                  {isUpdatingDescription ? "Saving..." : "Save Changes"}
-                                </Button>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              Specific Task
+                            </label>
+                            {memberDescription?.trim() ? (
+                              <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
+                                {memberDescription}
                               </div>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                  Specific Task
-                                </label>
-                                {isMe && task.status === "ACTIVE" && member.status === "PENDING" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setEditingDescriptionId(member.id);
-                                      setEditedDescription(memberDescription || "");
-                                    }}
-                                    className="text-[10px] text-muted-foreground hover:text-foreground font-semibold flex items-center gap-1"
-                                  >
-                                    <Edit3 size={10} /> Edit
-                                  </button>
-                                )}
-                              </div>
-                              {memberDescription?.trim() ? (
-                                <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
-                                  {memberDescription}
-                                </div>
-                              ) : (
-                                <p className="text-[13px] text-muted-foreground italic">
-                                  No assignment details recorded.
-                                </p>
-                              )}
-                            </div>
-                          )}
+                            ) : (
+                              <p className="text-[13px] text-muted-foreground italic">
+                                No assignment details recorded.
+                              </p>
+                            )}
+                          </div>
 
                           {/* Checklist — the assignee ticks their own items, and
                               only until they submit. DONE is what opens them to

@@ -1,0 +1,7 @@
+{
+  "changes": [
+    "Resolved mobile layout overflows in group tasks",
+    "Fixed chatbox scrolling and message backreading issues",
+    "Group Task assignee can now edit checklists and descriptions"
+  ]
+}
