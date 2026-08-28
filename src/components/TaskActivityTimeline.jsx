@@ -1,4 +1,6 @@
+import { buildReplySnapshot } from "../utils/chatReply";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { notificationService } from "../services/notificationService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
@@ -33,7 +35,6 @@ import EmojiPicker from "./ui/EmojiPicker";
 import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
-import { buildReplySnapshot } from "../utils/chatReply";
 
 /**
  * Splits text into plain-text segments and URL segments,
@@ -133,18 +134,18 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
           )}
         </div>
 
-        <div className="relative flex items-center gap-2 min-w-0">
+        <div className="relative flex items-center gap-2 min-w-0 max-w-full">
           {/* Hover Actions (Reply, React) */}
           <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker
-                onSelect={(emoji) => onReact && onReact(entry, emoji)}
+                onSelect={(emoji) => toggleReaction(entry, emoji)}
                 align={isMe ? "start" : "end"}
               />
             </div>
             <button
               type="button"
-              onClick={() => onReply?.(entry)}
+              onClick={() => setReplyingTo(buildReplySnapshot(entry))}
               className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
@@ -153,8 +154,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            onReply={() => onReply?.(entry)}
-            onReact={(emoji) => onReact && onReact(entry, emoji)}
+            onReply={() => setReplyingTo(buildReplySnapshot(entry))}
+            onReact={(emoji) => toggleReaction(entry, emoji)}
           >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
@@ -569,11 +570,13 @@ export default function TaskActivityTimeline({
     const hasReacted = usersWithEmoji.includes(user?.id);
 
     let newReactions = { ...currentReactions };
+    let isAdding = false;
     if (hasReacted) {
       newReactions[emoji] = usersWithEmoji.filter(id => id !== user?.id);
       if (newReactions[emoji].length === 0) delete newReactions[emoji];
     } else {
       newReactions[emoji] = [...usersWithEmoji, user?.id];
+      isAdding = true;
     }
 
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
@@ -586,7 +589,19 @@ export default function TaskActivityTimeline({
     );
 
     try {
-      await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      const { error } = await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      if (error) throw error;
+
+      if (isAdding && message.authorId && message.authorId !== user?.id) {
+        notificationService.createNotification({
+          recipient_id: message.authorId,
+          sender_id: user.id,
+          type: "TASK_REACTION",
+          title: "New Reaction",
+          message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
+          reference_id: taskId,
+        });
+      }
     } catch (err) {
       console.error("Failed to toggle reaction:", err);
       queryClient.invalidateQueries({

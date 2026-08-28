@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { notificationService } from "../services/notificationService";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "./ui/Dot";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -232,7 +233,7 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
           )}
         </div>
         
-        <div className="relative flex items-center gap-2 min-w-0">
+        <div className="relative flex items-center gap-2 min-w-0 max-w-full">
           {/* Desktop / Hover Actions */}
           <div className={cn(
             "hidden md:flex absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-1 z-10",
@@ -636,11 +637,13 @@ export default function ComprehensiveChatModal({
     const hasReacted = usersWithEmoji.includes(user.id);
     
     let newReactions = { ...currentReactions };
+    let isAdding = false;
     if (hasReacted) {
       newReactions[emoji] = usersWithEmoji.filter(id => id !== user.id);
       if (newReactions[emoji].length === 0) delete newReactions[emoji];
     } else {
       newReactions[emoji] = [...usersWithEmoji, user.id];
+      isAdding = true;
     }
     
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
@@ -653,7 +656,19 @@ export default function ComprehensiveChatModal({
     );
 
     try {
-      await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      const { error } = await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      if (error) throw error;
+      
+      if (isAdding && message.authorId && message.authorId !== user?.id) {
+        notificationService.createNotification({
+          recipient_id: message.authorId,
+          sender_id: user.id,
+          type: "TASK_REACTION",
+          title: "New Reaction",
+          message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
+          reference_id: selectedChat?.entity_id,
+        });
+      }
     } catch (err) {
       console.error("Failed to toggle reaction:", err);
       // invalidate to revert
