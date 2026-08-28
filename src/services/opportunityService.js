@@ -285,14 +285,6 @@ export const opportunityService = {
         { event: "OPPORTUNITY_UPDATED", employeeId: actorId, changes },
         actorId,
       ).catch(console.error);
-    } else {
-      systemAuditLogService.addSystemEvent(
-        "OPPORTUNITY",
-        id,
-        `${auditLabel(data)} items updated.`,
-        { event: "OPPORTUNITY_UPDATED", employeeId: actorId },
-        actorId,
-      ).catch(console.error);
     }
 
     return final;
