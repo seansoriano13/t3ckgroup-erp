@@ -62,10 +62,7 @@ export default function HrVerificationPage() {
   const [priorityFilter, setPriorityFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("OLDEST");
   const [timeframe, setTimeframe] = useState("MONTHLY");
-  const [selectedDateFilter, setSelectedDateFilter] = useState(() => {
-    const today = new Date();
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
-  });
+  const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [statusFilter] = useState(TASK_STATUS.COMPLETE);
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
