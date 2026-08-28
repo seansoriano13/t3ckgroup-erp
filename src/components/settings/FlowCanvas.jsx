@@ -11,6 +11,9 @@ import {
   Plus,
   Sparkles,
   Workflow,
+  Trash2,
+  Check,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -102,6 +105,8 @@ export default function FlowCanvas() {
   const [selection, setSelection] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [dialogValue, setDialogValue] = useState("");
+  const [toolbarMode, setToolbarMode] = useState("select");
+  const [inlineValue, setInlineValue] = useState("");
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ["saleTypes", "all"],
@@ -581,143 +586,210 @@ export default function FlowCanvas() {
             <Workflow size={16} strokeWidth={2.5} />
           </div>
 
-          <div className="scrollbar-hide flex max-w-[46vw] items-center gap-1 overflow-x-auto">
+          <div className="flex items-center gap-1">
             {loadingTypes ? (
               <span className="px-2 text-xs font-semibold text-muted-foreground">Loading…</span>
+            ) : toolbarMode === "rename" ? (
+              <form
+                className="flex items-center gap-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!inlineValue.trim()) return;
+                  run(() => salesFlowService.renameSaleType(selectedSaleType.id, inlineValue, user?.id), "Sale Type renamed.");
+                  setToolbarMode("select");
+                }}
+              >
+                <Input
+                  autoFocus
+                  value={inlineValue}
+                  onChange={e => setInlineValue(e.target.value)}
+                  className="h-8 w-40 text-xs font-bold"
+                />
+                <Button type="submit" size="icon-sm" variant="ghost" className="text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/30">
+                  <Check size={14} />
+                </Button>
+                <Button type="button" size="icon-sm" variant="ghost" onClick={() => setToolbarMode("select")}>
+                  <X size={14} />
+                </Button>
+              </form>
             ) : (
-              saleTypes?.map((saleType) => (
-                <button
-                  key={saleType.id}
-                  onClick={() => {
-                    setSelectedSaleTypeId(saleType.id);
-                    setSelection(null);
-                  }}
-                  className={cn(
-                    "shrink-0 rounded-xl px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-colors",
-                    "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-                    saleType.id === effectiveSaleTypeId
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-mauve-a3 hover:text-foreground",
-                    saleType.archived_at && "opacity-60 hover:opacity-100"
-                  )}
+              <>
+                <Dropdown
+                  usePortal
+                  placement="bottom-start"
+                  popoverClassName="popover-enter z-[10001] w-64 rounded-2xl bg-popover p-2 shadow-2xl ring-1 ring-mauve-6"
+                  trigger={
+                    <button
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors hover:bg-mauve-a3",
+                        "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        selectedSaleType?.archived_at && "opacity-60"
+                      )}
+                    >
+                      <span className="truncate max-w-[200px]">
+                        {selectedSaleType ? selectedSaleType.name : "Select Sale Type"}
+                      </span>
+                      <ChevronDown size={14} className="text-muted-foreground" />
+                    </button>
+                  }
                 >
-                  {saleType.name} {saleType.archived_at && "(Archived)"}
-                </button>
-              ))
-            )}
-          </div>
-
-          <Dropdown
-            usePortal
-            placement="bottom-start"
-            popoverClassName="popover-enter z-[10001] w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
-            trigger={
-              <Button variant="ghost" size="icon-sm" aria-label="Sale Type options">
-                <ChevronDown />
-              </Button>
-            }
-          >
-            {({ close }) => (
-              <div className="flex flex-col gap-3">
-                <div>
-                  <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
-                    New Sale Type
-                  </p>
-                  <form
-                    className="flex gap-2"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      if (!newSaleTypeName.trim()) return;
-                      createSaleType.mutate(newSaleTypeName);
-                      close();
-                    }}
-                  >
-                    <Input
-                      value={newSaleTypeName}
-                      onChange={(e) => setNewSaleTypeName(e.target.value)}
-                      placeholder="Name a Sale Type…"
-                      className="h-9"
-                    />
-                    <Button type="submit" size="lg" className="shrink-0">
-                      <Plus /> Add Sale Type
-                    </Button>
-                  </form>
-                </div>
+                  {({ close }) => (
+                    <div className="flex max-h-[60vh] flex-col overflow-y-auto">
+                      {saleTypes?.map((saleType) => (
+                        <button
+                          key={saleType.id}
+                          onClick={() => {
+                            setSelectedSaleTypeId(saleType.id);
+                            setSelection(null);
+                            close();
+                          }}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors hover:bg-mauve-a3",
+                            saleType.id === effectiveSaleTypeId && "bg-foreground text-background hover:bg-foreground hover:text-background",
+                            saleType.archived_at && "opacity-60"
+                          )}
+                        >
+                          {saleType.name} {saleType.archived_at && "(Archived)"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </Dropdown>
 
                 {selectedSaleType && (
-                  <div className="flex flex-col gap-1 border-t border-mauve-5 pt-2">
-                    <button
-                      onClick={() => {
-                        close();
-                        ask({
-                          title: "Rename this Sale Type",
-                          description: "Deals that already carry it read the new name straight away.",
-                          confirmLabel: "Rename",
-                          field: { label: "Name", placeholder: "Sale Type name" },
-                          initialValue: selectedSaleType.name,
-                          required: true,
-                          onConfirm: (name) =>
-                            run(() =>
-                              salesFlowService.renameSaleType(selectedSaleType.id, name, user?.id)
-                            ),
-                        });
-                      }}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
-                    >
-                      <Pencil size={15} className="text-muted-foreground" />
-                      Rename “{selectedSaleType.name}”
-                    </button>
+                  <>
+                    <Tooltip content="Rename inline">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => {
+                          setInlineValue(selectedSaleType.name);
+                          setToolbarMode("rename");
+                        }}
+                      >
+                        <Pencil size={14} className="text-muted-foreground" />
+                      </Button>
+                    </Tooltip>
+
                     {selectedSaleType.archived_at ? (
-                      <button
-                        onClick={() => {
-                          close();
-                          ask({
-                            title: `Restore “${selectedSaleType.name}”?`,
-                            description:
-                              "It will be active and offered on new deals again.",
-                            confirmLabel: "Restore",
-                            onConfirm: () =>
-                              run(
-                                () =>
-                                  salesFlowService.restoreSaleType(selectedSaleType.id, user?.id),
-                                "Sale Type restored."
-                              ),
-                          });
-                        }}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                      <Dropdown
+                        usePortal
+                        placement="bottom-start"
+                        popoverClassName="popover-enter z-[10001] w-48 rounded-2xl bg-popover p-2 shadow-2xl ring-1 ring-mauve-6"
+                        trigger={
+                          <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+                            <Trash2 size={14} />
+                          </Button>
+                        }
                       >
-                        <ArchiveRestore size={15} className="text-muted-foreground" />
-                        Restore Sale Type
-                      </button>
+                        {({ close }) => (
+                          <div className="flex flex-col gap-1">
+                            <button
+                              onClick={() => {
+                                close();
+                                ask({
+                                  title: `Restore “${selectedSaleType.name}”?`,
+                                  description: "It will be active and offered on new deals again.",
+                                  confirmLabel: "Restore",
+                                  onConfirm: () => run(() => salesFlowService.restoreSaleType(selectedSaleType.id, user?.id), "Sale Type restored."),
+                                });
+                              }}
+                              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                            >
+                              <ArchiveRestore size={15} className="text-muted-foreground" />
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => {
+                                close();
+                                ask({
+                                  title: `Delete “${selectedSaleType.name}”?`,
+                                  description: "This will permanently remove the Sale Type and its flow. This cannot be undone.",
+                                  confirmLabel: "Delete",
+                                  tone: "destructive",
+                                  onConfirm: () => {
+                                    setSelection(null);
+                                    run(async () => {
+                                      await salesFlowService.deleteSaleType(selectedSaleType.id, user?.id);
+                                      setSelectedSaleTypeId("");
+                                    }, "Sale Type deleted.");
+                                  }
+                                });
+                              }}
+                              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                            >
+                              <Trash2 size={15} className="text-destructive/80" />
+                              Delete permanently
+                            </button>
+                          </div>
+                        )}
+                      </Dropdown>
                     ) : (
-                      <button
-                        onClick={() => {
-                          close();
-                          ask({
-                            title: `Archive “${selectedSaleType.name}”?`,
-                            description:
-                              "It stops being offered on new deals. Deals that already carry it keep reading its name.",
-                            confirmLabel: "Archive",
-                            tone: "destructive",
-                            onConfirm: () =>
-                              run(
-                                () =>
-                                  salesFlowService.archiveSaleType(selectedSaleType.id, user?.id),
-                                "Sale Type archived."
-                              ),
-                          });
-                        }}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                      >
-                        <Archive size={15} className="text-muted-foreground" />
-                        Archive Sale Type
-                      </button>
+                      <Tooltip content="Archive">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => {
+                            ask({
+                              title: `Archive “${selectedSaleType.name}”?`,
+                              description: "It stops being offered on new deals. Deals that already carry it keep reading its name.",
+                              confirmLabel: "Archive",
+                              tone: "destructive",
+                              onConfirm: () => run(() => salesFlowService.archiveSaleType(selectedSaleType.id, user?.id), "Sale Type archived.")
+                            });
+                          }}
+                        >
+                          <Archive size={14} className="text-muted-foreground" />
+                        </Button>
+                      </Tooltip>
                     )}
-                  </div>
+                  </>
                 )}
-              </div>
+
+                <div className="mx-1 h-4 w-px bg-border" />
+
+                <Dropdown
+                  usePortal
+                  placement="bottom-start"
+                  popoverClassName="popover-enter z-[10001] w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
+                  trigger={
+                    <Button variant="ghost" size="icon-sm" aria-label="New Sale Type">
+                      <Plus size={14} />
+                    </Button>
+                  }
+                >
+                  {({ close }) => (
+                    <div className="flex flex-col gap-3">
+                      <div>
+                        <p className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                          New Sale Type
+                        </p>
+                        <form
+                          className="flex gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!newSaleTypeName.trim()) return;
+                            createSaleType.mutate(newSaleTypeName);
+                            close();
+                          }}
+                        >
+                          <Input
+                            value={newSaleTypeName}
+                            onChange={(e) => setNewSaleTypeName(e.target.value)}
+                            placeholder="Name a Sale Type…"
+                            className="h-9"
+                          />
+                          <Button type="submit" size="lg" className="shrink-0">
+                            <Plus size={14} /> Add
+                          </Button>
+                        </form>
+                      </div>
+                    </div>
+                  )}
+                </Dropdown>
+              </>
             )}
-          </Dropdown>
+          </div>
         </div>
 
         {flow && (

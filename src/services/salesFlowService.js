@@ -268,6 +268,37 @@ export const salesFlowService = {
   },
 
   /**
+   * Hard-deletes a Sale Type. The database will enforce foreign key constraints 
+   * if this Sale Type is already linked to active deals.
+   */
+  async deleteSaleType(saleTypeId, actorId) {
+    await requireSuperAdmin(actorId);
+
+    const { data: saleType, error: fetchError } = await supabase
+      .from("sale_types")
+      .select("name")
+      .eq("id", saleTypeId)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const { error } = await supabase
+      .from("sale_types")
+      .delete()
+      .eq("id", saleTypeId);
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALE_TYPE",
+      saleTypeId,
+      `Sale Type deleted: "${saleType.name}".`,
+      { event: "SALE_TYPE_DELETED", name: saleType.name, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return true;
+  },
+
+  /**
    * Adds a Stage to the end of a flow. Its `sort_order` puts it last, which
    * matters for one reason only: the Stage that sorts first is where deals
    * enter (constants/salesFlow.js). Reordering is how she changes that.
