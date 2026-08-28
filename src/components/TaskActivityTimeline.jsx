@@ -157,10 +157,11 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
             onReact={(emoji) => onReact && onReact(entry, emoji)}
           >
             <div
-              className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
+              className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
                 ? "bg-primary text-primary-foreground rounded-tr-none"
                 : "bg-card text-foreground rounded-tl-none border border-border"
                 }`}
+              style={{ wordBreak: "break-word" }}
             >
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}

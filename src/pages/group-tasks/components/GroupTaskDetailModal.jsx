@@ -1267,11 +1267,12 @@ export default function GroupTaskDetailModal({
                         <SwipeToReplyWrapper isMe={isMe} onReply={() => setReplyingTo(buildReplySnapshot(m))}>
                           <div
                             className={cn(
-                              "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words overflow-hidden",
+                              "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words min-w-0",
                               isMe
                                 ? "bg-primary text-primary-foreground rounded-tr-none"
                                 : "bg-muted border border-border rounded-tl-none",
                             )}
+                            style={{ wordBreak: "break-word" }}
                           >
                             <ReplyQuote replyTo={m.metadata?.replyTo} />
                             {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
