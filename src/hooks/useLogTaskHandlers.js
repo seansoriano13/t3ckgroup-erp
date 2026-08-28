@@ -16,6 +16,7 @@ export function useLogTaskHandlers({
   roles,
   mode = "normal",
   onSubmitOverride,
+  initialData = null,
 }) {
   const queryClient = useQueryClient()
   const { isHr, isHead, isSuperAdmin } = roles
@@ -82,6 +83,42 @@ export function useLogTaskHandlers({
 
     if (justOpened) {
       queueMicrotask(() => {
+        if (initialData) {
+          setFormData({
+            loggedById: initialData.loggedById || user?.id || "",
+            categoryId: initialData.categoryId || "",
+            projectTitle: initialData.projectTitle || "",
+            taskDescription: initialData.taskDescription || "",
+            checklist: initialData.checklist || null,
+            startAt: initialData.startAt || getCurrentLocalTime(),
+            endAt: initialData.endAt || "",
+            priority: initialData.priority || "LOW",
+            paymentVoucher: initialData.paymentVoucher || "",
+            attachments: initialData.attachments || [],
+          })
+          attachmentsPersistRef.current = initialData.attachments || []
+          if (initialData.committeeRole)
+            setCommitteeRole(initialData.committeeRole)
+          if (initialData.othersRemarks)
+            setOthersRemarks(initialData.othersRemarks)
+          if (initialData.showChecklist)
+            setShowChecklist(initialData.showChecklist)
+          
+          setHrDeptFilter(
+            isHr && !isSuperAdmin ? user.department || "ADMIN" : "",
+          )
+          setHrSubDeptFilter(
+            isHr && !isSuperAdmin
+              ? user.sub_department || user.subDepartment || "HR"
+              : "",
+          )
+          setOpenPopover(null)
+          setCategorySearch("")
+          setSelectedHead("")
+          setIsExpanded(false)
+          return
+        }
+
         // Restore draft if one exists
         const savedDraft = (() => {
           try {

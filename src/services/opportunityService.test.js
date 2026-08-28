@@ -1257,6 +1257,23 @@ describe("opportunityService", () => {
       expect(moved.flow_stage_id).toBe(qualified.id)
     })
 
+    /**
+     * `status` still holds a crm_pipeline_stages code and the Sales
+     * Reference / ITB triggers key off it changing on UPDATE (migration
+     * 0011/0036). Writing a flow Stage's name into `status` to keep a display
+     * badge current made those triggers see a phantom pipeline transition and
+     * demand a Sales Reference to "leave Lead" on every flow move — even
+     * though a Sales Flow move was never subject to that gate.
+     */
+    it("never touches the legacy status column, so the Sales Reference gate stays silent", async () => {
+      const deal = await register()
+      expect(deal.sales_reference).toBeFalsy()
+
+      const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+      expect(moved.status).toBe(deal.status)
+    })
+
     it("refuses a move along an edge that does not exist", async () => {
       const deal = await register()
 

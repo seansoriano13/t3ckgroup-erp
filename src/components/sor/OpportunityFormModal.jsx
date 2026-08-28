@@ -385,28 +385,32 @@ export default function OpportunityFormModal({
             value={form.po_date}
             onChange={set("po_date")}
           />
-          <div className="sm:col-span-2 flex gap-2">
-            <TextField
-              label="Sales Reference"
-              placeholder="e.g. S01237"
-              value={form.sales_reference}
-              onChange={set("sales_reference")}
-              className="flex-1"
-            />
-            <button
-              type="button"
-              onClick={handleFetchFromOdoo}
-              disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
-              title="Pull the product list from this quotation in Odoo"
-              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
-            >
-              {fetchingOdoo ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              Fetch Items
-            </button>
+          <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="flex gap-2">
+              <TextField
+                label="Sales Reference"
+                placeholder="e.g. S01237"
+                value={form.sales_reference}
+                onChange={set("sales_reference")}
+                className="flex-1"
+              />
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleFetchFromOdoo}
+                  disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
+                  title="Pull the product list from this quotation in Odoo"
+                  className="h-[38px] px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
+                >
+                  {fetchingOdoo ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Download size={14} />
+                  )}
+                  Fetch Items
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">

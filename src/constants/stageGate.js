@@ -136,7 +136,7 @@ export function evaluateCondition(condition, {
     }
     case CONDITION_KINDS.FIELD: {
       const column = condition.config?.column
-      const value = column ? opportunity[column] : undefined
+      const value = column ? (opportunity[column] ?? opportunity.metadata?.[column]) : undefined
       return isNonEmpty(value) ? satisfied() : unsatisfied()
     }
     case CONDITION_KINDS.ASSIGNMENT: {

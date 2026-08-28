@@ -124,7 +124,9 @@ const request = (overrides = {}) => ({
 
 async function renderPanel({ requests = [] } = {}) {
   purchasingService.listForOpportunity.mockResolvedValue(requests)
-  const view = renderWithProviders(<PurchasingPanel opportunity={OPPORTUNITY} />)
+  const view = renderWithProviders(
+    <PurchasingPanel opportunity={OPPORTUNITY} isRequired={true} />
+  )
 
   // Two independent queries feed this panel. Requests may arrive first or
   // second, so an assertion made before both land reads as "the rule did not

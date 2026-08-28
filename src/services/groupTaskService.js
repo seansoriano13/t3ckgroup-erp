@@ -165,6 +165,7 @@ export const groupTaskService = {
       .select(`
         *,
         creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
+        opportunity:sales_opportunities(client_name, sales_reference),
         members:committee_task_members(
           id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role,
           employee:employees!committee_task_members_employee_id_fkey(name, avatar_path, department)

@@ -25,8 +25,8 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: mockUser.curre
 function Screen({ opportunity }) {
   return (
     <div>
-      <ProjectEvaluationPanel opportunity={opportunity} />
-      <InclusionsPanel opportunity={opportunity} />
+      <ProjectEvaluationPanel opportunity={opportunity} isRequired={true} />
+      <InclusionsPanel opportunity={opportunity} isRequired={true} />
     </div>
   )
 }

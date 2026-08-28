@@ -16,7 +16,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
-export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmitOverride }) {
+export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmitOverride, initialData }) {
   const { user } = useAuth();
 
   const titleRef = useRef(null);
@@ -67,6 +67,7 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
     roles,
     mode,
     onSubmitOverride,
+    initialData,
   });
 
   // ── Auto-scroll Helper ────────────────────────────────────

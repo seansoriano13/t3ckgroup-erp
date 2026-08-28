@@ -108,6 +108,10 @@ function membersForGate(rows = []) {
 async function narrateNewlySatisfied(opportunityId, stageId, before, after, actorId) {
   if (!stageId) return;
 
+  // Flow Stages use UUIDs. If it's a legacy string like "LEAD", conditions don't apply.
+  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stageId);
+  if (!isUUID) return;
+
   // 5. Stage Conditions Configuration (Flow Stages only)
   // Which Stage Gate Conditions are currently configured for this deal's flow stage?
   const { data: conditions, error } = await supabase
@@ -467,6 +471,15 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }
 
   // 2. Perform move
+  //
+  // `status` is deliberately left alone here. It still holds a
+  // crm_pipeline_stages code (see isRealizedOpportunity's comment above), and
+  // the requireSalesReferenceOnStageMove trigger (migration 0011) fires
+  // whenever `status` changes on UPDATE — writing a flow Stage's name into it
+  // makes that trigger read the move as a global-pipeline transition and
+  // demand a Sales Reference to "leave Lead", which a Sales Flow move was
+  // never subject to. Display code that wants the current flow Stage's name
+  // reads `flow_stage_id` against the loaded flow, not `status`.
   const patch = { flow_stage_id: to.id };
 
   if (flow.won_stage_id === to.id && !existing.contract_date) {
@@ -515,7 +528,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
             // Group Task Automation
             const payload = {
               title: config.title || `Action: ${to.name}`,
-              description: config.description 
+              description: config.description
                 ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
                 : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
               createdBy: actorId,
@@ -535,9 +548,9 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
           } else if (action.kind === "create_individual_task") {
             // Individual Task Automation
             const payload = {
-              taskDescription: config.title 
+              taskDescription: config.title
                 ? `${config.title}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
-                : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
+                : `Auto-created on entering stage: ${to.name}`,
               categoryId: config.categoryId,
               priority: config.priority || "MEDIUM",
               checklist: config.checklist || null,
@@ -728,6 +741,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        metadata: payload.metadata || null,
         itb_number: (payload.itb_number || "").trim() || null,
         expected_award_date: payload.expected_award_date || null,
         po_date: payload.po_date || null,
@@ -785,6 +799,7 @@ export const opportunityService = {
           currentProjectType: payload.project_type,
         }),
         sales_reference: cleanSalesReference(payload.sales_reference),
+        metadata: payload.metadata !== undefined ? payload.metadata : existing.metadata,
         itb_number: (payload.itb_number || "").trim() || null,
         itb_exempt: Boolean(payload.itb_exempt),
         expected_award_date: payload.expected_award_date || null,
@@ -818,6 +833,19 @@ export const opportunityService = {
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');
     checkField('sales_reference', 'Sales Reference');
+    
+    // Check metadata fields dynamically
+    const oldMeta = existing.metadata || {};
+    const newMeta = final.metadata || {};
+    const allMetaKeys = new Set([...Object.keys(oldMeta), ...Object.keys(newMeta)]);
+    for (const key of allMetaKeys) {
+      if (oldMeta[key] !== newMeta[key]) {
+        const from = oldMeta[key] ? `"${oldMeta[key]}"` : "nothing";
+        const to = newMeta[key] ? `"${newMeta[key]}"` : "nothing";
+        changes.push(`${key} from ${from} to ${to}`);
+      }
+    }
+
     checkField('itb_number', 'ITB Number');
     // Booleans read as "changed from false to true" through checkField, which
     // says nothing to whoever reads the log line. Named as the claim it is.
@@ -1532,7 +1560,7 @@ export const opportunityService = {
   async getStageChecklist(opportunityId, opportunity = null) {
     const target = opportunity || (await opportunityService.getOpportunityById(opportunityId));
     if (!target) return [];
-    const stageCode = target.status;
+    const stageCode = target.flow_stage_id || target.status;
 
     const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
       opportunityId,

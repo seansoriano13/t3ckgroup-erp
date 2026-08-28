@@ -59,6 +59,22 @@ function roleOf({ isEntry, isWon, isTerminal }) {
   return ROLE.plain;
 }
 
+/**
+ * A Stage's own color (flow_stages.color, migration 20260828090000)
+ * overrides the role tile — the icon box only. The Entry/Won/Terminal chips
+ * stay role-colored regardless, because they're labeling the role itself,
+ * not "what color is this Stage".
+ */
+const COLOR_TILES = {
+  mauve: "bg-mauve-a3 text-mauve-11",
+  amber: "bg-amber-a3 text-amber-11",
+  blue: "bg-blue-a3 text-blue-11",
+  red: "bg-red-a3 text-red-11",
+  violet: "bg-violet-a3 text-violet-11",
+  orange: "bg-orange-a3 text-orange-11",
+  green: "bg-green-a3 text-green-11",
+};
+
 const Chip = ({ className, icon: Icon, children }) => (
   <span
     className={cn(
@@ -100,6 +116,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
   const { stage, isEntry, isWon, disabled, conditionCount = 0, actionCount = 0 } = data;
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
   const RoleIcon = role.icon;
+  const tile = stage.color ? COLOR_TILES[stage.color] || COLOR_TILES.mauve : role.tile;
 
   return (
     <div
@@ -135,7 +152,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         <div
           className={cn(
             "flex size-9 shrink-0 items-center justify-center rounded-xl",
-            role.tile,
+            tile,
           )}
         >
           <RoleIcon size={17} strokeWidth={2.5} />

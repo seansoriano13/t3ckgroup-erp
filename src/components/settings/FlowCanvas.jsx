@@ -43,11 +43,13 @@ import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
+import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
 import {
   GATE,
   RUN,
+  bracketBox,
   columnSlots,
   satellitePosition,
   stageBox,
@@ -56,6 +58,7 @@ import {
 const nodeTypes = {
   stage: FlowCanvasNode,
   satellite: FlowSatelliteNode,
+  bracket: FlowBracketNode,
 };
 
 const edgeTypes = {
@@ -184,6 +187,14 @@ export default function FlowCanvas() {
 
   const selectedStage = stages.find((s) => s.id === selection?.stageId) ?? null;
 
+  const bracketOptions = useMemo(
+    () =>
+      [...new Set(stages.map((s) => s.bracket_label).filter(Boolean))].sort((a, b) =>
+        a.localeCompare(b),
+      ),
+    [stages],
+  );
+
   const handleAddStage = (e) => {
     e.preventDefault();
     if (!newStageName.trim() || !flow) return;
@@ -265,6 +276,32 @@ export default function FlowCanvas() {
   useEffect(() => {
     const nodes = [];
     const satelliteEdges = [];
+
+    // Brackets first and at a negative zIndex: a pure annotation drawn above
+    // whichever Stages share its label, so it has to sit behind every real
+    // node rather than compete with them for clicks.
+    const bracketed = new Map();
+    stages.forEach((stage) => {
+      if (!stage.bracket_label) return;
+      if (!bracketed.has(stage.bracket_label)) bracketed.set(stage.bracket_label, []);
+      bracketed.get(stage.bracket_label).push(stage);
+    });
+    bracketed.forEach((members, label) => {
+      const box = bracketBox(members);
+      nodes.push({
+        id: `bracket:${label}`,
+        type: "bracket",
+        position: { x: box.x, y: box.y },
+        draggable: false,
+        selectable: false,
+        connectable: false,
+        focusable: false,
+        deletable: false,
+        zIndex: -1,
+        data: { label, width: box.width },
+        style: { width: box.width, pointerEvents: "none" },
+      });
+    });
 
     // Parents first: React Flow reads `parentId` against nodes already in the
     // array, so a satellite listed before its Stage would render at the origin.
@@ -897,11 +934,18 @@ export default function FlowCanvas() {
           isEntry={entry?.id === selectedStage.id}
           isWon={flow.won_stage_id === selectedStage.id}
           disabled={isLocked}
+          bracketOptions={bracketOptions}
           activeTab={selection.tab}
           onTabChange={(tab) => setSelection((prev) => ({ ...prev, tab }))}
           onClose={() => setSelection(null)}
           onRename={(name) =>
             run(() => salesFlowService.renameStage(selectedStage.id, name, user?.id))
+          }
+          onColorChange={(color) =>
+            run(() => salesFlowService.updateStageColor(selectedStage.id, color, user?.id))
+          }
+          onBracketChange={(label) =>
+            run(() => salesFlowService.updateStageBracket(selectedStage.id, label, user?.id))
           }
           onDelete={() => handleDeleteStage(selectedStage)}
           onToggleTerminal={() => handleToggleTerminal(selectedStage)}

@@ -40,6 +40,25 @@ export const SAT_VISIBLE = 4
 export const GATE = "gate"
 export const RUN = "run"
 
+/** Vertical room a bracket's brace-and-label reserves above its Stages. */
+export const BRACKET_H = 48
+/** How far a bracket's brace extends past its outermost Stage on each side. */
+export const BRACKET_PAD_X = 20
+
+/**
+ * The box a bracket's brace spans: wide enough to run from the left edge of
+ * its leftmost Stage to the right edge of its rightmost, tall enough to sit
+ * just above the topmost one — regardless of how the Stages between are
+ * scattered, since nothing constrains two same-bracket Stages to sit
+ * adjacent on the canvas.
+ */
+export function bracketBox(members) {
+  const minX = Math.min(...members.map((s) => s.pos_x ?? 0)) - BRACKET_PAD_X
+  const maxX = Math.max(...members.map((s) => (s.pos_x ?? 0) + STAGE_W)) + BRACKET_PAD_X
+  const minY = Math.min(...members.map((s) => s.pos_y ?? 0))
+  return { x: minX, y: minY - BRACKET_H, width: maxX - minX }
+}
+
 const COLUMN_X = {
   [GATE]: -(SAT_W + SAT_GAP_X),
   [RUN]: STAGE_W + SAT_GAP_X,

@@ -164,6 +164,17 @@ describe("salesFlowService", () => {
 
       await expect(salesFlowService.deleteStage(won.id, admin.id)).rejects.toThrow(/Won Stage/)
     })
+
+    it("labels a Stage's bracket, and clears it back to null", async () => {
+      const flow = makeSalesFlow()
+      const stage = await salesFlowService.addStage(flow.id, "Site Visit", admin.id)
+
+      const labeled = await salesFlowService.updateStageBracket(stage.id, "  Pre-Sales  ", admin.id)
+      expect(labeled.bracket_label).toBe("Pre-Sales")
+
+      const cleared = await salesFlowService.updateStageBracket(stage.id, "", admin.id)
+      expect(cleared.bracket_label).toBeNull()
+    })
   })
 
   describe("Edges", () => {

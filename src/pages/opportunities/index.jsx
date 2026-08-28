@@ -42,6 +42,8 @@ import {
   PROJECT_TYPES,
 } from "../../constants/sor";
 import { leadSourceService } from "../../services/leadSourceService";
+import { salesFlowService } from "../../services/salesFlowService";
+import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
@@ -204,6 +206,27 @@ export default function OpportunitiesPage() {
   });
 
   const { stages: pipelineStages } = usePipelineStages();
+
+  // A flow deal's `status` is stale (opportunityService's moveAlongFlow never
+  // touches it — see that comment). Its real current Stage lives in
+  // `flow_stage_id` against its own flow, so the register needs every flow's
+  // Stages to show it — one bulk index rather than a query per Sale Type.
+  const { data: flowStagesIndex } = useQuery({
+    queryKey: ["allFlowStagesIndex"],
+    queryFn: () => salesFlowService.getAllStagesIndex(),
+  });
+
+  const stageDisplay = (o) => {
+    if (o.sale_type_id) {
+      const stage = flowStagesIndex?.stagesById?.[o.flow_stage_id];
+      if (!stage) return { label: null, tone: "mauve" };
+      const flow = flowStagesIndex.flowsById[stage.flow_id];
+      const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+      return { label: stage.name, tone: flowStageTone(stage, flow, stagesOfFlow) };
+    }
+    const pipelineStage = pipelineStages.find((s) => s.code === o.status);
+    return { label: pipelineStage?.label || o.status, tone: null, code: o.status };
+  };
 
   // "Open" here means not yet terminal — it deliberately includes the whole
   // post-award run, which is still work in progress for the sales team.
@@ -803,6 +826,7 @@ export default function OpportunitiesPage() {
               opportunities={filtered}
               search={search}
               deadlineStatuses={deadlineStatuses}
+              flowStagesIndex={flowStagesIndex}
               onCardClick={(o) => setSelectedId(o.id)}
             />
           </div>
@@ -915,7 +939,14 @@ export default function OpportunitiesPage() {
                         </td>
                         <td className="px-2.5 py-2.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
-                            <StatusBadge status={o.status} />
+                            {(() => {
+                              const display = stageDisplay(o);
+                              return display.label ? (
+                                <StatusBadge label={display.label} status={display.code} theme={display.tone} />
+                              ) : (
+                                <span className="text-muted-foreground/50 text-xs">—</span>
+                              );
+                            })()}
                             {blockedDeals[o.id]?.length > 0 && (
                               <span
                                 title={`Blocked on: ${blockedDeals[o.id].map((r) => r.label).join(", ")}`}

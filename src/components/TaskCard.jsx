@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   Circle,
+  Briefcase,
 } from "lucide-react"
 import Dot from "./ui/Dot"
 import StatusBadge from "./StatusBadge"
@@ -270,6 +271,29 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                 <Clock size={10} className="shrink-0" />
                 {getRelativeTime(task.createdAt)}
               </div>
+            </>
+          )}
+          {task.opportunity && (
+            <>
+              <span className="text-mauve-7 text-[10px] shrink-0">•</span>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.dispatchEvent(
+                    new CustomEvent("OPEN_ENTITY_DETAILS", {
+                      detail: { id: task.opportunityId, type: "OPPORTUNITY" },
+                    }),
+                  )
+                }}
+                title={`Auto-created for deal: ${task.opportunity.client_name}`}
+                className="flex min-w-0 shrink items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary transition-colors hover:bg-primary/20"
+              >
+                <Briefcase size={10} className="shrink-0" />
+                <span className="truncate">
+                  {task.opportunity.sales_reference || task.opportunity.client_name}
+                </span>
+              </button>
             </>
           )}
         </div>

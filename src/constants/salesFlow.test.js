@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   entryStage,
   flowLockBlockers,
+  flowStageTone,
   isAtEntryStage,
   isFlowLockable,
   isLegalMove,
@@ -127,6 +128,38 @@ describe("where a deal enters a flow", () => {
   it("breaks a sort_order tie by name, so the entry never moves on its own", () => {
     const tied = [stage("s-b", "Beta", 10), stage("s-a", "Alpha", 10)]
     expect(entryStage(tied).name).toBe("Alpha")
+  })
+})
+
+describe("what color a Stage renders with", () => {
+  const flow = { id: "flow-1", won_stage_id: "s-won" }
+  const lead = STAGES.find((s) => s.id === "s-lead")
+  const qualified = STAGES.find((s) => s.id === "s-qualified")
+  const won = STAGES.find((s) => s.id === "s-won")
+  const lost = STAGES.find((s) => s.id === "s-lost")
+
+  it("is blue for the entry Stage", () => {
+    expect(flowStageTone(lead, flow, STAGES)).toBe("blue")
+  })
+
+  it("is green for the flow's Won Stage", () => {
+    expect(flowStageTone(won, flow, STAGES)).toBe("green")
+  })
+
+  it("is amber for a terminal Stage that is not the Won Stage", () => {
+    expect(flowStageTone(lost, flow, STAGES)).toBe("amber")
+  })
+
+  it("is mauve for a Stage that is none of the above", () => {
+    expect(flowStageTone(qualified, flow, STAGES)).toBe("mauve")
+  })
+
+  it("prefers a Stage's own color over its role", () => {
+    expect(flowStageTone({ ...lead, color: "red" }, flow, STAGES)).toBe("red")
+  })
+
+  it("is mauve for a missing Stage rather than throwing", () => {
+    expect(flowStageTone(null, flow, STAGES)).toBe("mauve")
   })
 })
 

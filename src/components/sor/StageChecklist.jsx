@@ -1,12 +1,15 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare } from "lucide-react";
+import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus } from "lucide-react";
 import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
 import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
 import { formatDate } from "../../utils/formatDate";
 import { confirmActionToast } from "../ui/CustomToast";
-
+import Dropdown from "../ui/Dropdown";
+import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
+import { storageService } from "../../services/storageService";
 const KIND_LABELS = {
   [CONDITION_KINDS.ATTACHMENT]: "Attachment",
   [CONDITION_KINDS.FIELD]: "Field on record",
@@ -34,7 +37,11 @@ const KIND_ICONS = {
  * A `tickbox` item has no other way to get satisfied (ticket 5) — it's the
  * one kind this list also acts on, not just reports.
  */
-export default function StageChecklist({ opportunity, employees = [], actorId, onChanged }) {
+export default function StageChecklist({ opportunity, employees = [], actorId, onChanged, onSaveField }) {
+  const [fieldValues, setFieldValues] = useState({});
+  const [savingField, setSavingField] = useState(null);
+  const [assignmentId, setAssignmentId] = useState({});
+  const [uploadingAttachment, setUploadingAttachment] = useState({});
   const queryClient = useQueryClient();
   const opportunityId = opportunity?.id;
   const stageCode = opportunity?.status;
@@ -54,6 +61,47 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
       onChanged?.();
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  const addMemberMutation = useMutation({
+    mutationFn: ({ conditionId, employeeId }) =>
+      opportunityService.addMember(opportunityId, employeeId, actorId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
+      queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
+      // We don't necessarily want to immediately nullify assignmentId since it closes on its own
+      onChanged?.();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async ({ condition, file }) => {
+      setUploadingAttachment(p => ({ ...p, [condition.id]: true }));
+      try {
+        const uploaded = await storageService.uploadFileToCloudinary(file);
+        if (condition.config?.documentType) {
+          uploaded.documentType = condition.config.documentType;
+        }
+        await opportunityService.addNote(
+          opportunityId,
+          actorId,
+          `Attached document: ${condition.label}`,
+          [uploaded]
+        );
+      } finally {
+        setUploadingAttachment(p => ({ ...p, [condition.id]: false }));
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
+      queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
+      onChanged?.();
+      toast.success("Attachment uploaded");
+    },
+    onError: (err) => {
+      toast.error(err.message);
+    },
   });
 
   const nameFor = (employeeId) => employees.find((e) => e.id === employeeId)?.name || null;
@@ -144,15 +192,115 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                     )}
                   </p>
                 ) : (
-                  <p
-                    className={
-                      condition.is_required
-                        ? "mt-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400"
-                        : "mt-0.5 text-[11px] text-muted-foreground"
-                    }
-                  >
-                    {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
-                  </p>
+                  <div className="mt-0.5 space-y-2">
+                    <p
+                      className={
+                        condition.is_required
+                          ? "text-[11px] font-semibold text-amber-600 dark:text-amber-400"
+                          : "text-[11px] text-muted-foreground"
+                      }
+                    >
+                      {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
+                    </p>
+                    
+                    {!isSatisfied && condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
+                      <div className="flex items-center gap-2 max-w-[240px]">
+                        <input
+                          type="text"
+                          value={fieldValues[condition.id] || ""}
+                          onChange={(e) => setFieldValues(p => ({ ...p, [condition.id]: e.target.value }))}
+                          placeholder={`Enter ${condition.config?.column || 'value'}`}
+                          className="flex h-7 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        <button
+                          type="button"
+                          disabled={savingField === condition.id || !(fieldValues[condition.id] || "").trim()}
+                          onClick={async () => {
+                            if (!condition.config?.column) return;
+                            setSavingField(condition.id);
+                            try {
+                              await onSaveField(condition.config.column, fieldValues[condition.id]);
+                              // Wait a moment before clearing to let the UI catch up
+                              setTimeout(() => setSavingField(null), 500);
+                            } catch (err) {
+                              setSavingField(null);
+                            }
+                          }}
+                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-7 px-3"
+                        >
+                          {savingField === condition.id ? "..." : "Save"}
+                        </button>
+                      </div>
+                    )}
+                    
+                    {!isSatisfied && condition.kind === CONDITION_KINDS.ATTACHMENT && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <label
+                          className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted ${
+                            uploadMutation.isPending || uploadingAttachment[condition.id] ? "pointer-events-none opacity-50" : ""
+                          }`}
+                        >
+                          <Paperclip size={13} />
+                          {uploadingAttachment[condition.id] ? "Uploading..." : "Attach File"}
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              uploadMutation.mutate({ condition, file });
+                            }}
+                          />
+                        </label>
+                      </div>
+                    )}
+                    
+                    {!isSatisfied && condition.kind === CONDITION_KINDS.ASSIGNMENT && (
+                      <div className="flex items-center gap-2 mt-1.5 max-w-sm">
+                        <Dropdown
+                          usePortal
+                          className="flex-1 min-w-0"
+                          trigger={({ isOpen }) => (
+                            <FilterTrigger
+                              label={
+                                assignmentId[condition.id]
+                                  ? employees.find((e) => e.id === assignmentId[condition.id])?.name || "Select..."
+                                  : `Assign ${condition.config?.department || "Member"}...`
+                              }
+                              isActive={!!assignmentId[condition.id]}
+                              isOpen={isOpen}
+                              icon={UserPlus}
+                              className="!h-8"
+                            />
+                          )}
+                        >
+                          {({ close }) => (
+                            <FilterOptionList
+                              showSearch
+                              options={employees.map((e) => ({
+                                value: e.id,
+                                label: e.name,
+                              }))}
+                              value={assignmentId[condition.id]}
+                              onChange={(val) => {
+                                setAssignmentId(p => ({ ...p, [condition.id]: val }));
+                                close();
+                              }}
+                              close={close}
+                            />
+                          )}
+                        </Dropdown>
+                        <button
+                          type="button"
+                          disabled={!assignmentId[condition.id] || addMemberMutation.isPending}
+                          onClick={() => addMemberMutation.mutate({ conditionId: condition.id, employeeId: assignmentId[condition.id] })}
+                          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                          Assign
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 

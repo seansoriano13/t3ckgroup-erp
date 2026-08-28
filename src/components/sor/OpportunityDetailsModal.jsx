@@ -47,6 +47,8 @@ import ProjectEvaluationPanel from "./ProjectEvaluationPanel";
 import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { purchasingService } from "../../services/purchasingService";
+import { salesFlowService } from "../../services/salesFlowService";
+import { flowStageTone } from "../../constants/salesFlow";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { formatDueDate } from "../../utils/formatDate";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
@@ -60,9 +62,6 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
-  requiresItbNumber,
-  itbGateSatisfiedBy,
-  ITB_EXEMPT_LABEL,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
@@ -185,78 +184,6 @@ function PeopleRoster({ opportunity }) {
  * glossary: no remove control here, because there isn't one in the service
  * either (opportunityService.addMember).
  */
-function MembersSection({ opportunityId, employees, actorId, onChanged }) {
-  const queryClient = useQueryClient();
-  const [selectedId, setSelectedId] = useState("");
-
-  const { data: members = [] } = useQuery({
-    queryKey: ["opportunityMembers", opportunityId],
-    queryFn: () => opportunityService.getMembers(opportunityId),
-    enabled: !!opportunityId,
-  });
-
-  const addMutation = useMutation({
-    mutationFn: (employeeId) => opportunityService.addMember(opportunityId, employeeId, actorId),
-    onSuccess: () => {
-      setSelectedId("");
-      queryClient.invalidateQueries({ queryKey: ["opportunityMembers", opportunityId] });
-      queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
-      onChanged?.();
-    },
-    onError: (err) => toast.error(err.message),
-  });
-
-  const memberIds = new Set(members.map((m) => m.employee_id));
-  const available = employees.filter((e) => !memberIds.has(e.id));
-
-  return (
-    <div className="mt-4 border-t border-border/50 pt-4">
-      <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-        SOR Members
-      </p>
-      {members.length === 0 ? (
-        <p className="text-sm text-muted-foreground/60">No one added yet.</p>
-      ) : (
-        <div className="space-y-2.5">
-          {members.map((m) => (
-            <div key={m.id} className="flex items-center gap-3">
-              <Avatar name={m.employee?.name} src={m.employee?.avatar_path} size="sm" />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-foreground">{m.employee?.name}</p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {m.employee?.sub_department || m.employee?.department || "—"}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <div className="mt-3 flex items-center gap-2">
-        <select
-          value={selectedId}
-          onChange={(e) => setSelectedId(e.target.value)}
-          className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-card px-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="">Add a member…</option>
-          {available.map((e) => (
-            <option key={e.id} value={e.id}>
-              {e.name}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          disabled={!selectedId || addMutation.isPending}
-          onClick={() => addMutation.mutate(selectedId)}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
-        >
-          <UserPlus size={13} />
-          Add
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function AutomationTasksRoster({ opportunityId }) {
   const { data = { individualTasks: [], groupTasks: [] } } = useQuery({
@@ -275,7 +202,11 @@ function AutomationTasksRoster({ opportunityId }) {
       </p>
       <div className="space-y-3">
         {data.groupTasks.map((task) => (
-          <div key={task.id} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+          <div
+            key={task.id}
+            onClick={() => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.id, type: "GROUP_TASK" } }))}
+            className="rounded-lg border border-border/60 bg-muted/20 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
+          >
             <p className="mb-2 text-xs font-semibold text-foreground truncate">{task.title}</p>
             <div className="space-y-2">
               {task.members?.map((m) => (
@@ -300,7 +231,11 @@ function AutomationTasksRoster({ opportunityId }) {
         {data.individualTasks.map((task) => {
           const title = task.task_description ? task.task_description.split("\n")[0] : "Individual Task";
           return (
-            <div key={task.id} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div
+              key={task.id}
+              onClick={() => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.id, type: "TASK" } }))}
+              className="rounded-lg border border-border/60 bg-muted/20 p-3 cursor-pointer hover:bg-muted/40 transition-colors"
+            >
               <p className="mb-2 text-xs font-semibold text-foreground truncate" title={title}>
                 {title}
               </p>
@@ -577,7 +512,7 @@ export default function OpportunityDetailsModal({
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
-  const [itbNumber, setItbNumber] = useState("");
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -608,7 +543,7 @@ export default function OpportunityDetailsModal({
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
-    setItbNumber("");
+
     setIsExpanded(false);
     setIsEditing(false);
     setEditForm({});
@@ -665,6 +600,20 @@ export default function OpportunityDetailsModal({
     queryFn: () => opportunityService.getStageChecklist(id, opportunity),
     enabled: !!id && isOpen,
   });
+
+  // `status` is stale on a flow deal (see opportunityService's moveAlongFlow
+  // comment) — the current Stage lives in `flow_stage_id` against this flow's
+  // own Stages, not in the crm_pipeline_stages code the header badge used to
+  // read.
+  const { data: flowCanvas } = useQuery({
+    queryKey: ["salesFlow", opportunity?.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
+    enabled: !!opportunity?.sale_type_id && isOpen,
+  });
+  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === opportunity?.flow_stage_id) || null;
+  const currentFlowStageTone = flowCanvas
+    ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages)
+    : "mauve";
 
   const requiresProjectEvaluation = checklist.some(c => c.condition.kind === "project_evaluation");
   const requiresInclusions = checklist.some(c => c.condition.kind === "inclusions");
@@ -752,21 +701,19 @@ export default function OpportunityDetailsModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference, itbNumber, itbExempt }) =>
+    mutationFn: ({ next, reason, salesReference }) =>
       opportunityService.updateStatus(
         id,
         next,
         user?.id,
         reason,
         salesReference,
-        itbNumber,
-        itbExempt,
       ),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
       setSalesRef("");
-      setItbNumber("");
+
       invalidate();
       toast.success("Stage updated.");
 
@@ -831,7 +778,7 @@ export default function OpportunityDetailsModal({
     if (hasAutoSynced.current.has(ref)) return;
 
     let isMounted = true;
-    
+
     const syncOdoo = async () => {
       hasAutoSynced.current.add(ref);
       setAutoSyncingOdoo(true);
@@ -851,9 +798,9 @@ export default function OpportunityDetailsModal({
         if (isMounted) setAutoSyncingOdoo(false);
       }
     };
-    
+
     syncOdoo();
-    
+
     return () => {
       isMounted = false;
     };
@@ -1044,8 +991,6 @@ export default function OpportunityDetailsModal({
         po_date: opportunity.po_date || "",
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
-        itb_number: opportunity.itb_number || "",
-        itb_exempt: !!opportunity.itb_exempt,
         deal_owner_id: opportunity.deal_owner_id || "",
         closing_sales_id: opportunity.closing_sales_id || "",
         sales_director_id: opportunity.sales_director_id || "",
@@ -1071,11 +1016,13 @@ export default function OpportunityDetailsModal({
     !opportunity.sales_reference;
   const salesRefValid = isValidSalesReference(salesRef);
 
-  const needsItbNumber =
-    !!pendingStage &&
-    requiresItbNumber(opportunity.status, pendingStage) &&
-    !itbGateSatisfiedBy(opportunity);
-  const itbNumberValid = !!itbNumber.trim();
+  const handleSaveField = async (column, value) => {
+    const isTopLevel = ["client_name", "project_title", "sales_reference", "expected_value", "contact_person"].includes(column);
+    const payload = isTopLevel ? { [column]: value } : { metadata: { ...opportunity.metadata, [column]: value } };
+    return opportunityService.updateOpportunity(id, payload, user?.id).then(() => {
+      invalidate();
+    });
+  };
 
   const handleStageChange = (next) => {
     if (!next || next === opportunity.status) return;
@@ -1083,8 +1030,7 @@ export default function OpportunityDetailsModal({
     // they park the choice in `pendingStage` and prompt for it inline.
     if (
       isLostCode(next) ||
-      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference) ||
-      (requiresItbNumber(opportunity.status, next) && !itbGateSatisfiedBy(opportunity))
+      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
     ) {
       setPendingStage(next);
       return;
@@ -1102,19 +1048,19 @@ export default function OpportunityDetailsModal({
         } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
         "Move anyway",
         "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null }),
+        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
       );
       return;
     }
 
-    stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null });
+    stageMutation.mutate({ next, reason: null, salesReference: null });
   };
 
   const cancelPendingStage = () => {
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
-    setItbNumber("");
+
   };
 
   const isPosting = isUploading || addNoteMutation.isPending;
@@ -1226,7 +1172,11 @@ export default function OpportunityDetailsModal({
                   {opportunity.client_name}
                 </span>
               )}
-              <StatusBadge status={opportunity.status} />
+              {isFlowDeal ? (
+                currentFlowStage && <StatusBadge label={currentFlowStage.name} theme={currentFlowStageTone} />
+              ) : (
+                <StatusBadge status={opportunity.status} />
+              )}
             </div>
             {isEditing ? (
               <div className="space-y-2 mt-2 max-w-xl">
@@ -1321,8 +1271,25 @@ export default function OpportunityDetailsModal({
         >
           {/* Pipeline Stage Tracker */}
           <div className="w-full">
-            <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <p className="mb-4 flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
               Pipeline Stage
+              {isFlowDeal && flowCanvas && (
+                <>
+                  <span className="text-muted-foreground/40">—</span>
+                  <span className="text-foreground">{flowCanvas.saleType.name}</span>
+                  {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
+                    <span className="rounded-full bg-green-9/15 px-1.5 py-0.5 text-green-11">
+                      Won
+                    </span>
+                  ) : (
+                    currentFlowStage?.is_terminal && (
+                      <span className="rounded-full bg-mauve-9/15 px-1.5 py-0.5 text-mauve-11">
+                        Closed
+                      </span>
+                    )
+                  )}
+                </>
+              )}
             </p>
             {/* Issue #36 — a deal that carries a Sale Type runs a graph, not a
                 line, so it gets a control that shows where it is and what it
@@ -1337,7 +1304,6 @@ export default function OpportunityDetailsModal({
                     next: flowStageId,
                     reason: null,
                     salesReference: null,
-                    itbNumber: null,
                   })
                 }
               />
@@ -1345,18 +1311,15 @@ export default function OpportunityDetailsModal({
               stageControl
             )}
 
-            {/* The checklist reads `stage_conditions`, which are keyed to a
-                crm_pipeline_stages code. A flow Stage is not one, so it has
-                nothing to say about a flow-built deal until Stage Conditions
-                are wired to flow Stages. */}
-            {!isFlowDeal && (
-              <StageChecklist
-                opportunity={opportunity}
-                employees={employees}
-                actorId={user?.id}
-                onChanged={invalidate}
-              />
-            )}
+            {/* Issue #52. Stage Conditions are now wired to both global pipeline stages 
+                and custom flow stages. The checklist works identically for both. */}
+            <StageChecklist
+              opportunity={opportunity}
+              employees={employees}
+              actorId={user?.id}
+              onChanged={invalidate}
+              onSaveField={handleSaveField}
+            />
 
             {isLostPending && (
               <div className="mt-3 flex items-end gap-2">
@@ -1447,83 +1410,7 @@ export default function OpportunityDetailsModal({
               </div>
             )}
 
-            {needsItbNumber && (
-              <div className="mt-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-                    <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                      ITB Number (Invitation to Bid)
-                      <span className="ml-0.5 text-red-500">*</span>
-                    </label>
-                    <input
-                      autoFocus
-                      value={itbNumber}
-                      onChange={(e) => setItbNumber(e.target.value)}
-                      placeholder="e.g. ITB-2026-001 or URL link"
-                      className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
-                    />
-                  </div>
-                  <button
-                    disabled={!itbNumberValid || stageMutation.isPending}
-                    onClick={() =>
-                      stageMutation.mutate({
-                        next: pendingStage,
-                        reason: null,
-                        salesReference: null,
-                        itbNumber: itbNumber.trim(),
-                      })
-                    }
-                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={cancelPendingStage}
-                    className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Enter the ITB Number (Invitation to Bid) before moving to {stageLabel(pendingStage) || pendingStage}.
-                </p>
 
-                {/* Not every deal was bid for. An outright award — a government
-                    direct contract, say — has no ITB Number to give, and with
-                    no way to say so the only options left were inventing a
-                    number or having the gate switched off for everyone (which
-                    is what migrations 0035–0038 went through). Saying it is a
-                    claim about how the deal was won, so it is confirmed and
-                    then written to the log notes, never applied silently. */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    No Invitation to Bid was issued for this deal?
-                  </p>
-                  <button
-                    disabled={stageMutation.isPending}
-                    onClick={() =>
-                      confirmActionToast(
-                        "Mark this deal outright?",
-                        `${ITB_EXEMPT_LABEL} — it moves to ${stageLabel(pendingStage) || pendingStage} with no ITB Number, and this is recorded on the log notes under your name.`,
-                        "Mark outright",
-                        "warning",
-                        () =>
-                          stageMutation.mutate({
-                            next: pendingStage,
-                            reason: null,
-                            salesReference: null,
-                            itbNumber: null,
-                            itbExempt: true,
-                          }),
-                      )
-                    }
-                    className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
-                  >
-                    Outright — no bidding required
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {opportunity.lost_reason && (
@@ -1565,8 +1452,10 @@ export default function OpportunityDetailsModal({
                     <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
                       Estimated Value
                     </span>
-                    {opportunity.status && (
-                      <StatusBadge status={opportunity.status} />
+                    {isFlowDeal ? (
+                      currentFlowStage && <StatusBadge label={currentFlowStage.name} theme={currentFlowStageTone} />
+                    ) : (
+                      opportunity.status && <StatusBadge status={opportunity.status} />
                     )}
                   </div>
                   {isEditing ? (
@@ -1793,12 +1682,7 @@ export default function OpportunityDetailsModal({
                   ) : (
                     <PeopleRoster opportunity={opportunity} />
                   )}
-                  <MembersSection
-                    opportunityId={id}
-                    employees={employees}
-                    actorId={user?.id}
-                    onChanged={invalidate}
-                  />
+
                   <AutomationTasksRoster opportunityId={id} />
                 </div>
               </div>
@@ -1864,13 +1748,12 @@ export default function OpportunityDetailsModal({
                       <div className="w-full flex items-center justify-between gap-2 min-w-0">
                         <span
                           data-testid="project-type-badge-edit"
-                          className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md border truncate ${
-                            editForm.project_type === "STRATEGIC"
+                          className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md border truncate ${editForm.project_type === "STRATEGIC"
                               ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
                               : editForm.project_type === "CP"
-                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                          }`}
+                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            }`}
                         >
                           {PROJECT_TYPE_LABELS[editForm.project_type] || editForm.project_type}
                         </span>
@@ -1882,17 +1765,16 @@ export default function OpportunityDetailsModal({
                               project_type:
                                 prev.project_type === "STRATEGIC"
                                   ? deriveProjectType({
-                                      supportSales1Id: prev.support_sales_1_id,
-                                      supportSales2Id: prev.support_sales_2_id,
-                                    })
+                                    supportSales1Id: prev.support_sales_1_id,
+                                    supportSales2Id: prev.support_sales_2_id,
+                                  })
                                   : "STRATEGIC",
                             }))
                           }
-                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${
-                            editForm.project_type === "STRATEGIC"
+                          className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${editForm.project_type === "STRATEGIC"
                               ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                               : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
-                          }`}
+                            }`}
                           title="Toggle Strategic project override"
                         >
                           {editForm.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
@@ -2081,41 +1963,7 @@ export default function OpportunityDetailsModal({
                     </Detail>
                   )}
 
-                  <Detail
-                    label="ITB Number (Invitation to Bid)"
-                    isEditing={isEditing}
-                    control={
-                      <div className="flex flex-col gap-1.5">
-                        <input
-                          type="text"
-                          value={editForm.itb_number}
-                          onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
-                          disabled={editForm.itb_exempt}
-                          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium disabled:opacity-40"
-                          placeholder="e.g. ITB-2026-001 or URL link"
-                        />
-                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={!!editForm.itb_exempt}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, itb_exempt: e.target.checked }))
-                            }
-                            className="accent-amber-9"
-                          />
-                          {ITB_EXEMPT_LABEL}
-                        </label>
-                      </div>
-                    }
-                  >
-                    {opportunity.itb_number || (
-                      opportunity.itb_exempt ? (
-                        <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span>
-                      ) : (
-                        <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>
-                      )
-                    )}
-                  </Detail>
+
                 </div>
               </div>
 

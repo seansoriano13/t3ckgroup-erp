@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  BRACKET_H,
+  BRACKET_PAD_X,
   GATE,
   RUN,
   SAT_H,
@@ -9,6 +11,7 @@ import {
   SAT_W,
   STAGE_H,
   STAGE_W,
+  bracketBox,
   columnRows,
   columnSlots,
   satellitePosition,
@@ -90,6 +93,26 @@ describe("flowCanvasLayout", () => {
       const overflowing = stageBox({ conditionCount: SAT_VISIBLE + 9 })
       // Nine extra conditions collapse into one node — one extra row, no more.
       expect(overflowing.height).toBe(capped.height + SAT_H + SAT_GAP_Y)
+    })
+  })
+
+  describe("bracketBox", () => {
+    it("spans from the leftmost Stage's left edge to the rightmost Stage's right edge", () => {
+      const box = bracketBox([{ pos_x: 100, pos_y: 0 }, { pos_x: 500, pos_y: 0 }])
+      expect(box.x).toBe(100 - BRACKET_PAD_X)
+      expect(box.width).toBe(500 + STAGE_W - 100 + BRACKET_PAD_X * 2)
+    })
+
+    it("sits just above the topmost member, regardless of how the rest are scattered", () => {
+      const box = bracketBox([{ pos_x: 0, pos_y: 300 }, { pos_x: 200, pos_y: 40 }, { pos_x: 400, pos_y: 900 }])
+      expect(box.y).toBe(40 - BRACKET_H)
+    })
+
+    it("still spans correctly for a single-member bracket", () => {
+      const box = bracketBox([{ pos_x: 50, pos_y: 20 }])
+      expect(box.x).toBe(50 - BRACKET_PAD_X)
+      expect(box.width).toBe(STAGE_W + BRACKET_PAD_X * 2)
+      expect(box.y).toBe(20 - BRACKET_H)
     })
   })
 })

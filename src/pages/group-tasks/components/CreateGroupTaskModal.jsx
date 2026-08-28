@@ -52,6 +52,7 @@ export default function CreateGroupTaskModal({
   onSubmit,
   isSubmitting,
   mode = "normal",
+  initialData = null,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
@@ -70,22 +71,32 @@ export default function CreateGroupTaskModal({
 
   useEffect(() => {
     if (isOpen) {
-      const first = makeMember();
-      // Resetting on open is the point: the modal keeps its fields mounted
-      // between openings, so without this the next open shows the last
-      // session's input. isOpen is the external event being followed.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setTitle("");
-      setDescription("");
-      setDueDate(null);
-      setDueOffsetDays("");
-      setMembers([first]);
-      setSelectedMemberId(first.id);
-      setAppliedTemplateId(null);
-      setIsSaveTemplateModalOpen(false);
+      if (initialData) {
+        setTitle(initialData.title || "");
+        setDescription(initialData.description || "");
+        setDueOffsetDays(initialData.dueOffsetDays || "");
+        setMembers(initialData.members?.length > 0 ? initialData.members : [makeMember()]);
+        setSelectedMemberId(initialData.members?.[0]?.id || null);
+        setAppliedTemplateId(null);
+        setIsSaveTemplateModalOpen(false);
+      } else {
+        const first = makeMember();
+        // Resetting on open is the point: the modal keeps its fields mounted
+        // between openings, so without this the next open shows the last
+        // session's input. isOpen is the external event being followed.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        setTitle("");
+        setDescription("");
+        setDueDate(null);
+        setDueOffsetDays("");
+        setMembers([first]);
+        setSelectedMemberId(first.id);
+        setAppliedTemplateId(null);
+        setIsSaveTemplateModalOpen(false);
+      }
       setTimeout(() => titleRef.current?.focus(), 150);
     }
-  }, [isOpen]);
+  }, [isOpen, initialData]);
 
   const employeeOptions = useMemo(() => {
     return employees

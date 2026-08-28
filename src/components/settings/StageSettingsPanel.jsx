@@ -7,6 +7,7 @@ import {
   Octagon,
   Pencil,
   Settings2,
+  Tag,
   Trash2,
   Wand2,
   X,
@@ -31,15 +32,29 @@ import StageActionManager from "./StageActionManager";
 const ROLE_BUTTON =
   "flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition-colors duration-150 outline outline-1 -outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
 
+const COLOR_SWATCHES = [
+  { value: null, dot: "bg-mauve-8", label: "Default (by role)" },
+  { value: "mauve", dot: "bg-mauve-9", label: "Mauve" },
+  { value: "amber", dot: "bg-amber-9", label: "Amber" },
+  { value: "blue", dot: "bg-blue-9", label: "Blue" },
+  { value: "red", dot: "bg-red-9", label: "Red" },
+  { value: "violet", dot: "bg-violet-9", label: "Violet" },
+  { value: "orange", dot: "bg-orange-9", label: "Orange" },
+  { value: "green", dot: "bg-green-9", label: "Green" },
+];
+
 export default function StageSettingsPanel({
   stage,
   isEntry,
   isWon,
   disabled,
+  bracketOptions = [],
   activeTab = "settings",
   onTabChange,
   onClose,
   onRename,
+  onColorChange,
+  onBracketChange,
   onDelete,
   onToggleTerminal,
   onSetEntry,
@@ -50,15 +65,26 @@ export default function StageSettingsPanel({
   // Stage close the editor — no effect mirroring the prop into state, and no
   // stale draft landing on the wrong Stage.
   const [draft, setDraft] = useState(null);
+  // Same shape, for the bracket label — its own draft so typing in one field
+  // never stomps a half-finished edit in the other.
+  const [bracketDraft, setBracketDraft] = useState(null);
 
   if (!stage) return null;
 
   const isEditingName = draft?.stageId === stage.id;
+  const isEditingBracket = bracketDraft?.stageId === stage.id;
+  const bracketValue = isEditingBracket ? bracketDraft.value : stage.bracket_label || "";
 
   const handleSaveName = () => {
     const next = (draft?.value ?? "").trim();
     if (next && next !== stage.name) onRename(next);
     setDraft(null);
+  };
+
+  const handleSaveBracket = () => {
+    const next = (bracketDraft?.value ?? "").trim();
+    if (next !== (stage.bracket_label || "")) onBracketChange(next || null);
+    setBracketDraft(null);
   };
 
   const tabs = [
@@ -189,6 +215,77 @@ export default function StageSettingsPanel({
                   <Trash2 size={14} /> Delete Stage
                 </button>
               </div>
+            </section>
+
+            <section className="space-y-2.5">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                Color
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {COLOR_SWATCHES.map((swatch) => (
+                  <button
+                    key={swatch.value ?? "default"}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onColorChange(swatch.value)}
+                    aria-label={swatch.label}
+                    title={swatch.label}
+                    className={cn(
+                      "flex size-7 items-center justify-center rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform disabled:cursor-not-allowed disabled:opacity-50",
+                      "hover:scale-110",
+                      (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
+                    )}
+                  >
+                    <span className={cn("size-4 rounded-full", swatch.dot)} />
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="space-y-2.5">
+              <h3 className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                <Tag size={11} /> Bracket
+              </h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Groups this Stage under a shared heading — Stages carrying the same text read as
+                one bracket wherever the flow's Stages are shown in order. Context only; nothing
+                else in the flow reads it.
+              </p>
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={bracketValue}
+                  disabled={disabled}
+                  list="stage-bracket-options"
+                  placeholder="e.g. Pre-Sales"
+                  onChange={(e) => setBracketDraft({ stageId: stage.id, value: e.target.value })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSaveBracket();
+                    if (e.key === "Escape") setBracketDraft(null);
+                  }}
+                  onBlur={handleSaveBracket}
+                  aria-label="Bracket label"
+                  className="h-9 text-sm"
+                />
+                {stage.bracket_label && (
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={disabled}
+                    onClick={() => {
+                      setBracketDraft(null);
+                      onBracketChange(null);
+                    }}
+                    aria-label="Clear bracket"
+                  >
+                    <X size={14} />
+                  </Button>
+                )}
+              </div>
+              <datalist id="stage-bracket-options">
+                {bracketOptions.map((label) => (
+                  <option key={label} value={label} />
+                ))}
+              </datalist>
             </section>
 
             <p className="text-xs leading-relaxed text-muted-foreground">

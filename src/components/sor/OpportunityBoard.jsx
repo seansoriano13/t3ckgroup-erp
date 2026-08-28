@@ -4,6 +4,7 @@ import Avatar from "../Avatar";
 import { PROJECT_TYPE_SHORT, formatPHP } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
+import { flowStageTone } from "../../constants/salesFlow";
 import HighlightText from "../HighlightText";
 
 const THEME_DOT = {
@@ -23,38 +24,106 @@ const THEME_DOT = {
  * (Closed Lost requires a reason there — dragging a card wouldn't be able
  * to enforce that, so drag-and-drop is deliberately not offered here).
  */
-export default function OpportunityBoard({ opportunities, search, deadlineStatuses = {}, onCardClick }) {
+export default function OpportunityBoard({
+  opportunities,
+  search,
+  deadlineStatuses = {},
+  flowStagesIndex,
+  onCardClick,
+}) {
+  // A flow deal's `status` never changes (opportunityService's moveAlongFlow
+  // deliberately leaves it alone — the trigger that requires a Sales
+  // Reference to "leave Lead" fires on any change to it). So a flow deal is
+  // never grouped by `status`; it gets its own column per Stage below.
+  const pipelineOpportunities = useMemo(
+    () => opportunities.filter((o) => !o.sale_type_id),
+    [opportunities],
+  );
+  const flowOpportunities = useMemo(
+    () => opportunities.filter((o) => o.sale_type_id),
+    [opportunities],
+  );
+
   // Deactivating a stage removes it from pickers, never from opportunities
   // already sitting in it — so a column an opportunity here occupies stays
   // on the board even after a super admin retires it.
   const occupiedStageCodes = useMemo(
-    () => opportunities.map((o) => o.status),
-    [opportunities],
+    () => pipelineOpportunities.map((o) => o.status),
+    [pipelineOpportunities],
   );
   const { stages } = usePipelineStages({ occupiedCodes: occupiedStageCodes });
 
-  const columns = useMemo(() => {
+  const pipelineColumns = useMemo(() => {
     return stages.map((stage) => {
-      const items = opportunities.filter((o) => o.status === stage.code);
+      const items = pipelineOpportunities.filter((o) => o.status === stage.code);
       const total = items.reduce(
         (sum, o) => sum + Number(o.expected_value || 0),
         0,
       );
-      return { value: stage.code, label: stage.label, theme: stage.theme, items, total };
+      return { key: stage.code, label: stage.label, theme: stage.theme, items, total };
     });
-  }, [opportunities, stages]);
+  }, [pipelineOpportunities, stages]);
+
+  // One column per Stage a loaded flow deal is actually sitting in — never
+  // per flow. A Sales Flow is a graph (see FlowStageControl's "WHY THIS IS
+  // NOT THE CHEVRON RIBBON"), so there is no shared ordered axis across every
+  // flow the way there is for the global pipeline; each column still only
+  // ever groups deals within one flow's one Stage, so nothing here claims an
+  // ordering the graph doesn't have. Columns are ordered left to right by
+  // canvas position, the same axis FlowStageControl's ribbon uses.
+  const flowColumns = useMemo(() => {
+    if (!flowStagesIndex) return [];
+    const byStage = new Map();
+    for (const o of flowOpportunities) {
+      const stage = flowStagesIndex.stagesById[o.flow_stage_id];
+      if (!stage) continue;
+      if (!byStage.has(stage.id)) byStage.set(stage.id, []);
+      byStage.get(stage.id).push(o);
+    }
+    return [...byStage.entries()]
+      .map(([stageId, items]) => {
+        const stage = flowStagesIndex.stagesById[stageId];
+        const flow = flowStagesIndex.flowsById[stage.flow_id];
+        const stagesOfFlow = flowStagesIndex.stagesByFlow[stage.flow_id] || [];
+        const total = items.reduce((sum, o) => sum + Number(o.expected_value || 0), 0);
+        return {
+          key: stage.id,
+          label: stage.name,
+          theme: flowStageTone(stage, flow, stagesOfFlow),
+          items,
+          total,
+          posX: stage.pos_x || 0,
+          posY: stage.pos_y || 0,
+        };
+      })
+      .sort((a, b) => a.posX - b.posX || a.posY - b.posY);
+  }, [flowOpportunities, flowStagesIndex]);
+
+  // Flow deals with no matching Stage loaded yet (index still fetching, or
+  // a deal whose Stage was deleted) fall out of every column silently
+  // otherwise — this at least keeps the count on the board honest.
+  const unresolvedFlowCount =
+    flowOpportunities.length - flowColumns.reduce((sum, c) => sum + c.items.length, 0);
+
+  const columns = [...pipelineColumns, ...flowColumns];
 
   return (
     <div className="flex gap-3 overflow-x-auto pb-4 items-start">
       {columns.map((column) => (
         <BoardColumn
-          key={column.value}
+          key={column.key}
           column={column}
           search={search}
           deadlineStatuses={deadlineStatuses}
           onCardClick={onCardClick}
         />
       ))}
+      {unresolvedFlowCount > 0 && (
+        <div className="min-w-[264px] w-[264px] shrink-0 rounded-2xl border border-dashed border-mauve-6 p-3.5 text-[11px] text-muted-foreground">
+          {unresolvedFlowCount} deal{unresolvedFlowCount === 1 ? "" : "s"} on a Sales Flow Stage that
+          could not be resolved (still loading, or the Stage was deleted).
+        </div>
+      )}
     </div>
   );
 }
@@ -62,7 +131,7 @@ export default function OpportunityBoard({ opportunities, search, deadlineStatus
 function BoardColumn({ column, search, deadlineStatuses, onCardClick }) {
   // A configured stage carries its own theme; getStatusTheme is the fallback
   // for a code the palette map still knows about.
-  const theme = column.theme || getStatusTheme(column.value);
+  const theme = column.theme || getStatusTheme(column.key);
   const dotClass = THEME_DOT[theme] || THEME_DOT.mauve;
 
   return (

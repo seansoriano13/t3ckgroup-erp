@@ -141,6 +141,33 @@ export const salesFlowService = {
   },
 
   /**
+   * Every Stage across every Sales Flow, indexed for a register or board that
+   * lists opportunities from many Sale Types at once — the register does not
+   * know ahead of time which flows it needs, and asking `getFlow` once per row
+   * would mean one query per opportunity. Three flat queries regardless of how
+   * many flows exist, then the caller resolves a Stage by id and its flow by
+   * `flow_id`.
+   */
+  async getAllStagesIndex() {
+    const [{ data: flows, error: flowsError }, { data: stages, error: stagesError }] =
+      await Promise.all([
+        supabase.from("sales_flows").select("*"),
+        supabase.from("flow_stages").select("*"),
+      ]);
+    if (flowsError) throw flowsError;
+    if (stagesError) throw stagesError;
+
+    const flowsById = Object.fromEntries((flows || []).map((f) => [f.id, f]));
+    const stagesById = Object.fromEntries((stages || []).map((s) => [s.id, s]));
+    const stagesByFlow = {};
+    for (const s of stages || []) {
+      (stagesByFlow[s.flow_id] ||= []).push(s);
+    }
+
+    return { flowsById, stagesById, stagesByFlow };
+  },
+
+  /**
    * Creates a Sale Type and the empty Sales Flow it owns.
    *
    * Both, always: a Sale Type without a flow is a deal category nothing can
@@ -357,6 +384,57 @@ export const salesFlowService = {
       { event: "FLOW_STAGE_RENAMED", name: trimmed, employeeId: actorId },
       actorId,
     ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Sets a Stage's own color, overriding the role-based default (Entry/Won/
+   * Terminal/Plain) the canvas and the Opportunity ribbon otherwise fall back
+   * to. `null` clears the override.
+   */
+  async updateStageColor(stageId, color, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ color: color || null, updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // No audit event: same class of change as updateStagePosition — cosmetic,
+    // not flow execution.
+
+    return data;
+  },
+
+  /**
+   * Sets a Stage's bracket label — free text grouping several Stages under
+   * one heading for context (e.g. "Pre-Sales", "Closing"). Purely a display
+   * grouping: Stages sharing the same text are read as one bracket wherever
+   * a flow's Stages are drawn in order (the canvas node's tag, the
+   * Opportunity ribbon's header), nothing else in the flow keys off it.
+   * `null` clears it.
+   */
+  async updateStageBracket(stageId, label, actorId) {
+    await requireSuperAdmin(actorId);
+    await requireDraftStage(stageId);
+
+    const trimmed = typeof label === "string" ? label.trim() : "";
+
+    const { data, error } = await supabase
+      .from("flow_stages")
+      .update({ bracket_label: trimmed || null, updated_at: new Date().toISOString() })
+      .eq("id", stageId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // No audit event: same class of change as updateStageColor — cosmetic,
+    // not flow execution.
 
     return data;
   },

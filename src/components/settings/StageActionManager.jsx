@@ -28,6 +28,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [addingKind, setAddingKind] = useState(null);
+  const [editingAction, setEditingAction] = useState(null);
   const [pendingArchive, setPendingArchive] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
 
@@ -53,6 +54,16 @@ export default function StageActionManager({ stageId, disabled = false }) {
       invalidate();
       toast.success("Action added.");
       setAddingKind(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, config }) => stageActionService.update(id, config, user?.id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Action updated.");
+      setEditingAction(null);
     },
     onError: (err) => toast.error(err.message),
   });
@@ -90,6 +101,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
   };
 
   const handleAdd = (kind, config) => addMutation.mutate({ stageId, kind, config });
+  const handleUpdate = (config) => updateMutation.mutate({ id: editingAction.id, config });
 
   if (isLoading) {
     return <div className="m-5 h-20 animate-pulse rounded-2xl bg-mauve-a2" />;
@@ -165,16 +177,27 @@ export default function StageActionManager({ stageId, disabled = false }) {
                 </button>
 
                 {!disabled && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setPendingArchive(action)}
-                    disabled={archiveMutation.isPending}
-                    aria-label={`Archive ${title}`}
-                    className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <Archive />
-                  </Button>
+                  <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setEditingAction(action)}
+                      aria-label={`Edit ${title}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Wand2 size={16} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setPendingArchive(action)}
+                      disabled={archiveMutation.isPending}
+                      aria-label={`Archive ${title}`}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Archive size={16} />
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -264,6 +287,29 @@ export default function StageActionManager({ stageId, disabled = false }) {
           onClose={() => setAddingKind(null)}
           mode="automation"
           onSubmitOverride={(config) => handleAdd("create_individual_task", config)}
+        />
+      )}
+
+      {editingAction?.kind === "create_group_task" && (
+        <CreateGroupTaskModal
+          isOpen={true}
+          onClose={() => setEditingAction(null)}
+          employees={employees || []}
+          user={user}
+          mode="automation"
+          initialData={editingAction.config}
+          onSubmit={handleUpdate}
+          isSubmitting={updateMutation.isPending}
+        />
+      )}
+
+      {editingAction?.kind === "create_individual_task" && (
+        <LogTaskModal
+          isOpen={true}
+          onClose={() => setEditingAction(null)}
+          mode="automation"
+          initialData={editingAction.config}
+          onSubmitOverride={handleUpdate}
         />
       )}
 

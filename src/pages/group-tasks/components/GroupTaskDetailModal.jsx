@@ -23,6 +23,7 @@ import {
   Paperclip,
   ImageIcon,
   Zap,
+  Briefcase,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../../../components/StatusBadge";
@@ -494,6 +495,20 @@ export default function GroupTaskDetailModal({
                 <div className="flex items-center gap-1.5">
                   <Calendar size={14} className="text-primary/70" /> Due{" "}
                   {formatDueDate(task.due_date)}
+                </div>
+              )}
+              {task.opportunity && (
+                <div 
+                  className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors ml-2"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.opportunity_id, type: "OPPORTUNITY" } }));
+                    if (onClose) onClose();
+                  }}
+                >
+                  <Briefcase size={14} className="text-primary/70" />
+                  <span className="truncate max-w-[200px]" title={task.opportunity.client_name}>
+                    Deal: {task.opportunity.sales_reference || task.opportunity.client_name}
+                  </span>
                 </div>
               )}
             </div>

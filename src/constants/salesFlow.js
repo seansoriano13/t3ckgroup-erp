@@ -69,6 +69,25 @@ export function entryStage(stages = []) {
 }
 
 /**
+ * The color a Stage renders with, wherever a Stage needs exactly one color —
+ * the canvas node, the Opportunity ribbon, a board column. A Stage's own
+ * `color` (migration 20260828090000) wins when set; otherwise this falls back
+ * to what the color has always meant here: role in the flow (Entry blue, Won
+ * green, Terminal amber, everything else mauve — the same bucketing
+ * FlowCanvasNode draws).
+ */
+export function flowStageTone(stage, flow, stagesOfFlow = []) {
+  if (!stage) return "mauve"
+  if (stage.color) return stage.color
+
+  const entry = entryStage(stagesOfFlow)
+  if (entry?.id === stage.id) return "blue"
+  if (flow?.won_stage_id === stage.id) return "green"
+  if (stage.is_terminal) return "amber"
+  return "mauve"
+}
+
+/**
  * Every Stage reachable from the entry by following edges, entry included.
  *
  * Breadth-first over the edges she actually drew, so a Stage reachable only by

@@ -1,4 +1,4 @@
-import { FolderKanban, Receipt } from "lucide-react"
+import { FolderKanban, Receipt, Briefcase } from "lucide-react"
 import Dot from "./ui/Dot"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -64,6 +64,22 @@ export default function TaskBodySection({
               {formData.projectTitle}
             </div>
           )}
+        </div>
+      )}
+
+      {/* --- OPPORTUNITY LINK --- */}
+      {task?.opportunity && (
+        <div className="flex flex-col gap-1.5 pt-2">
+          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+            <Briefcase size={12} /> Sales Opportunity
+          </label>
+          <div
+            onClick={() => window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.opportunityId, type: "OPPORTUNITY" } }))}
+            className="bg-primary/10 px-4 py-3 rounded-xl border border-primary/20 text-sm font-bold text-primary flex items-center gap-2 shadow-sm cursor-pointer hover:bg-primary/20 transition-colors"
+          >
+            <Briefcase size={14} />
+            {task.opportunity.sales_reference || task.opportunity.client_name}
+          </div>
         </div>
       )}
 

@@ -599,7 +599,7 @@ export default function TaskDetails({
                   searchTerm={searchTerm}
                   setFormData={setFormData}
                   executeUpdate={executeUpdate}
-                  task={task}
+                  task={activeTask}
                   user={user}
                 />
 

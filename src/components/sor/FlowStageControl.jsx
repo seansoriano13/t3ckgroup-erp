@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
-import { outgoingStages } from "../../constants/salesFlow";
+import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
 
 /**
  * The stage control for a deal that runs a Sales Flow (issue #36, ADR 0006).
@@ -28,14 +28,36 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
 
   if (!canvas) return null;
 
-  const { saleType, flow, stages, edges } = canvas;
+  const { flow, stages, edges } = canvas;
   const current = stages.find((s) => s.id === opportunity.flow_stage_id) || null;
   const destinations = outgoingStages(opportunity.flow_stage_id, stages, edges);
 
-  const currentIndex = current ? stages.findIndex((s) => s.id === current.id) : -1;
-  const lastIndex = stages.length - 1;
+  const sortedStages = [...stages].sort((a, b) => {
+    if (a.pos_x !== b.pos_x) return (a.pos_x || 0) - (b.pos_x || 0);
+    return (a.pos_y || 0) - (b.pos_y || 0);
+  });
 
-  // We still use TONE_CLASSES or default for colors
+  const currentIndex = current ? sortedStages.findIndex((s) => s.id === current.id) : -1;
+  const lastIndex = sortedStages.length - 1;
+
+  // Runs of consecutive Stages sharing one bracket label — a brace draws
+  // above each run, the same grouping the canvas draws over the node graph.
+  // An unlabeled Stage is its own one-Stage run with no brace, so mixing
+  // bracketed and bare Stages never merges them under a heading neither drew.
+  const runs = [];
+  sortedStages.forEach((s) => {
+    const last = runs[runs.length - 1];
+    if (last && last.label === (s.bracket_label || null)) {
+      last.stages.push(s);
+    } else {
+      runs.push({ label: s.bracket_label || null, stages: [s] });
+    }
+  });
+
+  // A Stage's own `color` (migration 20260828090000) wins when set; otherwise
+  // this falls back to the same role classification FlowCanvasNode draws on
+  // the canvas (Entry/Won/Terminal/Plain), so a Stage nobody has recolored
+  // still reads as *something* meaningful instead of defaulting to mauve.
   const TONE_CLASSES = {
     green: { current: "bg-green-9 text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
     amber: { current: "bg-amber-9 text-white", completed: "bg-amber-9/20 text-amber-11 hover:bg-amber-9/30" },
@@ -46,82 +68,96 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
     mauve: { current: "bg-mauve-9 text-white", completed: "bg-mauve-9/20 text-mauve-11 hover:bg-mauve-9/30" },
   };
 
+  let globalIndex = -1;
+
   return (
     <div className="w-full space-y-3">
       <div className="relative w-full">
         <div className="overflow-x-auto pb-2">
-          <ul className="flex h-11 min-w-full w-max gap-[2px] mb-2">
-            {stages.map((s, index) => {
-              const isCompleted = index < currentIndex;
-              const isCurrent = index === currentIndex;
-              const isUpcoming = index > currentIndex;
+          <div className="flex w-max min-w-full items-end gap-[2px] mb-2">
+            {runs.map((run) => (
+              <div key={run.stages[0].id} className="flex flex-col">
+                {run.label && (
+                  <div className="mx-1 mb-1.5 flex flex-col items-center gap-1">
+                    <span
+                      className="max-w-full truncate rounded-full bg-violet-9 px-2 py-0.5 text-[9px] font-black tracking-[0.12em] text-white uppercase shadow-sm"
+                      title={run.label}
+                    >
+                      {run.label}
+                    </span>
+                    <div className="h-0 w-full border-t-2 border-violet-8" />
+                  </div>
+                )}
 
-              // Use mauve or any custom theme if provided in flow stage (for now default to mauve)
-              const tone = s.theme || "mauve";
-              const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
+                <ul className="flex h-11 gap-[2px]">
+                  {run.stages.map((s) => {
+                    const index = ++globalIndex;
+                    const isCompleted = index < currentIndex;
+                    const isCurrent = index === currentIndex;
+                    const isUpcoming = index > currentIndex;
 
-              const isDestination = destinations.some(d => d.id === s.id);
+                    const tone = flowStageTone(s, flow, stages);
+                    const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
-              return (
-                <li
-                  key={s.id}
-                  onClick={() => {
-                    if (!isMoving && isDestination) {
-                      onMove(s.id);
-                    }
-                  }}
-                  className={cn(
-                    "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
-                    isDestination ? "cursor-pointer hover:brightness-110" : "cursor-default",
-                    isCompleted && classes.completed,
-                    isCurrent && cn(classes.current, "shadow-inner"),
-                    isUpcoming && "bg-muted text-muted-foreground",
-                    isMoving && "pointer-events-none opacity-50",
-                  )}
-                  style={{
-                    clipPath:
-                      index === 0
-                        ? "polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%)"
-                        : index === lastIndex
-                          ? "polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%)"
-                          : "polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%)",
-                  }}
-                >
-                  <span
-                    className={cn(
-                      "flex items-center gap-1.5 whitespace-nowrap",
-                      index > 0 && index < lastIndex && "pl-2",
-                      index === lastIndex && "pl-3",
-                    )}
-                  >
-                    {isCurrent && (
-                      <div className="size-1.5 shrink-0 animate-pulse rounded-full bg-white" />
-                    )}
-                    {s.name}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+                    const isDestination = destinations.some((d) => d.id === s.id);
+
+                    return (
+                      <li
+                        key={s.id}
+                        onClick={() => {
+                          if (!isMoving && isDestination) {
+                            onMove(s.id);
+                          }
+                        }}
+                        className={cn(
+                          "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                          isDestination ? "cursor-pointer hover:brightness-110" : "cursor-default",
+                          isCompleted && classes.completed,
+                          isCurrent && cn(classes.current, "shadow-inner"),
+                          isUpcoming && "bg-muted text-muted-foreground",
+                          isMoving && "pointer-events-none opacity-50",
+                        )}
+                        style={{
+                          clipPath:
+                            index === 0
+                              ? "polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%)"
+                              : index === lastIndex
+                                ? "polygon(0 0, 100% 0, 100% 100%, 0 100%, 14px 50%)"
+                                : "polygon(0 0, calc(100% - 14px) 0, 100% 50%, calc(100% - 14px) 100%, 0 100%, 14px 50%)",
+                        }}
+                      >
+                        <span
+                          className={cn(
+                            "flex items-center gap-1.5 whitespace-nowrap",
+                            index > 0 && index < lastIndex && "pl-2",
+                            index === lastIndex && "pl-3",
+                          )}
+                        >
+                          {isCurrent && (
+                            <div className="size-1.5 shrink-0 animate-pulse rounded-full bg-white" />
+                          )}
+                          {s.name}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-          {saleType.name}
-        </span>
-        {flow.won_stage_id === current?.id && (
-          <span className="text-[10px] font-bold tracking-widest text-emerald-600 uppercase">
-            Won
-          </span>
-        )}
-        {current?.is_terminal && (
+      {/* Sale Type name and the Won/terminal indicator moved up to sit next
+          to the "Pipeline Stage" label in OpportunityDetailsModal, beside the
+          rest of the deal's identity rather than buried under the ribbon. */}
+      {current?.is_terminal && (
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
             Deals stop here
           </span>
-        )}
-      </div>
-
+        </div>
+      )}
     </div>
   );
 }
