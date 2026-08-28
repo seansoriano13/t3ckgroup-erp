@@ -230,6 +230,28 @@ async function hasProjectEvaluationFor(opportunityId) {
   return Boolean(data);
 }
 
+async function hasInclusionsFor(opportunityId) {
+  const { data, error } = await supabase
+    .from("sor_inclusions")
+    .select("id")
+    .eq("opportunity_id", opportunityId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
+async function hasPurchasingFor(opportunityId) {
+  const { data, error } = await supabase
+    .from("sor_procurement_requests")
+    .select("id")
+    .eq("opportunity_id", opportunityId)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 /**
  * Fetches Project Evaluation existence only when a set of conditions
  * actually asks about it — shared by both gate check call sites so the
@@ -238,6 +260,16 @@ async function hasProjectEvaluationFor(opportunityId) {
 async function resolveHasProjectEvaluation(conditions, opportunityId) {
   const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PROJECT_EVALUATION);
   return needsIt ? hasProjectEvaluationFor(opportunityId) : false;
+}
+
+async function resolveHasInclusions(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.INCLUSIONS);
+  return needsIt ? hasInclusionsFor(opportunityId) : false;
+}
+
+async function resolveHasPurchasing(conditions, opportunityId) {
+  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PURCHASING);
+  return needsIt ? hasPurchasingFor(opportunityId) : false;
 }
 
 /**
@@ -266,12 +298,11 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   if (Object.keys(conditionsByStage).length === 0) return;
 
   // No hasProjectEvaluation here, unlike moveAlongFlow below: this is the
-  // pre-ADR-0006 global pipeline gate, and stage_conditions rows can only
-  // be created through the Flow Canvas (StageConditionManager), which is
-  // scoped to flow_stages. A project_evaluation condition can never
-  // actually exist on a legacy pipeline stage, so wiring the lookup in here
-  // would be a query with nothing to find — see issue #50, scoped to Flow
-  // Canvas Stages only.
+  const conditions = Object.values(conditionsByStage).flat();
+  const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, opportunityId);
+  const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
+  const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
+
   const gateResult = evaluateCrossing({
     fromCode,
     toCode,
@@ -281,6 +312,9 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     attachments,
     members,
     statusRowsByCondition,
+    hasProjectEvaluation,
+    hasInclusions,
+    hasPurchasing,
   });
 
   if (!gateResult.blocked) return;
@@ -396,6 +430,8 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   const missing = [];
   const conditions = blockingConditions(conditionsByStage[from.id] ?? []);
   const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, existing.id);
+  const hasInclusions = await resolveHasInclusions(conditions, existing.id);
+  const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
 
   for (const condition of conditions) {
     const result = evaluateCondition(condition, {
@@ -404,6 +440,8 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
       members,
       statusRow: statusRowsByCondition[condition.id] ?? null,
       hasProjectEvaluation,
+      hasInclusions,
+      hasPurchasing,
     });
     if (result.status === CONDITION_STATUS.UNSATISFIED) {
       missing.push({ stage: from, condition });
@@ -482,7 +520,8 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
                 : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
               createdBy: actorId,
               templateId: config.templateId || null,
-              members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }]
+              members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
+              opportunityId: existing.id,
             };
 
             if (config.dueDateOffsetDays) {
@@ -505,6 +544,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
               projectTitle: oppName,
               loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
               submittedById: actorId,
+              opportunityId: existing.id,
             };
 
             if (config.dueOffsetDays) {
@@ -1682,5 +1722,32 @@ export const opportunityService = {
     }
 
     return notified;
+  },
+
+  async getAutomationTasks(opportunityId) {
+    const [tasksRes, committeeTasksRes] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, project_title, task_description, status, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)")
+        .eq("opportunity_id", opportunityId),
+      supabase
+        .from("committee_tasks")
+        .select(`
+          id, title, description, status,
+          members:committee_task_members(
+            id, role, custom_role, task_description,
+            employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
+          )
+        `)
+        .eq("opportunity_id", opportunityId),
+    ]);
+
+    if (tasksRes.error) throw tasksRes.error;
+    if (committeeTasksRes.error) throw committeeTasksRes.error;
+
+    return {
+      individualTasks: tasksRes.data || [],
+      groupTasks: committeeTasksRes.data || [],
+    };
   },
 };

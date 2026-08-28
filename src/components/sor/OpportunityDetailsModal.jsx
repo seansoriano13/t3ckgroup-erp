@@ -258,6 +258,66 @@ function MembersSection({ opportunityId, employees, actorId, onChanged }) {
   );
 }
 
+function AutomationTasksRoster({ opportunityId }) {
+  const { data = { individualTasks: [], groupTasks: [] } } = useQuery({
+    queryKey: ["opportunityAutomations", opportunityId],
+    queryFn: () => opportunityService.getAutomationTasks(opportunityId),
+    enabled: !!opportunityId,
+  });
+
+  const hasTasks = data.individualTasks.length > 0 || data.groupTasks.length > 0;
+  if (!hasTasks) return null;
+
+  return (
+    <div className="mt-4 border-t border-border/50 pt-4">
+      <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+        Flow Automations
+      </p>
+      <div className="space-y-3">
+        {data.groupTasks.map((task) => (
+          <div key={task.id} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+            <p className="mb-2 text-xs font-semibold text-foreground truncate">{task.title}</p>
+            <div className="space-y-2">
+              {task.members?.map((m) => (
+                <div key={m.id} className="flex items-center gap-2">
+                  <Avatar name={m.employee?.name} src={m.employee?.avatar_path} size="xs" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-medium text-foreground truncate">
+                      {m.employee?.name}
+                      <span className="text-muted-foreground ml-1 font-normal">
+                        ({m.role || m.custom_role || "Assignee"})
+                      </span>
+                    </p>
+                    {m.task_description && (
+                      <p className="text-[10px] text-muted-foreground truncate">{m.task_description.split("\n")[0]}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {data.individualTasks.map((task) => {
+          const title = task.task_description ? task.task_description.split("\n")[0] : "Individual Task";
+          return (
+            <div key={task.id} className="rounded-lg border border-border/60 bg-muted/20 p-3">
+              <p className="mb-2 text-xs font-semibold text-foreground truncate" title={title}>
+                {title}
+              </p>
+              <div className="flex items-center gap-2">
+                <Avatar name={task.assignee?.name} src={task.assignee?.avatar_path} size="xs" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium text-foreground truncate">{task.assignee?.name}</p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /**
  * The deal's product list, as pulled from the Odoo sales order.
  *
@@ -599,6 +659,16 @@ export default function OpportunityDetailsModal({
     queryFn: () => opportunityService.getItems(id),
     enabled: !!id && isOpen,
   });
+
+  const { data: checklist = [] } = useQuery({
+    queryKey: ["stageChecklist", id, opportunity?.flow_stage_id || opportunity?.status],
+    queryFn: () => opportunityService.getStageChecklist(id, opportunity),
+    enabled: !!id && isOpen,
+  });
+
+  const requiresProjectEvaluation = checklist.some(c => c.condition.kind === "project_evaluation");
+  const requiresInclusions = checklist.some(c => c.condition.kind === "inclusions");
+  const requiresPurchasing = checklist.some(c => c.condition.kind === "purchasing");
 
   const { data: procurementRequests = [] } = useQuery({
     queryKey: ["procurementRequests", id],
@@ -1252,7 +1322,7 @@ export default function OpportunityDetailsModal({
           {/* Pipeline Stage Tracker */}
           <div className="w-full">
             <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              {isFlowDeal ? "Sales Flow" : "Pipeline Stage"}
+              Pipeline Stage
             </p>
             {/* Issue #36 — a deal that carries a Sale Type runs a graph, not a
                 line, so it gets a control that shows where it is and what it
@@ -1469,26 +1539,20 @@ export default function OpportunityDetailsModal({
               in the margin figure here is the same roll-up InclusionsPanel
               shows per line, just totalled. */}
           {!isEditing && (
-            <div className="rounded-xl border border-border/50 p-6">
-              <ProjectEvaluationPanel opportunity={opportunity} />
-            </div>
+            <ProjectEvaluationPanel opportunity={opportunity} isRequired={requiresProjectEvaluation} />
           )}
 
           {/* Issue #43. The spec check comes before sourcing, because "is the
               client's specification answered" is the question that decides
               whether anything needs sourcing at all. */}
           {!isEditing && (
-            <div className="rounded-xl border border-border/50 p-6">
-              <InclusionsPanel opportunity={opportunity} />
-            </div>
+            <InclusionsPanel opportunity={opportunity} isRequired={requiresInclusions} />
           )}
 
           {/* Purchasing status is what ops needs on first glance, so it sits
               above the fact grid/notes stack rather than at the very bottom. */}
           {!isEditing && (
-            <div className="rounded-xl border border-border/50 p-6">
-              <PurchasingPanel opportunity={opportunity} />
-            </div>
+            <PurchasingPanel opportunity={opportunity} isRequired={requiresPurchasing} />
           )}
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
@@ -1735,6 +1799,7 @@ export default function OpportunityDetailsModal({
                     actorId={user?.id}
                     onChanged={invalidate}
                   />
+                  <AutomationTasksRoster opportunityId={id} />
                 </div>
               </div>
             </div>

@@ -624,7 +624,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
   );
 }
 
-export default function PurchasingPanel({ opportunity }) {
+export default function PurchasingPanel({ opportunity, isRequired = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -882,9 +882,10 @@ export default function PurchasingPanel({ opportunity }) {
   const canSend = named.length > 0 && !!recipient && !isSending;
 
   if (!opportunity) return null;
+  if (!isRequired && requests.length === 0) return null;
 
   return (
-    <div className="space-y-3">
+    <div className="rounded-xl border border-border/50 p-6 space-y-3">
       {requests.length > 0 && (
         <div className="flex items-center justify-between">
           <button

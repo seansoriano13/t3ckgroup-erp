@@ -50,7 +50,7 @@ function NumberField({ label, value, onCommit, disabled, placeholder }) {
   );
 }
 
-export default function ProjectEvaluationPanel({ opportunity }) {
+export default function ProjectEvaluationPanel({ opportunity, isRequired = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isFolded, setIsFolded] = useState(false);
@@ -135,11 +135,14 @@ export default function ProjectEvaluationPanel({ opportunity }) {
   if (!opportunity || isLoading) return null;
 
   const evaluation = summary?.evaluation;
+  
+  if (!isRequired && !evaluation) return null;
+
   const margin = summary?.margin;
   const baseCost = summary?.baseCost;
 
   return (
-    <div className="space-y-3">
+    <div className="rounded-xl border border-border/50 p-6 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"

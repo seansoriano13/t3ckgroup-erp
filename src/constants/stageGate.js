@@ -28,6 +28,8 @@ export const CONDITION_KINDS = {
   // deal. Existence alone satisfies it — sign-off is recorded but never
   // required, the decision needs an owner, not a second approval step.
   PROJECT_EVALUATION: "project_evaluation",
+  INCLUSIONS: "inclusions",
+  PURCHASING: "purchasing",
 }
 
 export const CONDITION_STATUS = {
@@ -120,6 +122,8 @@ export function evaluateCondition(condition, {
   statusRow = null,
   asOf = null,
   hasProjectEvaluation = false,
+  hasInclusions = false,
+  hasPurchasing = false,
 } = {}) {
   if (condition.archived_at) return notApplicable()
   if (asOf && condition.created_at && condition.created_at > asOf) return notApplicable()
@@ -148,6 +152,12 @@ export function evaluateCondition(condition, {
     }
     case CONDITION_KINDS.PROJECT_EVALUATION: {
       return hasProjectEvaluation ? satisfied() : unsatisfied()
+    }
+    case CONDITION_KINDS.INCLUSIONS: {
+      return hasInclusions ? satisfied() : unsatisfied()
+    }
+    case CONDITION_KINDS.PURCHASING: {
+      return hasPurchasing ? satisfied() : unsatisfied()
     }
     default:
       return unsatisfied()
@@ -206,6 +216,8 @@ export function evaluateCrossing({
   statusRowsByCondition = {},
   asOf = null,
   hasProjectEvaluation = false,
+  hasInclusions = false,
+  hasPurchasing = false,
 }) {
   const crossed = stagesCrossed(fromCode, toCode, stages)
   const missing = []
@@ -220,6 +232,8 @@ export function evaluateCrossing({
         statusRow: statusRowsByCondition[condition.id] ?? null,
         asOf,
         hasProjectEvaluation,
+        hasInclusions,
+        hasPurchasing,
       })
       if (result.status === CONDITION_STATUS.UNSATISFIED) {
         missing.push({ stage, condition })

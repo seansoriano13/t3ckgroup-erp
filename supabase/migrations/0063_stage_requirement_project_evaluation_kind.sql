@@ -19,10 +19,14 @@
 --     'project_evaluation', so nothing existing is affected.
 -- ==============================================================================
 
-alter table public.stage_requirements
-  drop constraint if exists stage_requirements_kind_chk;
-
-alter table public.stage_requirements
-  add constraint stage_requirements_kind_chk check (kind in (
-    'attachment', 'field', 'tickbox', 'assignment', 'deadline', 'project_evaluation'
-  ));
+DO $$ 
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_requirements') THEN
+    alter table public.stage_requirements drop constraint if exists stage_requirements_kind_chk;
+    alter table public.stage_requirements add constraint stage_requirements_kind_chk check (kind in ('attachment', 'field', 'tickbox', 'assignment', 'deadline', 'project_evaluation'));
+  ELSIF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_conditions') THEN
+    alter table public.stage_conditions drop constraint if exists stage_requirements_kind_chk;
+    alter table public.stage_conditions drop constraint if exists stage_conditions_kind_chk;
+    alter table public.stage_conditions add constraint stage_conditions_kind_chk check (kind in ('attachment', 'field', 'tickbox', 'assignment', 'deadline', 'project_evaluation'));
+  END IF;
+END $$;

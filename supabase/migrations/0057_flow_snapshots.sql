@@ -32,12 +32,6 @@ create policy flow_snapshots_read on public.flow_snapshots
 drop policy if exists flow_snapshots_write on public.flow_snapshots;
 create policy flow_snapshots_write on public.flow_snapshots
   for insert to authenticated
-  using (
-    exists (
-      select 1 from public.employees e
-      where e.id = public.get_employee_id() and e.is_super_admin
-    )
-  )
   with check (
     exists (
       select 1 from public.employees e

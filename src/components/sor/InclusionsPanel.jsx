@@ -302,7 +302,7 @@ function Composer({ onAdd, onCancel, isPending }) {
   );
 }
 
-export default function InclusionsPanel({ opportunity }) {
+export default function InclusionsPanel({ opportunity, isRequired = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isComposing, setIsComposing] = useState(false);
@@ -398,9 +398,10 @@ export default function InclusionsPanel({ opportunity }) {
   const isPending = patchMutation.isPending || removeMutation.isPending;
 
   if (!opportunity) return null;
+  if (!isRequired && inclusions.length === 0) return null;
 
   return (
-    <div className="space-y-3">
+    <div className="rounded-xl border border-border/50 p-6 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <button
           type="button"

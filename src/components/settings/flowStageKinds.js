@@ -16,6 +16,8 @@ import {
   Calculator,
   Users,
   User,
+  ListChecks,
+  ShoppingCart,
 } from "lucide-react"
 
 import { CONDITION_KINDS } from "../../constants/stageGate"
@@ -50,6 +52,16 @@ export const CONDITION_KIND_META = {
     label: "Project Evaluation",
     icon: Calculator,
     hint: "A Project Evaluation has to exist for the deal. Sign-off is not required.",
+  },
+  [CONDITION_KINDS.INCLUSIONS]: {
+    label: "Inclusions",
+    icon: ListChecks,
+    hint: "Inclusions must be created. Sign-off is not required.",
+  },
+  [CONDITION_KINDS.PURCHASING]: {
+    label: "Purchasing",
+    icon: ShoppingCart,
+    hint: "At least one procurement request must exist.",
   },
 }
 

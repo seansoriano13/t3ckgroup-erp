@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dagre from "dagre";
 import {
   Archive,
+  ArchiveRestore,
   ChevronDown,
   Lock,
   LockOpen,
@@ -103,8 +104,8 @@ export default function FlowCanvas() {
   const [dialogValue, setDialogValue] = useState("");
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
-    queryKey: ["saleTypes"],
-    queryFn: () => salesFlowService.getSaleTypes(),
+    queryKey: ["saleTypes", "all"],
+    queryFn: () => salesFlowService.getSaleTypes({ includeArchived: true }),
   });
 
   const effectiveSaleTypeId = selectedSaleTypeId || saleTypes?.[0]?.id || "";
@@ -143,6 +144,7 @@ export default function FlowCanvas() {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["saleTypes"] });
+    queryClient.invalidateQueries({ queryKey: ["saleTypes", "all"] });
     queryClient.invalidateQueries({ queryKey: ["salesFlow", effectiveSaleTypeId] });
     queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
@@ -595,10 +597,11 @@ export default function FlowCanvas() {
                     "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
                     saleType.id === effectiveSaleTypeId
                       ? "bg-foreground text-background"
-                      : "text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+                      : "text-muted-foreground hover:bg-mauve-a3 hover:text-foreground",
+                    saleType.archived_at && "opacity-60 hover:opacity-100"
                   )}
                 >
-                  {saleType.name}
+                  {saleType.name} {saleType.archived_at && "(Archived)"}
                 </button>
               ))
             )}
@@ -664,28 +667,52 @@ export default function FlowCanvas() {
                       <Pencil size={15} className="text-muted-foreground" />
                       Rename “{selectedSaleType.name}”
                     </button>
-                    <button
-                      onClick={() => {
-                        close();
-                        ask({
-                          title: `Archive “${selectedSaleType.name}”?`,
-                          description:
-                            "It stops being offered on new deals. Deals that already carry it keep reading its name.",
-                          confirmLabel: "Archive",
-                          tone: "destructive",
-                          onConfirm: () =>
-                            run(
-                              () =>
-                                salesFlowService.archiveSaleType(selectedSaleType.id, user?.id),
-                              "Sale Type archived."
-                            ),
-                        });
-                      }}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Archive size={15} className="text-muted-foreground" />
-                      Archive Sale Type
-                    </button>
+                    {selectedSaleType.archived_at ? (
+                      <button
+                        onClick={() => {
+                          close();
+                          ask({
+                            title: `Restore “${selectedSaleType.name}”?`,
+                            description:
+                              "It will be active and offered on new deals again.",
+                            confirmLabel: "Restore",
+                            onConfirm: () =>
+                              run(
+                                () =>
+                                  salesFlowService.restoreSaleType(selectedSaleType.id, user?.id),
+                                "Sale Type restored."
+                              ),
+                          });
+                        }}
+                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                      >
+                        <ArchiveRestore size={15} className="text-muted-foreground" />
+                        Restore Sale Type
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          close();
+                          ask({
+                            title: `Archive “${selectedSaleType.name}”?`,
+                            description:
+                              "It stops being offered on new deals. Deals that already carry it keep reading its name.",
+                            confirmLabel: "Archive",
+                            tone: "destructive",
+                            onConfirm: () =>
+                              run(
+                                () =>
+                                  salesFlowService.archiveSaleType(selectedSaleType.id, user?.id),
+                                "Sale Type archived."
+                              ),
+                          });
+                        }}
+                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Archive size={15} className="text-muted-foreground" />
+                        Archive Sale Type
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

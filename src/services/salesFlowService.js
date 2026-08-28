@@ -233,6 +233,41 @@ export const salesFlowService = {
   },
 
   /**
+   * Restores a retired Sale Type so it is offered on new deals again.
+   */
+  async restoreSaleType(saleTypeId, actorId) {
+    await requireSuperAdmin(actorId);
+
+    const { data: saleType } = await supabase
+      .from("sale_types")
+      .select("name")
+      .eq("id", saleTypeId)
+      .single();
+
+    if (saleType) {
+      await assertSaleTypeNameFree(saleType.name, saleTypeId);
+    }
+
+    const { data, error } = await supabase
+      .from("sale_types")
+      .update({ archived_at: null, updated_at: new Date().toISOString() })
+      .eq("id", saleTypeId)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "SALE_TYPE",
+      saleTypeId,
+      `Sale Type restored: "${data.name}".`,
+      { event: "SALE_TYPE_RESTORED", name: data.name, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
    * Adds a Stage to the end of a flow. Its `sort_order` puts it last, which
    * matters for one reason only: the Stage that sorts first is where deals
    * enter (constants/salesFlow.js). Reordering is how she changes that.

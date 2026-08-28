@@ -53,7 +53,7 @@ const upsertGroupChecklistActivity = async (groupTaskId, memberId, taskDescripti
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
-    const { title, description, dueDate, createdBy, members, templateId } = payload;
+    const { title, description, dueDate, createdBy, members, templateId, opportunityId } = payload;
 
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
@@ -69,6 +69,7 @@ export const groupTaskService = {
           created_by: createdBy,
           status: "ACTIVE",
           template_id: templateId ?? null,
+          opportunity_id: opportunityId ?? null,
         },
       ])
       .select()

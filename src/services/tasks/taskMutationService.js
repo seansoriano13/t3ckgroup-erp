@@ -64,6 +64,7 @@ export const taskMutationService = {
       payment_voucher: payload.paymentVoucher || null,
       attachment_urls: payload.attachments || [],
       reported_to: payload.reportedTo || null,
+      opportunity_id: payload.opportunityId || null,
     };
 
     let { data, error } = await supabase.from("tasks").insert([dbPayload]).select();
