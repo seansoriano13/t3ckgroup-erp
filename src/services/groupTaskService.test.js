@@ -170,7 +170,7 @@ describe("groupTaskService", () => {
       expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
     })
 
-    it("completes the task once the last member is done", async () => {
+    it("leaves the task active for the head to assess once the last member is done", async () => {
       const task = await createTask()
       const members = await membersOf(task.id)
 
@@ -178,7 +178,10 @@ describe("groupTaskService", () => {
         await groupTaskService.updateMemberStatus(member.id, "DONE", member.employee_id)
       }
 
-      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("COMPLETED")
+      // Auto-completion was removed so the head gets a chance to grade the
+      // work before the task closes out; markGroupTaskComplete is now the
+      // only path to COMPLETED.
+      expect((await groupTaskService.getGroupTaskById(task.id)).status).toBe("ACTIVE")
     })
 
     it("tells the creator when a member finishes", async () => {
