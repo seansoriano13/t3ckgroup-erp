@@ -18,7 +18,11 @@ function versionGeneratorPlugin() {
         const changelogPath = path.resolve(__dirname, 'changelog.json')
         if (fs.existsSync(changelogPath)) {
             const changelog = JSON.parse(fs.readFileSync(changelogPath, 'utf8'))
-            changes = changelog.changes || []
+            if (changelog.versions && changelog.versions.length > 0) {
+                changes = changelog.versions[0].changes || []
+            } else {
+                changes = changelog.changes || []
+            }
         }
     } catch (e) {
         console.error('Failed to parse changelog.json', e)
