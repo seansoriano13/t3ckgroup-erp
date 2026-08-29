@@ -224,7 +224,7 @@ export default function TasksPage() {
               .then((task) => {
                 if (task) setViewTask(task);
               })
-              .catch(() => { });
+              .catch((err) => toast.error(err.message || "Something went wrong"));
           },
         );
         navigate(location.pathname, { replace: true, state: {} });

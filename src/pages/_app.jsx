@@ -11,7 +11,7 @@ export default function AppLayout() {
   // Editor screens fill the frame instead of sitting in the centred page
   // column: a canvas that pans and zooms wants every pixel of it, and its own
   // floating toolbar already says what a page header would.
-  const isFullBleed = location.pathname.startsWith("/super-admin/flow-canvas");
+  const isFullBleed = location.pathname.startsWith("/super-admin/flow-canvas") || location.pathname.match(/^\/flow-plans\/.+/);
 
   if (location.pathname === "/login") {
     return <Outlet />;

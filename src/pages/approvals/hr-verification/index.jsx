@@ -102,7 +102,7 @@ export default function HrVerificationPage() {
                     setActiveTaskId(task.id);
                   }
                 })
-                .catch(() => { });
+                .catch((err) => toast.error(err.message || "Something went wrong"));
             },
           );
         }

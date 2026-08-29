@@ -122,6 +122,23 @@ export function makeStageCondition(overrides = {}) {
   })
 }
 
+/**
+ * A Stage's action (automation) — fires when a deal arrives at the stage.
+ * An individual task by default, titled so `actionTitle()` has something to show.
+ */
+export function makeStageAction(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  const n = next()
+  return db.seed("flow_stage_actions", {
+    kind: "create_individual_task",
+    config: { title: `Action ${n}` },
+    sort_order: n,
+    archived_at: null,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
 /** Satisfies a condition for an opportunity — the row IS the satisfaction. */
 export function makeConditionStatus(overrides = {}) {
   const opportunityId = overrides.opportunity_id ?? makeOpportunity().id

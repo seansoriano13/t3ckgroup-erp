@@ -12,6 +12,8 @@ import {
   makeSuperAdmin,
 } from "@/test/factories"
 
+import { supabase } from "@/lib/supabase"
+
 // Mock ResizeObserver for React Flow
 global.ResizeObserver = class ResizeObserver {
   observe() {}
@@ -27,6 +29,20 @@ vi.mock("@/context/AuthContext", () => ({
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({ user: mockUser.current }),
 }))
+
+const channelMock = {
+  on: function() { return this; },
+  subscribe: function() { return this; },
+  unsubscribe: vi.fn(),
+  track: vi.fn(),
+  send: vi.fn(() => Promise.resolve()),
+  presenceState: vi.fn(() => ({})),
+  state: "joined"
+}
+
+beforeEach(() => {
+  vi.spyOn(supabase, "channel").mockReturnValue(channelMock)
+})
 
 function seedFlow() {
   const saleType = makeSaleType({ name: "Government Bidding" })

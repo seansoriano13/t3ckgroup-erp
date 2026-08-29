@@ -165,7 +165,7 @@ export default function StageSettingsPanel({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={onSetEntry}
-                  disabled={disabled || isEntry}
+                  disabled={disabled}
                   className={cn(
                     ROLE_BUTTON,
                     isEntry

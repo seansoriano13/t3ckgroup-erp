@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { opportunityService } from "./opportunityService"
 import { notificationService } from "./notificationService"
 import { db } from "@/test/db/store"
@@ -10,6 +10,7 @@ import {
   makeConditionStatus,
   makeSaleType,
   makeSalesFlow,
+  makeStageAction,
   makeStageCondition,
   seedPipeline,
 } from "@/test/factories"
@@ -1349,6 +1350,46 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.flow_stage_id).toBeNull()
       expect(lost.id).toBeTruthy()
+    })
+
+    describe("Stage Actions fire once per (deal, stage)", () => {
+      it("does not refire an action on loop-back, even with the fired-log row missing", async () => {
+        // The primary guard is a STAGE_ACTIONS_FIRED log row, but a deleted or
+        // missing log must not reopen the gate — the fallback checks for the
+        // task itself, which is what actually matters (see 06 in
+        // .scratch/code-review-fixes/issues/).
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Confirm requirements" },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        await vi.waitFor(() => {
+          const tasks = db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)
+          expect(tasks).toHaveLength(1)
+        })
+
+        // Simulate a missing/deleted fired-log row.
+        const firedLog = db.internal
+          .rowsOf("sales_opportunity_logs")
+          .find((l) => l.metadata?.event === "STAGE_ACTIONS_FIRED" && l.opportunity_id === deal.id)
+        db.internal.rowsOf("sales_opportunity_logs").splice(
+          db.internal.rowsOf("sales_opportunity_logs").indexOf(firedLog),
+          1,
+        )
+
+        await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await waitForNetworkIdle()
+
+        const tasksAfterLoopBack = db.internal
+          .rowsOf("tasks")
+          .filter((t) => t.opportunity_id === deal.id)
+        expect(tasksAfterLoopBack).toHaveLength(1)
+      })
     })
 
     // Issue #50.

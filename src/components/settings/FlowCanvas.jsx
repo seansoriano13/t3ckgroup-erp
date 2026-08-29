@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import dagre from "dagre";
 import {
@@ -18,6 +18,8 @@ import {
 import toast from "react-hot-toast";
 import {
   ReactFlow,
+  ReactFlowProvider,
+  useReactFlow,
   Background,
   BackgroundVariant,
   Controls,
@@ -35,6 +37,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
+import { supabase } from "../../lib/supabase";
 
 import { salesFlowService } from "../../services/salesFlowService";
 import { stageConditionService } from "../../services/stageConditionService";
@@ -98,6 +101,14 @@ const defaultEdgeOptions = {
  * so this component can never disagree with either about the answer.
  */
 export default function FlowCanvas() {
+  return (
+    <ReactFlowProvider>
+      <FlowCanvasInner />
+    </ReactFlowProvider>
+  );
+}
+
+function FlowCanvasInner() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
@@ -158,6 +169,100 @@ export default function FlowCanvas() {
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
   }, [queryClient, effectiveSaleTypeId]);
 
+  const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
+  const [activeUsers, setActiveUsers] = useState({});
+  const [cursors, setCursors] = useState({});
+  const channelRef = useRef(null);
+
+  useEffect(() => {
+    if (!effectiveSaleTypeId) return;
+
+    const channel = supabase.channel(`flow_canvas_${effectiveSaleTypeId}`, {
+      config: {
+        presence: {
+          key: user?.id || 'anonymous',
+        },
+      },
+    });
+    
+    channelRef.current = channel;
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const currentUsers = {};
+        for (const [key, presences] of Object.entries(state)) {
+          if (key !== user?.id && presences.length > 0) {
+            currentUsers[key] = presences[0];
+          }
+        }
+        setActiveUsers(currentUsers);
+        
+        // Clean up cursors for disconnected users
+        setCursors(prev => {
+          const next = { ...prev };
+          for (const key of Object.keys(next)) {
+            if (!currentUsers[key]) {
+              delete next[key];
+            }
+          }
+          return next;
+        });
+      })
+      .on('broadcast', { event: 'cursor' }, ({ payload }) => {
+        if (payload.userId !== user?.id) {
+          setCursors(prev => ({ ...prev, [payload.userId]: payload.cursor }));
+        }
+      })
+      .on('broadcast', { event: 'nodeDrag' }, ({ payload }) => {
+        if (payload.userId !== user?.id) {
+          setRfNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === payload.nodeId) {
+                return { ...n, position: payload.position };
+              }
+              return n;
+            })
+          );
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_flows' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_stages' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_edges' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stage_conditions' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_stage_actions' }, refresh)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
+          const colorIndex = (user?.name?.length || 0) % 10;
+          await channel.track({
+            userId: user?.id,
+            name: user?.name || 'Unknown',
+            color: COLORS[colorIndex],
+          });
+        }
+      });
+
+    return () => {
+      channel.unsubscribe();
+      channelRef.current = null;
+    };
+  }, [effectiveSaleTypeId, refresh, user]);
+
+  const handlePointerMove = useCallback((e) => {
+    if (channelRef.current?.state === 'joined') {
+      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'cursor',
+        payload: {
+          userId: user?.id,
+          cursor: position
+        }
+      }).catch(() => {});
+    }
+  }, [screenToFlowPosition, user]);
+
   const createSaleType = useMutation({
     mutationFn: (name) => salesFlowService.createSaleType(name, user?.id),
     onSuccess: () => {
@@ -210,12 +315,20 @@ export default function FlowCanvas() {
   };
 
   const setAsEntryStage = useCallback((stageId) => {
-    const order = stages.map((s) => s.id);
+    const order = [...stages].map((s) => s.id);
     const targetIdx = order.indexOf(stageId);
-    if (targetIdx <= 0) return; // Already first, or not in this flow.
+    if (targetIdx === -1) return;
 
-    order.splice(targetIdx, 1);
-    order.unshift(stageId);
+    if (targetIdx === 0) {
+      // Toggle off: move the current entry stage to the end, if there are others.
+      if (order.length <= 1) return;
+      order.shift();
+      order.push(stageId);
+    } else {
+      // Toggle on: move this stage to the front.
+      order.splice(targetIdx, 1);
+      order.unshift(stageId);
+    }
 
     run(() => salesFlowService.reorderStages(flow.id, order, user?.id), "Entry stage updated.");
   }, [stages, flow, user?.id, run]);
@@ -428,6 +541,24 @@ export default function FlowCanvas() {
     setRfEdges,
   ]);
 
+  const onNodeDrag = useCallback(
+    (_event, node) => {
+      if (isLocked || node.type !== "stage") return;
+      if (channelRef.current && user) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'nodeDrag',
+          payload: {
+            userId: user.id,
+            nodeId: node.id,
+            position: node.position
+          }
+        }).catch(() => {});
+      }
+    },
+    [isLocked, user]
+  );
+
   const onNodeDragStop = useCallback(
     (_event, node) => {
       if (isLocked || node.type !== "stage") return;
@@ -561,12 +692,16 @@ export default function FlowCanvas() {
   const showEmptySaleTypes = !effectiveSaleTypeId && !loadingTypes;
 
   return (
-    <div className="relative flex h-full min-h-[34rem] w-full flex-col overflow-hidden bg-mauve-3">
+    <div 
+      className="relative flex h-full min-h-[34rem] w-full flex-col overflow-hidden bg-mauve-3"
+      onPointerMove={handlePointerMove}
+    >
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         onEdgesDelete={onEdgesDelete}
@@ -578,6 +713,9 @@ export default function FlowCanvas() {
         defaultEdgeOptions={defaultEdgeOptions}
         connectionRadius={28}
         edgesReconnectable={!isLocked}
+        nodesConnectable={!isLocked}
+        nodesDraggable={!isLocked}
+        elementsSelectable={true}
         fitView
         fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
         minZoom={0.15}
@@ -600,6 +738,33 @@ export default function FlowCanvas() {
           position="bottom-right"
           className="!bottom-4 !right-4 !shadow-none"
         />
+        
+        {/* Render peer cursors */}
+      {Object.values(activeUsers).map((peer) => {
+        const cursor = cursors[peer.userId];
+        if (!cursor) return null;
+        const screenPos = flowToScreenPosition(cursor);
+        return (
+          <div
+            key={peer.userId}
+            className="pointer-events-none fixed z-[9999] flex items-center gap-1 transition-all duration-75 ease-linear"
+            style={{
+              left: screenPos.x,
+              top: screenPos.y,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill={peer.color} stroke="white" strokeWidth="2" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 4l7.07 17 2.51-7.39L21 11.07z" />
+            </svg>
+            <span 
+              className="rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-sm"
+              style={{ backgroundColor: peer.color }}
+            >
+              {peer.name}
+            </span>
+          </div>
+        );
+      })}
         {stages.length > 1 && (
           <MiniMap
             pannable

@@ -517,6 +517,43 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     try {
       const actions = await stageActionService.getForStage(to.id);
       if (actions.length > 0) {
+        // Guard: fire once per (deal, stage). The log check is the primary
+        // signal; the task-existence check is a fallback for a missing or
+        // deleted log entry, since both individual and group tasks created
+        // by these automations embed the same "entering stage: <name>"
+        // marker in their description (see the payloads built below).
+        const { data: existingLogs } = await supabase
+          .from("sales_opportunity_logs")
+          .select("id")
+          .eq("opportunity_id", existing.id)
+          .contains("metadata", { event: "STAGE_ACTIONS_FIRED", to: to.id })
+          .limit(1);
+
+        const stageMarker = `entering stage: ${to.name}`;
+        const [{ data: existingTasks }, { data: existingGroupTasks }] = await Promise.all([
+          supabase
+            .from("tasks")
+            .select("id")
+            .eq("opportunity_id", existing.id)
+            .ilike("task_description", `%${stageMarker}%`)
+            .limit(1),
+          supabase
+            .from("committee_tasks")
+            .select("id")
+            .eq("opportunity_id", existing.id)
+            .ilike("description", `%${stageMarker}%`)
+            .limit(1),
+        ]);
+
+        if (existingLogs?.length > 0 || existingTasks?.length > 0 || existingGroupTasks?.length > 0) {
+          systemAuditLogService.addSystemEvent(
+            "OPPORTUNITY", existing.id,
+            `Stage actions skipped: already fired for ${to.name}`,
+            { event: "STAGE_ACTIONS_SKIPPED", to: to.id }, actorId
+          ).catch(() => {});
+          return;
+        }
+
         const { groupTaskService } = await import("./groupTaskService");
         const { taskService } = await import("./taskService");
 
@@ -569,6 +606,15 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
             await taskService.createTask(payload).catch(console.error);
           }
         }
+
+        // Mark as fired so they don't fire again on loop-back
+        await supabase.from("sales_opportunity_logs").insert({
+          opportunity_id: existing.id,
+          author_id: actorId,
+          type: "SYSTEM",
+          content: `Stage actions fired for ${to.name}.`,
+          metadata: { event: "STAGE_ACTIONS_FIRED", to: to.id }
+        });
       }
     } catch (err) {
       console.error("Failed to execute stage actions:", err);
@@ -576,6 +622,10 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }).catch(console.error);
 
   return data;
+}
+
+function currentStageId(opportunity) {
+  return opportunity?.flow_stage_id || opportunity?.status;
 }
 
 /**
@@ -589,7 +639,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
 function stageEnteredAt(opportunity, logs) {
   const entries = (logs || [])
     .filter(
-      (log) => log.metadata?.event === "STAGE_CHANGED" && log.metadata?.to === opportunity.status,
+      (log) => log.metadata?.event === "STAGE_CHANGED" && log.metadata?.to === currentStageId(opportunity),
     )
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   return entries[0]?.created_at || opportunity.created_at;
@@ -611,7 +661,7 @@ function stageEnteredAt(opportunity, logs) {
  */
 async function deadlineEvaluations(opportunities) {
   if (opportunities.length === 0) return {};
-  const stageCodes = [...new Set(opportunities.map((o) => o.status))];
+  const stageCodes = [...new Set(opportunities.map(currentStageId))];
 
   const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
     query.eq("kind", CONDITION_KINDS.DEADLINE),
@@ -630,7 +680,7 @@ async function deadlineEvaluations(opportunities) {
   const now = new Date().toISOString();
   const result = {};
   for (const opportunity of opportunities) {
-    const stageConditions = conditionsByStage[opportunity.status];
+    const stageConditions = conditionsByStage[currentStageId(opportunity)];
     if (!stageConditions || stageConditions.length === 0) continue;
 
     const enteredAt = stageEnteredAt(opportunity, logsByOpportunity[opportunity.id]);
@@ -1593,7 +1643,7 @@ export const opportunityService = {
    */
   async getBlockedDeals(opportunities = []) {
     if (opportunities.length === 0) return {};
-    const stageCodes = [...new Set(opportunities.map((o) => o.status))];
+    const stageCodes = [...new Set(opportunities.map(currentStageId))];
 
     const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
       query.eq("is_required", true).neq("kind", CONDITION_KINDS.DEADLINE),
@@ -1643,8 +1693,14 @@ export const opportunityService = {
 
     const blocked = {};
     for (const opportunity of opportunities) {
-      const stageConditions = conditionsByStage[opportunity.status] || [];
+      const stageConditions = conditionsByStage[currentStageId(opportunity)] || [];
       if (stageConditions.length === 0) continue;
+
+      const [hasProjectEvaluation, hasInclusions, hasPurchasing] = await Promise.all([
+        resolveHasProjectEvaluation(stageConditions, opportunity.id),
+        resolveHasInclusions(stageConditions, opportunity.id),
+        resolveHasPurchasing(stageConditions, opportunity.id),
+      ]);
 
       const missing = stageConditions.filter(
         (condition) =>
@@ -1653,6 +1709,9 @@ export const opportunityService = {
             attachments: attachmentsByOpportunity[opportunity.id] || [],
             members: membersByOpportunity[opportunity.id] || [],
             statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
+            hasProjectEvaluation,
+            hasInclusions,
+            hasPurchasing,
           }).status === CONDITION_STATUS.UNSATISFIED,
       );
       if (missing.length > 0) blocked[opportunity.id] = missing;

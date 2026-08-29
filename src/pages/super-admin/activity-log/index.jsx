@@ -78,8 +78,9 @@ function tryParseChecklist(str) {
     ) {
       return parsed;
     }
-    // eslint-disable-next-line no-empty, no-unused-vars
-  } catch (e) { }
+  } catch (e) {
+    console.error("Failed to parse checklist:", e);
+  }
   return null;
 }
 

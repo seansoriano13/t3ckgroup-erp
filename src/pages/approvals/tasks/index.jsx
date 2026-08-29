@@ -176,7 +176,7 @@ export default function TaskApprovalsPage() {
                 setActiveTaskId(task.id);
               }
             })
-            .catch(() => { });
+            .catch((err) => toast.error(err.message || "Something went wrong"));
         }
       });
       navigate(location.pathname, { replace: true, state: {} });
