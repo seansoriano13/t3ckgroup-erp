@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 0072_flow_canvas_realtime.sql
+-- 0073_flow_canvas_realtime.sql
 --
 -- Enables Postgres Realtime for Flow Canvas tables so clients can sync
 -- multiplayer edits instantly.

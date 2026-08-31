@@ -16,6 +16,8 @@ lerna-debug.log*
 # comments. The real .env.mirror holds a live Odoo API key and stays ignored.
 !.env.mirror.example
 
+.scratch
+
 node_modules
 dist
 dist-ssr

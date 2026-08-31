@@ -1,5 +1,5 @@
 -- ==============================================================================
--- 0065_stage_conditions_new_kinds.sql
+-- 20260831044418_stage_conditions_new_kinds.sql
 --
 -- Adding inclusions and purchasing to stage conditions.
 -- ==============================================================================
