@@ -9,7 +9,6 @@ export type Path =
   | `/approvals/components/ApprovalDetailPane`
   | `/approvals/components/ApprovalHeader`
   | `/approvals/components/ApprovalQueueItem`
-  | `/approvals/components/ApprovalRow`
   | `/approvals/components/ApprovalSplitView`
   | `/approvals/components/BulkDeclineModal`
   | `/approvals/components/BulkGradeModal`
