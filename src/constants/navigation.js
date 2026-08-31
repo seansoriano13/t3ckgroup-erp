@@ -179,7 +179,7 @@ export const NAV_MODULES = {
         label: "Flow Canvas",
         link: "/super-admin/flow-canvas",
         icon: Workflow,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
+        isPermitted: () => true,
       },
       {
         label: "Commission Pool",

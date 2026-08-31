@@ -12,10 +12,8 @@ import { isProductionSupabase } from "../../../lib/supabase.js";
  * says. `_app.jsx` drops its wrapper for this route; every control lives on the
  * canvas, floating over the surface it acts on.
  *
- * Super-Admin only, and deliberately no finer permission model than that: the
- * canvas is scaffolding, scheduled to be hidden once the flow it produces is
- * implemented as the production pipeline, and building a role for a module
- * with a removal date is the scope creep this project exists to prevent.
+ * Available to everyone. The canvas is scaffolding, scheduled to be hidden once
+ * the flow it produces is implemented as the production pipeline.
  *
  * Staging only. "The canvas and its Scratch SORs live on staging. Production
  * is never the drafting surface" is a spec condition, not a nicety —
@@ -25,7 +23,7 @@ import { isProductionSupabase } from "../../../lib/supabase.js";
  */
 export default function FlowCanvasAdminPage() {
   return (
-    <ProtectedRoute requireSuperAdmin={true}>
+    <ProtectedRoute>
       {isProductionSupabase ? (
         <div className="flex h-full items-center justify-center p-8">
           <div className="max-w-md rounded-2xl bg-amber-a2 px-8 py-7 text-center outline outline-1 -outline-offset-1 outline-amber-a6">
