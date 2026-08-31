@@ -85,3 +85,6 @@ docs/*.pdf
 
 .claude/*
 
+
+# Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
+eslint.json
