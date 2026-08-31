@@ -32,10 +32,10 @@ import {
   summariseQueueEmployees,
   toggleSelectedId,
 } from "../../../utils/approvalQueue.js";
-import { ApprovalHeader } from "../components/ApprovalHeader";
-import { ApprovalSplitView } from "../components/ApprovalSplitView";
-import BulkGradeModal from "../components/BulkGradeModal";
-import BulkDeclineModal from "../components/BulkDeclineModal";
+import { ApprovalHeader } from "../_components/ApprovalHeader";
+import { ApprovalSplitView } from "../_components/ApprovalSplitView";
+import BulkGradeModal from "../_components/BulkGradeModal";
+import BulkDeclineModal from "../_components/BulkDeclineModal";
 import { Button } from "@/components/ui/button";
 import PageContainer from "../../../components/ui/PageContainer";
 import TabGroup from "../../../components/ui/TabGroup";

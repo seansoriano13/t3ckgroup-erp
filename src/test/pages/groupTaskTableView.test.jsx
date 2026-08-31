@@ -1,7 +1,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import GroupTaskTableView from "@/pages/group-tasks/components/GroupTaskTableView";
+import GroupTaskTableView from "@/pages/group-tasks/_components/GroupTaskTableView";
 import { renderWithProviders } from "@/test/support";
 
 const mockGroupTask = (overrides = {}) => ({

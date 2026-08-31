@@ -7,9 +7,9 @@ import Spinner from "@/components/ui/Spinner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupRoleService } from "../../../../services/groupRoleService";
 import { groupTaskTemplateService } from "../../../../services/groupTaskTemplateService";
-import GroupRoleManagerModal from "../../components/GroupRoleManagerModal";
-import GroupTaskMemberRail from "../../components/GroupTaskMemberRail";
-import GroupTaskMemberPanel from "../../components/GroupTaskMemberPanel";
+import GroupRoleManagerModal from "../../_components/GroupRoleManagerModal";
+import GroupTaskMemberRail from "../../_components/GroupTaskMemberRail";
+import GroupTaskMemberPanel from "../../_components/GroupTaskMemberPanel";
 import { makeMemberDraft } from "../../utils/templateApply";
 import { parseChecklist } from "@/utils/checklist";
 

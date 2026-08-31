@@ -14,7 +14,7 @@ import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
 import StageActionDetail from "./StageActionDetail";
 import { useAuth } from "../../context/AuthContext";
 
-import CreateGroupTaskModal from "../../pages/group-tasks/components/CreateGroupTaskModal";
+import CreateGroupTaskModal from "../../pages/group-tasks/_components/CreateGroupTaskModal";
 import LogTaskModal from "../LogTaskModal";
 
 /**

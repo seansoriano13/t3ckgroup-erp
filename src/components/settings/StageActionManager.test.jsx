@@ -11,7 +11,7 @@ vi.mock("../../context/AuthContext", () => ({
 }));
 
 // Heavy, unrelated modal/detail UI — not what these list-rendering tests exercise.
-vi.mock("../../pages/group-tasks/components/CreateGroupTaskModal", () => ({
+vi.mock("../../pages/group-tasks/_components/CreateGroupTaskModal", () => ({
   default: () => <div data-testid="create-group-task-modal" />,
 }));
 vi.mock("../LogTaskModal", () => ({

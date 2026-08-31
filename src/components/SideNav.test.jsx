@@ -12,7 +12,7 @@ vi.mock("./ComprehensiveChatModal", () => ({ default: () => null }));
 vi.mock("./GlobalDetailManager", () => ({ default: () => null }));
 vi.mock("./BroadcastModal", () => ({ default: () => null }));
 vi.mock("./LogTaskModal", () => ({ default: () => null }));
-vi.mock("../pages/group-tasks/components/CreateGroupTaskModal", () => ({ default: () => null }));
+vi.mock("../pages/group-tasks/_components/CreateGroupTaskModal", () => ({ default: () => null }));
 vi.mock("./offsets/ApplyLeaveModal", () => ({ default: () => null }));
 vi.mock("./sor/OpportunityFormModal", () => ({ default: () => null }));
 vi.mock("./RoleSwitcher", () => ({ default: () => <div data-testid="role-switcher" /> }));

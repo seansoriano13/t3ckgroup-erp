@@ -11,7 +11,7 @@ import { confirmActionToast, confirmDeleteToast } from "../../../components/ui/C
 import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { LayoutTemplate, Plus, Pencil, Archive, RotateCcw, Users, Trash2 } from "lucide-react";
-import TemplateEditorModal from "./components/TemplateEditorModal";
+import TemplateEditorModal from "./_components/TemplateEditorModal";
 
 export default function GroupTaskTemplatesPage() {
   const { user } = useAuth();

@@ -32,7 +32,7 @@ import { Link, useNavigate, NavLink } from "react-router";
 import Avatar from "./Avatar";
 import { useState, useEffect } from "react";
 import LogTaskModal from "./LogTaskModal";
-import CreateGroupTaskModal from "../pages/group-tasks/components/CreateGroupTaskModal";
+import CreateGroupTaskModal from "../pages/group-tasks/_components/CreateGroupTaskModal";
 import Dropdown from "./ui/Dropdown";
 import { groupTaskService } from "../services/groupTaskService";
 import { employeeService } from "../services/employeeService";

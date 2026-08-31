@@ -2,7 +2,7 @@ import { screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-import { ApprovalSplitView } from "@/pages/approvals/components/ApprovalSplitView"
+import { ApprovalSplitView } from "@/pages/approvals/_components/ApprovalSplitView"
 import { taskService } from "@/services/taskService.js"
 import { TASK_STATUS } from "@/constants/status.js"
 import { db } from "@/test/db/store"

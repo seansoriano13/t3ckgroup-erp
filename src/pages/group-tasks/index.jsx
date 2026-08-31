@@ -10,11 +10,11 @@ import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-reac
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 
-import GroupTaskCard from "./components/GroupTaskCard";
-import GroupTaskTableView from "./components/GroupTaskTableView";
-import CreateGroupTaskModal from "./components/CreateGroupTaskModal";
-import GroupTaskDetailModal from "./components/GroupTaskDetailModal";
-import RateEmployeesModal from "./components/RateEmployeesModal";
+import GroupTaskCard from "./_components/GroupTaskCard";
+import GroupTaskTableView from "./_components/GroupTaskTableView";
+import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
+import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
+import RateEmployeesModal from "./_components/RateEmployeesModal";
 import GroupTaskFilters from "../../components/GroupTaskFilters";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useMemo } from "react";
