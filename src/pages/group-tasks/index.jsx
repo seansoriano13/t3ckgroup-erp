@@ -158,6 +158,25 @@ export default function GroupTasksPage() {
     onError: (err) => toast.error(err.message),
   });
 
+  const updateTaskMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.updateGroupTask(selectedTask.id, payload, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const addMemberAttachmentMutation = useMutation({
+    mutationFn: ({ memberId, url }) =>
+      groupTaskService.addMemberAttachment(memberId, url, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Attachment uploaded successfully!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const revertDoneMutation = useMutation({
     mutationFn: (memberId) =>
       groupTaskService.updateMemberStatus(memberId, "PENDING", user.id),
@@ -386,6 +405,8 @@ export default function GroupTasksPage() {
         employees={employees}
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
+
+        onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutate({ memberId, url })}
         onOpenRateModal={() => setIsRateOpen(true)}
         onDelete={() => deleteMutation.mutate(selectedTaskId)}
         onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
@@ -404,8 +425,12 @@ export default function GroupTasksPage() {
         onReject={(remarks) =>
           rejectMutation.mutate({ id: selectedTaskId, remarks })
         }
+        onUpdateTask={(payload) => updateTaskMutation.mutateAsync(payload)}
+        isUpdatingTask={updateTaskMutation.isPending}
         isMarkingDone={markDoneMutation.isPending}
         isReverting={revertDoneMutation.isPending}
+
+        isUploadingAttachment={addMemberAttachmentMutation.isPending}
         isDeleting={deleteMutation.isPending}
         isAddingMember={addMemberMutation.isPending}
         isUpdatingMember={updateMemberMutation.isPending}

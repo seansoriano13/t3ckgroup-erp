@@ -58,6 +58,8 @@ import ReplyPreviewBar from "@/components/ui/ReplyPreviewBar";
 import ReplyQuote from "@/components/ui/ReplyQuote";
 import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
+import MentionTextarea from "@/components/ui/MentionTextarea";
+import { supabase } from "@/lib/supabase";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -85,6 +87,10 @@ export default function GroupTaskDetailModal({
   isVerifying,
   isRejecting,
   onInlineCheck,
+  onUpdateTask,
+  isUpdatingTask,
+  onAddAttachment,
+  isUploadingAttachment,
   searchTerm,
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -99,10 +105,16 @@ export default function GroupTaskDetailModal({
   const chatScrollRef = useRef(null);
   const fileInputRef = useRef(null);
   const [messageContent, setMessageContent] = useState("");
+  const [mentions, setMentions] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
   const [attachments, setAttachments] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const avatarMap = useEmployeeAvatarMap();
+  
+
+
+  const [isEditingTask, setIsEditingTask] = useState(false);
+  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
@@ -180,6 +192,24 @@ export default function GroupTaskDetailModal({
     setDraft(null);
   };
 
+  const handleStartTaskEdit = () => {
+    setTaskEditDraft({
+      title: task.title || "",
+      description: task.description || "",
+      dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+    });
+    setIsEditingTask(true);
+  };
+
+  const handleSaveTaskEdit = async () => {
+    if (!taskEditDraft.title.trim()) {
+      toast.error("Title is required");
+      return;
+    }
+    await onUpdateTask(taskEditDraft);
+    setIsEditingTask(false);
+  };
+
   const handleRemoveMember = (memberId) => {
     confirmDeleteToast(
       "Remove Member",
@@ -212,25 +242,96 @@ export default function GroupTaskDetailModal({
       setShowRejectForm(false);
       setRejectRemarks("");
       setMessageContent("");
+      setMentions([]);
       setAttachments([]);
+
+      setIsEditingTask(false);
       setReplyingTo(null);
       handleCancelEdit();
     }
   }, [isOpen]);
 
   // --- Inline chat: fetch messages ---
-  const { data: chatMessages = [], isLoading: isLoadingChat } = useQuery({
+  const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
     queryKey: ["chatMessages", "GROUP_TASK", task?.id],
     queryFn: () => groupTaskActivityService.getActivityForTask(task.id),
     enabled: !!task?.id && isOpen && isSplitScreen,
   });
+
+  const { data: readReceipts = [] } = useQuery({
+    queryKey: ["chatReadReceipts", "GROUP_TASK", task?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chat_read_receipts")
+        .select("user_id, last_read_at")
+        .eq("entity_type", "GROUP_TASK")
+        .eq("entity_id", String(task.id));
+      return data || [];
+    },
+    enabled: !!task?.id && isOpen && isSplitScreen,
+  });
+
+  const chatMessages = useMemo(() => {
+    if (!rawMessages || rawMessages.length === 0) return [];
+    
+    // Calculate seenBy logic
+    const userToLastSeenMsgId = {};
+    for (const receipt of readReceipts) {
+      if (receipt.user_id === user?.id) continue;
+      
+      const readAt = new Date(receipt.last_read_at).getTime();
+      let latestMsg = null;
+      for (const m of rawMessages) {
+        if (new Date(m.createdAt).getTime() <= readAt) {
+          if (!latestMsg || new Date(m.createdAt).getTime() > new Date(latestMsg.createdAt).getTime()) {
+            latestMsg = m;
+          }
+        }
+      }
+      if (latestMsg) {
+        if (latestMsg.authorId === receipt.user_id) {
+          let latestNotTheirs = null;
+          for (const m of rawMessages) {
+            if (new Date(m.createdAt).getTime() <= readAt && m.authorId !== receipt.user_id) {
+              if (!latestNotTheirs || new Date(m.createdAt).getTime() > new Date(latestNotTheirs.createdAt).getTime()) {
+                latestNotTheirs = m;
+              }
+            }
+          }
+          if (latestNotTheirs) latestMsg = latestNotTheirs;
+          else latestMsg = null;
+        }
+
+        if (latestMsg) {
+          if (!userToLastSeenMsgId[latestMsg.id]) userToLastSeenMsgId[latestMsg.id] = [];
+          const emp = employees.find(e => e.id === receipt.user_id);
+          let name = emp?.name;
+          if (!name) {
+            const commentByThem = rawMessages.find(c => c.authorId === receipt.user_id);
+            name = commentByThem ? commentByThem.authorName : "Unknown";
+          }
+          
+          userToLastSeenMsgId[latestMsg.id].push({
+            id: receipt.user_id,
+            name: name,
+            src: avatarMap.get(receipt.user_id)
+          });
+        }
+      }
+    }
+
+    return rawMessages.map(m => ({
+      ...m,
+      seenBy: userToLastSeenMsgId[m.id] || []
+    }));
+  }, [rawMessages, readReceipts, user, employees, avatarMap]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (chatScrollRef.current) {
       chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
     }
-  }, [chatMessages]);
+  }, [chatMessages?.length]);
 
   // Real-time subscription for inline chat
   useEffect(() => {
@@ -249,12 +350,40 @@ export default function GroupTaskDetailModal({
     };
   }, [isSplitScreen, task?.id, isOpen, queryClient]);
 
+  // Real-time listener for read receipts
+  useEffect(() => {
+    if (!isSplitScreen || !task?.id || !isOpen) return;
+
+    const channel = supabase
+      .channel(`read-receipts-grouptask-${task.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chat_read_receipts",
+          filter: `entity_id=eq.${task.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["chatReadReceipts", "GROUP_TASK", task.id],
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isSplitScreen, task?.id, isOpen, queryClient]);
+
   // --- Inline chat: send message mutation ---
   const sendMessageMutation = useMutation({
-    mutationFn: ({ content, attachmentUrls = [], replyTo = null }) => {
+    mutationFn: ({ content, attachmentUrls = [], replyTo = null, messageMentions = [] }) => {
       const metadata = {};
       if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
       if (replyTo) metadata.replyTo = replyTo;
+      if (messageMentions.length > 0) metadata.mentions = messageMentions;
       return groupTaskActivityService.addComment(
         task.id,
         user.id,
@@ -265,6 +394,7 @@ export default function GroupTaskDetailModal({
     onSuccess: () => {
       setMessageContent("");
       setAttachments([]);
+      setMentions([]);
       setReplyingTo(null);
       queryClient.invalidateQueries({
         queryKey: ["chatMessages", "GROUP_TASK", task?.id],
@@ -317,7 +447,7 @@ export default function GroupTaskDetailModal({
             attachments.map((a) => storageService.uploadToCloudinary(a.file)),
           );
         }
-        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo });
+        sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo, messageMentions: mentions });
       } catch (err) {
         toast.error("Failed to upload chat attachments");
         console.error("Failed to upload chat attachments:", err);
@@ -344,26 +474,49 @@ export default function GroupTaskDetailModal({
   };
 
   // Helper: render URLs as links
-  const renderContent = (text) => {
+  const renderContent = (text, messageMentions = [], isMe = false) => {
     if (!text) return null;
     const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const names = (messageMentions || []).map((m) => m.name).filter(Boolean);
+    const escaped = names.length > 0 ? names.slice().sort((a, b) => b.length - a.length).map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|") : null;
+    const mentionRegex = escaped ? new RegExp(`(@(?:${escaped}))`, "g") : null;
+
     const parts = text.split(urlRegex);
-    return parts.map((part, i) =>
-      urlRegex.test(part) ? (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      ) : (
-        <span key={i}>{part}</span>
-      ),
-    );
+    return parts.map((part, i) => {
+      if (urlRegex.test(part)) {
+        return (
+          <a
+            key={`url-${i}`}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        );
+      } else if (mentionRegex) {
+        const mParts = part.split(mentionRegex);
+        return mParts.map((mPart, j) => {
+          if (/^@/.test(mPart) && names.some((n) => `@${n}` === mPart)) {
+            return (
+              <span
+                key={`mention-${i}-${j}`}
+                className={cn(
+                  "rounded px-1 font-semibold",
+                  isMe ? "bg-primary-foreground/20 text-primary-foreground" : "bg-primary/20 text-primary/90",
+                )}
+              >
+                {mPart}
+              </span>
+            );
+          }
+          return <span key={`text-${i}-${j}`}>{mPart}</span>;
+        });
+      }
+      return <span key={`text-${i}`}>{part}</span>;
+    });
   };
 
   // Mark as read when opened (same pattern as TaskDetails)
@@ -451,10 +604,10 @@ export default function GroupTaskDetailModal({
           isExpanded
             ? "!w-screen !h-screen !max-w-none !max-h-none !rounded-none !top-0 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !border-0 m-0"
             : isSplitScreen
-              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:w-[1400px] rounded-2xl"
+              ? "top-4 bottom-4 !translate-y-0 h-[calc(100vh-2rem)] max-h-none sm:max-w-none w-[95vw] xl:max-w-[1400px] rounded-2xl"
               : // Widened from 960px: the member area is a master/detail pair
                 // now, and a 240px rail off 960px left the panel too narrow.
-                "max-h-[90vh] sm:max-w-none w-[1120px] max-w-[95vw] rounded-2xl",
+                "max-h-[90vh] sm:max-w-none w-[95vw] max-w-[1120px] rounded-2xl",
         )}
       >
         {/* CONTENT WRAPPER — split when isSplitScreen */}
@@ -465,53 +618,99 @@ export default function GroupTaskDetailModal({
 
         {/* HEADER */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-mauve-3/40 shrink-0 relative overflow-hidden bg-card">
-          <div className="space-y-1 mt-1">
-            <div className="flex items-center gap-2 mb-2.5">
-              <StatusBadge status={displayStatus} />
-              {(isHrPending || isHrVerified) && (
-                <div
-                  title={
-                    isHrVerified ? "Verified by HR" : "Pending HR Verification"
-                  }
-                  className="flex items-center"
-                >
-                  {isHrVerified ? (
-                    <CheckCircle2 size={14} className="text-green-9" />
-                  ) : (
-                    <Clock size={14} className="text-amber-9" />
+          <div className="space-y-1 mt-1 flex-1 max-w-3xl">
+            <div className="flex items-center justify-between mb-2.5 w-full">
+              <div className="flex items-center gap-2">
+                <StatusBadge status={displayStatus} />
+                {(isHrPending || isHrVerified) && (
+                  <div
+                    title={
+                      isHrVerified ? "Verified by HR" : "Pending HR Verification"
+                    }
+                    className="flex items-center"
+                  >
+                    {isHrVerified ? (
+                      <CheckCircle2 size={14} className="text-green-9" />
+                    ) : (
+                      <Clock size={14} className="text-amber-9" />
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Edit button moved to footer */}
+            </div>
+
+            {isEditingTask ? (
+              <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2 w-full pr-4">
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title</label>
+                  <Input 
+                    value={taskEditDraft.title}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, title: e.target.value }))}
+                    className="h-9 text-base font-bold bg-background/50 border-border/50 w-full"
+                    placeholder="Task Title"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
+                  <textarea
+                    value={taskEditDraft.description}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
+                    className="w-full bg-background/50 border border-border/50 rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-y"
+                    placeholder="Task Description..."
+                  />
+                </div>
+                <div className="w-48">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
+                  <Input 
+                    type="date"
+                    value={taskEditDraft.dueDate}
+                    onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
+                    className="h-9 bg-background/50 border-border/50 text-sm"
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
+                    Cancel
+                  </Button>
+                  <Button type="button" size="sm" onClick={handleSaveTaskEdit} disabled={isUpdatingTask} className="h-8 px-4 text-xs">
+                    {isUpdatingTask ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
+                  {task.title}
+                </h2>
+                <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
+                  <div className="flex items-center gap-1.5">
+                    <Users size={14} className="text-primary/70" /> Created by{" "}
+                    {task.creator?.name || "Unknown"}
+                  </div>
+                  {task.due_date && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={14} className="text-primary/70" /> Due{" "}
+                      {formatDueDate(task.due_date)}
+                    </div>
+                  )}
+                  {task.opportunity && (
+                    <div
+                      className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors ml-2"
+                      onClick={() => {
+                        window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.opportunity_id, type: "OPPORTUNITY" } }));
+                        if (onClose) onClose();
+                      }}
+                    >
+                      <Briefcase size={14} className="text-primary/70" />
+                      <span className="truncate max-w-[200px]" title={task.opportunity.client_name}>
+                        Deal: {task.opportunity.sales_reference || task.opportunity.client_name}
+                      </span>
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
-            <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
-              {task.title}
-            </h2>
-            <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
-              <div className="flex items-center gap-1.5">
-                <Users size={14} className="text-primary/70" /> Created by{" "}
-                {task.creator?.name || "Unknown"}
-              </div>
-              {task.due_date && (
-                <div className="flex items-center gap-1.5">
-                  <Calendar size={14} className="text-primary/70" /> Due{" "}
-                  {formatDueDate(task.due_date)}
-                </div>
-              )}
-              {task.opportunity && (
-                <div 
-                  className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors ml-2"
-                  onClick={() => {
-                    window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.opportunity_id, type: "OPPORTUNITY" } }));
-                    if (onClose) onClose();
-                  }}
-                >
-                  <Briefcase size={14} className="text-primary/70" />
-                  <span className="truncate max-w-[200px]" title={task.opportunity.client_name}>
-                    Deal: {task.opportunity.sales_reference || task.opportunity.client_name}
-                  </span>
-                </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -521,7 +720,7 @@ export default function GroupTaskDetailModal({
                 onClick={() => {
                   window.dispatchEvent(
                     new CustomEvent("OPEN_CHAT_MODAL", {
-                      detail: { entityId: task.id, entityType: "GROUP_TASK" },
+                      detail: { entityId: task.id, entityType: "GROUP_TASK", entityTitle: task.title },
                     }),
                   );
                 }}
@@ -597,7 +796,7 @@ export default function GroupTaskDetailModal({
           {activeTab === "overview" ? (
             <>
               {/* Description */}
-              {task.description && (
+              {!isEditingTask && task.description && (
                 <div className="animate-content-in stagger-1 mb-2">
                   <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
                     {task.description}
@@ -606,8 +805,8 @@ export default function GroupTaskDetailModal({
               )}
 
               {/* MEMBERS — master / detail */}
-              <div className="animate-content-in stagger-2 flex-1 flex min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
-                <div className="w-[240px] shrink-0 min-h-0">
+              <div className="animate-content-in stagger-2 flex-1 flex flex-col md:flex-row min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
+                <div className="w-full md:w-[240px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-b md:border-b-0 md:border-r border-border">
                   <GroupTaskMemberRail
                     members={orderedMembers}
                     selectedId={draft && !draft.id ? null : selectedMemberId}
@@ -616,7 +815,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      task.status === "ACTIVE" ? handleStartAddMember : undefined
+                      (isCreator || isSuperAdmin) ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -728,7 +927,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {task.status === "ACTIVE" && (
+                            {(isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <button
                                   type="button"
@@ -738,30 +937,36 @@ export default function GroupTaskDetailModal({
                                 >
                                   <Edit3 size={14} />
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveMember(member.id)}
-                                  disabled={isRemovingMember}
-                                  className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
-                                  title="Remove Member"
-                                >
-                                  <Trash2 size={14} />
-                                </button>
+                                {(isCreator || isSuperAdmin) && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveMember(member.id)}
+                                    disabled={isRemovingMember}
+                                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                                    title="Remove Member"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             )}
                           </div>
 
                           {/* Description */}
-                          {memberDescription?.trim() && (
-                            <div className="flex flex-col gap-1.5">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Specific Task
-                              </label>
+                          <div className="flex flex-col gap-1.5">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              Specific Task
+                            </label>
+                            {memberDescription?.trim() ? (
                               <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
                                 {memberDescription}
                               </div>
-                            </div>
-                          )}
+                            ) : (
+                              <p className="text-[13px] text-muted-foreground italic">
+                                No assignment details recorded.
+                              </p>
+                            )}
+                          </div>
 
                           {/* Checklist — the assignee ticks their own items, and
                               only until they submit. DONE is what opens them to
@@ -806,12 +1011,68 @@ export default function GroupTaskDetailModal({
                             </div>
                           )}
 
-                          {!memberDescription?.trim() &&
-                            checklistItems.length === 0 && (
-                              <p className="text-[13px] text-muted-foreground italic">
-                                No assignment details recorded.
-                              </p>
+                          {/* The "no assignment details" fallback was merged into the description render block above */}
+
+                          {/* Attachments Section */}
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            <div className="flex items-center justify-between">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                Attachments
+                              </label>
+                              {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
+                                <div className="relative">
+                                  <input
+                                    type="file"
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    multiple
+                                    accept="image/*"
+                                    disabled={isUploadingAttachment}
+                                    title="Upload attachments"
+                                    onChange={async (e) => {
+                                      const files = Array.from(e.target.files).filter((f) => f.type.startsWith("image/"));
+                                      if (files.length > 0) {
+                                        for (const file of files) {
+                                          try {
+                                            const url = await storageService.uploadToCloudinary(file);
+                                            onAddAttachment(member.id, url);
+                                          } catch {
+                                            toast.error(`Failed to upload ${file.name}`);
+                                          }
+                                        }
+                                      }
+                                      e.target.value = "";
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isUploadingAttachment}
+                                    className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    <Paperclip size={10} />
+                                    {isUploadingAttachment ? "Uploading..." : "Add File"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {member.attachments && member.attachments.length > 0 ? (
+                              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-xl border border-border/50">
+                                {member.attachments.map((url, i) => (
+                                  <a
+                                    key={i}
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 hover:opacity-80 transition-opacity bg-muted flex items-center justify-center"
+                                  >
+                                    <img src={url} alt={`Attachment ${i}`} className="w-full h-full object-cover" />
+                                  </a>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-[13px] text-muted-foreground italic">No attachments.</p>
                             )}
+                          </div>
 
                           {/* Grade + actions */}
                           <div className="flex items-end justify-between gap-4 pt-1 mt-auto">
@@ -1022,14 +1283,15 @@ export default function GroupTaskDetailModal({
                         <SwipeToReplyWrapper isMe={isMe} onReply={() => setReplyingTo(buildReplySnapshot(m))}>
                           <div
                             className={cn(
-                              "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words overflow-hidden",
+                              "px-3 py-2 rounded-2xl text-xs shadow-sm whitespace-pre-wrap break-words min-w-0",
                               isMe
                                 ? "bg-primary text-primary-foreground rounded-tr-none"
                                 : "bg-muted border border-border rounded-tl-none",
                             )}
+                            style={{ wordBreak: "break-word" }}
                           >
                             <ReplyQuote replyTo={m.metadata?.replyTo} />
-                            {m.content && <p>{renderContent(m.content)}</p>}
+                            {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
                             {m.metadata?.attachments?.length > 0 && (
                               <div className={cn("flex flex-wrap gap-1.5", m.content ? "mt-2" : "")}>
                                 {m.metadata.attachments.map((url, i) => (
@@ -1052,9 +1314,26 @@ export default function GroupTaskDetailModal({
                             )}
                           </div>
                         </SwipeToReplyWrapper>
-                        <span className="text-[8px] text-muted-foreground/60 mt-0.5 px-1 font-medium">
-                          {timeAgo(m.createdAt)}
-                        </span>
+                        <div className={cn("flex items-center gap-1 mt-0.5", isMe ? "flex-row-reverse" : "flex-row")}>
+                          <span className="text-[8px] text-muted-foreground/60 px-1 font-medium">
+                            {timeAgo(m.createdAt)}
+                          </span>
+                          {/* Read Receipts Avatars */}
+                          {m.seenBy?.length > 0 && (
+                            <div className={cn("flex items-center gap-0.5", isMe ? "mr-1" : "ml-1")}>
+                              {m.seenBy.map(u => (
+                                <Avatar
+                                  key={u.id}
+                                  name={u.name || "?"}
+                                  src={u.src}
+                                  size="xs"
+                                  className="w-3.5 h-3.5 text-[7px]"
+                                  title={`Seen by ${u.name}`}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -1111,18 +1390,17 @@ export default function GroupTaskDetailModal({
                   </div>
                 )}
 
-                <Input
+                <MentionTextarea
                   value={messageContent}
-                  onChange={(e) => setMessageContent(e.target.value)}
+                  onChange={setMessageContent}
                   onPaste={handlePaste}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
+                  onEnterSubmit={handleSendMessage}
+                  people={employees}
+                  mentions={mentions}
+                  onMentionsChange={setMentions}
                   placeholder="Write a message..."
-                  className="border-none shadow-none focus-visible:ring-0 text-sm h-9"
+                  className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-1.5 outline-none custom-scrollbar disabled:opacity-50 min-h-[36px]"
+                  rows={1}
                   disabled={sendMessageMutation.isPending || isUploading}
                 />
 
@@ -1169,7 +1447,7 @@ export default function GroupTaskDetailModal({
         </div>
 
         {/* FOOTER */}
-        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-border bg-muted/30 flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 rounded-b-2xl">
           <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
             <div className="flex items-center gap-1">
               <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded text-muted-foreground font-sans text-[9px]">
@@ -1179,7 +1457,7 @@ export default function GroupTaskDetailModal({
             </div>
           </div>
 
-          <div className="flex items-center gap-3 ml-auto">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
             {(isCreator || isSuperAdmin) && (
               <Button
@@ -1187,14 +1465,11 @@ export default function GroupTaskDetailModal({
                 variant="ghost"
                 onClick={handleDelete}
                 disabled={isDeleting}
-                className="text-[13px] font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-9 rounded-xl px-4 mr-2"
+                className="text-[13px] font-bold text-destructive/80 hover:text-destructive hover:bg-destructive/5 h-9 rounded-xl px-2 sm:px-4 mr-1 sm:mr-2"
+                title="Delete Task"
               >
-                {isDeleting ? (
-                  "Deleting..."
-                ) : (
-                  <Trash2 size={14} className="mr-1.5" />
-                )}
-                {!isDeleting && "Delete Task"}
+                <Trash2 size={14} className={isDeleting ? "animate-pulse" : "sm:mr-1.5"} />
+                <span className="hidden sm:inline">{isDeleting ? "Deleting..." : "Delete Task"}</span>
               </Button>
             )}
 
@@ -1208,18 +1483,34 @@ export default function GroupTaskDetailModal({
               Close
             </Button>
 
+            {/* Edit Task Button */}
+            {(isCreator || isSuperAdmin) && !isEditingTask && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleStartTaskEdit}
+                className="text-[13px] font-bold h-9 rounded-xl px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
+                title="Edit Task"
+              >
+                <Edit3 size={14} />
+                <span className="hidden sm:inline">Edit Task</span>
+              </Button>
+            )}
+
             {/* Rate Button for Heads/Admins */}
             {(isCreator || isSuperAdmin) &&
               (task.status === "ACTIVE" || task.status === "COMPLETED") && (
                 <Button
                   onClick={onOpenRateModal}
-                  className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2"
+                  className="h-9 px-4 sm:px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-0 sm:gap-2"
+                  title={task.status === "ACTIVE" && task.hr_remarks ? "Resubmit" : "Rate"}
                 >
                   <Star size={16} fill="currentColor" />
-                  <span className="font-bold">
+                  <span className="font-bold hidden sm:inline">
                     {task.status === "ACTIVE" && task.hr_remarks
                       ? "Resubmit"
-                      : "Rate & Complete"}
+                      : "Rate"}
                   </span>
                 </Button>
               )}

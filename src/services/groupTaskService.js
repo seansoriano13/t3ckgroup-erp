@@ -132,6 +132,49 @@ export const groupTaskService = {
     return groupTask;
   },
 
+  // UPDATE - Global Group Task fields
+  async updateGroupTask(id, payload, actorId) {
+    const { title, description, dueDate } = payload;
+    
+    const { data: oldTask, error: fetchError } = await supabase
+      .from("committee_tasks")
+      .select("title, description, due_date")
+      .eq("id", id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const { data: groupTask, error } = await supabase
+      .from("committee_tasks")
+      .update({
+        title,
+        description,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null,
+      })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      id,
+      "TASK_UPDATED",
+      {
+        old: oldTask,
+        new: { title, description, due_date: dueDate },
+      },
+      actorId
+    );
+    
+    groupTaskActivityService.addSystemEvent(
+      id,
+      "Group task details were updated.",
+      { event: "TASK_UPDATED" },
+    ).catch(console.error);
+
+    return groupTask;
+  },
+
   // READ (Heads see all they created or are part of, super admin sees all, employees see where they are members)
   async getGroupTasks(userId, isHead, isSuperAdmin) {
     let query = supabase
@@ -233,20 +276,72 @@ export const groupTaskService = {
       }
     }
 
-    // Check if ALL members are done to auto-complete
-    if (status === "DONE") {
-      const { data: allMembers } = await supabase
-        .from("committee_task_members")
-        .select("status")
-        .eq("committee_task_id", member.committee_task_id);
 
-      const allDone = allMembers.every((m) => m.status === "DONE");
-      if (allDone) {
-        await this.markGroupTaskComplete(member.committee_task_id, userId);
-      }
-    }
 
     return true;
+  },
+
+  async addMemberAttachment(memberId, attachmentUrl, userId) {
+    const { data: member, error: fetchErr } = await supabase
+      .from("committee_task_members")
+      .select("*, committee_tasks(*)")
+      .eq("id", memberId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+
+    const existing = member.attachments || [];
+    const newAttachments = [...existing, attachmentUrl];
+
+    const { error } = await supabase
+      .from("committee_task_members")
+      .update({ attachments: newAttachments })
+      .eq("id", memberId);
+
+    if (error) throw error;
+
+    const { data: currentUser } = await supabase.from("employees").select("name").eq("id", userId).single();
+    const userName = currentUser?.name || "A member";
+    
+    await groupTaskActivityService.addComment(
+      member.committee_task_id,
+      userId,
+      `${userName} uploaded a file.`,
+      { attachments: [attachmentUrl] }
+    );
+    
+    return true;
+  },
+
+  async updateMemberDescription(memberId, taskDescription, oldDescription, userId) {
+    const { data: member, error: fetchErr } = await supabase
+      .from("committee_task_members")
+      .select("*, committee_tasks(*)")
+      .eq("id", memberId)
+      .single();
+
+    if (fetchErr) throw fetchErr;
+    if (member.employee_id !== userId && member.committee_tasks.created_by !== userId) {
+      throw new Error("Unauthorized to update this task description");
+    }
+
+    const { error } = await supabase
+      .from("committee_task_members")
+      .update({ task_description: taskDescription })
+      .eq("id", memberId);
+
+    if (error) throw error;
+
+    await logGroupTaskActivity(
+      member.committee_task_id,
+      "DESCRIPTION_UPDATED",
+      {
+        memberId,
+        old: oldDescription,
+        new: taskDescription,
+      },
+      userId
+    );
   },
 
   // UPDATE - Mark Complete manually
@@ -557,6 +652,32 @@ export const groupTaskService = {
       .select("*, creator:employees!committee_tasks_created_by_fkey(name, avatar_path)")
       .eq("id", groupTaskId)
       .single();
+
+    // A new member arrives PENDING, with work still to do — a task the group
+    // had already closed out (COMPLETED, or somewhere in the HR hand-off) is
+    // no longer an accurate description of it, and every "mark done" control
+    // in the UI is gated on ACTIVE, which would leave the new member with no
+    // way to ever mark their assignment done. Reopen it so it does not sit
+    // permanently locked at a status that predates the new work.
+    if (ct && ["COMPLETED", "HR_PENDING", "HR_VERIFIED"].includes(ct.status)) {
+      const { error: reopenError } = await supabase
+        .from("committee_tasks")
+        .update({ status: "ACTIVE", hr_remarks: null })
+        .eq("id", groupTaskId);
+      if (reopenError) throw reopenError;
+
+      await logGroupTaskActivity(
+        groupTaskId,
+        "REOPENED",
+        { reason: "MEMBER_ADDED", employeeId },
+        actorId
+      );
+      groupTaskActivityService.addSystemEvent(
+        groupTaskId,
+        "Group task reopened — a new member was added after it was closed out.",
+        { event: "REOPENED" },
+      ).catch(console.error);
+    }
 
     notificationService.createNotification({
       recipient_id: employeeId,

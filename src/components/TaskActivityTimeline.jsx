@@ -1,4 +1,6 @@
+import { buildReplySnapshot } from "../utils/chatReply";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { notificationService } from "../services/notificationService";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
@@ -33,7 +35,6 @@ import EmojiPicker from "./ui/EmojiPicker";
 import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
-import { buildReplySnapshot } from "../utils/chatReply";
 
 /**
  * Splits text into plain-text segments and URL segments,
@@ -133,30 +134,35 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
           )}
         </div>
 
-        <div className="relative flex items-center gap-2">
-          {/* Action Buttons (Hover on desktop, visible on mobile) */}
-          <div className={`absolute top-1/2 -translate-y-1/2 transition-opacity z-10 flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
+        <div className="relative flex items-center gap-2 min-w-0 max-w-full">
+          {/* Hover Actions (Reply, React) */}
+          <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker
-                onSelect={(emoji) => onReact && onReact(entry, emoji)}
-                align={isMe ? "end" : "start"}
+                onSelect={(emoji) => toggleReaction(entry, emoji)}
+                align={isMe ? "start" : "end"}
               />
             </div>
             <button
               type="button"
-              onClick={() => onReply?.(entry)}
+              onClick={() => setReplyingTo(buildReplySnapshot(entry))}
               className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
             </button>
           </div>
 
-          <SwipeToReplyWrapper isMe={isMe} onReply={() => onReply?.(entry)}>
+          <SwipeToReplyWrapper 
+            isMe={isMe} 
+            onReply={() => setReplyingTo(buildReplySnapshot(entry))}
+            onReact={(emoji) => toggleReaction(entry, emoji)}
+          >
             <div
-              className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-all ${isMe
+              className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
                 ? "bg-primary text-primary-foreground rounded-tr-none"
                 : "bg-card text-foreground rounded-tl-none border border-border"
                 }`}
+              style={{ wordBreak: "break-word" }}
             >
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
@@ -564,11 +570,13 @@ export default function TaskActivityTimeline({
     const hasReacted = usersWithEmoji.includes(user?.id);
 
     let newReactions = { ...currentReactions };
+    let isAdding = false;
     if (hasReacted) {
       newReactions[emoji] = usersWithEmoji.filter(id => id !== user?.id);
       if (newReactions[emoji].length === 0) delete newReactions[emoji];
     } else {
       newReactions[emoji] = [...usersWithEmoji, user?.id];
+      isAdding = true;
     }
 
     const newMetadata = { ...(message.metadata || {}), reactions: newReactions };
@@ -581,7 +589,24 @@ export default function TaskActivityTimeline({
     );
 
     try {
-      await supabase.from(table).update({ metadata: newMetadata }).eq("id", message.id);
+      const { error } = await supabase.rpc('toggle_chat_reaction', {
+        p_table: table,
+        p_message_id: message.id,
+        p_user_id: user?.id,
+        p_emoji: emoji
+      });
+      if (error) throw error;
+
+      if (isAdding && message.authorId && message.authorId !== user?.id) {
+        notificationService.createNotification({
+          recipient_id: message.authorId,
+          sender_id: user.id,
+          type: "TASK_REACTION",
+          title: "New Reaction",
+          message: `${user?.user_metadata?.name || user?.name || "Someone"} reacted with ${emoji} to your message`,
+          reference_id: taskId,
+        });
+      }
     } catch (err) {
       console.error("Failed to toggle reaction:", err);
       queryClient.invalidateQueries({
@@ -619,7 +644,7 @@ export default function TaskActivityTimeline({
 
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto custom-scrollbar px-4 py-4"
+        className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 custom-scrollbar px-4 py-4"
         style={!isSplitScreen ? { maxHeight: "500px", minHeight: "200px" } : {}}
       >
         {isLoading ? (
@@ -661,7 +686,7 @@ export default function TaskActivityTimeline({
       </div>
 
       {activeTab === "ACTIVITY" && !disabled && (
-        <div className="px-4 py-4 border-t border-border bg-muted/30">
+        <form onSubmit={handleSend} className="bg-muted/30 border-t border-border p-3 min-w-0 w-full flex-none">
           <ReplyPreviewBar
             replyingTo={replyingTo}
             onCancel={() => setReplyingTo(null)}
@@ -748,7 +773,7 @@ export default function TaskActivityTimeline({
               </div>
             </div>
           </div>
-        </div>
+        </form>
       )}
     </div>
   );

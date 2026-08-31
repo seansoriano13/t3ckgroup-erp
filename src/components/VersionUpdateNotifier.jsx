@@ -59,9 +59,23 @@ export function VersionUpdateNotifier() {
                         <X size={16} />
                       </button>
                     </div>
-                    <p className="text-xs font-medium text-muted-foreground leading-relaxed mt-0.5">
-                      A new version of the app has been deployed. Reload to update now.
-                    </p>
+                    <div className="text-xs font-medium text-muted-foreground leading-relaxed mt-1.5 space-y-2">
+                      <p>
+                        A new version of the app has been deployed. Reload to update now.
+                      </p>
+                      {data?.changes && data.changes.length > 0 && (
+                        <div className="bg-muted/50 p-2.5 rounded-lg border border-border/50">
+                          <span className="font-bold text-[10px] uppercase tracking-wider text-foreground mb-1 block">
+                            What's New
+                          </span>
+                          <ul className="list-disc pl-3 space-y-0.5 text-foreground/80 text-[11px]">
+                            {data.changes.map((change, i) => (
+                              <li key={i}>{change}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

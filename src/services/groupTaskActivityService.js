@@ -273,13 +273,18 @@ export const groupTaskActivityService = {
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "committee_task_activity",
           filter: `task_id=eq.${taskId}`,
         },
         async (payload) => {
           try {
+            if (payload.eventType === "DELETE") {
+              onNewEntry({ type: "DELETE" });
+              return;
+            }
+
             const { data } = await supabase
               .from("committee_task_activity")
               .select(`*, author:employees!committee_task_activity_author_id_fkey(name, is_head, is_hr, is_super_admin, avatar_path)`)

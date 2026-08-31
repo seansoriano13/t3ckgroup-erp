@@ -25,6 +25,7 @@ export default function GroupTaskMemberPanel({
   onManageRoles,
   onChange,
   canEditAssignment = true,
+  canEditDescription = true,
   canEditChecklist = true,
   lockedReason,
   children,
@@ -146,7 +147,7 @@ export default function GroupTaskMemberPanel({
         <textarea
           value={description}
           onChange={(e) => onChange("taskDescription", e.target.value)}
-          disabled={!canEditAssignment}
+          disabled={!canEditDescription}
           placeholder="What exactly are they responsible for?"
           className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-28 resize-y disabled:opacity-70 disabled:cursor-not-allowed"
         />

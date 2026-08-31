@@ -120,6 +120,15 @@ export default function GlobalDetailManager() {
     },
   });
 
+  const updateGroupTaskMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.updateGroupTask(activeItem.id, payload, user?.id),
+    onSuccess: () => {
+      invalidateGroup();
+      toast.success("Group Task updated.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const markDoneMutation = useMutation({
     mutationFn: (memberId) => groupTaskService.updateMemberStatus(memberId, "DONE", user?.id),
     onSuccess: () => {
@@ -258,6 +267,8 @@ export default function GlobalDetailManager() {
             onInlineCheck={(memberId, checklist) => updateMemberChecklistMutation.mutate({ memberId, checklist })}
             onVerify={() => verifyMutation.mutate({ id: activeItem.id, remarks: "" })}
             onReject={(remarks) => rejectMutation.mutate({ id: activeItem.id, remarks })}
+            onUpdateTask={(payload) => updateGroupTaskMutation.mutateAsync(payload)}
+            isUpdatingTask={updateGroupTaskMutation.isPending}
             isMarkingDone={markDoneMutation.isPending}
             isReverting={revertDoneMutation.isPending}
             isDeleting={deleteGroupTaskMutation.isPending}
