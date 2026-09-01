@@ -37,7 +37,6 @@ export default function GroupTaskFilters({
   uniqueDepts = [],
   uniqueSubDepts = [],
   uniqueMembers = [],
-  isManagement,
   actions,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);

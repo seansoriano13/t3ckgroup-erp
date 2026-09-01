@@ -269,13 +269,6 @@ function formatWhen(iso) {
   });
 }
 
-function groupThousands(raw) {
-  if (!raw) return "";
-  const parts = raw.toString().split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.join(".");
-}
-
 /**
  * The Estimated Value box is a fixed width, so a fixed text-3xl/4xl broke
  * mid-digit-group on 8-figure deals (e.g. "₱28,543,940.0" / "0"). Shrinking by

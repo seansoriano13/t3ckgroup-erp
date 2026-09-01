@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { activeChatService } from "../services/tasks/activeChatService";
-import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
@@ -142,13 +141,13 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
           <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker
-                onSelect={(emoji) => toggleReaction(entry, emoji)}
+                onSelect={(emoji) => onReact?.(entry, emoji)}
                 align={isMe ? "start" : "end"}
               />
             </div>
             <button
               type="button"
-              onClick={() => setReplyingTo(buildReplySnapshot(entry))}
+              onClick={() => onReply?.(entry)}
               className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
@@ -157,8 +156,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            onReply={() => setReplyingTo(buildReplySnapshot(entry))}
-            onReact={(emoji) => toggleReaction(entry, emoji)}
+            onReply={() => onReply?.(entry)}
+            onReact={(emoji) => onReact?.(entry, emoji)}
           >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
@@ -443,7 +442,7 @@ export default function TaskActivityTimeline({
         latestCreatedAt: new Date().toISOString()
       });
     }
-  }, [comments.length, taskId, user?.id]);
+  }, [comments.length, taskId, user?.id, comments, entityType, markAsReadMutation]);
 
   // Post comment mutation
   const postCommentMutation = useMutation({
