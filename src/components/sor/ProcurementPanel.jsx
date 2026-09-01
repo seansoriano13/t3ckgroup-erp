@@ -14,6 +14,7 @@ import {
   UserPlus,
   Users,
   X,
+  Paperclip,
 } from "lucide-react";
 
 import { procurementService } from "../../services/procurementService";
@@ -25,6 +26,7 @@ import { FilterOptionList } from "../ui/FilterDropdown";
 import { AttachmentPreviews } from "../ui/Attachments";
 import { AttachmentEvidence } from "../ui/AttachmentEvidence";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
+import { ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { confirmDeleteToast } from "../ui/CustomToast";
 import StatusBadge from "../StatusBadge";
 import ProcurementMetaFooter from "../ProcurementMetaFooter";
@@ -155,12 +157,12 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
 
       <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
         <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground">
-          <ImagePlus size={13} />
-          <span>Add screenshot</span>
+          <Paperclip size={13} />
+          <span>Attach file</span>
           <input
             type="file"
             multiple
-            accept="image/*,.pdf"
+            accept={ALLOWED_EXTENSIONS_STRING}
             className="sr-only"
             onChange={(e) => attachments.addFromInput(e)}
           />
@@ -471,7 +473,7 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         ref={fileRef}
         type="file"
         multiple
-        accept="image/*,application/pdf"
+        accept={ALLOWED_EXTENSIONS_STRING}
         className="hidden"
         onChange={(e) => {
           attachments.addFiles(e.target.files);

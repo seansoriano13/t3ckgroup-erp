@@ -11,6 +11,7 @@ import {
   formatBytes,
   isImageAttachment,
   toDescriptor,
+  ALLOWED_EXTENSIONS_STRING,
 } from "../../utils/attachments";
 
 /** Files chosen but not yet uploaded. */
@@ -77,6 +78,7 @@ export function AttachmentField({
         ref={inputRef}
         type="file"
         multiple
+        accept={ALLOWED_EXTENSIONS_STRING}
         className="hidden"
         onChange={(e) => {
           addFiles(e.target.files);

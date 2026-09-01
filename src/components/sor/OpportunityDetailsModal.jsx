@@ -29,7 +29,7 @@ import { useAuth } from "../../context/AuthContext";
 import { confirmDeleteToast, confirmActionToast } from "../ui/CustomToast";
 import { AttachmentPreviews, AttachmentList } from "../ui/Attachments";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
-import { MAX_ATTACHMENT_BYTES, formatBytes } from "../../utils/attachments";
+import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { getStatusTheme } from "../../constants/status";
 import Dropdown from "../ui/Dropdown";
 import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
@@ -2019,6 +2019,7 @@ export default function OpportunityDetailsModal({
                       ref={fileInputRef}
                       type="file"
                       multiple
+                      accept={ALLOWED_EXTENSIONS_STRING}
                       className="hidden"
                       onChange={(e) => {
                         attachments.addFiles(e.target.files);

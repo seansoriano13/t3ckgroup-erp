@@ -45,6 +45,9 @@ import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "../utils/chatReply";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
+import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 
 // -------------------------------------------------------------
 //  HELPERS
@@ -278,26 +281,10 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               {entry.metadata?.attachments?.length > 0 && (
                 <div
                   className={cn(
-                    "flex flex-wrap gap-2",
                     entry.content ? "mt-2" : "",
                   )}
                 >
-                  {entry.metadata.attachments.map((url, i) => (
-                    <a
-                      key={i}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                    >
-                      <img
-                        src={url}
-                        alt={`attachment-${i + 1}`}
-                        className="max-w-[220px] max-h-[220px] object-cover rounded-xl"
-                        loading="lazy"
-                      />
-                    </a>
-                  ))}
+                  <AttachmentList attachments={entry.metadata.attachments} />
                 </div>
               )}
             </div>
@@ -371,8 +358,8 @@ export default function ComprehensiveChatModal({
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
-  const [attachments, setAttachments] = useState([]); // [{ file, preview }]
-  const [isUploading, setIsUploading] = useState(false);
+  const attachmentState = useFileAttachments();
+  const { files: attachments, isUploading, addFiles, addFromPaste, removeFile: removeAttachment, clear: clearAttachments } = attachmentState;
   const [isMobileListVisible, setIsMobileListVisible] = useState(true);
   const [internalOpen, setInternalOpen] = useState(isOpen);
   const [isDetailsLoading, setIsDetailsLoading] = useState(false);
@@ -617,7 +604,7 @@ export default function ComprehensiveChatModal({
     onSuccess: () => {
       setMessageContent("");
       setMentions([]);
-      setAttachments([]);
+      clearAttachments();
       setReplyingTo(null);
       queryClient.invalidateQueries({
         queryKey: [
@@ -875,13 +862,10 @@ export default function ComprehensiveChatModal({
       if ((!hasText && !hasFiles) || !selectedChat) return;
       if (isUploading || sendMessageMutation.isPending) return;
 
-      setIsUploading(true);
       try {
         let attachmentUrls = [];
         if (hasFiles) {
-          attachmentUrls = await Promise.all(
-            attachments.map((a) => storageService.uploadToCloudinary(a.file)),
-          );
+          attachmentUrls = await attachmentState.upload();
         }
         sendMessageMutation.mutate({
           entityType: selectedChat.entity_type,
@@ -893,51 +877,13 @@ export default function ComprehensiveChatModal({
         });
       } catch (err) {
         console.error("Failed to upload chat attachments:", err);
-      } finally {
-        setIsUploading(false);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [messageContent, attachments, selectedChat, isUploading, mentions, replyingTo],
+    [messageContent, attachments, selectedChat, isUploading, mentions, replyingTo, attachmentState],
   );
 
-  const addFiles = useCallback((files) => {
-    const imageFiles = Array.from(files).filter((f) =>
-      f.type.startsWith("image/"),
-    );
-    if (!imageFiles.length) return;
-    const newEntries = imageFiles.map((file) => ({
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setAttachments((prev) => [...prev, ...newEntries]);
-  }, []);
 
-  const removeAttachment = useCallback((index) => {
-    setAttachments((prev) => {
-      const next = [...prev];
-      URL.revokeObjectURL(next[index].preview);
-      next.splice(index, 1);
-      return next;
-    });
-  }, []);
-
-  const handlePaste = useCallback(
-    (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const imageItems = Array.from(items).filter((item) =>
-        item.type.startsWith("image/"),
-      );
-      if (!imageItems.length) return;
-      e.preventDefault();
-      const files = imageItems
-        .map((item) => item.getAsFile())
-        .filter(Boolean);
-      addFiles(files);
-    },
-    [addFiles],
-  );
 
   const filteredChats = useMemo(() => {
     let list = activeChats;
@@ -1329,7 +1275,7 @@ export default function ComprehensiveChatModal({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={ALLOWED_MIME_TYPES.join(",")}
                   multiple
                   className="hidden"
                   onChange={(e) => {
@@ -1351,46 +1297,20 @@ export default function ComprehensiveChatModal({
                     />
                     {/* Image preview strip */}
                     {attachments.length > 0 && (
-                      <div className="flex flex-wrap gap-2 px-2 pt-2 pb-1">
-                        {attachments.map((att, i) => (
-                          <div
-                            key={i}
-                            className="relative group rounded-lg overflow-hidden border border-border"
-                            style={{ width: 64, height: 64 }}
-                          >
-                            <img
-                              src={att.preview}
-                              alt={`preview-${i}`}
-                              className="w-full h-full object-cover"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeAttachment(i)}
-                              className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <X size={16} className="text-white" />
-                            </button>
-                          </div>
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-16 h-16 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-                        >
-                          <ImageIcon size={20} />
-                        </button>
+                      <div className="mb-2">
+                        <AttachmentPreviews files={attachments} onRemove={removeAttachment} disabled={isUploading || sendMessageMutation.isPending} />
                       </div>
                     )}
 
                     <MentionTextarea
                       value={messageContent}
                       onChange={setMessageContent}
-                      onPaste={handlePaste}
+                      onPaste={addFromPaste}
                       onEnterSubmit={handleSend}
                       people={employees}
                       mentions={mentions}
                       onMentionsChange={setMentions}
-                      placeholder="Write a message or paste an image..."
+                      placeholder="Write a message or paste a file..."
                       className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-2.5 outline-none custom-scrollbar disabled:opacity-50"
                       rows={1}
                       disabled={

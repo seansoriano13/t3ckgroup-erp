@@ -4,6 +4,7 @@ import { storageService } from "../services/storageService";
 import {
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
+  isAllowedAttachment,
   formatBytes,
 } from "../utils/attachments";
 
@@ -33,6 +34,11 @@ export function useFileAttachments({ max = MAX_ATTACHMENTS } = {}) {
 
       const accepted = [];
       for (const file of incoming.slice(0, room)) {
+        if (!isAllowedAttachment(file)) {
+          toast.error(`${file.name} is not a supported file type.`);
+          continue;
+        }
+
         if (file.size > MAX_ATTACHMENT_BYTES) {
           toast.error(
             `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
