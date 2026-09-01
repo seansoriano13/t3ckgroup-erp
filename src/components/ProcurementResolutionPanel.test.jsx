@@ -32,6 +32,7 @@ const BUYER_ID = "22222222-2222-4222-8222-222222222222"
 vi.mock("../services/procurementService", () => ({
   procurementService: {
     listForTask: vi.fn(async () => []),
+    sorForTask: vi.fn(async () => null),
     resolveRequest: vi.fn(async () => ({
       id: "req-1",
       opportunity_id: "opp-1",
@@ -476,5 +477,75 @@ describe("what the buyer is told about the PO check", () => {
     await waitFor(() => expect(screen.getByText(/populated from po/i)).toBeInTheDocument())
 
     expect(screen.getByDisplayValue("[HOSE-01] Hydraulic Hose 5m")).toBeInTheDocument()
+  })
+})
+
+/**
+ * The buyer's view of the deal behind the requisition.
+ *
+ * A requisition task carries no link back to the SOR of its own — the tie lives
+ * on the request rows — so without this the buyer has to ask sales which deal
+ * they are sourcing for. The card answers that without a click; the way through
+ * to the full record is offered only to someone the register would let edit it.
+ */
+describe("the deal behind the requisition", () => {
+  const SOR = {
+    id: "opp-1",
+    sales_reference: "S07813",
+    client_name: "Bayambang LGU",
+    project_title: "Fire truck refurbishment",
+    status: "AWARDED",
+    expected_value: 2450000,
+    registered_by: "99999999-9999-4999-8999-999999999999",
+    deal_owner_id: "99999999-9999-4999-8999-999999999999",
+    deal_owner: { id: "99999999-9999-4999-8999-999999999999", name: "Rina Lopez" },
+  }
+
+  const renderWithSor = (sor, props = {}) => {
+    procurementService.sorForTask.mockResolvedValue(sor)
+    return renderPanel([request()], props)
+  }
+
+  it("names the deal the buyer is sourcing for", async () => {
+    await renderWithSor(SOR)
+
+    expect(await screen.findByText("S07813")).toBeInTheDocument()
+    expect(screen.getByText("Bayambang LGU")).toBeInTheDocument()
+    expect(screen.getByText(/Rina Lopez/)).toBeInTheDocument()
+  })
+
+  it("keeps the full record out of reach of a buyer who could not edit it", async () => {
+    await renderWithSor(SOR)
+
+    await screen.findByText("S07813")
+    expect(screen.queryByRole("button", { name: /view full sor/i })).not.toBeInTheDocument()
+  })
+
+  it("offers the full record to someone the register would let edit it", async () => {
+    await renderWithSor(SOR, { user: { id: BUYER_ID, is_head: true } })
+
+    expect(
+      await screen.findByRole("button", { name: /view full sor/i }),
+    ).toBeInTheDocument()
+  })
+
+  it("asks to open the SOR rather than navigating away itself", async () => {
+    const opened = vi.fn()
+    window.addEventListener("OPEN_ENTITY_DETAILS", opened)
+    const user = userEvent.setup()
+
+    await renderWithSor(SOR, { user: { id: SOR.deal_owner_id } })
+    await user.click(await screen.findByRole("button", { name: /view full sor/i }))
+
+    expect(opened).toHaveBeenCalled()
+    expect(opened.mock.calls[0][0].detail).toEqual({ id: "opp-1", type: "OPPORTUNITY" })
+    window.removeEventListener("OPEN_ENTITY_DETAILS", opened)
+  })
+
+  it("says nothing on a task that has no SOR behind it", async () => {
+    await renderWithSor(null)
+
+    await screen.findByText("Hydraulic hose kit")
+    expect(screen.queryByText(/view full sor/i)).not.toBeInTheDocument()
   })
 })

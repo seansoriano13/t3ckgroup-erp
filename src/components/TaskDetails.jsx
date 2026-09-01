@@ -608,6 +608,7 @@ export default function TaskDetails({
                 <ProcurementResolutionPanel
                   taskId={activeTask?.id}
                   userId={user?.id}
+                  user={user}
                   onSubmittingChange={setIsSubmitting}
                   onDeliveredComplete={() => {
                     onClose?.()
