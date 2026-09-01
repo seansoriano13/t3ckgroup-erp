@@ -43,7 +43,7 @@ export const ALLOWED_EXTENSIONS = [
   ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".rar", ".7z"
 ];
 
-export const ALLOWED_EXTENSIONS_STRING = ALLOWED_EXTENSIONS.join(",");
+export const ALLOWED_EXTENSIONS_STRING = [...ALLOWED_EXTENSIONS, ...ALLOWED_MIME_TYPES].join(",");
 
 export function isAllowedAttachment(file) {
   if (!file) return false;

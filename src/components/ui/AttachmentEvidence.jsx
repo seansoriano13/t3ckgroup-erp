@@ -53,6 +53,7 @@ export function AttachmentEvidence({ attachments, className = "" }) {
             href={f.url}
             target="_blank"
             rel="noopener noreferrer"
+            download={f.name}
             title={f.name}
             className="inline-flex h-11 max-w-[150px] items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2.5 text-foreground transition-colors hover:bg-muted/70"
           >

@@ -506,6 +506,25 @@ describe("a request already sent", () => {
     expect(payload.product_name).toBe("Hydraulic hose kit (Heavy Duty)")
   })
 
+  it("hides edit controls for users not on the deal", async () => {
+    authUser = { id: "user-random", isSuperAdmin: false, is_head: false }
+    await renderPanel({ requests: [request()] })
+    
+    expect(screen.queryByRole("button", { name: /edit hydraulic hose kit/i })).toBeNull()
+    expect(screen.queryByRole("button", { name: /delete hydraulic hose kit/i })).toBeNull()
+  })
+
+  it("shows edit controls for another salesperson on the same deal", async () => {
+    authUser = { id: "user-partner", isSuperAdmin: false, is_head: false }
+    const opp = { ...OPPORTUNITY, support_sales_1_id: "user-partner" }
+    procurementService.listForOpportunity.mockResolvedValue([request()])
+    await renderWithProviders(<ProcurementPanel opportunity={opp} />)
+    await screen.findByRole("button", { name: /procurement requests/i })
+    
+    expect(screen.getByRole("button", { name: /edit hydraulic hose kit/i })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /delete hydraulic hose kit/i })).toBeInTheDocument()
+  })
+
   it("lets sales cancel/delete an open request before a PO is recorded", async () => {
     const user = userEvent.setup()
     await renderPanel({ requests: [request()] })

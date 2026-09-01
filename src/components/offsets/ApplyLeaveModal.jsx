@@ -9,6 +9,7 @@ import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
+import { deriveHours } from '../../utils/time';
 
 export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const { user } = useAuth();
@@ -16,50 +17,57 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
-  const [otHours, setOtHours] = useState('');
+  const [otStartTime, setOtStartTime] = useState('');
+  const [otEndTime, setOtEndTime] = useState('');
   const [otReason, setOtReason] = useState('');
   const [otSubmitting, setOtSubmitting] = useState(false);
   const otFiles = useFileAttachments();
 
   // Offset Leave State
   const [offsetDate, setOffsetDate] = useState('');
-  const [offsetHours, setOffsetHours] = useState('');
+  const [offsetStartTime, setOffsetStartTime] = useState('');
+  const [offsetEndTime, setOffsetEndTime] = useState('');
   const [offsetReason, setOffsetReason] = useState('');
   const [offsetSubmitting, setOffsetSubmitting] = useState(false);
   const offsetFiles = useFileAttachments();
 
   // SIL Leave State
   const [silDate, setSilDate] = useState('');
-  const [silHours, setSilHours] = useState('');
+  const [silStartTime, setSilStartTime] = useState('');
+  const [silEndTime, setSilEndTime] = useState('');
   const [silReason, setSilReason] = useState('');
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
+
+  const currentOtHours = deriveHours(otStartTime, otEndTime, true);
+  const currentOffsetHours = deriveHours(offsetStartTime, offsetEndTime, false);
+  const currentSilHours = deriveHours(silStartTime, silEndTime, false);
 
   if (!isOpen) return null;
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!otDate || !otHours || !otReason) {
+    if (!otDate || !otStartTime || !otEndTime || !otReason) {
       toast.error('Please fill in all fields.');
       return;
     }
 
     setOtSubmitting(true);
     try {
-      // Uploaded first so a failed upload aborts before the request row exists,
-      // rather than leaving an application that silently lost its evidence.
       const attachments = await otFiles.upload();
       await offsetService.applyOvertime({
         employeeId: user.id,
         date: otDate,
-        hours: otHours,
+        startTime: otStartTime,
+        endTime: otEndTime,
         reason: otReason,
         employeeName: user.name,
         attachments,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
-      setOtHours('');
+      setOtStartTime('');
+      setOtEndTime('');
       setOtReason('');
       otFiles.clear();
       onSuccess?.();
@@ -73,7 +81,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplyOffsetLeave = async (e) => {
     e.preventDefault();
-    if (!offsetDate || !offsetHours || !offsetReason) {
+    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -84,14 +92,16 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       await offsetService.applyOffsetLeave({
         employeeId: user.id,
         date: offsetDate,
-        hours: offsetHours,
+        startTime: offsetStartTime,
+        endTime: offsetEndTime,
         reason: offsetReason,
         employeeName: user.name,
         attachments,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
-      setOffsetHours('');
+      setOffsetStartTime('');
+      setOffsetEndTime('');
       setOffsetReason('');
       offsetFiles.clear();
       onSuccess?.();
@@ -105,7 +115,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplySilLeave = async (e) => {
     e.preventDefault();
-    if (!silDate || !silHours || !silReason) {
+    if (!silDate || !silStartTime || !silEndTime || !silReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -116,14 +126,16 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       await silService.applySilLeave({
         employeeId: user.id,
         date: silDate,
-        hours: silHours,
+        startTime: silStartTime,
+        endTime: silEndTime,
         reason: silReason,
         employeeName: user.name,
         attachments,
       });
       toast.success('SIL leave application submitted!');
       setSilDate('');
-      setSilHours('');
+      setSilStartTime('');
+      setSilEndTime('');
       setSilReason('');
       silFiles.clear();
       onSuccess?.();
@@ -186,21 +198,37 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Hours Worked (e.g. 1.0, 1.5)
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  placeholder="1.0"
-                  value={otHours}
-                  onChange={(e) => setOtHours(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    value={otStartTime}
+                    onChange={(e) => setOtStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    value={otEndTime}
+                    onChange={(e) => setOtEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
               </div>
+              {currentOtHours > 0 && (
+                <div className="text-xs font-semibold text-primary/80 px-1">
+                  Derived: {currentOtHours} hrs
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
@@ -254,21 +282,37 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Offset Hours to Use
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  placeholder="1.0"
-                  value={offsetHours}
-                  onChange={(e) => setOffsetHours(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    value={offsetStartTime}
+                    onChange={(e) => setOffsetStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    value={offsetEndTime}
+                    onChange={(e) => setOffsetEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
               </div>
+              {currentOffsetHours > 0 && (
+                <div className="text-xs font-semibold text-blue-11 px-1">
+                  Derived: {currentOffsetHours} hrs
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
@@ -322,21 +366,37 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   required
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  SIL Hours to Use
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  placeholder="e.g. 8"
-                  value={silHours}
-                  onChange={(e) => setSilHours(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Start Time
+                  </label>
+                  <input
+                    type="time"
+                    value={silStartTime}
+                    onChange={(e) => setSilStartTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    End Time
+                  </label>
+                  <input
+                    type="time"
+                    value={silEndTime}
+                    onChange={(e) => setSilEndTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
               </div>
+              {currentSilHours > 0 && (
+                <div className="text-xs font-semibold text-green-11 px-1">
+                  Derived: {currentSilHours} hrs
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason

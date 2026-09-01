@@ -32,10 +32,10 @@ export function AttachmentPreviews({ files, onRemove, disabled }) {
               className="w-14 h-14 object-cover"
             />
           ) : (
-            <div className="w-14 h-14 flex flex-col items-center justify-center gap-0.5 px-1">
+            <div className="w-14 h-14 flex flex-col items-center justify-center gap-0.5 px-1" title={f.file.name}>
               <FileText size={16} className="text-muted-foreground shrink-0" />
-              <span className="text-[8px] font-bold text-muted-foreground uppercase truncate w-full text-center">
-                {f.file.name.split(".").pop()}
+              <span className="text-[8px] font-bold text-muted-foreground truncate w-full text-center">
+                {f.file.name}
               </span>
             </div>
           )}

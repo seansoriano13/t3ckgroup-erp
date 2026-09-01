@@ -42,18 +42,28 @@ describe("ApplyLeaveModal", () => {
       <ApplyLeaveModal isOpen onClose={onClose} onSuccess={onSuccess} {...props} />,
     )
 
-  /** Fills the visible tab's three fields. Each tab has one of each control. */
-  const fillForm = async ({ date, hours, reason }) => {
+  /** Fills the visible tab's fields. */
+  const fillForm = async ({ date, startTime, endTime, reason }) => {
     const user = userEvent.setup()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
-    const hoursField = form.querySelector('input[type="number"]')
+    const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
 
     await user.clear(dateField)
     await user.type(dateField, date)
-    await user.clear(hoursField)
-    await user.type(hoursField, hours)
+    
+    if (timeFields.length >= 2) {
+      if (startTime !== undefined) {
+        await user.clear(timeFields[0])
+        await user.type(timeFields[0], startTime)
+      }
+      if (endTime !== undefined) {
+        await user.clear(timeFields[1])
+        await user.type(timeFields[1], endTime)
+      }
+    }
+    
     await user.clear(reasonField)
     await user.type(reasonField, reason)
     return { user, form }
@@ -83,7 +93,8 @@ describe("ApplyLeaveModal", () => {
       open()
       const { user } = await fillForm({
         date: "2026-03-10",
-        hours: "4",
+        startTime: "09:00",
+        endTime: "13:00",
         reason: "Server migration",
       })
 
@@ -92,7 +103,8 @@ describe("ApplyLeaveModal", () => {
 
       expect(db.rows("overtime_requests")[0]).toMatchObject({
         employee_id: employee.id,
-        hours: 4,
+        start_time: "09:00",
+        end_time: "13:00",
         reason: "Server migration",
         status: "PENDING",
       })
@@ -100,7 +112,7 @@ describe("ApplyLeaveModal", () => {
 
     it("confirms and closes once the request is filed", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "4", reason: "Migration" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "13:00", reason: "Migration" })
 
       await submit(user)
 
@@ -126,7 +138,7 @@ describe("ApplyLeaveModal", () => {
 
     it("will not accept fewer hours than the half-hour step allows", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "0", reason: "Nothing" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "09:00", reason: "Nothing" })
 
       await submit(user)
       await waitForNetworkIdle()
@@ -137,7 +149,7 @@ describe("ApplyLeaveModal", () => {
 
     it("accepts a half-hour claim", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "0.5", reason: "Short fix" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "09:30", reason: "Short fix" })
 
       await submit(user)
       await waitFor(() => expect(db.rows("overtime_requests")).toHaveLength(1))
@@ -158,7 +170,8 @@ describe("ApplyLeaveModal", () => {
       await goToOffset()
       const { user } = await fillForm({
         date: "2026-03-12",
-        hours: "8",
+        startTime: "09:00",
+        endTime: "17:00",
         reason: "Family matter",
       })
 
@@ -171,7 +184,10 @@ describe("ApplyLeaveModal", () => {
     it("tells the employee when they do not have the hours", async () => {
       open()
       await goToOffset()
-      const { user } = await fillForm({ date: "2026-03-12", hours: "40", reason: "Long break" })
+      const { user } = await fillForm({ date: "2026-03-12", startTime: "09:00", endTime: "09:00", reason: "Long break" }) // using valid format, but actually will mock huge offset in test below wait, if deriveHours gets 0 it won't fail with toast.error("Insufficient..."). Let's do 40 hrs by doing 09:00 and 49:00 but input type="time" only takes valid times! Wait, we can't test 40 hours with a single day time input. We can test 24 hours max! Wait, 24 hours is more than 16 hours. Let's do startTime "09:00", endTime "08:59" which is 23.98 hours if overnight is allowed.
+      // Offset doesn't allow overnight yet. Let's do startTime "00:00", endTime "23:59" = 23.98 hours.
+      // Balance is 16, so 23.98 hours will trigger the "Insufficient" check.
+      const { user } = await fillForm({ date: "2026-03-12", startTime: "00:00", endTime: "23:59", reason: "Long break" })
 
       await submit(user)
 
@@ -186,7 +202,7 @@ describe("ApplyLeaveModal", () => {
       open()
       await goToOffset()
       // 2026-03-14 is a Saturday.
-      const { user } = await fillForm({ date: "2026-03-14", hours: "8", reason: "Weekend" })
+      const { user } = await fillForm({ date: "2026-03-14", startTime: "09:00", endTime: "17:00", reason: "Weekend" })
 
       await submit(user)
 
@@ -210,7 +226,8 @@ describe("ApplyLeaveModal", () => {
       await goToSil()
       const { user } = await fillForm({
         date: "2026-03-10",
-        hours: "8",
+        startTime: "09:00",
+        endTime: "17:00",
         reason: "Medical appointment",
       })
 
@@ -227,13 +244,22 @@ describe("ApplyLeaveModal", () => {
     it("tells the employee when their balance is short", async () => {
       open()
       await goToSil()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "80", reason: "Long trip" })
+      // Balance is 40. Need >40. But max in a day is 24.
+      // This test is impossible to do with a single day form if balance is 40!
+      // Let's modify the employee balance in beforeEach for this test? Wait, we can't inside it().
+      // Let's mock a balance of 40 and try 23.98 hours. Wait, 23.98 < 40, so it will SUCCEED.
+      // Let's temporarily change the employee object used by useAuth mock.
+      mockUser.current = { ...mockUser.current, sil_hours_balance: 5 } // fake low balance
+      // Oh wait, `silService.applySilLeave` checks DB balance not the context balance!
+      // I have to update the DB balance for this employee.
+      await db.update("employees", { id: employee.id }, { sil_hours_balance: 5 })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Long trip" })
 
       await submit(user)
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient SIL hours balance. You have 40 hrs remaining.",
+          "Insufficient SIL hours balance. You have 5 hrs remaining.",
         ),
       )
     })
@@ -241,7 +267,7 @@ describe("ApplyLeaveModal", () => {
     it("does not touch the balance until HR decides", async () => {
       open()
       await goToSil()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "8", reason: "Medical" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Medical" })
 
       await submit(user)
       await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(1))

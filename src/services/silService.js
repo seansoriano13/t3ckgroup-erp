@@ -1,7 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { cleanAttachments } from './offsetService';
+import { cleanAttachments, checkOverlap } from './offsetService';
+import { deriveHours, formatWindow } from '../utils/time';
 
 /**
  * Credits refunded SIL hours back onto an employee's balance, capped at the
@@ -42,15 +43,17 @@ export const silService = {
   /**
    * Apply for SIL Leave (Employee)
    */
-  async applySilLeave({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
-    const parsedHours = parseFloat(hours);
-    if (isNaN(parsedHours) || parsedHours <= 0) {
-      throw new Error('Please enter a valid positive number of hours.');
+  async applySilLeave({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+    const parsedHours = deriveHours(startTime, endTime, false);
+    if (parsedHours <= 0) {
+      throw new Error('Please enter a valid time window.');
     }
 
     if (!reason || reason.trim() === '') {
       throw new Error('Please provide a reason for the SIL leave.');
     }
+
+    await checkOverlap(employeeId, date, startTime, endTime);
 
     // Check Employee Balance
     const { data: emp, error: empErr } = await supabase
@@ -72,6 +75,8 @@ export const silService = {
         {
           employee_id: employeeId,
           date,
+          start_time: startTime,
+          end_time: endTime,
           hours: parsedHours,
           reason,
           status: 'PENDING',
@@ -88,14 +93,14 @@ export const silService = {
       sender_id: employeeId,
       type: 'SIL_LEAVE_REQUEST',
       title: 'New SIL Leave Request',
-      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave on ${date}.`,
+      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
       data.id,
-      `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave on ${date}.`,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs SIL leave (${formatWindow(startTime, endTime)}) on ${date}.`,
       { event: 'SIL_LEAVE_APPLIED', employeeId },
       employeeId,
     ).catch(console.error);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
+import { formatWindow } from '../../utils/time';
 
 export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
@@ -163,7 +164,7 @@ export default function NotionLeaveCalendar({
                           {leave.employee?.name || 'Employee'}
                         </p>
                         <p className="text-[9px] text-muted-foreground font-mono truncate leading-tight">
-                          {leave.hours}h {leave.type}
+                          {leave.hours}h {leave.type} {leave.start_time && leave.end_time ? `(${formatWindow(leave.start_time, leave.end_time)})` : ''}
                         </p>
                       </div>
                     </div>
@@ -235,9 +236,16 @@ export default function NotionLeaveCalendar({
                         <p className="text-xs text-muted-foreground font-medium truncate">{leave.employee?.department || '-'}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-semibold text-muted-foreground shrink-0">
-                      {leave.hours} hrs {leave.type}
-                    </span>
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="text-xs font-mono font-semibold text-muted-foreground">
+                        {leave.hours} hrs {leave.type}
+                      </span>
+                      {leave.start_time && leave.end_time && (
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          {formatWindow(leave.start_time, leave.end_time)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -278,7 +286,14 @@ export default function NotionLeaveCalendar({
                 </div>
                 <div className="bg-muted/50 p-3 rounded-xl border border-border">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Duration</p>
-                  <p className="text-sm font-bold text-foreground">{selectedLeave.hours} Hours</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {selectedLeave.hours} Hours
+                    {selectedLeave.start_time && selectedLeave.end_time && (
+                      <span className="block text-xs font-medium text-muted-foreground mt-0.5">
+                        {formatWindow(selectedLeave.start_time, selectedLeave.end_time)}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2 bg-muted/50 p-3 rounded-xl border border-border">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Type</p>

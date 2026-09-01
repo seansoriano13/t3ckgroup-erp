@@ -31,20 +31,20 @@ describe("offsetService", () => {
       await offsetService.applyOvertime({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Server migration",
         employeeName: "Ana Reyes",
       })
 
       const mine = await offsetService.getMyOvertimeRequests(employee.id)
-      expect(mine[0]).toMatchObject({ hours: 4, status: "PENDING", reason: "Server migration" })
+      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '13:00', status: "PENDING", reason: "Server migration" })
     })
 
     it("credits nothing until HR decides", async () => {
       await offsetService.applyOvertime({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Server migration",
       })
 
@@ -69,7 +69,7 @@ describe("offsetService", () => {
         offsetService.applyOvertime({
           employeeId: employee.id,
           date: "2026-03-10",
-          hours: 4,
+          startTime: '09:00', endTime: '13:00',
           reason: "",
         }),
       ).rejects.toThrow("Please provide a reason for the overtime request.")
@@ -81,12 +81,12 @@ describe("offsetService", () => {
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 8,
+        startTime: '09:00', endTime: '17:00',
         reason: "Family matter",
       })
 
       const mine = await offsetService.getMyOffsetLeaves(employee.id)
-      expect(mine[0]).toMatchObject({ hours: 8, status: "PENDING" })
+      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '17:00', status: "PENDING" })
     })
 
     it("refuses a Saturday or Sunday", async () => {
@@ -96,7 +96,7 @@ describe("offsetService", () => {
           offsetService.applyOffsetLeave({
             employeeId: employee.id,
             date,
-            hours: 8,
+            startTime: '09:00', endTime: '17:00',
             reason: "Weekend",
           }),
         ).rejects.toThrow(/cannot be applied on weekends/i)
@@ -107,13 +107,13 @@ describe("offsetService", () => {
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-03-13",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Friday",
       })
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-03-16",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Monday",
       })
 
@@ -124,14 +124,14 @@ describe("offsetService", () => {
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-03-13",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Friday",
       })
       // April 1, 2026 is a Wednesday, so it is a valid weekday application.
       await offsetService.applyOffsetLeave({
         employeeId: employee.id,
         date: "2026-04-01",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Next month",
       })
 
@@ -146,7 +146,7 @@ describe("offsetService", () => {
         offsetService.applyOffsetLeave({
           employeeId: employee.id,
           date: "2026-03-10",
-          hours: 24,
+          startTime: '00:00', endTime: '23:59',
           reason: "Long break",
         }),
       ).rejects.toThrow("Insufficient offset hours balance. You have 16 hrs remaining.")
@@ -155,7 +155,7 @@ describe("offsetService", () => {
 
   describe("HR decisions on overtime", () => {
     it("banks the hours when overtime is approved as offset", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
@@ -167,7 +167,7 @@ describe("offsetService", () => {
     })
 
     it("banks nothing when overtime is approved as paid", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
@@ -182,7 +182,7 @@ describe("offsetService", () => {
     })
 
     it("banks nothing when overtime is rejected", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
@@ -195,7 +195,7 @@ describe("offsetService", () => {
     })
 
     it("tells the employee which kind of approval it was", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
@@ -210,7 +210,7 @@ describe("offsetService", () => {
 
   describe("undoing an overtime decision", () => {
     it("takes the banked hours back", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
         status: "APPROVED_OFFSET",
@@ -224,7 +224,7 @@ describe("offsetService", () => {
     })
 
     it("never drives a balance negative when the hours were already spent", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 40 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '00:00', endTime: '23:59' })
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
         status: "APPROVED_OFFSET",
@@ -239,7 +239,7 @@ describe("offsetService", () => {
     })
 
     it("does not deduct when undoing a paid approval", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
         status: "APPROVED_PAID",
@@ -262,7 +262,7 @@ describe("offsetService", () => {
 
   describe("HR decisions on offset leave", () => {
     it("spends the hours when the leave is approved", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await offsetService.handleOffsetLeaveDecision({
         leaveId: leave.id,
@@ -289,7 +289,7 @@ describe("offsetService", () => {
     })
 
     it("returns the hours when an approval is undone", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
         leaveId: leave.id,
         status: "APPROVED",
@@ -323,7 +323,7 @@ describe("offsetService", () => {
     })
 
     it("refuses to withdraw an overtime request HR has already decided", async () => {
-      const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
         status: "APPROVED_OFFSET",
@@ -347,7 +347,7 @@ describe("offsetService", () => {
     })
 
     it("returns the hours when an approved offset leave is withdrawn", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
         leaveId: leave.id,
         status: "APPROVED",
@@ -361,7 +361,7 @@ describe("offsetService", () => {
     })
 
     it("warns HR when an already-approved leave is withdrawn", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
         leaveId: leave.id,
         status: "APPROVED",

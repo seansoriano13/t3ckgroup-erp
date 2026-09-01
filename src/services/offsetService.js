@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
+import { deriveHours, windowsOverlap } from '../utils/time';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -11,19 +12,39 @@ export function cleanAttachments(attachments) {
   return files.length > 0 ? files : null;
 }
 
+export async function checkOverlap(employeeId, date, startTime, endTime) {
+  const [ot, offset, sil] = await Promise.all([
+    supabase.from('overtime_requests').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('offset_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")')
+  ]);
+  
+  const allExisting = [
+    ...(ot.data || []),
+    ...(offset.data || []),
+    ...(sil.data || [])
+  ].filter(r => r.start_time && r.end_time);
+
+  if (allExisting.some(r => windowsOverlap({start: startTime, end: endTime}, {start: r.start_time, end: r.end_time}))) {
+    throw new Error('This time window overlaps with an existing application on this date.');
+  }
+}
+
 export const offsetService = {
   /**
    * Apply for Overtime (Employee)
    */
-  async applyOvertime({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
-    const parsedHours = parseFloat(hours);
-    if (isNaN(parsedHours) || parsedHours <= 0) {
-      throw new Error('Please enter a valid positive number of hours.');
+  async applyOvertime({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+    const parsedHours = deriveHours(startTime, endTime, true);
+    if (parsedHours <= 0) {
+      throw new Error('Please enter a valid time window.');
     }
 
     if (!reason || reason.trim() === '') {
       throw new Error('Please provide a reason for the overtime request.');
     }
+
+    await checkOverlap(employeeId, date, startTime, endTime);
 
     const { data, error } = await supabase
       .from('overtime_requests')
@@ -31,6 +52,8 @@ export const offsetService = {
         {
           employee_id: employeeId,
           date,
+          start_time: startTime,
+          end_time: endTime,
           hours: parsedHours,
           reason,
           status: 'PENDING',
@@ -47,14 +70,14 @@ export const offsetService = {
       sender_id: employeeId,
       type: 'OVERTIME_REQUEST',
       title: 'New Overtime Application',
-      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs of overtime on ${date}.`,
+      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs of overtime (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
 
     systemAuditLogService.addSystemEvent(
       'OVERTIME',
       data.id,
-      `${employeeName || 'An employee'} applied for ${parsedHours} hrs of overtime on ${date}.`,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs of overtime (${formatWindow(startTime, endTime)}) on ${date}.`,
       { event: 'OVERTIME_APPLIED', employeeId },
       employeeId,
     ).catch(console.error);
@@ -65,15 +88,17 @@ export const offsetService = {
   /**
    * Apply for Offset Leave (Employee)
    */
-  async applyOffsetLeave({ employeeId, date, hours, reason, employeeName, attachments = [] }) {
-    const parsedHours = parseFloat(hours);
-    if (isNaN(parsedHours) || parsedHours <= 0) {
-      throw new Error('Please enter a valid positive number of hours.');
+  async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+    const parsedHours = deriveHours(startTime, endTime, false);
+    if (parsedHours <= 0) {
+      throw new Error('Please enter a valid time window.');
     }
 
     if (!reason || reason.trim() === '') {
       throw new Error('Please provide a reason for the offset leave.');
     }
+
+    await checkOverlap(employeeId, date, startTime, endTime);
 
     // Check Weekend
     const reqDate = new Date(date);
@@ -102,6 +127,8 @@ export const offsetService = {
         {
           employee_id: employeeId,
           date,
+          start_time: startTime,
+          end_time: endTime,
           hours: parsedHours,
           reason,
           status: 'PENDING',
@@ -118,14 +145,14 @@ export const offsetService = {
       sender_id: employeeId,
       type: 'OFFSET_LEAVE_REQUEST',
       title: 'New Offset Leave Request',
-      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave on ${date}.`,
+      message: `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave (${formatWindow(startTime, endTime)}) on ${date}.`,
       reference_id: data.id,
     });
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       data.id,
-      `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave on ${date}.`,
+      `${employeeName || 'An employee'} applied for ${parsedHours} hrs offset leave (${formatWindow(startTime, endTime)}) on ${date}.`,
       { event: 'OFFSET_LEAVE_APPLIED', employeeId },
       employeeId,
     ).catch(console.error);

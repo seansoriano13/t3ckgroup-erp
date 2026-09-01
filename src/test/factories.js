@@ -104,36 +104,51 @@ export function makeOpportunityItem(opportunityId, overrides = {}) {
 
 export function makeSilLeave(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee({ sil_hours_balance: 40 }).id
-  return db.seed("sil_leaves", {
+  const attrs = {
     date: "2026-03-10",
+    start_time: "09:00",
+    end_time: "17:00",
     hours: 8,
     reason: "Medical appointment",
     status: "PENDING",
     ...overrides,
     employee_id: employeeId,
-  })
+  }
+  if (attrs.startTime) { attrs.start_time = attrs.startTime; delete attrs.startTime; }
+  if (attrs.endTime) { attrs.end_time = attrs.endTime; delete attrs.endTime; }
+  return db.seed("sil_leaves", attrs)
 }
 
 export function makeOvertimeRequest(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee().id
-  return db.seed("overtime_requests", {
+  const attrs = {
     date: "2026-03-10",
+    start_time: "09:00",
+    end_time: "13:00",
     hours: 4,
     status: "PENDING",
     ...overrides,
     employee_id: employeeId,
-  })
+  }
+  if (attrs.startTime) { attrs.start_time = attrs.startTime; delete attrs.startTime; }
+  if (attrs.endTime) { attrs.end_time = attrs.endTime; delete attrs.endTime; }
+  return db.seed("overtime_requests", attrs)
 }
 
 export function makeOffsetLeave(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee({ offset_hours_balance: 16 }).id
-  return db.seed("offset_leaves", {
+  const attrs = {
     date: "2026-03-12",
+    start_time: "09:00",
+    end_time: "17:00",
     hours: 8,
     status: "PENDING",
     ...overrides,
     employee_id: employeeId,
-  })
+  }
+  if (attrs.startTime) { attrs.start_time = attrs.startTime; delete attrs.startTime; }
+  if (attrs.endTime) { attrs.end_time = attrs.endTime; delete attrs.endTime; }
+  return db.seed("offset_leaves", attrs)
 }
 
 export function makeGroupTask(overrides = {}) {

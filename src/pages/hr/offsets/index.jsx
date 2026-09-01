@@ -15,6 +15,7 @@ import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
+import { formatWindow } from '../../../utils/time';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -334,9 +335,16 @@ export default function HrLeavesManagerPage() {
                             {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                           </td>
                           <td className="p-4">
-                            <span className="font-black text-sm text-foreground">
-                              {req.hours} hrs
-                            </span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-sm text-foreground">
+                                {req.hours} hrs
+                              </span>
+                              {req.start_time && req.end_time && (
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {formatWindow(req.start_time, req.end_time)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
                              {req.reason || '-'}
@@ -417,8 +425,17 @@ export default function HrLeavesManagerPage() {
                           <td className="p-4 text-sm font-bold text-foreground">
                             {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                           </td>
-                          <td className="p-4 font-black text-sm text-foreground">
-                            {req.hours} hrs
+                          <td className="p-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-sm text-foreground">
+                                {req.hours} hrs
+                              </span>
+                              {req.start_time && req.end_time && (
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {formatWindow(req.start_time, req.end_time)}
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="p-4">
                              {req.attachments?.length ? (

@@ -27,21 +27,21 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 8,
+        startTime: '09:00', endTime: '17:00',
         reason: "Medical appointment",
         employeeName: "Ana Reyes",
       })
 
       const mine = await silService.getMySilLeaves(employee.id)
       expect(mine).toHaveLength(1)
-      expect(mine[0]).toMatchObject({ hours: 8, status: "PENDING", reason: "Medical appointment" })
+      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '17:00', status: "PENDING", reason: "Medical appointment" })
     })
 
     it("does not touch the balance until HR approves", async () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 8,
+        startTime: '09:00', endTime: '17:00',
         reason: "Medical appointment",
       })
 
@@ -65,7 +65,7 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 40,
+        startTime: '00:00', endTime: '23:59',
         reason: "Extended leave",
       })
 
@@ -90,7 +90,7 @@ describe("silService", () => {
         silService.applySilLeave({
           employeeId: employee.id,
           date: "2026-03-10",
-          hours: 4,
+          startTime: '09:00', endTime: '13:00',
           reason: "   ",
         }),
       ).rejects.toThrow("Please provide a reason for the SIL leave.")
@@ -111,7 +111,7 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Medical",
         attachments: [
           { url: "https://res.cloudinary.test/cert.pdf", name: "cert.pdf" },
@@ -129,7 +129,7 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Medical",
       })
 
@@ -143,7 +143,7 @@ describe("silService", () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: 4,
+        startTime: '09:00', endTime: '13:00',
         reason: "Medical",
         employeeName: "Ana Reyes",
       })
@@ -160,7 +160,7 @@ describe("silService", () => {
 
   describe("HR decisions", () => {
     it("deducts the hours when a leave is approved", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
@@ -172,7 +172,7 @@ describe("silService", () => {
     })
 
     it("leaves the balance alone when a leave is rejected", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
@@ -190,7 +190,7 @@ describe("silService", () => {
 
     it("refuses to approve a leave the balance can no longer cover", async () => {
       // HR reduced the balance after the employee applied.
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 24 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '00:00', endTime: '23:59' })
       await supabaseSetBalance(employee.id, 8)
 
       await expect(
@@ -201,7 +201,7 @@ describe("silService", () => {
     })
 
     it("stamps who processed the decision and when", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
@@ -215,7 +215,7 @@ describe("silService", () => {
     })
 
     it("tells the employee the outcome", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
@@ -236,7 +236,7 @@ describe("silService", () => {
 
   describe("undoing a decision", () => {
     it("gives the hours back and returns the leave to pending", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
         status: "APPROVED",
@@ -254,7 +254,7 @@ describe("silService", () => {
     })
 
     it("does not credit hours when undoing a rejection", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
         status: "REJECTED",
@@ -283,7 +283,7 @@ describe("silService", () => {
         sil_hours_balance: 8,
         employment_status: "Probationary",
       })
-      const leave = makeSilLeave({ employee_id: probationary.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: probationary.id, startTime: '09:00', endTime: '17:00' })
       await approveWithoutEligibilityCheck(leave.id, probationary.id, hr.id)
 
       await silService.undoSilLeaveDecision({ leaveId: leave.id, hrId: hr.id })
@@ -297,7 +297,7 @@ describe("silService", () => {
         sil_hours_balance: 8,
         employment_status: "Probationary",
       })
-      const leave = makeSilLeave({ employee_id: probationary.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: probationary.id, startTime: '09:00', endTime: '17:00' })
       await approveWithoutEligibilityCheck(leave.id, probationary.id, hr.id)
 
       await silService.undoSilLeaveDecision({ leaveId: leave.id, hrId: hr.id })
@@ -322,7 +322,7 @@ describe("silService", () => {
     })
 
     it("returns the hours when cancelling an approved leave", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, hours: 8 })
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await silService.handleSilLeaveDecision({
         leaveId: leave.id,
         status: "APPROVED",

@@ -38,6 +38,7 @@ import {
   procurementAffinity,
 } from "../../constants/procurement";
 import { useAuth } from "../../context/AuthContext";
+import { canEditSor } from "../../utils/sorPermissions";
 
 let draftSeq = 0;
 const blankDraft = () => ({
@@ -862,7 +863,7 @@ export default function ProcurementPanel({ opportunity }) {
                   (!r.outcome || r.outcome === "IN_PROGRESS");
                 const canEdit =
                   isRowEditable &&
-                  (user?.id === r.requested_by || isHead || user?.id === opportunity?.sales_rep_id);
+                  (user?.id === r.requested_by || canEditSor(user, opportunity));
 
                 return (
                   <RequestRow
