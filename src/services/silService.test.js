@@ -34,7 +34,13 @@ describe("silService", () => {
 
       const mine = await silService.getMySilLeaves(employee.id)
       expect(mine).toHaveLength(1)
-      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '17:00', status: "PENDING", reason: "Medical appointment" })
+      expect(mine[0]).toMatchObject({
+        start_time: "09:00",
+        end_time: "17:00",
+        hours: 8,
+        status: "PENDING",
+        reason: "Medical appointment",
+      })
     })
 
     it("does not touch the balance until HR approves", async () => {
@@ -49,16 +55,21 @@ describe("silService", () => {
     })
 
     it("refuses more hours than the employee has left", async () => {
+      // A window cannot span more than a day, so the balance is what moves —
+      // the widest window available has to out-reach it.
+      const short = makeEmployee({ name: "Short Balance", sil_hours_balance: 4 })
+
       await expect(
         silService.applySilLeave({
-          employeeId: employee.id,
+          employeeId: short.id,
           date: "2026-03-10",
-          hours: 48,
+          startTime: "09:00",
+          endTime: "17:00",
           reason: "Long trip",
         }),
-      ).rejects.toThrow("Insufficient SIL hours balance. You have 40 hrs remaining.")
+      ).rejects.toThrow("Insufficient SIL hours balance. You have 4 hrs remaining.")
 
-      expect(await silService.getMySilLeaves(employee.id)).toEqual([])
+      expect(await silService.getMySilLeaves(short.id)).toEqual([])
     })
 
     it("allows an application that uses the balance exactly", async () => {
@@ -72,17 +83,38 @@ describe("silService", () => {
       expect(await silService.getMySilLeaves(employee.id)).toHaveLength(1)
     })
 
-    it("rejects zero, negative and non-numeric hours", async () => {
-      for (const hours of [0, -4, "abc", null]) {
+    it("rejects a window that encloses no time", async () => {
+      for (const [startTime, endTime] of [
+        ["09:00", "09:00"],
+        ["", ""],
+        [null, "17:00"],
+      ]) {
         await expect(
           silService.applySilLeave({
             employeeId: employee.id,
             date: "2026-03-10",
-            hours,
+            startTime,
+            endTime,
             reason: "Whatever",
           }),
-        ).rejects.toThrow("Please enter a valid positive number of hours.")
+        ).rejects.toThrow("Please enter a valid time window.")
       }
+    })
+
+    it("rejects a window that runs past midnight", async () => {
+      // A leave crossing midnight is a mistyped PM, not a night shift — only
+      // overtime is allowed to span two days.
+      await expect(
+        silService.applySilLeave({
+          employeeId: employee.id,
+          date: "2026-03-10",
+          startTime: "17:00",
+          endTime: "02:00",
+          reason: "Overnight",
+        }),
+      ).rejects.toThrow("End time must be after start time.")
+
+      expect(await silService.getMySilLeaves(employee.id)).toEqual([])
     })
 
     it("requires a reason", async () => {
@@ -96,11 +128,12 @@ describe("silService", () => {
       ).rejects.toThrow("Please provide a reason for the SIL leave.")
     })
 
-    it("accepts hours typed into a form as a string", async () => {
+    it("derives a part-hour window down to the half hour", async () => {
       await silService.applySilLeave({
         employeeId: employee.id,
         date: "2026-03-10",
-        hours: "4.5",
+        startTime: "09:00",
+        endTime: "13:30",
         reason: "Half day",
       })
 
@@ -393,6 +426,22 @@ describe("silService", () => {
       const balances = await silService.getEmployeeSilBalances()
 
       expect(balances.map((b) => b.name)).toEqual(["Ana Reyes", "HR Officer", "Zoe"])
+    })
+
+    describe("dateless pending reads", () => {
+      it("returns cross-month and past-month pending requests, excluding decided/withdrawn ones", async () => {
+        makeSilLeave({ employee_id: employee.id, date: "2026-02-10", status: "PENDING" }) // past month
+        makeSilLeave({ employee_id: employee.id, date: "2026-04-10", status: "PENDING" }) // future month
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED" }) // decided
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-11", status: "CANCELLED" }) // withdrawn
+
+        const myPending = await silService.getMyPendingSilLeaves(employee.id)
+        expect(myPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+
+        const allPending = await silService.getAllPendingSilLeaves()
+        expect(allPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+        expect(allPending[0].employee.name).toBe("Ana Reyes")
+      })
     })
   })
 })

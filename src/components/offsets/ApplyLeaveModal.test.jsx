@@ -184,9 +184,9 @@ describe("ApplyLeaveModal", () => {
     it("tells the employee when they do not have the hours", async () => {
       open()
       await goToOffset()
-      const { user } = await fillForm({ date: "2026-03-12", startTime: "09:00", endTime: "09:00", reason: "Long break" }) // using valid format, but actually will mock huge offset in test below wait, if deriveHours gets 0 it won't fail with toast.error("Insufficient..."). Let's do 40 hrs by doing 09:00 and 49:00 but input type="time" only takes valid times! Wait, we can't test 40 hours with a single day time input. We can test 24 hours max! Wait, 24 hours is more than 16 hours. Let's do startTime "09:00", endTime "08:59" which is 23.98 hours if overnight is allowed.
-      // Offset doesn't allow overnight yet. Let's do startTime "00:00", endTime "23:59" = 23.98 hours.
-      // Balance is 16, so 23.98 hours will trigger the "Insufficient" check.
+      // A time input cannot express more than one day, so the widest window
+      // available is 00:00–23:59. That derives 23.98 hrs against a 16 hr
+      // balance, which is what the insufficient-balance guard is here to catch.
       const { user } = await fillForm({ date: "2026-03-12", startTime: "00:00", endTime: "23:59", reason: "Long break" })
 
       await submit(user)
@@ -242,17 +242,13 @@ describe("ApplyLeaveModal", () => {
     })
 
     it("tells the employee when their balance is short", async () => {
+      // The guard reads the balance from the database, not from the signed-in
+      // context, so the short balance has to be the one on the row.
+      const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5 })
+      mockUser.current = { id: short.id, name: short.name }
+
       open()
       await goToSil()
-      // Balance is 40. Need >40. But max in a day is 24.
-      // This test is impossible to do with a single day form if balance is 40!
-      // Let's modify the employee balance in beforeEach for this test? Wait, we can't inside it().
-      // Let's mock a balance of 40 and try 23.98 hours. Wait, 23.98 < 40, so it will SUCCEED.
-      // Let's temporarily change the employee object used by useAuth mock.
-      mockUser.current = { ...mockUser.current, sil_hours_balance: 5 } // fake low balance
-      // Oh wait, `silService.applySilLeave` checks DB balance not the context balance!
-      // I have to update the DB balance for this employee.
-      await db.update("employees", { id: employee.id }, { sil_hours_balance: 5 })
       const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Long trip" })
 
       await submit(user)

@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { deriveHours, windowsOverlap } from '../utils/time';
+import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -179,6 +179,21 @@ export const offsetService = {
   },
 
   /**
+   * Get employee's own pending overtime requests (dateless)
+   */
+  async getMyPendingOvertimeRequests(employeeId) {
+    const { data, error } = await supabase
+      .from('overtime_requests')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true }); // Ordered by date ascending for the queue
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
    * Get employee's own offset leave applications
    */
   async getMyOffsetLeaves(employeeId, startDate = null, endDate = null) {
@@ -192,6 +207,21 @@ export const offsetService = {
     if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Get employee's own pending offset leaves (dateless)
+   */
+  async getMyPendingOffsetLeaves(employeeId) {
+    const { data, error } = await supabase
+      .from('offset_leaves')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
     if (error) throw new Error(error.message);
     return data || [];
   },
@@ -217,6 +247,23 @@ export const offsetService = {
   },
 
   /**
+   * Fetch all pending overtime requests across all time (HR)
+   */
+  async getAllPendingOvertimeRequests() {
+    const { data, error } = await supabase
+      .from('overtime_requests')
+      .select(`
+        *,
+        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+      `)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
    * Fetch all offset leave applications (HR)
    * Also used by all employees to view the calendar (RLS allows viewing APPROVED leaves)
    */
@@ -233,6 +280,23 @@ export const offsetService = {
     if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Fetch all pending offset leaves across all time (HR)
+   */
+  async getAllPendingOffsetLeaves() {
+    const { data, error } = await supabase
+      .from('offset_leaves')
+      .select(`
+        *,
+        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+      `)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
     if (error) throw new Error(error.message);
     return data || [];
   },

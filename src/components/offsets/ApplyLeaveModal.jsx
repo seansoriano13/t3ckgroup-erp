@@ -9,7 +9,7 @@ import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
-import { deriveHours } from '../../utils/time';
+import { safeDeriveHours } from '../../utils/time';
 
 export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const { user } = useAuth();
@@ -39,9 +39,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
 
-  const currentOtHours = deriveHours(otStartTime, otEndTime, true);
-  const currentOffsetHours = deriveHours(offsetStartTime, offsetEndTime, false);
-  const currentSilHours = deriveHours(silStartTime, silEndTime, false);
+  const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
+  const currentOffsetHours = safeDeriveHours(offsetStartTime, offsetEndTime, false);
+  const currentSilHours = safeDeriveHours(silStartTime, silEndTime, false);
 
   if (!isOpen) return null;
 

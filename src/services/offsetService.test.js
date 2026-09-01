@@ -37,7 +37,13 @@ describe("offsetService", () => {
       })
 
       const mine = await offsetService.getMyOvertimeRequests(employee.id)
-      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '13:00', status: "PENDING", reason: "Server migration" })
+      expect(mine[0]).toMatchObject({
+        start_time: "09:00",
+        end_time: "13:00",
+        hours: 4,
+        status: "PENDING",
+        reason: "Server migration",
+      })
     })
 
     it("credits nothing until HR decides", async () => {
@@ -51,17 +57,35 @@ describe("offsetService", () => {
       expect(balanceOf(employee.id)).toBe(16)
     })
 
-    it("rejects hours that are not a positive number", async () => {
-      for (const hours of [0, -1, "not a number"]) {
+    it("rejects a window that encloses no time", async () => {
+      for (const [startTime, endTime] of [
+        ["09:00", "09:00"],
+        ["", ""],
+        ["09:00", ""],
+      ]) {
         await expect(
           offsetService.applyOvertime({
             employeeId: employee.id,
             date: "2026-03-10",
-            hours,
+            startTime,
+            endTime,
             reason: "Work",
           }),
-        ).rejects.toThrow("Please enter a valid positive number of hours.")
+        ).rejects.toThrow("Please enter a valid time window.")
       }
+    })
+
+    it("reads a window that crosses midnight as overtime worked into the next day", async () => {
+      await offsetService.applyOvertime({
+        employeeId: employee.id,
+        date: "2026-03-10",
+        startTime: "22:00",
+        endTime: "02:00",
+        reason: "Cutover",
+      })
+
+      const mine = await offsetService.getMyOvertimeRequests(employee.id)
+      expect(mine[0]).toMatchObject({ hours: 4, start_time: "22:00", end_time: "02:00" })
     })
 
     it("requires a reason", async () => {
@@ -86,7 +110,12 @@ describe("offsetService", () => {
       })
 
       const mine = await offsetService.getMyOffsetLeaves(employee.id)
-      expect(mine[0]).toMatchObject({ startTime: '09:00', endTime: '17:00', status: "PENDING" })
+      expect(mine[0]).toMatchObject({
+        start_time: "09:00",
+        end_time: "17:00",
+        hours: 8,
+        status: "PENDING",
+      })
     })
 
     it("refuses a Saturday or Sunday", async () => {
@@ -431,6 +460,35 @@ describe("offsetService", () => {
       const balances = await offsetService.getEmployeeOffsetBalances()
 
       expect(balances.map((b) => b.name)).toEqual(["Ana Reyes", "HR Officer", "Zoe"])
+    })
+
+    describe("dateless pending reads", () => {
+      it("returns cross-month and past-month pending requests, excluding decided/withdrawn ones", async () => {
+        makeOvertimeRequest({ employee_id: employee.id, date: "2026-02-10", status: "PENDING" }) // past month
+        makeOvertimeRequest({ employee_id: employee.id, date: "2026-04-10", status: "PENDING" }) // future month
+        makeOvertimeRequest({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED_PAID" }) // decided
+        makeOvertimeRequest({ employee_id: employee.id, date: "2026-03-11", status: "CANCELLED" }) // withdrawn
+
+        const myPending = await offsetService.getMyPendingOvertimeRequests(employee.id)
+        expect(myPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+
+        const allPending = await offsetService.getAllPendingOvertimeRequests()
+        expect(allPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+        expect(allPending[0].employee.name).toBe("Ana Reyes")
+      })
+      
+      it("returns cross-month and past-month pending offset leaves, excluding decided ones", async () => {
+        makeOffsetLeave({ employee_id: employee.id, date: "2026-02-10", status: "PENDING" })
+        makeOffsetLeave({ employee_id: employee.id, date: "2026-04-10", status: "PENDING" })
+        makeOffsetLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED" })
+        makeOffsetLeave({ employee_id: employee.id, date: "2026-03-11", status: "REJECTED" })
+
+        const myPending = await offsetService.getMyPendingOffsetLeaves(employee.id)
+        expect(myPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+
+        const allPending = await offsetService.getAllPendingOffsetLeaves()
+        expect(allPending.map((r) => r.date)).toEqual(["2026-02-10", "2026-04-10"])
+      })
     })
   })
 })

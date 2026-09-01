@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
-import { formatWindow } from '../../utils/time';
+import { compareByStartTime, formatWindow, formatWindowCompact } from '../../utils/time';
 
 export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
@@ -45,7 +45,9 @@ export default function NotionLeaveCalendar({
     const mStr = (target.getMonth() + 1).toString().padStart(2, '0');
     const dStr = target.getDate().toString().padStart(2, '0');
     const dateStr = `${yStr}-${mStr}-${dStr}`;
-    return approvedLeaves.filter((leave) => leave.date === dateStr);
+    return approvedLeaves
+      .filter((leave) => leave.date === dateStr)
+      .sort(compareByStartTime);
   };
 
   const isToday = (dayNum) => {
@@ -164,7 +166,9 @@ export default function NotionLeaveCalendar({
                           {leave.employee?.name || 'Employee'}
                         </p>
                         <p className="text-[9px] text-muted-foreground font-mono truncate leading-tight">
-                          {leave.hours}h {leave.type} {leave.start_time && leave.end_time ? `(${formatWindow(leave.start_time, leave.end_time)})` : ''}
+                          {leave.start_time && leave.end_time
+                            ? `${leave.hours}h · ${formatWindowCompact(leave.start_time, leave.end_time)}`
+                            : `${leave.hours}h ${leave.type}`}
                         </p>
                       </div>
                     </div>

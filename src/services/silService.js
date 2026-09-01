@@ -127,6 +127,21 @@ export const silService = {
   },
 
   /**
+   * Get employee's own pending SIL leaves (dateless)
+   */
+  async getMyPendingSilLeaves(employeeId) {
+    const { data, error } = await supabase
+      .from('sil_leaves')
+      .select('*')
+      .eq('employee_id', employeeId)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
    * Fetch all SIL leave applications (HR)
    * Also used by all employees to view the calendar (RLS allows viewing APPROVED leaves)
    */
@@ -143,6 +158,23 @@ export const silService = {
     if (endDate) query = query.lt('date', endDate);
 
     const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Fetch all pending SIL leaves across all time (HR)
+   */
+  async getAllPendingSilLeaves() {
+    const { data, error } = await supabase
+      .from('sil_leaves')
+      .select(`
+        *,
+        employee:employees!sil_leaves_employee_id_fkey(id, name, department, avatar_path, sil_hours_balance)
+      `)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
     if (error) throw new Error(error.message);
     return data || [];
   },
