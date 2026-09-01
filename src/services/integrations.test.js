@@ -111,6 +111,52 @@ describe("odooService", () => {
     expect(seen).toEqual([{ salesReference: "S01237" }])
   })
 
+  describe("the quotation's customer", () => {
+    // The Company an SOR is sold to is verified against Odoo rather than
+    // typed, so the lookup carries the customer back alongside the items.
+    it("carries the company and contact through to the caller", async () => {
+      stubEdgeFunction("odoo-sor-lookup", {
+        success: true,
+        found: true,
+        order: { id: 8234, name: "S08234", state: "sent" },
+        customer: {
+          company: "Makati City Government",
+          company_id: 4471,
+          contact: "Erika jane D. Duenas",
+        },
+        items: [{ product_name: "Pumper", quantity: 2, unit_price: 1500 }],
+      })
+
+      const result = await odooService.fetchOrderLines("S08234")
+
+      expect(result.customer).toEqual({
+        company: "Makati City Government",
+        company_id: 4471,
+        contact: "Erika jane D. Duenas",
+      })
+    })
+
+    // A half-built quotation still knows who it is for. Verifying the Company
+    // and pulling the Product List are two jobs sharing one request, so the
+    // one that succeeded must not be thrown away with the one that didn't.
+    it("treats a quotation with no product lines as found, not as a miss", async () => {
+      stubEdgeFunction("odoo-sor-lookup", {
+        success: true,
+        found: true,
+        order: { id: 8234, name: "S08234", state: "draft" },
+        customer: { company: "Makati City Government", company_id: 4471, contact: "" },
+        items: [],
+        message: "S08234 was found in Odoo but has no product lines yet.",
+      })
+
+      const result = await odooService.fetchOrderLines("S08234")
+
+      expect(result.success).toBe(true)
+      expect(result.items).toEqual([])
+      expect(result.customer.company).toBe("Makati City Government")
+    })
+  })
+
   describe("the customer share link", () => {
     it("returns the portal URL for the quotation", async () => {
       stubEdgeFunction("odoo-quotation-link", {

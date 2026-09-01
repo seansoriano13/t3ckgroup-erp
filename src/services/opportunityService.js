@@ -17,6 +17,23 @@ import {
   SALES_REFERENCE_HINT,
 } from "../constants/sor";
 
+/**
+ * Decides what `odoo_partner_id` should be after an update.
+ *
+ * The marker says "this Company came from that Odoo customer", so it may only
+ * survive while the Company text still does. The form modal owns the marker
+ * and sends it explicitly; every other editor (the details modal's inline
+ * edit, for one) sends a Company without one, and for those the rule is
+ * enforced here rather than trusted to each caller — a marker that outlives
+ * the name it verified makes a hand-typed Company look checked.
+ */
+function resolveOdooPartner(existing, payload) {
+  if ("odoo_partner_id" in payload) return payload.odoo_partner_id ?? null;
+  return payload.client_name === existing.client_name
+    ? (existing.odoo_partner_id ?? null)
+    : null;
+}
+
 const PARTICIPANT_SELECT = `
   *,
   registrar:employees!sales_opportunities_registered_by_fkey(id, name, avatar_path),
@@ -104,6 +121,7 @@ export const opportunityService = {
         lead_source: payload.lead_source,
         lead_source_detail: payload.lead_source_detail || null,
         client_name: payload.client_name,
+        odoo_partner_id: payload.odoo_partner_id ?? null,
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: deriveProjectType({
@@ -161,6 +179,7 @@ export const opportunityService = {
         lead_source: payload.lead_source,
         lead_source_detail: payload.lead_source_detail || null,
         client_name: payload.client_name,
+        odoo_partner_id: resolveOdooPartner(existing, payload),
         contact_person: payload.contact_person || null,
         project_title: payload.project_title,
         project_type: deriveProjectType({
@@ -197,7 +216,7 @@ export const opportunityService = {
 
     checkField('lead_source', 'Lead Source');
     checkField('lead_source_detail', 'Referral');
-    checkField('client_name', 'Client');
+    checkField('client_name', 'Company');
     checkField('contact_person', 'Contact Person');
     checkField('project_title', 'Project');
     checkField('project_type', 'Sales Division');

@@ -7,20 +7,49 @@ import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
 
-const BOX =
-  "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
+// Split so a field can swap its resting border colour out. Two border-colour
+// utilities on one element resolve by stylesheet order rather than by the
+// order they appear in the class attribute, so appending a highlight colour
+// next to `border-border` is how a highlight ends up invisible.
+const BOX_BASE =
+  "bg-muted/30 border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
+const BOX = `${BOX_BASE} border-border`;
 const LABEL =
   "text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block";
 const CONTROL =
   "w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium";
 
-export function TextField({ label, required, className = "", ...props }) {
+// A field whose value was just replaced from an outside source (today, the
+// Odoo quotation lookup) wears the border briefly so the change is visible
+// without a toast per field. Deliberately one step up from the focus border
+// rather than a colour of its own: it should read as "this field moved", not
+// as an alert.
+const AUTOFILLED = "border-mauve-8 ring-1 ring-mauve-8";
+
+export function TextField({
+  label,
+  required,
+  className = "",
+  autofilled = false,
+  action = null,
+  ...props
+}) {
   return (
-    <div className={`${BOX} ${className}`}>
-      <label className={LABEL}>
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+    <div
+      className={`${autofilled ? `${BOX_BASE} ${AUTOFILLED}` : BOX} ${className}`}
+      data-autofilled={autofilled ? "true" : undefined}
+    >
+      {/* The label row carries any per-field action, so a control that acts on
+          this one field sits with it rather than floating elsewhere in the
+          form. Occupying the label's own line keeps the field's height and the
+          grid's rhythm unchanged whether or not an action is present. */}
+      <div className="flex items-baseline justify-between gap-2">
+        <label className={LABEL}>
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+        {action}
+      </div>
       <input className={CONTROL} required={required} {...props} />
     </div>
   );

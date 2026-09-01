@@ -89,7 +89,11 @@ export function executeKw(uid, model, method, args, kwargs = {}) {
  * back to a fuzzy match, since references are sometimes typed without their
  * leading zeroes.
  */
-export async function findOrder(uid, ref, fields = ["id", "name", "state"]) {
+export async function findOrder(
+  uid,
+  ref,
+  fields = ["id", "name", "state", "partner_id"],
+) {
   const exact = await executeKw(
     uid,
     "sale.order",
@@ -141,6 +145,57 @@ export async function ensureAccessToken(uid, order) {
 export const NO_TOKEN_MESSAGE =
   "has no share token and Odoo would not accept a new one. " +
   "Open the quotation in Odoo and click Share once, then try again.";
+
+/**
+ * Splits an order's customer into the two fields SOR keeps apart.
+ *
+ * `sale.order` carries only `partner_id`, which may be either an organisation
+ * or a contact record beneath one — `commercial_partner_id` is a field on
+ * `res.partner`, NOT on the order, so the company has to be reached by
+ * reading the partner. Keeping the two apart is the whole point of this
+ * lookup: it is what stops the Company and the Contact Person being mixed up.
+ *
+ * The contact's name comes from `res.partner.name` rather than from the
+ * `partner_id` pair, because that pair carries Odoo's *display* name, which
+ * for a child contact is prefixed with its parent ("Makati City Government,
+ * Erika Duenas"). Writing that into Contact Person would reintroduce the very
+ * company-inside-the-contact-field shape being corrected.
+ *
+ * When the partner IS its own commercial partner the order has no named
+ * contact, so `contact` comes back empty rather than repeating the company.
+ */
+export async function fetchCustomer(uid, order) {
+  const partner = order?.partner_id || null;
+  const empty = { company: "", company_id: null, contact: "" };
+  if (!partner) return empty;
+
+  const [record] = await executeKw(uid, "res.partner", "read", [
+    [partner[0]],
+    ["name", "commercial_partner_id"],
+  ]);
+  if (!record) return empty;
+
+  const commercial = record.commercial_partner_id || null;
+  const isOwnCompany = !commercial || commercial[0] === partner[0];
+
+  if (isOwnCompany) {
+    return { company: record.name || "", company_id: partner[0], contact: "" };
+  }
+
+  // The commercial partner is a company, so it has no parent to prefix its
+  // display name — but read `name` anyway rather than trusting the pair's
+  // second element, which is a display name by definition.
+  const [company] = await executeKw(uid, "res.partner", "read", [
+    [commercial[0]],
+    ["name"],
+  ]);
+
+  return {
+    company: company?.name || commercial[1] || "",
+    company_id: commercial[0],
+    contact: record.name || "",
+  };
+}
 
 /**
  * Normalises and validates a Sales Reference, returning `null` when it isn't

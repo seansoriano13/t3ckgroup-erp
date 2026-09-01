@@ -1,6 +1,20 @@
 {
   "versions": [
     {
+      "version": "1.1.0",
+      "date": "2026-09-01",
+      "changes": [
+        "The SOR field previously labelled \"Client\" is now labelled \"Company\" everywhere it appears — the registration form, the SOR register, the details view, and the commission export. It always meant the organisation being sold to, not the person you deal with; the old label read both ways and was being filled in both ways.",
+        "Fetching a Sales Reference now fills the Company straight from the Odoo quotation, so it is the customer as recorded in Odoo rather than a name typed from memory.",
+        "The Contact Person is filled from the quotation too, but only when you have left it blank — a contact you typed yourself is never overwritten, since it often carries a mobile number or a working name Odoo does not hold.",
+        "If you had already typed a Company before fetching, an Undo appears beside the field to put your original text back.",
+        "The Sales Reference has moved to the top of the SOR form, above the fields it fills in. Leave it blank if the quotation does not exist yet — it is still only required to move from Lead to Qualified.",
+        "Fetching a quotation that exists but has no product lines yet now fills in the Company and tells you the products are missing, instead of reporting the whole lookup as a failure.",
+        "Fixed: opening an SOR whose Odoo quotation had no product lines could erase that SOR's saved Product List.",
+        "Fixed 14 existing SORs that had the Company and the Contact Person entered the wrong way round — the person's name in Company, the agency in Contact Person."
+      ]
+    },
+    {
       "version": "1.0.1",
       "date": "2026-08-28",
       "changes": [
