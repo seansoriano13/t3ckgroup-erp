@@ -59,6 +59,9 @@ import SwipeToReplyWrapper from "@/components/ui/SwipeToReplyWrapper";
 import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
 import { supabase } from "@/lib/supabase";
+import { useFileAttachments } from "@/hooks/useFileAttachments";
+import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
+import { ALLOWED_MIME_TYPES } from "@/utils/attachments";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -81,6 +84,7 @@ export default function GroupTaskDetailModal({
   onRemoveMember,
   isUpdatingMember,
   isRemovingMember,
+  onVerify,
   onReject,
   isVerifying,
   isRejecting,
@@ -105,8 +109,15 @@ export default function GroupTaskDetailModal({
   const [messageContent, setMessageContent] = useState("");
   const [mentions, setMentions] = useState([]);
   const [replyingTo, setReplyingTo] = useState(null);
-  const [attachments, setAttachments] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
+  const attachmentState = useFileAttachments();
+  const {
+    files: attachments,
+    isUploading,
+    addFiles,
+    addFromPaste,
+    removeFile: removeAttachment,
+    clear: clearAttachments,
+  } = attachmentState;
   const avatarMap = useEmployeeAvatarMap();
   
 
@@ -231,6 +242,15 @@ export default function GroupTaskDetailModal({
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [employees]);
 
+  // Resets the modal when it opens. The idiomatic alternative is to remount on
+  // a `key`, but that is the caller's decision to make and it changes what
+  // happens when the same task is reopened — a half-typed message survives a
+  // remount-on-id and does not survive this. Both call sites are also not
+  // alike: GlobalDetailManager mounts the modal only while it is open and so
+  // resets for free, while the group-tasks page keeps it mounted forever and
+  // depends on this. So the reset stays here until someone decides which
+  // reopen behaviour they want.
+  /* eslint-disable react-hooks/set-state-in-effect -- see note above */
   useEffect(() => {
     if (isOpen) {
       setIsExpanded(false);
@@ -241,13 +261,14 @@ export default function GroupTaskDetailModal({
       setRejectRemarks("");
       setMessageContent("");
       setMentions([]);
-      setAttachments([]);
+      clearAttachments();
 
       setIsEditingTask(false);
       setReplyingTo(null);
       handleCancelEdit();
     }
-  }, [isOpen]);
+  }, [isOpen, clearAttachments]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // --- Inline chat: fetch messages ---
   const { data: rawMessages = [], isLoading: isLoadingChat } = useQuery({
@@ -391,7 +412,7 @@ export default function GroupTaskDetailModal({
     },
     onSuccess: () => {
       setMessageContent("");
-      setAttachments([]);
+      clearAttachments();
       setMentions([]);
       setReplyingTo(null);
       queryClient.invalidateQueries({
@@ -401,35 +422,6 @@ export default function GroupTaskDetailModal({
     },
   });
 
-  const addFiles = useCallback((files) => {
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (!imageFiles.length) return;
-    const newEntries = imageFiles.map((file) => ({ file, preview: URL.createObjectURL(file) }));
-    setAttachments((prev) => [...prev, ...newEntries]);
-  }, []);
-
-  const removeAttachment = useCallback((index) => {
-    setAttachments((prev) => {
-      const next = [...prev];
-      URL.revokeObjectURL(next[index].preview);
-      next.splice(index, 1);
-      return next;
-    });
-  }, []);
-
-  const handlePaste = useCallback(
-    (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const imageItems = Array.from(items).filter((item) => item.type.startsWith("image/"));
-      if (!imageItems.length) return;
-      e.preventDefault();
-      const files = imageItems.map((item) => item.getAsFile()).filter(Boolean);
-      addFiles(files);
-    },
-    [addFiles],
-  );
-
   const handleSendMessage = useCallback(
     async (e) => {
       e?.preventDefault();
@@ -437,23 +429,18 @@ export default function GroupTaskDetailModal({
       const hasFiles = attachments.length > 0;
       if ((!hasText && !hasFiles) || !task?.id) return;
       if (isUploading || sendMessageMutation.isPending) return;
-      setIsUploading(true);
       try {
         let attachmentUrls = [];
         if (hasFiles) {
-          attachmentUrls = await Promise.all(
-            attachments.map((a) => storageService.uploadToCloudinary(a.file)),
-          );
+          attachmentUrls = await attachmentState.upload();
         }
         sendMessageMutation.mutate({ content: messageContent.trim(), attachmentUrls, replyTo: replyingTo, messageMentions: mentions });
       } catch (err) {
         toast.error("Failed to upload chat attachments");
         console.error("Failed to upload chat attachments:", err);
-      } finally {
-        setIsUploading(false);
       }
     },
-    [messageContent, attachments, task?.id, isUploading, sendMessageMutation, replyingTo],
+    [messageContent, attachments, task?.id, isUploading, sendMessageMutation, replyingTo, mentions, attachmentState],
   );
 
   // Helper: time ago
@@ -551,22 +538,28 @@ export default function GroupTaskDetailModal({
     return [...mine, ...others];
   }, [members, currentUserId]);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    // Select self on open, falling back to the first member for a viewer who
-    // is not assigned to this task (a head or HR, say).
-    if (!selectedMemberId && orderedMembers.length > 0) {
-      setSelectedMemberId(orderedMembers[0].id);
-      return;
+  /**
+   * Which member the panel is actually showing.
+   *
+   * Derived rather than corrected in an effect. Both rules below used to run as
+   * a setState after render, which paints one frame against a member who is no
+   * longer there — and on a list that changes while the modal is open (a member
+   * removed, a task reloaded) that frame is the one the viewer sees.
+   *
+   *   · Nothing selected yet — open on the first member. `orderedMembers` puts
+   *     the viewer first, so that is normally themselves, and a head or HR who
+   *     is not on the task lands on the top of the list instead.
+   *   · The selected member is gone — fall back to the first. Held off while a
+   *     draft is open, so an in-progress edit is not yanked out from under the
+   *     person making it.
+   */
+  const effectiveMemberId = useMemo(() => {
+    if (!isOpen) return selectedMemberId;
+    if (!selectedMemberId) return orderedMembers[0]?.id ?? null;
+    if (!draft && !orderedMembers.some((m) => m.id === selectedMemberId)) {
+      return orderedMembers[0]?.id ?? null;
     }
-    // Keep the selection valid if the selected member is removed.
-    if (
-      selectedMemberId &&
-      !draft &&
-      !orderedMembers.some((m) => m.id === selectedMemberId)
-    ) {
-      setSelectedMemberId(orderedMembers[0]?.id ?? null);
-    }
+    return selectedMemberId;
   }, [isOpen, orderedMembers, selectedMemberId, draft]);
 
   if (!task) return null;
@@ -581,7 +574,7 @@ export default function GroupTaskDetailModal({
   const displayStatus = isCompletedOrBeyond ? "COMPLETED" : task.status;
 
   const selectedMember =
-    orderedMembers.find((m) => m.id === selectedMemberId) || null;
+    orderedMembers.find((m) => m.id === effectiveMemberId) || null;
 
   const handleDelete = () => {
     confirmDeleteToast(
@@ -793,7 +786,7 @@ export default function GroupTaskDetailModal({
                 <div className="w-full md:w-[240px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-b md:border-b-0 md:border-r border-border">
                   <GroupTaskMemberRail
                     members={orderedMembers}
-                    selectedId={draft && !draft.id ? null : selectedMemberId}
+                    selectedId={draft && !draft.id ? null : effectiveMemberId}
                     onSelect={(id) => {
                       setDraft(null);
                       setSelectedMemberId(id);
@@ -1020,6 +1013,7 @@ export default function GroupTaskDetailModal({
                                             const url = await storageService.uploadToCloudinary(file);
                                             onAddAttachment(member.id, url);
                                           } catch (err) {
+                                            console.error(err);
                                             toast.error(`Failed to upload ${file.name}`);
                                           }
                                         }
@@ -1277,23 +1271,8 @@ export default function GroupTaskDetailModal({
                             <ReplyQuote replyTo={m.metadata?.replyTo} />
                             {m.content && <p>{renderContent(m.content, m.metadata?.mentions, isMe)}</p>}
                             {m.metadata?.attachments?.length > 0 && (
-                              <div className={cn("flex flex-wrap gap-1.5", m.content ? "mt-2" : "")}>
-                                {m.metadata.attachments.map((url, i) => (
-                                  <a
-                                    key={i}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="block rounded-lg overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                                  >
-                                    <img
-                                      src={url}
-                                      alt={`attachment-${i + 1}`}
-                                      className="max-w-[160px] max-h-[160px] object-cover rounded-lg"
-                                      loading="lazy"
-                                    />
-                                  </a>
-                                ))}
+                              <div className={cn(m.content ? "mt-2" : "")}>
+                                <AttachmentList attachments={m.metadata.attachments} />
                               </div>
                             )}
                           </div>
@@ -1330,7 +1309,7 @@ export default function GroupTaskDetailModal({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={ALLOWED_MIME_TYPES.join(",")}
                 multiple
                 className="hidden"
                 onChange={(e) => {
@@ -1345,44 +1324,26 @@ export default function GroupTaskDetailModal({
                   onCancel={() => setReplyingTo(null)}
                   className="rounded-t-xl -mx-1.5 -mt-1.5 mb-1.5"
                 />
-                {/* Image preview strip */}
+                {/* Pending attachment strip */}
                 {attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 px-2 pt-2 pb-1">
-                    {attachments.map((att, i) => (
-                      <div
-                        key={i}
-                        className="relative group rounded-lg overflow-hidden border border-border"
-                        style={{ width: 52, height: 52 }}
-                      >
-                        <img src={att.preview} alt={`preview-${i}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => removeAttachment(i)}
-                          className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X size={14} className="text-white" />
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-[52px] h-[52px] rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
-                    >
-                      <ImageIcon size={16} />
-                    </button>
+                  <div className="mb-2 px-2 pt-2">
+                    <AttachmentPreviews
+                      files={attachments}
+                      onRemove={removeAttachment}
+                      disabled={isUploading || sendMessageMutation.isPending}
+                    />
                   </div>
                 )}
 
                 <MentionTextarea
                   value={messageContent}
                   onChange={setMessageContent}
-                  onPaste={handlePaste}
+                  onPaste={addFromPaste}
                   onEnterSubmit={handleSendMessage}
                   people={employees}
                   mentions={mentions}
                   onMentionsChange={setMentions}
-                  placeholder="Write a message..."
+                  placeholder="Write a message or paste a file..."
                   className="w-full bg-transparent resize-none border-none shadow-none focus-visible:ring-0 text-sm block px-3 py-1.5 outline-none custom-scrollbar disabled:opacity-50 min-h-[36px]"
                   rows={1}
                   disabled={sendMessageMutation.isPending || isUploading}

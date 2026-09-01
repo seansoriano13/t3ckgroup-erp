@@ -10,7 +10,6 @@ import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { taskService } from "../services/taskService";
 import { groupTaskService } from "../services/groupTaskService";
-import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import {
   MessageCircle,
@@ -808,7 +807,7 @@ export default function ComprehensiveChatModal({
         latestCreatedAt: messages[messages.length - 1].createdAt
       });
     }
-  }, [messages?.length, selectedChat, internalOpen]); // Depend on messages array to trigger on new messages
+  }, [messages?.length, selectedChat, internalOpen, messages, markAsReadMutation]);
 
   // -- Handlers ----------------------------------------------
   const handleClose = () => {
