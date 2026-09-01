@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { Download, Loader2 } from "lucide-react";
@@ -25,6 +25,7 @@ const blankForm = () => ({
   lead_source: "",
   lead_source_detail: "",
   client_name: "",
+  odoo_partner_id: null,
   contact_person: "",
   project_title: "",
   project_type: "SSP",
@@ -43,6 +44,7 @@ const fromRecord = (o) => ({
   lead_source: o.lead_source || "",
   lead_source_detail: o.lead_source_detail || "",
   client_name: o.client_name || "",
+  odoo_partner_id: o.odoo_partner_id ?? null,
   contact_person: o.contact_person || "",
   project_title: o.project_title || "",
   project_type: o.project_type || "SSP",
@@ -138,10 +140,30 @@ export default function OpportunityFormModal({
     employees.find((e) => /sales\s*director/i.test(e.role || ""))?.id || "";
   const effectiveSalesDirectorId = form.sales_director_id || salesDirectorId;
 
+  const [fetchingOdoo, setFetchingOdoo] = useState(false);
+
+  // Which fields the last fetch actually changed, so only those wear the
+  // highlight. A field Odoo agreed with must not flash: if everything lit up,
+  // the highlight would stop meaning "look at this".
+  const [odooFilled, setOdooFilled] = useState({});
+
+  const highlightTimer = useRef(null);
+  useEffect(() => () => clearTimeout(highlightTimer.current), []);
+
   const set = (key) => (e) => {
     const val = e.target.value;
+    // Typing in a field the fetch just filled retires its highlight — the
+    // highlight reports what Odoo did, and the moment the value is the
+    // salesperson's again it is reporting something untrue.
+    setOdooFilled((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
     setForm((prev) => {
       const next = { ...prev, [key]: val };
+      // A verification marker that outlives the value it verified makes an
+      // unverified Company look checked, so editing the name drops the
+      // partner it was fetched from.
+      if (key === "client_name" && val !== prev.client_name) {
+        next.odoo_partner_id = null;
+      }
       if (key === "support_sales_1_id" || key === "support_sales_2_id") {
         next.project_type = deriveProjectType({
           supportSales1Id: next.support_sales_1_id,
@@ -165,8 +187,6 @@ export default function OpportunityFormModal({
           : "STRATEGIC",
     }));
   };
-
-  const [fetchingOdoo, setFetchingOdoo] = useState(false);
 
   const handleFetchFromOdoo = async () => {
     const ref = normalizeSalesReference(form.sales_reference);
@@ -194,10 +214,54 @@ export default function OpportunityFormModal({
         );
         return;
       }
+
+      const customer = result.customer || {};
+      const changed = {};
+
+      // The two fields are filled with opposite trust rules (ADR 0006).
+      // Company is whatever Odoo says — that is the field salespeople get
+      // wrong, and the quotation is the record of who is actually being sold
+      // to. Contact Person is filled only when empty, because a typed one
+      // usually carries a mobile number or a working name ("Sir Prado") that
+      // Odoo has never held, and overwriting that destroys information.
+      setForm((prev) => {
+        const next = { ...prev };
+        if (customer.company && customer.company !== prev.client_name) {
+          next.client_name = customer.company;
+          changed.client_name = true;
+        }
+        if (customer.company_id) {
+          next.odoo_partner_id = customer.company_id;
+        }
+        if (customer.contact && !(prev.contact_person || "").trim()) {
+          next.contact_person = customer.contact;
+          changed.contact_person = true;
+        }
+        return next;
+      });
+      setOdooFilled(changed);
+      // The highlight is a glance, not a state to be dismissed: it retires
+      // itself and fades out through the border transition the field already
+      // carries.
+      clearTimeout(highlightTimer.current);
+      highlightTimer.current = setTimeout(() => setOdooFilled({}), 1500);
+
       setItems(result.items.map(toRow));
-      toast.success(
-        `Pulled ${result.items.length} item(s) from ${result.order?.name || ref}.`,
-      );
+
+      const from = [result.order?.name || ref, customer.company]
+        .filter(Boolean)
+        .join(" — ");
+      if (result.items.length) {
+        toast.success(`Pulled ${result.items.length} item(s) from ${from}.`);
+      } else {
+        // Found, but half-built. The Company still came back and has been
+        // filled in, so this reports what is missing rather than failing.
+        toast.success(`Fetched ${from}.`);
+        toast.error(
+          result.message ||
+          `${result.order?.name || ref} has no product lines yet — enter them manually.`,
+        );
+      }
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {
@@ -282,11 +346,12 @@ export default function OpportunityFormModal({
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <TextField
-            label="Company Name"
+            label="Company"
             required
             placeholder="e.g. Acme Corp"
             value={form.client_name}
             onChange={set("client_name")}
+            filled={!!odooFilled.client_name}
           />
           <TextField
             label="Contact Person"
@@ -294,6 +359,7 @@ export default function OpportunityFormModal({
             placeholder="e.g. Juan Dela Cruz"
             value={form.contact_person}
             onChange={set("contact_person")}
+            filled={!!odooFilled.contact_person}
           />
         </div>
 
@@ -366,7 +432,7 @@ export default function OpportunityFormModal({
               type="button"
               onClick={handleFetchFromOdoo}
               disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
-              title="Pull the product list from this quotation in Odoo"
+              title="Pull the customer and the product list from this quotation in Odoo"
               className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
             >
               {fetchingOdoo ? (
@@ -374,7 +440,7 @@ export default function OpportunityFormModal({
               ) : (
                 <Download size={14} />
               )}
-              Fetch Items
+              Fetch from Odoo
             </button>
           </div>
         </div>
@@ -382,8 +448,9 @@ export default function OpportunityFormModal({
           The Odoo sales quotation number. It confirms a quotation has been
           issued, and is required before this opportunity can move from Lead to
           Qualified — leave it blank until the quotation exists. Use{" "}
-          <strong>Fetch Items</strong> to pull the Product List straight from
-          the quotation, or enter it manually below.
+          <strong>Fetch from Odoo</strong> to fill the Company and pull the
+          Product List straight from the quotation, or enter them manually
+          below.
         </p>
 
         <div className="pt-2 border-t border-border/50">

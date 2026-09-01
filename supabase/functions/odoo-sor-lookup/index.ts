@@ -1,6 +1,7 @@
 // Looks up a sale.order in Odoo by its quotation number (the "Sales
-// Reference" SOR captures, e.g. S01237) and returns its order lines, so SOR
-// can pre-fill the Product List instead of it being retyped by hand.
+// Reference" SOR captures, e.g. S01237) and returns its order lines and its
+// customer, so SOR can pre-fill the Product List and the Company instead of
+// either being retyped by hand.
 //
 // Odoo credentials live only in function secrets (see ../_shared/odoo.ts) —
 // the browser never talks to Odoo directly. Deploy with the default JWT
@@ -12,6 +13,7 @@ import {
   authenticate,
   corsHeaders,
   executeKw,
+  fetchCustomer,
   findOrder,
   isConfigured,
   jsonResponse,
@@ -80,21 +82,24 @@ Deno.serve(async (req) => {
       });
     }
 
-    const items = await fetchOrderItems(uid, order.id);
+    const [items, customer] = await Promise.all([
+      fetchOrderItems(uid, order.id),
+      fetchCustomer(uid, order),
+    ]);
 
-    if (!items.length) {
-      return jsonResponse({
-        success: false,
-        found: true,
-        message: `${order.name} was found in Odoo but has no product lines yet.`,
-      });
-    }
-
+    // A quotation with no product lines is still a found quotation with a real
+    // customer on it. Verifying the Company and pulling the Product List are
+    // two jobs sharing one request, so an empty list reports itself in the
+    // message rather than failing the whole lookup and discarding the Company.
     return jsonResponse({
       success: true,
       found: true,
       order: { id: order.id, name: order.name, state: order.state },
+      customer,
       items,
+      message: items.length
+        ? undefined
+        : `${order.name} was found in Odoo but has no product lines yet.`,
     });
   } catch (err) {
     console.error("odoo-sor-lookup error:", err);

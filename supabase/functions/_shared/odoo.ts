@@ -89,7 +89,11 @@ export function executeKw(uid, model, method, args, kwargs = {}) {
  * back to a fuzzy match, since references are sometimes typed without their
  * leading zeroes.
  */
-export async function findOrder(uid, ref, fields = ["id", "name", "state"]) {
+export async function findOrder(
+  uid,
+  ref,
+  fields = ["id", "name", "state", "partner_id", "commercial_partner_id"],
+) {
   const exact = await executeKw(
     uid,
     "sale.order",
@@ -141,6 +145,42 @@ export async function ensureAccessToken(uid, order) {
 export const NO_TOKEN_MESSAGE =
   "has no share token and Odoo would not accept a new one. " +
   "Open the quotation in Odoo and click Share once, then try again.";
+
+/**
+ * Splits an order's customer into the two fields SOR keeps apart.
+ *
+ * `commercial_partner_id` is always the parent organisation, while
+ * `partner_id` may be either that same organisation or a contact record
+ * beneath it. Reading them separately is what stops the Company and the
+ * Contact Person being mixed up — the mix-up this integration exists to fix.
+ *
+ * The contact's name is read from `res.partner` rather than taken from the
+ * `partner_id` pair: that pair carries Odoo's *display* name, which for a
+ * child contact is prefixed with its parent ("Makati City Government, Erika
+ * Duenas"), and writing that into Contact Person would reintroduce the very
+ * company-inside-the-contact-field shape being corrected. When the two
+ * partners are the same record the order has no named contact, so `contact`
+ * comes back empty rather than repeating the company.
+ */
+export async function fetchCustomer(uid, order) {
+  const company = order?.commercial_partner_id || order?.partner_id || null;
+  const contact = order?.partner_id || null;
+
+  const customer = {
+    company: (company && company[1]) || "",
+    company_id: (company && company[0]) || null,
+    contact: "",
+  };
+
+  if (!contact || !company || contact[0] === company[0]) return customer;
+
+  const [record] = await executeKw(uid, "res.partner", "read", [
+    [contact[0]],
+    ["name"],
+  ]);
+  customer.contact = record?.name || "";
+  return customer;
+}
 
 /**
  * Normalises and validates a Sales Reference, returning `null` when it isn't

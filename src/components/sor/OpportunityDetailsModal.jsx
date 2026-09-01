@@ -1080,7 +1080,7 @@ export default function OpportunityDetailsModal({
                   value={editForm.client_name}
                   onChange={(e) => setEditForm(f => ({ ...f, client_name: e.target.value }))}
                   className="w-full text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
-                  placeholder="Client Name"
+                  placeholder="Company"
                 />
               </div>
             ) : (

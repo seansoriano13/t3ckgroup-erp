@@ -9,6 +9,8 @@ import { describe, it, expect, vi } from "vitest";
 import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
+import { odooService } from "../../services/odooService";
+import toast from "react-hot-toast";
 
 const DIRECTOR_ID = "7a223a36-16b3-4842-a6e0-88798459b653";
 const OWNER_ID = "d44bd378-0d34-458a-91ef-615d8c695edb";
@@ -47,6 +49,10 @@ vi.mock("../../services/opportunityService", () => ({
 
 vi.mock("../../services/odooService", () => ({
   odooService: { fetchOrderLines: vi.fn() },
+}));
+
+vi.mock("react-hot-toast", () => ({
+  default: { success: vi.fn(), error: vi.fn() },
 }));
 
 // AuthContext spreads the record from employeeService, which is camelCased —
@@ -173,5 +179,177 @@ describe("OpportunityFormModal — Project Type Auto-derivation & Strategic Togg
     // After marking Strategic, Closing Salesperson is shown
     expect(screen.getByText("Closing Salesperson")).toBeInTheDocument();
     expect(screen.getByText("Deal Owner / Originator")).toBeInTheDocument();
+  });
+});
+
+/**
+ * The Company an SOR is sold to is the field salespeople get wrong — 14 of 154
+ * live records held a person there and the organisation in Contact Person. So
+ * the two are filled from Odoo with OPPOSITE trust rules (ADR 0006): the
+ * quotation's customer overwrites Company outright, while Contact Person is
+ * only filled when empty, because the typed value routinely carries a mobile
+ * number or a working name that Odoo does not hold.
+ */
+describe("OpportunityFormModal — the customer fetched from Odoo", () => {
+  const COMPANY = "e.g. Acme Corp";
+  const CONTACT = "e.g. Juan Dela Cruz";
+  const REFERENCE = "e.g. S01237";
+
+  const found = (overrides = {}) => ({
+    success: true,
+    found: true,
+    order: { id: 8234, name: "S08234", state: "sent" },
+    customer: {
+      company: "Makati City Government",
+      company_id: 4471,
+      contact: "Erika jane D. Duenas",
+    },
+    items: [{ product_name: "Pumper", unit: "Units", quantity: 2, unit_price: 1500 }],
+    ...overrides,
+  });
+
+  const type = (placeholder, value) =>
+    fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
+
+  const clickFetch = () =>
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+  const submit = () => {
+    const form = document.getElementById("opportunity-form");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+  };
+
+  const fetchWith = async (response) => {
+    odooService.fetchOrderLines.mockResolvedValue(response);
+    const onSubmit = renderForm();
+    await screen.findByText("101");
+    type(REFERENCE, "S08234");
+    clickFetch();
+    return onSubmit;
+  };
+
+  const companyFilled = () =>
+    waitFor(() =>
+      expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati City Government"),
+    );
+
+  it("fills the Company and the Contact Person from the quotation", async () => {
+    await fetchWith(found());
+
+    await companyFilled();
+    expect(screen.getByPlaceholderText(CONTACT)).toHaveValue("Erika jane D. Duenas");
+  });
+
+  it("overwrites a Company that was typed by hand", async () => {
+    odooService.fetchOrderLines.mockResolvedValue(found());
+    renderForm();
+    await screen.findByText("101");
+    type(COMPANY, "Makati LGU");
+    type(REFERENCE, "S08234");
+    clickFetch();
+
+    await companyFilled();
+  });
+
+  it("leaves a Contact Person that was typed by hand alone", async () => {
+    odooService.fetchOrderLines.mockResolvedValue(found());
+    renderForm();
+    await screen.findByText("101");
+    type(CONTACT, "Erika - 09171234567");
+    type(REFERENCE, "S08234");
+    clickFetch();
+
+    await companyFilled();
+    expect(screen.getByPlaceholderText(CONTACT)).toHaveValue("Erika - 09171234567");
+  });
+
+  it("still fills the Company when the quotation has no product lines yet", async () => {
+    await fetchWith(
+      found({
+        items: [],
+        message: "S08234 was found in Odoo but has no product lines yet.",
+      }),
+    );
+
+    await companyFilled();
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("no product lines"));
+  });
+
+  it("leaves the form untouched when the reference matches nothing", async () => {
+    odooService.fetchOrderLines.mockResolvedValue({
+      success: false,
+      found: false,
+      message: "No Odoo quotation found matching S09999.",
+    });
+    renderForm();
+    await screen.findByText("101");
+    type(COMPANY, "Makati LGU");
+    type(REFERENCE, "S09999");
+    clickFetch();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati LGU");
+  });
+
+  it("leaves the form untouched when Odoo cannot be reached", async () => {
+    odooService.fetchOrderLines.mockRejectedValue(new Error("Failed to fetch"));
+    renderForm();
+    await screen.findByText("101");
+    type(COMPANY, "Makati LGU");
+    type(REFERENCE, "S08234");
+    clickFetch();
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati LGU");
+  });
+
+  it("names the company in the toast that reports the pull", async () => {
+    await fetchWith(found());
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalled());
+    expect(toast.success.mock.calls[0][0]).toContain("Makati City Government");
+    expect(toast.success.mock.calls[0][0]).toContain("S08234");
+  });
+
+  it("marks the fields the fetch changed and leaves the others unmarked", async () => {
+    odooService.fetchOrderLines.mockResolvedValue(found());
+    renderForm();
+    await screen.findByText("101");
+    // Already correct — Odoo agrees, so nothing about this field changed and
+    // a highlight would be telling the salesperson something untrue.
+    type(COMPANY, "Makati City Government");
+    type(REFERENCE, "S08234");
+    clickFetch();
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(CONTACT)).toHaveValue("Erika jane D. Duenas"),
+    );
+    expect(
+      screen.getByPlaceholderText(CONTACT).closest("[data-odoo-filled]"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText(COMPANY).closest("[data-odoo-filled]"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("submits the Odoo partner behind a fetched Company", async () => {
+    const onSubmit = await fetchWith(found());
+
+    await companyFilled();
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].odoo_partner_id).toBe(4471);
+  });
+
+  it("drops the Odoo partner once the Company is edited by hand", async () => {
+    const onSubmit = await fetchWith(found());
+
+    await companyFilled();
+    type(COMPANY, "Makati City Govt");
+    submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].odoo_partner_id).toBe(null);
   });
 });

@@ -14,9 +14,25 @@ const LABEL =
 const CONTROL =
   "w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium";
 
-export function TextField({ label, required, className = "", ...props }) {
+// A field whose value was just replaced from an outside source (today, the
+// Odoo quotation lookup) wears the border briefly so the change is visible
+// without a toast per field. Deliberately one step up from the focus border
+// rather than a colour of its own: it should read as "this field moved", not
+// as an alert.
+const FILLED = "border-mauve-8 ring-1 ring-mauve-8";
+
+export function TextField({
+  label,
+  required,
+  className = "",
+  filled = false,
+  ...props
+}) {
   return (
-    <div className={`${BOX} ${className}`}>
+    <div
+      className={`${BOX} ${filled ? FILLED : ""} ${className}`}
+      data-odoo-filled={filled ? "true" : undefined}
+    >
       <label className={LABEL}>
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
