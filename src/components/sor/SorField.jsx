@@ -31,6 +31,7 @@ export function TextField({
   required,
   className = "",
   autofilled = false,
+  action = null,
   ...props
 }) {
   return (
@@ -38,10 +39,17 @@ export function TextField({
       className={`${autofilled ? `${BOX_BASE} ${AUTOFILLED}` : BOX} ${className}`}
       data-autofilled={autofilled ? "true" : undefined}
     >
-      <label className={LABEL}>
-        {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
-      </label>
+      {/* The label row carries any per-field action, so a control that acts on
+          this one field sits with it rather than floating elsewhere in the
+          form. Occupying the label's own line keeps the field's height and the
+          grid's rhythm unchanged whether or not an action is present. */}
+      <div className="flex items-baseline justify-between gap-2">
+        <label className={LABEL}>
+          {label}
+          {required && <span className="text-red-500 ml-0.5">*</span>}
+        </label>
+        {action}
+      </div>
       <input className={CONTROL} required={required} {...props} />
     </div>
   );

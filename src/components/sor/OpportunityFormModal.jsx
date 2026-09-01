@@ -147,6 +147,12 @@ export default function OpportunityFormModal({
   // the highlight would stop meaning "look at this".
   const [odooFilled, setOdooFilled] = useState({});
 
+  // The Company text the fetch displaced, kept so it can be put back. Only set
+  // when there was something there to lose: filling a blank Company is not a
+  // thing anyone needs to undo, and the field is required, so "undo" into an
+  // empty value would just break the form.
+  const [displacedCompany, setDisplacedCompany] = useState(null);
+
   const highlightTimer = useRef(null);
   useEffect(() => () => clearTimeout(highlightTimer.current), []);
 
@@ -156,6 +162,9 @@ export default function OpportunityFormModal({
     // highlight reports what Odoo did, and the moment the value is the
     // salesperson's again it is reporting something untrue.
     setOdooFilled((prev) => (prev[key] ? { ...prev, [key]: false } : prev));
+    // Typing over the fetched Company retires the offer to restore the older
+    // one: two competing "previous values" is a worse position than none.
+    if (key === "client_name") setDisplacedCompany(null);
     setForm((prev) => {
       const next = { ...prev, [key]: val };
       // A verification marker that outlives the value it verified makes an
@@ -217,6 +226,12 @@ export default function OpportunityFormModal({
 
       const customer = result.customer || {};
       const changed = {};
+      const previousCompany = form.client_name.trim();
+      setDisplacedCompany(
+        customer.company && previousCompany && customer.company !== previousCompany
+          ? previousCompany
+          : null,
+      );
 
       // The two fields are filled with opposite trust rules (ADR 0006).
       // Company is whatever Odoo says — that is the field salespeople get
@@ -267,6 +282,19 @@ export default function OpportunityFormModal({
     }
   };
 
+  // Restores the Company the fetch displaced. The verification marker goes
+  // with it: the name is no longer the one Odoo gave, so it is no longer
+  // vouched for by an Odoo customer.
+  const handleUndoCompany = () => {
+    setForm((prev) => ({
+      ...prev,
+      client_name: displacedCompany,
+      odoo_partner_id: null,
+    }));
+    setOdooFilled((prev) => ({ ...prev, client_name: false }));
+    setDisplacedCompany(null);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const sales_reference = normalizeSalesReference(form.sales_reference);
@@ -311,6 +339,43 @@ export default function OpportunityFormModal({
           </p>
         )}
 
+        {/* The Sales Reference leads the form because it FILLS the form. Left
+            where it used to sit — below Company, Contact Person and the
+            Product List — it invited the salesperson to type all three by
+            hand and only then offered a button that overwrites them. Framed
+            as an optional shortcut rather than as field #1, because roughly
+            half of SORs are registered before any quotation exists. */}
+        <div className="space-y-2 pb-1 border-b border-border/50">
+          <div className="flex gap-2">
+            <TextField
+              label="Sales Reference"
+              placeholder="e.g. S01237"
+              value={form.sales_reference}
+              onChange={set("sales_reference")}
+              className="flex-1"
+            />
+            <button
+              type="button"
+              onClick={handleFetchFromOdoo}
+              disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
+              title="Pull the customer and the product list from this quotation in Odoo"
+              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
+            >
+              {fetchingOdoo ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              Fetch from Odoo
+            </button>
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Fetching fills the Company, the Contact Person and the Product List
+            from the quotation. No quotation yet? Leave it blank — it is
+            required before this opportunity can move from Lead to Qualified.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {!isEdit && (
             <TextField
@@ -350,6 +415,18 @@ export default function OpportunityFormModal({
             value={form.client_name}
             onChange={set("client_name")}
             autofilled={!!odooFilled.client_name}
+            action={
+              displacedCompany ? (
+                <button
+                  type="button"
+                  onClick={handleUndoCompany}
+                  title={`Restore "${displacedCompany}"`}
+                  className="-my-1.5 -mr-1 px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 rounded-md transition-colors"
+                >
+                  Undo
+                </button>
+              ) : null
+            }
           />
           <TextField
             label="Contact Person"
@@ -418,38 +495,7 @@ export default function OpportunityFormModal({
             value={form.po_date}
             onChange={set("po_date")}
           />
-          <div className="sm:col-span-2 flex gap-2">
-            <TextField
-              label="Sales Reference"
-              placeholder="e.g. S01237"
-              value={form.sales_reference}
-              onChange={set("sales_reference")}
-              className="flex-1"
-            />
-            <button
-              type="button"
-              onClick={handleFetchFromOdoo}
-              disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
-              title="Pull the customer and the product list from this quotation in Odoo"
-              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
-            >
-              {fetchingOdoo ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              Fetch from Odoo
-            </button>
-          </div>
         </div>
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
-          The Odoo sales quotation number. It confirms a quotation has been
-          issued, and is required before this opportunity can move from Lead to
-          Qualified — leave it blank until the quotation exists. Use{" "}
-          <strong>Fetch from Odoo</strong> to fill the Company and pull the
-          Product List straight from the quotation, or enter them manually
-          below.
-        </p>
 
         <div className="pt-2 border-t border-border/50">
           <OpportunityItemsEditor items={items} onChange={setItems} />

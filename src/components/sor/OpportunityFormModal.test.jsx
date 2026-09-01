@@ -447,3 +447,88 @@ describe("SorField — the fetched-value highlight", () => {
     expect(box.className).not.toContain("border-border");
   });
 });
+
+/**
+ * The fetch overwrites Company on purpose — that is the field salespeople get
+ * wrong. Undo exists for the case the overwrite itself is wrong: `findOrder`
+ * falls back to a fuzzy `ilike` match, so a mistyped reference can resolve to
+ * a real but different quotation and hand back a real but different customer.
+ */
+describe("OpportunityFormModal — putting back a Company the fetch displaced", () => {
+  const COMPANY = "e.g. Acme Corp";
+  const REFERENCE = "e.g. S01237";
+
+  const found = {
+    success: true,
+    found: true,
+    order: { id: 8234, name: "S08234", state: "sent" },
+    customer: { company: "Makati City Government", company_id: 4471, contact: "" },
+    items: [{ product_name: "Pumper", unit: "Units", quantity: 1, unit_price: 10 }],
+  };
+
+  const fetchOver = async (typedCompany) => {
+    odooService.fetchOrderLines.mockResolvedValue(found);
+    const onSubmit = renderForm();
+    await screen.findByText("101");
+    if (typedCompany) {
+      fireEvent.change(screen.getByPlaceholderText(COMPANY), {
+        target: { value: typedCompany },
+      });
+    }
+    fireEvent.change(screen.getByPlaceholderText(REFERENCE), {
+      target: { value: "S08234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /fetch from odoo/i }));
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati City Government"),
+    );
+    return onSubmit;
+  };
+
+  const undo = () => screen.queryByRole("button", { name: /^undo$/i });
+
+  it("offers to restore the Company that was typed before the fetch", async () => {
+    await fetchOver("Makati LGU");
+
+    fireEvent.click(undo());
+
+    expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati LGU");
+  });
+
+  it("drops the Odoo partner when the fetched Company is put back", async () => {
+    // The restored name is the salesperson's again, so nothing vouches for it.
+    const onSubmit = await fetchOver("Makati LGU");
+
+    fireEvent.click(undo());
+    document
+      .getElementById("opportunity-form")
+      .dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].odoo_partner_id).toBe(null);
+    expect(onSubmit.mock.calls[0][0].client_name).toBe("Makati LGU");
+  });
+
+  it("does not offer to restore an empty Company", async () => {
+    // Company is required, so undoing into a blank would only break the form.
+    await fetchOver("");
+
+    expect(undo()).not.toBeInTheDocument();
+  });
+
+  it("withdraws the offer once the Company is typed over", async () => {
+    await fetchOver("Makati LGU");
+
+    fireEvent.change(screen.getByPlaceholderText(COMPANY), {
+      target: { value: "Makati City Govt" },
+    });
+
+    expect(undo()).not.toBeInTheDocument();
+  });
+
+  it("offers nothing when Odoo agreed with what was already typed", async () => {
+    await fetchOver("Makati City Government");
+
+    expect(undo()).not.toBeInTheDocument();
+  });
+});
