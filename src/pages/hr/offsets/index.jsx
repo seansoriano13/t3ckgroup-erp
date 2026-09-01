@@ -15,7 +15,7 @@ import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
-import { formatWindow } from '../../../utils/time';
+import { formatWindow, isRequestInPendingPeriod } from '../../../utils/time';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -41,6 +41,19 @@ export default function HrLeavesManagerPage() {
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
+  const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
+
+  // Manage FloatingMonthPicker visibility
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      window.dispatchEvent(new Event('FLOATING_PICKER_HIDE'));
+    } else {
+      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
+    }
+    return () => {
+      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
+    };
+  }, [activeTab]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -54,33 +67,42 @@ export default function HrLeavesManagerPage() {
       if (empErr) throw empErr;
       setEmployeeBalances(empData);
 
-      // 2. Fetch All Requests
+      // 2. Fetch Requests
       const [
         allOt,
         allOffset,
-        allSil
+        allSil,
+        pendingOt,
+        pendingOffset,
+        pendingSil
       ] = await Promise.all([
         offsetService.getAllOvertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate),
-        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate)
+        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate),
+        offsetService.getAllPendingOvertimeRequests(),
+        offsetService.getAllPendingOffsetLeaves(),
+        silService.getAllPendingSilLeaves()
       ]);
 
-      // Tag types
+      // Tag types for period-scoped requests
       const taggedOt = allOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedOffset = allOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedSil = allSil.map(l => ({ ...l, type: 'SIL' }));
-
       const combined = [...taggedOt, ...taggedOffset, ...taggedSil];
 
-      // Sort & Split
-      const pending = combined.filter(req => req.status === 'PENDING').sort((a, b) => new Date(a.date) - new Date(b.date));
+      // Tag types for dateless pending requests
+      const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
+      const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
+      const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
+      const pendingCombined = [...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil]
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Processed & Approved (from period-scoped)
       const processed = combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
                                 .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-      
-      // Approved for calendar
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
-      setPendingLeaves(pending);
+      setPendingLeaves(pendingCombined);
       setProcessedLeaves(processed);
       setApprovedLeaves(approved);
 
@@ -192,11 +214,33 @@ export default function HrLeavesManagerPage() {
       if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
       if (searchQuery) {
         const empName = (req.employee?.name || '').toLowerCase();
-        return empName.includes(searchQuery.toLowerCase());
+        if (!empName.includes(searchQuery.toLowerCase())) return false;
+      }
+      
+      if (pendingPeriodFilter !== 'ALL') {
+        if (!isRequestInPendingPeriod(req.date, pendingPeriodFilter)) return false;
       }
       return true;
     });
-  }, [pendingLeaves, leaveTypeFilter, searchQuery]);
+  }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter]);
+
+  // Group filtered pending by month
+  const pendingByMonth = useMemo(() => {
+    const groups = {};
+    filteredPending.forEach(req => {
+      const d = new Date(req.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!groups[key]) {
+        groups[key] = {
+          label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          requests: []
+        };
+      }
+      groups[key].requests.push(req);
+    });
+    // Sort groups by key ascending
+    return Object.keys(groups).sort().map(k => groups[k]);
+  }, [filteredPending]);
 
   const filteredProcessed = useMemo(() => {
     return processedLeaves.filter(req => {
@@ -271,7 +315,29 @@ export default function HrLeavesManagerPage() {
                   </select>
                 </div>
               )}
+              
+              {activeTab === 'pending' && (
+                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
+                  <Clock size={14} className="text-muted-foreground" />
+                  <select
+                    value={pendingPeriodFilter}
+                    onChange={(e) => setPendingPeriodFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                  >
+                    <option value="ALL">All time</option>
+                    <option value="THIS_MONTH">This month</option>
+                    <option value="NEXT_MONTH">Next month</option>
+                    <option value="OVERDUE">Overdue</option>
+                  </select>
+                </div>
+              )}
            </div>
+        )}
+
+        {activeTab === 'pending' && filteredPending.length < pendingLeaves.length && (
+          <p className="text-xs font-semibold text-muted-foreground px-1">
+            Showing {filteredPending.length} of {pendingLeaves.length} pending requests
+          </p>
         )}
 
         {/* Content Tabs */}
@@ -312,70 +378,79 @@ export default function HrLeavesManagerPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {filteredPending.map(req => (
-                       <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                              <div>
-                                <p className="text-sm font-bold text-foreground">{req.employee?.name}</p>
-                                <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
-                              </div>
-                            </div>
+                    {pendingByMonth.map(group => (
+                      <React.Fragment key={group.label}>
+                        <tr>
+                          <td colSpan="7" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
+                            {group.label}
                           </td>
-                          <td className="p-4">
-                            <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                              req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                              req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
-                            }`}>
-                              {req.type}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
-                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="p-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-black text-sm text-foreground">
-                                {req.hours} hrs
-                              </span>
-                              {req.start_time && req.end_time && (
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                  {formatWindow(req.start_time, req.end_time)}
+                        </tr>
+                        {group.requests.map(req => (
+                           <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
+                                  <div>
+                                    <p className="text-sm font-bold text-foreground">{req.employee?.name}</p>
+                                    <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
+                                  req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
+                                  req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                                }`}>
+                                  {req.type}
                                 </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
-                             {req.reason || '-'}
-                          </td>
-                          <td className="p-4">
-                             {req.attachments?.length ? (
-                               <AttachmentList attachments={req.attachments} compact />
-                             ) : (
-                               <span className="text-xs text-muted-foreground/50">-</span>
-                             )}
-                          </td>
-                          <td className="p-4 text-right space-x-2">
-                             {req.type === 'OVERTIME' ? (
-                                <>
-                                  <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve (Offset)
-                                  </button>
-                                  <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve (Paid)
-                                  </button>
-                                </>
-                             ) : (
-                                <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve
-                                </button>
-                             )}
-                             <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                Reject
-                             </button>
-                          </td>
-                       </tr>
+                              </td>
+                              <td className="p-4 text-sm font-bold text-foreground">
+                                {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-black text-sm text-foreground">
+                                    {req.hours} hrs
+                                  </span>
+                                  {req.start_time && req.end_time && (
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                      {formatWindow(req.start_time, req.end_time)}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
+                                 {req.reason || '-'}
+                              </td>
+                              <td className="p-4">
+                                 {req.attachments?.length ? (
+                                   <AttachmentList attachments={req.attachments} compact />
+                                 ) : (
+                                   <span className="text-xs text-muted-foreground/50">-</span>
+                                 )}
+                              </td>
+                              <td className="p-4 text-right space-x-2">
+                                 {req.type === 'OVERTIME' ? (
+                                    <>
+                                      <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve (Offset)
+                                      </button>
+                                      <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve (Paid)
+                                      </button>
+                                    </>
+                                 ) : (
+                                    <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve
+                                    </button>
+                                 )}
+                                 <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                    Reject
+                                 </button>
+                              </td>
+                           </tr>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
