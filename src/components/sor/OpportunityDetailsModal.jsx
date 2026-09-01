@@ -680,7 +680,12 @@ export default function OpportunityDetailsModal({
       setAutoSyncingOdoo(true);
       try {
         const result = await odooService.fetchOrderLines(ref);
-        if (result?.success && isMounted) {
+        // `items: []` means the quotation is half-built, not that its products
+        // were removed. Since 0006 that case comes back as a SUCCESS so the
+        // Company can still be verified from it — without this guard the sync
+        // would write an empty Product List over a stored one, deleting it in
+        // the database on nothing more than opening the record.
+        if (result?.success && result.items.length && isMounted) {
           const payload = {
             ...opportunity,
             items: result.items.map(toRow)
@@ -729,10 +734,18 @@ export default function OpportunityDetailsModal({
         );
         return;
       }
+      const quotation = result.order?.name || ref;
+      // Same guard as the auto-sync above: an empty list must not replace a
+      // Product List that already has rows in it.
+      if (!result.items.length) {
+        toast.error(
+          result.message ||
+          `${quotation} has no product lines yet — enter them manually.`,
+        );
+        return;
+      }
       setEditForm(f => ({ ...f, items: result.items.map(toRow) }));
-      toast.success(
-        `Pulled ${result.items.length} item(s) from ${result.order?.name || ref}.`,
-      );
+      toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {

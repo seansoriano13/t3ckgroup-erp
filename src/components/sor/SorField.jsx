@@ -7,8 +7,13 @@ import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
 
-const BOX =
-  "bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
+// Split so a field can swap its resting border colour out. Two border-colour
+// utilities on one element resolve by stylesheet order rather than by the
+// order they appear in the class attribute, so appending a highlight colour
+// next to `border-border` is how a highlight ends up invisible.
+const BOX_BASE =
+  "bg-muted/30 border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all";
+const BOX = `${BOX_BASE} border-border`;
 const LABEL =
   "text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block";
 const CONTROL =
@@ -19,19 +24,19 @@ const CONTROL =
 // without a toast per field. Deliberately one step up from the focus border
 // rather than a colour of its own: it should read as "this field moved", not
 // as an alert.
-const FILLED = "border-mauve-8 ring-1 ring-mauve-8";
+const AUTOFILLED = "border-mauve-8 ring-1 ring-mauve-8";
 
 export function TextField({
   label,
   required,
   className = "",
-  filled = false,
+  autofilled = false,
   ...props
 }) {
   return (
     <div
-      className={`${BOX} ${filled ? FILLED : ""} ${className}`}
-      data-odoo-filled={filled ? "true" : undefined}
+      className={`${autofilled ? `${BOX_BASE} ${AUTOFILLED}` : BOX} ${className}`}
+      data-autofilled={autofilled ? "true" : undefined}
     >
       <label className={LABEL}>
         {label}

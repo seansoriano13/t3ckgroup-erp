@@ -246,22 +246,20 @@ export default function OpportunityFormModal({
       clearTimeout(highlightTimer.current);
       highlightTimer.current = setTimeout(() => setOdooFilled({}), 1500);
 
-      setItems(result.items.map(toRow));
+      // An empty list means the quotation is half-built, NOT that its products
+      // were deleted — replacing the editor with nothing would throw away work
+      // the salesperson typed. Only a list with something in it replaces one.
+      if (result.items.length) setItems(result.items.map(toRow));
 
-      const from = [result.order?.name || ref, customer.company]
+      const quotation = result.order?.name || ref;
+      const from = [quotation, customer.company]
         .filter(Boolean)
         .join(" — ");
-      if (result.items.length) {
-        toast.success(`Pulled ${result.items.length} item(s) from ${from}.`);
-      } else {
-        // Found, but half-built. The Company still came back and has been
-        // filled in, so this reports what is missing rather than failing.
-        toast.success(`Fetched ${from}.`);
-        toast.error(
-          result.message ||
-          `${result.order?.name || ref} has no product lines yet — enter them manually.`,
-        );
-      }
+      toast.success(
+        result.items.length
+          ? `Pulled ${result.items.length} item(s) from ${from}.`
+          : `Fetched ${from} — no product lines on it yet, so enter them below.`,
+      );
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {
@@ -351,7 +349,7 @@ export default function OpportunityFormModal({
             placeholder="e.g. Acme Corp"
             value={form.client_name}
             onChange={set("client_name")}
-            filled={!!odooFilled.client_name}
+            autofilled={!!odooFilled.client_name}
           />
           <TextField
             label="Contact Person"
@@ -359,7 +357,7 @@ export default function OpportunityFormModal({
             placeholder="e.g. Juan Dela Cruz"
             value={form.contact_person}
             onChange={set("contact_person")}
-            filled={!!odooFilled.contact_person}
+            autofilled={!!odooFilled.contact_person}
           />
         </div>
 

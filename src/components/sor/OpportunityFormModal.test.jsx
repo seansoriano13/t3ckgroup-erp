@@ -272,7 +272,8 @@ describe("OpportunityFormModal — the customer fetched from Odoo", () => {
     );
 
     await companyFilled();
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("no product lines"));
+    expect(toast.error).not.toHaveBeenCalled();
+    expect(toast.success.mock.calls[0][0]).toContain("no product lines");
   });
 
   it("leaves the form untouched when the reference matches nothing", async () => {
@@ -325,10 +326,10 @@ describe("OpportunityFormModal — the customer fetched from Odoo", () => {
       expect(screen.getByPlaceholderText(CONTACT)).toHaveValue("Erika jane D. Duenas"),
     );
     expect(
-      screen.getByPlaceholderText(CONTACT).closest("[data-odoo-filled]"),
+      screen.getByPlaceholderText(CONTACT).closest("[data-autofilled]"),
     ).toBeInTheDocument();
     expect(
-      screen.getByPlaceholderText(COMPANY).closest("[data-odoo-filled]"),
+      screen.getByPlaceholderText(COMPANY).closest("[data-autofilled]"),
     ).not.toBeInTheDocument();
   });
 
@@ -351,5 +352,98 @@ describe("OpportunityFormModal — the customer fetched from Odoo", () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].odoo_partner_id).toBe(null);
+  });
+});
+
+/**
+ * Splitting the empty-quotation case out of the failure path (so the Company
+ * still gets verified) put the Product List in reach of a response that
+ * carries no items. These pin the two things that must NOT follow from that.
+ */
+describe("OpportunityFormModal — a quotation with no product lines", () => {
+  const COMPANY = "e.g. Acme Corp";
+  const REFERENCE = "e.g. S01237";
+  const PRODUCT = "e.g. Boom Lift";
+
+  const emptyQuotation = {
+    success: true,
+    found: true,
+    order: { id: 8234, name: "S08234", state: "draft" },
+    customer: { company: "Makati City Government", company_id: 4471, contact: "" },
+    items: [],
+    message: "S08234 was found in Odoo but has no product lines yet.",
+  };
+
+  it("leaves a hand-built Product List standing", async () => {
+    // The old contract failed this response outright, so the items survived by
+    // accident. Now that it succeeds, an empty list must not read as "replace
+    // everything with nothing" — that is the salesperson's typing, gone.
+    odooService.fetchOrderLines.mockResolvedValue(emptyQuotation);
+    vi.stubGlobal("confirm", () => true);
+
+    renderForm();
+    await screen.findByText("101");
+    fireEvent.click(screen.getByRole("button", { name: /add item/i }));
+    fireEvent.change(screen.getByPlaceholderText(PRODUCT), {
+      target: { value: "Boom Lift" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(REFERENCE), {
+      target: { value: "S08234" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /fetch from odoo/i }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati City Government"),
+    );
+    expect(screen.getByPlaceholderText(PRODUCT)).toHaveValue("Boom Lift");
+  });
+
+  it("reports the whole outcome in one toast", async () => {
+    // One fetch, one piece of feedback. Two toasts for one gesture reads as
+    // two things having happened.
+    odooService.fetchOrderLines.mockResolvedValue(emptyQuotation);
+    renderForm();
+    await screen.findByText("101");
+    fireEvent.change(screen.getByPlaceholderText(REFERENCE), {
+      target: { value: "S08234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText(COMPANY)).toHaveValue("Makati City Government"),
+    );
+    const toasts = toast.success.mock.calls.length + toast.error.mock.calls.length;
+    expect(toasts).toBe(1);
+  });
+});
+
+describe("SorField — the fetched-value highlight", () => {
+  it("replaces the resting border rather than stacking a second one on it", async () => {
+    // Both are border-colour utilities, so which one wins is decided by
+    // stylesheet order, not by the order they appear in the class attribute.
+    // Leaving `border-border` in place next to `border-mauve-8` is how a
+    // highlight ends up invisible while every behavioural test still passes.
+    odooService.fetchOrderLines.mockResolvedValue({
+      success: true,
+      found: true,
+      order: { id: 8234, name: "S08234", state: "sent" },
+      customer: { company: "Makati City Government", company_id: 4471, contact: "" },
+      items: [{ product_name: "Pumper", unit: "Units", quantity: 1, unit_price: 10 }],
+    });
+    renderForm();
+    await screen.findByText("101");
+    fireEvent.change(screen.getByPlaceholderText("e.g. S01237"), {
+      target: { value: "S08234" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /fetch/i }));
+
+    const box = await waitFor(() => {
+      const el = screen.getByPlaceholderText("e.g. Acme Corp").closest("[data-autofilled]");
+      expect(el).toBeInTheDocument();
+      return el;
+    });
+    expect(box.className).toContain("border-mauve-8");
+    expect(box.className).not.toContain("border-border");
   });
 });
