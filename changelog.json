@@ -1,6 +1,19 @@
 {
   "versions": [
     {
+      "version": "1.2.0",
+      "date": "2026-09-01",
+      "changes": [
+        "You can now specify exact start and end times for overtime, offset leaves, and SIL leaves, rather than just the number of hours.",
+        "The system now prevents you from accidentally filing multiple leave or overtime applications that overlap with your own existing time windows on the same day.",
+        "The HR and personal leave boards now display specific time windows alongside the total hours.",
+        "The Pending Requests tab now shows all pending applications regardless of what month they are for, grouping them clearly by month.",
+        "Added a new 'Awaiting Decision' section at the top of your personal leaves and overtime tabs so you can easily track requests that HR hasn't processed yet.",
+        "You can now attach any common document types (PDFs, Word documents, Excel sheets, ZIP files) to chat messages and leave applications, in addition to images.",
+        "Cleaned up duplicated attachment preview code across task and chat components for better performance."
+      ]
+    },
+    {
       "version": "1.1.0",
       "date": "2026-09-01",
       "changes": [
