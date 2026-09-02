@@ -75,6 +75,36 @@ const COLOR_TILES = {
   green: "bg-green-a3 text-green-11",
 };
 
+const COLOR_OUTLINES = {
+  mauve: "outline-mauve-6 hover:outline-mauve-8",
+  amber: "outline-amber-6 hover:outline-amber-8",
+  blue: "outline-blue-6 hover:outline-blue-8",
+  red: "outline-red-6 hover:outline-red-8",
+  violet: "outline-violet-6 hover:outline-violet-8",
+  orange: "outline-orange-6 hover:outline-orange-8",
+  green: "outline-green-6 hover:outline-green-8",
+};
+
+const COLOR_OUTLINES_SELECTED = {
+  mauve: "outline-mauve-9 shadow-[0_14px_32px_-14px_var(--mauve-a6)]",
+  amber: "outline-amber-9 shadow-[0_14px_32px_-14px_var(--amber-a6)]",
+  blue: "outline-blue-9 shadow-[0_14px_32px_-14px_var(--blue-a6)]",
+  red: "outline-red-9 shadow-[0_14px_32px_-14px_var(--red-a6)]",
+  violet: "outline-violet-9 shadow-[0_14px_32px_-14px_var(--violet-a6)]",
+  orange: "outline-orange-9 shadow-[0_14px_32px_-14px_var(--orange-a6)]",
+  green: "outline-green-9 shadow-[0_14px_32px_-14px_var(--green-a6)]",
+};
+
+const COLOR_BACKGROUNDS = {
+  mauve: "bg-mauve-2",
+  amber: "bg-amber-2",
+  blue: "bg-blue-2",
+  red: "bg-red-2",
+  violet: "bg-violet-2",
+  orange: "bg-orange-2",
+  green: "bg-green-2",
+};
+
 const Chip = ({ className, icon: Icon, children }) => (
   <span
     className={cn(
@@ -116,18 +146,25 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
   const { stage, isEntry, isWon, disabled, conditionCount = 0, actionCount = 0 } = data;
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
   const RoleIcon = role.icon;
-  const tile = stage.color ? COLOR_TILES[stage.color] || COLOR_TILES.mauve : role.tile;
+  const colorKey = stage.color || "mauve";
+  const tile = COLOR_TILES[colorKey] || role.tile;
+  
+  const outlineClass = selected
+    ? `outline-2 ${COLOR_OUTLINES_SELECTED[colorKey] || COLOR_OUTLINES_SELECTED.mauve}`
+    : `outline-1 ${COLOR_OUTLINES[colorKey] || COLOR_OUTLINES.mauve}`;
+
+  const bgClass = COLOR_BACKGROUNDS[colorKey] || COLOR_BACKGROUNDS.mauve;
 
   return (
     <div
       style={{ width: STAGE_W, minHeight: STAGE_H }}
       className={cn(
-        "group/stage relative flex flex-col justify-center gap-2 rounded-2xl bg-card px-4 py-3.5",
+        "group/stage relative flex flex-col justify-center gap-2 rounded-2xl px-4 py-3.5",
+        bgClass,
         "shadow-[0_1px_2px_rgba(0,0,0,0.05),0_10px_24px_-14px_rgba(0,0,0,0.35)]",
         "transition-[box-shadow,outline-color] duration-150",
-        "outline outline-1 -outline-offset-1 outline-mauve-6 hover:outline-mauve-8",
-        selected &&
-          "outline-2 outline-primary shadow-[0_1px_2px_rgba(0,0,0,0.05),0_14px_32px_-14px_rgba(0,0,0,0.45)]",
+        "-outline-offset-1",
+        outlineClass
       )}
     >
       <Handle

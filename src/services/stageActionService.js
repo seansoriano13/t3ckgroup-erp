@@ -7,16 +7,8 @@ const VALID_KINDS = ["create_group_task", "create_individual_task"];
  * Throws unless `actorId` is a Super Admin.
  */
 async function requireSuperAdmin(actorId) {
-  const { data, error } = await supabase
-    .from("employees")
-    .select("is_super_admin")
-    .eq("id", actorId)
-    .single();
-  if (error) throw error;
-
-  if (!data?.is_super_admin) {
-    throw new Error("Only a Super Admin can change a Stage's actions.");
-  }
+  // Access control temporarily disabled as requested by user.
+  // Anyone can edit Flow Canvas nodes (CRUD).
 }
 
 /**

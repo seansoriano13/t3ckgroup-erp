@@ -1,12 +1,10 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import dagre from "dagre";
+import * as dagre from "@dagrejs/dagre";
 import {
   Archive,
   ArchiveRestore,
   ChevronDown,
-  Lock,
-  LockOpen,
   Pencil,
   Plus,
   Sparkles,
@@ -42,7 +40,7 @@ import { supabase } from "../../lib/supabase";
 import { salesFlowService } from "../../services/salesFlowService";
 import { stageConditionService } from "../../services/stageConditionService";
 import { stageActionService } from "../../services/stageActionService";
-import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
+import { entryStage } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
@@ -138,11 +136,7 @@ function FlowCanvasInner() {
   const stages = useMemo(() => canvas?.stages ?? [], [canvas?.stages]);
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
-  const isLocked = flow?.state === "locked";
   const entry = entryStage(stages);
-  const blockers = flow
-    ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id })
-    : [];
 
   const stageIds = useMemo(() => stages.map((s) => s.id), [stages]);
   const stageKey = useMemo(() => [...stageIds].sort().join(","), [stageIds]);
@@ -173,6 +167,10 @@ function FlowCanvasInner() {
   const [activeUsers, setActiveUsers] = useState({});
   const [cursors, setCursors] = useState({});
   const channelRef = useRef(null);
+
+  // --- React Flow state ------------------------------------------------------
+  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
+  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     if (!effectiveSaleTypeId) return;
@@ -247,7 +245,7 @@ function FlowCanvasInner() {
       channel.unsubscribe();
       channelRef.current = null;
     };
-  }, [effectiveSaleTypeId, refresh, user]);
+  }, [effectiveSaleTypeId, refresh, user, setRfNodes]);
 
   const handlePointerMove = useCallback((e) => {
     if (channelRef.current?.state === 'joined') {
@@ -351,40 +349,12 @@ function FlowCanvasInner() {
     run(() => salesFlowService.setStageTerminal(stage.id, !stage.is_terminal, user?.id));
   }, [user?.id, run]);
 
-  const handleLock = () => {
-    ask({
-      title: "Lock this flow?",
-      description:
-        "It becomes read-only — no Stages, moves, conditions or actions can be changed until somebody unlocks it and says why.",
-      confirmLabel: "Lock flow",
-      onConfirm: () => run(() => salesFlowService.lockFlow(flow.id, user?.id), "Flow locked."),
-    });
-  };
-
-  const handleUnlock = () => {
-    ask({
-      title: "Reopen this flow?",
-      description: "The reason is recorded against the flow, so later readers know what changed and why.",
-      confirmLabel: "Unlock flow",
-      field: { label: "Reason", placeholder: "e.g. Post-qualification now needs a second signatory" },
-      required: true,
-      onConfirm: (reason) =>
-        run(() => salesFlowService.unlockFlow(flow.id, reason, user?.id), "Flow unlocked."),
-    });
-  };
-
   const handleRemoveEdge = useCallback(
     (edgeId) => {
-      if (isLocked) return;
       run(() => salesFlowService.removeEdge(edgeId, user?.id), "Move removed.");
     },
-    [isLocked, user?.id, run]
+    [user?.id, run]
   );
-
-  // --- React Flow state ------------------------------------------------------
-
-  const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
-  const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
 
   useEffect(() => {
     const nodes = [];
@@ -428,11 +398,11 @@ function FlowCanvasInner() {
           stage,
           isEntry: entry?.id === stage.id,
           isWon: flow?.won_stage_id === stage.id,
-          disabled: isLocked,
+          disabled: false,
           conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
         },
-        draggable: !isLocked,
+        draggable: true,
       });
     });
 
@@ -495,7 +465,7 @@ function FlowCanvasInner() {
 
         // The empty slot is an affordance, not decoration — so it appears only
         // on the Stage being worked on, and never on a locked flow.
-        if (isSelected && !isLocked && overflow === 0) {
+        if (isSelected && overflow === 0) {
           addSatellite(stage, column, items.length, `sat:${stage.id}:${column}:add`, {
             variant: "add",
             addLabel,
@@ -515,10 +485,10 @@ function FlowCanvasInner() {
       // underneath it — and the move draws from the wrong side of the Stage.
       sourceHandle: HANDLE_OUT,
       targetHandle: HANDLE_IN,
-      deletable: !isLocked,
-      reconnectable: !isLocked,
+      deletable: true,
+      reconnectable: true,
       data: {
-        disabled: isLocked,
+        disabled: false,
         fromName: stageName[e.from_stage_id],
         toName: stageName[e.to_stage_id],
         onDelete: (edgeId) => handleRemoveEdge(edgeId),
@@ -531,7 +501,6 @@ function FlowCanvasInner() {
     stages,
     edges,
     flow,
-    isLocked,
     entry,
     conditionsByStage,
     actionsByStage,
@@ -543,7 +512,7 @@ function FlowCanvasInner() {
 
   const onNodeDrag = useCallback(
     (_event, node) => {
-      if (isLocked || node.type !== "stage") return;
+      if (node.type !== "stage") return;
       if (channelRef.current && user) {
         channelRef.current.send({
           type: 'broadcast',
@@ -556,12 +525,12 @@ function FlowCanvasInner() {
         }).catch(() => {});
       }
     },
-    [isLocked, user]
+    [user]
   );
 
   const onNodeDragStop = useCallback(
     (_event, node) => {
-      if (isLocked || node.type !== "stage") return;
+      if (node.type !== "stage") return;
       salesFlowService
         .updateStagePosition(node.id, node.position.x, node.position.y, user?.id)
         .catch((err) => {
@@ -569,7 +538,7 @@ function FlowCanvasInner() {
           toast.error("That Stage's new position could not be saved. Move it again to retry.");
         });
     },
-    [isLocked, user?.id]
+    [user?.id]
   );
 
   const stageIdSet = useMemo(() => new Set(stageIds), [stageIds]);
@@ -578,20 +547,19 @@ function FlowCanvasInner() {
     (params) => {
       // Only Stage-to-Stage is a move. A satellite is a property of its Stage,
       // and the schema has nowhere to put an edge that ends on one.
-      if (isLocked || !stageIdSet.has(params.source) || !stageIdSet.has(params.target)) return;
+      if (!stageIdSet.has(params.source) || !stageIdSet.has(params.target)) return;
       run(() => salesFlowService.addEdge(flow.id, params.source, params.target, user?.id));
     },
-    [isLocked, flow, user?.id, run, stageIdSet]
+    [flow, user?.id, run, stageIdSet]
   );
 
   const onEdgesDelete = useCallback(
     (edgesToDelete) => {
-      if (isLocked) return;
       edgesToDelete
         .filter((edge) => !edge.id.startsWith("satedge:"))
         .forEach((edge) => run(() => salesFlowService.removeEdge(edge.id, user?.id)));
     },
-    [isLocked, user?.id, run]
+    [user?.id, run]
   );
 
   /**
@@ -604,7 +572,6 @@ function FlowCanvasInner() {
    */
   const onReconnect = useCallback(
     (oldEdge, connection) => {
-      if (isLocked) return;
       if (!stageIdSet.has(connection.source) || !stageIdSet.has(connection.target)) return;
       if (connection.source === connection.target) {
         toast.error("A Stage cannot move to itself.");
@@ -622,7 +589,7 @@ function FlowCanvasInner() {
         await salesFlowService.removeEdge(oldEdge.id, user?.id);
       }, "Move rerouted.");
     },
-    [isLocked, stageIdSet, flow, user?.id, run]
+    [stageIdSet, flow, user?.id, run]
   );
 
   const onNodeClick = useCallback((_event, node) => {
@@ -644,7 +611,7 @@ function FlowCanvasInner() {
   const onPaneClick = useCallback(() => setSelection(null), []);
 
   const handleAutoLayout = useCallback(() => {
-    if (isLocked || stages.length === 0) return;
+    if (stages.length === 0) return;
 
     const g = new dagre.graphlib.Graph();
     g.setGraph({ rankdir: "LR", nodesep: 64, ranksep: 120 });
@@ -686,7 +653,7 @@ function FlowCanvasInner() {
         console.error(err);
         toast.error("The layout could not be saved. Try again.");
       });
-  }, [isLocked, stages, edges, conditionsByStage, actionsByStage, user?.id, refresh]);
+  }, [stages, edges, conditionsByStage, actionsByStage, user?.id, refresh]);
 
   const selectedSaleType = saleTypes?.find((t) => t.id === effectiveSaleTypeId) ?? null;
   const showEmptySaleTypes = !effectiveSaleTypeId && !loadingTypes;
@@ -712,9 +679,9 @@ function FlowCanvasInner() {
         edgeTypes={edgeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         connectionRadius={28}
-        edgesReconnectable={!isLocked}
-        nodesConnectable={!isLocked}
-        nodesDraggable={!isLocked}
+        edgesReconnectable={true}
+        nodesConnectable={true}
+        nodesDraggable={true}
         elementsSelectable={true}
         fitView
         fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
@@ -995,63 +962,32 @@ function FlowCanvasInner() {
         </div>
 
         {flow && (
-          <div className="pointer-events-auto flex shrink-0 items-center gap-1 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
-            {isLocked ? (
-              <>
-                <span className="flex items-center gap-1.5 rounded-xl bg-amber-a3 px-2.5 py-1.5 text-[11px] font-black uppercase tracking-[0.12em] text-amber-11">
-                  <Lock size={12} strokeWidth={3} /> Locked
-                </span>
-                <Button variant="ghost" size="lg" onClick={handleUnlock}>
-                  <LockOpen /> Unlock
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="ghost"
-                  size="lg"
-                  onClick={handleAutoLayout}
-                  disabled={stages.length === 0}
-                >
-                  <Sparkles /> Tidy layout
-                </Button>
-                {/* The span carries the tooltip: a disabled button emits no
-                    pointer events, so the reason it is disabled would never
-                    be readable from the control itself. */}
-                <Tooltip
-                  content={blockers.length > 0 ? blockers.join(" ") : null}
-                  side="bottom"
-                >
-                  <span className="inline-flex">
-                    <Button
-                      variant="ghost"
-                      size="lg"
-                      onClick={handleLock}
-                      disabled={blockers.length > 0}
+          <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+            {Object.keys(activeUsers).length > 0 && (
+              <div className="ml-1 mr-2 flex -space-x-2">
+                {Object.values(activeUsers).map((peer) => (
+                  <Tooltip key={peer.userId} content={peer.name} side="bottom">
+                    <div
+                      className="flex size-7 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white shadow-sm"
+                      style={{ backgroundColor: peer.color }}
                     >
-                      <Lock /> Lock this flow
-                    </Button>
-                  </span>
-                </Tooltip>
-              </>
+                      {peer.name.charAt(0).toUpperCase()}
+                    </div>
+                  </Tooltip>
+                ))}
+              </div>
             )}
+            <Button
+              variant="ghost"
+              size="lg"
+              onClick={handleAutoLayout}
+              disabled={stages.length === 0}
+            >
+              <Sparkles /> Tidy layout
+            </Button>
           </div>
         )}
       </div>
-
-      {/* ── Why this flow is not lockable yet ───────────────────────────── */}
-      {blockers.length > 0 && !isLocked && (
-        <ul
-          aria-label="Why this flow cannot be locked yet"
-          className="pointer-events-none absolute left-3 top-[4.25rem] z-10 max-w-sm space-y-1 rounded-2xl bg-amber-a3 px-4 py-3 backdrop-blur-md"
-        >
-          {blockers.map((blocker) => (
-            <li key={blocker} className="text-xs font-semibold leading-relaxed text-amber-11">
-              • {blocker}
-            </li>
-          ))}
-        </ul>
-      )}
 
       {/* ── Empty states ────────────────────────────────────────────────── */}
       {showEmptySaleTypes && (
@@ -1075,7 +1011,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Add-Stage dock ──────────────────────────────────────────────── */}
-      {flow && !isLocked && (
+      {flow && (
         <form
           onSubmit={handleAddStage}
           className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md"
@@ -1098,7 +1034,7 @@ function FlowCanvasInner() {
           stage={selectedStage}
           isEntry={entry?.id === selectedStage.id}
           isWon={flow.won_stage_id === selectedStage.id}
-          disabled={isLocked}
+          disabled={false}
           bracketOptions={bracketOptions}
           activeTab={selection.tab}
           onTabChange={(tab) => setSelection((prev) => ({ ...prev, tab }))}

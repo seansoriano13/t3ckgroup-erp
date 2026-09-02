@@ -20,7 +20,7 @@ const emptyConfigFor = (kind) => {
     case CONDITION_KINDS.ATTACHMENT:
       return { documentType: "" };
     case CONDITION_KINDS.FIELD:
-      return { column: "" };
+      return {};
     case CONDITION_KINDS.ASSIGNMENT:
       return { department: "" };
     case CONDITION_KINDS.DEADLINE:
@@ -38,7 +38,7 @@ function configFor(kind, config) {
     case CONDITION_KINDS.ATTACHMENT:
       return config.documentType?.trim() ? { documentType: config.documentType.trim() } : {};
     case CONDITION_KINDS.FIELD:
-      return { column: config.column?.trim() || "" };
+      return {};
     case CONDITION_KINDS.ASSIGNMENT:
       return { department: config.department?.trim() || "" };
     case CONDITION_KINDS.DEADLINE:
@@ -245,16 +245,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               />
             )}
 
-            {kind === CONDITION_KINDS.FIELD && (
-              <Input
-                label="Column on the deal"
-                value={config.column || ""}
-                onChange={(e) => setConfig({ column: e.target.value })}
-                placeholder="po_date"
-                className="font-mono"
-                required
-              />
-            )}
+
 
             {kind === CONDITION_KINDS.ASSIGNMENT && (
               <Input

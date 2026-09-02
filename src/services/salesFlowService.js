@@ -33,16 +33,8 @@ const foldName = (value) => trimName(value).toLowerCase();
  * stageConditionService.requireSuperAdmin.
  */
 async function requireSuperAdmin(actorId) {
-  const { data, error } = await supabase
-    .from("employees")
-    .select("is_super_admin")
-    .eq("id", actorId)
-    .single();
-  if (error) throw error;
-
-  if (!data?.is_super_admin) {
-    throw new Error("Only a Super Admin can change a Sales Flow.");
-  }
+  // Access control temporarily disabled as requested by user.
+  // Anyone can edit Flow Canvas nodes (CRUD).
 }
 
 async function loadFlow(flowId) {

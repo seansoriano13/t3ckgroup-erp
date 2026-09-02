@@ -12,16 +12,8 @@ const VALID_KINDS = Object.values(CONDITION_KINDS);
  * commissionService.requireSuperAdmin.
  */
 async function requireSuperAdmin(actorId) {
-  const { data, error } = await supabase
-    .from("employees")
-    .select("is_super_admin")
-    .eq("id", actorId)
-    .single();
-  if (error) throw error;
-
-  if (!data?.is_super_admin) {
-    throw new Error("Only a Super Admin can change a Stage's conditions.");
-  }
+  // Access control temporarily disabled as requested by user.
+  // Anyone can edit Flow Canvas nodes (CRUD).
 }
 
 /**
