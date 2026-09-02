@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "1.2.1",
+      "date": "2026-09-02",
+      "changes": [
+        "Opening any page while signed out now takes you to the sign-in screen. Pages like Tasks, Group Tasks, Profile and Settings previously left you on an empty screen with no menu, and the only way out was to hand-edit the address bar back down to the site root.",
+        "After you sign in you are taken to the page you originally asked for, instead of always landing on the dashboard. A bookmark or a shared link to a specific page now works even when your session has expired."
+      ]
+    },
+    {
       "version": "1.2.0",
       "date": "2026-09-01",
       "changes": [

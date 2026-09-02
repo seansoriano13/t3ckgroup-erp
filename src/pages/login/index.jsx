@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { useNavigate, Navigate } from "react-router";
+import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import PrimaryButton from "../../components/PrimaryButton";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
+import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 
 // Updated for the dark theme disabled state
 export const INPUT_STYLE =
@@ -14,7 +15,10 @@ export const INPUT_STYLE =
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const { theme } = useTheme();
+
+  const redirectTo = resolvePostLoginPath(location.state?.from);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,11 +26,11 @@ export default function Login() {
   const allowTestLogin = import.meta.env.VITE_ALLOW_TEST_LOGIN === "true";
 
   // If the user is already authenticated (e.g. swiped back to /login, or
-  // the session was restored on reload), redirect to home immediately.
+  // the session was restored on reload), redirect immediately.
   // Show nothing while auth is still resolving to prevent a flash of the form.
   if (isAuthLoading) return null;
   if (user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={redirectTo} replace />;
   }
 
   const handleManualLogin = async (e) => {
@@ -51,7 +55,7 @@ export default function Login() {
 
       const isAuthorized = await handleLogin(data.user.email);
       if (isAuthorized) {
-        navigate("/");
+        navigate(redirectTo);
       }
     } catch (error) {
       console.error("Manual login failed:", error);
@@ -77,7 +81,7 @@ export default function Login() {
       const isAuthorized = await handleLogin(googleEmail, googlePictureUrl);
 
       if (isAuthorized) {
-        navigate("/");
+        navigate(redirectTo);
       }
     } catch (error) {
       console.error("Google login failed:", error);
