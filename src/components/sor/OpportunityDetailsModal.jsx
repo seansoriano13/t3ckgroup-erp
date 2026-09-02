@@ -1207,132 +1207,125 @@ export default function OpportunityDetailsModal({
               </div>
             )}
 
-            {needsSalesRef && (
-              <div className="mt-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-                    <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                      Sales Reference
-                      <span className="ml-0.5 text-red-500">*</span>
-                    </label>
-                    <input
-                      autoFocus
-                      value={salesRef}
-                      onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
-                      placeholder="e.g. S01237"
-                      className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
-                    />
-                  </div>
-                  <button
-                    disabled={!salesRefValid || stageMutation.isPending}
-                    onClick={() =>
-                      stageMutation.mutate({
-                        next: pendingStage,
-                        reason: null,
-                        salesReference: normalizeSalesReference(salesRef),
-                      })
-                    }
-                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    Confirm
-                  </button>
-                  <button
-                    onClick={cancelPendingStage}
-                    className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p
-                  className={cn(
-                    "mt-1.5 text-[11px] leading-relaxed",
-                    salesRef && !salesRefValid
-                      ? "font-semibold text-red-500"
-                      : "text-muted-foreground",
+            {(needsSalesRef || needsItbNumber) && (
+              <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
+                <div className="flex flex-col gap-3">
+                  {needsSalesRef && (
+                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+                      <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                        Sales Reference
+                        <span className="ml-0.5 text-red-500">*</span>
+                      </label>
+                      <input
+                        autoFocus
+                        value={salesRef}
+                        onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
+                        placeholder="e.g. S01237"
+                        className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
+                      />
+                      <p
+                        className={cn(
+                          "mt-1.5 text-[11px] leading-relaxed",
+                          salesRef && !salesRefValid
+                            ? "font-semibold text-red-500"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {salesRef && !salesRefValid
+                          ? SALES_REFERENCE_HINT
+                          : `Enter the Odoo sales quotation number to confirm a quotation exists.`}
+                      </p>
+                    </div>
                   )}
-                >
-                  {salesRef && !salesRefValid
-                    ? SALES_REFERENCE_HINT
-                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${stageLabel(pendingStage) ||
-                    pendingStage
-                    }.`}
-                </p>
-              </div>
-            )}
 
-            {needsItbNumber && (
-              <div className="mt-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-                    <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                      ITB Number (Invitation to Bid)
-                      <span className="ml-0.5 text-red-500">*</span>
-                    </label>
-                    <input
-                      autoFocus
-                      value={itbNumber}
-                      onChange={(e) => setItbNumber(e.target.value)}
-                      placeholder="e.g. ITB-2026-001 or URL link"
-                      className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
-                    />
-                  </div>
-                  <button
-                    disabled={!itbNumberValid || stageMutation.isPending}
-                    onClick={() =>
-                      stageMutation.mutate({
-                        next: pendingStage,
-                        reason: null,
-                        salesReference: null,
-                        itbNumber: itbNumber.trim(),
-                      })
-                    }
-                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    Confirm
-                  </button>
+                  {needsItbNumber && (
+                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+                      <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                        ITB Number (Invitation to Bid)
+                        <span className="ml-0.5 text-red-500">*</span>
+                      </label>
+                      <input
+                        autoFocus={!needsSalesRef}
+                        value={itbNumber}
+                        onChange={(e) => setItbNumber(e.target.value)}
+                        placeholder="e.g. ITB-2026-001 or URL link"
+                        className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
+                      />
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        Enter the ITB Number (Invitation to Bid).
+                      </p>
+
+                      {/* Not every deal was bid for. An outright award — a government
+                          direct contract, say — has no ITB Number to give, and with
+                          no way to say so the only options left were inventing a
+                          number or having the gate switched off for everyone (which
+                          is what migrations 0035–0038 went through). Saying it is a
+                          claim about how the deal was won, so it is confirmed and
+                          then written to the log notes, never applied silently. */}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          No Invitation to Bid was issued for this deal?
+                        </p>
+                        <button
+                          disabled={
+                            stageMutation.isPending ||
+                            (needsSalesRef && !salesRefValid)
+                          }
+                          onClick={() =>
+                            confirmActionToast(
+                              "Mark this deal outright?",
+                              `${ITB_EXEMPT_LABEL} — it moves to ${
+                                stageLabel(pendingStage) || pendingStage
+                              } with no ITB Number, and this is recorded on the log notes under your name.`,
+                              "Mark outright",
+                              "warning",
+                              () =>
+                                stageMutation.mutate({
+                                  next: pendingStage,
+                                  reason: null,
+                                  salesReference: needsSalesRef
+                                    ? normalizeSalesReference(salesRef)
+                                    : null,
+                                  itbNumber: null,
+                                  itbExempt: true,
+                                }),
+                            )
+                          }
+                          className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                        >
+                          Outright — no bidding required
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-end gap-2">
                   <button
                     onClick={cancelPendingStage}
                     className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
                   >
                     Cancel
                   </button>
-                </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Enter the ITB Number (Invitation to Bid) before moving to {stageLabel(pendingStage) || pendingStage}.
-                </p>
-
-                {/* Not every deal was bid for. An outright award — a government
-                    direct contract, say — has no ITB Number to give, and with
-                    no way to say so the only options left were inventing a
-                    number or having the gate switched off for everyone (which
-                    is what migrations 0035–0038 went through). Saying it is a
-                    claim about how the deal was won, so it is confirmed and
-                    then written to the log notes, never applied silently. */}
-                <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
-                  <p className="text-[11px] font-medium text-muted-foreground">
-                    No Invitation to Bid was issued for this deal?
-                  </p>
                   <button
-                    disabled={stageMutation.isPending}
-                    onClick={() =>
-                      confirmActionToast(
-                        "Mark this deal outright?",
-                        `${ITB_EXEMPT_LABEL} — it moves to ${stageLabel(pendingStage) || pendingStage} with no ITB Number, and this is recorded on the log notes under your name.`,
-                        "Mark outright",
-                        "warning",
-                        () =>
-                          stageMutation.mutate({
-                            next: pendingStage,
-                            reason: null,
-                            salesReference: null,
-                            itbNumber: null,
-                            itbExempt: true,
-                          }),
-                      )
+                    disabled={
+                      (needsSalesRef && !salesRefValid) ||
+                      (needsItbNumber && !itbNumberValid) ||
+                      stageMutation.isPending
                     }
-                    className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                    onClick={() =>
+                      stageMutation.mutate({
+                        next: pendingStage,
+                        reason: null,
+                        salesReference: needsSalesRef
+                          ? normalizeSalesReference(salesRef)
+                          : null,
+                        itbNumber: needsItbNumber ? itbNumber.trim() : null,
+                      })
+                    }
+                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
                   >
-                    Outright — no bidding required
+                    Confirm {stageLabel(pendingStage) || pendingStage}
                   </button>
                 </div>
               </div>
