@@ -268,7 +268,7 @@ export default function HrLeavesManagerPage() {
 
 
   return (
-    <ProtectedRoute requireHr={true}>
+    <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
       <ApproveOvertimeModal
         isOpen={!!overtimeApproval}
