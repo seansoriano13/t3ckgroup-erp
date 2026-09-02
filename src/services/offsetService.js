@@ -317,8 +317,9 @@ export const offsetService = {
 
   /**
    * HR Decision on Overtime Request ('APPROVED_PAID', 'APPROVED_OFFSET', 'REJECTED')
+   * `approvedHours` defaults to the requested hours and is what gets credited.
    */
-  async handleOvertimeDecision({ requestId, status, hrNotes, hrId }) {
+  async handleOvertimeDecision({ requestId, status, approvedHours, hrNotes, hrId }) {
     const { data: request, error: reqErr } = await supabase
       .from('overtime_requests')
       .select('*')
@@ -327,11 +328,21 @@ export const offsetService = {
 
     if (reqErr) throw new Error(reqErr.message);
 
+    const isApproval = status === 'APPROVED_OFFSET' || status === 'APPROVED_PAID';
+    const resolvedApprovedHours = isApproval
+      ? parseFloat(approvedHours ?? request.hours)
+      : null;
+
+    if (isApproval && !(resolvedApprovedHours > 0)) {
+      throw new Error('Approved hours must be greater than zero.');
+    }
+
     // Update Request Status
     const { data: updatedReq, error: updateErr } = await supabase
       .from('overtime_requests')
       .update({
         status,
+        approved_hours: resolvedApprovedHours,
         hr_notes: hrNotes || null,
         updated_at: new Date().toISOString(),
       })
@@ -341,7 +352,7 @@ export const offsetService = {
 
     if (updateErr) throw new Error(updateErr.message);
 
-    // If APPROVED_OFFSET, credit hours to employee balance
+    // If APPROVED_OFFSET, credit the approved (not requested) hours to the balance
     if (status === 'APPROVED_OFFSET') {
       const { data: emp, error: empErr } = await supabase
         .from('employees')
@@ -350,7 +361,7 @@ export const offsetService = {
         .single();
 
       if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(request.hours || 0);
+        const newBalance = parseFloat(emp.offset_hours_balance || 0) + resolvedApprovedHours;
         await supabase
           .from('employees')
           .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
@@ -395,8 +406,9 @@ export const offsetService = {
     if (reqErr) throw new Error(reqErr.message);
     if (request.status === 'PENDING') throw new Error('Request is already pending.');
 
-    // If it was APPROVED_OFFSET, we must deduct the balance
+    // If it was APPROVED_OFFSET, deduct what was actually credited.
     if (request.status === 'APPROVED_OFFSET') {
+      const creditedHours = parseFloat(request.approved_hours ?? request.hours ?? 0);
       const { data: emp, error: empErr } = await supabase
         .from('employees')
         .select('offset_hours_balance')
@@ -404,7 +416,7 @@ export const offsetService = {
         .single();
 
       if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) - parseFloat(request.hours || 0);
+        const newBalance = parseFloat(emp.offset_hours_balance || 0) - creditedHours;
         await supabase
           .from('employees')
           .update({ offset_hours_balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
@@ -417,6 +429,7 @@ export const offsetService = {
       .from('overtime_requests')
       .update({
         status: 'PENDING',
+        approved_hours: null,
         hr_notes: null,
         updated_at: new Date().toISOString(),
       })

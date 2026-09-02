@@ -10,6 +10,7 @@ import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
+import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
@@ -37,6 +38,7 @@ export default function HrLeavesManagerPage() {
   const [approvedLeaves, setApprovedLeaves] = useState([]);
   const [employeeBalances, setEmployeeBalances] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -124,17 +126,23 @@ export default function HrLeavesManagerPage() {
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
 
+    // Approving overtime lets HR edit the hours actually rendered before
+    // they're credited, so it opens a modal rather than a plain confirm.
+    if (isOT && actionType !== 'reject') {
+      const status = actionType === 'approve' ? 'APPROVED_OFFSET' : 'APPROVED_PAID';
+      setOvertimeApproval({ request, status });
+      return;
+    }
+
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
-    if (actionType === 'approve_paid') actionLabel = 'Approve as Paid OT';
-    
+
     let title = `${actionLabel} Request`;
     let msg = `Are you sure you want to ${actionLabel.toLowerCase()} this ${request.type.toLowerCase()} request for ${request.hours} hours?`;
 
     confirmActionToast(title, msg, actionLabel, actionType === 'reject' ? 'destructive' : 'default', async () => {
       try {
         if (isOT) {
-          const status = actionType === 'approve' ? 'APPROVED_OFFSET' : actionType === 'approve_paid' ? 'APPROVED_PAID' : 'REJECTED';
-          await offsetService.handleOvertimeDecision({ requestId: request.id, status, hrId: user?.id });
+          await offsetService.handleOvertimeDecision({ requestId: request.id, status: 'REJECTED', hrId: user?.id });
         } else if (isOffset) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await offsetService.handleOffsetLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
@@ -262,6 +270,15 @@ export default function HrLeavesManagerPage() {
   return (
     <ProtectedRoute requireHr={true}>
     <PageContainer className="pt-4 space-y-6 relative">
+      <ApproveOvertimeModal
+        isOpen={!!overtimeApproval}
+        onClose={() => setOvertimeApproval(null)}
+        request={overtimeApproval?.request}
+        status={overtimeApproval?.status}
+        hrId={user?.id}
+        onSuccess={loadData}
+      />
+
       <FloatingMonthPicker
         selectedRange={dateRange}
         onChange={setDateRange}
@@ -503,7 +520,14 @@ export default function HrLeavesManagerPage() {
                           <td className="p-4">
                             <div className="flex flex-col gap-0.5">
                               <span className="font-black text-sm text-foreground">
-                                {req.hours} hrs
+                                {req.type === 'OVERTIME' && req.approved_hours != null && req.approved_hours !== req.hours ? (
+                                  <>
+                                    <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
+                                    {req.approved_hours} hrs
+                                  </>
+                                ) : (
+                                  `${req.hours} hrs`
+                                )}
                               </span>
                               {req.start_time && req.end_time && (
                                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">

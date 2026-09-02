@@ -235,6 +235,78 @@ describe("offsetService", () => {
 
       expect(db.rows("notifications")[0].message).toContain("Approved as Offset")
     })
+
+    it("defaults approved hours to the requested figure and credits that", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(4)
+      expect(balanceOf(employee.id)).toBe(20)
+    })
+
+    it("credits the approved hours rather than the requested hours when HR overrides them", async () => {
+      // A real TG-12 shows 4hrs struck through and replaced with 3.5.
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        approvedHours: 3.5,
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(3.5)
+      expect(balanceOf(employee.id)).toBe(19.5)
+    })
+
+    it("records approved hours on a paid approval without crediting the balance", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_PAID",
+        approvedHours: 3,
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(3)
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("refuses a non-positive approved-hours override", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      for (const badValue of [0, -1]) {
+        await expect(
+          offsetService.handleOvertimeDecision({
+            requestId: request.id,
+            status: "APPROVED_OFFSET",
+            approvedHours: badValue,
+            hrId: hr.id,
+          }),
+        ).rejects.toThrow("Approved hours must be greater than zero.")
+      }
+
+      expect(balanceOf(employee.id)).toBe(16)
+      expect((await offsetService.getMyOvertimeRequests(employee.id))[0].status).toBe("PENDING")
+    })
+
+    it("records no approved hours on rejection", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBeNull()
+    })
   })
 
   describe("undoing an overtime decision", () => {
@@ -274,6 +346,37 @@ describe("offsetService", () => {
         status: "APPROVED_PAID",
         hrId: hr.id,
       })
+
+      await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("takes back the approved hours, not the requested hours, when they were overridden", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+      await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        approvedHours: 3.5,
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(19.5)
+
+      await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("falls back to the requested hours when undoing a pre-migration row with no approved hours recorded", async () => {
+      // Rows written before this column existed have status APPROVED_OFFSET
+      // but a null approved_hours — the fallback this guards against.
+      const request = makeOvertimeRequest({
+        employee_id: employee.id,
+        status: "APPROVED_OFFSET",
+        hours: 4,
+        approved_hours: null,
+      })
+      await setOffsetBalance(employee.id, 20) // as if the 4 hrs were already credited
 
       await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
 
