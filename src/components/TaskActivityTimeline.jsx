@@ -323,8 +323,19 @@ export default function TaskActivityTimeline({
     staleTime: 30_000,
   });
 
-  const comments = activity.filter(e => e.type === "COMMENT");
-  const history = activity.filter(e => e.type !== "COMMENT");
+  const comments = useMemo(
+    () => activity.filter(e => e.type === "COMMENT"),
+    [activity],
+  );
+  const history = useMemo(
+    () => activity.filter(e => e.type !== "COMMENT"),
+    [activity],
+  );
+
+  // Stable primitive for the auto-bump effect below: the array identity changes
+  // on every render, the timestamp only when the thread actually moves.
+  const latestCommentAt =
+    comments.length > 0 ? comments[comments.length - 1].createdAt : null;
 
   // Read Receipts
   const { data: readReceipts = [] } = useQuery({
@@ -421,28 +432,30 @@ export default function TaskActivityTimeline({
     };
   }, [taskId, entityType, queryClient]);
 
-  const markAsReadMutation = useMutation({
+  const { mutate: markAsRead } = useMutation({
     mutationFn: ({ entityType, entityId, latestCreatedAt }) =>
       activeChatService.markAsRead(user?.id, entityType, entityId, latestCreatedAt),
   });
 
-  // Auto-bump read receipts
+  // Auto-bump read receipts.
+  // Every dependency here must be a primitive or a stable callback. Depending on
+  // the `comments` array or the whole mutation object made this effect re-run on
+  // every render: each run upserted a receipt, the realtime listener above saw
+  // its own write and invalidated the receipts query, that re-rendered, and the
+  // effect fired again -- an unbounded POST/GET loop that exhausted the browser's
+  // connection pool (ERR_INSUFFICIENT_RESOURCES) and took unrelated requests
+  // down with it. `mutate` is referentially stable in react-query v5.
   useEffect(() => {
-    if (!taskId || !user?.id) return;
-    if (comments.length > 0) {
-      markAsReadMutation.mutate({
-        entityType,
-        entityId: taskId,
-        latestCreatedAt: comments[comments.length - 1].createdAt
-      });
-    } else {
-      markAsReadMutation.mutate({
-        entityType,
-        entityId: taskId,
-        latestCreatedAt: new Date().toISOString()
-      });
-    }
-  }, [comments.length, taskId, user?.id, comments, entityType, markAsReadMutation]);
+    // Waiting for the thread to load keeps this to a single upsert per open:
+    // bumping while `activity` is still empty writes a receipt that the real
+    // latest-comment timestamp immediately overwrites.
+    if (!taskId || !user?.id || isLoading) return;
+    markAsRead({
+      entityType,
+      entityId: taskId,
+      latestCreatedAt: latestCommentAt ?? new Date().toISOString(),
+    });
+  }, [taskId, user?.id, entityType, latestCommentAt, isLoading, markAsRead]);
 
   // Post comment mutation
   const postCommentMutation = useMutation({

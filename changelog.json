@@ -1,6 +1,15 @@
 {
   "versions": [
     {
+      "version": "1.2.2",
+      "date": "2026-09-02",
+      "changes": [
+        "Fixed a bug that could make a task or group-task page stop working entirely after it had been open for a few moments. The chat 'seen by' feature was quietly re-saving your read marker over and over without stopping, and the browser eventually ran out of capacity to make any further requests.",
+        "Because that ran the browser dry, anything else you tried to save from the same page failed with a generic error — editing a checklist, posting a comment, updating task details. Those saves work again.",
+        "Read markers are now written once when you open a thread and once when a new message arrives, instead of continuously. Threads open faster and the app makes far fewer background requests."
+      ]
+    },
+    {
       "version": "1.2.1",
       "date": "2026-09-02",
       "changes": [

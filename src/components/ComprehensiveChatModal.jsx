@@ -547,7 +547,7 @@ export default function ComprehensiveChatModal({
     selectedEntityData?.delete_requested_by && !isEntityDeleted;
 
   // -- Mutations ---------------------------------------------
-  const markAsReadMutation = useMutation({
+  const { mutate: markAsRead } = useMutation({
     mutationFn: ({ entityType, entityId, latestCreatedAt }) =>
       activeChatService.markAsRead(
         user?.id,
@@ -794,20 +794,39 @@ export default function ComprehensiveChatModal({
     };
   }, [selectedChat, internalOpen, queryClient]);
 
-  // Auto-scroll and auto-read-receipt on new messages
+  // Auto-scroll on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-    // If the thread is open and new messages arrive, bump read receipt
-    if (messages.length > 0 && selectedChat && internalOpen) {
-      markAsReadMutation.mutate({
-        entityType: selectedChat.entity_type,
-        entityId: selectedChat.entity_id,
-        latestCreatedAt: messages[messages.length - 1].createdAt
-      });
-    }
-  }, [messages?.length, selectedChat, internalOpen, messages, markAsReadMutation]);
+  }, [messages.length, selectedChat, internalOpen]);
+
+  // Bump the read receipt when the thread is open and the newest message changes.
+  // Keyed on primitives only: depending on the `messages` array or the whole
+  // mutation object re-ran this on every render, and since each upsert triggered
+  // the read-receipt realtime listener -> query invalidation -> re-render, it
+  // looped without bound and exhausted the browser's connection pool.
+  // `mutate` is referentially stable in react-query v5.
+  const latestMessageAt =
+    messages.length > 0 ? messages[messages.length - 1].createdAt : null;
+  const selectedEntityType = selectedChat?.entity_type;
+  const selectedEntityId = selectedChat?.entity_id;
+
+  useEffect(() => {
+    if (!latestMessageAt || !selectedEntityType || !selectedEntityId) return;
+    if (!internalOpen) return;
+    markAsRead({
+      entityType: selectedEntityType,
+      entityId: selectedEntityId,
+      latestCreatedAt: latestMessageAt,
+    });
+  }, [
+    latestMessageAt,
+    selectedEntityType,
+    selectedEntityId,
+    internalOpen,
+    markAsRead,
+  ]);
 
   // -- Handlers ----------------------------------------------
   const handleClose = () => {
@@ -831,7 +850,7 @@ export default function ComprehensiveChatModal({
     setReplyingTo(null);
     
     // Always mark as read when selecting, to bump last_read_at timestamp
-    markAsReadMutation.mutate({
+    markAsRead({
       entityType: chat.entity_type,
       entityId: chat.entity_id,
       latestCreatedAt: chat.latest_created_at || new Date().toISOString(),
