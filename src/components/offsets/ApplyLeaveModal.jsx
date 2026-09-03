@@ -125,7 +125,8 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
   const currentOffsetHours = safeDeriveHours(offsetStartTime, offsetEndTime, false);
-  const currentSilHours = safeDeriveHours(silStartTime, silEndTime, false);
+  const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
+  const currentSilHours = currentSilHoursRaw >= 5 ? currentSilHoursRaw - 1 : currentSilHoursRaw;
 
   const { data: categories = [] } = useQuery({
     queryKey: ['activeLeaveCategories'],
@@ -628,7 +629,18 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                     <input
                       type="date"
                       value={silDate}
-                      onChange={(e) => setSilDate(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSilDate(val);
+                        if (val) {
+                          const dateObj = new Date(val);
+                          const day = dateObj.getUTCDay(); // 0 is Sunday, 1 is Monday
+                          if (day >= 1 && day <= 5) {
+                            setSilStartTime('07:30');
+                            setSilEndTime(day === 3 ? '18:30' : '18:00');
+                          }
+                        }
+                      }}
                       className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                       required
                     />

@@ -44,7 +44,8 @@ export const silService = {
    * Apply for SIL Leave (Employee)
    */
   async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
-    const parsedHours = deriveHours(startTime, endTime, false);
+    const parsedHoursRaw = deriveHours(startTime, endTime, false);
+    const parsedHours = parsedHoursRaw >= 5 ? parsedHoursRaw - 1 : parsedHoursRaw;
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
     }
@@ -269,8 +270,8 @@ export const silService = {
       .from('sil_leaves')
       .select(`
         *,
-        employee:employees!sil_leaves_employee_id_fkey(id, name, department, avatar_path, sil_hours_balance),
-        hr:employees!sil_leaves_hr_processed_by_fkey(id, name),
+        employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance, signature_path),
+        hr:employees!sil_leaves_hr_processed_by_fkey(id, name, signature_path),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -291,7 +292,7 @@ export const silService = {
       .from('sil_leaves')
       .select(`
         *,
-        employee:employees!sil_leaves_employee_id_fkey(id, name, department, avatar_path, sil_hours_balance)
+        employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance)
       `)
       .eq('status', 'PENDING')
       .order('date', { ascending: true });
