@@ -21,7 +21,7 @@ CREATE OR REPLACE FUNCTION public.verify_form_token(lookup_token TEXT)
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   client_ip TEXT;
