@@ -397,7 +397,7 @@ describe("offsetService", () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await offsetService.handleOffsetLeaveDecision({
-        leaveId: leave.id,
+        groupId: leave.leave_group_id,
         status: "APPROVED",
         hrId: hr.id,
       })
@@ -411,7 +411,7 @@ describe("offsetService", () => {
 
       await expect(
         offsetService.handleOffsetLeaveDecision({
-          leaveId: leave.id,
+          groupId: leave.leave_group_id,
           status: "APPROVED",
           hrId: hr.id,
         }),
@@ -423,12 +423,12 @@ describe("offsetService", () => {
     it("returns the hours when an approval is undone", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
-        leaveId: leave.id,
+        groupId: leave.leave_group_id,
         status: "APPROVED",
         hrId: hr.id,
       })
 
-      await offsetService.undoOffsetLeaveDecision({ leaveId: leave.id, hrId: hr.id })
+      await offsetService.undoOffsetLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id })
 
       expect(balanceOf(employee.id)).toBe(16)
     })
@@ -437,8 +437,144 @@ describe("offsetService", () => {
       const leave = makeOffsetLeave({ employee_id: employee.id })
 
       await expect(
-        offsetService.undoOffsetLeaveDecision({ leaveId: leave.id, hrId: hr.id }),
+        offsetService.undoOffsetLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id }),
       ).rejects.toThrow("Leave is already pending.")
+    })
+
+    it("approves a multi-day range atomically, spending its total hours in one balance update", async () => {
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 }, // Monday
+          { date: "2026-03-17", hours: 4 }, // Tuesday, a half-day
+        ],
+        reason: "Family trip",
+      })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated).toHaveLength(2)
+      expect(updated.every((row) => row.status === "APPROVED")).toBe(true)
+      expect(balanceOf(employee.id)).toBe(4) // 16 - 8 - 4
+    })
+
+    it("leaves every day in the range untouched when the group can't be approved", async () => {
+      await setOffsetBalance(employee.id, 24) // enough to submit the range
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 },
+          { date: "2026-03-17", hours: 8 },
+          { date: "2026-03-18", hours: 8 },
+        ],
+        reason: "Long trip",
+      })
+      // HR reduced the balance after the employee applied.
+      await setOffsetBalance(employee.id, 16)
+
+      await expect(
+        offsetService.handleOffsetLeaveDecision({
+          groupId: group[0].leave_group_id,
+          status: "APPROVED",
+          hrId: hr.id,
+        }),
+      ).rejects.toThrow("Cannot approve leave. Employee currently only has 16 hrs balance.")
+
+      const rows = await offsetService.getMyOffsetLeaves(employee.id)
+      expect(rows.every((row) => row.status === "PENDING")).toBe(true)
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("rejects every day in the range together", async () => {
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 },
+          { date: "2026-03-17", hours: 8 },
+        ],
+        reason: "Trip",
+      })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.every((row) => row.status === "REJECTED")).toBe(true)
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+  })
+
+  describe("applying for offset leave across a date range", () => {
+    it("writes one row per day under a shared group, defaulting to 8 hours", async () => {
+      const rows = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [{ date: "2026-03-16" }, { date: "2026-03-17" }],
+        reason: "Trip",
+      })
+
+      expect(rows).toHaveLength(2)
+      expect(rows[0].leave_group_id).toBe(rows[1].leave_group_id)
+      expect(rows.map((r) => r.hours)).toEqual([8, 8])
+      expect(rows.every((r) => r.status === "PENDING")).toBe(true)
+    })
+
+    it("a single-day range is a group of one", async () => {
+      const rows = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [{ date: "2026-03-16", hours: 4 }],
+        reason: "Half day",
+      })
+
+      expect(rows).toHaveLength(1)
+      expect(rows[0].leave_group_id).toBeTruthy()
+    })
+
+    it("lets a half-day inside the range override the 8-hour default", async () => {
+      const rows = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 },
+          { date: "2026-03-17", hours: 4 },
+        ],
+        reason: "Trip with a half day",
+      })
+
+      expect(rows.map((r) => r.hours)).toEqual([8, 4])
+    })
+
+    it("refuses a range whose total exceeds the balance", async () => {
+      await expect(
+        offsetService.applyOffsetLeaveRange({
+          employeeId: employee.id,
+          days: [
+            { date: "2026-03-16", hours: 8 },
+            { date: "2026-03-17", hours: 8 },
+            { date: "2026-03-18", hours: 8 },
+          ],
+          reason: "Too long",
+        }),
+      ).rejects.toThrow("Insufficient offset hours balance. You have 16 hrs remaining.")
+
+      expect(await offsetService.getMyOffsetLeaves(employee.id)).toHaveLength(0)
+    })
+
+    it("refuses a range that includes a weekend day", async () => {
+      await expect(
+        offsetService.applyOffsetLeaveRange({
+          employeeId: employee.id,
+          days: [
+            { date: "2026-03-13", hours: 8 }, // Friday
+            { date: "2026-03-14", hours: 8 }, // Saturday
+          ],
+          reason: "Bad range",
+        }),
+      ).rejects.toThrow(/cannot be applied on weekends/i)
     })
   })
 
@@ -481,7 +617,7 @@ describe("offsetService", () => {
     it("returns the hours when an approved offset leave is withdrawn", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
-        leaveId: leave.id,
+        groupId: leave.leave_group_id,
         status: "APPROVED",
         hrId: hr.id,
       })
@@ -495,7 +631,7 @@ describe("offsetService", () => {
     it("warns HR when an already-approved leave is withdrawn", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
-        leaveId: leave.id,
+        groupId: leave.leave_group_id,
         status: "APPROVED",
         hrId: hr.id,
       })

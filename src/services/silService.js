@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { cleanAttachments, checkOverlap } from './offsetService';
+import { cleanAttachments, checkOverlap, checkDateTaken } from './offsetService';
 import { deriveHours, formatWindow } from '../utils/time';
 
 /**
@@ -109,6 +109,95 @@ export const silService = {
   },
 
   /**
+   * Apply for SIL Leave across a date range (Employee).
+   *
+   * Writes one row per day under a shared `leave_group_id`, mirroring
+   * `offsetService.applyOffsetLeaveRange` — see that function for why a group
+   * of day-rows was chosen over an end-date column. `days` is
+   * `[{ date, hours }]`; the apply form defaults each day to 8 hours.
+   */
+  async applySilLeaveRange({ employeeId, days, reason, employeeName, attachments = [] }) {
+    if (!Array.isArray(days) || days.length === 0) {
+      throw new Error('Please select at least one day.');
+    }
+    if (!reason || reason.trim() === '') {
+      throw new Error('Please provide a reason for the SIL leave.');
+    }
+
+    const seenDates = new Set();
+    const normalizedDays = days
+      .map((day) => {
+        if (seenDates.has(day.date)) throw new Error(`${day.date} was listed more than once.`);
+        seenDates.add(day.date);
+
+        const hours = parseFloat(day.hours ?? 8);
+        if (!(hours > 0)) throw new Error(`Hours for ${day.date} must be greater than zero.`);
+
+        return { date: day.date, hours };
+      })
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const day of normalizedDays) {
+      await checkDateTaken(employeeId, day.date);
+    }
+
+    const totalHours = normalizedDays.reduce((sum, day) => sum + day.hours, 0);
+
+    const { data: emp, error: empErr } = await supabase
+      .from('employees')
+      .select('sil_hours_balance')
+      .eq('id', employeeId)
+      .single();
+
+    if (empErr) throw new Error(empErr.message);
+
+    const currentBalance = parseFloat(emp.sil_hours_balance || 0);
+    if (currentBalance < totalHours) {
+      throw new Error(`Insufficient SIL hours balance. You have ${currentBalance} hrs remaining.`);
+    }
+
+    const leaveGroupId = crypto.randomUUID();
+    const cleanedAttachments = cleanAttachments(attachments);
+
+    const { data, error } = await supabase
+      .from('sil_leaves')
+      .insert(normalizedDays.map((day) => ({
+        employee_id: employeeId,
+        date: day.date,
+        hours: day.hours,
+        reason,
+        status: 'PENDING',
+        attachments: cleanedAttachments,
+        leave_group_id: leaveGroupId,
+      })))
+      .select();
+
+    if (error) throw new Error(error.message);
+
+    const rangeLabel = normalizedDays.length > 1
+      ? `${normalizedDays[0].date} to ${normalizedDays[normalizedDays.length - 1].date} (${normalizedDays.length} days)`
+      : normalizedDays[0].date;
+
+    notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
+      sender_id: employeeId,
+      type: 'SIL_LEAVE_REQUEST',
+      title: 'New SIL Leave Request',
+      message: `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL leave (${rangeLabel}).`,
+      reference_id: leaveGroupId,
+    });
+
+    systemAuditLogService.addSystemEvent(
+      'SIL_LEAVE',
+      leaveGroupId,
+      `${employeeName || 'An employee'} applied for ${totalHours} hrs SIL leave (${rangeLabel}).`,
+      { event: 'SIL_LEAVE_APPLIED', employeeId, leaveGroupId },
+      employeeId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
    * Get employee's own SIL leave applications
    */
   async getMySilLeaves(employeeId, startDate = null, endDate = null) {
@@ -194,45 +283,50 @@ export const silService = {
   },
 
   /**
-   * HR Decision on SIL Leave Request ('APPROVED', 'REJECTED')
+   * HR Decision on a SIL Leave group ('APPROVED', 'REJECTED').
+   *
+   * Acts on every day-row sharing `groupId` — a single-day application is a
+   * group of one, so this is the only decision path callers need. The balance
+   * is checked against the group's total hours before anything is written,
+   * and the day-rows are updated in one statement, so a range can never end
+   * up half-approved.
    */
-  async handleSilLeaveDecision({ leaveId, status, hrNotes, hrId }) {
-    const { data: leave, error: leaveErr } = await supabase
+  async handleSilLeaveDecision({ groupId, status, hrNotes, hrId }) {
+    const { data: rows, error: rowsErr } = await supabase
       .from('sil_leaves')
       .select('*')
-      .eq('id', leaveId)
-      .single();
+      .eq('leave_group_id', groupId);
 
-    if (leaveErr) throw new Error(leaveErr.message);
+    if (rowsErr) throw new Error(rowsErr.message);
+    if (!rows || rows.length === 0) throw new Error('Leave application not found.');
 
-    // If approving, deduct balance first (or re-verify balance)
+    const employeeId = rows[0].employee_id;
+    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+
     if (status === 'APPROVED') {
       const { data: emp, error: empErr } = await supabase
         .from('employees')
         .select('sil_hours_balance')
-        .eq('id', leave.employee_id)
+        .eq('id', employeeId)
         .single();
 
       if (empErr) throw new Error(empErr.message);
       const currentBal = parseFloat(emp.sil_hours_balance || 0);
-      const leaveHrs = parseFloat(leave.hours || 0);
 
-      if (currentBal < leaveHrs) {
+      if (currentBal < totalHours) {
         throw new Error(`Cannot approve leave. Employee currently only has ${currentBal} hrs balance.`);
       }
 
-      // Deduct balance
       await supabase
         .from('employees')
         .update({
-          sil_hours_balance: currentBal - leaveHrs,
+          sil_hours_balance: currentBal - totalHours,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', leave.employee_id);
+        .eq('id', employeeId);
     }
 
-    // Update Leave Status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedRows, error: updateErr } = await supabase
       .from('sil_leaves')
       .update({
         status,
@@ -240,55 +334,62 @@ export const silService = {
         hr_processed_by: hrId || null,
         hr_processed_at: new Date().toISOString(),
       })
-      .eq('id', leaveId)
-      .select()
-      .single();
+      .eq('leave_group_id', groupId)
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
 
-    // Send Notification to Employee
+    const dates = rows.map((row) => row.date).sort();
+    const rangeLabel = dates.length > 1
+      ? `${dates[0]} to ${dates[dates.length - 1]} (${dates.length} days)`
+      : dates[0];
+
     notificationService.createNotification({
-      recipient_id: leave.employee_id,
+      recipient_id: employeeId,
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
       title: 'SIL Leave Application Status',
-      message: `Your SIL leave application for ${leave.hours} hrs on ${leave.date} was ${status.toLowerCase()}.`,
-      reference_id: leaveId,
+      message: `Your SIL leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      reference_id: groupId,
     });
 
     systemAuditLogService.addApprovalEvent(
       'SIL_LEAVE',
-      leaveId,
-      `SIL leave application for ${leave.hours} hrs on ${leave.date} was ${status.toLowerCase()}.`,
-      { event: 'SIL_LEAVE_DECISION', status, employeeId: leave.employee_id },
+      groupId,
+      `SIL leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      { event: 'SIL_LEAVE_DECISION', status, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
 
-    return updatedLeave;
+    return updatedRows;
   },
 
   /**
-   * Undo HR SIL Leave Decision
-   * - Reverts the status to PENDING
-   * - Refunds (adds) the hours if they were APPROVED
+   * Undo HR's decision on a SIL Leave group.
+   * - Reverts every day-row in the group to PENDING
+   * - Refunds the group's total hours if it was APPROVED, capped per employee
+   *   rather than per day (see creditSilRefund)
    */
-  async undoSilLeaveDecision({ leaveId, hrId }) {
-    const { data: leave, error: leaveErr } = await supabase
+  async undoSilLeaveDecision({ groupId, hrId }) {
+    const { data: rows, error: rowsErr } = await supabase
       .from('sil_leaves')
       .select('*')
-      .eq('id', leaveId)
-      .single();
+      .eq('leave_group_id', groupId);
 
-    if (leaveErr) throw new Error(leaveErr.message);
-    if (leave.status === 'PENDING') throw new Error('Leave is already pending.');
+    if (rowsErr) throw new Error(rowsErr.message);
+    if (!rows || rows.length === 0) throw new Error('Leave application not found.');
 
-    // If it was APPROVED, refund the balance (capped — see creditSilRefund)
-    if (leave.status === 'APPROVED') {
-      await creditSilRefund(leave.employee_id, leave.hours, leaveId, hrId);
+    const status = rows[0].status;
+    if (status === 'PENDING') throw new Error('Leave is already pending.');
+
+    const employeeId = rows[0].employee_id;
+    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+
+    if (status === 'APPROVED') {
+      await creditSilRefund(employeeId, totalHours, groupId, hrId);
     }
 
-    // Revert status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedRows, error: updateErr } = await supabase
       .from('sil_leaves')
       .update({
         status: 'PENDING',
@@ -296,31 +397,32 @@ export const silService = {
         hr_processed_by: null,
         hr_processed_at: null,
       })
-      .eq('id', leaveId)
-      .select()
-      .single();
+      .eq('leave_group_id', groupId)
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
 
-    // Notify employee
+    const dates = rows.map((row) => row.date).sort();
+    const dateLabel = dates.length > 1 ? `${dates[0]} to ${dates[dates.length - 1]}` : dates[0];
+
     notificationService.createNotification({
-      recipient_id: leave.employee_id,
+      recipient_id: employeeId,
       sender_id: hrId,
       type: 'SIL_LEAVE_DECISION',
       title: 'SIL Leave Request Reverted',
-      message: `HR has reverted the decision on your SIL leave request for ${leave.date}. It is now PENDING again.`,
-      reference_id: leaveId,
+      message: `HR has reverted the decision on your SIL leave request for ${dateLabel}. It is now PENDING again.`,
+      reference_id: groupId,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
-      leaveId,
-      `SIL leave decision for ${leave.date} was reverted to PENDING (was ${leave.status}).`,
-      { event: 'SIL_LEAVE_DECISION_UNDONE', previousStatus: leave.status, employeeId: leave.employee_id },
+      groupId,
+      `SIL leave decision for ${dateLabel} was reverted to PENDING (was ${status}).`,
+      { event: 'SIL_LEAVE_DECISION_UNDONE', previousStatus: status, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
 
-    return updatedLeave;
+    return updatedRows;
   },
 
   /**

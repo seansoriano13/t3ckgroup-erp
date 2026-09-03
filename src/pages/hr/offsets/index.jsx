@@ -17,6 +17,7 @@ import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
 import { formatWindow, isRequestInPendingPeriod } from '../../../utils/time';
+import { groupLeaveRows } from '../../../utils/leaveGroups';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -96,12 +97,19 @@ export default function HrLeavesManagerPage() {
       const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
-      const pendingCombined = [...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil]
+      // A range writes one row per day (see ticket #63), so rows sharing a
+      // leave_group_id are collapsed into one entry before the queue is built —
+      // otherwise a 3-day leave would show as three separate pending requests.
+      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil])
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
-      // Processed & Approved (from period-scoped)
-      const processed = combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
-                                .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+      // Processed (from period-scoped) — grouped the same way as pending.
+      const processed = groupLeaveRows(
+        combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
+      ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+      // Approved feeds the calendar, which plots one card per day — left
+      // ungrouped so every day in a range still gets its own cell.
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
       setPendingLeaves(pendingCombined);
@@ -136,8 +144,9 @@ export default function HrLeavesManagerPage() {
 
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
 
+    const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;
-    let msg = `Are you sure you want to ${actionLabel.toLowerCase()} this ${request.type.toLowerCase()} request for ${request.hours} hours?`;
+    let msg = `Are you sure you want to ${actionLabel.toLowerCase()} this ${request.type.toLowerCase()} request for ${request.hours} hours${rangeNote}?`;
 
     confirmActionToast(title, msg, actionLabel, actionType === 'reject' ? 'destructive' : 'default', async () => {
       try {
@@ -145,10 +154,10 @@ export default function HrLeavesManagerPage() {
           await offsetService.handleOvertimeDecision({ requestId: request.id, status: 'REJECTED', hrId: user?.id });
         } else if (isOffset) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
-          await offsetService.handleOffsetLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
+          await offsetService.handleOffsetLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         } else if (isSIL) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
-          await silService.handleSilLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
+          await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
         toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
         loadData();
@@ -173,9 +182,9 @@ export default function HrLeavesManagerPage() {
           if (isOT) {
             await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: user?.id });
           } else if (isOffset) {
-            await offsetService.undoOffsetLeaveDecision({ leaveId: request.id, hrId: user?.id });
+            await offsetService.undoOffsetLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isSIL) {
-            await silService.undoSilLeaveDecision({ leaveId: request.id, hrId: user?.id });
+            await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           }
           toast.success('Decision undone successfully.');
           loadData();
@@ -403,7 +412,7 @@ export default function HrLeavesManagerPage() {
                           </td>
                         </tr>
                         {group.requests.map(req => (
-                           <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
+                           <tr key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30 transition-colors">
                               <td className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
@@ -422,7 +431,18 @@ export default function HrLeavesManagerPage() {
                                 </span>
                               </td>
                               <td className="p-4 text-sm font-bold text-foreground">
-                                {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                {req.dayCount > 1 ? (
+                                  <>
+                                    {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {' – '}
+                                    {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                      {req.dayCount} days
+                                    </span>
+                                  </>
+                                ) : (
+                                  new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                                )}
                               </td>
                               <td className="p-4">
                                 <div className="flex flex-col gap-0.5">
@@ -499,7 +519,7 @@ export default function HrLeavesManagerPage() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {filteredProcessed.map(req => (
-                       <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
+                       <tr key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30 transition-colors">
                           <td className="p-4">
                             <div className="flex items-center gap-3">
                               <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
@@ -515,7 +535,18 @@ export default function HrLeavesManagerPage() {
                             </span>
                           </td>
                           <td className="p-4 text-sm font-bold text-foreground">
-                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {req.dayCount > 1 ? (
+                              <>
+                                {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {' – '}
+                                {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                  {req.dayCount} days
+                                </span>
+                              </>
+                            ) : (
+                              new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                            )}
                           </td>
                           <td className="p-4">
                             <div className="flex flex-col gap-0.5">
