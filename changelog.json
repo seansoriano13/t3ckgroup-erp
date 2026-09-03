@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "1.2.4",
+      "date": "2026-09-03",
+      "changes": [
+        "Fixed Group Task attachments: uploading a file on a member's task submission gave no indication anything was happening, and the file could take a moment to appear in the Attachments section after it finished. The button now shows \"Uploading...\" for the whole upload, and the Attachments section is guaranteed to be up to date by the time it clears.",
+        "Fixed: uploading an attachment from a task opened via a notification (instead of the Group Tasks page directly) silently did nothing."
+      ]
+    },
+    {
       "version": "1.2.3",
       "date": "2026-09-03",
       "changes": [
