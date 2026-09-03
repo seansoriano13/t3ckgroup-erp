@@ -132,6 +132,11 @@ export default function GroupTaskDetailModal({
   const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
+  // Covers the whole pick → Cloudinary upload → persist round trip for the
+  // member-submission attachment picker below — isUploadingAttachment alone
+  // only reflects the (fast) DB write, leaving the slow Cloudinary upload
+  // with no visible feedback at all.
+  const [isUploadingMemberFile, setIsUploadingMemberFile] = useState(false);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   // Holds the in-progress edit for the selected member, or a brand new member
   // when `id` is null. One shape covers both so the shared panel does not need
@@ -1009,39 +1014,44 @@ export default function GroupTaskDetailModal({
                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     multiple
                                     accept={ALLOWED_EXTENSIONS_STRING}
-                                    disabled={isUploadingAttachment}
+                                    disabled={isUploadingAttachment || isUploadingMemberFile}
                                     title="Upload attachments"
                                     onChange={async (e) => {
                                       const files = Array.from(e.target.files);
-                                      for (const file of files) {
-                                        if (!isAllowedAttachment(file)) {
-                                          toast.error(`${file.name} is not a supported file type.`);
-                                          continue;
-                                        }
-                                        if (file.size > MAX_ATTACHMENT_BYTES) {
-                                          toast.error(
-                                            `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
-                                          );
-                                          continue;
-                                        }
-                                        try {
-                                          const descriptor = await storageService.uploadFileToCloudinary(file);
-                                          onAddAttachment(member.id, descriptor);
-                                        } catch (err) {
-                                          console.error(err);
-                                          toast.error(`Failed to upload ${file.name}`);
-                                        }
-                                      }
                                       e.target.value = "";
+                                      setIsUploadingMemberFile(true);
+                                      try {
+                                        for (const file of files) {
+                                          if (!isAllowedAttachment(file)) {
+                                            toast.error(`${file.name} is not a supported file type.`);
+                                            continue;
+                                          }
+                                          if (file.size > MAX_ATTACHMENT_BYTES) {
+                                            toast.error(
+                                              `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
+                                            );
+                                            continue;
+                                          }
+                                          try {
+                                            const descriptor = await storageService.uploadFileToCloudinary(file);
+                                            await onAddAttachment(member.id, descriptor);
+                                          } catch (err) {
+                                            console.error(err);
+                                            toast.error(`Failed to upload ${file.name}`);
+                                          }
+                                        }
+                                      } finally {
+                                        setIsUploadingMemberFile(false);
+                                      }
                                     }}
                                   />
                                   <button
                                     type="button"
-                                    disabled={isUploadingAttachment}
+                                    disabled={isUploadingAttachment || isUploadingMemberFile}
                                     className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 disabled:opacity-50"
                                   >
                                     <Paperclip size={10} />
-                                    {isUploadingAttachment ? "Uploading..." : "Add File"}
+                                    {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
                                   </button>
                                 </div>
                               )}

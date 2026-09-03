@@ -170,8 +170,12 @@ export default function GroupTasksPage() {
   const addMemberAttachmentMutation = useMutation({
     mutationFn: ({ memberId, url }) =>
       groupTaskService.addMemberAttachment(memberId, url, user.id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+    onSuccess: async () => {
+      // Awaited so the caller's "uploading" indicator stays up until the
+      // refetched task actually carries the new attachment — otherwise the
+      // button clears before the list re-renders and it looks like the
+      // upload vanished.
+      await queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
       toast.success("Attachment uploaded successfully!");
     },
     onError: (err) => toast.error(err.message),
@@ -406,7 +410,7 @@ export default function GroupTasksPage() {
         onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
         onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
 
-        onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutate({ memberId, url })}
+        onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutateAsync({ memberId, url })}
         onOpenRateModal={() => setIsRateOpen(true)}
         onDelete={() => deleteMutation.mutate(selectedTaskId)}
         onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}

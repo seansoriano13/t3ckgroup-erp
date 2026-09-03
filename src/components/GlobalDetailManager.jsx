@@ -176,6 +176,20 @@ export default function GlobalDetailManager() {
 
   // See the matching comment in pages/group-tasks/index.jsx: checklist ticks
   // go to the checklist column, gated to the assignee before DONE.
+  const addMemberAttachmentMutation = useMutation({
+    mutationFn: ({ memberId, url }) => groupTaskService.addMemberAttachment(memberId, url, user?.id),
+    onSuccess: async () => {
+      // Awaited so the modal's upload indicator stays up until the
+      // attachment is actually visible in the refetched task.
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["groupTasks"] }),
+        queryClient.invalidateQueries({ queryKey: ["globalGroupTask", activeItem?.id] }),
+      ]);
+      toast.success("Attachment uploaded successfully!");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
   const updateMemberChecklistMutation = useMutation({
     mutationFn: ({ memberId, checklist }) =>
       groupTaskService.updateMemberChecklist(
@@ -259,6 +273,8 @@ export default function GlobalDetailManager() {
             employees={employees}
             onMarkDone={(memberId) => markDoneMutation.mutate(memberId)}
             onRevertDone={(memberId) => revertDoneMutation.mutate(memberId)}
+            onAddAttachment={(memberId, url) => addMemberAttachmentMutation.mutateAsync({ memberId, url })}
+            isUploadingAttachment={addMemberAttachmentMutation.isPending}
             onOpenRateModal={() => setIsRateOpen(true)}
             onDelete={() => deleteGroupTaskMutation.mutate(activeItem.id)}
             onAddMember={(payload) => addMemberMutation.mutateAsync(payload)}
