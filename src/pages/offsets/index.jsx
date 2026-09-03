@@ -356,6 +356,7 @@ export default function EmployeeLeavesPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Date Worked</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
@@ -371,6 +372,9 @@ export default function EmployeeLeavesPage() {
                         </td>
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="p-4 text-xs font-semibold text-foreground">
+                          {req.category?.label || '-'}
                         </td>
                         <td className="p-4">
                           <div className="flex flex-col gap-0.5">
@@ -432,6 +436,7 @@ export default function EmployeeLeavesPage() {
                         <th className="p-4">Applied On</th>
                         <th className="p-4">Type</th>
                         <th className="p-4">Leave Date</th>
+                        <th className="p-4">Category</th>
                         <th className="p-4">Hours</th>
                         <th className="p-4">Reason</th>
                         <th className="p-4">Files</th>
@@ -455,6 +460,9 @@ export default function EmployeeLeavesPage() {
                           </td>
                           <td className="p-4 text-sm font-bold text-foreground">
                             {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-foreground">
+                            {req.category?.label || '-'}
                           </td>
                           <td className="p-4">
                             <div className="flex flex-col gap-0.5">
@@ -543,6 +551,7 @@ export default function EmployeeLeavesPage() {
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Type</th>
                       <th className="p-4">Leave Date</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
                       <th className="p-4">Files</th>
@@ -566,6 +575,9 @@ export default function EmployeeLeavesPage() {
                         </td>
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="p-4 text-xs font-semibold text-foreground">
+                          {req.category?.label || '-'}
                         </td>
                         <td className="p-4">
                           <div className="flex flex-col gap-0.5">

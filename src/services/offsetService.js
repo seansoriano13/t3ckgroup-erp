@@ -52,7 +52,7 @@ export const offsetService = {
   /**
    * Apply for Overtime (Employee)
    */
-  async applyOvertime({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+  async applyOvertime({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
     const parsedHours = deriveHours(startTime, endTime, true);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -74,6 +74,7 @@ export const offsetService = {
           end_time: endTime,
           hours: parsedHours,
           reason,
+          category_id: categoryId || null,
           status: 'PENDING',
           attachments: cleanAttachments(attachments),
         },
@@ -106,7 +107,7 @@ export const offsetService = {
   /**
    * Apply for Offset Leave (Employee)
    */
-  async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+  async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
     const parsedHours = deriveHours(startTime, endTime, false);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -149,6 +150,7 @@ export const offsetService = {
           end_time: endTime,
           hours: parsedHours,
           reason,
+          category_id: categoryId || null,
           status: 'PENDING',
           attachments: cleanAttachments(attachments),
         },
@@ -188,7 +190,7 @@ export const offsetService = {
    * for defaulting each day to 8 hours and letting HR-visible edits narrow a
    * half-day inside the range.
    */
-  async applyOffsetLeaveRange({ employeeId, days, reason, employeeName, attachments = [] }) {
+  async applyOffsetLeaveRange({ employeeId, days, reason, categoryId, employeeName, attachments = [] }) {
     if (!Array.isArray(days) || days.length === 0) {
       throw new Error('Please select at least one day.');
     }
@@ -243,6 +245,7 @@ export const offsetService = {
         date: day.date,
         hours: day.hours,
         reason,
+        category_id: categoryId || null,
         status: 'PENDING',
         attachments: cleanedAttachments,
         leave_group_id: leaveGroupId,
@@ -280,7 +283,10 @@ export const offsetService = {
   async getMyOvertimeRequests(employeeId, startDate = null, endDate = null) {
     let query = supabase
       .from('overtime_requests')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
 
@@ -298,7 +304,10 @@ export const offsetService = {
   async getMyPendingOvertimeRequests(employeeId) {
     const { data, error } = await supabase
       .from('overtime_requests')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')
       .order('date', { ascending: true }); // Ordered by date ascending for the queue
@@ -313,7 +322,10 @@ export const offsetService = {
   async getMyOffsetLeaves(employeeId, startDate = null, endDate = null) {
     let query = supabase
       .from('offset_leaves')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
 
@@ -331,7 +343,10 @@ export const offsetService = {
   async getMyPendingOffsetLeaves(employeeId) {
     const { data, error } = await supabase
       .from('offset_leaves')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')
       .order('date', { ascending: true });
@@ -348,7 +363,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
 
@@ -368,7 +384,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
       .order('date', { ascending: true });
@@ -386,7 +403,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
 
@@ -406,7 +424,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance)
+        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
       .order('date', { ascending: true });

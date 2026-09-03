@@ -54,6 +54,17 @@ export function makeCategory(overrides = {}) {
   })
 }
 
+export function makeLeaveCategory(overrides = {}) {
+  const n = next()
+  return db.seed("hr_leave_categories", {
+    id: `LVCAT-${n}`,
+    label: `Leave Category ${n}`,
+    is_active: true,
+    sort_order: n,
+    ...overrides,
+  })
+}
+
 export function makeTask(overrides = {}) {
   const loggedBy = overrides.logged_by ?? makeEmployee().id
   const categoryId = overrides.category_id ?? makeCategory().category_id

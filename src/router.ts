@@ -47,9 +47,10 @@ export type Path =
   | `/super-admin/lead-sources`
   | `/super-admin/pipeline-stages`
   | `/tasks`
+  | `/verify/:token`
 
 export type Params = {
-  
+  '/verify/:token': { token: string }
 }
 
 export type ModalPath = never

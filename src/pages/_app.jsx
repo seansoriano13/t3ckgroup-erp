@@ -8,7 +8,7 @@ export default function AppLayout() {
   const { user, isAuthLoading } = useAuth();
   const location = useLocation();
 
-  if (location.pathname === "/login") {
+  if (location.pathname === "/login" || location.pathname.startsWith("/verify/")) {
     return <Outlet />;
   }
 

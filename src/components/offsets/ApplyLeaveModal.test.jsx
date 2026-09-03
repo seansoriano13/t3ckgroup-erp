@@ -6,7 +6,7 @@ import ApplyLeaveModal from "./ApplyLeaveModal"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee } from "@/test/factories"
+import { makeEmployee, makeLeaveCategory } from "@/test/factories"
 
 /**
  * The one form employees use to claim overtime and spend leave. It writes
@@ -23,6 +23,7 @@ describe("ApplyLeaveModal", () => {
   let employee
   let onClose
   let onSuccess
+  let defaultCategory
 
   beforeEach(() => {
     employee = makeEmployee({
@@ -30,6 +31,7 @@ describe("ApplyLeaveModal", () => {
       offset_hours_balance: 16,
       sil_hours_balance: 40,
     })
+    defaultCategory = makeLeaveCategory({ label: "Medical" })
     mockUser.current = { id: employee.id, name: employee.name }
     onClose = vi.fn()
     onSuccess = vi.fn()
@@ -43,12 +45,13 @@ describe("ApplyLeaveModal", () => {
     )
 
   /** Fills the visible tab's fields. */
-  const fillForm = async ({ date, startTime, endTime, reason }) => {
+  const fillForm = async ({ date, startTime, endTime, reason, categoryId }) => {
     const user = userEvent.setup()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
+    const selectField = form.querySelector("select")
 
     await user.clear(dateField)
     await user.type(dateField, date)
@@ -64,6 +67,13 @@ describe("ApplyLeaveModal", () => {
       }
     }
     
+    if (selectField) {
+      await waitFor(() => {
+        expect(selectField.options.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(selectField, categoryId || defaultCategory.id)
+    }
+
     await user.clear(reasonField)
     await user.type(reasonField, reason)
     return { user, form }

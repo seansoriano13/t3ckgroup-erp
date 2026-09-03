@@ -396,6 +396,7 @@ export default function HrLeavesManagerPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Employee</th>
                       <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
@@ -429,6 +430,9 @@ export default function HrLeavesManagerPage() {
                                 }`}>
                                   {req.type}
                                 </span>
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-foreground">
+                                {req.category?.label || '-'}
                               </td>
                               <td className="p-4 text-sm font-bold text-foreground">
                                 {req.dayCount > 1 ? (
@@ -509,6 +513,7 @@ export default function HrLeavesManagerPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Employee</th>
                       <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Files</th>
@@ -533,6 +538,9 @@ export default function HrLeavesManagerPage() {
                             }`}>
                               {req.type}
                             </span>
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-foreground">
+                            {req.category?.label || '-'}
                           </td>
                           <td className="p-4 text-sm font-bold text-foreground">
                             {req.dayCount > 1 ? (

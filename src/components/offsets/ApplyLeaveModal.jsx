@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
+import { hrSettingsService } from '../../services/hrSettingsService';
+import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Calendar, PlusCircle } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
@@ -88,6 +90,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
+  const [otCategoryId, setOtCategoryId] = useState('');
   const [otStartTime, setOtStartTime] = useState('');
   const [otEndTime, setOtEndTime] = useState('');
   const [otReason, setOtReason] = useState('');
@@ -97,6 +100,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   // Offset Leave State
   const [offsetApplyMode, setOffsetApplyMode] = useState('single'); // 'single' | 'range'
   const [offsetDate, setOffsetDate] = useState('');
+  const [offsetCategoryId, setOffsetCategoryId] = useState('');
   const [offsetStartTime, setOffsetStartTime] = useState('');
   const [offsetEndTime, setOffsetEndTime] = useState('');
   const [offsetRangeStart, setOffsetRangeStart] = useState('');
@@ -109,6 +113,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   // SIL Leave State
   const [silApplyMode, setSilApplyMode] = useState('single'); // 'single' | 'range'
   const [silDate, setSilDate] = useState('');
+  const [silCategoryId, setSilCategoryId] = useState('');
   const [silStartTime, setSilStartTime] = useState('');
   const [silEndTime, setSilEndTime] = useState('');
   const [silRangeStart, setSilRangeStart] = useState('');
@@ -122,11 +127,16 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const currentOffsetHours = safeDeriveHours(offsetStartTime, offsetEndTime, false);
   const currentSilHours = safeDeriveHours(silStartTime, silEndTime, false);
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ['activeLeaveCategories'],
+    queryFn: () => hrSettingsService.getLeaveCategories(false),
+  });
+
   if (!isOpen) return null;
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!otDate || !otStartTime || !otEndTime || !otReason) {
+    if (!otDate || !otStartTime || !otEndTime || !otReason || !otCategoryId) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -140,11 +150,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         startTime: otStartTime,
         endTime: otEndTime,
         reason: otReason,
+        categoryId: otCategoryId,
         employeeName: user.name,
         attachments,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
+      setOtCategoryId('');
       setOtStartTime('');
       setOtEndTime('');
       setOtReason('');
@@ -163,7 +175,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
     if (offsetApplyMode === 'range') {
       const days = enumerateDateRange(offsetRangeStart, offsetRangeEnd);
-      if (days.length === 0 || !offsetReason) {
+      if (days.length === 0 || !offsetReason || !offsetCategoryId) {
         toast.error('Please fill in all fields.');
         return;
       }
@@ -175,6 +187,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
           employeeId: user.id,
           days: days.map((date) => ({ date, hours: parseFloat(offsetDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: offsetReason,
+          categoryId: offsetCategoryId,
           employeeName: user.name,
           attachments,
         });
@@ -182,6 +195,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         setOffsetRangeStart('');
         setOffsetRangeEnd('');
         setOffsetDayHours({});
+        setOffsetCategoryId('');
         setOffsetReason('');
         offsetFiles.clear();
         onSuccess?.();
@@ -194,7 +208,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       return;
     }
 
-    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason) {
+    if (!offsetDate || !offsetStartTime || !offsetEndTime || !offsetReason || !offsetCategoryId) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -208,11 +222,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         startTime: offsetStartTime,
         endTime: offsetEndTime,
         reason: offsetReason,
+        categoryId: offsetCategoryId,
         employeeName: user.name,
         attachments,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
+      setOffsetCategoryId('');
       setOffsetStartTime('');
       setOffsetEndTime('');
       setOffsetReason('');
@@ -231,7 +247,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
     if (silApplyMode === 'range') {
       const days = enumerateDateRange(silRangeStart, silRangeEnd);
-      if (days.length === 0 || !silReason) {
+      if (days.length === 0 || !silReason || !silCategoryId) {
         toast.error('Please fill in all fields.');
         return;
       }
@@ -243,6 +259,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
           employeeId: user.id,
           days: days.map((date) => ({ date, hours: parseFloat(silDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: silReason,
+          categoryId: silCategoryId,
           employeeName: user.name,
           attachments,
         });
@@ -250,11 +267,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         setSilRangeStart('');
         setSilRangeEnd('');
         setSilDayHours({});
+        setSilCategoryId('');
         setSilReason('');
         silFiles.clear();
         onSuccess?.();
         onClose();
       } catch (err) {
+        console.error('SIL Submission Error:', err);
         toast.error(err.message || 'Failed to submit SIL leave.');
       } finally {
         setSilSubmitting(false);
@@ -262,7 +281,8 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       return;
     }
 
-    if (!silDate || !silStartTime || !silEndTime || !silReason) {
+    if (!silDate || !silStartTime || !silEndTime || !silReason || !silCategoryId) {
+      console.log('Validation failed!', { silDate, silStartTime, silEndTime, silReason, silCategoryId });
       toast.error('Please fill in all fields.');
       return;
     }
@@ -276,11 +296,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         startTime: silStartTime,
         endTime: silEndTime,
         reason: silReason,
+        categoryId: silCategoryId,
         employeeName: user.name,
         attachments,
       });
       toast.success('SIL leave application submitted!');
       setSilDate('');
+      setSilCategoryId('');
       setSilStartTime('');
       setSilEndTime('');
       setSilReason('');
@@ -333,17 +355,35 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   Request Overtime
                 </h3>
               </div>
-              <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Date Worked
-                </label>
-                <input
-                  type="date"
-                  value={otDate}
-                  onChange={(e) => setOtDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Category
+                  </label>
+                  <select
+                    value={otCategoryId}
+                    onChange={(e) => setOtCategoryId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                    required
+                  >
+                    <option value="" disabled>Select...</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                    Date Worked
+                  </label>
+                  <input
+                    type="date"
+                    value={otDate}
+                    onChange={(e) => setOtDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    required
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -428,6 +468,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   onChange={setOffsetApplyMode}
                   size="sm"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Category
+                </label>
+                <select
+                  value={offsetCategoryId}
+                  onChange={(e) => setOffsetCategoryId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                  required
+                >
+                  <option value="" disabled>Select category...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
               </div>
               {offsetApplyMode === 'range' ? (
                 <RangeDayEditor
@@ -538,6 +594,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   onChange={setSilApplyMode}
                   size="sm"
                 />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Category
+                </label>
+                <select
+                  value={silCategoryId}
+                  onChange={(e) => setSilCategoryId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                  required
+                >
+                  <option value="" disabled>Select category...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.label}</option>
+                  ))}
+                </select>
               </div>
               {silApplyMode === 'range' ? (
                 <RangeDayEditor

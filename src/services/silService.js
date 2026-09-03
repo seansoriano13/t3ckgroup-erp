@@ -43,7 +43,7 @@ export const silService = {
   /**
    * Apply for SIL Leave (Employee)
    */
-  async applySilLeave({ employeeId, date, startTime, endTime, reason, employeeName, attachments = [] }) {
+  async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
     const parsedHours = deriveHours(startTime, endTime, false);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -79,6 +79,7 @@ export const silService = {
           end_time: endTime,
           hours: parsedHours,
           reason,
+          category_id: categoryId || null,
           status: 'PENDING',
           attachments: cleanAttachments(attachments),
         },
@@ -116,7 +117,7 @@ export const silService = {
    * of day-rows was chosen over an end-date column. `days` is
    * `[{ date, hours }]`; the apply form defaults each day to 8 hours.
    */
-  async applySilLeaveRange({ employeeId, days, reason, employeeName, attachments = [] }) {
+  async applySilLeaveRange({ employeeId, days, reason, categoryId, employeeName, attachments = [] }) {
     if (!Array.isArray(days) || days.length === 0) {
       throw new Error('Please select at least one day.');
     }
@@ -166,6 +167,7 @@ export const silService = {
         date: day.date,
         hours: day.hours,
         reason,
+        category_id: categoryId || null,
         status: 'PENDING',
         attachments: cleanedAttachments,
         leave_group_id: leaveGroupId,
@@ -203,7 +205,10 @@ export const silService = {
   async getMySilLeaves(employeeId, startDate = null, endDate = null) {
     let query = supabase
       .from('sil_leaves')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
 
@@ -221,7 +226,10 @@ export const silService = {
   async getMyPendingSilLeaves(employeeId) {
     const { data, error } = await supabase
       .from('sil_leaves')
-      .select('*')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')
       .order('date', { ascending: true });
