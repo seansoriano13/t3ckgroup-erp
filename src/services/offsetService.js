@@ -438,8 +438,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
-        hr:employees!overtime_requests_hr_processed_by_fkey(id, name),
+        employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
+        hr:employees!overtime_requests_hr_processed_by_fkey(id, name, signature_path),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -460,7 +460,7 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
@@ -479,8 +479,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
-        hr:employees!offset_leaves_hr_processed_by_fkey(id, name),
+        employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
+        hr:employees!offset_leaves_hr_processed_by_fkey(id, name, signature_path),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -501,7 +501,7 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
