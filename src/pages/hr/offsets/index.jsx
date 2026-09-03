@@ -6,13 +6,13 @@ import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Clock, CheckCircle2, XCircle, Search, Filter, Printer } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
-import ModalOverlay from '../../../components/ui/ModalOverlay';
-import { generateBulkPdf } from '../../../lib/pdf/printer';
+import { printHtmlPdf } from '../../../lib/pdf/htmlPrinter';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
+import HrApplyLeaveModal from '../../../components/hr/HrApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
@@ -42,6 +42,7 @@ export default function HrLeavesManagerPage() {
   const [employeeBalances, setEmployeeBalances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,7 +51,6 @@ export default function HrLeavesManagerPage() {
 
   // PDF Generation State
   const [selectedRecords, setSelectedRecords] = useState(new Set());
-  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Manage FloatingMonthPicker visibility
@@ -300,54 +300,28 @@ export default function HrLeavesManagerPage() {
   };
 
   const handlePrintSelected = async () => {
+    setIsGeneratingPdf(true);
     try {
-      setIsGeneratingPdf(true);
       const recordsToPrint = filteredProcessed.filter(r => selectedRecords.has(r.type + '-' + (r.leave_group_id || r.id)));
-
-      // A mixed leave/overtime selection is grouped onto separate sheets by
-      // composeSheets (it never mixes the two on one sheet) rather than
-      // refused outright.
       if (recordsToPrint.length === 0) {
-        toast.error("No valid records selected to print.");
-        setIsGeneratingPdf(false);
+        toast.error("No records selected");
         return;
       }
-
-      const pdfBytes = await generateBulkPdf(recordsToPrint);
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      setPdfPreviewUrl(url);
+      await printHtmlPdf(recordsToPrint);
     } catch (err) {
-      toast.error("Failed to generate PDF: " + err.message);
+      toast.error(err.message || "Failed to generate PDF");
     } finally {
       setIsGeneratingPdf(false);
     }
   };
 
-  const closePdfPreview = useCallback(() => {
-    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
-    setPdfPreviewUrl(null);
-  }, [pdfPreviewUrl]);
-
   return (
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
-      <ModalOverlay isOpen={!!pdfPreviewUrl} onClose={closePdfPreview}>
-        <div className="w-[90vw] h-[90vh] bg-card rounded-2xl overflow-hidden flex flex-col shadow-2xl">
-          <div className="p-4 border-b border-border flex justify-between items-center bg-muted/30">
-            <h3 className="text-sm font-black text-foreground uppercase tracking-wide">Print Preview</h3>
-            <button
-              onClick={closePdfPreview}
-              className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-          {pdfPreviewUrl && (
-            <iframe src={pdfPreviewUrl} title="PDF Preview" className="flex-1 w-full border-0" />
-          )}
-        </div>
-      </ModalOverlay>
+      <PageHeader 
+        title="Offsets & Leaves" 
+        subtitle="Manage overtime credits, leave requests, and balances"
+      />
 
       <ApproveOvertimeModal
         isOpen={!!overtimeApproval}
@@ -363,9 +337,24 @@ export default function HrLeavesManagerPage() {
         onChange={setDateRange}
       />
 
-      <PageHeader
-        title="HR Leaves & Overtime Manager"
-        description="Review leave applications, approve overtime, and manage employee balances."
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader
+          title="HR Leaves & Overtime Manager"
+          description="Review leave applications, approve overtime, and manage employee balances."
+        />
+        <button
+          onClick={() => setIsApplyModalOpen(true)}
+          className="flex-none bg-primary text-primary-foreground font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-primary/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+          File for Employee
+        </button>
+      </div>
+
+      <HrApplyLeaveModal 
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+        onSuccess={loadData}
       />
 
       <div className="space-y-4">
