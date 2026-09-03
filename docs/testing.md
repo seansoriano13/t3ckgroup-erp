@@ -213,6 +213,13 @@ Every non-database boundary has a sane default and a stub:
 Anything not covered by a handler **fails the test** rather than reaching the
 internet.
 
+Supabase Storage is the one exception to "stub a canned response": it's a small
+in-memory fake (upload, signed URL, plain download) against the real bucket
+constraints (size cap, allowed MIME types), the same way the database is faked
+rather than stubbed. `seedStorageObject(bucket, path, { bytes, contentType })`
+— `@/test/msw/storage` — plants an object a test didn't upload itself, for
+reading back a signature/file another actor produced.
+
 ### `waitForNetworkIdle()` — `@/test/network`
 
 Several services fire and forget: a notification broadcast or an audit-log write

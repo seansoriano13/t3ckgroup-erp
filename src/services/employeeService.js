@@ -62,6 +62,7 @@ export const employeeService = {
       isHr: data.is_hr,
       isSuperAdmin: data.is_super_admin,
       canManageLeaves: data.can_manage_leaves,
+      signaturePath: data.signature_path || null,
       avatarPath: data.avatar_path || null,
       dashboardBannerPath: data.dashboard_banner_path || null,
       dashboardQuote: data.dashboard_quote || null,
