@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   formatBytes,
+  isAllowedAttachment,
   isImageAttachment,
   MAX_ATTACHMENTS,
   MAX_ATTACHMENT_BYTES,
@@ -107,6 +108,26 @@ describe("formatBytes", () => {
   it("shows nothing when the size was never recorded", () => {
     expect(formatBytes(null)).toBe("")
     expect(formatBytes(undefined)).toBe("")
+  })
+})
+
+describe("isAllowedAttachment", () => {
+  it("allows a common document type", () => {
+    expect(isAllowedAttachment({ name: "Contract.pdf", type: "application/pdf" })).toBe(true)
+  })
+
+  it("allows a short video by MIME type", () => {
+    expect(isAllowedAttachment({ name: "walkthrough.mp4", type: "video/mp4" })).toBe(true)
+  })
+
+  it("allows a short video by extension when the browser reports no MIME type", () => {
+    expect(isAllowedAttachment({ name: "clip.mov", type: "" })).toBe(true)
+  })
+
+  it("rejects an unsupported executable", () => {
+    expect(isAllowedAttachment({ name: "installer.exe", type: "application/x-msdownload" })).toBe(
+      false,
+    )
   })
 })
 

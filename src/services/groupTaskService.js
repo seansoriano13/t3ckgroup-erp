@@ -279,7 +279,7 @@ export const groupTaskService = {
     return true;
   },
 
-  async addMemberAttachment(memberId, attachmentUrl, userId) {
+  async addMemberAttachment(memberId, attachment, userId) {
     const { data: member, error: fetchErr } = await supabase
       .from("committee_task_members")
       .select("*, committee_tasks(*)")
@@ -289,7 +289,7 @@ export const groupTaskService = {
     if (fetchErr) throw fetchErr;
 
     const existing = member.attachments || [];
-    const newAttachments = [...existing, attachmentUrl];
+    const newAttachments = [...existing, attachment];
 
     const { error } = await supabase
       .from("committee_task_members")
@@ -300,12 +300,12 @@ export const groupTaskService = {
 
     const { data: currentUser } = await supabase.from("employees").select("name").eq("id", userId).single();
     const userName = currentUser?.name || "A member";
-    
+
     await groupTaskActivityService.addComment(
       member.committee_task_id,
       userId,
       `${userName} uploaded a file.`,
-      { attachments: [attachmentUrl] }
+      { attachments: [attachment] }
     );
     
     return true;

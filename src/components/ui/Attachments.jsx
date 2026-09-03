@@ -108,7 +108,7 @@ export function AttachmentField({
 
       <p className="text-[10px] text-muted-foreground/70 mt-1.5">
         {hint ||
-          `Optional — up to ${max} files, ${formatBytes(10 * 1024 * 1024)} each. Images, PDFs and documents.`}
+          `Optional — up to ${max} files, ${formatBytes(10 * 1024 * 1024)} each. Images, documents, and short videos.`}
       </p>
     </div>
   );

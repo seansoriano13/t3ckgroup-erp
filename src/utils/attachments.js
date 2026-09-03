@@ -31,6 +31,11 @@ export const ALLOWED_MIME_TYPES = [
   "text/plain",
   "text/csv",
   "application/rtf",
+  // Videos (kept short by MAX_ATTACHMENT_BYTES, not by codec)
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-msvideo",
   // Archives
   "application/zip",
   "application/x-zip-compressed",
@@ -40,7 +45,8 @@ export const ALLOWED_MIME_TYPES = [
 
 export const ALLOWED_EXTENSIONS = [
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".bmp", ".svg",
-  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".rar", ".7z"
+  ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".rar", ".7z",
+  ".mp4", ".webm", ".mov", ".avi",
 ];
 
 export const ALLOWED_EXTENSIONS_STRING = [...ALLOWED_EXTENSIONS, ...ALLOWED_MIME_TYPES].join(",");

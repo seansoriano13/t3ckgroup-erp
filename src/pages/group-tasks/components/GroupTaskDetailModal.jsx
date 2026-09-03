@@ -61,7 +61,13 @@ import MentionTextarea from "@/components/ui/MentionTextarea";
 import { supabase } from "@/lib/supabase";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
-import { ALLOWED_MIME_TYPES } from "@/utils/attachments";
+import {
+  ALLOWED_MIME_TYPES,
+  ALLOWED_EXTENSIONS_STRING,
+  MAX_ATTACHMENT_BYTES,
+  isAllowedAttachment,
+  formatBytes,
+} from "@/utils/attachments";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -1002,20 +1008,28 @@ export default function GroupTaskDetailModal({
                                     type="file"
                                     className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                                     multiple
-                                    accept="image/*"
+                                    accept={ALLOWED_EXTENSIONS_STRING}
                                     disabled={isUploadingAttachment}
                                     title="Upload attachments"
                                     onChange={async (e) => {
-                                      const files = Array.from(e.target.files).filter((f) => f.type.startsWith("image/"));
-                                      if (files.length > 0) {
-                                        for (const file of files) {
-                                          try {
-                                            const url = await storageService.uploadToCloudinary(file);
-                                            onAddAttachment(member.id, url);
-                                          } catch (err) {
-                                            console.error(err);
-                                            toast.error(`Failed to upload ${file.name}`);
-                                          }
+                                      const files = Array.from(e.target.files);
+                                      for (const file of files) {
+                                        if (!isAllowedAttachment(file)) {
+                                          toast.error(`${file.name} is not a supported file type.`);
+                                          continue;
+                                        }
+                                        if (file.size > MAX_ATTACHMENT_BYTES) {
+                                          toast.error(
+                                            `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
+                                          );
+                                          continue;
+                                        }
+                                        try {
+                                          const descriptor = await storageService.uploadFileToCloudinary(file);
+                                          onAddAttachment(member.id, descriptor);
+                                        } catch (err) {
+                                          console.error(err);
+                                          toast.error(`Failed to upload ${file.name}`);
                                         }
                                       }
                                       e.target.value = "";
@@ -1032,21 +1046,18 @@ export default function GroupTaskDetailModal({
                                 </div>
                               )}
                             </div>
-                            
+
+                            {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
+                              <p className="text-[10px] text-muted-foreground/70">
+                                Images, documents, and short videos — up to {formatBytes(MAX_ATTACHMENT_BYTES)} each.
+                              </p>
+                            )}
+
                             {member.attachments && member.attachments.length > 0 ? (
-                              <div className="flex flex-wrap gap-2 p-3 bg-muted/20 rounded-xl border border-border/50">
-                                {member.attachments.map((url, i) => (
-                                  <a
-                                    key={i}
-                                    href={url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="w-16 h-16 rounded-lg overflow-hidden border border-border/50 hover:opacity-80 transition-opacity bg-muted flex items-center justify-center"
-                                  >
-                                    <img src={url} alt={`Attachment ${i}`} className="w-full h-full object-cover" />
-                                  </a>
-                                ))}
-                              </div>
+                              <AttachmentList
+                                attachments={member.attachments}
+                                className="p-3 bg-muted/20 rounded-xl border border-border/50"
+                              />
                             ) : (
                               <p className="text-[13px] text-muted-foreground italic">No attachments.</p>
                             )}
