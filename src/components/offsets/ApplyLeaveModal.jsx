@@ -273,7 +273,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         onSuccess?.();
         onClose();
       } catch (err) {
-        console.error('SIL Submission Error:', err);
         toast.error(err.message || 'Failed to submit SIL leave.');
       } finally {
         setSilSubmitting(false);
@@ -282,7 +281,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     }
 
     if (!silDate || !silStartTime || !silEndTime || !silReason || !silCategoryId) {
-      console.log('Validation failed!', { silDate, silStartTime, silEndTime, silReason, silCategoryId });
       toast.error('Please fill in all fields.');
       return;
     }

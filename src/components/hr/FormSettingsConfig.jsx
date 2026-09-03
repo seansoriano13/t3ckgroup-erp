@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { hrSettingsService } from '../../../services/hrSettingsService';
-import { useAuth } from '../../../context/AuthContext';
-import { Button } from '../../ui/button';
+import { hrSettingsService } from '../../services/hrSettingsService';
+import { useAuth } from '../../context/AuthContext';
+import { Button } from '../ui/button';
 import { Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Input } from '../../ui/input';
+import { Input } from '../ui/input';
 
 export default function FormSettingsConfig() {
   const queryClient = useQueryClient();
@@ -25,6 +25,7 @@ export default function FormSettingsConfig() {
 
   useEffect(() => {
     if (settings) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({
         supervisor_name: settings.supervisor_name || '',
         supervisor_title: settings.supervisor_title || '',

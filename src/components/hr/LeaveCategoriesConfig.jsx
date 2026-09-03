@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { hrSettingsService } from '../../../services/hrSettingsService';
-import { useAuth } from '../../../context/AuthContext';
-import { Button } from '../../ui/button';
+import { hrSettingsService } from '../../services/hrSettingsService';
+import { useAuth } from '../../context/AuthContext';
+import { Button } from '../ui/button';
 import { Edit2, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Input } from '../../ui/input';
+import { Input } from '../ui/input';
 
 export default function LeaveCategoriesConfig() {
   const queryClient = useQueryClient();
