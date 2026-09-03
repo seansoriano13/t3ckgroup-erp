@@ -1,6 +1,13 @@
 {
   "versions": [
     {
+      "version": "1.2.5",
+      "date": "2026-09-03",
+      "changes": [
+        "Fixed Group Task attachments for real this time: an uploaded file was saved correctly but the Attachments section always said \"No attachments\" no matter how long you waited or how many times you reopened the task — the app was never asking the database for that field. Uploaded files now show up there as expected."
+      ]
+    },
+    {
       "version": "1.2.4",
       "date": "2026-09-03",
       "changes": [
