@@ -1,60 +1,66 @@
 import { COLORS } from './adapter';
 
 /**
- * Draws one signature box (employee, supervisor, or HR) shared by TG-11 and
- * TG-12 — both forms render this identically, so a fix to how a signature
- * renders only needs to happen here once.
+ * Draws one signature plate in the accountability band — shared by TG-11
+ * and TG-12, which render this identically. Three states:
  *
- * Embeds the actual signature image when one is available, falling back to
- * the signer's name only if the image can't be fetched (expired session,
- * missing file, etc.).
+ *  - 'signed': a real digital signature exists; the plate sits on bare
+ *    paper and the actual signature image is embedded, with a stamp naming
+ *    when and against which stored version it was signed.
+ *  - 'legacy': the record predates the signing feature. Bare paper (the
+ *    record is settled, not awaiting anything), the signer's name in place
+ *    of an image, and a plain "Signed on paper" note.
+ *  - 'wet': this role never signs digitally in this system (the immediate
+ *    supervisor, an approving officer configured in Form Settings) — always
+ *    a toned, blank ruled line prompting for a pen, because the system can
+ *    never confirm ink was actually applied.
  */
 export async function drawSignatureBox({
-  page,
   docAdapter,
   fonts,
   drawText,
   drawRule,
+  drawRect,
+  drawImageAt,
   x,
-  sigY,
-  sigBoxW,
-  sigBoxH,
-  offsetY,
-  title,
-  signedName,
-  signaturePath,
-  timestampStr,
-  isSignedOnPaper = false,
+  plateTop,
+  plateW,
+  plateH,
+  labelY,
+  block,
 }) {
-  const { sansRegular, sansBold, monoRegular } = fonts;
-  const isSigned = !!signedName || isSignedOnPaper;
+  const { sansBold, monoRegular, serifMedium } = fonts;
+  const isToned = block.state === 'wet';
+  const plateBottom = plateTop - plateH;
 
-  if (!isSigned) {
-    page.drawRectangle({
-      x, y: sigY, width: sigBoxW, height: sigBoxH,
-      color: COLORS.toned
-    });
+  if (isToned) {
+    drawRect(x, plateBottom, plateW, plateH, COLORS.well);
   }
 
-  drawText(title, x, sigY + sigBoxH + 5, sansBold, 8, COLORS.mauve6);
-  drawRule(x, sigY + sigBoxH, x + sigBoxW, sigY + sigBoxH, 1, COLORS.mauve6);
+  drawText(block.role.toUpperCase(), x, labelY, sansBold, 5.6, COLORS.ink3, 0.12);
+  drawRule(x, plateBottom, x + plateW, plateBottom, 1, COLORS.rule);
 
-  if (!isSigned) return;
-
-  if (isSignedOnPaper) {
-    drawText('SIGNED ON PAPER', x + 5, sigY + sigBoxH - 20, sansRegular, 10, COLORS.mauve6);
-    return;
+  let sigImage = null;
+  if (block.state === 'signed') {
+    sigImage = await docAdapter.embedSignatureImage(block.signaturePath);
   }
 
-  const sigImage = await docAdapter.embedSignatureImage(signaturePath);
   if (sigImage) {
-    const imgH = 24;
+    const imgH = Math.min(18, plateH - 3);
     const scale = imgH / sigImage.height;
-    const imgW = Math.min(sigImage.width * scale, sigBoxW - 10);
-    page.drawImage(sigImage, { x: x + 5, y: sigY + sigBoxH - imgH - 8 + offsetY, width: imgW, height: imgH });
-  } else {
-    drawText(signedName.toUpperCase(), x + 5, sigY + sigBoxH - 20, sansBold, 10);
+    const imgW = Math.min(sigImage.width * scale, plateW - 8);
+    drawImageAt(sigImage, x + (plateW - imgW) / 2, plateBottom + (plateH - imgH) / 2 + 1.5, imgW, imgH);
   }
-  const stamp = new Date(timestampStr).toLocaleString('en-US', { dateStyle: 'short', timeStyle: 'short' });
-  drawText(stamp, x + 5, sigY + 10, monoRegular, 8, COLORS.mauve6);
+
+  const whoY = plateBottom - 11;
+  drawText(block.who, x, whoY, serifMedium, 10, COLORS.ink, -0.006);
+  drawText(block.title.toUpperCase(), x, whoY - 8, sansBold, 5.6, COLORS.ink3, 0.08);
+
+  if (block.state === 'signed' && block.stamp) {
+    drawText(block.stamp, x, whoY - 17, monoRegular, 5.3, COLORS.ink2);
+  } else if (block.state === 'legacy') {
+    drawText('Signed on paper', x, whoY - 17, monoRegular, 5.3, COLORS.ink3);
+  } else {
+    drawText('SIGNATURE REQUIRED', x, whoY - 17, monoRegular, 5.3, COLORS.ink3, 0.09);
+  }
 }
