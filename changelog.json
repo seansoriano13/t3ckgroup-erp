@@ -1,6 +1,14 @@
 {
   "versions": [
     {
+      "version": "1.2.3",
+      "date": "2026-09-03",
+      "changes": [
+        "Fixed Group Task attachments: the file picker on a member's task submission only let you choose images, and picking anything else was silently ignored. You can now attach documents (PDF, Word, Excel, PowerPoint, text, CSV) and short videos (MP4, WebM, MOV, AVI) as well as pictures.",
+        "Added a note under the attachment button on Group Tasks showing what file types and sizes are accepted."
+      ]
+    },
+    {
       "version": "1.2.2",
       "date": "2026-09-02",
       "changes": [
