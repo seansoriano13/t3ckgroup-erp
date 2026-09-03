@@ -23,6 +23,7 @@ import {
   Paperclip,
   ImageIcon,
   Zap,
+  BookmarkPlus,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import StatusBadge from "../../../components/StatusBadge";
@@ -47,6 +48,9 @@ import { groupRoleService } from "@/services/groupRoleService";
 import GroupRoleManagerModal from "./GroupRoleManagerModal";
 import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
+import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
+import { computeDueDateOffsetDays } from "../utils/templateApply";
+import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
   parseChecklist,
   hasChecklistContent,
@@ -142,11 +146,42 @@ export default function GroupTaskDetailModal({
   // when `id` is null. One shape covers both so the shared panel does not need
   // to know which case it is rendering.
   const [draft, setDraft] = useState(null);
+  const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
 
   const { data: roles = [], isLoading: isRolesLoading } = useQuery({
     queryKey: ["groupRoles"],
     queryFn: groupRoleService.getRoles,
     enabled: isOpen,
+  });
+
+  const saveTemplateMutation = useMutation({
+    mutationFn: (name) => {
+      const draftMembers = (task.members || []).map(m => {
+        const { description, checklist } = resolveAssignment(m);
+        return {
+          employeeId: m.employee_id,
+          taskDescription: description,
+          checklist: checklist.length > 0 ? checklist : null,
+          role: m.role || "",
+          customRole: m.custom_role || "",
+        };
+      });
+
+      return groupTaskTemplateService.createTemplate({
+        name,
+        title: task.title?.trim() || null,
+        description: task.description?.trim() || null,
+        dueDateOffsetDays: task.due_date ? computeDueDateOffsetDays(task.due_date) : null,
+        createdBy: user.id,
+        members: draftMembers,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTaskTemplates"] });
+      toast.success("Template saved.");
+      setIsSaveTemplateModalOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
   });
 
   const handleEditClick = (member) => {
@@ -277,6 +312,7 @@ export default function GroupTaskDetailModal({
       setIsEditingTask(false);
       setReplyingTo(null);
       handleCancelEdit();
+      setIsSaveTemplateModalOpen(false);
     }
   }, [isOpen, clearAttachments]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -1464,6 +1500,21 @@ export default function GroupTaskDetailModal({
               </Button>
             )}
 
+            {/* Save as Template Button */}
+            {(isCreator || isSuperAdmin) && !isEditingTask && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsSaveTemplateModalOpen(true)}
+                className="text-[13px] font-bold h-9 rounded-xl px-3 sm:px-4 flex items-center gap-0 sm:gap-2 border-border/80 bg-card hover:bg-muted"
+                title="Save as Template"
+              >
+                <BookmarkPlus size={14} />
+                <span className="hidden sm:inline">Save as Template</span>
+              </Button>
+            )}
+
             {/* Rate Button for Heads/Admins */}
             {(isCreator || isSuperAdmin) &&
               (task.status === "ACTIVE" || task.status === "COMPLETED") && (
@@ -1546,6 +1597,18 @@ export default function GroupTaskDetailModal({
       <GroupRoleManagerModal
         isOpen={isRoleManagerOpen}
         onClose={() => setIsRoleManagerOpen(false)}
+      />
+      <SaveGroupTaskTemplateModal
+        isOpen={isSaveTemplateModalOpen}
+        onClose={() => setIsSaveTemplateModalOpen(false)}
+        taskDraft={{
+          title: task.title,
+          description: task.description,
+          dueDate: task.due_date,
+          members: task.members || [],
+        }}
+        onSave={(name) => saveTemplateMutation.mutate(name)}
+        isSaving={saveTemplateMutation.isPending}
       />
     </Dialog>
   );
