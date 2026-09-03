@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter } from 'lucide-react';
+import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter, ShieldCheck } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import PageContainer from '../../components/ui/PageContainer';
 import PageHeader from '../../components/ui/PageHeader';
@@ -401,10 +402,20 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          {req.verification_token && (
+                            <Link 
+                              to={`/verify/${req.verification_token}`} 
+                              target="_blank"
+                              className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                              title="View Verified Form"
+                            >
+                              <ShieldCheck size={18} />
+                            </Link>
+                          )}
                           {req.status === 'PENDING' && (
                             <button
-                              onClick={() => handleWithdrawOvertime(req.id)}
+                              onClick={() => handleWithdrawOvertime(req.id, req.status)}
                               className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
                               title="Withdraw Request"
                             >
@@ -607,7 +618,17 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          {req.verification_token && (
+                            <Link 
+                              to={`/verify/${req.verification_token}`} 
+                              target="_blank"
+                              className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all inline-block border border-transparent hover:border-primary/20 cursor-pointer flex items-center justify-center"
+                              title="View Verified Form"
+                            >
+                              <ShieldCheck size={14} />
+                            </Link>
+                          )}
                           {req.status === 'PENDING' && (
                             <button
                               onClick={() => handleWithdrawLeave(req.id, req.status, req.type)}

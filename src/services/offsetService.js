@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
+import { generateApplicationHash, generateApprovalHash } from '../utils/formHashes';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -10,6 +11,47 @@ import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
 export function cleanAttachments(attachments) {
   const files = (attachments || []).filter((a) => a?.url);
   return files.length > 0 ? files : null;
+}
+
+async function fetchSignaturePath(employeeId) {
+  const { data } = await supabase.from('employees').select('signature_path').eq('id', employeeId).single();
+  return data?.signature_path || null;
+}
+
+/**
+ * Computes the application hash and the employee's signature stamp shared by
+ * every apply path (overtime, single-day and range offset/SIL).
+ */
+export async function stampApplication({ employeeId, categoryId, dates, totalHours, reason }) {
+  const signaturePath = await fetchSignaturePath(employeeId);
+  const applicationHash = await generateApplicationHash({ employeeId, categoryId, dates, totalHours, reason });
+  const now = new Date().toISOString();
+
+  return {
+    applicationHash,
+    employeeSignatureVersion: signaturePath,
+    employeeSignatureTimestamp: signaturePath ? now : null,
+  };
+}
+
+/**
+ * Computes the approval hash and HR's signature stamp shared by every
+ * decision path (overtime, offset, SIL). Returns nulls for a status that
+ * isn't a real decision (approval/rejection), matching every caller's
+ * existing "only hash on approve/reject" rule.
+ */
+export async function stampApproval({ hrId, applicationHash, status, isDecision, creditsSnapshot }) {
+  const signaturePath = await fetchSignaturePath(hrId);
+  const now = new Date().toISOString();
+  const approvalHash = isDecision
+    ? await generateApprovalHash({ applicationHash, status, approverId: hrId, creditsSnapshot })
+    : null;
+
+  return {
+    approvalHash,
+    hrSignatureVersion: signaturePath,
+    hrSignatureTimestamp: signaturePath ? now : null,
+  };
 }
 
 export async function checkOverlap(employeeId, date, startTime, endTime) {
@@ -64,6 +106,14 @@ export const offsetService = {
 
     await checkOverlap(employeeId, date, startTime, endTime);
 
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+      employeeId,
+      categoryId,
+      dates: [date],
+      totalHours: parsedHours,
+      reason,
+    });
+
     const { data, error } = await supabase
       .from('overtime_requests')
       .insert([
@@ -77,6 +127,9 @@ export const offsetService = {
           category_id: categoryId || null,
           status: 'PENDING',
           attachments: cleanAttachments(attachments),
+          application_hash: applicationHash,
+          employee_signature_version: employeeSignatureVersion,
+          employee_signature_timestamp: employeeSignatureTimestamp,
         },
       ])
       .select()
@@ -140,6 +193,14 @@ export const offsetService = {
       throw new Error(`Insufficient offset hours balance. You have ${currentBalance} hrs remaining.`);
     }
 
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+      employeeId,
+      categoryId,
+      dates: [date],
+      totalHours: parsedHours,
+      reason,
+    });
+
     const { data, error } = await supabase
       .from('offset_leaves')
       .insert([
@@ -153,6 +214,9 @@ export const offsetService = {
           category_id: categoryId || null,
           status: 'PENDING',
           attachments: cleanAttachments(attachments),
+          application_hash: applicationHash,
+          employee_signature_version: employeeSignatureVersion,
+          employee_signature_timestamp: employeeSignatureTimestamp,
         },
       ])
       .select()
@@ -238,6 +302,14 @@ export const offsetService = {
     const leaveGroupId = crypto.randomUUID();
     const cleanedAttachments = cleanAttachments(attachments);
 
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+      employeeId,
+      categoryId,
+      dates: normalizedDays.map((d) => d.date),
+      totalHours,
+      reason,
+    });
+
     const { data, error } = await supabase
       .from('offset_leaves')
       .insert(normalizedDays.map((day) => ({
@@ -249,6 +321,9 @@ export const offsetService = {
         status: 'PENDING',
         attachments: cleanedAttachments,
         leave_group_id: leaveGroupId,
+        application_hash: applicationHash,
+        employee_signature_version: employeeSignatureVersion,
+        employee_signature_timestamp: employeeSignatureTimestamp,
       })))
       .select();
 
@@ -364,6 +439,7 @@ export const offsetService = {
       .select(`
         *,
         employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        hr:employees!overtime_requests_hr_processed_by_fkey(id, name),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -404,6 +480,7 @@ export const offsetService = {
       .select(`
         *,
         employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        hr:employees!offset_leaves_hr_processed_by_fkey(id, name),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -470,14 +547,38 @@ export const offsetService = {
       throw new Error('Approved hours must be greater than zero.');
     }
 
-    // Update Request Status
+    // Snapshot the balance the employee will have AFTER this decision moves it
+    // (not the balance at the moment of approval), so a printed form or the
+    // verification page always reports the true remaining balance.
+    let creditsSnapshot = null;
+    let newBalance = null;
+    if (status === 'APPROVED_OFFSET') {
+      const { data: emp } = await supabase.from('employees').select('offset_hours_balance').eq('id', request.employee_id).single();
+      newBalance = parseFloat(emp?.offset_hours_balance || 0) + resolvedApprovedHours;
+      creditsSnapshot = newBalance;
+    }
+
+    const { approvalHash, hrSignatureVersion, hrSignatureTimestamp } = await stampApproval({
+      hrId,
+      applicationHash: request.application_hash,
+      status,
+      isDecision: status.startsWith('APPROVED') || status === 'REJECTED',
+      creditsSnapshot,
+    });
+    const now = new Date().toISOString();
+
     const { data: updatedReq, error: updateErr } = await supabase
       .from('overtime_requests')
       .update({
         status,
         approved_hours: resolvedApprovedHours,
         hr_notes: hrNotes || null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        approval_hash: approvalHash,
+        hr_signature_version: hrSignatureVersion,
+        hr_signature_timestamp: hrSignatureTimestamp,
+        approval_credits_snapshot: creditsSnapshot,
+        hr_processed_by: hrId || null,
       })
       .eq('id', requestId)
       .select()
@@ -486,20 +587,11 @@ export const offsetService = {
     if (updateErr) throw new Error(updateErr.message);
 
     // If APPROVED_OFFSET, credit the approved (not requested) hours to the balance
-    if (status === 'APPROVED_OFFSET') {
-      const { data: emp, error: empErr } = await supabase
+    if (status === 'APPROVED_OFFSET' && newBalance !== null) {
+      await supabase
         .from('employees')
-        .select('offset_hours_balance')
-        .eq('id', request.employee_id)
-        .single();
-
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + resolvedApprovedHours;
-        await supabase
-          .from('employees')
-          .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', request.employee_id);
-      }
+        .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
+        .eq('id', request.employee_id);
     }
 
     // Send Notification to Employee
@@ -557,7 +649,9 @@ export const offsetService = {
       }
     }
 
-    // Revert status
+    // Revert status, and clear every trace of the decision being undone so a
+    // PENDING record never still carries a hash, HR signature, or credited
+    // balance snapshot from a decision it no longer has.
     const { data: updatedReq, error: updateErr } = await supabase
       .from('overtime_requests')
       .update({
@@ -565,6 +659,10 @@ export const offsetService = {
         approved_hours: null,
         hr_notes: null,
         updated_at: new Date().toISOString(),
+        approval_hash: null,
+        hr_signature_version: null,
+        hr_signature_timestamp: null,
+        approval_credits_snapshot: null,
       })
       .eq('id', requestId)
       .select()
@@ -613,7 +711,10 @@ export const offsetService = {
     if (!rows || rows.length === 0) throw new Error('Leave application not found.');
 
     const employeeId = rows[0].employee_id;
+    const applicationHash = rows[0].application_hash;
     const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+    let creditsSnapshot = null;
+    let newBalance = null;
 
     if (status === 'APPROVED') {
       const { data: emp, error: empErr } = await supabase
@@ -629,26 +730,50 @@ export const offsetService = {
         throw new Error(`Cannot approve leave. Employee currently only has ${currentBal} hrs balance.`);
       }
 
-      await supabase
-        .from('employees')
-        .update({
-          offset_hours_balance: currentBal - totalHours,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', employeeId);
+      // Snapshot the balance the employee will have AFTER this deduction, not
+      // the balance at the moment of approval.
+      newBalance = currentBal - totalHours;
+      creditsSnapshot = newBalance;
     }
 
+    const { approvalHash, hrSignatureVersion, hrSignatureTimestamp } = await stampApproval({
+      hrId,
+      applicationHash,
+      status,
+      isDecision: status === 'APPROVED' || status === 'REJECTED',
+      creditsSnapshot,
+    });
+    const now = new Date().toISOString();
+
+    // Row-status write first, balance write second: a failure between the two
+    // leaves the group PENDING and the balance untouched, rather than a spent
+    // balance backing an approval that never landed.
     const { data: updatedRows, error: updateErr } = await supabase
       .from('offset_leaves')
       .update({
         status,
         hr_notes: hrNotes || null,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
+        approval_hash: approvalHash,
+        hr_signature_version: hrSignatureVersion,
+        hr_signature_timestamp: hrSignatureTimestamp,
+        approval_credits_snapshot: creditsSnapshot,
+        hr_processed_by: hrId || null,
       })
       .eq('leave_group_id', groupId)
       .select();
 
     if (updateErr) throw new Error(updateErr.message);
+
+    if (status === 'APPROVED' && newBalance !== null) {
+      await supabase
+        .from('employees')
+        .update({
+          offset_hours_balance: newBalance,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', employeeId);
+    }
 
     const dates = rows.map((row) => row.date).sort();
     const rangeLabel = dates.length > 1
@@ -717,6 +842,11 @@ export const offsetService = {
         status: 'PENDING',
         hr_notes: null,
         updated_at: new Date().toISOString(),
+        approval_hash: null,
+        hr_signature_version: null,
+        hr_signature_timestamp: null,
+        approval_credits_snapshot: null,
+        hr_processed_by: null,
       })
       .eq('leave_group_id', groupId)
       .select();
@@ -784,23 +914,49 @@ export const offsetService = {
   },
 
   /**
-   * Withdraw Offset Leave (Employee)
+   * Withdraw Offset Leave (Employee).
+   *
+   * Operates on the whole leave_group_id, not just the clicked row, mirroring
+   * handleOffsetLeaveDecision's group-atomic pattern — a date-range leave is
+   * withdrawn and refunded as one group, never partially.
    */
   async withdrawOffsetLeave({ leaveId, employeeId }) {
-    const { data: leave, error: leaveErr } = await supabase
+    const { data: clicked, error: clickedErr } = await supabase
       .from('offset_leaves')
       .select('*')
       .eq('id', leaveId)
       .single();
 
-    if (leaveErr) throw new Error(leaveErr.message);
-    if (leave.employee_id !== employeeId) throw new Error('Unauthorized');
-    if (leave.status === 'REJECTED' || leave.status === 'CANCELLED') {
+    if (clickedErr) throw new Error(clickedErr.message);
+    if (clicked.employee_id !== employeeId) throw new Error('Unauthorized');
+    if (clicked.status === 'REJECTED' || clicked.status === 'CANCELLED') {
       throw new Error('Cannot withdraw this request.');
     }
 
-    // If it was APPROVED, we must refund the hours back to the employee automatically
-    if (leave.status === 'APPROVED') {
+    const { data: rows, error: rowsErr } = await supabase
+      .from('offset_leaves')
+      .select('*')
+      .eq('leave_group_id', clicked.leave_group_id);
+
+    if (rowsErr) throw new Error(rowsErr.message);
+
+    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+    const dates = rows.map((row) => row.date).sort();
+    const dateLabel = dates.length > 1 ? `${dates[0]} to ${dates[dates.length - 1]}` : dates[0];
+
+    const { data, error } = await supabase
+      .from('offset_leaves')
+      .update({
+        status: 'CANCELLED',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('leave_group_id', clicked.leave_group_id)
+      .select();
+
+    if (error) throw new Error(error.message);
+
+    // If it was APPROVED, refund the group's total hours back to the employee.
+    if (clicked.status === 'APPROVED') {
       const { data: emp, error: empErr } = await supabase
         .from('employees')
         .select('offset_hours_balance')
@@ -808,7 +964,7 @@ export const offsetService = {
         .single();
 
       if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(leave.hours || 0);
+        const newBalance = parseFloat(emp.offset_hours_balance || 0) + totalHours;
         await supabase
           .from('employees')
           .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
@@ -820,28 +976,16 @@ export const offsetService = {
         sender_id: employeeId,
         type: 'OFFSET_LEAVE_DECISION',
         title: 'Approved Leave Withdrawn',
-        message: `An employee withdrew their approved offset leave on ${leave.date}.`,
-        reference_id: leaveId,
+        message: `An employee withdrew their approved offset leave for ${totalHours} hrs (${dateLabel}).`,
+        reference_id: clicked.leave_group_id,
       });
     }
 
-    const { data, error } = await supabase
-      .from('offset_leaves')
-      .update({
-        status: 'CANCELLED',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', leaveId)
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
-      leaveId,
-      `Offset leave for ${leave.date} was withdrawn by the employee.`,
-      { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId },
+      clicked.leave_group_id,
+      `Offset leave for ${dateLabel} was withdrawn by the employee.`,
+      { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId, leaveGroupId: clicked.leave_group_id },
       employeeId,
     ).catch(console.error);
 

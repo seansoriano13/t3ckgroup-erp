@@ -307,6 +307,31 @@ describe("offsetService", () => {
 
       expect(updated.approved_hours).toBeNull()
     })
+
+    it("snapshots the balance after the credit lands, not the balance at the moment of approval", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBe(balanceOf(employee.id))
+      expect(updated.approval_credits_snapshot).toBe(20)
+    })
+
+    it("snapshots null on rejection", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+
+      const updated = await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBeNull()
+    })
   })
 
   describe("undoing an overtime decision", () => {
@@ -389,6 +414,22 @@ describe("offsetService", () => {
       await expect(
         offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id }),
       ).rejects.toThrow("Request is already pending.")
+    })
+
+    it("clears the approval hash, HR signature, and credits snapshot the reverted decision left behind", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+      await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        hrId: hr.id,
+      })
+
+      const reverted = await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+
+      expect(reverted.approval_hash).toBeNull()
+      expect(reverted.hr_signature_version).toBeNull()
+      expect(reverted.hr_signature_timestamp).toBeNull()
+      expect(reverted.approval_credits_snapshot).toBeNull()
     })
   })
 
@@ -507,6 +548,57 @@ describe("offsetService", () => {
 
       expect(updated.every((row) => row.status === "REJECTED")).toBe(true)
       expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("snapshots the balance after the deduction lands, not the balance at the moment of approval", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const [updated] = await offsetService.handleOffsetLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBe(balanceOf(employee.id))
+      expect(updated.approval_credits_snapshot).toBe(8)
+    })
+
+    it("snapshots null on rejection", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const [updated] = await offsetService.handleOffsetLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBeNull()
+    })
+
+    it("clears the approval hash, HR signature, and credits snapshot on undo, across the whole group", async () => {
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 },
+          { date: "2026-03-17", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+      await offsetService.handleOffsetLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      const reverted = await offsetService.undoOffsetLeaveDecision({ groupId: group[0].leave_group_id, hrId: hr.id })
+
+      expect(reverted).toHaveLength(2)
+      for (const row of reverted) {
+        expect(row.approval_hash).toBeNull()
+        expect(row.hr_signature_version).toBeNull()
+        expect(row.hr_signature_timestamp).toBeNull()
+        expect(row.approval_credits_snapshot).toBeNull()
+      }
     })
   })
 
@@ -644,6 +736,30 @@ describe("offsetService", () => {
       const added = db.rows("notifications").slice(before)
       expect(added.map((n) => n.recipient_id)).toEqual([hr.id])
       expect(added[0].title).toBe("Approved Leave Withdrawn")
+    })
+
+    it("withdraws every day in an approved date-range group together, refunding the group's total hours", async () => {
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 8 },
+          { date: "2026-03-17", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+      await offsetService.handleOffsetLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(4) // 16 - 8 - 4
+
+      // Withdrawing via just one day's row id must withdraw and refund the whole group.
+      await offsetService.withdrawOffsetLeave({ leaveId: group[0].id, employeeId: employee.id })
+
+      expect(balanceOf(employee.id)).toBe(16)
+      const rows = await offsetService.getMyOffsetLeaves(employee.id)
+      expect(rows.every((row) => row.status === "CANCELLED")).toBe(true)
     })
 
     it("refuses to withdraw a leave that was already rejected or cancelled", async () => {

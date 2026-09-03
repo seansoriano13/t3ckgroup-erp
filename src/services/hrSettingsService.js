@@ -86,14 +86,26 @@ export const hrSettingsService = {
    * @param {Array<{id: string, sort_order: number}>} ordering
    */
   async reorderLeaveCategories(ordering, actorId) {
-    // Using a loop because supabase-js doesn't have a simple upsert/update-many for distinct rows by id
-    // In a small config table, this is fine.
+    // sort_order has a UNIQUE index, so updating rows one at a time straight
+    // to their target value raises a duplicate-key error the moment two
+    // categories swap positions (the second write collides with the first's
+    // now-vacated old value). Stage every row through a distinct negative,
+    // guaranteed-non-colliding value first, then apply the real ordering.
+    for (let i = 0; i < ordering.length; i++) {
+      const { error } = await supabase
+        .from('hr_leave_categories')
+        .update({ sort_order: -(i + 1) })
+        .eq('id', ordering[i].id);
+
+      if (error) throw new Error(error.message);
+    }
+
     for (const item of ordering) {
       const { error } = await supabase
         .from('hr_leave_categories')
         .update({ sort_order: item.sort_order, updated_at: new Date().toISOString() })
         .eq('id', item.id);
-      
+
       if (error) throw new Error(error.message);
     }
 

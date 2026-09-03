@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { hrSettingsService } from '../../services/hrSettingsService';
 import { useAuth } from '../../context/AuthContext';
 import { Button } from '../ui/button';
-import { Edit2, Plus, Trash2, CheckCircle2, XCircle } from 'lucide-react';
+import { Edit2, Plus, Trash2, CheckCircle2, XCircle, ChevronUp, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '../ui/input';
 
@@ -38,6 +38,27 @@ export default function LeaveCategoriesConfig() {
     },
     onError: (err) => toast.error('Failed to update category: ' + err.message),
   });
+
+  const reorderMutation = useMutation({
+    mutationFn: (ordering) => hrSettingsService.reorderLeaveCategories(ordering, user.id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['hrLeaveCategories'] });
+      queryClient.invalidateQueries({ queryKey: ['activeLeaveCategories'] });
+    },
+    onError: (err) => toast.error('Failed to reorder categories: ' + err.message),
+  });
+
+  const moveCategory = (index, direction) => {
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= categories.length) return;
+
+    const reordered = [...categories];
+    [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
+
+    reorderMutation.mutate(
+      reordered.map((cat, i) => ({ id: cat.id, sort_order: i + 1 }))
+    );
+  };
 
   const handleAdd = (e) => {
     e.preventDefault();
@@ -80,9 +101,27 @@ export default function LeaveCategoriesConfig() {
         {categories.length === 0 ? (
           <p className="text-sm text-muted-foreground font-semibold italic p-4 text-center">No categories configured.</p>
         ) : (
-          categories.map((cat) => (
+          categories.map((cat, index) => (
             <div key={cat.id} className={`flex items-center justify-between p-3 rounded-xl border ${cat.is_active ? 'bg-card border-border' : 'bg-muted/30 border-dashed border-border/50 opacity-75'}`}>
               <div className="flex items-center gap-3 flex-1">
+                <div className="flex flex-col -my-1">
+                  <button
+                    onClick={() => moveCategory(index, -1)}
+                    disabled={index === 0 || reorderMutation.isPending}
+                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
+                    title="Move up"
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    onClick={() => moveCategory(index, 1)}
+                    disabled={index === categories.length - 1 || reorderMutation.isPending}
+                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
+                    title="Move down"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
                 <div className={`w-2 h-2 rounded-full ${cat.is_active ? 'bg-green-10' : 'bg-muted-foreground'}`} />
                 {editingId === cat.id ? (
                   <Input

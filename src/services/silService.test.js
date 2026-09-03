@@ -72,6 +72,22 @@ describe("silService", () => {
       expect(await silService.getMySilLeaves(short.id)).toEqual([])
     })
 
+    it("computes the application hash and stamps the employee's signature version, matching every other apply path", async () => {
+      const signed = makeEmployee({ name: "Signed Employee", sil_hours_balance: 40, signature_path: "sigs/v1.png" })
+
+      await silService.applySilLeave({
+        employeeId: signed.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Medical appointment",
+      })
+
+      const [stored] = await silService.getMySilLeaves(signed.id)
+      expect(stored.application_hash).toBeTruthy()
+      expect(stored.employee_signature_version).toBe("sigs/v1.png")
+      expect(stored.employee_signature_timestamp).toBeTruthy()
+    })
+
     it("allows an application that uses the balance exactly", async () => {
       await silService.applySilLeave({
         employeeId: employee.id,
@@ -330,6 +346,31 @@ describe("silService", () => {
       expect(updated.every((row) => row.status === "REJECTED")).toBe(true)
       expect(balanceOf(employee.id)).toBe(40)
     })
+
+    it("snapshots the balance after the deduction lands, not the balance at the moment of approval", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const [updated] = await silService.handleSilLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBe(balanceOf(employee.id))
+      expect(updated.approval_credits_snapshot).toBe(32)
+    })
+
+    it("snapshots null on rejection", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const [updated] = await silService.handleSilLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approval_credits_snapshot).toBeNull()
+    })
   })
 
   describe("applying for leave across a date range", () => {
@@ -452,6 +493,32 @@ describe("silService", () => {
       expect(anomaly.content).toContain("New Hire")
       expect(anomaly.content).toContain("Probationary")
     })
+
+    it("clears the approval hash, HR signature, and credits snapshot on undo, across the whole group", async () => {
+      const group = await silService.applySilLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-10", hours: 8 },
+          { date: "2026-03-11", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+      await silService.handleSilLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      const reverted = await silService.undoSilLeaveDecision({ groupId: group[0].leave_group_id, hrId: hr.id })
+
+      expect(reverted).toHaveLength(2)
+      for (const row of reverted) {
+        expect(row.approval_hash).toBeNull()
+        expect(row.hr_signature_version).toBeNull()
+        expect(row.hr_signature_timestamp).toBeNull()
+        expect(row.approval_credits_snapshot).toBeNull()
+      }
+    })
   })
 
   describe("employee cancellation", () => {
@@ -474,6 +541,30 @@ describe("silService", () => {
       await silService.cancelMySilLeave({ leaveId: leave.id, employeeId: employee.id })
 
       expect(balanceOf(employee.id)).toBe(40)
+    })
+
+    it("cancels every day in an approved date-range group together, refunding the group's total hours", async () => {
+      const group = await silService.applySilLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-10", hours: 8 },
+          { date: "2026-03-11", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+      await silService.handleSilLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(28) // 40 - 8 - 4
+
+      // Cancelling via just one day's row id must cancel and refund the whole group.
+      await silService.cancelMySilLeave({ leaveId: group[0].id, employeeId: employee.id })
+
+      expect(balanceOf(employee.id)).toBe(40)
+      const rows = await silService.getMySilLeaves(employee.id)
+      expect(rows.every((row) => row.status === "CANCELLED")).toBe(true)
     })
 
     it("refuses to let one employee cancel another's leave", async () => {

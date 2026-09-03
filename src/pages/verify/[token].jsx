@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import Spinner from "@/components/ui/Spinner";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight } from "lucide-react";
+import { CheckCircle2, XCircle, Clock, SearchX, AlertTriangle, ArrowRight, ShieldCheck, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function getStatusConfig(status) {
@@ -29,52 +29,86 @@ export default function VerifyPage() {
   
   const [data, setData] = useState(null);
   const [fullRecord, setFullRecord] = useState(null);
+  const [fullRecordError, setFullRecordError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [hashStatus, setHashStatus] = useState({
+    applicationValid: null, // true, false, null
+    approvalValid: null,    // true, false, null
+  });
 
   useEffect(() => {
     async function fetchRecord() {
       if (!token || isAuthLoading) return;
-      
+
       setLoading(true);
       setError(null);
 
       try {
-        // 1. Try to fetch the full record if authenticated
-        if (user) {
-          const [leaveReq, offsetReq, otReq] = await Promise.all([
-            supabase.from("sil_leaves").select("*, hr_leave_categories(label), employees!sil_leaves_employee_id_fkey(first_name, last_name)").eq("verification_token", token).maybeSingle(),
-            supabase.from("offset_leaves").select("*, hr_leave_categories(label), employees!offset_leaves_employee_id_fkey(first_name, last_name)").eq("verification_token", token).maybeSingle(),
-            supabase.from("overtime_requests").select("*, hr_leave_categories(label), employees!overtime_requests_employee_id_fkey(first_name, last_name)").eq("verification_token", token).maybeSingle(),
-          ]);
+        let record = null;
 
-          const foundFull = leaveReq.data || offsetReq.data || otReq.data;
-          
-          if (foundFull) {
-            setFullRecord({
-              ...foundFull,
-              form_type: leaveReq.data ? "Leave" : offsetReq.data ? "Offset" : "Overtime",
-              employee_name: `${foundFull.employees?.first_name} ${foundFull.employees?.last_name}`,
-              category: foundFull.hr_leave_categories?.label || "General"
-            });
-            setLoading(false);
-            return;
-          }
-        }
+        // Fetch the limited public record using RPC. verify_form_token now
+        // computes both hash comparisons itself and returns two booleans —
+        // the client never sees reason, attachments, or the raw hash inputs
+        // that a boolean-only response is meant to keep it from recomputing.
+        const { data: rpcData, error: fetchError } = await supabase.rpc("verify_form_token", { lookup_token: token });
 
-        // 2. Fetch the limited public record using RPC
-        const { data: record, error: fetchError } = await supabase.rpc("verify_form_token", { lookup_token: token });
-        
         if (fetchError) {
           if (fetchError.message?.includes("Rate limit")) {
             setError("rate_limited");
           } else {
             setError("not_found");
           }
-        } else if (!record) {
+        } else if (!rpcData) {
           setError("not_found");
         } else {
+          record = rpcData;
           setData(record);
+          setHashStatus({
+            applicationValid: record.application_valid ?? null,
+            approvalValid: record.approval_valid ?? null,
+          });
+        }
+
+        // Try to fetch the full record if authenticated. RLS (offset_leaves_select
+        // / sil_leaves_select / overtime_requests_select) scopes this to the
+        // record's own employee, HR, or a Super Admin — an unrelated employee's
+        // query simply returns no row. The embeds name their FK constraint
+        // explicitly since sil_leaves has two FKs to employees (employee_id,
+        // hr_processed_by), which an unqualified embed can't disambiguate.
+        if (user && record) {
+          let table = "sil_leaves";
+          let employeeFkey = "sil_leaves_employee_id_fkey";
+          let hrFkey = "sil_leaves_hr_processed_by_fkey";
+          if (record.form_type === "Offset") {
+            table = "offset_leaves";
+            employeeFkey = "offset_leaves_employee_id_fkey";
+            hrFkey = "offset_leaves_hr_processed_by_fkey";
+          }
+          if (record.form_type === "Overtime") {
+            table = "overtime_requests";
+            employeeFkey = "overtime_requests_employee_id_fkey";
+            hrFkey = "overtime_requests_hr_processed_by_fkey";
+          }
+
+          const { data: foundFull, error: fullErr } = await supabase
+            .from(table)
+            .select(`*, hr_leave_categories(label), employees!${employeeFkey}(name), hr:employees!${hrFkey}(name)`)
+            .eq("verification_token", token)
+            .maybeSingle();
+
+          if (fullErr) {
+            console.error("Verification full-record fetch error:", fullErr);
+            setFullRecordError(fullErr.message || "Could not load the full record.");
+          } else if (foundFull) {
+            setFullRecord({
+              ...foundFull,
+              form_type: record.form_type,
+              employee_name: record.employee_name,
+              category: record.category,
+              total_hours: record.total_hours,
+            });
+          }
         }
       } catch (err) {
         console.error("Verification error:", err);
@@ -83,7 +117,7 @@ export default function VerifyPage() {
         setLoading(false);
       }
     }
-    
+
     fetchRecord();
   }, [token, user, isAuthLoading]);
 
@@ -116,7 +150,7 @@ export default function VerifyPage() {
     );
   }
 
-  if (error === "not_found" && !fullRecord) {
+  if (error === "not_found") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-mauve-2 p-4">
         <Card className="max-w-md w-full shadow-lg border-border">
@@ -138,6 +172,46 @@ export default function VerifyPage() {
       </div>
     );
   }
+
+  const renderSignatureBadges = () => {
+    if (hashStatus.applicationValid === null) return null; // No hash info
+
+    const isTampered = hashStatus.applicationValid === false || hashStatus.approvalValid === false;
+
+    if (isTampered) {
+      const which = hashStatus.applicationValid === false && hashStatus.approvalValid === false
+        ? "the employee signature and the HR approval"
+        : hashStatus.applicationValid === false
+          ? "the employee signature"
+          : "the HR approval";
+      return (
+        <div className="flex items-center gap-2 mt-4 bg-red-50 text-red-700 p-3 rounded-md border border-red-200">
+          <ShieldAlert className="h-5 w-5 text-red-600 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-semibold">Signature Validation Failed: {which}</p>
+            <p className="opacity-90">This record has been modified after it was signed.</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex flex-col gap-2 mt-4">
+        {hashStatus.applicationValid && (
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 p-2.5 rounded-md border border-emerald-200">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+            <span className="text-sm font-medium">Valid Employee Signature Match</span>
+          </div>
+        )}
+        {hashStatus.approvalValid && (
+          <div className="flex items-center gap-2 bg-emerald-50 text-emerald-700 p-2.5 rounded-md border border-emerald-200">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 flex-shrink-0" />
+            <span className="text-sm font-medium">Valid HR Approval Signature Match</span>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // Display Full Record (Authenticated and authorized)
   if (fullRecord) {
@@ -174,8 +248,10 @@ export default function VerifyPage() {
                 <div>
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-1">Inclusive Dates</h3>
                   <p className="text-foreground">{new Date(fullRecord.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">{fullRecord.hours} hours total</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">{fullRecord.total_hours} hours total</p>
                 </div>
+                
+                {renderSignatureBadges()}
               </div>
 
               <div className="p-6 space-y-6 bg-mauve-1/50">
@@ -251,6 +327,15 @@ export default function VerifyPage() {
               <span className="font-medium text-right text-foreground">{data.total_hours} hrs</span>
             </div>
           </div>
+          
+          {renderSignatureBadges()}
+
+          {user && fullRecordError && (
+            <div className="flex items-center gap-2 bg-amber-50 text-amber-700 p-2.5 rounded-md border border-amber-200 text-sm">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+              <span>Couldn't load your authenticated view of this record: {fullRecordError}</span>
+            </div>
+          )}
 
           {data.status !== 'PENDING' && (
             <div className="bg-mauve-2 rounded-lg p-4 mt-6 border border-border">

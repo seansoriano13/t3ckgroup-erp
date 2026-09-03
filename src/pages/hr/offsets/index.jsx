@@ -4,8 +4,10 @@ import { silService } from '../../../services/silService';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Clock, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Search, Filter, Printer } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
+import ModalOverlay from '../../../components/ui/ModalOverlay';
+import { generateBulkPdf } from '../../../lib/pdf/printer';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
@@ -45,6 +47,11 @@ export default function HrLeavesManagerPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
+
+  // PDF Generation State
+  const [selectedRecords, setSelectedRecords] = useState(new Set());
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
   // Manage FloatingMonthPicker visibility
   useEffect(() => {
@@ -275,10 +282,73 @@ export default function HrLeavesManagerPage() {
     return employeeBalances.filter(emp => emp.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [employeeBalances, searchQuery]);
 
+  // --- Bulk Printing Handlers ---
+  const toggleSelection = (key) => {
+    const newSet = new Set(selectedRecords);
+    if (newSet.has(key)) newSet.delete(key);
+    else newSet.add(key);
+    setSelectedRecords(newSet);
+  };
+
+  const toggleAll = () => {
+    const approvedRecords = filteredProcessed.filter(r => r.status.startsWith('APPROVED'));
+    if (selectedRecords.size === approvedRecords.length && approvedRecords.length > 0) {
+      setSelectedRecords(new Set());
+    } else {
+      setSelectedRecords(new Set(approvedRecords.map(r => r.type + '-' + (r.leave_group_id || r.id))));
+    }
+  };
+
+  const handlePrintSelected = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      const recordsToPrint = filteredProcessed.filter(r => selectedRecords.has(r.type + '-' + (r.leave_group_id || r.id)));
+
+      // A mixed leave/overtime selection is grouped onto separate sheets by
+      // composeSheets (it never mixes the two on one sheet) rather than
+      // refused outright.
+      if (recordsToPrint.length === 0) {
+        toast.error("No valid records selected to print.");
+        setIsGeneratingPdf(false);
+        return;
+      }
+
+      const pdfBytes = await generateBulkPdf(recordsToPrint);
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+      setPdfPreviewUrl(url);
+    } catch (err) {
+      toast.error("Failed to generate PDF: " + err.message);
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
+  const closePdfPreview = useCallback(() => {
+    if (pdfPreviewUrl) URL.revokeObjectURL(pdfPreviewUrl);
+    setPdfPreviewUrl(null);
+  }, [pdfPreviewUrl]);
 
   return (
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
+      <ModalOverlay isOpen={!!pdfPreviewUrl} onClose={closePdfPreview}>
+        <div className="w-[90vw] h-[90vh] bg-card rounded-2xl overflow-hidden flex flex-col shadow-2xl">
+          <div className="p-4 border-b border-border flex justify-between items-center bg-muted/30">
+            <h3 className="text-sm font-black text-foreground uppercase tracking-wide">Print Preview</h3>
+            <button
+              onClick={closePdfPreview}
+              className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+          {pdfPreviewUrl && (
+            <iframe src={pdfPreviewUrl} title="PDF Preview" className="flex-1 w-full border-0" />
+          )}
+        </div>
+      </ModalOverlay>
+
       <ApproveOvertimeModal
         isOpen={!!overtimeApproval}
         onClose={() => setOvertimeApproval(null)}
@@ -507,11 +577,32 @@ export default function HrLeavesManagerPage() {
             ) : filteredProcessed.length === 0 ? (
                <div className="p-12 text-center text-muted-foreground font-medium bg-muted/20">No history found for the selected period.</div>
             ) : (
-               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                      <th className="p-4">Employee</th>
+               <div className="flex flex-col">
+                 <div className="p-4 border-b border-border flex justify-between items-center bg-muted/10">
+                   <span className="text-sm font-bold text-foreground">{filteredProcessed.length} Records</span>
+                   {selectedRecords.size > 0 && (
+                     <button onClick={handlePrintSelected} disabled={isGeneratingPdf} className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-sm font-bold transition-colors cursor-pointer disabled:opacity-50">
+                       <Printer className="w-4 h-4" />
+                       {isGeneratingPdf ? 'Generating...' : `Print ${selectedRecords.size} Selected`}
+                     </button>
+                   )}
+                 </div>
+                 <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4 w-10">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                            checked={
+                              filteredProcessed.filter(r => r.status.startsWith('APPROVED')).length > 0 &&
+                              selectedRecords.size === filteredProcessed.filter(r => r.status.startsWith('APPROVED')).length
+                            }
+                            onChange={toggleAll}
+                          />
+                        </th>
+                        <th className="p-4">Employee</th>
                       <th className="p-4">Type</th>
                       <th className="p-4">Category</th>
                       <th className="p-4">Date</th>
@@ -523,83 +614,98 @@ export default function HrLeavesManagerPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {filteredProcessed.map(req => (
-                       <tr key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                              <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                             <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                              req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                              req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
-                            }`}>
-                              {req.type}
-                            </span>
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-foreground">
-                            {req.category?.label || '-'}
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
-                            {req.dayCount > 1 ? (
-                              <>
-                                {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                {' – '}
-                                {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                                <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                                  {req.dayCount} days
-                                </span>
-                              </>
-                            ) : (
-                              new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-                            )}
-                          </td>
-                          <td className="p-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="font-black text-sm text-foreground">
-                                {req.type === 'OVERTIME' && req.approved_hours != null && req.approved_hours !== req.hours ? (
-                                  <>
-                                    <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
-                                    {req.approved_hours} hrs
-                                  </>
-                                ) : (
-                                  `${req.hours} hrs`
-                                )}
-                              </span>
-                              {req.start_time && req.end_time && (
-                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
-                                  {formatWindow(req.start_time, req.end_time)}
-                                </span>
+                      {filteredProcessed.map(req => {
+                        const key = req.type + '-' + (req.leave_group_id || req.id);
+                        const isApproved = req.status.startsWith('APPROVED');
+                        return (
+                          <tr key={key} className={`hover:bg-muted/30 transition-colors ${selectedRecords.has(key) ? 'bg-primary/5' : ''}`}>
+                            <td className="p-4">
+                              {isApproved && (
+                                <input 
+                                  type="checkbox"
+                                  className="rounded border-border text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                                  checked={selectedRecords.has(key)}
+                                  onChange={() => toggleSelection(key)}
+                                />
                               )}
-                            </div>
-                          </td>
-                          <td className="p-4">
-                             {req.attachments?.length ? (
-                               <AttachmentList attachments={req.attachments} compact />
-                             ) : (
-                               <span className="text-xs text-muted-foreground/50">-</span>
-                             )}
-                          </td>
-                          <td className="p-4">
-                            {getStatusBadge(req.status)}
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground">
-                            {new Date(req.updated_at).toLocaleDateString()}
-                          </td>
-                          <td className="p-4 text-right">
-                             <button
-                               onClick={() => handleUndo(req)}
-                               className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                             >
-                               Undo
-                             </button>
-                          </td>
-                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
+                                <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
+                                req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
+                                req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                              }`}>
+                                {req.type}
+                              </span>
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-foreground">
+                              {req.category?.label || '-'}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-foreground">
+                              {req.dayCount > 1 ? (
+                                <>
+                                  {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  {' – '}
+                                  {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    {req.dayCount} days
+                                  </span>
+                                </>
+                              ) : (
+                                new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-black text-sm text-foreground">
+                                  {req.type === 'OVERTIME' && req.approved_hours != null && req.approved_hours !== req.hours ? (
+                                    <>
+                                      <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
+                                      {req.approved_hours} hrs
+                                    </>
+                                  ) : (
+                                    `${req.hours} hrs`
+                                  )}
+                                </span>
+                                {req.start_time && req.end_time && (
+                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    {formatWindow(req.start_time, req.end_time)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              {req.attachments?.length ? (
+                                <AttachmentList attachments={req.attachments} compact />
+                              ) : (
+                                <span className="text-xs text-muted-foreground/50">-</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {getStatusBadge(req.status)}
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-muted-foreground">
+                              {new Date(req.updated_at).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-right">
+                              <button
+                                onClick={() => handleUndo(req)}
+                                className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Undo
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                 </div>
                </div>
             )}
           </div>

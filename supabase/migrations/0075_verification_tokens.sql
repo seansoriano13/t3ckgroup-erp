@@ -21,6 +21,14 @@ CREATE TABLE IF NOT EXISTS public.verification_rate_limits (
   last_request TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- This project's Postgres default privileges grant anon/authenticated full
+-- DML on newly created public tables. Without RLS, this table is
+-- anon-readable (leaking every verifier's IP) and anon-deletable (letting
+-- anyone reset their own rate limit). No policies are defined: the only
+-- legitimate access is through verify_form_token, a SECURITY DEFINER
+-- function that runs as its owner and so bypasses RLS entirely.
+ALTER TABLE public.verification_rate_limits ENABLE ROW LEVEL SECURITY;
+
 -- 3. Create RPC for verifying records by token
 -- SECURITY DEFINER allows it to read records bypassing RLS for anon access
 CREATE OR REPLACE FUNCTION public.verify_form_token(lookup_token TEXT)
