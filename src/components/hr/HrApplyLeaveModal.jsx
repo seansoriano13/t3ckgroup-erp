@@ -144,7 +144,7 @@ export default function HrApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         if (!silEndTime) setSilEndTime(isWednesday ? '18:30' : '18:00');
       }
     }
-  }, [silDate, silApplyMode]);
+  }, [silDate, silApplyMode, silStartTime, silEndTime]);
 
   const { data: employees = [] } = useQuery({
     queryKey: ['hrEmployeesList'],

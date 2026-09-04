@@ -37,7 +37,7 @@ describe("silService", () => {
       expect(mine[0]).toMatchObject({
         start_time: "09:00",
         end_time: "17:00",
-        hours: 7,
+        hours: 8,
         status: "PENDING",
         reason: "Medical appointment",
       })

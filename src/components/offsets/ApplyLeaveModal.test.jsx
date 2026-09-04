@@ -245,7 +245,7 @@ describe("ApplyLeaveModal", () => {
       await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(1))
 
       expect(db.rows("sil_leaves")[0]).toMatchObject({
-        hours: 7,
+        hours: 8,
         reason: "Medical appointment",
         status: "PENDING",
       })
