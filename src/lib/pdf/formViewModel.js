@@ -110,6 +110,15 @@ function approverSigBlock(record, formSettings) {
   return { role: 'Approved by', who, title: formSettings?.approver_title || 'Approving officer', state: 'wet' };
 }
 
+function supervisorSigBlock(formSettings) {
+  return { 
+    role: 'Noted by', 
+    who: formSettings?.supervisor_name || ' ', 
+    title: formSettings?.supervisor_title || 'Supervisor / Manager', 
+    state: 'signed' 
+  };
+}
+
 /** Fields common to both templates' right-rail "HRD validation" block. */
 function hrdValidationRows(record, balanceLabel) {
   return [
@@ -126,7 +135,7 @@ function hrdValidationRows(record, balanceLabel) {
 export function buildTG11ViewModel(record, formSettings) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
-    { k: 'Employment', v: record.employee?.employment_status || '—' },
+    { k: 'Employment status', v: record.employee?.employment_status || '—' },
     { k: 'Category', v: resolveLeaveCategory(record) },
     { k: 'Inclusive dates', v: getInclusiveDates(record), x: `${getDayCount(record)} day${getDayCount(record) > 1 ? 's' : ''}` },
     { k: 'Treated as', v: getTreatedAs(record) },
@@ -148,6 +157,7 @@ export function buildTG11ViewModel(record, formSettings) {
     hrd: hrdValidationRows(record, 'Credits remaining'),
     sigs: [
       employeeSigBlock(record),
+      supervisorSigBlock(formSettings),
       approverSigBlock(record, formSettings),
     ].filter(Boolean),
     note: 'This form must be filed before the leave commences, or immediately upon return for emergency or sick leave.',
@@ -159,8 +169,8 @@ export function buildTG12ViewModel(record, formSettings) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Date of overtime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
-    { k: 'Employment', v: record.employee?.employment_status || '—' },
-    { k: 'Window', v: (record.start_time && record.end_time) ? `${record.start_time} – ${record.end_time}` : '—' },
+    { k: 'Employment status', v: record.employee?.employment_status || '—' },
+    { k: 'Time window', v: (record.start_time && record.end_time) ? `${record.start_time} – ${record.end_time}` : '—' },
   ];
 
   const { requested, approved, isDifferent } = getOvertimeHoursDisplay(record);
@@ -181,6 +191,7 @@ export function buildTG12ViewModel(record, formSettings) {
     hrd: hrdValidationRows(record, 'Offset balance'),
     sigs: [
       employeeSigBlock(record),
+      supervisorSigBlock(formSettings),
       approverSigBlock(record, formSettings),
     ].filter(Boolean),
     note: 'File a day before scheduled overtime, or as soon as possible afterward if unscheduled.',
