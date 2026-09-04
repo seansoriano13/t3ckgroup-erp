@@ -32,6 +32,7 @@ export type Path =
   | `/hr`
   | `/hr/management`
   | `/hr/offsets`
+  | `/hr/offsets/components/DocumentCenterTab`
   | `/login`
   | `/offsets`
   | `/opportunities`

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveLeaveCategory, isLateFiling, getInclusiveDates, getDayCount, composeSheets, isLegacySignature, getBlankHalfRecord } from './layout';
+import { resolveLeaveCategory, isLateFiling, getDayCount, pairIntoSheets, isLegacySignature, getOvertimeOutcome, getOvertimeHoursDisplay } from './layout';
 
 describe('PDF Layout Logic', () => {
   describe('resolveLeaveCategory', () => {
@@ -38,12 +38,6 @@ describe('PDF Layout Logic', () => {
     });
   });
 
-  describe('getBlankHalfRecord', () => {
-    it('returns a dummy record carrying only the type', () => {
-      expect(getBlankHalfRecord('OVERTIME')).toEqual({ type: 'OVERTIME' });
-    });
-  });
-
   describe('isLateFiling', () => {
     it('returns true if created_at is strictly after startDate', () => {
       expect(isLateFiling({ startDate: '2026-09-01', created_at: '2026-09-02T10:00:00Z' })).toBe(true);
@@ -69,35 +63,96 @@ describe('PDF Layout Logic', () => {
     });
   });
 
-  describe('composeSheets', () => {
-    it('chunks correctly up to 2 per sheet and never mixes types', () => {
+  describe('pairIntoSheets', () => {
+    it('returns an empty list for an empty tray', () => {
+      expect(pairIntoSheets([])).toEqual([]);
+    });
+
+    it('pairs a single record with a null bottom', () => {
+      const record = { id: 1, type: 'OFFSET' };
+      expect(pairIntoSheets([record])).toEqual([{ top: record, bottom: null }]);
+    });
+
+    it('pairs an even-count run two per sheet, in list order', () => {
+      const records = [
+        { id: 1, type: 'OFFSET' },
+        { id: 2, type: 'OVERTIME' },
+        { id: 3, type: 'SIL' },
+        { id: 4, type: 'OFFSET' },
+      ];
+      expect(pairIntoSheets(records)).toEqual([
+        { top: records[0], bottom: records[1] },
+        { top: records[2], bottom: records[3] },
+      ]);
+    });
+
+    it('leaves the last sheet half-filled for an odd-count run, regardless of type', () => {
       const records = [
         { id: 1, type: 'OFFSET' },
         { id: 2, type: 'OFFSET' },
         { id: 3, type: 'OVERTIME' },
-        { id: 4, type: 'OFFSET' }
       ];
-
-      const sheets = composeSheets(records);
-      expect(sheets.length).toBe(3);
-      
-      // Sheet 1: 2 OFFSETs
-      expect(sheets[0]).toEqual([ { id: 1, type: 'OFFSET' }, { id: 2, type: 'OFFSET' } ]);
-      
-      // Sheet 2: 1 OFFSET (the third one, odd out)
-      expect(sheets[1]).toEqual([ { id: 4, type: 'OFFSET' } ]);
-      
-      // Sheet 3: 1 OVERTIME
-      expect(sheets[2]).toEqual([ { id: 3, type: 'OVERTIME' } ]);
+      expect(pairIntoSheets(records)).toEqual([
+        { top: records[0], bottom: records[1] },
+        { top: records[2], bottom: null },
+      ]);
     });
 
-    it('handles any size of run', () => {
-      const records = Array(5).fill({ type: 'SIL' });
-      const sheets = composeSheets(records);
-      expect(sheets.length).toBe(3);
-      expect(sheets[0].length).toBe(2);
-      expect(sheets[1].length).toBe(2);
-      expect(sheets[2].length).toBe(1);
+    it('pairs adjacent records regardless of type — order is the only input, never type-segregated', () => {
+      const records = [
+        { id: 1, type: 'OFFSET' },
+        { id: 2, type: 'OVERTIME' },
+      ];
+      expect(pairIntoSheets(records)).toEqual([{ top: records[0], bottom: records[1] }]);
+    });
+  });
+
+  describe('getOvertimeOutcome', () => {
+    it('returns PAID OVERTIME for APPROVED_PAID', () => {
+      expect(getOvertimeOutcome('APPROVED_PAID')).toBe('PAID OVERTIME');
+    });
+
+    it('returns OFFSET CREDIT for APPROVED_OFFSET', () => {
+      expect(getOvertimeOutcome('APPROVED_OFFSET')).toBe('OFFSET CREDIT');
+    });
+
+    it('returns REJECTED for REJECTED', () => {
+      expect(getOvertimeOutcome('REJECTED')).toBe('REJECTED');
+    });
+
+    it('returns PENDING for anything else', () => {
+      expect(getOvertimeOutcome('PENDING')).toBe('PENDING');
+      expect(getOvertimeOutcome('UNKNOWN')).toBe('PENDING');
+    });
+  });
+
+  describe('getOvertimeHoursDisplay', () => {
+    it('returns requested and approved as same when approved_hours is undefined', () => {
+      const display = getOvertimeHoursDisplay({ hours: 4 });
+      expect(display.requested).toBe(4);
+      expect(display.approved).toBe(4);
+      expect(display.isDifferent).toBe(false);
+    });
+
+    it('marks isDifferent true when approved_hours differ from requested_hours', () => {
+      const display = getOvertimeHoursDisplay({ hours: 4, approved_hours: 2 });
+      expect(display.requested).toBe(4);
+      expect(display.approved).toBe(2);
+      expect(display.isDifferent).toBe(true);
+    });
+
+    it('handles requested_hours alias', () => {
+      const display = getOvertimeHoursDisplay({ requested_hours: 5, approved_hours: 3 });
+      expect(display.requested).toBe(5);
+      expect(display.approved).toBe(3);
+      expect(display.isDifferent).toBe(true);
+    });
+
+    it('treats a null approved_hours (rejected/legacy) as no override, not a strike-through target', () => {
+      const display = getOvertimeHoursDisplay({ hours: 4, approved_hours: null });
+      expect(display.requested).toBe(4);
+      expect(display.approved).toBe(4);
+      expect(display.isDifferent).toBe(false);
     });
   });
 });

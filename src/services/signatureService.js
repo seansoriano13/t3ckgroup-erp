@@ -43,4 +43,16 @@ export const signatureService = {
 
     return data.signedUrl;
   },
+
+  /**
+   * Downloads the signature as a Blob, useful for embedding into PDFs where fetch() CORS might fail.
+   */
+  async downloadSignature(path) {
+    if (!path) return null;
+
+    const { data, error } = await supabase.storage.from(BUCKET).download(path);
+    if (error) throw new Error(error.message);
+
+    return data;
+  },
 };

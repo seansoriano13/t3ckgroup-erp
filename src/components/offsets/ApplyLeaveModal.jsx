@@ -13,6 +13,7 @@ import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
 import { enumerateDateRange } from '../../utils/dateUtils';
+import { useEffect } from 'react';
 
 const DEFAULT_DAY_HOURS = 8;
 
@@ -36,7 +37,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
             type="date"
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
             required
           />
         </div>
@@ -49,7 +50,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
             value={endDate}
             min={startDate || undefined}
             onChange={(e) => onEndDateChange(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
             required
           />
         </div>
@@ -90,7 +91,6 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
-  const [otCategoryId, setOtCategoryId] = useState('');
   const [otStartTime, setOtStartTime] = useState('');
   const [otEndTime, setOtEndTime] = useState('');
   const [otReason, setOtReason] = useState('');
@@ -132,11 +132,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     queryFn: () => hrSettingsService.getLeaveCategories(false),
   });
 
+  useEffect(() => {
+    if (silDate && silApplyMode === 'single') {
+      const dateObj = new Date(silDate);
+      if (!isNaN(dateObj)) {
+        const isWednesday = dateObj.getDay() === 3;
+        if (!silStartTime) setSilStartTime('07:30');
+        if (!silEndTime) setSilEndTime(isWednesday ? '18:30' : '18:00');
+      }
+    }
+  }, [silDate, silApplyMode, silStartTime, silEndTime]);
+
   if (!isOpen) return null;
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!otDate || !otStartTime || !otEndTime || !otReason || !otCategoryId) {
+    if (!otDate || !otStartTime || !otEndTime || !otReason) {
       toast.error('Please fill in all fields.');
       return;
     }
@@ -150,13 +161,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         startTime: otStartTime,
         endTime: otEndTime,
         reason: otReason,
-        categoryId: otCategoryId,
         employeeName: user.name,
         attachments,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
-      setOtCategoryId('');
       setOtStartTime('');
       setOtEndTime('');
       setOtReason('');
@@ -317,7 +326,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   return createPortal(
     <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
-        
+
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
@@ -354,31 +363,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                 </h3>
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    Category
-                  </label>
-                  <select
-                    value={otCategoryId}
-                    onChange={(e) => setOtCategoryId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
-                    required
-                  >
-                    <option value="" disabled>Select...</option>
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    Date Worked
-                  </label>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Date Worked</label>
                   <input
                     type="date"
                     value={otDate}
                     onChange={(e) => setOtDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                     required
                   />
                 </div>
@@ -392,7 +383,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                     type="time"
                     value={otStartTime}
                     onChange={(e) => setOtStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                     required
                   />
                 </div>
@@ -404,7 +395,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                     type="time"
                     value={otEndTime}
                     onChange={(e) => setOtEndTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                     required
                   />
                 </div>
@@ -423,7 +414,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   onChange={(e) => setOtReason(e.target.value)}
                   placeholder="Reason for the overtime request"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
                   required
                 />
               </div>
@@ -474,7 +465,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                 <select
                   value={offsetCategoryId}
                   onChange={(e) => setOffsetCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
                   required
                 >
                   <option value="" disabled>Select category...</option>
@@ -503,7 +494,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                       type="date"
                       value={offsetDate}
                       onChange={(e) => setOffsetDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                       required
                     />
                   </div>
@@ -516,7 +507,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                         type="time"
                         value={offsetStartTime}
                         onChange={(e) => setOffsetStartTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                         required
                       />
                     </div>
@@ -528,7 +519,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                         type="time"
                         value={offsetEndTime}
                         onChange={(e) => setOffsetEndTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                         required
                       />
                     </div>
@@ -549,7 +540,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   onChange={(e) => setOffsetReason(e.target.value)}
                   placeholder="Reason for the offset leave"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
                   required
                 />
               </div>
@@ -600,7 +591,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                 <select
                   value={silCategoryId}
                   onChange={(e) => setSilCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 appearance-none"
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
                   required
                 >
                   <option value="" disabled>Select category...</option>
@@ -628,8 +619,19 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                     <input
                       type="date"
                       value={silDate}
-                      onChange={(e) => setSilDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSilDate(val);
+                        if (val) {
+                          const dateObj = new Date(val);
+                          const day = dateObj.getUTCDay(); // 0 is Sunday, 1 is Monday
+                          if (day >= 1 && day <= 5) {
+                            setSilStartTime('07:30');
+                            setSilEndTime(day === 3 ? '18:30' : '18:00');
+                          }
+                        }
+                      }}
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                       required
                     />
                   </div>
@@ -642,7 +644,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                         type="time"
                         value={silStartTime}
                         onChange={(e) => setSilStartTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                         required
                       />
                     </div>
@@ -654,7 +656,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                         type="time"
                         value={silEndTime}
                         onChange={(e) => setSilEndTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                         required
                       />
                     </div>
@@ -675,7 +677,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   onChange={(e) => setSilReason(e.target.value)}
                   placeholder="Reason for taking leave"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
                   required
                 />
               </div>

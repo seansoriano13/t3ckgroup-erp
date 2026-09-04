@@ -846,6 +846,39 @@ describe("offsetService", () => {
       })
     })
   })
+
+  describe("Document Center: stamping printed records", () => {
+    it("stamps a single-day offset leave by id", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, status: "APPROVED" })
+
+      await offsetService.markOffsetLeavesPrinted({ id: leave.id, hrId: hr.id })
+
+      const row = db.rows("offset_leaves").find((r) => r.id === leave.id)
+      expect(row.printed_by).toBe(hr.id)
+      expect(row.printed_at).toEqual(expect.any(String))
+    })
+
+    it("stamps every row in a leave_group_id when printed as a range", async () => {
+      const groupId = crypto.randomUUID()
+      const day1 = makeOffsetLeave({ employee_id: employee.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-10" })
+      const day2 = makeOffsetLeave({ employee_id: employee.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-11" })
+
+      await offsetService.markOffsetLeavesPrinted({ groupId, hrId: hr.id })
+
+      const rows = db.rows("offset_leaves").filter((r) => r.id === day1.id || r.id === day2.id)
+      expect(rows.every((r) => r.printed_by === hr.id)).toBe(true)
+    })
+
+    it("stamps an overtime request by id (never grouped)", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, status: "APPROVED_PAID" })
+
+      await offsetService.markOvertimeRequestsPrinted({ id: request.id, hrId: hr.id })
+
+      const row = db.rows("overtime_requests").find((r) => r.id === request.id)
+      expect(row.printed_by).toBe(hr.id)
+      expect(row.printed_at).toEqual(expect.any(String))
+    })
+  })
 })
 
 describe("cleanAttachments", () => {

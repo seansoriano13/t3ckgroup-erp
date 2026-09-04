@@ -438,8 +438,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
-        hr:employees!overtime_requests_hr_processed_by_fkey(id, name),
+        employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
+        hr:employees!overtime_requests_hr_processed_by_fkey(id, name, signature_path),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -460,7 +460,7 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        employee:employees!overtime_requests_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
@@ -479,8 +479,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
-        hr:employees!offset_leaves_hr_processed_by_fkey(id, name),
+        employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
+        hr:employees!offset_leaves_hr_processed_by_fkey(id, name, signature_path),
         category:hr_leave_categories(label)
       `)
       .order('created_at', { ascending: false });
@@ -501,7 +501,7 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        employee:employees!offset_leaves_employee_id_fkey(id, name, department, avatar_path, offset_hours_balance),
+        employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
@@ -990,5 +990,33 @@ export const offsetService = {
     ).catch(console.error);
 
     return data;
+  },
+
+  /**
+   * Stamp a printed batch's offset leaves as printed (Document Center).
+   * Informational only — never blocks a later reprint. Operates on the whole
+   * leave_group_id when the record is part of a range, mirroring every other
+   * group-atomic mutation in this file.
+   */
+  async markOffsetLeavesPrinted({ id, groupId, hrId }) {
+    const query = supabase
+      .from('offset_leaves')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId });
+
+    const { error } = groupId ? await query.eq('leave_group_id', groupId) : await query.eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Stamp a printed batch's overtime requests as printed (Document Center).
+   * Overtime requests are never grouped, so this is always a single-id
+   * update, unlike the leave-side stamp above.
+   */
+  async markOvertimeRequestsPrinted({ id, hrId }) {
+    const { error } = await supabase
+      .from('overtime_requests')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   }
 };

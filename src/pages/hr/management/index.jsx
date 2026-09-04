@@ -167,6 +167,7 @@ export default function EmployeeManagement() {
           />
 
           <Button
+            variant="primary"
             className="h-[46px] px-6 rounded-xl shadow-lg shadow-primary/20 shrink-0"
             onClick={handleAddNew}
           >
@@ -276,11 +277,10 @@ export default function EmployeeManagement() {
                         </td>
                         <td className="p-4 text-sm">
                           {emp.employment_status ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
-                              emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
+                                emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-blue-100 text-blue-700'
+                              }`}>
                               {emp.employment_status}
                             </span>
                           ) : (
@@ -407,9 +407,9 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       return isEditing
         ? employeeService.updateEmployee(employee.id, payload, user?.id || null)
         : employeeService.createEmployee({
-            ...payload,
-            updatedBy: user?.id || null,
-          });
+          ...payload,
+          updatedBy: user?.id || null,
+        });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
