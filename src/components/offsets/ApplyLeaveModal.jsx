@@ -125,7 +125,8 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
   const currentOffsetHours = safeDeriveHours(offsetStartTime, offsetEndTime, false);
-  const currentSilHours = safeDeriveHours(silStartTime, silEndTime, false);
+  const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
+  const currentSilHours = currentSilHoursRaw >= 5 ? currentSilHoursRaw - 1 : currentSilHoursRaw;
 
   const { data: categories = [] } = useQuery({
     queryKey: ['activeLeaveCategories'],
