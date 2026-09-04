@@ -150,6 +150,34 @@ describe('HrLeavesManagerPage', () => {
       });
     });
 
+    it('filters the Approved Records picker by employee name, without touching the tray', async () => {
+      const user = userEvent.setup();
+      const employeeA = makeEmployee({ name: 'Searchable Alpha' });
+      const employeeB = makeEmployee({ name: 'Hidden Beta' });
+      makeOffsetLeave({ employee_id: employeeA.id, status: 'APPROVED', date: midCurrentMonth() });
+      makeOffsetLeave({ employee_id: employeeB.id, status: 'APPROVED', date: midCurrentMonth() });
+
+      renderWithProviders(
+        <MemoryRouter>
+          <HrLeavesManagerPage />
+        </MemoryRouter>
+      );
+
+      const documentsTab = await screen.findByRole('button', { name: /Document Center/i });
+      await user.click(documentsTab);
+
+      await screen.findByRole('checkbox', { name: /Add Searchable Alpha's OFFSET record to the tray/i });
+      await screen.findByRole('checkbox', { name: /Add Hidden Beta's OFFSET record to the tray/i });
+
+      const searchInput = await screen.findByRole('textbox', { name: /Search approved records by employee name/i });
+      await user.type(searchInput, 'Alpha');
+
+      await waitFor(() => {
+        expect(screen.getByRole('checkbox', { name: /Add Searchable Alpha's OFFSET record to the tray/i })).toBeInTheDocument();
+        expect(screen.queryByRole('checkbox', { name: /Add Hidden Beta's OFFSET record to the tray/i })).not.toBeInTheDocument();
+      });
+    });
+
     it('removing a record from the tray takes it back out of the print composition', async () => {
       const user = userEvent.setup();
       const applicant = makeEmployee({ name: 'Removable Employee' });

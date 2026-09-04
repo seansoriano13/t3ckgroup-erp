@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Printer, X, FileStack } from 'lucide-react';
+import { GripVertical, Printer, X, FileStack, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Avatar from '../../../../components/Avatar';
+import HighlightText from '../../../../components/HighlightText';
 import { offsetService } from '../../../../services/offsetService';
 import { silService } from '../../../../services/silService';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
@@ -48,6 +49,7 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
   const [previewHtml, setPreviewHtml] = useState('');
   const [isRendering, setIsRendering] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     try {
@@ -78,6 +80,14 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
   }, [tray]);
 
   const isInTray = useCallback((key) => trayKeys.includes(key), [trayKeys]);
+
+  // Search scopes the picker to a name match — the tray can still hold records
+  // that later scroll out of a filtered view, so filtering never touches trayKeys.
+  const filteredRecords = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return approvedRecords;
+    return approvedRecords.filter((r) => r.employee?.name?.toLowerCase().includes(term));
+  }, [approvedRecords, search]);
 
   const toggleTray = (record) => {
     const key = recordKey(record);
@@ -159,7 +169,7 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
         <button
           onClick={handlePrint}
           disabled={tray.length === 0 || isBusy || isRendering}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#37352F] text-white hover:bg-[#2F2E2A] rounded-lg text-sm font-bold transition-colors cursor-pointer disabled:opacity-50"
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground hover:bg-primary-hover rounded-lg text-sm font-bold transition-colors cursor-pointer disabled:opacity-50"
         >
           <Printer className="w-4 h-4" />
           {isBusy ? 'Working…' : 'Print'}
@@ -168,33 +178,48 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
           Opens your browser's print dialog — choose "Save as PDF" there if you need a file instead of paper.
         </p>
 
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
-          <div className="p-3 border-b border-border bg-muted/10">
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-64">
+          <div className="p-3 border-b border-border bg-muted/10 shrink-0">
             <span className="text-sm font-bold text-foreground">Tray ({tray.length})</span>
           </div>
-          {tray.length === 0 ? (
-            <div className="p-6 text-center text-muted-foreground text-xs font-medium bg-muted/20">
-              Check records below to add them here, then drag to set print order.
-            </div>
-          ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={trayKeys} strategy={verticalListSortingStrategy}>
-                <ul className="divide-y divide-border max-h-56 overflow-y-auto">
-                  {tray.map((r) => (
-                    <TrayRow key={recordKey(r)} id={recordKey(r)} record={r} onRemove={() => removeFromTray(recordKey(r))} />
-                  ))}
-                </ul>
-              </SortableContext>
-            </DndContext>
-          )}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            {tray.length === 0 ? (
+              <div className="h-full flex items-center justify-center text-center text-muted-foreground text-xs font-medium p-6 bg-muted/20">
+                Check records below to add them here, then drag to set print order.
+              </div>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={trayKeys} strategy={verticalListSortingStrategy}>
+                  <ul className="divide-y divide-border">
+                    {tray.map((r) => (
+                      <TrayRow key={recordKey(r)} id={recordKey(r)} record={r} onRemove={() => removeFromTray(recordKey(r))} />
+                    ))}
+                  </ul>
+                </SortableContext>
+              </DndContext>
+            )}
+          </div>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col">
-          <div className="p-3 border-b border-border bg-muted/10">
-            <span className="text-sm font-bold text-foreground">{approvedRecords.length} Approved Records</span>
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-64">
+          <div className="p-3 border-b border-border bg-muted/10 shrink-0 space-y-2">
+            <span className="text-sm font-bold text-foreground">
+              {search.trim() ? `${filteredRecords.length} of ${approvedRecords.length} Approved Records` : `${approvedRecords.length} Approved Records`}
+            </span>
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name…"
+                aria-label="Search approved records by employee name"
+                className="w-full pl-7 pr-2 py-1.5 text-xs font-medium rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+              />
+            </div>
           </div>
-          <ul className="divide-y divide-border max-h-[420px] overflow-y-auto">
-            {approvedRecords.map((req) => {
+          <ul className="flex-1 min-h-0 overflow-y-auto divide-y divide-border">
+            {filteredRecords.map((req) => {
               const key = recordKey(req);
               return (
                 <li key={key} className={`flex items-center gap-3 p-3 ${isInTray(key) ? 'bg-primary/5' : ''}`}>
@@ -207,7 +232,9 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
                   />
                   <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground truncate">{req.employee?.name}</p>
+                    <p className="text-xs font-bold text-foreground truncate">
+                      <HighlightText text={req.employee?.name} search={search} />
+                    </p>
                     <p className="text-[10px] text-muted-foreground font-semibold">
                       {formatRecordDate(req)} · {req.hours} hrs
                     </p>
@@ -226,9 +253,9 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
                 </li>
               );
             })}
-            {approvedRecords.length === 0 && (
+            {filteredRecords.length === 0 && (
               <li className="p-8 text-center text-muted-foreground text-xs font-medium">
-                No approved records for the selected period.
+                {approvedRecords.length === 0 ? 'No approved records for the selected period.' : 'No records match your search.'}
               </li>
             )}
           </ul>
