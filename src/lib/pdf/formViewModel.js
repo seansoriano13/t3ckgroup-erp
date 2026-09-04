@@ -85,7 +85,7 @@ function employeeSigBlock(record) {
 }
 
 function approverSigBlock(record, formSettings) {
-  const who = record.hr?.name || formSettings?.approver_name || 'Approving officer';
+  const who = formSettings?.approver_name || record.hr?.name || 'Approving officer';
   const isSigned = record.approval_hash || record.hr_signature_version;
   
   if (record.hr_signature_timestamp) {
@@ -111,11 +111,12 @@ function approverSigBlock(record, formSettings) {
 }
 
 function supervisorSigBlock(formSettings) {
-  return { 
-    role: 'Noted by', 
-    who: formSettings?.supervisor_name || ' ', 
-    title: formSettings?.supervisor_title || 'Supervisor / Manager', 
-    state: 'signed' 
+  if (!formSettings?.supervisor_name) return null;
+  return {
+    role: 'Noted by',
+    who: formSettings.supervisor_name,
+    title: formSettings?.supervisor_title || 'Supervisor / Manager',
+    state: 'wet'
   };
 }
 
@@ -158,7 +159,6 @@ export function buildTG11ViewModel(record, formSettings) {
     sigs: [
       employeeSigBlock(record),
       supervisorSigBlock(formSettings),
-      approverSigBlock(record, formSettings),
     ].filter(Boolean),
     note: 'This form must be filed before the leave commences, or immediately upon return for emergency or sick leave.',
     verificationToken: record.verification_token,

@@ -141,7 +141,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
         if (!silEndTime) setSilEndTime(isWednesday ? '18:30' : '18:00');
       }
     }
-  }, [silDate, silApplyMode, silStartTime, silEndTime]);
+  }, [silDate, silApplyMode]);
 
   if (!isOpen) return null;
 
