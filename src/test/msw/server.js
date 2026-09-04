@@ -1,9 +1,8 @@
 import { setupServer } from "msw/node"
 import { postgrestHandlers } from "./postgrest"
 import { externalHandlers } from "./externals"
-import { storageHandlers } from "./storage"
 
-export const server = setupServer(...postgrestHandlers, ...externalHandlers, ...storageHandlers)
+export const server = setupServer(...postgrestHandlers, ...externalHandlers)
 
 export { stubRpc, stubEdgeFunction, resetStubs } from "./postgrest"
 export {
@@ -14,4 +13,3 @@ export {
   stubGeminiResponse,
   stubGithubCommits,
 } from "./externals"
-export { resetStorageStubs, seedStorageObject } from "./storage"

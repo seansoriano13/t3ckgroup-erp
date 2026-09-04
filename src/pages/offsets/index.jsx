@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Link } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter, ShieldCheck } from 'lucide-react';
+import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import PageContainer from '../../components/ui/PageContainer';
 import PageHeader from '../../components/ui/PageHeader';
@@ -357,7 +356,6 @@ export default function EmployeeLeavesPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Date Worked</th>
-                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
@@ -373,9 +371,6 @@ export default function EmployeeLeavesPage() {
                         </td>
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </td>
-                        <td className="p-4 text-xs font-semibold text-foreground">
-                          {req.category?.label || '-'}
                         </td>
                         <td className="p-4">
                           <div className="flex flex-col gap-0.5">
@@ -402,20 +397,10 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right flex items-center justify-end gap-2">
-                          {req.verification_token && (
-                            <Link 
-                              to={`/verify/${req.verification_token}`} 
-                              target="_blank"
-                              className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
-                              title="View Verified Form"
-                            >
-                              <ShieldCheck size={18} />
-                            </Link>
-                          )}
+                        <td className="p-4 text-right">
                           {req.status === 'PENDING' && (
                             <button
-                              onClick={() => handleWithdrawOvertime(req.id, req.status)}
+                              onClick={() => handleWithdrawOvertime(req.id)}
                               className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
                               title="Withdraw Request"
                             >
@@ -447,7 +432,6 @@ export default function EmployeeLeavesPage() {
                         <th className="p-4">Applied On</th>
                         <th className="p-4">Type</th>
                         <th className="p-4">Leave Date</th>
-                        <th className="p-4">Category</th>
                         <th className="p-4">Hours</th>
                         <th className="p-4">Reason</th>
                         <th className="p-4">Files</th>
@@ -471,9 +455,6 @@ export default function EmployeeLeavesPage() {
                           </td>
                           <td className="p-4 text-sm font-bold text-foreground">
                             {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-foreground">
-                            {req.category?.label || '-'}
                           </td>
                           <td className="p-4">
                             <div className="flex flex-col gap-0.5">
@@ -562,7 +543,6 @@ export default function EmployeeLeavesPage() {
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Type</th>
                       <th className="p-4">Leave Date</th>
-                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
                       <th className="p-4">Files</th>
@@ -586,9 +566,6 @@ export default function EmployeeLeavesPage() {
                         </td>
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                        </td>
-                        <td className="p-4 text-xs font-semibold text-foreground">
-                          {req.category?.label || '-'}
                         </td>
                         <td className="p-4">
                           <div className="flex flex-col gap-0.5">
@@ -618,17 +595,7 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right flex items-center justify-end gap-2">
-                          {req.verification_token && (
-                            <Link 
-                              to={`/verify/${req.verification_token}`} 
-                              target="_blank"
-                              className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all inline-block border border-transparent hover:border-primary/20 cursor-pointer flex items-center justify-center"
-                              title="View Verified Form"
-                            >
-                              <ShieldCheck size={14} />
-                            </Link>
-                          )}
+                        <td className="p-4 text-right">
                           {req.status === 'PENDING' && (
                             <button
                               onClick={() => handleWithdrawLeave(req.id, req.status, req.type)}

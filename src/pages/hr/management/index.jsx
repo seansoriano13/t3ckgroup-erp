@@ -5,8 +5,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
-import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
-import FormSettingsConfig from "../../../components/hr/FormSettingsConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
@@ -86,7 +84,7 @@ export default function EmployeeManagement() {
         if (roleFlagFilter === "HR") return e.isHr;
         if (roleFlagFilter === "HEAD") return e.isHead;
         if (roleFlagFilter === "STANDARD")
-          return !e.isSuperAdmin && !e.isHr && !e.isHead && !e.canManageLeaves;
+          return !e.isSuperAdmin && !e.isHr && !e.isHead;
         return true;
       });
     }
@@ -159,7 +157,6 @@ export default function EmployeeManagement() {
             tabs={[
               { value: "employees", label: "Employees" },
               { value: "categories", label: "Categories Config" },
-              { value: "leave_config", label: "Leave & Form Config" },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -313,12 +310,7 @@ export default function EmployeeManagement() {
                               Head
                             </span>
                           )}
-                          {emp.canManageLeaves && (
-                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
-                              Leave Mgr
-                            </span>
-                          )}
-                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && !emp.canManageLeaves && (
+                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && (
                             <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
                               Standard
                             </span>
@@ -356,14 +348,9 @@ export default function EmployeeManagement() {
               </table>
             </div>
           </div>
-        ) : activeTab === "categories" ? (
+        ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <HRCategoriesConfig />
-          </div>
-        ) : (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
-            <LeaveCategoriesConfig />
-            <FormSettingsConfig />
           </div>
         )}
 
@@ -494,7 +481,6 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         onSubmit={handleSubmit}
         rawCategories={rawCategories}
         rawEmployees={employees}
-        canGrantLeaveManagement={!!user?.isSuperAdmin}
       />
     </HRFormModal>
   );

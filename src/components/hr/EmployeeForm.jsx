@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ChevronDown, Clock } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ChevronDown } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
@@ -11,7 +11,6 @@ export default function EmployeeForm({
   formId = "employee-form",
   rawCategories = [],
   rawEmployees = [],
-  canGrantLeaveManagement = false,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -22,7 +21,6 @@ export default function EmployeeForm({
     isHead: false,
     isHr: false,
     isSuperAdmin: false,
-    canManageLeaves: false,
     has_sales_flow: false,
     has_task_flow: true,
     employment_status: "",
@@ -44,7 +42,6 @@ export default function EmployeeForm({
       isHead: false,
       isHr: false,
       isSuperAdmin: false,
-      canManageLeaves: false,
       has_sales_flow: false,
       has_task_flow: true,
       employment_status: "",
@@ -272,23 +269,6 @@ export default function EmployeeForm({
             hoverColor="group-hover:bg-violet-2"
             iconStrokeWidth={2.5}
           />
-
-          {/* Leave Management — Super Admin only; the database refuses this
-              change from anyone else regardless, but hiding it here keeps an
-              HR-only editor from seeing a switch they cannot actually use. */}
-          {canGrantLeaveManagement && (
-            <AccessSwitch
-              label="Leave Management"
-              description="Approve & reject leave, offset and overtime applications"
-              icon={Clock}
-              checked={formData.canManageLeaves}
-              onChange={(val) =>
-                setFormData((prev) => ({ ...prev, canManageLeaves: val }))
-              }
-              activeColor="bg-orange-3 text-orange-10"
-              hoverColor="group-hover:bg-orange-2"
-            />
-          )}
 
           {/* Sales Opportunity access */}
           <AccessSwitch

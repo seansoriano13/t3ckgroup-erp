@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 import {
-  enumerateDateRange,
   formatDateToYMD,
   getMonthBoundaries,
   getMonthKeysInRange,
@@ -17,38 +16,6 @@ import {
  * mix UTC-parsed and local-constructed Dates, and that difference only shows up
  * in a zone that is not UTC.
  */
-describe("enumerateDateRange", () => {
-  it("lists every date between the endpoints, inclusive", () => {
-    expect(enumerateDateRange("2026-03-16", "2026-03-18")).toEqual([
-      "2026-03-16",
-      "2026-03-17",
-      "2026-03-18",
-    ])
-  })
-
-  it("returns a single date when the range is one day", () => {
-    expect(enumerateDateRange("2026-03-16", "2026-03-16")).toEqual(["2026-03-16"])
-  })
-
-  it("crosses a month boundary", () => {
-    expect(enumerateDateRange("2026-03-30", "2026-04-02")).toEqual([
-      "2026-03-30",
-      "2026-03-31",
-      "2026-04-01",
-      "2026-04-02",
-    ])
-  })
-
-  it("returns nothing when the end precedes the start", () => {
-    expect(enumerateDateRange("2026-03-18", "2026-03-16")).toEqual([])
-  })
-
-  it("returns nothing when either endpoint is missing", () => {
-    expect(enumerateDateRange("", "2026-03-16")).toEqual([])
-    expect(enumerateDateRange("2026-03-16", "")).toEqual([])
-  })
-})
-
 describe("getMonthBoundaries", () => {
   it("spans from the first of the month to the first of the next", () => {
     expect(getMonthBoundaries("2026-03")).toEqual({

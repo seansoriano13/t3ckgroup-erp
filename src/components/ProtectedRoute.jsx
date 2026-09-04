@@ -7,7 +7,6 @@ export default function ProtectedRoute({
   requireHr = false,
   requireSuperAdmin = false,
   excludeSuperAdmin = false,
-  allowLeaveManagers = false,
 }) {
   const { user, isAuthLoading } = useAuth();
 
@@ -27,7 +26,6 @@ export default function ProtectedRoute({
   const isSA = user.isSuperAdmin || user.is_super_admin;
   const isHrUser = user.isHr || user.is_hr;
   const isHeadUser = user.isHead || user.is_head;
-  const isLeaveManager = user.canManageLeaves || user.can_manage_leaves;
 
   // Super Admin barrier
   if (requireSuperAdmin && !isSA) {
@@ -44,10 +42,8 @@ export default function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
-  //   if not HR (Super Admins bypass this to access HR pages; a route that
-  //   opts in with allowLeaveManagers also admits the leave-management
-  //   capability, which is deliberately narrower than full HR access)
-  if (requireHr && !isHrUser && !isSA && !(allowLeaveManagers && isLeaveManager)) {
+  //   if not HR (Super Admins bypass this to access HR pages)
+  if (requireHr && !isHrUser && !isSA) {
     return <Navigate to="/" replace />;
   }
 

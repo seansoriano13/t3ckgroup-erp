@@ -2,7 +2,7 @@ import "@testing-library/jest-dom/vitest"
 import { afterAll, afterEach, beforeAll, vi } from "vitest"
 import { cleanup } from "@testing-library/react"
 import { server } from "./msw/server"
-import { resetExternalStubs, resetStorageStubs, resetStubs } from "./msw/server"
+import { resetExternalStubs, resetStubs } from "./msw/server"
 import { db } from "./db/store"
 import { resetFactories } from "./factories"
 import { waitForNetworkIdle } from "./network"
@@ -53,7 +53,6 @@ afterEach(async () => {
   resetFactories()
   resetStubs()
   resetExternalStubs()
-  resetStorageStubs()
 })
 
 afterAll(() => {

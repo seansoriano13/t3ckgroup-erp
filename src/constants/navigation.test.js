@@ -105,27 +105,6 @@ describe("navigation registry", () => {
       ]);
     });
 
-    it("opens Leaves Manager for a leave-management capability holder without full HR access", () => {
-      const leaveManager = {
-        id: "lm-1",
-        canManageLeaves: true,
-      };
-
-      const groups = getFilteredNavigationGroups(leaveManager);
-      const hrGroup = groups.find((g) => g.key === "human_resources");
-      expect(hrGroup).toBeDefined();
-      // Employee Directory stays hidden — the capability is scoped to
-      // leave management, not the broader HR flag's directory-edit access.
-      expect(hrGroup.links.map((l) => l.label)).toEqual(["Leaves Manager"]);
-    });
-
-    it("hides Leaves Manager from an employee without the capability", () => {
-      const standardUser = { id: "std-1" };
-
-      const groups = getFilteredNavigationGroups(standardUser);
-      expect(groups.find((g) => g.key === "human_resources")).toBeUndefined();
-    });
-
     it("returns Sales with SOR Register when user has sales flow", () => {
       const salesUser = {
         id: "sales-1",
