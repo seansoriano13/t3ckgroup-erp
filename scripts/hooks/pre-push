@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Warns (never blocks) on two things a push is easy to do without noticing:
+#
+#   1. main getting ahead of staging — legitimate for a hotfix, but a state
+#      someone should decide about rather than let sit. See
+#      docs/adr/0008-branch-topology-and-deploy-triggers.md.
+#   2. a push that touches supabase/migrations/ — reminder that migrations
+#      are applied by CI only, never from here.
+#
+# Installed by `pnpm install` via the package.json "prepare" script.
+
+set -e
+
+remote="$1"
+current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+if [ "$current_branch" = "main" ]; then
+  if git rev-parse --verify --quiet "$remote/staging" > /dev/null; then
+    ahead=$(git log --oneline "$remote/staging..main" 2>/dev/null || true)
+    if [ -n "$ahead" ]; then
+      echo ""
+      echo "⚠️  main is ahead of staging — staging hasn't seen these yet:"
+      echo "$ahead" | sed 's/^/     /'
+      echo "   This is fine for a deliberate hotfix. If it isn't, staging should get this first."
+      echo "   (see docs/adr/0008-branch-topology-and-deploy-triggers.md)"
+      echo ""
+    fi
+  fi
+fi
+
+migration_changes=$(git diff --name-only "$remote/$current_branch..HEAD" -- supabase/migrations/ 2>/dev/null || true)
+if [ -n "$migration_changes" ]; then
+  echo ""
+  echo "ℹ️  This push includes migration files. Migrations are applied by CI only:"
+  echo "     staging → automatic, on push (.github/workflows/migrate-staging.yml)"
+  echo "     production → manual trigger only (.github/workflows/migrate-prod.yml)"
+  echo "   Don't run 'supabase db push' from this machine."
+  echo ""
+fi
+
+exit 0

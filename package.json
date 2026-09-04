@@ -17,7 +17,12 @@
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
         "mirror:brochures": "node scripts/mirror-brochures.mjs",
-        "db:sync-staging": "node scripts/sync-data.mjs"
+        "db:sync-staging": "node scripts/sync-data.mjs",
+        "db:snapshot:prod": "node scripts/db-snapshot.mjs prod",
+        "db:snapshot:staging": "node scripts/db-snapshot.mjs staging",
+        "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
+        "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
+        "prepare": "node scripts/install-hooks.mjs"
     },
     "dependencies": {
         "@base-ui/react": "^1.4.0",

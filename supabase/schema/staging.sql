@@ -2,17 +2,13 @@
 -- GENERATED — DO NOT EDIT OR APPLY
 --
 -- Schema mirror — staging (fpjxdyowngpnovotbzqi)
--- Generated 2026-09-04T06:03:27.387Z via direct pg_catalog introspection
--- (pg_dump/Docker unavailable in this environment — see session notes)
+-- Regenerate with: pnpm db:snapshot:staging
 --
 -- This is a read-only snapshot of the live schema for reference and drift
--- detection (issue #82). It is NOT a migration file, is not in
--- supabase/migrations/, and must never be run against any database —
--- running it against prod would error on every object staging has ahead
--- of prod (flow-canvas / Sales Flow / Project Evaluation tables, etc.).
---
--- The corresponding ledger checkpoint is a synthetic marker row with no
--- file of its own; see docs/adr/ for the baselining decision.
+-- detection. It is NOT a migration file, is not in supabase/migrations/,
+-- and must never be run against any database — running it against
+-- prod would error on objects the two databases already have in
+-- common (or lack entirely).
 -- ==============================================================================
 
 -- ============================================================
@@ -29,7 +25,7 @@ create extension if not exists "uuid-ossp" with schema "extensions";
 -- ============================================================
 
 
-create table if not exists "public"."app_settings" (
+create table if not exists public."app_settings" (
   "id" boolean not null default true,
   "updated_at" timestamp with time zone not null default now(),
   "universal_task_submission" boolean not null default false,
@@ -42,7 +38,7 @@ create table if not exists "public"."app_settings" (
   "sales_self_approve_expenses" boolean default false
 );
 
-create table if not exists "public"."categories" (
+create table if not exists public."categories" (
   "id" bigint not null generated always as identity,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
@@ -53,21 +49,21 @@ create table if not exists "public"."categories" (
   "sub_department" text
 );
 
-create table if not exists "public"."chat_read_receipts" (
+create table if not exists public."chat_read_receipts" (
   "user_id" uuid not null,
   "entity_type" text not null,
   "entity_id" text not null,
   "last_read_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."chat_user_archives" (
+create table if not exists public."chat_user_archives" (
   "user_id" uuid not null,
   "entity_type" text not null,
   "entity_id" text not null,
   "archived_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."commission_departments" (
+create table if not exists public."commission_departments" (
   "id" uuid not null default gen_random_uuid(),
   "key" text not null,
   "name" text not null,
@@ -76,7 +72,7 @@ create table if not exists "public"."commission_departments" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."commission_positions" (
+create table if not exists public."commission_positions" (
   "id" uuid not null default gen_random_uuid(),
   "department_id" uuid not null,
   "name" text not null,
@@ -85,7 +81,7 @@ create table if not exists "public"."commission_positions" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."commission_rates" (
+create table if not exists public."commission_rates" (
   "id" uuid not null default gen_random_uuid(),
   "rate_type" text not null,
   "percent" numeric(6,3) not null,
@@ -94,7 +90,7 @@ create table if not exists "public"."commission_rates" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."commission_splits" (
+create table if not exists public."commission_splits" (
   "id" uuid not null default gen_random_uuid(),
   "project_type" text not null,
   "share_role" text not null,
@@ -103,13 +99,13 @@ create table if not exists "public"."commission_splits" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."committee_roles" (
+create table if not exists public."committee_roles" (
   "id" uuid not null default gen_random_uuid(),
   "role_name" text not null,
   "created_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."committee_task_activity" (
+create table if not exists public."committee_task_activity" (
   "id" uuid not null default gen_random_uuid(),
   "task_id" uuid not null,
   "author_id" uuid,
@@ -119,7 +115,7 @@ create table if not exists "public"."committee_task_activity" (
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."committee_task_logs" (
+create table if not exists public."committee_task_logs" (
   "id" uuid not null default gen_random_uuid(),
   "committee_task_id" uuid not null,
   "action" text not null,
@@ -128,7 +124,7 @@ create table if not exists "public"."committee_task_logs" (
   "created_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."committee_task_members" (
+create table if not exists public."committee_task_members" (
   "id" uuid not null default gen_random_uuid(),
   "committee_task_id" uuid not null,
   "employee_id" uuid not null,
@@ -145,7 +141,7 @@ create table if not exists "public"."committee_task_members" (
   "attachments" jsonb default '[]'::jsonb
 );
 
-create table if not exists "public"."committee_tasks" (
+create table if not exists public."committee_tasks" (
   "id" uuid not null default gen_random_uuid(),
   "title" text not null,
   "description" text,
@@ -163,14 +159,14 @@ create table if not exists "public"."committee_tasks" (
   "opportunity_id" uuid
 );
 
-create table if not exists "public"."crm_lead_sources" (
+create table if not exists public."crm_lead_sources" (
   "value" text not null,
   "label" text not null,
   "is_active" boolean not null default true,
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."crm_pipeline_stages" (
+create table if not exists public."crm_pipeline_stages" (
   "code" text not null,
   "label" text not null,
   "sort_order" integer not null,
@@ -186,7 +182,7 @@ create table if not exists "public"."crm_pipeline_stages" (
   "is_itb_gate" boolean not null default false
 );
 
-create table if not exists "public"."employees" (
+create table if not exists public."employees" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
@@ -213,13 +209,13 @@ create table if not exists "public"."employees" (
   "signature_path" text
 );
 
-create table if not exists "public"."faq_data" (
+create table if not exists public."faq_data" (
   "id" integer not null default 1,
   "categories" jsonb not null default '[]'::jsonb,
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."flow_edges" (
+create table if not exists public."flow_edges" (
   "id" uuid not null default gen_random_uuid(),
   "flow_id" uuid not null,
   "from_stage_id" uuid not null,
@@ -227,7 +223,7 @@ create table if not exists "public"."flow_edges" (
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."flow_plans" (
+create table if not exists public."flow_plans" (
   "id" uuid not null default gen_random_uuid(),
   "name" text not null,
   "yjs_state" bytea,
@@ -236,7 +232,7 @@ create table if not exists "public"."flow_plans" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."flow_snapshots" (
+create table if not exists public."flow_snapshots" (
   "id" uuid not null default gen_random_uuid(),
   "flow_id" uuid not null,
   "version" integer not null,
@@ -245,7 +241,7 @@ create table if not exists "public"."flow_snapshots" (
   "created_by" uuid
 );
 
-create table if not exists "public"."flow_stage_actions" (
+create table if not exists public."flow_stage_actions" (
   "id" uuid not null default gen_random_uuid(),
   "stage_id" uuid not null,
   "kind" text not null,
@@ -256,7 +252,7 @@ create table if not exists "public"."flow_stage_actions" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."flow_stages" (
+create table if not exists public."flow_stages" (
   "id" uuid not null default gen_random_uuid(),
   "flow_id" uuid not null,
   "name" text not null,
@@ -270,7 +266,7 @@ create table if not exists "public"."flow_stages" (
   "bracket_label" text
 );
 
-create table if not exists "public"."group_task_template_members" (
+create table if not exists public."group_task_template_members" (
   "id" uuid not null default gen_random_uuid(),
   "template_id" uuid not null,
   "employee_id" uuid,
@@ -282,7 +278,7 @@ create table if not exists "public"."group_task_template_members" (
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."group_task_templates" (
+create table if not exists public."group_task_templates" (
   "id" uuid not null default gen_random_uuid(),
   "name" text not null,
   "title" text,
@@ -294,7 +290,7 @@ create table if not exists "public"."group_task_templates" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."hr_form_settings" (
+create table if not exists public."hr_form_settings" (
   "id" integer not null,
   "supervisor_name" text not null default ''::text,
   "supervisor_title" text not null default ''::text,
@@ -303,7 +299,7 @@ create table if not exists "public"."hr_form_settings" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."hr_leave_categories" (
+create table if not exists public."hr_leave_categories" (
   "id" uuid not null default gen_random_uuid(),
   "label" text not null,
   "is_active" boolean not null default true,
@@ -312,7 +308,7 @@ create table if not exists "public"."hr_leave_categories" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."notifications" (
+create table if not exists public."notifications" (
   "id" uuid not null default gen_random_uuid(),
   "recipient_id" uuid not null,
   "sender_id" uuid,
@@ -324,7 +320,7 @@ create table if not exists "public"."notifications" (
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
-create table if not exists "public"."offset_leaves" (
+create table if not exists public."offset_leaves" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
   "date" date not null,
@@ -352,7 +348,7 @@ create table if not exists "public"."offset_leaves" (
   "printed_by" uuid
 );
 
-create table if not exists "public"."overtime_requests" (
+create table if not exists public."overtime_requests" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
   "date" date not null,
@@ -380,7 +376,7 @@ create table if not exists "public"."overtime_requests" (
   "printed_by" uuid
 );
 
-create table if not exists "public"."revenue_activity_logs" (
+create table if not exists public."revenue_activity_logs" (
   "id" uuid not null default gen_random_uuid(),
   "revenue_log_id" bigint,
   "author_id" uuid,
@@ -390,7 +386,7 @@ create table if not exists "public"."revenue_activity_logs" (
   "created_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."sale_types" (
+create table if not exists public."sale_types" (
   "id" uuid not null default gen_random_uuid(),
   "name" text not null,
   "created_by" uuid,
@@ -399,7 +395,7 @@ create table if not exists "public"."sale_types" (
   "archived_at" timestamp with time zone
 );
 
-create table if not exists "public"."sales_activities" (
+create table if not exists public."sales_activities" (
   "id" bigint not null generated always as identity,
   "plan_id" bigint,
   "employee_id" uuid not null,
@@ -430,7 +426,7 @@ create table if not exists "public"."sales_activities" (
   "attachments" jsonb default '[]'::jsonb
 );
 
-create table if not exists "public"."sales_activity_logs" (
+create table if not exists public."sales_activity_logs" (
   "id" uuid not null default gen_random_uuid(),
   "sales_activity_id" bigint not null,
   "author_id" uuid,
@@ -440,7 +436,7 @@ create table if not exists "public"."sales_activity_logs" (
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
-create table if not exists "public"."sales_custom_templates" (
+create table if not exists public."sales_custom_templates" (
   "id" uuid not null default gen_random_uuid(),
   "employee_id" uuid not null,
   "template_name" text not null,
@@ -448,7 +444,7 @@ create table if not exists "public"."sales_custom_templates" (
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
-create table if not exists "public"."sales_flows" (
+create table if not exists public."sales_flows" (
   "id" uuid not null default gen_random_uuid(),
   "sale_type_id" uuid not null,
   "state" text not null default 'draft'::text,
@@ -459,7 +455,7 @@ create table if not exists "public"."sales_flows" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sales_opportunities" (
+create table if not exists public."sales_opportunities" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_no" text,
   "registration_date" date not null default CURRENT_DATE,
@@ -495,7 +491,7 @@ create table if not exists "public"."sales_opportunities" (
   "odoo_partner_id" bigint
 );
 
-create table if not exists "public"."sales_opportunity_items" (
+create table if not exists public."sales_opportunity_items" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "product_name" text not null,
@@ -507,7 +503,7 @@ create table if not exists "public"."sales_opportunity_items" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sales_opportunity_logs" (
+create table if not exists public."sales_opportunity_logs" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "author_id" uuid,
@@ -517,7 +513,7 @@ create table if not exists "public"."sales_opportunity_logs" (
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sales_opportunity_members" (
+create table if not exists public."sales_opportunity_members" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "employee_id" uuid not null,
@@ -525,7 +521,7 @@ create table if not exists "public"."sales_opportunity_members" (
   "added_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sales_quota_logs" (
+create table if not exists public."sales_quota_logs" (
   "id" uuid not null default gen_random_uuid(),
   "quota_id" bigint not null,
   "changed_by" uuid,
@@ -535,7 +531,7 @@ create table if not exists "public"."sales_quota_logs" (
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
-create table if not exists "public"."sales_quotas" (
+create table if not exists public."sales_quotas" (
   "id" bigint not null generated always as identity,
   "employee_id" uuid not null,
   "amount_target" numeric not null,
@@ -549,7 +545,7 @@ create table if not exists "public"."sales_quotas" (
   "deals_pending" integer default 0
 );
 
-create table if not exists "public"."sales_revenue_logs" (
+create table if not exists public."sales_revenue_logs" (
   "id" bigint not null generated always as identity,
   "employee_id" uuid not null,
   "date" date not null,
@@ -575,7 +571,7 @@ create table if not exists "public"."sales_revenue_logs" (
   "is_converted" boolean default false
 );
 
-create table if not exists "public"."sales_weekly_plans" (
+create table if not exists public."sales_weekly_plans" (
   "id" bigint not null generated always as identity,
   "employee_id" uuid not null,
   "week_start_date" date not null,
@@ -586,7 +582,7 @@ create table if not exists "public"."sales_weekly_plans" (
   "amendment_requested_at" timestamp with time zone
 );
 
-create table if not exists "public"."sil_leaves" (
+create table if not exists public."sil_leaves" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
   "employee_id" uuid not null,
@@ -614,7 +610,7 @@ create table if not exists "public"."sil_leaves" (
   "printed_by" uuid
 );
 
-create table if not exists "public"."sor_canvass_offers" (
+create table if not exists public."sor_canvass_offers" (
   "id" uuid not null default gen_random_uuid(),
   "canvass_id" uuid not null,
   "brand" text,
@@ -632,7 +628,7 @@ create table if not exists "public"."sor_canvass_offers" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sor_canvasses" (
+create table if not exists public."sor_canvasses" (
   "id" uuid not null default gen_random_uuid(),
   "procurement_request_id" uuid,
   "inclusion_id" uuid,
@@ -644,7 +640,7 @@ create table if not exists "public"."sor_canvasses" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sor_condition_status" (
+create table if not exists public."sor_condition_status" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "condition_id" uuid not null,
@@ -652,7 +648,7 @@ create table if not exists "public"."sor_condition_status" (
   "satisfied_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sor_inclusions" (
+create table if not exists public."sor_inclusions" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "description" text not null,
@@ -670,7 +666,7 @@ create table if not exists "public"."sor_inclusions" (
   "cost_established_at" timestamp with time zone
 );
 
-create table if not exists "public"."sor_procurement_requests" (
+create table if not exists public."sor_procurement_requests" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "task_id" uuid,
@@ -695,7 +691,7 @@ create table if not exists "public"."sor_procurement_requests" (
   "inclusion_id" uuid
 );
 
-create table if not exists "public"."sor_project_evaluations" (
+create table if not exists public."sor_project_evaluations" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "candidate_sales_price" numeric(14,2),
@@ -708,7 +704,7 @@ create table if not exists "public"."sor_project_evaluations" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."sor_purchase_order_links" (
+create table if not exists public."sor_purchase_order_links" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
   "po_number" text not null,
@@ -719,7 +715,7 @@ create table if not exists "public"."sor_purchase_order_links" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."stage_conditions" (
+create table if not exists public."stage_conditions" (
   "id" uuid not null default gen_random_uuid(),
   "stage_id" uuid not null,
   "kind" text not null,
@@ -732,7 +728,7 @@ create table if not exists "public"."stage_conditions" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists "public"."system_audit_logs" (
+create table if not exists public."system_audit_logs" (
   "id" uuid not null default gen_random_uuid(),
   "author_id" uuid,
   "entity_type" text,
@@ -743,7 +739,7 @@ create table if not exists "public"."system_audit_logs" (
   "created_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."system_updates" (
+create table if not exists public."system_updates" (
   "id" uuid not null default gen_random_uuid(),
   "content" text not null,
   "created_by" uuid,
@@ -753,7 +749,7 @@ create table if not exists "public"."system_updates" (
   "created_at" timestamp with time zone default now()
 );
 
-create table if not exists "public"."task_activity" (
+create table if not exists public."task_activity" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
   "task_id" uuid not null,
@@ -763,7 +759,7 @@ create table if not exists "public"."task_activity" (
   "metadata" jsonb
 );
 
-create table if not exists "public"."tasks" (
+create table if not exists public."tasks" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
   "category_id" text,
@@ -790,7 +786,7 @@ create table if not exists "public"."tasks" (
   "opportunity_id" uuid
 );
 
-create table if not exists "public"."verification_rate_limits" (
+create table if not exists public."verification_rate_limits" (
   "ip_address" text not null,
   "request_count" integer not null default 1,
   "last_request" timestamp with time zone not null default now()
@@ -1077,118 +1073,118 @@ CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_i
 -- Row Level Security (enable/force)
 -- ============================================================
 
-alter table "public"."app_settings" enable row level security;
-alter table "public"."categories" enable row level security;
-alter table "public"."chat_read_receipts" enable row level security;
-alter table "public"."chat_user_archives" enable row level security;
-alter table "public"."commission_departments" enable row level security;
-alter table "public"."commission_positions" enable row level security;
-alter table "public"."commission_rates" enable row level security;
-alter table "public"."commission_splits" enable row level security;
-alter table "public"."committee_roles" enable row level security;
-alter table "public"."committee_task_activity" enable row level security;
-alter table "public"."committee_task_logs" enable row level security;
-alter table "public"."committee_task_members" enable row level security;
-alter table "public"."committee_tasks" enable row level security;
-alter table "public"."crm_pipeline_stages" enable row level security;
-alter table "public"."employees" enable row level security;
-alter table "public"."faq_data" enable row level security;
-alter table "public"."flow_edges" enable row level security;
-alter table "public"."flow_plans" enable row level security;
-alter table "public"."flow_snapshots" enable row level security;
-alter table "public"."flow_stage_actions" enable row level security;
-alter table "public"."flow_stages" enable row level security;
-alter table "public"."group_task_template_members" enable row level security;
-alter table "public"."group_task_templates" enable row level security;
-alter table "public"."hr_form_settings" enable row level security;
-alter table "public"."hr_leave_categories" enable row level security;
-alter table "public"."notifications" enable row level security;
-alter table "public"."offset_leaves" enable row level security;
-alter table "public"."overtime_requests" enable row level security;
-alter table "public"."revenue_activity_logs" enable row level security;
-alter table "public"."sale_types" enable row level security;
-alter table "public"."sales_activities" enable row level security;
-alter table "public"."sales_activity_logs" enable row level security;
-alter table "public"."sales_custom_templates" enable row level security;
-alter table "public"."sales_flows" enable row level security;
-alter table "public"."sales_opportunities" enable row level security;
-alter table "public"."sales_opportunity_items" enable row level security;
-alter table "public"."sales_opportunity_logs" enable row level security;
-alter table "public"."sales_quota_logs" enable row level security;
-alter table "public"."sales_quotas" enable row level security;
-alter table "public"."sales_revenue_logs" enable row level security;
-alter table "public"."sales_weekly_plans" enable row level security;
-alter table "public"."sil_leaves" enable row level security;
-alter table "public"."sor_canvass_offers" enable row level security;
-alter table "public"."sor_canvasses" enable row level security;
-alter table "public"."sor_inclusions" enable row level security;
-alter table "public"."sor_procurement_requests" enable row level security;
-alter table "public"."sor_project_evaluations" enable row level security;
-alter table "public"."sor_purchase_order_links" enable row level security;
-alter table "public"."stage_conditions" enable row level security;
-alter table "public"."system_audit_logs" enable row level security;
-alter table "public"."verification_rate_limits" enable row level security;
+alter table public."app_settings" enable row level security;
+alter table public."categories" enable row level security;
+alter table public."chat_read_receipts" enable row level security;
+alter table public."chat_user_archives" enable row level security;
+alter table public."commission_departments" enable row level security;
+alter table public."commission_positions" enable row level security;
+alter table public."commission_rates" enable row level security;
+alter table public."commission_splits" enable row level security;
+alter table public."committee_roles" enable row level security;
+alter table public."committee_task_activity" enable row level security;
+alter table public."committee_task_logs" enable row level security;
+alter table public."committee_task_members" enable row level security;
+alter table public."committee_tasks" enable row level security;
+alter table public."crm_pipeline_stages" enable row level security;
+alter table public."employees" enable row level security;
+alter table public."faq_data" enable row level security;
+alter table public."flow_edges" enable row level security;
+alter table public."flow_plans" enable row level security;
+alter table public."flow_snapshots" enable row level security;
+alter table public."flow_stage_actions" enable row level security;
+alter table public."flow_stages" enable row level security;
+alter table public."group_task_template_members" enable row level security;
+alter table public."group_task_templates" enable row level security;
+alter table public."hr_form_settings" enable row level security;
+alter table public."hr_leave_categories" enable row level security;
+alter table public."notifications" enable row level security;
+alter table public."offset_leaves" enable row level security;
+alter table public."overtime_requests" enable row level security;
+alter table public."revenue_activity_logs" enable row level security;
+alter table public."sale_types" enable row level security;
+alter table public."sales_activities" enable row level security;
+alter table public."sales_activity_logs" enable row level security;
+alter table public."sales_custom_templates" enable row level security;
+alter table public."sales_flows" enable row level security;
+alter table public."sales_opportunities" enable row level security;
+alter table public."sales_opportunity_items" enable row level security;
+alter table public."sales_opportunity_logs" enable row level security;
+alter table public."sales_quota_logs" enable row level security;
+alter table public."sales_quotas" enable row level security;
+alter table public."sales_revenue_logs" enable row level security;
+alter table public."sales_weekly_plans" enable row level security;
+alter table public."sil_leaves" enable row level security;
+alter table public."sor_canvass_offers" enable row level security;
+alter table public."sor_canvasses" enable row level security;
+alter table public."sor_inclusions" enable row level security;
+alter table public."sor_procurement_requests" enable row level security;
+alter table public."sor_project_evaluations" enable row level security;
+alter table public."sor_purchase_order_links" enable row level security;
+alter table public."stage_conditions" enable row level security;
+alter table public."system_audit_logs" enable row level security;
+alter table public."verification_rate_limits" enable row level security;
 
 -- ============================================================
 -- RLS Policies
 -- ============================================================
 
-create policy "Allow Super Admin to insert app_settings" on "public"."app_settings"
+create policy "Allow Super Admin to insert app_settings" on public."app_settings"
   as permissive
   for insert
   to public
   with check ((is_super_admin() = true));
-create policy "Allow Super Admin to update app_settings" on "public"."app_settings"
+create policy "Allow Super Admin to update app_settings" on public."app_settings"
   as permissive
   for update
   to public
   using ((is_super_admin() = true));
-create policy "Allow public read of app_settings" on "public"."app_settings"
+create policy "Allow public read of app_settings" on public."app_settings"
   as permissive
   for select
   to public
   using (true);
-create policy "Allow HR to manage categories" on "public"."categories"
+create policy "Allow HR to manage categories" on public."categories"
   as permissive
   for all
   to public
   using (((is_hr() = true) OR (is_super_admin() = true)));
-create policy "Allow public read of categories" on "public"."categories"
+create policy "Allow public read of categories" on public."categories"
   as permissive
   for select
   to public
   using (true);
-create policy "Users manage their own read receipts" on "public"."chat_read_receipts"
+create policy "Users manage their own read receipts" on public."chat_read_receipts"
   as permissive
   for all
   to public
   using ((user_id = get_employee_id()));
-create policy "chat_read_receipts_insert_own" on "public"."chat_read_receipts"
+create policy "chat_read_receipts_insert_own" on public."chat_read_receipts"
   as permissive
   for insert
   to authenticated
   with check ((auth.uid() = user_id));
-create policy "chat_read_receipts_select_all" on "public"."chat_read_receipts"
+create policy "chat_read_receipts_select_all" on public."chat_read_receipts"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "chat_read_receipts_update_own" on "public"."chat_read_receipts"
+create policy "chat_read_receipts_update_own" on public."chat_read_receipts"
   as permissive
   for update
   to authenticated
   using ((auth.uid() = user_id));
-create policy "Users can manage own archives" on "public"."chat_user_archives"
+create policy "Users can manage own archives" on public."chat_user_archives"
   as permissive
   for all
   to public
   using ((user_id = get_employee_id()));
-create policy "commission_departments_read" on "public"."commission_departments"
+create policy "commission_departments_read" on public."commission_departments"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "commission_departments_write" on "public"."commission_departments"
+create policy "commission_departments_write" on public."commission_departments"
   as permissive
   for all
   to authenticated
@@ -1198,12 +1194,12 @@ create policy "commission_departments_write" on "public"."commission_departments
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "commission_positions_read" on "public"."commission_positions"
+create policy "commission_positions_read" on public."commission_positions"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "commission_positions_write" on "public"."commission_positions"
+create policy "commission_positions_write" on public."commission_positions"
   as permissive
   for all
   to authenticated
@@ -1213,12 +1209,12 @@ create policy "commission_positions_write" on "public"."commission_positions"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "commission_rates_read" on "public"."commission_rates"
+create policy "commission_rates_read" on public."commission_rates"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "commission_rates_write" on "public"."commission_rates"
+create policy "commission_rates_write" on public."commission_rates"
   as permissive
   for all
   to authenticated
@@ -1228,12 +1224,12 @@ create policy "commission_rates_write" on "public"."commission_rates"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "commission_splits_read" on "public"."commission_splits"
+create policy "commission_splits_read" on public."commission_splits"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "commission_splits_write" on "public"."commission_splits"
+create policy "commission_splits_write" on public."commission_splits"
   as permissive
   for all
   to authenticated
@@ -1247,94 +1243,94 @@ create policy "commission_splits_write" on "public"."commission_splits"
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))) OR (EXISTS ( SELECT 1
    FROM sales_opportunities so
   WHERE (so.sales_director_id = get_employee_id())))));
-create policy "Allow authenticated users to delete committee roles" on "public"."committee_roles"
+create policy "Allow authenticated users to delete committee roles" on public."committee_roles"
   as permissive
   for delete
   to authenticated
   using (true);
-create policy "Allow authenticated users to insert committee roles" on "public"."committee_roles"
+create policy "Allow authenticated users to insert committee roles" on public."committee_roles"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "Allow authenticated users to read committee roles" on "public"."committee_roles"
+create policy "Allow authenticated users to read committee roles" on public."committee_roles"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Allow authenticated users to update committee roles" on "public"."committee_roles"
+create policy "Allow authenticated users to update committee roles" on public."committee_roles"
   as permissive
   for update
   to authenticated
   using (true)
   with check (true);
-create policy "Authenticated users can update committee task activity" on "public"."committee_task_activity"
+create policy "Authenticated users can update committee task activity" on public."committee_task_activity"
   as permissive
   for update
   to public
   using (true)
   with check (true);
-create policy "Enable insert for authenticated users" on "public"."committee_task_activity"
+create policy "Enable insert for authenticated users" on public."committee_task_activity"
   as permissive
   for insert
   to public
   with check (true);
-create policy "Enable read access for all users" on "public"."committee_task_activity"
+create policy "Enable read access for all users" on public."committee_task_activity"
   as permissive
   for select
   to public
   using (true);
-create policy "Allow insert on committee_task_logs" on "public"."committee_task_logs"
+create policy "Allow insert on committee_task_logs" on public."committee_task_logs"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "Allow read on committee_task_logs" on "public"."committee_task_logs"
+create policy "Allow read on committee_task_logs" on public."committee_task_logs"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Allow insert for authenticated users" on "public"."committee_task_members"
+create policy "Allow insert for authenticated users" on public."committee_task_members"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "Allow select for authenticated users" on "public"."committee_task_members"
+create policy "Allow select for authenticated users" on public."committee_task_members"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Allow update for authenticated users" on "public"."committee_task_members"
+create policy "Allow update for authenticated users" on public."committee_task_members"
   as permissive
   for update
   to authenticated
   using (true);
-create policy "Allow insert for authenticated users" on "public"."committee_tasks"
+create policy "Allow insert for authenticated users" on public."committee_tasks"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "Allow select for authenticated users" on "public"."committee_tasks"
+create policy "Allow select for authenticated users" on public."committee_tasks"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Allow update for authenticated users" on "public"."committee_tasks"
+create policy "Allow update for authenticated users" on public."committee_tasks"
   as permissive
   for update
   to authenticated
   using (true);
-create policy "Enable insert" on "public"."committee_tasks"
+create policy "Enable insert" on public."committee_tasks"
   as permissive
   for insert
   to public
   with check (true);
-create policy "crm_pipeline_stages_read" on "public"."crm_pipeline_stages"
+create policy "crm_pipeline_stages_read" on public."crm_pipeline_stages"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "crm_pipeline_stages_write" on "public"."crm_pipeline_stages"
+create policy "crm_pipeline_stages_write" on public."crm_pipeline_stages"
   as permissive
   for all
   to authenticated
@@ -1344,146 +1340,146 @@ create policy "crm_pipeline_stages_write" on "public"."crm_pipeline_stages"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "Allow Super Admin and HR to insert employees" on "public"."employees"
+create policy "Allow Super Admin and HR to insert employees" on public."employees"
   as permissive
   for insert
   to public
   with check (((is_super_admin() = true) OR (is_hr() = true)));
-create policy "Allow Super Admin and HR to update employees" on "public"."employees"
+create policy "Allow Super Admin and HR to update employees" on public."employees"
   as permissive
   for update
   to public
   using (((is_super_admin() = true) OR (is_hr() = true) OR (email = 'arkadatax03@gmail.com'::text) OR (can_manage_leaves() = true)))
   with check (((is_super_admin() = true) OR (is_hr() = true) OR (email = 'arkadatax03@gmail.com'::text) OR (can_manage_leaves() = true)));
-create policy "Allow public read of employees" on "public"."employees"
+create policy "Allow public read of employees" on public."employees"
   as permissive
   for select
   to public
   using (true);
-create policy "Employees can update their own profile" on "public"."employees"
+create policy "Employees can update their own profile" on public."employees"
   as permissive
   for update
   to authenticated
   using ((auth.email() = email))
   with check ((auth.email() = email));
-create policy "faq_data_select" on "public"."faq_data"
+create policy "faq_data_select" on public."faq_data"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "faq_data_upsert" on "public"."faq_data"
+create policy "faq_data_upsert" on public."faq_data"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "flow_edges_read" on "public"."flow_edges"
+create policy "flow_edges_read" on public."flow_edges"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "flow_edges_write" on "public"."flow_edges"
+create policy "flow_edges_write" on public."flow_edges"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "flow_plans_delete" on "public"."flow_plans"
+create policy "flow_plans_delete" on public."flow_plans"
   as permissive
   for delete
   to authenticated
   using ((created_by = get_employee_id()));
-create policy "flow_plans_insert" on "public"."flow_plans"
+create policy "flow_plans_insert" on public."flow_plans"
   as permissive
   for insert
   to authenticated
   with check ((created_by = get_employee_id()));
-create policy "flow_plans_read" on "public"."flow_plans"
+create policy "flow_plans_read" on public."flow_plans"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "flow_plans_update" on "public"."flow_plans"
+create policy "flow_plans_update" on public."flow_plans"
   as permissive
   for update
   to authenticated
   using (true)
   with check (true);
-create policy "flow_snapshots_read" on "public"."flow_snapshots"
+create policy "flow_snapshots_read" on public."flow_snapshots"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "flow_snapshots_write" on "public"."flow_snapshots"
+create policy "flow_snapshots_write" on public."flow_snapshots"
   as permissive
   for insert
   to authenticated
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "flow_stage_actions_read" on "public"."flow_stage_actions"
+create policy "flow_stage_actions_read" on public."flow_stage_actions"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "flow_stage_actions_write" on "public"."flow_stage_actions"
+create policy "flow_stage_actions_write" on public."flow_stage_actions"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "flow_stages_read" on "public"."flow_stages"
+create policy "flow_stages_read" on public."flow_stages"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "flow_stages_write" on "public"."flow_stages"
+create policy "flow_stages_write" on public."flow_stages"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "group_task_template_members_delete" on "public"."group_task_template_members"
+create policy "group_task_template_members_delete" on public."group_task_template_members"
   as permissive
   for delete
   to authenticated
   using (group_task_template_can_edit(template_id));
-create policy "group_task_template_members_insert" on "public"."group_task_template_members"
+create policy "group_task_template_members_insert" on public."group_task_template_members"
   as permissive
   for insert
   to authenticated
   with check (group_task_template_can_edit(template_id));
-create policy "group_task_template_members_read" on "public"."group_task_template_members"
+create policy "group_task_template_members_read" on public."group_task_template_members"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "group_task_template_members_update" on "public"."group_task_template_members"
+create policy "group_task_template_members_update" on public."group_task_template_members"
   as permissive
   for update
   to authenticated
   using (group_task_template_can_edit(template_id))
   with check (group_task_template_can_edit(template_id));
-create policy "group_task_templates_delete" on "public"."group_task_templates"
+create policy "group_task_templates_delete" on public."group_task_templates"
   as permissive
   for delete
   to authenticated
   using (((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "group_task_templates_insert" on "public"."group_task_templates"
+create policy "group_task_templates_insert" on public."group_task_templates"
   as permissive
   for insert
   to authenticated
   with check (((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "group_task_templates_read" on "public"."group_task_templates"
+create policy "group_task_templates_read" on public."group_task_templates"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "group_task_templates_update" on "public"."group_task_templates"
+create policy "group_task_templates_update" on public."group_task_templates"
   as permissive
   for update
   to authenticated
@@ -1493,12 +1489,12 @@ create policy "group_task_templates_update" on "public"."group_task_templates"
   with check (((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "hr_form_settings_read" on "public"."hr_form_settings"
+create policy "hr_form_settings_read" on public."hr_form_settings"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "hr_form_settings_write" on "public"."hr_form_settings"
+create policy "hr_form_settings_write" on public."hr_form_settings"
   as permissive
   for all
   to authenticated
@@ -1508,12 +1504,12 @@ create policy "hr_form_settings_write" on "public"."hr_form_settings"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
-create policy "hr_leave_categories_read" on "public"."hr_leave_categories"
+create policy "hr_leave_categories_read" on public."hr_leave_categories"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "hr_leave_categories_write" on "public"."hr_leave_categories"
+create policy "hr_leave_categories_write" on public."hr_leave_categories"
   as permissive
   for all
   to authenticated
@@ -1523,96 +1519,96 @@ create policy "hr_leave_categories_write" on "public"."hr_leave_categories"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
-create policy "Anyone can dispatch a notification" on "public"."notifications"
+create policy "Anyone can dispatch a notification" on public."notifications"
   as permissive
   for insert
   to public
   with check (true);
-create policy "Users can update own notifications" on "public"."notifications"
+create policy "Users can update own notifications" on public."notifications"
   as permissive
   for update
   to public
   using ((recipient_id = get_employee_id()));
-create policy "Users can view own notifications" on "public"."notifications"
+create policy "Users can view own notifications" on public."notifications"
   as permissive
   for select
   to public
   using ((recipient_id = get_employee_id()));
-create policy "offset_leaves_insert" on "public"."offset_leaves"
+create policy "offset_leaves_insert" on public."offset_leaves"
   as permissive
   for insert
   to authenticated
   with check ((employee_id = get_employee_id()));
-create policy "offset_leaves_select" on "public"."offset_leaves"
+create policy "offset_leaves_select" on public."offset_leaves"
   as permissive
   for select
   to public
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "offset_leaves_update" on "public"."offset_leaves"
+create policy "offset_leaves_update" on public."offset_leaves"
   as permissive
   for update
   to authenticated
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "Employees can view their own overtime" on "public"."overtime_requests"
+create policy "Employees can view their own overtime" on public."overtime_requests"
   as permissive
   for select
   to public
   using ((auth.uid() = employee_id));
-create policy "HR can view all overtime" on "public"."overtime_requests"
+create policy "HR can view all overtime" on public."overtime_requests"
   as permissive
   for select
   to public
   using ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_hr = true)))));
-create policy "overtime_requests_insert" on "public"."overtime_requests"
+create policy "overtime_requests_insert" on public."overtime_requests"
   as permissive
   for insert
   to authenticated
   with check ((employee_id = get_employee_id()));
-create policy "overtime_requests_select" on "public"."overtime_requests"
+create policy "overtime_requests_select" on public."overtime_requests"
   as permissive
   for select
   to authenticated
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "overtime_requests_update" on "public"."overtime_requests"
+create policy "overtime_requests_update" on public."overtime_requests"
   as permissive
   for update
   to authenticated
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "Allow all read" on "public"."revenue_activity_logs"
+create policy "Allow all read" on public."revenue_activity_logs"
   as permissive
   for select
   to public
   using (true);
-create policy "authenticated_insert_revenue_activity_logs" on "public"."revenue_activity_logs"
+create policy "authenticated_insert_revenue_activity_logs" on public."revenue_activity_logs"
   as permissive
   for insert
   to public
   with check ((auth.uid() IS NOT NULL));
-create policy "head_read_revenue_activity_logs" on "public"."revenue_activity_logs"
+create policy "head_read_revenue_activity_logs" on public."revenue_activity_logs"
   as permissive
   for select
   to public
   using ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_head = true)))));
-create policy "hr_read_revenue_activity_logs" on "public"."revenue_activity_logs"
+create policy "hr_read_revenue_activity_logs" on public."revenue_activity_logs"
   as permissive
   for select
   to public
   using ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_hr = true)))));
-create policy "super_admin_all_revenue_activity_logs" on "public"."revenue_activity_logs"
+create policy "super_admin_all_revenue_activity_logs" on public."revenue_activity_logs"
   as permissive
   for all
   to public
@@ -1622,12 +1618,12 @@ create policy "super_admin_all_revenue_activity_logs" on "public"."revenue_activ
   with check ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_super_admin = true)))));
-create policy "sale_types_read" on "public"."sale_types"
+create policy "sale_types_read" on public."sale_types"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sale_types_write" on "public"."sale_types"
+create policy "sale_types_write" on public."sale_types"
   as permissive
   for all
   to authenticated
@@ -1637,192 +1633,192 @@ create policy "sale_types_write" on "public"."sale_types"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
-create policy "Allow public read of sales activities" on "public"."sales_activities"
+create policy "Allow public read of sales activities" on public."sales_activities"
   as permissive
   for select
   to public
   using (true);
-create policy "Users can manage own sales activities" on "public"."sales_activities"
+create policy "Users can manage own sales activities" on public."sales_activities"
   as permissive
   for all
   to public
   using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_head() = true)));
-create policy "Enable insert access for all authenticated users" on "public"."sales_activity_logs"
+create policy "Enable insert access for all authenticated users" on public."sales_activity_logs"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "Enable read access for all authenticated users" on "public"."sales_activity_logs"
+create policy "Enable read access for all authenticated users" on public."sales_activity_logs"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Users can delete their own templates" on "public"."sales_custom_templates"
+create policy "Users can delete their own templates" on public."sales_custom_templates"
   as permissive
   for delete
   to authenticated
   using ((employee_id IN ( SELECT employees.id
    FROM employees
   WHERE (employees.email = (auth.jwt() ->> 'email'::text)))));
-create policy "Users can insert their own templates" on "public"."sales_custom_templates"
+create policy "Users can insert their own templates" on public."sales_custom_templates"
   as permissive
   for insert
   to authenticated
   with check ((employee_id IN ( SELECT employees.id
    FROM employees
   WHERE (employees.email = (auth.jwt() ->> 'email'::text)))));
-create policy "Users can update their own templates" on "public"."sales_custom_templates"
+create policy "Users can update their own templates" on public."sales_custom_templates"
   as permissive
   for update
   to authenticated
   using ((employee_id IN ( SELECT employees.id
    FROM employees
   WHERE (employees.email = (auth.jwt() ->> 'email'::text)))));
-create policy "Users can view their own templates" on "public"."sales_custom_templates"
+create policy "Users can view their own templates" on public."sales_custom_templates"
   as permissive
   for select
   to authenticated
   using ((employee_id IN ( SELECT employees.id
    FROM employees
   WHERE (employees.email = (auth.jwt() ->> 'email'::text)))));
-create policy "sales_flows_read" on "public"."sales_flows"
+create policy "sales_flows_read" on public."sales_flows"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sales_flows_write" on "public"."sales_flows"
+create policy "sales_flows_write" on public."sales_flows"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "sor_insert" on "public"."sales_opportunities"
+create policy "sor_insert" on public."sales_opportunities"
   as permissive
   for insert
   to authenticated
   with check ((registered_by = get_employee_id()));
-create policy "sor_read" on "public"."sales_opportunities"
+create policy "sor_read" on public."sales_opportunities"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_update" on "public"."sales_opportunities"
+create policy "sor_update" on public."sales_opportunities"
   as permissive
   for update
   to authenticated
   using (((registered_by = get_employee_id()) OR (deal_owner_id = get_employee_id()) OR (support_sales_1_id = get_employee_id()) OR (support_sales_2_id = get_employee_id()) OR (sales_director_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "sor_items_delete" on "public"."sales_opportunity_items"
+create policy "sor_items_delete" on public."sales_opportunity_items"
   as permissive
   for delete
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_items_insert" on "public"."sales_opportunity_items"
+create policy "sor_items_insert" on public."sales_opportunity_items"
   as permissive
   for insert
   to authenticated
   with check (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_items_read" on "public"."sales_opportunity_items"
+create policy "sor_items_read" on public."sales_opportunity_items"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_items_update" on "public"."sales_opportunity_items"
+create policy "sor_items_update" on public."sales_opportunity_items"
   as permissive
   for update
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_log_insert" on "public"."sales_opportunity_logs"
+create policy "sor_log_insert" on public."sales_opportunity_logs"
   as permissive
   for insert
   to authenticated
   with check (((author_id = get_employee_id()) OR (author_id IS NULL)));
-create policy "sor_log_read" on "public"."sales_opportunity_logs"
+create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sales_opportunity_members_insert" on "public"."sales_opportunity_members"
+create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
   to authenticated
   with check (true);
-create policy "sales_opportunity_members_read" on "public"."sales_opportunity_members"
+create policy "sales_opportunity_members_read" on public."sales_opportunity_members"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "Enable insert access for all authenticated users" on "public"."sales_quota_logs"
+create policy "Enable insert access for all authenticated users" on public."sales_quota_logs"
   as permissive
   for insert
   to public
   with check ((auth.role() = 'authenticated'::text));
-create policy "Enable read access for all authenticated users" on "public"."sales_quota_logs"
+create policy "Enable read access for all authenticated users" on public."sales_quota_logs"
   as permissive
   for select
   to public
   using ((auth.role() = 'authenticated'::text));
-create policy "Allow public read of sales quotas" on "public"."sales_quotas"
+create policy "Allow public read of sales quotas" on public."sales_quotas"
   as permissive
   for select
   to public
   using (true);
-create policy "Management can manage quotas" on "public"."sales_quotas"
+create policy "Management can manage quotas" on public."sales_quotas"
   as permissive
   for all
   to public
   using (((is_super_admin() = true) OR (is_head() = true)));
-create policy "Allow public read of sales revenue logs" on "public"."sales_revenue_logs"
+create policy "Allow public read of sales revenue logs" on public."sales_revenue_logs"
   as permissive
   for select
   to public
   using (true);
-create policy "Owners and Management can update revenue logs" on "public"."sales_revenue_logs"
+create policy "Owners and Management can update revenue logs" on public."sales_revenue_logs"
   as permissive
   for update
   to public
   using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_hr() = true) OR (is_head() = true)));
-create policy "Users can insert own revenue logs" on "public"."sales_revenue_logs"
+create policy "Users can insert own revenue logs" on public."sales_revenue_logs"
   as permissive
   for insert
   to public
   with check ((employee_id = get_employee_id()));
-create policy "Allow public read of sales entries" on "public"."sales_weekly_plans"
+create policy "Allow public read of sales entries" on public."sales_weekly_plans"
   as permissive
   for select
   to public
   using (true);
-create policy "Users can manage own sales plans" on "public"."sales_weekly_plans"
+create policy "Users can manage own sales plans" on public."sales_weekly_plans"
   as permissive
   for all
   to public
   using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_head() = true)));
-create policy "sil_leaves_insert" on "public"."sil_leaves"
+create policy "sil_leaves_insert" on public."sil_leaves"
   as permissive
   for insert
   to authenticated
   with check ((employee_id = get_employee_id()));
-create policy "sil_leaves_select" on "public"."sil_leaves"
+create policy "sil_leaves_select" on public."sil_leaves"
   as permissive
   for select
   to public
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "sil_leaves_update" on "public"."sil_leaves"
+create policy "sil_leaves_update" on public."sil_leaves"
   as permissive
   for update
   to authenticated
   using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
-create policy "sor_canvass_offers_read" on "public"."sor_canvass_offers"
+create policy "sor_canvass_offers_read" on public."sor_canvass_offers"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_canvass_offers_write" on "public"."sor_canvass_offers"
+create policy "sor_canvass_offers_write" on public."sor_canvass_offers"
   as permissive
   for all
   to authenticated
@@ -1832,12 +1828,12 @@ create policy "sor_canvass_offers_write" on "public"."sor_canvass_offers"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.has_purchasing_flow OR e.is_head OR e.is_super_admin)))));
-create policy "sor_canvasses_read" on "public"."sor_canvasses"
+create policy "sor_canvasses_read" on public."sor_canvasses"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_canvasses_write" on "public"."sor_canvasses"
+create policy "sor_canvasses_write" on public."sor_canvasses"
   as permissive
   for all
   to authenticated
@@ -1847,22 +1843,22 @@ create policy "sor_canvasses_write" on "public"."sor_canvasses"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.has_purchasing_flow OR e.is_head OR e.is_super_admin)))));
-create policy "sor_inclusions_delete" on "public"."sor_inclusions"
+create policy "sor_inclusions_delete" on public."sor_inclusions"
   as permissive
   for delete
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_inclusions_insert" on "public"."sor_inclusions"
+create policy "sor_inclusions_insert" on public."sor_inclusions"
   as permissive
   for insert
   to authenticated
   with check (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_inclusions_read" on "public"."sor_inclusions"
+create policy "sor_inclusions_read" on public."sor_inclusions"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_inclusions_update" on "public"."sor_inclusions"
+create policy "sor_inclusions_update" on public."sor_inclusions"
   as permissive
   for update
   to authenticated
@@ -1872,24 +1868,24 @@ create policy "sor_inclusions_update" on "public"."sor_inclusions"
   with check ((sor_can_edit_opportunity(opportunity_id) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow)))));
-create policy "sor_procurement_delete" on "public"."sor_procurement_requests"
+create policy "sor_procurement_delete" on public."sor_procurement_requests"
   as permissive
   for delete
   to authenticated
   using (((requested_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "sor_procurement_insert" on "public"."sor_procurement_requests"
+create policy "sor_procurement_insert" on public."sor_procurement_requests"
   as permissive
   for insert
   to authenticated
   with check ((sor_can_edit_opportunity(opportunity_id) AND (requested_by = get_employee_id())));
-create policy "sor_procurement_read" on "public"."sor_procurement_requests"
+create policy "sor_procurement_read" on public."sor_procurement_requests"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_procurement_update" on "public"."sor_procurement_requests"
+create policy "sor_procurement_update" on public."sor_procurement_requests"
   as permissive
   for update
   to authenticated
@@ -1899,45 +1895,45 @@ create policy "sor_procurement_update" on "public"."sor_procurement_requests"
   with check (((assigned_to = get_employee_id()) OR (requested_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "sor_project_evaluations_read" on "public"."sor_project_evaluations"
+create policy "sor_project_evaluations_read" on public."sor_project_evaluations"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_project_evaluations_write" on "public"."sor_project_evaluations"
+create policy "sor_project_evaluations_write" on public."sor_project_evaluations"
   as permissive
   for all
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id))
   with check (sor_can_edit_opportunity(opportunity_id));
-create policy "sor_purchase_order_links_read" on "public"."sor_purchase_order_links"
+create policy "sor_purchase_order_links_read" on public."sor_purchase_order_links"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "sor_purchase_order_links_write" on "public"."sor_purchase_order_links"
+create policy "sor_purchase_order_links_write" on public."sor_purchase_order_links"
   as permissive
   for all
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id))
   with check (sor_can_edit_opportunity(opportunity_id));
-create policy "stage_conditions_read" on "public"."stage_conditions"
+create policy "stage_conditions_read" on public."stage_conditions"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "stage_conditions_write" on "public"."stage_conditions"
+create policy "stage_conditions_write" on public."stage_conditions"
   as permissive
   for all
   to authenticated
   using (true)
   with check (true);
-create policy "authenticated_insert_system_audit_logs" on "public"."system_audit_logs"
+create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert
   to public
   with check ((auth.uid() IS NOT NULL));
-create policy "super_admin_all_system_audit_logs" on "public"."system_audit_logs"
+create policy "super_admin_all_system_audit_logs" on public."system_audit_logs"
   as permissive
   for all
   to public
@@ -1947,7 +1943,7 @@ create policy "super_admin_all_system_audit_logs" on "public"."system_audit_logs
   with check ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_super_admin = true)))));
-create policy "Authenticated users can update task activity" on "public"."task_activity"
+create policy "Authenticated users can update task activity" on public."task_activity"
   as permissive
   for update
   to public
@@ -2848,3 +2844,4 @@ CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE O
 -- ============================================================
 -- Views
 -- ============================================================
+

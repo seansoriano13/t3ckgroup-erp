@@ -1,0 +1,40 @@
+name: Apply migrations — staging
+
+# Staging is the permanent integration branch (see AGENTS.md): everything
+# accepted but not yet released lands here first. Migrations follow the same
+# rule automatically, so the promotion path gets exercised on every push
+# instead of only when someone remembers to run it by hand — which is the
+# habit that produced the 23 "dummy" ledger rows and the manual
+# STAGING_DB_URL scripts this replaces.
+#
+# Runs from CI only, never a developer machine, and always names its target
+# project explicitly (--project-ref) rather than inheriting a linked default.
+
+on:
+  push:
+    branches: [staging]
+    paths:
+      - "supabase/migrations/**"
+
+concurrency:
+  group: migrate-staging
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: supabase db push --project-ref staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Push pending migrations to staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase db push --project-ref fpjxdyowngpnovotbzqi

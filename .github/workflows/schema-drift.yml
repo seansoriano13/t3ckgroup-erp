@@ -1,0 +1,55 @@
+name: Schema drift
+
+# Neither database's migration ledger, nor the migration file history, could
+# be trusted before the 2026-09-04 baseline — the ledgers disagreed with each
+# other and with the files, and staging carried 23 rows literally named
+# "dummy". supabase/schema/{prod,staging}.sql is the tripwire meant to stop
+# that recurring silently: it fails the build the morning after anyone
+# applies a change to a live database that isn't in a committed migration.
+#
+# Runs on a schedule (so a Sunday hand-edit is still caught) and manually.
+# Deliberately NOT on every push — the mirrors only change when someone runs
+# `pnpm db:snapshot:{prod,staging}` and commits the result, so a push-trigger
+# would just be redundant with the PR review of that commit.
+
+on:
+  schedule:
+    # 19:00 UTC = 03:00 Asia/Manila, outside working hours.
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: schema-drift
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Compare live schema against committed mirror
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check production
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: pnpm db:check-drift:prod
+
+      - name: Check staging
+        if: always()
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: pnpm db:check-drift:staging

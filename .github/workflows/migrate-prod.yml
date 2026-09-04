@@ -1,0 +1,44 @@
+name: Apply migrations — production
+
+# Deliberately NOT automatic. Staging exercises the same push mechanism on
+# every commit, so by the time this runs it is a proven path — but a human
+# decides *when* production DDL runs, they just never type the command
+# themselves (that habit is what produced the ledger drift this whole
+# pipeline exists to stop). Press the button in the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm — this runs pending migrations against production'
+        required: true
+
+concurrency:
+  group: migrate-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: supabase db push --project-ref prod
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event.inputs.confirm == 'apply'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: List pending migrations (review before they run)
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: supabase migration list --project-ref epqmberwewztzbrkhhss
+
+      - name: Push pending migrations to production
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+        run: supabase db push --project-ref epqmberwewztzbrkhhss
