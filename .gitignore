@@ -87,3 +87,7 @@ docs/*.pdf
 
 # Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
 eslint.json
+
+# Local pre-baseline safety dumps (ledgers + schema), not repo content —
+# supabase/schema/ is the tracked, reviewed mirror.
+.baseline-backup/
