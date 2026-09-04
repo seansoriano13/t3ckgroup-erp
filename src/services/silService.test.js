@@ -644,6 +644,29 @@ describe("silService", () => {
       })
     })
   })
+
+  describe("Document Center: stamping printed records", () => {
+    it("stamps a single-day leave by id", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id, status: "APPROVED" })
+
+      await silService.markSilLeavesPrinted({ id: leave.id, hrId: hr.id })
+
+      const row = db.rows("sil_leaves").find((r) => r.id === leave.id)
+      expect(row.printed_by).toBe(hr.id)
+      expect(row.printed_at).toEqual(expect.any(String))
+    })
+
+    it("stamps every row in a leave_group_id when printed as a range", async () => {
+      const groupId = crypto.randomUUID()
+      const day1 = makeSilLeave({ employee_id: employee.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-10" })
+      const day2 = makeSilLeave({ employee_id: employee.id, status: "APPROVED", leave_group_id: groupId, date: "2026-03-11" })
+
+      await silService.markSilLeavesPrinted({ groupId, hrId: hr.id })
+
+      const rows = db.rows("sil_leaves").filter((r) => r.id === day1.id || r.id === day2.id)
+      expect(rows.every((r) => r.printed_by === hr.id)).toBe(true)
+    })
+  })
 })
 
 /**

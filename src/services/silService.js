@@ -550,4 +550,18 @@ export const silService = {
 
     return updatedRows;
   },
+
+  /**
+   * Stamp a printed batch's SIL leaves as printed (Document Center).
+   * Informational only — never blocks a later reprint. Mirrors
+   * offsetService.markOffsetLeavesPrinted's group-or-id shape.
+   */
+  async markSilLeavesPrinted({ id, groupId, hrId }) {
+    const query = supabase
+      .from('sil_leaves')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId });
+
+    const { error } = groupId ? await query.eq('leave_group_id', groupId) : await query.eq('id', id);
+    if (error) throw new Error(error.message);
+  },
 };

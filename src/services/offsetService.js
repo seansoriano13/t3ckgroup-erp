@@ -990,5 +990,33 @@ export const offsetService = {
     ).catch(console.error);
 
     return data;
+  },
+
+  /**
+   * Stamp a printed batch's offset leaves as printed (Document Center).
+   * Informational only — never blocks a later reprint. Operates on the whole
+   * leave_group_id when the record is part of a range, mirroring every other
+   * group-atomic mutation in this file.
+   */
+  async markOffsetLeavesPrinted({ id, groupId, hrId }) {
+    const query = supabase
+      .from('offset_leaves')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId });
+
+    const { error } = groupId ? await query.eq('leave_group_id', groupId) : await query.eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Stamp a printed batch's overtime requests as printed (Document Center).
+   * Overtime requests are never grouped, so this is always a single-id
+   * update, unlike the leave-side stamp above.
+   */
+  async markOvertimeRequestsPrinted({ id, hrId }) {
+    const { error } = await supabase
+      .from('overtime_requests')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
   }
 };
