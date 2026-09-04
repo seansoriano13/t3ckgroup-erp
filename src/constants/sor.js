@@ -133,16 +133,21 @@ export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
 export const isRealizedOpportunity = (opportunity, stages = PIPELINE_STAGE_SEED) => {
   if (!opportunity?.contract_date) return false;
 
-  // Issue #36 — a flow-built deal carries a Sale Type and has no
+  // Issue #36/#83 — a flow-built deal carries a Sale Type and has no
   // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
   // cannot answer "is this lost". `isLostFlowStage` asks the same question
-  // of the flow instead: a terminal Stage that is not the one the flow was
-  // won at. Requires the caller to have embedded `flow_stage` — a missing
-  // embed answers false rather than trusting an absence, the same
-  // under-reporting direction a deal with no Contract Date fails in.
+  // of the deal's OWN Flow Snapshot, not the live flow: a later change to
+  // the live Won Stage must not retroactively alter which SORs are
+  // Realized. Requires the caller to have embedded `flow_snapshot` and the
+  // scalar `flow_stage_id` — either missing answers false rather than
+  // trusting an absence, the same under-reporting direction a deal with no
+  // Contract Date fails in.
   if (opportunity.sale_type_id) {
-    if (!opportunity.flow_stage) return false;
-    return !isLostFlowStage(opportunity.flow_stage, opportunity.flow_stage.flow?.won_stage_id);
+    const snapshotData = opportunity.flow_snapshot?.snapshot_data;
+    if (!snapshotData) return false;
+    const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    if (!flowStage) return false;
+    return !isLostFlowStage(flowStage, snapshotData.wonStageId);
   }
 
   return !isLostCode(opportunity.status, stages);

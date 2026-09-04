@@ -752,6 +752,30 @@ export const salesFlowService = {
     return { ...data, snapshot: snapshotResult, artefacts };
   },
 
+  /**
+   * How many live SORs are running each of this flow's Flow Snapshots —
+   * what tells an Operations Manager how much of the register is still on
+   * an older process (issue #83). Keyed by `flow_snapshot_id`; `"none"`
+   * groups any flow-built deal that predates a snapshot ever being assigned.
+   */
+  async getSnapshotUsageCounts(flowId) {
+    const flow = await loadFlow(flowId);
+
+    const { data: rows, error } = await supabase
+      .from("sales_opportunities")
+      .select("flow_snapshot_id")
+      .eq("sale_type_id", flow.sale_type_id)
+      .neq("is_deleted", true);
+    if (error) throw error;
+
+    const counts = {};
+    for (const row of rows || []) {
+      const key = row.flow_snapshot_id ?? "none";
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    return counts;
+  },
+
   async importSnapshot(snapshotData, name, actorId) {
     await requireSuperAdmin(actorId);
 

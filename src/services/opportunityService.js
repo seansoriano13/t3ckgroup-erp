@@ -26,7 +26,12 @@ import {
   stagesCrossed,
   blockingConditions,
 } from "../constants/stageGate";
-import { entryStage, isLegalMove } from "../constants/salesFlow";
+import {
+  entryStage,
+  isLegalMove,
+  conditionsForSnapshotStage,
+  actionsForSnapshotStage,
+} from "../constants/salesFlow";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -122,22 +127,41 @@ function membersForGate(rows = []) {
  * required item satisfied already (or the move would have been refused), so
  * there is nothing there left to newly satisfy.
  */
-async function narrateNewlySatisfied(opportunityId, stageId, before, after, actorId) {
+async function narrateNewlySatisfied(opportunityId, stageId, flowSnapshotId, before, after, actorId) {
   if (!stageId) return;
 
   // Flow Stages use UUIDs. If it's a legacy string like "LEAD", conditions don't apply.
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(stageId);
   if (!isUUID) return;
 
-  // 5. Stage Conditions Configuration (Flow Stages only)
-  // Which Stage Gate Conditions are currently configured for this deal's flow stage?
-  const { data: conditions, error } = await supabase
-    .from("stage_conditions")
-    .select("*")
-    .eq("stage_id", stageId)
-    .is("archived_at", null)
-    .in("kind", [CONDITION_KINDS.ATTACHMENT, CONDITION_KINDS.FIELD, CONDITION_KINDS.ASSIGNMENT]);
-  if (error) throw error;
+  const kinds = [CONDITION_KINDS.ATTACHMENT, CONDITION_KINDS.FIELD, CONDITION_KINDS.ASSIGNMENT];
+  let conditions;
+  if (flowSnapshotId) {
+    // Issue #83 — a flow-built deal's conditions are resolved from its own
+    // Flow Snapshot, not the live table: a condition added or removed on
+    // the live flow after this SOR registered must not change what it
+    // narrates as newly satisfied.
+    const { data: snapshot, error } = await supabase
+      .from("flow_snapshots")
+      .select("snapshot_data")
+      .eq("id", flowSnapshotId)
+      .single();
+    if (error) throw error;
+    conditions = conditionsForSnapshotStage(snapshot.snapshot_data?.conditions || [], stageId).filter((c) =>
+      kinds.includes(c.kind),
+    );
+  } else {
+    // 5. Stage Conditions Configuration (Flow Stages only)
+    // Which Stage Gate Conditions are currently configured for this deal's flow stage?
+    const { data, error } = await supabase
+      .from("stage_conditions")
+      .select("*")
+      .eq("stage_id", stageId)
+      .is("archived_at", null)
+      .in("kind", kinds);
+    if (error) throw error;
+    conditions = data;
+  }
   if (!conditions || conditions.length === 0) return;
 
   for (const condition of conditions) {
@@ -202,10 +226,18 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
  * on what "satisfied" means from a single place, rather than each doing its
  * own fetch-and-shape.
  */
-async function gateContext(opportunityId, stageIds) {
-  const { conditions, conditionsByStage } = await conditionsByStageFor(stageIds);
+/**
+ * The per-deal evidence `evaluateCondition`/`evaluateCrossing` judge a fixed
+ * list of `conditions` against: attachments, SOR Members, and any
+ * `sor_condition_status` rows. Split out from `gateContext` (issue #83) so a
+ * flow-built deal's gate can supply conditions read from its own Flow
+ * Snapshot instead of the live `stage_conditions` table, while still sharing
+ * this one evidence read with the legacy pipeline's gate and the read-only
+ * checklist.
+ */
+async function gateEvidenceFor(opportunityId, conditions) {
   if (conditions.length === 0) {
-    return { conditionsByStage, attachments: [], members: [], statusRowsByCondition: {} };
+    return { attachments: [], members: [], statusRowsByCondition: {} };
   }
 
   const conditionIds = conditions.map((r) => r.id);
@@ -232,7 +264,13 @@ async function gateContext(opportunityId, stageIds) {
     statusRowsByCondition[row.condition_id] = row;
   }
 
-  return { conditionsByStage, attachments, members: membersForGate(memberRows), statusRowsByCondition };
+  return { attachments, members: membersForGate(memberRows), statusRowsByCondition };
+}
+
+async function gateContext(opportunityId, stageIds) {
+  const { conditions, conditionsByStage } = await conditionsByStageFor(stageIds);
+  const evidence = await gateEvidenceFor(opportunityId, conditions);
+  return { conditionsByStage, ...evidence };
 }
 
 /**
@@ -354,35 +392,79 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
 // the defect reusing the funnel prevents.
 
 /**
- * The Sales Flow a deal runs: its flow row, its private Stages in canvas
- * order, and its edges.
+ * The Sale Type's own flow's most recently locked Flow Snapshot (issue #83)
+ * — what an SOR's rules are resolved from for its whole life, from
+ * registration on. Named error, not a silent fallback to the live flow:
+ * registering against an unlocked flow is exactly the defect this issue
+ * exists to close off.
  */
-async function flowContextFor(saleTypeId) {
+async function latestSnapshotFor(saleTypeId) {
   const { data: flow, error: flowError } = await supabase
     .from("sales_flows")
-    .select("*")
+    .select("id")
     .eq("sale_type_id", saleTypeId)
     .single();
   if (flowError) throw flowError;
 
-  const [{ data: stages, error: stageError }, { data: edges, error: edgeError }] = await Promise.all([
-    supabase.from("flow_stages").select("*").eq("flow_id", flow.id).order("sort_order", { ascending: true }),
-    supabase.from("flow_edges").select("*").eq("flow_id", flow.id),
-  ]);
-  if (stageError) throw stageError;
-  if (edgeError) throw edgeError;
-
-  return { flow, stages: stages || [], edges: edges || [] };
+  const { data: snapshot, error: snapshotError } = await supabase
+    .from("flow_snapshots")
+    .select("*")
+    .eq("flow_id", flow.id)
+    .order("version", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (snapshotError) throw snapshotError;
+  if (!snapshot) {
+    throw new Error(
+      "That Sale Type's flow has not been locked yet, so a deal cannot be registered against it.",
+    );
+  }
+  return snapshot;
 }
 
-/** Where a deal entering `saleTypeId`'s flow lands. Throws if the flow has no Stages to land on. */
+/**
+ * The Flow Snapshot an existing SOR already runs — the source of truth for
+ * every read that decides its behaviour from here on (issue #83): permitted
+ * moves, Stage Conditions, Stage Actions, Won Stage. Not the live flow.
+ *
+ * A flow-built deal with no snapshot on record is not a valid state (a
+ * legacy deal from before this migration whose flow was never locked), so
+ * this refuses rather than falling back to live tables the way registration
+ * used to.
+ */
+async function snapshotContextFor(opportunity) {
+  if (!opportunity.flow_snapshot_id) {
+    throw new Error(
+      "This deal has no Flow Snapshot on record, so it cannot be moved. A Super Admin needs to assign one first.",
+    );
+  }
+
+  const { data: snapshot, error } = await supabase
+    .from("flow_snapshots")
+    .select("*")
+    .eq("id", opportunity.flow_snapshot_id)
+    .single();
+  if (error) throw error;
+
+  const d = snapshot.snapshot_data || {};
+  return {
+    snapshot,
+    stages: d.stages || [],
+    edges: d.edges || [],
+    actions: d.actions || [],
+    conditions: d.conditions || [],
+    wonStageId: d.wonStageId ?? null,
+  };
+}
+
+/** Where a deal entering `saleTypeId`'s flow lands, and the snapshot it lands there under. Throws if the flow has no Stages to land on. */
 async function entryStageFor(saleTypeId) {
-  const { stages } = await flowContextFor(saleTypeId);
-  const entry = entryStage(stages);
+  const snapshot = await latestSnapshotFor(saleTypeId);
+  const entry = entryStage(snapshot.snapshot_data?.stages || []);
   if (!entry) {
     throw new Error("That Sale Type's flow has no Stages yet, so a deal cannot be placed on it.");
   }
-  return entry;
+  return { snapshot, entry };
 }
 
 /**
@@ -419,7 +501,13 @@ async function hasEverMoved(opportunityId) {
  * deals, because they are keyed to `flow_stages(id)`.
  */
 async function moveAlongFlow(existing, nextStageId, actorId) {
-  const { flow, stages, edges } = await flowContextFor(existing.sale_type_id);
+  // Issue #83 — every rule this move is judged by (which Stages exist, which
+  // edges are legal, what conditions gate the stage being left, where the
+  // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
+  // flow. Editing the live flow after this deal registered must not change
+  // what it is held to mid-run.
+  const { stages, edges, wonStageId, conditions: snapshotConditions, actions: snapshotActions } =
+    await snapshotContextFor(existing);
 
   const from = stages.find((s) => s.id === existing.flow_stage_id) || null;
   const to = stages.find((s) => s.id === nextStageId) || null;
@@ -442,14 +530,17 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
-  // 1. Evaluate Stage Conditions for the stage being left
-  const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
+  // 1. Evaluate Stage Conditions for the stage being left — from the SOR's
+  // own snapshot; only the per-deal evidence (attachments, members, status
+  // rows) is read live, since that's evidence about the deal, not the flow.
+  const conditionsForFrom = conditionsForSnapshotStage(snapshotConditions, from.id);
+  const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
     existing.id,
-    [from.id]
+    conditionsForFrom,
   );
 
   const missing = [];
-  const conditions = blockingConditions(conditionsByStage[from.id] ?? []);
+  const conditions = blockingConditions(conditionsForFrom);
   const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, existing.id);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
@@ -499,7 +590,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // reads `flow_stage_id` against the loaded flow, not `status`.
   const patch = { flow_stage_id: to.id };
 
-  if (flow.won_stage_id === to.id && !existing.contract_date) {
+  if (wonStageId === to.id && !existing.contract_date) {
     patch.contract_date = getCurrentLocalDate();
   }
 
@@ -527,12 +618,14 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     actorId,
   ).catch(console.error);
 
-  // 3. Execute Stage Actions (Automations) for the new stage
-  // We fire these asynchronously so they don't block the move itself,
+  // 3. Execute Stage Actions (Automations) for the new stage — read from the
+  // SOR's own snapshot (issue #83), not the live table, so entering a Stage
+  // fires the automations agreed at registration time and not ones added
+  // since. We fire these asynchronously so they don't block the move itself,
   // but we catch errors so they don't crash the user.
-  import("./stageActionService").then(async ({ stageActionService }) => {
+  (async () => {
     try {
-      const actions = await stageActionService.getForStage(to.id);
+      const actions = actionsForSnapshotStage(snapshotActions, to.id);
       if (actions.length > 0) {
         // Guard: fire once per (deal, stage). The log check is the primary
         // signal; the task-existence check is a fallback for a missing or
@@ -636,7 +729,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     } catch (err) {
       console.error("Failed to execute stage actions:", err);
     }
-  }).catch(console.error);
+  })().catch(console.error);
 
   return data;
 }
@@ -788,13 +881,19 @@ export const opportunityService = {
     // Type's flow at its first Stage. Both columns are set together or neither
     // is (migration 0049's CHECK), because a deal with a Sale Type and no
     // Stage in its flow is a deal nothing can move.
+    //
+    // Issue #83 — that flow is its Sale Type's most recently locked Flow
+    // Snapshot, not the live tables: registering against a flow that has
+    // never been locked fails clearly (entryStageFor/latestSnapshotFor)
+    // rather than silently pinning to nothing.
     const flowEntry = payload.sale_type_id ? await entryStageFor(payload.sale_type_id) : null;
 
     const { data, error } = await supabase
       .from("sales_opportunities")
       .insert({
         sale_type_id: payload.sale_type_id || null,
-        flow_stage_id: flowEntry?.id || null,
+        flow_stage_id: flowEntry?.entry?.id || null,
+        flow_snapshot_id: flowEntry?.snapshot?.id || null,
         registration_date: payload.registration_date,
         registered_by: actorId,
         lead_source: payload.lead_source,
@@ -1007,6 +1106,7 @@ export const opportunityService = {
     await narrateNewlySatisfied(
       id,
       existing.flow_stage_id,
+      existing.flow_snapshot_id,
       { opportunity: existing },
       { opportunity: final },
       actorId,
@@ -1223,7 +1323,9 @@ export const opportunityService = {
       );
     }
 
-    const entry = await entryStageFor(saleTypeId);
+    // Issue #83 — the deal is pinned to the target Sale Type's own most
+    // recently locked Flow Snapshot, the same as a fresh registration.
+    const { snapshot, entry } = await entryStageFor(saleTypeId);
 
     const { data: saleTypes, error: nameError } = await supabase
       .from("sale_types")
@@ -1234,7 +1336,7 @@ export const opportunityService = {
 
     const { data, error } = await supabase
       .from("sales_opportunities")
-      .update({ sale_type_id: saleTypeId, flow_stage_id: entry.id })
+      .update({ sale_type_id: saleTypeId, flow_stage_id: entry.id, flow_snapshot_id: snapshot.id })
       .eq("id", id)
       .select(PARTICIPANT_SELECT)
       .single();
@@ -1251,6 +1353,7 @@ export const opportunityService = {
         from: existing.sale_type_id,
         to: saleTypeId,
         flowStageId: entry.id,
+        flowSnapshotId: snapshot.id,
         employeeId: actorId,
       },
       actorId,
@@ -1265,6 +1368,113 @@ export const opportunityService = {
     ).catch(console.error);
 
     return data;
+  },
+
+  /**
+   * Moves an SOR onto a different Flow Snapshot of its own flow — the
+   * explicit, audited alternative to a snapshot changing underneath a deal
+   * as a side effect of someone editing a Stage (issue #83).
+   *
+   * Refuses when the deal's current Stage does not exist in the target
+   * snapshot, rather than stranding it there. Touches `flow_snapshot_id`
+   * only — never `flow_stage_id` or `contract_date` — so a move can never by
+   * itself change where the deal sits or retroactively alter whether it is
+   * Realized.
+   */
+  async moveOpportunitySnapshot(opportunityId, targetSnapshotId, actorId) {
+    const existing = await opportunityService.getOpportunityById(opportunityId);
+    if (!existing.sale_type_id) {
+      throw new Error("This deal does not run a Sales Flow, so it has no Flow Snapshot to move.");
+    }
+
+    const { data: targetSnapshot, error: snapshotError } = await supabase
+      .from("flow_snapshots")
+      .select("*")
+      .eq("id", targetSnapshotId)
+      .single();
+    if (snapshotError) throw snapshotError;
+
+    const { data: flow, error: flowError } = await supabase
+      .from("sales_flows")
+      .select("id")
+      .eq("sale_type_id", existing.sale_type_id)
+      .single();
+    if (flowError) throw flowError;
+
+    if (targetSnapshot.flow_id !== flow.id) {
+      throw new Error("That Flow Snapshot belongs to a different flow.");
+    }
+
+    const targetStages = targetSnapshot.snapshot_data?.stages || [];
+    if (!targetStages.some((s) => s.id === existing.flow_stage_id)) {
+      throw new Error(
+        `This deal's current Stage does not exist in Flow Snapshot v${targetSnapshot.version}, so moving it would strand it. Move it to a different Stage first, or choose a different snapshot.`,
+      );
+    }
+
+    let sourceLabel = "no Flow Snapshot";
+    if (existing.flow_snapshot_id) {
+      const { data: sourceSnapshot } = await supabase
+        .from("flow_snapshots")
+        .select("version")
+        .eq("id", existing.flow_snapshot_id)
+        .maybeSingle();
+      sourceLabel = sourceSnapshot ? `v${sourceSnapshot.version}` : "an unknown Flow Snapshot";
+    }
+
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .update({ flow_snapshot_id: targetSnapshot.id })
+      .eq("id", opportunityId)
+      .select(PARTICIPANT_SELECT)
+      .single();
+    if (error) throw error;
+
+    await opportunityService.addSystemNote(
+      opportunityId,
+      `Flow Snapshot changed: ${sourceLabel} → v${targetSnapshot.version}.`,
+      {
+        event: "FLOW_SNAPSHOT_MOVED",
+        from: existing.flow_snapshot_id,
+        to: targetSnapshot.id,
+        employeeId: actorId,
+      },
+      actorId,
+    );
+
+    systemAuditLogService.addSystemEvent(
+      "OPPORTUNITY",
+      opportunityId,
+      `${auditLabel(existing)}: Flow Snapshot changed ${sourceLabel} → v${targetSnapshot.version}.`,
+      {
+        event: "FLOW_SNAPSHOT_MOVED",
+        from: existing.flow_snapshot_id,
+        to: targetSnapshot.id,
+        employeeId: actorId,
+      },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * `moveOpportunitySnapshot`, for many SORs at once — adopting a revised
+   * process shouldn't mean editing deals one at a time (issue #83). Collects
+   * failures instead of throwing on the first blocked SOR, so one stranded
+   * deal doesn't stop the rest of the batch from moving.
+   */
+  async bulkMoveOpportunitySnapshot(opportunityIds, targetSnapshotId, actorId) {
+    const succeeded = [];
+    const failed = [];
+    for (const id of opportunityIds) {
+      try {
+        succeeded.push(await opportunityService.moveOpportunitySnapshot(id, targetSnapshotId, actorId));
+      } catch (err) {
+        failed.push({ id, reason: err.message });
+      }
+    }
+    return { succeeded, failed };
   },
 
   async deleteOpportunity(id, actorId) {
@@ -1384,15 +1594,21 @@ export const opportunityService = {
     // unsatisfied transition could ever be detected.
     let attachmentsBefore = null;
     let stageCode = null;
+    let flowSnapshotId = null;
     if (files.length > 0) {
       const [{ data: opportunity }, { data: priorLogs }] = await Promise.all([
-        supabase.from("sales_opportunities").select("flow_stage_id").eq("id", opportunityId).single(),
+        supabase
+          .from("sales_opportunities")
+          .select("flow_stage_id, flow_snapshot_id")
+          .eq("id", opportunityId)
+          .single(),
         supabase
           .from("sales_opportunity_logs")
           .select("author_id, created_at, metadata")
           .eq("opportunity_id", opportunityId),
       ]);
       stageCode = opportunity?.flow_stage_id;
+      flowSnapshotId = opportunity?.flow_snapshot_id;
       attachmentsBefore = (priorLogs || []).flatMap((log) =>
         (log.metadata?.attachments || []).map((a) => ({
           ...a,
@@ -1463,6 +1679,7 @@ export const opportunityService = {
       await narrateNewlySatisfied(
         opportunityId,
         stageCode,
+        flowSnapshotId,
         { attachments: attachmentsBefore },
         { attachments: attachmentsAfter },
         authorId,
@@ -1552,6 +1769,7 @@ export const opportunityService = {
     await narrateNewlySatisfied(
       opportunityId,
       opportunity.status,
+      null,
       { members: membersForGate(existingMembers) },
       { members: membersForGate([...existingMembers, data]) },
       actorId,

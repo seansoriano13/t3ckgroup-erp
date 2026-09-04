@@ -5,6 +5,7 @@ import { db } from "@/test/db/store"
 import {
   makeEmployee,
   makeFlowEdge,
+  makeFlowSnapshot,
   makeFlowStage,
   makeOpportunity,
   makeConditionStatus,
@@ -1237,11 +1238,19 @@ describe("opportunityService", () => {
       db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = awarded.id
     })
 
-    const register = (overrides = {}) =>
-      opportunityService.createOpportunity(
+    // Issue #83 — a deal registers under its Sale Type's most recently
+    // locked Flow Snapshot, so registration snapshots the flow right before
+    // creating the opportunity. Doing it here rather than once in
+    // `beforeEach` means a test's own `makeStageCondition`/`makeStageAction`
+    // calls, made before it calls `register()`, are captured in the
+    // snapshot the same way a real lock would have captured them.
+    const register = (overrides = {}) => {
+      makeFlowSnapshot({ flow_id: flow.id })
+      return opportunityService.createOpportunity(
         payload({ sale_type_id: saleType.id, ...overrides }),
         registrar.id,
       )
+    }
 
     it("lands a newly registered deal on the Stage its flow starts at", async () => {
       const created = await register()
@@ -1463,6 +1472,144 @@ describe("opportunityService", () => {
         expect(moved.flow_stage_id).toBe(awarded.id)
       })
     })
+
+    describe("Flow Snapshots (issue #83)", () => {
+      it("keeps its old conditions after the live flow gains a new one", async () => {
+        const deal = await register() // snapshot has no conditions on Lead yet
+
+        // Added to the live Stage AFTER this deal already registered under a
+        // snapshot with none — must not start blocking it.
+        makeStageCondition({ stage_id: lead.id, kind: "project_evaluation", label: "New requirement" })
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("stays blocked by a condition removed from the live Stage after it registered", async () => {
+        makeStageCondition({ stage_id: lead.id, kind: "project_evaluation", label: "Go/no-go decided" })
+        const deal = await register() // snapshot captures this condition
+
+        const live = db.internal
+          .rowsOf("stage_conditions")
+          .find((c) => c.stage_id === lead.id && c.label === "Go/no-go decided")
+        live.archived_at = new Date().toISOString()
+
+        await expect(
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
+        ).rejects.toThrow(/Go\/no-go decided/)
+      })
+
+      it("refuses to register against a Sale Type whose flow has never been locked", async () => {
+        const neverLocked = makeSaleType({ name: "Drafting" })
+        makeSalesFlow({ sale_type_id: neverLocked.id })
+
+        await expect(
+          opportunityService.createOpportunity(
+            payload({ sale_type_id: neverLocked.id }),
+            registrar.id,
+          ),
+        ).rejects.toThrow(/has not been locked yet/)
+      })
+
+      it("keeps an existing SOR's Contract Date and snapshot after the Won Stage moves on a later snapshot", async () => {
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+        expect(won.contract_date).toBeTruthy()
+
+        // The live flow's Won Stage moves, and a new snapshot is locked
+        // reflecting it — the earlier deal must not be affected by either.
+        db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = qualified.id
+        makeFlowSnapshot({ flow_id: flow.id })
+
+        const unchanged = await opportunityService.getOpportunityById(deal.id)
+        expect(unchanged.contract_date).toBe(won.contract_date)
+        expect(unchanged.flow_snapshot_id).toBe(won.flow_snapshot_id)
+      })
+
+      it("refuses to move an SOR onto a snapshot that doesn't have its current Stage", async () => {
+        const deal = await register() // sits on Lead
+
+        const strandingSnapshot = makeFlowSnapshot({
+          flow_id: flow.id,
+          snapshot_data: {
+            stages: [qualified, awarded, lost],
+            edges: [],
+            actions: [],
+            conditions: [],
+            wonStageId: awarded.id,
+            saleTypeId: saleType.id,
+          },
+        })
+
+        await expect(
+          opportunityService.moveOpportunitySnapshot(deal.id, strandingSnapshot.id, registrar.id),
+        ).rejects.toThrow(/does not exist in Flow Snapshot/)
+      })
+
+      it("moves an SOR onto a newer snapshot and records the move on its timeline", async () => {
+        const deal = await register() // v1
+        const v2 = makeFlowSnapshot({ flow_id: flow.id })
+
+        const moved = await opportunityService.moveOpportunitySnapshot(deal.id, v2.id, registrar.id)
+
+        expect(moved.flow_snapshot_id).toBe(v2.id)
+        // Only flow_snapshot_id changes — never the Stage or the Contract Date.
+        expect(moved.flow_stage_id).toBe(deal.flow_stage_id)
+        expect(moved.contract_date).toBe(deal.contract_date)
+
+        const notes = await opportunityService.getNotes(deal.id)
+        const note = notes.find((n) => n.metadata?.event === "FLOW_SNAPSHOT_MOVED")
+        expect(note.content).toContain("v1")
+        expect(note.content).toContain("v2")
+        expect(note.metadata.employeeId).toBe(registrar.id)
+        expect(note.metadata.from).toBe(deal.flow_snapshot_id)
+        expect(note.metadata.to).toBe(v2.id)
+      })
+
+      it("does not refire a Stage Action after moving the SOR to a newer snapshot", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Confirm requirements" },
+        })
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        await vi.waitFor(() => {
+          const tasks = db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)
+          expect(tasks).toHaveLength(1)
+        })
+
+        const v2 = makeFlowSnapshot({ flow_id: flow.id })
+        await opportunityService.moveOpportunitySnapshot(deal.id, v2.id, registrar.id)
+
+        await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await waitForNetworkIdle()
+
+        const tasksAfterLoopBack = db.internal
+          .rowsOf("tasks")
+          .filter((t) => t.opportunity_id === deal.id)
+        expect(tasksAfterLoopBack).toHaveLength(1)
+      })
+
+      it("keeps two Sale Types' same-named Stages unrelated, even across snapshots", async () => {
+        const otherSaleType = makeSaleType({ name: "Recruitment" })
+        const otherFlow = makeSalesFlow({ sale_type_id: otherSaleType.id })
+        const otherLead = makeFlowStage({ flow_id: otherFlow.id, name: "Lead", sort_order: 0 })
+        makeFlowSnapshot({ flow_id: otherFlow.id })
+
+        const deal = await register()
+
+        expect(deal.flow_stage_id).toBe(lead.id)
+        expect(deal.flow_stage_id).not.toBe(otherLead.id)
+
+        await expect(
+          opportunityService.updateStatus(deal.id, otherLead.id, registrar.id),
+        ).rejects.toThrow(/not a Stage in this deal's flow/)
+      })
+    })
   })
 
   describe("changing an SOR's Sale Type", () => {
@@ -1478,10 +1625,21 @@ describe("opportunityService", () => {
       biddingLead = makeFlowStage({ flow_id: biddingFlow.id, name: "Lead", sort_order: 0 })
       biddingQualified = makeFlowStage({ flow_id: biddingFlow.id, name: "Qualified", sort_order: 1 })
       makeFlowEdge(biddingLead, biddingQualified)
+      // Drawn both directions from the start — one test below loops a deal
+      // back to Lead, and issue #83 means an edge drawn AFTER a deal
+      // registers is never picked up by that deal, so it has to exist here.
+      makeFlowEdge(biddingQualified, biddingLead)
 
       outright = makeSaleType({ name: "Outright" })
       const outrightFlow = makeSalesFlow({ sale_type_id: outright.id })
       outrightLead = makeFlowStage({ flow_id: outrightFlow.id, name: "Enquiry", sort_order: 0 })
+
+      // Issue #83 — registering (createOpportunity) or adopting
+      // (updateSaleType) against either flow needs a locked snapshot to
+      // exist; neither flow's live state changes again after this point in
+      // any test here, so snapshotting once, last, is enough.
+      makeFlowSnapshot({ flow_id: biddingFlow.id })
+      makeFlowSnapshot({ flow_id: outrightFlow.id })
     })
 
     const register = () =>
@@ -1546,7 +1704,6 @@ describe("opportunityService", () => {
       // the deal has a history in this flow that the other one cannot account
       // for.
       const deal = await register()
-      makeFlowEdge(biddingQualified, biddingLead)
       await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
       await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id)
 

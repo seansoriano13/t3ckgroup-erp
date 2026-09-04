@@ -187,3 +187,19 @@ export function isLostFlowStage(flowStage, wonStageId) {
   if (!flowStage?.is_terminal) return false
   return flowStage.id !== wonStageId
 }
+
+/**
+ * A Stage's Conditions/Actions as recorded in a Flow Snapshot (issue #83),
+ * rather than as they stand live today. `snapshot_data.conditions`/`.actions`
+ * are flat arrays (every Stage's, from the whole flow at lock time — see
+ * `salesFlowService.lockFlow`), so resolving "this Stage's" is just a filter,
+ * the same shape `stageConditionService`/`stageActionService`'s live queries
+ * already narrow to when reading straight from the database.
+ */
+export function conditionsForSnapshotStage(snapshotConditions = [], stageId) {
+  return (snapshotConditions || []).filter((c) => c.stage_id === stageId)
+}
+
+export function actionsForSnapshotStage(snapshotActions = [], stageId) {
+  return (snapshotActions || []).filter((a) => a.stage_id === stageId)
+}

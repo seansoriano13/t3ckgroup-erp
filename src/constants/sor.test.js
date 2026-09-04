@@ -278,15 +278,23 @@ describe("realized is having a contract date", () => {
     expect(anchorStage(PIPELINE_STAGE_SEED).code).toBe("AWARDED")
   })
 
-  // Issue #36 — a flow-built deal (it carries a sale_type_id) has no
+  // Issue #36/#83 — a flow-built deal (it carries a sale_type_id) has no
   // crm_pipeline_stages code, so `status` never answers "is this lost" for
-  // it. The caller has to embed the deal's flow_stage instead.
+  // it. The caller has to embed the deal's OWN Flow Snapshot instead of the
+  // live flow — a later change to the live Won Stage must not retroactively
+  // alter which SORs are Realized.
   describe("for a deal that runs a Sales Flow", () => {
     const wonThenLost = {
       sale_type_id: "st-1",
       status: "LEAD", // stale — a flow deal's status never changes
       contract_date: "2026-03-04",
-      flow_stage: { id: "s-lost", is_terminal: true, flow: { won_stage_id: "s-won" } },
+      flow_stage_id: "s-lost",
+      flow_snapshot: {
+        snapshot_data: {
+          wonStageId: "s-won",
+          stages: [{ id: "s-lost", is_terminal: true }],
+        },
+      },
     }
 
     it("never counts a deal that reached a terminal Stage other than Won", () => {
@@ -294,22 +302,55 @@ describe("realized is having a contract date", () => {
     })
 
     it("counts a deal sitting on its flow's Won Stage", () => {
-      const won = { ...wonThenLost, flow_stage: { id: "s-won", is_terminal: true, flow: { won_stage_id: "s-won" } } }
+      const won = {
+        ...wonThenLost,
+        flow_stage_id: "s-won",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] },
+        },
+      }
       expect(isRealizedOpportunity(won)).toBe(true)
     })
 
     it("counts a deal on a non-terminal Stage — still in play, not lost", () => {
       const inProgress = {
         ...wonThenLost,
-        flow_stage: { id: "s-mid", is_terminal: false, flow: { won_stage_id: "s-won" } },
+        flow_stage_id: "s-mid",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-mid", is_terminal: false }] },
+        },
       }
       expect(isRealizedOpportunity(inProgress)).toBe(true)
     })
 
-    it("does not count it when the flow_stage embed is missing", () => {
+    it("does not count it when the flow_snapshot embed is missing", () => {
       // Under-reporting is the safe direction: a caller that forgot to embed
-      // flow_stage must not silently overcount a lost deal as booked money.
-      expect(isRealizedOpportunity({ ...wonThenLost, flow_stage: undefined })).toBe(false)
+      // flow_snapshot must not silently overcount a lost deal as booked money.
+      expect(isRealizedOpportunity({ ...wonThenLost, flow_snapshot: undefined })).toBe(false)
+    })
+
+    it("does not count it when its own Stage no longer appears in its snapshot", () => {
+      // A stranded reference (a Stage id the snapshot never captured) is
+      // treated the same as a missing embed, not trusted.
+      expect(
+        isRealizedOpportunity({
+          ...wonThenLost,
+          flow_snapshot: { snapshot_data: { wonStageId: "s-won", stages: [] } },
+        }),
+      ).toBe(false)
+    })
+
+    it("stays Realized after the live Won Stage is moved on a later snapshot", () => {
+      // The whole point of issue #83: this deal's own snapshot still says it
+      // won, regardless of what the live flow's Won Stage is today.
+      const stillWon = {
+        ...wonThenLost,
+        flow_stage_id: "s-won",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] },
+        },
+      }
+      expect(isRealizedOpportunity(stillWon)).toBe(true)
     })
   })
 })

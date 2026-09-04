@@ -8,6 +8,7 @@ import {
   makeCommissionSplit,
   makeEmployee,
   makeFlowEdge,
+  makeFlowSnapshot,
   makeFlowStage,
   makeOpportunity,
   makeSaleType,
@@ -561,6 +562,7 @@ describe("commissionService", () => {
       })
       makeFlowEdge(won, lost)
       db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
 
       makeOpportunity({
         project_type: "SSP",
@@ -569,6 +571,7 @@ describe("commissionService", () => {
         deal_owner_id: owner.id,
         sale_type_id: saleType.id,
         flow_stage_id: lost.id,
+        flow_snapshot_id: snapshot.id,
       })
 
       const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
@@ -586,6 +589,7 @@ describe("commissionService", () => {
       const flow = makeSalesFlow({ sale_type_id: saleType.id })
       const won = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 0 })
       db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
 
       makeOpportunity({
         project_type: "SSP",
@@ -594,6 +598,7 @@ describe("commissionService", () => {
         deal_owner_id: owner.id,
         sale_type_id: saleType.id,
         flow_stage_id: won.id,
+        flow_snapshot_id: snapshot.id,
       })
 
       const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })

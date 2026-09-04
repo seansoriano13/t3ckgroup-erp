@@ -383,3 +383,53 @@ export function makeFlowEdge(fromStage, toStage, overrides = {}) {
     ...overrides,
   })
 }
+
+/**
+ * A Flow Snapshot (issue #83) — mirrors exactly what `salesFlowService.
+ * lockFlow` assembles, so a snapshot built here behaves identically to one a
+ * real lock would have produced. By default it captures whatever is already
+ * seeded live for the flow at call time; a test proving an SOR stays frozen
+ * to its OWN snapshot builds this first, then edits the live tables
+ * afterward, or passes an explicit `snapshot_data` to diverge outright.
+ */
+export function makeFlowSnapshot(overrides = {}) {
+  const flowId = overrides.flow_id ?? makeSalesFlow().id
+  const flow = db.internal.rowsOf("sales_flows").find((f) => f.id === flowId)
+  const stages = db.internal.rowsOf("flow_stages").filter((s) => s.flow_id === flowId)
+  const stageIds = stages.map((s) => s.id)
+  const edges = db.internal.rowsOf("flow_edges").filter((e) => e.flow_id === flowId)
+  const actions = db.internal
+    .rowsOf("flow_stage_actions")
+    .filter((a) => stageIds.includes(a.stage_id) && !a.archived_at)
+  const conditions = db.internal
+    .rowsOf("stage_conditions")
+    .filter((c) => stageIds.includes(c.stage_id) && !c.archived_at)
+
+  const existingVersions = db.internal
+    .rowsOf("flow_snapshots")
+    .filter((s) => s.flow_id === flowId)
+    .map((s) => s.version)
+  const nextVersion = existingVersions.length > 0 ? Math.max(...existingVersions) + 1 : 1
+
+  // Deep-cloned, not the live rows by reference: a real lock reads through
+  // `supabase.from(...).select("*")`, which hands back independent copies —
+  // editing the live row afterward (e.g. archiving a condition) must not
+  // retroactively change what an already-taken snapshot says.
+  const snapshotData = overrides.snapshot_data
+    ? structuredClone(overrides.snapshot_data)
+    : structuredClone({
+        stages,
+        edges,
+        actions,
+        conditions,
+        wonStageId: flow?.won_stage_id ?? null,
+        saleTypeId: flow?.sale_type_id ?? null,
+      })
+
+  return db.seed("flow_snapshots", {
+    version: nextVersion,
+    ...overrides,
+    flow_id: flowId,
+    snapshot_data: snapshotData,
+  })
+}
