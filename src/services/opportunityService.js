@@ -1745,7 +1745,7 @@ export const opportunityService = {
 
     const { data: opportunity, error: opportunityError } = await supabase
       .from("sales_opportunities")
-      .select("status")
+      .select("status, flow_stage_id, flow_snapshot_id")
       .eq("id", opportunityId)
       .single();
     if (opportunityError) throw opportunityError;
@@ -1768,8 +1768,8 @@ export const opportunityService = {
 
     await narrateNewlySatisfied(
       opportunityId,
-      opportunity.status,
-      null,
+      opportunity.flow_stage_id || opportunity.status,
+      opportunity.flow_snapshot_id,
       { members: membersForGate(existingMembers) },
       { members: membersForGate([...existingMembers, data]) },
       actorId,
@@ -1789,23 +1789,45 @@ export const opportunityService = {
    * that returns the original row rather than overwriting who satisfied it.
    */
   async satisfyCondition(opportunityId, conditionId, actorId) {
-    const { data: condition, error: conditionError } = await supabase
-      .from("stage_conditions")
-      .select("*")
-      .eq("id", conditionId)
+    const { data: opp, error: oppError } = await supabase
+      .from("sales_opportunities")
+      .select("flow_snapshot_id")
+      .eq("id", opportunityId)
       .single();
-    if (conditionError) throw conditionError;
+    if (oppError) throw oppError;
+
+    let condition;
+    if (opp.flow_snapshot_id) {
+      const { data: snapshot } = await supabase
+        .from("flow_snapshots")
+        .select("snapshot_data")
+        .eq("id", opp.flow_snapshot_id)
+        .single();
+      const allConditions = snapshot?.snapshot_data?.conditions || [];
+      condition = allConditions.find(c => c.id === conditionId);
+      if (!condition) {
+        throw new Error("This condition has been archived and no longer applies.");
+      }
+    } else {
+      const { data: liveCondition, error: conditionError } = await supabase
+        .from("stage_conditions")
+        .select("*")
+        .eq("id", conditionId)
+        .single();
+      if (conditionError) throw conditionError;
+      if (liveCondition.archived_at) {
+        throw new Error("This condition has been archived and no longer applies.");
+      }
+      condition = liveCondition;
+    }
 
     if (condition.kind !== CONDITION_KINDS.TICKBOX) {
       throw new Error("Only a tickbox condition can be satisfied this way.");
     }
-    if (condition.archived_at) {
-      throw new Error("This condition has been archived and no longer applies.");
-    }
 
     const { data: satisfied, error: satisfiedError } = await supabase
     .from("sor_condition_status")
-    .select("condition_id, satisfied_at")
+    .select("*")
     .eq("opportunity_id", opportunityId)
     .eq("condition_id", conditionId)
     .maybeSingle();
@@ -1841,14 +1863,37 @@ export const opportunityService = {
     if (!target) return [];
     const stageCode = target.flow_stage_id || target.status;
 
-    const { conditionsByStage, attachments, members, statusRowsByCondition } = await gateContext(
+    let conditions = [];
+    if (target.flow_snapshot_id) {
+      const { data: snapshot } = await supabase
+        .from("flow_snapshots")
+        .select("snapshot_data")
+        .eq("id", target.flow_snapshot_id)
+        .single();
+      
+      conditions = conditionsForSnapshotStage(snapshot?.snapshot_data?.conditions || [], stageCode)
+        .filter((r) => r.kind !== CONDITION_KINDS.DEADLINE);
+    } else {
+      const { data: liveConditions } = await supabase
+        .from("stage_conditions")
+        .select("*")
+        .eq("stage_id", stageCode)
+        .is("archived_at", null)
+        .neq("kind", CONDITION_KINDS.DEADLINE);
+      
+      conditions = liveConditions || [];
+    }
+
+    const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
       opportunityId,
-      [stageCode],
+      conditions,
     );
 
-    const conditions = (conditionsByStage[stageCode] || [])
-      .filter((r) => r.kind !== CONDITION_KINDS.DEADLINE)
-      .sort((a, b) => a.sort_order - b.sort_order);
+    conditions.sort((a, b) => a.sort_order - b.sort_order);
+
+    const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, target.id);
+    const hasInclusions = await resolveHasInclusions(conditions, target.id);
+    const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
 
     return conditions.map((condition) => ({
       condition,
@@ -1857,6 +1902,9 @@ export const opportunityService = {
         attachments,
         members,
         statusRow: statusRowsByCondition[condition.id] ?? null,
+        hasProjectEvaluation,
+        hasInclusions,
+        hasPurchasing,
       }),
     }));
   },
@@ -1872,15 +1920,44 @@ export const opportunityService = {
    */
   async getBlockedDeals(opportunities = []) {
     if (opportunities.length === 0) return {};
-    const stageCodes = [...new Set(opportunities.map(currentStageId))];
 
-    const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
-      query.eq("is_required", true).neq("kind", CONDITION_KINDS.DEADLINE),
-    );
-    if (conditions.length === 0) return {};
+    const legacy = opportunities.filter((o) => !o.flow_snapshot_id);
+    const flowBuilt = opportunities.filter((o) => o.flow_snapshot_id);
+
+    const legacyStageCodes = [...new Set(legacy.map(currentStageId))];
+    const { conditions: liveConditions, conditionsByStage: liveConditionsByStage } =
+      await conditionsByStageFor(legacyStageCodes, (query) =>
+        query.eq("is_required", true).neq("kind", CONDITION_KINDS.DEADLINE),
+      );
+
+    const snapshotIds = [...new Set(flowBuilt.map((o) => o.flow_snapshot_id))];
+    let snapshotConditions = [];
+    let snapshotsById = {};
+    if (snapshotIds.length > 0) {
+      const { data: snapshots } = await supabase
+        .from("flow_snapshots")
+        .select("id, snapshot_data")
+        .in("id", snapshotIds);
+
+      for (const snap of snapshots || []) {
+        snapshotsById[snap.id] = snap;
+        const conds = (snap.snapshot_data?.conditions || []).filter(
+          (c) => c.is_required && c.kind !== CONDITION_KINDS.DEADLINE,
+        );
+        snapshotConditions.push(...conds);
+      }
+    }
+
+    const allConditions = [...liveConditions, ...snapshotConditions];
+    // Deduplicate conditions by id, since multiple deals on the same snapshot
+    // might have added the same condition objects to the list.
+    const uniqueConditions = Array.from(new Map(allConditions.map((c) => [c.id, c])).values());
+
+    if (uniqueConditions.length === 0) return {};
 
     const opportunityIds = opportunities.map((o) => o.id);
-    const conditionIds = conditions.map((r) => r.id);
+    const conditionIds = uniqueConditions.map((r) => r.id);
+
     const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, { data: memberRows, error: memberError }] =
       await Promise.all([
         supabase
@@ -1922,7 +1999,17 @@ export const opportunityService = {
 
     const blocked = {};
     for (const opportunity of opportunities) {
-      const stageConditions = conditionsByStage[currentStageId(opportunity)] || [];
+      let stageConditions = [];
+      if (opportunity.flow_snapshot_id) {
+        const snap = snapshotsById[opportunity.flow_snapshot_id];
+        stageConditions = conditionsForSnapshotStage(
+          snap?.snapshot_data?.conditions || [],
+          currentStageId(opportunity),
+        ).filter((c) => c.is_required && c.kind !== CONDITION_KINDS.DEADLINE);
+      } else {
+        stageConditions = liveConditionsByStage[currentStageId(opportunity)] || [];
+      }
+
       if (stageConditions.length === 0) continue;
 
       const [hasProjectEvaluation, hasInclusions, hasPurchasing] = await Promise.all([

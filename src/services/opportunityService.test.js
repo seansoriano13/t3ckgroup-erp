@@ -689,15 +689,26 @@ describe("opportunityService", () => {
     })
   })
 
-  describe.skip("per-kind satisfaction (ticket 5)", () => {
+  describe("per-kind satisfaction (ticket 5)", () => {
+    let saleType, flow, lead, qualified
+    beforeEach(() => {
+      saleType = makeSaleType({ name: "Flow" })
+      flow = makeSalesFlow({ sale_type_id: saleType.id })
+      lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      qualified = makeFlowStage({ flow_id: flow.id, name: "Qualified", sort_order: 1 })
+      makeFlowEdge(lead, qualified)
+    })
+
+    const flowPayload = (overrides = {}) => payload({ sale_type_id: saleType.id, ...overrides })
     it("narrates a field condition the moment the save that satisfies it lands", async () => {
       makeStageCondition({
-        stage_code: "LEAD",
+        stage_id: lead.id,
         kind: "field",
         label: "PO Date on file",
         config: { column: "po_date" },
       })
-      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
       await opportunityService.updateOpportunity(
         created.id,
@@ -711,12 +722,13 @@ describe("opportunityService", () => {
 
     it("does not narrate a save that leaves the field condition unsatisfied", async () => {
       makeStageCondition({
-        stage_code: "LEAD",
+        stage_id: lead.id,
         kind: "field",
         label: "PO Date on file",
         config: { column: "po_date" },
       })
-      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
       await opportunityService.updateOpportunity(
         created.id,
@@ -730,13 +742,14 @@ describe("opportunityService", () => {
 
     it("does not narrate again once a field condition is already satisfied", async () => {
       makeStageCondition({
-        stage_code: "LEAD",
+        stage_id: lead.id,
         kind: "field",
         label: "PO Date on file",
         config: { column: "po_date" },
       })
+      makeFlowSnapshot({ flow_id: flow.id })
       const created = await opportunityService.createOpportunity(
-        payload({ po_date: "2026-04-01" }),
+        flowPayload({ po_date: "2026-04-01" }),
         registrar.id,
       )
 
@@ -752,12 +765,13 @@ describe("opportunityService", () => {
 
     it("narrates an attachment condition the moment the upload that satisfies it lands", async () => {
       makeStageCondition({
-        stage_code: "LEAD",
+        stage_id: lead.id,
         kind: "attachment",
         label: "Notice of Award",
         config: { documentType: "NOA" },
       })
-      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
       await opportunityService.addNote(created.id, registrar.id, "", [
         { url: "https://cdn.test/noa.pdf", name: "noa.pdf", documentType: "NOA" },
@@ -769,12 +783,13 @@ describe("opportunityService", () => {
 
     it("does not satisfy an attachment condition with a file of the wrong document type", async () => {
       makeStageCondition({
-        stage_code: "LEAD",
+        stage_id: lead.id,
         kind: "attachment",
         label: "Notice of Award",
         config: { documentType: "NOA" },
       })
-      const created = await opportunityService.createOpportunity(payload(), registrar.id)
+      makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
       await opportunityService.addNote(created.id, registrar.id, "", [
         { url: "https://cdn.test/quote.pdf", name: "quote.pdf", documentType: "QUOTE" },
@@ -787,15 +802,16 @@ describe("opportunityService", () => {
     describe("assignment / SOR Members", () => {
       it("blocks a move until someone from the named department is a member, then unblocks", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "assignment",
           label: "Purchasing officer assigned",
           config: { department: "Purchasing" },
         })
-        const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
 
         await expect(
-          opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id),
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
         ).rejects.toThrow(/Purchasing officer assigned/)
 
         const buyer = makeEmployee({
@@ -803,35 +819,37 @@ describe("opportunityService", () => {
           department: "OPERATIONS",
           sub_department: "Purchasing",
         })
-        await opportunityService.addMember(lead.id, buyer.id, registrar.id)
+        await opportunityService.addMember(deal.id, buyer.id, registrar.id)
 
-        const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
-        expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
       })
 
       it("matches a department-level config against a member's department, not just their sub-department", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "assignment",
           label: "Someone from Operations",
           config: { department: "OPERATIONS" },
         })
-        const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
         const buyer = makeEmployee({ department: "OPERATIONS", sub_department: "Purchasing" })
-        await opportunityService.addMember(lead.id, buyer.id, registrar.id)
+        await opportunityService.addMember(deal.id, buyer.id, registrar.id)
 
-        const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id)
-        expect(moved.status).toBe("PROPOSAL_SUBMITTED")
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
       })
 
       it("narrates who was added and, when it satisfies a condition, that too", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "assignment",
           label: "Purchasing officer assigned",
           config: { department: "Purchasing" },
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
         const buyer = makeEmployee({ name: "Rey Santos", department: "Purchasing" })
 
         await opportunityService.addMember(created.id, buyer.id, registrar.id)
@@ -842,7 +860,8 @@ describe("opportunityService", () => {
       })
 
       it("adding the same member twice is a no-op — no duplicate row, no duplicate note", async () => {
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
         const buyer = makeEmployee({ name: "Rey Santos" })
 
         await opportunityService.addMember(created.id, buyer.id, registrar.id)
@@ -861,11 +880,12 @@ describe("opportunityService", () => {
     describe("tickbox", () => {
       it("satisfies a tickbox condition and records who and when", async () => {
         const condition = makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "tickbox",
           label: "Bid documents transmitted",
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         const status = await opportunityService.satisfyCondition(
           created.id,
@@ -880,8 +900,10 @@ describe("opportunityService", () => {
       })
 
       it("is idempotent — ticking an already-satisfied condition again keeps the original satisfier", async () => {
-        const condition = makeStageCondition({ stage_code: "LEAD", kind: "tickbox" })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        const condition = makeStageCondition({
+        stage_id: lead.id, kind: "tickbox" })
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
         const other = makeEmployee({ name: "Someone Else" })
 
         const first = await opportunityService.satisfyCondition(created.id, condition.id, registrar.id)
@@ -897,11 +919,12 @@ describe("opportunityService", () => {
 
       it("refuses to satisfy a non-tickbox condition this way", async () => {
         const condition = makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "field",
           config: { column: "po_date" },
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         await expect(
           opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
@@ -910,11 +933,12 @@ describe("opportunityService", () => {
 
       it("refuses to satisfy an archived condition", async () => {
         const condition = makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "tickbox",
           archived_at: "2026-01-01T00:00:00.000Z",
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+      const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         await expect(
           opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
@@ -923,23 +947,34 @@ describe("opportunityService", () => {
     })
   })
 
-  describe.skip("Deal Owner visibility (ticket 6)", () => {
+  describe("Deal Owner visibility (ticket 6)", () => {
+    let saleType, flow, lead, qualified
+    beforeEach(() => {
+      saleType = makeSaleType({ name: "Flow" })
+      flow = makeSalesFlow({ sale_type_id: saleType.id })
+      lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      qualified = makeFlowStage({ flow_id: flow.id, name: "Qualified", sort_order: 1 })
+      makeFlowEdge(lead, qualified)
+    })
+
+    const flowPayload = (overrides = {}) => payload({ sale_type_id: saleType.id, ...overrides })
     describe("getStageChecklist", () => {
       it("lists the current Stage's live conditions with their status", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "field",
           label: "PO Date on file",
           config: { column: "po_date" },
         })
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "attachment",
           label: "Notice of Award",
           config: { documentType: "NOA" },
         })
+        makeFlowSnapshot({ flow_id: flow.id })
         const created = await opportunityService.createOpportunity(
-          payload({ po_date: "2026-04-01" }),
+          flowPayload({ po_date: "2026-04-01" }),
           registrar.id,
         )
 
@@ -951,27 +986,31 @@ describe("opportunityService", () => {
       })
 
       it("leaves out a deadline condition — it never blocks and has its own display surface", async () => {
-        makeStageCondition({ stage_code: "LEAD", kind: "deadline", config: { days: 5 } })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeStageCondition({
+        stage_id: lead.id, kind: "deadline", config: { days: 5 } })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
 
       it("leaves out an archived condition", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "tickbox",
           label: "Old check",
           archived_at: "2026-01-01T00:00:00.000Z",
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
 
       it("only reads the deal's own current Stage, not conditions configured elsewhere", async () => {
-        makeStageCondition({ stage_code: "QUALIFIED", kind: "tickbox", label: "Elsewhere" })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id) // status LEAD
+        makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Elsewhere" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id) // status LEAD
 
         expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
@@ -980,14 +1019,16 @@ describe("opportunityService", () => {
     describe("getBlockedDeals", () => {
       it("flags a deal missing a required item, and leaves an unblocked one out of the result", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "field",
           label: "PO Date on file",
           config: { column: "po_date" },
         })
-        const blocked = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+        const blocked = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
         const clear = await opportunityService.createOpportunity(
-          payload({ po_date: "2026-04-01" }),
+          flowPayload({ po_date: "2026-04-01" }),
           registrar.id,
         )
 
@@ -1002,13 +1043,14 @@ describe("opportunityService", () => {
 
       it("does not flag a deal on an optional condition", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "field",
           label: "Nice to have",
           is_required: false,
           config: { column: "po_date" },
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         const result = await opportunityService.getBlockedDeals([
           await opportunityService.getOpportunityById(created.id),
@@ -1019,12 +1061,13 @@ describe("opportunityService", () => {
 
       it("does not flag a deal on a deadline condition, even marked required — it never blocks", async () => {
         makeStageCondition({
-          stage_code: "LEAD",
+        stage_id: lead.id,
           kind: "deadline",
           is_required: true,
           config: { days: 5 },
         })
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
 
         const result = await opportunityService.getBlockedDeals([
           await opportunityService.getOpportunityById(created.id),
