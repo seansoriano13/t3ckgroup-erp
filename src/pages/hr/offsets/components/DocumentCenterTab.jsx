@@ -178,7 +178,7 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
           Opens your browser's print dialog — choose "Save as PDF" there if you need a file instead of paper.
         </p>
 
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-64">
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-[420px]">
           <div className="p-3 border-b border-border bg-muted/10 shrink-0">
             <span className="text-sm font-bold text-foreground">Tray ({tray.length})</span>
           </div>
@@ -201,7 +201,7 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
           </div>
         </div>
 
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-64">
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-[420px]">
           <div className="p-3 border-b border-border bg-muted/10 shrink-0 space-y-2">
             <span className="text-sm font-bold text-foreground">
               {search.trim() ? `${filteredRecords.length} of ${approvedRecords.length} Approved Records` : `${approvedRecords.length} Approved Records`}
