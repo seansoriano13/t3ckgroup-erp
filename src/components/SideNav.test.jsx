@@ -53,7 +53,10 @@ describe("SideNav Component", () => {
     expect(screen.getByText("My Leaves & Overtime")).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).not.toBeInTheDocument();
     expect(screen.queryByText("Human Resources")).not.toBeInTheDocument();
-    expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+    // Flow Canvas (issue #36) is deliberately visible to everyone while it is
+    // scaffolding for building Sales Flows with Operations, so Administration
+    // shows up for that one link — see navigation.js's comment on it.
+    expect(screen.getByText("Administration")).toBeInTheDocument();
   });
 
   it("renders Operations and Approvals for Department Head with task flow", () => {
@@ -148,8 +151,8 @@ describe("SideNav Component", () => {
       isSuperAdmin: true,
     };
 
-    const getItemSpy = vi.spyOn(Storage.prototype, "getItem");
-    const setItemSpy = vi.spyOn(Storage.prototype, "setItem");
+    const getItemSpy = vi.spyOn(window.localStorage, "getItem");
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
 
     renderSideNav(user);
 

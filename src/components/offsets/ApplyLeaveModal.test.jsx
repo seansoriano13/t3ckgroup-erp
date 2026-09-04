@@ -6,7 +6,7 @@ import ApplyLeaveModal from "./ApplyLeaveModal"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee } from "@/test/factories"
+import { makeEmployee, makeLeaveCategory } from "@/test/factories"
 
 /**
  * The one form employees use to claim overtime and spend leave. It writes
@@ -23,6 +23,7 @@ describe("ApplyLeaveModal", () => {
   let employee
   let onClose
   let onSuccess
+  let defaultCategory
 
   beforeEach(() => {
     employee = makeEmployee({
@@ -30,6 +31,7 @@ describe("ApplyLeaveModal", () => {
       offset_hours_balance: 16,
       sil_hours_balance: 40,
     })
+    defaultCategory = makeLeaveCategory({ label: "Medical" })
     mockUser.current = { id: employee.id, name: employee.name }
     onClose = vi.fn()
     onSuccess = vi.fn()
@@ -42,18 +44,36 @@ describe("ApplyLeaveModal", () => {
       <ApplyLeaveModal isOpen onClose={onClose} onSuccess={onSuccess} {...props} />,
     )
 
-  /** Fills the visible tab's three fields. Each tab has one of each control. */
-  const fillForm = async ({ date, hours, reason }) => {
+  /** Fills the visible tab's fields. */
+  const fillForm = async ({ date, startTime, endTime, reason, categoryId }) => {
     const user = userEvent.setup()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
-    const hoursField = form.querySelector('input[type="number"]')
+    const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
+    const selectField = form.querySelector("select")
 
     await user.clear(dateField)
     await user.type(dateField, date)
-    await user.clear(hoursField)
-    await user.type(hoursField, hours)
+    
+    if (timeFields.length >= 2) {
+      if (startTime !== undefined) {
+        await user.clear(timeFields[0])
+        await user.type(timeFields[0], startTime)
+      }
+      if (endTime !== undefined) {
+        await user.clear(timeFields[1])
+        await user.type(timeFields[1], endTime)
+      }
+    }
+    
+    if (selectField) {
+      await waitFor(() => {
+        expect(selectField.options.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(selectField, categoryId || defaultCategory.id)
+    }
+
     await user.clear(reasonField)
     await user.type(reasonField, reason)
     return { user, form }
@@ -83,7 +103,8 @@ describe("ApplyLeaveModal", () => {
       open()
       const { user } = await fillForm({
         date: "2026-03-10",
-        hours: "4",
+        startTime: "09:00",
+        endTime: "13:00",
         reason: "Server migration",
       })
 
@@ -92,7 +113,8 @@ describe("ApplyLeaveModal", () => {
 
       expect(db.rows("overtime_requests")[0]).toMatchObject({
         employee_id: employee.id,
-        hours: 4,
+        start_time: "09:00",
+        end_time: "13:00",
         reason: "Server migration",
         status: "PENDING",
       })
@@ -100,7 +122,7 @@ describe("ApplyLeaveModal", () => {
 
     it("confirms and closes once the request is filed", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "4", reason: "Migration" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "13:00", reason: "Migration" })
 
       await submit(user)
 
@@ -126,7 +148,7 @@ describe("ApplyLeaveModal", () => {
 
     it("will not accept fewer hours than the half-hour step allows", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "0", reason: "Nothing" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "09:00", reason: "Nothing" })
 
       await submit(user)
       await waitForNetworkIdle()
@@ -137,7 +159,7 @@ describe("ApplyLeaveModal", () => {
 
     it("accepts a half-hour claim", async () => {
       open()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "0.5", reason: "Short fix" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "09:30", reason: "Short fix" })
 
       await submit(user)
       await waitFor(() => expect(db.rows("overtime_requests")).toHaveLength(1))
@@ -158,7 +180,8 @@ describe("ApplyLeaveModal", () => {
       await goToOffset()
       const { user } = await fillForm({
         date: "2026-03-12",
-        hours: "8",
+        startTime: "09:00",
+        endTime: "17:00",
         reason: "Family matter",
       })
 
@@ -171,7 +194,10 @@ describe("ApplyLeaveModal", () => {
     it("tells the employee when they do not have the hours", async () => {
       open()
       await goToOffset()
-      const { user } = await fillForm({ date: "2026-03-12", hours: "40", reason: "Long break" })
+      // A time input cannot express more than one day, so the widest window
+      // available is 00:00–23:59. That derives 23.98 hrs against a 16 hr
+      // balance, which is what the insufficient-balance guard is here to catch.
+      const { user } = await fillForm({ date: "2026-03-12", startTime: "00:00", endTime: "23:59", reason: "Long break" })
 
       await submit(user)
 
@@ -186,7 +212,7 @@ describe("ApplyLeaveModal", () => {
       open()
       await goToOffset()
       // 2026-03-14 is a Saturday.
-      const { user } = await fillForm({ date: "2026-03-14", hours: "8", reason: "Weekend" })
+      const { user } = await fillForm({ date: "2026-03-14", startTime: "09:00", endTime: "17:00", reason: "Weekend" })
 
       await submit(user)
 
@@ -210,7 +236,8 @@ describe("ApplyLeaveModal", () => {
       await goToSil()
       const { user } = await fillForm({
         date: "2026-03-10",
-        hours: "8",
+        startTime: "09:00",
+        endTime: "17:00",
         reason: "Medical appointment",
       })
 
@@ -218,22 +245,27 @@ describe("ApplyLeaveModal", () => {
       await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(1))
 
       expect(db.rows("sil_leaves")[0]).toMatchObject({
-        hours: 8,
+        hours: 7,
         reason: "Medical appointment",
         status: "PENDING",
       })
     })
 
     it("tells the employee when their balance is short", async () => {
+      // The guard reads the balance from the database, not from the signed-in
+      // context, so the short balance has to be the one on the row.
+      const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5 })
+      mockUser.current = { id: short.id, name: short.name }
+
       open()
       await goToSil()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "80", reason: "Long trip" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Long trip" })
 
       await submit(user)
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient SIL hours balance. You have 40 hrs remaining.",
+          "Insufficient SIL hours balance. You have 5 hrs remaining.",
         ),
       )
     })
@@ -241,7 +273,7 @@ describe("ApplyLeaveModal", () => {
     it("does not touch the balance until HR decides", async () => {
       open()
       await goToSil()
-      const { user } = await fillForm({ date: "2026-03-10", hours: "8", reason: "Medical" })
+      const { user } = await fillForm({ date: "2026-03-10", startTime: "09:00", endTime: "17:00", reason: "Medical" })
 
       await submit(user)
       await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(1))

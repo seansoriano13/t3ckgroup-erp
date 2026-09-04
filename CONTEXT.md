@@ -32,6 +32,14 @@ _Avoid_: Opportunity, Lead, Deal
 The centralized index and management table of all registered Sales Opportunity Records.
 _Avoid_: Opportunities Page, Opportunity Registration
 
+**Company**:
+The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
+_Avoid_: Client, Client Name, Customer, Account
+
+**Contact Person**:
+The individual at the Company that the salesperson actually deals with. Free text by design — it routinely carries a mobile number or a working nickname that Odoo does not hold.
+_Avoid_: Client, Contact Name
+
 **Offset**:
 Compensatory time off or overtime adjustment claimed by an employee for hours worked outside standard shifts.
 _Avoid_: Leave credit, OT slip

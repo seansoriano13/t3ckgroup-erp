@@ -42,12 +42,16 @@ describe("sales reference validation", () => {
     expect(normalizeSalesReference("  s01237 ")).toBe("S01237")
   })
 
-  it("rejects anything that is not S followed by digits", () => {
+  it("rejects anything that is not S (or SO) followed by digits", () => {
     expect(isValidSalesReference("01237")).toBe(false)
     expect(isValidSalesReference("S")).toBe(false)
-    expect(isValidSalesReference("SO1237")).toBe(false)
     expect(isValidSalesReference("S01237-A")).toBe(false)
     expect(isValidSalesReference("QS01237")).toBe(false)
+  })
+
+  it("normalises an SO prefix (Sales Order) into the expected S prefix", () => {
+    expect(normalizeSalesReference("SO01237")).toBe("S01237")
+    expect(isValidSalesReference("SO01237")).toBe(true)
   })
 
   it("rejects an empty or missing reference", () => {

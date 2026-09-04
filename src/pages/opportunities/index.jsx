@@ -846,7 +846,7 @@ export default function OpportunitiesPage() {
                     <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
                     <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
-                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Client</SortableTh>
+                    <SortableTh field="client_name" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[18%]">Company</SortableTh>
                     <SortableTh field="project_title" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[22%]">Project</SortableTh>
                     <SortableTh field="expected_value" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="right" className="w-[114px]">Expected Value</SortableTh>
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>

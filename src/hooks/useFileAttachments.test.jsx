@@ -38,13 +38,23 @@ describe("useFileAttachments", () => {
       expect(result.current.isUploading).toBe(false)
     })
 
-    it("makes a preview for an image but not for a document", () => {
+    it("makes a preview for an image but not for an allowed document", () => {
       const { result } = renderHook(() => useFileAttachments())
 
       act(() => result.current.addFiles([file(), file("report.pdf", "application/pdf")]))
 
       expect(result.current.files[0].preview).toBe("blob:preview")
       expect(result.current.files[1].preview).toBeNull()
+    })
+
+    it("rejects unsupported file types by extension", () => {
+      const { result } = renderHook(() => useFileAttachments())
+      
+      act(() => result.current.addFiles([file("script.sh", "application/x-sh"), file("virus.exe", "application/x-msdownload")]))
+
+      expect(result.current.files).toEqual([])
+      expect(toast.error).toHaveBeenCalledWith("script.sh is not a supported file type.")
+      expect(toast.error).toHaveBeenCalledWith("virus.exe is not a supported file type.")
     })
 
     it("adds to what is already held rather than replacing it", () => {
@@ -63,6 +73,15 @@ describe("useFileAttachments", () => {
       act(() => result.current.addFiles(null))
 
       expect(result.current.files).toEqual([])
+    })
+
+    it("rejects unsupported file types", () => {
+      const { result } = renderHook(() => useFileAttachments())
+
+      act(() => result.current.addFiles([file("app.exe", "application/x-msdownload")]))
+
+      expect(result.current.files).toEqual([])
+      expect(toast.error).toHaveBeenCalledWith("app.exe is not a supported file type.")
     })
   })
 

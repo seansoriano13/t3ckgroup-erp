@@ -32,13 +32,19 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      expect(groups).toHaveLength(1);
+      // Flow Canvas (issue #36) is deliberately visible to everyone while it
+      // is scaffolding for building Sales Flows with Operations, so even a
+      // standard employee sees the Administration group for that one link —
+      // it comes back out once locked flows are the production pipeline.
+      expect(groups).toHaveLength(2);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
         "Dashboard",
         "My Leaves & Overtime",
       ]);
+      expect(groups[1].key).toBe("administration");
+      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -104,6 +110,27 @@ describe("navigation registry", () => {
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "HR Verifications",
       ]);
+    });
+
+    it("opens Leaves Manager for a leave-management capability holder without full HR access", () => {
+      const leaveManager = {
+        id: "lm-1",
+        canManageLeaves: true,
+      };
+
+      const groups = getFilteredNavigationGroups(leaveManager);
+      const hrGroup = groups.find((g) => g.key === "human_resources");
+      expect(hrGroup).toBeDefined();
+      // Employee Directory stays hidden — the capability is scoped to
+      // leave management, not the broader HR flag's directory-edit access.
+      expect(hrGroup.links.map((l) => l.label)).toEqual(["Leaves Manager"]);
+    });
+
+    it("hides Leaves Manager from an employee without the capability", () => {
+      const standardUser = { id: "std-1" };
+
+      const groups = getFilteredNavigationGroups(standardUser);
+      expect(groups.find((g) => g.key === "human_resources")).toBeUndefined();
     });
 
     it("returns Sales with SOR Register when user has sales flow", () => {

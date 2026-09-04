@@ -41,6 +41,14 @@ describe("employeeService", () => {
       })
     })
 
+    it("maps the leave-management capability alongside the other role flags", async () => {
+      makeEmployee({ email: "ysabelle@t3ckgroup.test", can_manage_leaves: true })
+
+      const found = await employeeService.getEmployeeByEmail("ysabelle@t3ckgroup.test")
+
+      expect(found.canManageLeaves).toBe(true)
+    })
+
     it("returns null for an unknown address rather than throwing", async () => {
       expect(await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).toBeNull()
     })
@@ -67,6 +75,14 @@ describe("employeeService", () => {
       const hire = found.find((e) => e.name === "New Hire")
 
       expect(hire).toMatchObject({ sil_hours_balance: 0, offset_hours_balance: 0 })
+    })
+
+    it("maps the leave-management capability in the full directory listing", async () => {
+      makeEmployee({ name: "Ysabelle", can_manage_leaves: true })
+
+      const found = await employeeService.getAllEmployees()
+
+      expect(found.find((e) => e.name === "Ysabelle").canManageLeaves).toBe(true)
     })
   })
 
@@ -213,6 +229,18 @@ describe("employeeService", () => {
       )
 
       expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+
+    it("saves a grant of the leave-management capability", async () => {
+      const employee = makeEmployee({ name: "Ysabelle", can_manage_leaves: false })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ysabelle", email: null, canManageLeaves: true },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).can_manage_leaves).toBe(true)
     })
   })
 

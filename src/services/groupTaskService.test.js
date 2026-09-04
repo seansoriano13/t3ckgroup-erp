@@ -159,6 +159,28 @@ describe("groupTaskService", () => {
       ).rejects.toThrow("Unauthorized to update this task")
     })
 
+    it("carries an uploaded attachment back on the member, both by id and in the list", async () => {
+      const task = await createTask()
+      const [aliceAssignment] = (await membersOf(task.id)).filter(
+        (m) => m.employee_id === alice.id,
+      )
+      const descriptor = {
+        url: "https://res.cloudinary.com/demo/raw/upload/report.pdf",
+        name: "report.pdf",
+        type: "application/pdf",
+        bytes: 2048,
+      }
+
+      await groupTaskService.addMemberAttachment(aliceAssignment.id, descriptor, alice.id)
+
+      const byId = (await membersOf(task.id)).find((m) => m.employee_id === alice.id)
+      expect(byId.attachments).toEqual([descriptor])
+
+      const [visible] = await groupTaskService.getGroupTasks(alice.id, false, false)
+      const inList = visible.members.find((m) => m.employee_id === alice.id)
+      expect(inList.attachments).toEqual([descriptor])
+    })
+
     it("leaves the task active while anyone is still pending", async () => {
       const task = await createTask()
       const [aliceAssignment] = (await membersOf(task.id)).filter(

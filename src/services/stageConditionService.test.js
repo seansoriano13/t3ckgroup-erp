@@ -78,7 +78,11 @@ describe("stageConditionService", () => {
   })
 
   describe("add", () => {
-    it("refuses for a non-Super-Admin", async () => {
+    // Access control is deliberately off while Flow Canvas is a
+    // collaborative build surface (see requireSuperAdmin's comment) — this
+    // test is retired, not deleted, so it's easy to find when the gate
+    // comes back once flows are locked into the production pipeline.
+    it.skip("refuses for a non-Super-Admin", async () => {
       await expect(
         stageConditionService.add(
           { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
@@ -226,7 +230,11 @@ describe("stageConditionService", () => {
   })
 
   describe("reorder", () => {
-    it("refuses for a non-Super-Admin", async () => {
+    // Access control is deliberately off while Flow Canvas is a
+    // collaborative build surface (see requireSuperAdmin's comment) — this
+    // test is retired, not deleted, so it's easy to find when the gate
+    // comes back once flows are locked into the production pipeline.
+    it.skip("refuses for a non-Super-Admin", async () => {
       const first = makeStageCondition({ stage_id: stage.id, sort_order: 0 })
       const second = makeStageCondition({ stage_id: stage.id, sort_order: 1 })
 
@@ -271,7 +279,11 @@ describe("stageConditionService", () => {
   })
 
   describe("archive", () => {
-    it("refuses for a non-Super-Admin", async () => {
+    // Access control is deliberately off while Flow Canvas is a
+    // collaborative build surface (see requireSuperAdmin's comment) — this
+    // test is retired, not deleted, so it's easy to find when the gate
+    // comes back once flows are locked into the production pipeline.
+    it.skip("refuses for a non-Super-Admin", async () => {
       const condition = makeStageCondition({ stage_id: stage.id })
 
       await expect(stageConditionService.archive(condition.id, regular.id)).rejects.toThrow(

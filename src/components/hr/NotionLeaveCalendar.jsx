@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
+import { compareByStartTime, formatWindow, formatWindowCompact } from '../../utils/time';
 
 export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
@@ -34,7 +35,7 @@ export default function NotionLeaveCalendar({
 
   const prevMonthDays = Array.from({ length: firstDayOfMonth }, (_, i) => daysInPrevMonth - firstDayOfMonth + i + 1);
   const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  
+
   const totalGridCells = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7;
   const nextMonthDays = Array.from({ length: totalGridCells - (firstDayOfMonth + daysInMonth) }, (_, i) => i + 1);
 
@@ -44,7 +45,9 @@ export default function NotionLeaveCalendar({
     const mStr = (target.getMonth() + 1).toString().padStart(2, '0');
     const dStr = target.getDate().toString().padStart(2, '0');
     const dateStr = `${yStr}-${mStr}-${dStr}`;
-    return approvedLeaves.filter((leave) => leave.date === dateStr);
+    return approvedLeaves
+      .filter((leave) => leave.date === dateStr)
+      .sort(compareByStartTime);
   };
 
   const isToday = (dayNum) => {
@@ -92,11 +95,10 @@ export default function NotionLeaveCalendar({
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, idx) => (
           <span
             key={d}
-            className={`text-[10px] font-black uppercase tracking-[0.15em] ${
-              idx === 0 || idx === 6
-                ? 'text-red-11'
-                : 'text-muted-foreground'
-            }`}
+            className={`text-[10px] font-black uppercase tracking-[0.15em] ${idx === 0 || idx === 6
+              ? 'text-red-11'
+              : 'text-muted-foreground'
+              }`}
           >
             {d}
           </span>
@@ -121,22 +123,20 @@ export default function NotionLeaveCalendar({
           return (
             <div
               key={`curr-${day}`}
-              className={`min-h-[110px] p-2 transition-colors relative group flex flex-col justify-between ${
-                isWeekendCell ? 'bg-muted/30' : 'bg-card hover:bg-muted/40'
-              }`}
+              className={`min-h-[110px] p-2 transition-colors relative group flex flex-col justify-between ${isWeekendCell ? 'bg-muted/30' : 'bg-card hover:bg-muted/40'
+                }`}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full inline-block ${
-                    isToday(day)
-                      ? 'bg-primary text-primary-foreground shadow-xs'
-                      : 'text-foreground'
-                  }`}
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full inline-block ${isToday(day)
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-foreground'
+                    }`}
                 >
                   {day}
                 </span>
                 {leaves.length > 0 && (
-                  <span className="text-[10px] font-black uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-black uppercase tracking-wider border border-mauve-6 px-1.5 py-0.5 rounded-md">
                     {leaves.length} {leaves.length === 1 ? 'leave' : 'leaves'}
                   </span>
                 )}
@@ -163,7 +163,9 @@ export default function NotionLeaveCalendar({
                           {leave.employee?.name || 'Employee'}
                         </p>
                         <p className="text-[9px] text-muted-foreground font-mono truncate leading-tight">
-                          {leave.hours}h {leave.type}
+                          {leave.start_time && leave.end_time
+                            ? `${leave.hours}h · ${formatWindowCompact(leave.start_time, leave.end_time)}`
+                            : `${leave.hours}h ${leave.type}`}
                         </p>
                       </div>
                     </div>
@@ -235,9 +237,16 @@ export default function NotionLeaveCalendar({
                         <p className="text-xs text-muted-foreground font-medium truncate">{leave.employee?.department || '-'}</p>
                       </div>
                     </div>
-                    <span className="text-xs font-mono font-semibold text-muted-foreground shrink-0">
-                      {leave.hours} hrs {leave.type}
-                    </span>
+                    <div className="flex flex-col items-end shrink-0">
+                      <span className="text-xs font-mono font-semibold text-muted-foreground">
+                        {leave.hours} hrs {leave.type}
+                      </span>
+                      {leave.start_time && leave.end_time && (
+                        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                          {formatWindow(leave.start_time, leave.end_time)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -259,7 +268,7 @@ export default function NotionLeaveCalendar({
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="p-5 space-y-5">
               <div className="flex items-center space-x-4">
                 <Avatar src={selectedLeave.employee?.avatar_path} name={selectedLeave.employee?.name} size="lg" />
@@ -278,7 +287,14 @@ export default function NotionLeaveCalendar({
                 </div>
                 <div className="bg-muted/50 p-3 rounded-xl border border-border">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Duration</p>
-                  <p className="text-sm font-bold text-foreground">{selectedLeave.hours} Hours</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {selectedLeave.hours} Hours
+                    {selectedLeave.start_time && selectedLeave.end_time && (
+                      <span className="block text-xs font-medium text-muted-foreground mt-0.5">
+                        {formatWindow(selectedLeave.start_time, selectedLeave.end_time)}
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="col-span-2 bg-muted/50 p-3 rounded-xl border border-border">
                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Type</p>
@@ -290,25 +306,25 @@ export default function NotionLeaveCalendar({
 
               {selectedLeave.reason && (canViewAllReasons || currentUserId === selectedLeave.employee_id) && (
                 <div className="bg-muted/30 p-3 rounded-xl border border-border">
-                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
-                   <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
+                  <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
                 </div>
               )}
 
               {/* Action for Employee to Withdraw their own future leave */}
-              {currentUserId === selectedLeave.employee_id && 
-               new Date(selectedLeave.date) > new Date() && 
-               onWithdrawLeave && (
-                <button
-                  onClick={() => {
-                    onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
-                    setSelectedLeave(null);
-                  }}
-                  className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-                >
-                  Withdraw Leave
-                </button>
-              )}
+              {currentUserId === selectedLeave.employee_id &&
+                new Date(selectedLeave.date) > new Date() &&
+                onWithdrawLeave && (
+                  <button
+                    onClick={() => {
+                      onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
+                      setSelectedLeave(null);
+                    }}
+                    className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
+                  >
+                    Withdraw Leave
+                  </button>
+                )}
             </div>
           </div>
         </div>

@@ -30,7 +30,7 @@ import { useAuth } from "../../context/AuthContext";
 import { confirmDeleteToast, confirmActionToast } from "../ui/CustomToast";
 import { AttachmentPreviews, AttachmentList } from "../ui/Attachments";
 import { useFileAttachments } from "../../hooks/useFileAttachments";
-import { MAX_ATTACHMENT_BYTES, formatBytes } from "../../utils/attachments";
+import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../utils/attachments";
 import { getStatusTheme } from "../../constants/status";
 import Dropdown from "../ui/Dropdown";
 import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
@@ -62,6 +62,9 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
+  requiresItbNumber,
+  itbGateSatisfiedBy,
+  ITB_EXEMPT_LABEL,
   SALES_REFERENCE_HINT,
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
@@ -351,13 +354,6 @@ function formatWhen(iso) {
   });
 }
 
-function groupThousands(raw) {
-  if (!raw) return "";
-  const parts = raw.toString().split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.join(".");
-}
-
 /**
  * The Estimated Value box is a fixed width, so a fixed text-3xl/4xl broke
  * mid-digit-group on 8-figure deals (e.g. "₱28,543,940.0" / "0"). Shrinking by
@@ -512,6 +508,7 @@ export default function OpportunityDetailsModal({
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
+  const [itbNumber, setItbNumber] = useState("");
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -543,6 +540,7 @@ export default function OpportunityDetailsModal({
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
+    setItbNumber("");
 
     setIsExpanded(false);
     setIsEditing(false);
@@ -701,18 +699,21 @@ export default function OpportunityDetailsModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference }) =>
+    mutationFn: ({ next, reason, salesReference, itbNumber, itbExempt }) =>
       opportunityService.updateStatus(
         id,
         next,
         user?.id,
         reason,
         salesReference,
+        itbNumber,
+        itbExempt,
       ),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
       setSalesRef("");
+      setItbNumber("");
 
       invalidate();
       toast.success("Stage updated.");
@@ -784,7 +785,12 @@ export default function OpportunityDetailsModal({
       setAutoSyncingOdoo(true);
       try {
         const result = await odooService.fetchOrderLines(ref);
-        if (result?.success && isMounted) {
+        // `items: []` means the quotation is half-built, not that its products
+        // were removed. Since 0006 that case comes back as a SUCCESS so the
+        // Company can still be verified from it — without this guard the sync
+        // would write an empty Product List over a stored one, deleting it in
+        // the database on nothing more than opening the record.
+        if (result?.success && result.items.length && isMounted) {
           const payload = {
             ...opportunity,
             items: result.items.map(toRow)
@@ -833,10 +839,18 @@ export default function OpportunityDetailsModal({
         );
         return;
       }
+      const quotation = result.order?.name || ref;
+      // Same guard as the auto-sync above: an empty list must not replace a
+      // Product List that already has rows in it.
+      if (!result.items.length) {
+        toast.error(
+          result.message ||
+          `${quotation} has no product lines yet — enter them manually.`,
+        );
+        return;
+      }
       setEditForm(f => ({ ...f, items: result.items.map(toRow) }));
-      toast.success(
-        `Pulled ${result.items.length} item(s) from ${result.order?.name || ref}.`,
-      );
+      toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {
@@ -991,6 +1005,8 @@ export default function OpportunityDetailsModal({
         po_date: opportunity.po_date || "",
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
+        itb_number: opportunity.itb_number || "",
+        itb_exempt: !!opportunity.itb_exempt,
         deal_owner_id: opportunity.deal_owner_id || "",
         closing_sales_id: opportunity.closing_sales_id || "",
         sales_director_id: opportunity.sales_director_id || "",
@@ -1016,6 +1032,12 @@ export default function OpportunityDetailsModal({
     !opportunity.sales_reference;
   const salesRefValid = isValidSalesReference(salesRef);
 
+  const needsItbNumber =
+    !!pendingStage &&
+    requiresItbNumber(opportunity.status, pendingStage) &&
+    !itbGateSatisfiedBy(opportunity);
+  const itbNumberValid = !!itbNumber.trim();
+
   const handleSaveField = async (column, value) => {
     const isTopLevel = ["client_name", "project_title", "sales_reference", "expected_value", "contact_person"].includes(column);
     const payload = isTopLevel ? { [column]: value } : { metadata: { ...opportunity.metadata, [column]: value } };
@@ -1030,7 +1052,8 @@ export default function OpportunityDetailsModal({
     // they park the choice in `pendingStage` and prompt for it inline.
     if (
       isLostCode(next) ||
-      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
+      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference) ||
+      (requiresItbNumber(opportunity.status, next) && !itbGateSatisfiedBy(opportunity))
     ) {
       setPendingStage(next);
       return;
@@ -1048,19 +1071,19 @@ export default function OpportunityDetailsModal({
         } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
         "Move anyway",
         "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
+        () => stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null }),
       );
       return;
     }
 
-    stageMutation.mutate({ next, reason: null, salesReference: null });
+    stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null });
   };
 
   const cancelPendingStage = () => {
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
-
+    setItbNumber("");
   };
 
   const isPosting = isUploading || addNoteMutation.isPending;
@@ -1191,7 +1214,7 @@ export default function OpportunityDetailsModal({
                   value={editForm.client_name}
                   onChange={(e) => setEditForm(f => ({ ...f, client_name: e.target.value }))}
                   className="w-full text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
-                  placeholder="Client Name"
+                  placeholder="Company"
                 />
               </div>
             ) : (
@@ -1357,60 +1380,129 @@ export default function OpportunityDetailsModal({
               </div>
             )}
 
-            {needsSalesRef && (
-              <div className="mt-3">
-                <div className="flex items-end gap-2">
-                  <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-                    <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                      Sales Reference
-                      <span className="ml-0.5 text-red-500">*</span>
-                    </label>
-                    <input
-                      autoFocus
-                      value={salesRef}
-                      onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
-                      placeholder="e.g. S01237"
-                      className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
-                    />
-                  </div>
-                  <button
-                    disabled={!salesRefValid || stageMutation.isPending}
-                    onClick={() =>
-                      stageMutation.mutate({
-                        next: pendingStage,
-                        reason: null,
-                        salesReference: normalizeSalesReference(salesRef),
-                      })
-                    }
-                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    Confirm
-                  </button>
+            {(needsSalesRef || needsItbNumber) && (
+              <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
+                <div className="flex flex-col gap-3">
+                  {needsSalesRef && (
+                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+                      <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                        Sales Reference
+                        <span className="ml-0.5 text-red-500">*</span>
+                      </label>
+                      <input
+                        autoFocus
+                        value={salesRef}
+                        onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
+                        placeholder="e.g. S01237"
+                        className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
+                      />
+                      <p
+                        className={cn(
+                          "mt-1.5 text-[11px] leading-relaxed",
+                          salesRef && !salesRefValid
+                            ? "font-semibold text-red-500"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        {salesRef && !salesRefValid
+                          ? SALES_REFERENCE_HINT
+                          : `Enter the Odoo sales quotation number to confirm a quotation exists.`}
+                      </p>
+                    </div>
+                  )}
+
+                  {needsItbNumber && (
+                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+                      <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                        ITB Number (Invitation to Bid)
+                        <span className="ml-0.5 text-red-500">*</span>
+                      </label>
+                      <input
+                        autoFocus={!needsSalesRef}
+                        value={itbNumber}
+                        onChange={(e) => setItbNumber(e.target.value)}
+                        placeholder="e.g. ITB-2026-001 or URL link"
+                        className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
+                      />
+                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                        Enter the ITB Number (Invitation to Bid).
+                      </p>
+
+                      {/* Not every deal was bid for. An outright award — a government
+                          direct contract, say — has no ITB Number to give, and with
+                          no way to say so the only options left were inventing a
+                          number or having the gate switched off for everyone (which
+                          is what migrations 0035–0038 went through). Saying it is a
+                          claim about how the deal was won, so it is confirmed and
+                          then written to the log notes, never applied silently. */}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
+                        <p className="text-[11px] font-medium text-muted-foreground">
+                          No Invitation to Bid was issued for this deal?
+                        </p>
+                        <button
+                          disabled={
+                            stageMutation.isPending ||
+                            (needsSalesRef && !salesRefValid)
+                          }
+                          onClick={() =>
+                            confirmActionToast(
+                              "Mark this deal outright?",
+                              `${ITB_EXEMPT_LABEL} — it moves to ${
+                                stageLabel(pendingStage) || pendingStage
+                              } with no ITB Number, and this is recorded on the log notes under your name.`,
+                              "Mark outright",
+                              "warning",
+                              () =>
+                                stageMutation.mutate({
+                                  next: pendingStage,
+                                  reason: null,
+                                  salesReference: needsSalesRef
+                                    ? normalizeSalesReference(salesRef)
+                                    : null,
+                                  itbNumber: null,
+                                  itbExempt: true,
+                                }),
+                            )
+                          }
+                          className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
+                        >
+                          Outright — no bidding required
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-3 flex items-center justify-end gap-2">
                   <button
                     onClick={cancelPendingStage}
                     className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
                   >
                     Cancel
                   </button>
+                  <button
+                    disabled={
+                      (needsSalesRef && !salesRefValid) ||
+                      (needsItbNumber && !itbNumberValid) ||
+                      stageMutation.isPending
+                    }
+                    onClick={() =>
+                      stageMutation.mutate({
+                        next: pendingStage,
+                        reason: null,
+                        salesReference: needsSalesRef
+                          ? normalizeSalesReference(salesRef)
+                          : null,
+                        itbNumber: needsItbNumber ? itbNumber.trim() : null,
+                      })
+                    }
+                    className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    Confirm {stageLabel(pendingStage) || pendingStage}
+                  </button>
                 </div>
-                <p
-                  className={cn(
-                    "mt-1.5 text-[11px] leading-relaxed",
-                    salesRef && !salesRefValid
-                      ? "font-semibold text-red-500"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {salesRef && !salesRefValid
-                    ? SALES_REFERENCE_HINT
-                    : `Enter the Odoo sales quotation number to confirm a quotation exists before moving to ${stageLabel(pendingStage) ||
-                    pendingStage
-                    }.`}
-                </p>
               </div>
             )}
-
-
           </div>
 
           {opportunity.lost_reason && (
@@ -1963,7 +2055,41 @@ export default function OpportunityDetailsModal({
                     </Detail>
                   )}
 
-
+                  <Detail
+                    label="ITB Number (Invitation to Bid)"
+                    isEditing={isEditing}
+                    control={
+                      <div className="flex flex-col gap-1.5">
+                        <input
+                          type="text"
+                          value={editForm.itb_number}
+                          onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
+                          disabled={editForm.itb_exempt}
+                          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium disabled:opacity-40"
+                          placeholder="e.g. ITB-2026-001 or URL link"
+                        />
+                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                          <input
+                            type="checkbox"
+                            checked={!!editForm.itb_exempt}
+                            onChange={(e) =>
+                              setEditForm((f) => ({ ...f, itb_exempt: e.target.checked }))
+                            }
+                            className="accent-amber-9"
+                          />
+                          {ITB_EXEMPT_LABEL}
+                        </label>
+                      </div>
+                    }
+                  >
+                    {opportunity.itb_number || (
+                      opportunity.itb_exempt ? (
+                        <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>
+                      )
+                    )}
+                  </Detail>
                 </div>
               </div>
 
@@ -2066,6 +2192,7 @@ export default function OpportunityDetailsModal({
                       ref={fileInputRef}
                       type="file"
                       multiple
+                      accept={ALLOWED_EXTENSIONS_STRING}
                       className="hidden"
                       onChange={(e) => {
                         attachments.addFiles(e.target.files);

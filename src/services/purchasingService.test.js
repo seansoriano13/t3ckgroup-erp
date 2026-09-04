@@ -958,4 +958,41 @@ describe("purchasingService", () => {
       expect(await completenessOf(inclusion.id)).toBe(COMPLETENESS.MISSING)
     })
   })
+
+  /**
+   * A requisition task holds no `opportunity_id` of its own — the tie to the
+   * deal lives on the request rows it carries. Purchasing reads back through
+   * that tie to see who they are buying for.
+   */
+  describe("the SOR behind a requisition task", () => {
+    it("reads back the deal a task was raised from", async () => {
+      await raise()
+      await waitForNetworkIdle()
+      const [task] = db.rows("tasks")
+
+      const sor = await purchasingService.sorForTask(task.id)
+
+      expect(sor).toMatchObject({
+        id: opportunity.id,
+        sales_reference: "S01237",
+        client_name: "ACME Corp",
+      })
+    })
+
+    it("names the deal owner, so the buyer knows who to ask", async () => {
+      await raise()
+      await waitForNetworkIdle()
+      const [task] = db.rows("tasks")
+
+      const sor = await purchasingService.sorForTask(task.id)
+
+      expect(sor.deal_owner).toMatchObject({ id: salesperson.id })
+    })
+
+    it("has nothing to say about a task that is not a requisition", async () => {
+      expect(await purchasingService.sorForTask("not-a-requisition")).toBeNull()
+      expect(await purchasingService.sorForTask(null)).toBeNull()
+    })
+  })
+
 })

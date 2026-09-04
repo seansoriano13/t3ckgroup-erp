@@ -38,6 +38,7 @@ const MODE_LABELS = {
 export default function FloatingMonthPicker({ selectedRange, onChange }) {
   const [open, setOpen] = useState(false)
   const [dropUp, setDropUp] = useState(false)
+  const [globalHidden, setGlobalHidden] = useState(false)
   const panelRef = useRef(null)
   // const isInternalChange = useRef(false);
   const now = new Date()
@@ -175,6 +176,18 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [open])
+
+  // Listen for global hide/show events
+  useEffect(() => {
+    const onHide = () => setGlobalHidden(true)
+    const onShow = () => setGlobalHidden(false)
+    window.addEventListener("FLOATING_PICKER_HIDE", onHide)
+    window.addEventListener("FLOATING_PICKER_SHOW", onShow)
+    return () => {
+      window.removeEventListener("FLOATING_PICKER_HIDE", onHide)
+      window.removeEventListener("FLOATING_PICKER_SHOW", onShow)
+    }
+  }, [])
 
   useEffect(() => {
     if (open && panelRef.current) {
@@ -494,6 +507,8 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
       </Draggable>
     </div>
   )
+
+  if (globalHidden) return null;
 
   return createPortal(content, document.body)
 }

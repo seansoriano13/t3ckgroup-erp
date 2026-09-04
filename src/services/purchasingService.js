@@ -282,6 +282,38 @@ export const purchasingService = {
     return data || [];
   },
 
+  /**
+   * The SOR a requisition task was raised from, or null if it is not one.
+   *
+   * A task carries no `opportunity_id` of its own — the link lives on the
+   * requests it holds, and a task only ever gathers requests from a single
+   * deal (`findOpenTaskFor` keys reuse on opportunity and assignee together).
+   * So the first request's SOR is the task's SOR.
+   *
+   * Purchasing reads this to see which deal they are buying for. Org-wide
+   * SELECT on the register is what makes it legible to them; being able to
+   * edit it is a separate question that `canEditSor` answers.
+   */
+  async sorForTask(taskId) {
+    if (!taskId) return null;
+
+    const { data, error } = await supabase
+      .from("sor_procurement_requests")
+      .select(
+        `opportunity:sales_opportunities!sor_procurement_requests_opportunity_id_fkey(
+          id, sales_reference, client_name, project_title, status, expected_value,
+          registered_by, deal_owner_id, support_sales_1_id, support_sales_2_id,
+          sales_director_id,
+          deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name)
+        )`,
+      )
+      .eq("task_id", taskId)
+      .limit(1);
+
+    if (error) throw error;
+    return data?.[0]?.opportunity || null;
+  },
+
   /** Open requests assigned to one purchaser, for their own queue. */
   async listOpenFor(employeeId) {
     if (!employeeId) return [];

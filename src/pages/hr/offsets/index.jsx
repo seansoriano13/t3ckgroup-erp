@@ -4,21 +4,30 @@ import { silService } from '../../../services/silService';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Clock, CheckCircle2, XCircle, Search, Filter } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
+import DocumentCenterTab from './components/DocumentCenterTab';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
+import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
+import HrApplyLeaveModal from '../../../components/hr/HrApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
 import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
+import { formatWindow, isRequestInPendingPeriod } from '../../../utils/time';
+import { groupLeaveRows } from '../../../utils/leaveGroups';
+import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
+import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'history', 'balances'
+  const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'documents', 'history', 'balances'
   
   // Date Range State (for FloatingMonthPicker)
   const currentDate = new Date();
@@ -36,10 +45,27 @@ export default function HrLeavesManagerPage() {
   const [approvedLeaves, setApprovedLeaves] = useState([]);
   const [employeeBalances, setEmployeeBalances] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [previewToken, setPreviewToken] = useState(null);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
+  const [balancesLayout, setBalancesLayout] = useState('table'); // 'grid' | 'table'
+  const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
+
+  // Manage FloatingMonthPicker visibility
+  useEffect(() => {
+    if (activeTab === 'pending') {
+      window.dispatchEvent(new Event('FLOATING_PICKER_HIDE'));
+    } else {
+      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
+    }
+    return () => {
+      window.dispatchEvent(new Event('FLOATING_PICKER_SHOW'));
+    };
+  }, [activeTab]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -53,33 +79,49 @@ export default function HrLeavesManagerPage() {
       if (empErr) throw empErr;
       setEmployeeBalances(empData);
 
-      // 2. Fetch All Requests
+      // 2. Fetch Requests
       const [
         allOt,
         allOffset,
-        allSil
+        allSil,
+        pendingOt,
+        pendingOffset,
+        pendingSil
       ] = await Promise.all([
         offsetService.getAllOvertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate),
-        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate)
+        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate),
+        offsetService.getAllPendingOvertimeRequests(),
+        offsetService.getAllPendingOffsetLeaves(),
+        silService.getAllPendingSilLeaves()
       ]);
 
-      // Tag types
+      // Tag types for period-scoped requests
       const taggedOt = allOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedOffset = allOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedSil = allSil.map(l => ({ ...l, type: 'SIL' }));
-
       const combined = [...taggedOt, ...taggedOffset, ...taggedSil];
 
-      // Sort & Split
-      const pending = combined.filter(req => req.status === 'PENDING').sort((a, b) => new Date(a.date) - new Date(b.date));
-      const processed = combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
-                                .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
-      
-      // Approved for calendar
+      // Tag types for dateless pending requests
+      const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
+      const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
+      const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
+      // A range writes one row per day (see ticket #63), so rows sharing a
+      // leave_group_id are collapsed into one entry before the queue is built —
+      // otherwise a 3-day leave would show as three separate pending requests.
+      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil])
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
+
+      // Processed (from period-scoped) — grouped the same way as pending.
+      const processed = groupLeaveRows(
+        combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
+      ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+
+      // Approved feeds the calendar, which plots one card per day — left
+      // ungrouped so every day in a range still gets its own cell.
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
-      setPendingLeaves(pending);
+      setPendingLeaves(pendingCombined);
       setProcessedLeaves(processed);
       setApprovedLeaves(approved);
 
@@ -101,23 +143,30 @@ export default function HrLeavesManagerPage() {
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
 
+    // Approving overtime lets HR edit the hours actually rendered before
+    // they're credited, so it opens a modal rather than a plain confirm.
+    if (isOT && actionType !== 'reject') {
+      const status = actionType === 'approve' ? 'APPROVED_OFFSET' : 'APPROVED_PAID';
+      setOvertimeApproval({ request, status });
+      return;
+    }
+
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
-    if (actionType === 'approve_paid') actionLabel = 'Approve as Paid OT';
-    
+
+    const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
     let title = `${actionLabel} Request`;
-    let msg = `Are you sure you want to ${actionLabel.toLowerCase()} this ${request.type.toLowerCase()} request for ${request.hours} hours?`;
+    let msg = `Are you sure you want to ${actionLabel.toLowerCase()} this ${request.type.toLowerCase()} request for ${request.hours} hours${rangeNote}?`;
 
     confirmActionToast(title, msg, actionLabel, actionType === 'reject' ? 'destructive' : 'default', async () => {
       try {
         if (isOT) {
-          const status = actionType === 'approve' ? 'APPROVED_OFFSET' : actionType === 'approve_paid' ? 'APPROVED_PAID' : 'REJECTED';
-          await offsetService.handleOvertimeDecision({ requestId: request.id, status, hrId: user?.id });
+          await offsetService.handleOvertimeDecision({ requestId: request.id, status: 'REJECTED', hrId: user?.id });
         } else if (isOffset) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
-          await offsetService.handleOffsetLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
+          await offsetService.handleOffsetLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         } else if (isSIL) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
-          await silService.handleSilLeaveDecision({ leaveId: request.id, status, hrId: user?.id });
+          await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
         toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
         loadData();
@@ -142,9 +191,9 @@ export default function HrLeavesManagerPage() {
           if (isOT) {
             await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: user?.id });
           } else if (isOffset) {
-            await offsetService.undoOffsetLeaveDecision({ leaveId: request.id, hrId: user?.id });
+            await offsetService.undoOffsetLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isSIL) {
-            await silService.undoSilLeaveDecision({ leaveId: request.id, hrId: user?.id });
+            await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           }
           toast.success('Decision undone successfully.');
           loadData();
@@ -191,11 +240,33 @@ export default function HrLeavesManagerPage() {
       if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
       if (searchQuery) {
         const empName = (req.employee?.name || '').toLowerCase();
-        return empName.includes(searchQuery.toLowerCase());
+        if (!empName.includes(searchQuery.toLowerCase())) return false;
+      }
+      
+      if (pendingPeriodFilter !== 'ALL') {
+        if (!isRequestInPendingPeriod(req.date, pendingPeriodFilter)) return false;
       }
       return true;
     });
-  }, [pendingLeaves, leaveTypeFilter, searchQuery]);
+  }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter]);
+
+  // Group filtered pending by month
+  const pendingByMonth = useMemo(() => {
+    const groups = {};
+    filteredPending.forEach(req => {
+      const d = new Date(req.date);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!groups[key]) {
+        groups[key] = {
+          label: d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          requests: []
+        };
+      }
+      groups[key].requests.push(req);
+    });
+    // Sort groups by key ascending
+    return Object.keys(groups).sort().map(k => groups[k]);
+  }, [filteredPending]);
 
   const filteredProcessed = useMemo(() => {
     return processedLeaves.filter(req => {
@@ -213,18 +284,53 @@ export default function HrLeavesManagerPage() {
     return employeeBalances.filter(emp => emp.name.toLowerCase().includes(searchQuery.toLowerCase()));
   }, [employeeBalances, searchQuery]);
 
+  // The Document Center's picker is scoped to approved records only — same
+  // restriction Request History enforced when it still had a print action.
+  const approvedForDocuments = useMemo(
+    () => filteredProcessed.filter(r => r.status.startsWith('APPROVED')),
+    [filteredProcessed]
+  );
 
   return (
-    <ProtectedRoute requireHr={true}>
+    <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
+      <PageHeader 
+        title="Offsets & Leaves" 
+        subtitle="Manage overtime credits, leave requests, and balances"
+      />
+
+      <ApproveOvertimeModal
+        isOpen={!!overtimeApproval}
+        onClose={() => setOvertimeApproval(null)}
+        request={overtimeApproval?.request}
+        status={overtimeApproval?.status}
+        hrId={user?.id}
+        onSuccess={loadData}
+      />
+
       <FloatingMonthPicker
         selectedRange={dateRange}
         onChange={setDateRange}
       />
 
-      <PageHeader
-        title="HR Leaves & Overtime Manager"
-        description="Review leave applications, approve overtime, and manage employee balances."
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <PageHeader
+          title="HR Leaves & Overtime Manager"
+          description="Review leave applications, approve overtime, and manage employee balances."
+        />
+        <button
+          onClick={() => setIsApplyModalOpen(true)}
+          className="flex-none bg-primary text-primary-foreground font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-primary/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+          File for Employee
+        </button>
+      </div>
+
+      <HrApplyLeaveModal 
+        isOpen={isApplyModalOpen}
+        onClose={() => setIsApplyModalOpen(false)}
+        onSuccess={loadData}
       />
 
       <div className="space-y-4">
@@ -233,7 +339,8 @@ export default function HrLeavesManagerPage() {
           tabs={[
             { value: 'calendar', label: `Calendar` },
             { value: 'pending', label: `Pending Requests (${pendingLeaves.length})` },
-            { value: 'history', label: `Decision History` },
+            { value: 'documents', label: `Document Center` },
+            { value: 'history', label: `Request History` },
             { value: 'balances', label: `Employee Balances` },
           ]}
           activeTab={activeTab}
@@ -242,7 +349,7 @@ export default function HrLeavesManagerPage() {
         />
 
         {/* Toolbar (Search & Filter) for list views */}
-        {(activeTab === 'pending' || activeTab === 'history' || activeTab === 'balances') && (
+        {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
            <div className="flex flex-col sm:flex-row gap-3">
              <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
@@ -251,11 +358,11 @@ export default function HrLeavesManagerPage() {
                   placeholder="Search employees..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground"
+                  className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-foreground/30 text-foreground"
                 />
               </div>
-              
-              {(activeTab === 'pending' || activeTab === 'history') && (
+
+              {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history') && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Filter size={14} className="text-muted-foreground" />
                   <select
@@ -270,7 +377,48 @@ export default function HrLeavesManagerPage() {
                   </select>
                 </div>
               )}
+              
+              {activeTab === 'pending' && (
+                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
+                  <Clock size={14} className="text-muted-foreground" />
+                  <select
+                    value={pendingPeriodFilter}
+                    onChange={(e) => setPendingPeriodFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                  >
+                    <option value="ALL">All time</option>
+                    <option value="THIS_MONTH">This month</option>
+                    <option value="NEXT_MONTH">Next month</option>
+                    <option value="OVERDUE">Overdue</option>
+                  </select>
+                </div>
+              )}
+              
+              {activeTab === 'balances' && (
+                <div className="flex items-center bg-card border border-border rounded-xl p-1 shrink-0">
+                  <button
+                    onClick={() => setBalancesLayout('table')}
+                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    title="Table View"
+                  >
+                    <List size={16} />
+                  </button>
+                  <button
+                    onClick={() => setBalancesLayout('grid')}
+                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    title="Grid View"
+                  >
+                    <LayoutGrid size={16} />
+                  </button>
+                </div>
+              )}
            </div>
+        )}
+
+        {activeTab === 'pending' && filteredPending.length < pendingLeaves.length && (
+          <p className="text-xs font-semibold text-muted-foreground px-1">
+            Showing {filteredPending.length} of {pendingLeaves.length} pending requests
+          </p>
         )}
 
         {/* Content Tabs */}
@@ -303,6 +451,7 @@ export default function HrLeavesManagerPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Employee</th>
                       <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
@@ -311,69 +460,107 @@ export default function HrLeavesManagerPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {filteredPending.map(req => (
-                       <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                              <div>
-                                <p className="text-sm font-bold text-foreground">{req.employee?.name}</p>
-                                <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
-                              </div>
-                            </div>
+                    {pendingByMonth.map(group => (
+                      <React.Fragment key={group.label}>
+                        <tr>
+                          <td colSpan="7" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
+                            {group.label}
                           </td>
-                          <td className="p-4">
-                            <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                              req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                              req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
-                            }`}>
-                              {req.type}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
-                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="p-4">
-                            <span className="font-black text-sm text-foreground">
-                              {req.hours} hrs
-                            </span>
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
-                             {req.reason || '-'}
-                          </td>
-                          <td className="p-4">
-                             {req.attachments?.length ? (
-                               <AttachmentList attachments={req.attachments} compact />
-                             ) : (
-                               <span className="text-xs text-muted-foreground/50">-</span>
-                             )}
-                          </td>
-                          <td className="p-4 text-right space-x-2">
-                             {req.type === 'OVERTIME' ? (
-                                <>
-                                  <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve (Offset)
-                                  </button>
-                                  <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve (Paid)
-                                  </button>
-                                </>
-                             ) : (
-                                <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                    Approve
-                                </button>
-                             )}
-                             <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
-                                Reject
-                             </button>
-                          </td>
-                       </tr>
+                        </tr>
+                        {group.requests.map(req => (
+                           <tr key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30 transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
+                                  <div>
+                                    <p className="text-sm font-bold text-foreground">{req.employee?.name}</p>
+                                    <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
+                                  req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
+                                  req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                                }`}>
+                                  {req.type}
+                                </span>
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-foreground">
+                                {req.category?.label || '-'}
+                              </td>
+                              <td className="p-4 text-sm font-bold text-foreground">
+                                {req.dayCount > 1 ? (
+                                  <>
+                                    {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {' – '}
+                                    {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                      {req.dayCount} days
+                                    </span>
+                                  </>
+                                ) : (
+                                  new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <div className="flex flex-col gap-0.5">
+                                  <span className="font-black text-sm text-foreground">
+                                    {req.hours} hrs
+                                  </span>
+                                  {req.start_time && req.end_time && (
+                                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                      {formatWindow(req.start_time, req.end_time)}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
+                                 {req.reason || '-'}
+                              </td>
+                              <td className="p-4">
+                                 {req.attachments?.length ? (
+                                   <AttachmentList attachments={req.attachments} compact />
+                                 ) : (
+                                   <span className="text-xs text-muted-foreground/50">-</span>
+                                 )}
+                              </td>
+                              <td className="p-4 text-right space-x-2">
+                                 {req.type === 'OVERTIME' ? (
+                                    <>
+                                      <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve (Offset)
+                                      </button>
+                                      <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve (Paid)
+                                      </button>
+                                    </>
+                                 ) : (
+                                    <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                        Approve
+                                    </button>
+                                 )}
+                                 <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                    Reject
+                                 </button>
+                              </td>
+                           </tr>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </tbody>
                 </table>
                </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'documents' && (
+          <DocumentCenterTab
+            approvedRecords={approvedForDocuments}
+            hrId={user?.id}
+            onPrinted={loadData}
+          />
         )}
 
         {activeTab === 'history' && (
@@ -383,12 +570,17 @@ export default function HrLeavesManagerPage() {
             ) : filteredProcessed.length === 0 ? (
                <div className="p-12 text-center text-muted-foreground font-medium bg-muted/20">No history found for the selected period.</div>
             ) : (
-               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                      <th className="p-4">Employee</th>
+               <div className="flex flex-col">
+                 <div className="p-4 border-b border-border flex justify-between items-center bg-muted/10">
+                   <span className="text-sm font-bold text-foreground">{filteredProcessed.length} Records</span>
+                 </div>
+                 <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4">Employee</th>
                       <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Date</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Files</th>
@@ -398,104 +590,208 @@ export default function HrLeavesManagerPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {filteredProcessed.map(req => (
-                       <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
-                              <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                             <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                              req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                              req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
-                            }`}>
-                              {req.type}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
-                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                          </td>
-                          <td className="p-4 font-black text-sm text-foreground">
-                            {req.hours} hrs
-                          </td>
-                          <td className="p-4">
-                             {req.attachments?.length ? (
-                               <AttachmentList attachments={req.attachments} compact />
-                             ) : (
-                               <span className="text-xs text-muted-foreground/50">-</span>
-                             )}
-                          </td>
-                          <td className="p-4">
-                            {getStatusBadge(req.status)}
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground">
-                            {new Date(req.updated_at).toLocaleDateString()}
-                          </td>
-                          <td className="p-4 text-right">
-                             <button
-                               onClick={() => handleUndo(req)}
-                               className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
-                             >
-                               Undo
-                             </button>
-                          </td>
-                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      {filteredProcessed.map(req => {
+                        const key = req.type + '-' + (req.leave_group_id || req.id);
+                        return (
+                          <tr key={key} className="hover:bg-muted/30 transition-colors">
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
+                                <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
+                                req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
+                                req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                              }`}>
+                                {req.type}
+                              </span>
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-foreground">
+                              {req.category?.label || '-'}
+                            </td>
+                            <td className="p-4 text-sm font-bold text-foreground">
+                              {req.dayCount > 1 ? (
+                                <>
+                                  {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  {' – '}
+                                  {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                  <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                    {req.dayCount} days
+                                  </span>
+                                </>
+                              ) : (
+                                new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                              )}
+                            </td>
+                            <td className="p-4">
+                              <div className="flex flex-col gap-0.5">
+                                <span className="font-black text-sm text-foreground">
+                                  {req.type === 'OVERTIME' && req.approved_hours != null && req.approved_hours !== req.hours ? (
+                                    <>
+                                      <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
+                                      {req.approved_hours} hrs
+                                    </>
+                                  ) : (
+                                    `${req.hours} hrs`
+                                  )}
+                                </span>
+                                {req.start_time && req.end_time && (
+                                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                    {formatWindow(req.start_time, req.end_time)}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              {req.attachments?.length ? (
+                                <AttachmentList attachments={req.attachments} compact />
+                              ) : (
+                                <span className="text-xs text-muted-foreground/50">-</span>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {getStatusBadge(req.status)}
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-muted-foreground">
+                              {new Date(req.updated_at).toLocaleDateString()}
+                            </td>
+                            <td className="p-4 text-right flex items-center justify-end">
+                              {req.verification_token && (
+                                <button
+                                  onClick={() => setPreviewToken(req.verification_token)}
+                                  className="text-xs font-bold text-blue-11 bg-blue-2 hover:bg-blue-3 border border-blue-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2"
+                                >
+                                  Preview
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleUndo(req)}
+                                className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Undo
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                 </div>
                </div>
             )}
           </div>
         )}
 
         {activeTab === 'balances' && (
-           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                      <th className="p-4">Employee</th>
-                      <th className="p-4">Offset Balance</th>
-                      <th className="p-4">SIL Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
-                    {filteredBalances.map(emp => (
-                       <tr key={emp.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <Avatar name={emp.name} src={emp.avatar_path} size="sm" />
-                              <div>
-                                <p className="text-sm font-bold text-foreground">{emp.name}</p>
-                                <p className="text-xs text-muted-foreground font-medium">{emp.department}</p>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                             <span className={`font-black text-sm px-3 py-1 rounded-lg border ${
-                               emp.offset_hours_balance > 0 ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-muted text-muted-foreground border-border'
-                             }`}>
-                               {emp.offset_hours_balance} hrs
-                             </span>
-                          </td>
-                           <td className="p-4">
-                             <span className={`font-black text-sm px-3 py-1 rounded-lg border ${
-                               emp.sil_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
-                             }`}>
-                               {emp.sil_hours_balance} hrs
-                             </span>
-                          </td>
-                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-           </div>
+           <>
+             {balancesLayout === 'grid' ? (
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
+                 {filteredBalances.map(emp => (
+                    <div key={emp.id} className="bg-white border border-[#E9E9E7] rounded-xl p-5 hover:border-[#D4D4D2] transition-colors shadow-sm flex flex-col gap-4">
+                      <div className="flex items-center gap-3 border-b border-[#F1F1EF] pb-4">
+                        <Avatar name={emp.name} src={emp.avatar_path} size="md" />
+                        <div>
+                          <p className="text-[15px] font-bold text-[#37352F]">{emp.name}</p>
+                          <p className="text-[13px] text-[#9B9A97] font-medium">{emp.department || 'No Department'}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-[#F7F7F5] rounded-lg p-3 border border-[#E9E9E7] flex flex-col justify-center">
+                          <p className="text-[10px] font-black text-[#9B9A97] uppercase tracking-wider mb-1">Offset</p>
+                          <div className="flex items-baseline gap-1">
+                            <span className={`text-2xl font-black ${emp.offset_hours_balance > 0 ? 'text-[#0F7B42]' : 'text-[#37352F]'}`}>
+                              {emp.offset_hours_balance}
+                            </span>
+                            <span className="text-xs text-[#9B9A97] font-bold tracking-tight">hrs</span>
+                          </div>
+                        </div>
+                        
+                        <div className="bg-[#F7F7F5] rounded-lg p-3 border border-[#E9E9E7] flex flex-col justify-center">
+                          <p className="text-[10px] font-black text-[#9B9A97] uppercase tracking-wider mb-1">SIL</p>
+                          <div className="flex items-baseline gap-1">
+                            <span className={`text-2xl font-black ${emp.sil_hours_balance > 0 ? 'text-[#0F7B42]' : 'text-[#37352F]'}`}>
+                              {emp.sil_hours_balance}
+                            </span>
+                            <span className="text-xs text-[#9B9A97] font-bold tracking-tight">hrs</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                 ))}
+                 {filteredBalances.length === 0 && (
+                   <div className="col-span-full py-16 text-center text-[#9B9A97] bg-[#F7F7F5] border border-[#E9E9E7] rounded-xl border-dashed flex flex-col items-center justify-center gap-2">
+                     <span className="text-sm font-medium">No employee balances found</span>
+                   </div>
+                 )}
+               </div>
+             ) : (
+               <div className="bg-white border border-[#E9E9E7] rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse whitespace-nowrap">
+                      <thead>
+                        <tr className="bg-[#F7F7F5] border-b border-[#E9E9E7] text-[10px] font-black text-[#9B9A97] uppercase tracking-[0.15em]">
+                          <th className="p-4">Employee</th>
+                          <th className="p-4">Offset Balance</th>
+                          <th className="p-4">SIL Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#E9E9E7]">
+                        {filteredBalances.map(emp => (
+                           <tr key={emp.id} className="hover:bg-[#F9F9F8] transition-colors">
+                              <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                  <Avatar name={emp.name} src={emp.avatar_path} size="sm" />
+                                  <div>
+                                    <p className="text-[14px] font-bold text-[#37352F]">{emp.name}</p>
+                                    <p className="text-[12px] text-[#9B9A97] font-medium">{emp.department || 'No Department'}</p>
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="p-4">
+                                 <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
+                                   emp.offset_hours_balance > 0 ? 'bg-[#F3FBF4] text-[#0F7B42] border-[#E1F3E5]' : 'bg-[#F7F7F5] text-[#9B9A97] border-[#E9E9E7]'
+                                 }`}>
+                                   {emp.offset_hours_balance} hrs
+                                 </span>
+                              </td>
+                               <td className="p-4">
+                                 <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
+                                   emp.sil_hours_balance > 0 ? 'bg-[#F3FBF4] text-[#0F7B42] border-[#E1F3E5]' : 'bg-[#F7F7F5] text-[#9B9A97] border-[#E9E9E7]'
+                                 }`}>
+                                   {emp.sil_hours_balance} hrs
+                                 </span>
+                              </td>
+                           </tr>
+                        ))}
+                        {filteredBalances.length === 0 && (
+                          <tr>
+                            <td colSpan={3} className="py-16 text-center text-[#9B9A97] bg-[#F7F7F5]">
+                              No employee balances found
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+               </div>
+             )}
+           </>
         )}
-
       </div>
+
+      <Dialog open={!!previewToken} onOpenChange={(open) => !open && setPreviewToken(null)}>
+        <DialogContent className="max-w-3xl p-0 overflow-hidden bg-transparent border-0 shadow-none">
+          <VisuallyHidden>
+            <DialogTitle>Verified Record Preview</DialogTitle>
+          </VisuallyHidden>
+          {previewToken && (
+            <VerifiedRecordPreview token={previewToken} standalone={false} />
+          )}
+        </DialogContent>
+      </Dialog>
     </PageContainer>
     </ProtectedRoute>
   );

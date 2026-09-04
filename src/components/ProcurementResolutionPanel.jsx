@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import {
   Check,
   Copy,
+  ExternalLink,
   FileText,
   Loader2,
   PackageSearch,
@@ -34,6 +35,73 @@ import {
   outcomeRequiresPo,
 } from "../constants/procurement";
 import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
+import { STAGE_LABELS } from "../constants/sor";
+import { canEditSor } from "../utils/sorPermissions";
+
+/**
+ * The deal a requisition was raised from, for the buyer working the task.
+ *
+ * Purchasing opens a requisition knowing what to buy and nothing about who it
+ * is for — the task carries no link back to the SOR, and the answer to "which
+ * deal is this?" was a message to whoever raised it. The common case is
+ * answered without a click: the Sales Reference and the Company are on the
+ * card itself.
+ *
+ * Read-only by construction. The register is readable org-wide, but editing an
+ * SOR is limited to the people on the deal, so the way through to the full
+ * record is offered only to someone who could actually act on it — anyone else
+ * would land in a form whose saves the database refuses.
+ */
+function SorSummary({ sor, user }) {
+  if (!sor) return null;
+
+  const value = Number(sor.expected_value || 0);
+
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-border/70 bg-muted/30 px-3.5 py-2.5">
+      <span className="text-xs font-black tracking-tight text-foreground">
+        {sor.sales_reference || "Unreferenced SOR"}
+      </span>
+      <span className="text-[11px] font-semibold text-muted-foreground">
+        {sor.client_name}
+      </span>
+      {sor.project_title && (
+        <span
+          className="max-w-[220px] truncate text-[11px] text-muted-foreground/80"
+          title={sor.project_title}
+        >
+          {sor.project_title}
+        </span>
+      )}
+      {sor.status && <StatusBadge status={sor.status} label={STAGE_LABELS[sor.status]} />}
+      {value > 0 && (
+        <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+          ₱{value.toLocaleString("en-PH", { maximumFractionDigits: 0 })}
+        </span>
+      )}
+      {sor.deal_owner?.name && (
+        <span className="text-[11px] text-muted-foreground/80">
+          Deal owner: {sor.deal_owner.name}
+        </span>
+      )}
+      {canEditSor(user, sor) && (
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(
+              new CustomEvent("OPEN_ENTITY_DETAILS", {
+                detail: { id: sor.id, type: "OPPORTUNITY" },
+              }),
+            )
+          }
+          className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+        >
+          View full SOR <ExternalLink size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
 
 const OUTCOME_OPTIONS = [
   { value: PROCUREMENT_OUTCOME.IN_PROGRESS, label: "In progress", dot: "bg-amber-9" },
@@ -676,6 +744,7 @@ function OpenRow({ request, onResolve, isPending, userId, canEdit }) {
 export default function ProcurementResolutionPanel({
   taskId,
   userId,
+  user,
   canEditCanvass = false,
   onSubmittingChange,
   onDeliveredComplete,
@@ -685,6 +754,12 @@ export default function ProcurementResolutionPanel({
   const { data: requests = [] } = useQuery({
     queryKey: ["procurement", "task", taskId],
     queryFn: () => purchasingService.listForTask(taskId),
+    enabled: !!taskId,
+  });
+
+  const { data: sor } = useQuery({
+    queryKey: ["procurement", "task", taskId, "sor"],
+    queryFn: () => purchasingService.sorForTask(taskId),
     enabled: !!taskId,
   });
 
@@ -784,6 +859,8 @@ export default function ProcurementResolutionPanel({
 
   return (
     <div className="space-y-3 rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
+      <SorSummary sor={sor} user={user} />
+
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           <PackageSearch size={13} /> Products to source

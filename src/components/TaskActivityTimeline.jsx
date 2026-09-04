@@ -5,10 +5,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskActivityService } from "../services/tasks/taskActivityService";
 import { groupTaskActivityService } from "../services/groupTaskActivityService";
 import { activeChatService } from "../services/tasks/activeChatService";
-import { storageService } from "../services/storageService";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
+import { useFileAttachments } from "../hooks/useFileAttachments";
+import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 import {
   Send,
   Zap,
@@ -35,6 +36,7 @@ import EmojiPicker from "./ui/EmojiPicker";
 import ReplyPreviewBar from "./ui/ReplyPreviewBar";
 import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
+import { AttachmentList, AttachmentPreviews } from "./ui/Attachments";
 
 /**
  * Splits text into plain-text segments and URL segments,
@@ -139,13 +141,13 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
           <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 transition-opacity z-10 items-center gap-1 opacity-0 group-hover:opacity-100 ${isMe ? "right-full mr-2 flex-row-reverse" : "left-full ml-2 flex-row"}`}>
             <div className="bg-card border border-border shadow-sm rounded-full p-1 flex items-center justify-center">
               <EmojiPicker
-                onSelect={(emoji) => toggleReaction(entry, emoji)}
+                onSelect={(emoji) => onReact?.(entry, emoji)}
                 align={isMe ? "start" : "end"}
               />
             </div>
             <button
               type="button"
-              onClick={() => setReplyingTo(buildReplySnapshot(entry))}
+              onClick={() => onReply?.(entry)}
               className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
@@ -154,8 +156,8 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
 
           <SwipeToReplyWrapper 
             isMe={isMe} 
-            onReply={() => setReplyingTo(buildReplySnapshot(entry))}
-            onReact={(emoji) => toggleReaction(entry, emoji)}
+            onReply={() => onReply?.(entry)}
+            onReact={(emoji) => onReact?.(entry, emoji)}
           >
             <div
               className={`px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-sm transition-all duration-300 whitespace-pre-wrap break-words min-w-0 ${isMe
@@ -167,24 +169,10 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
               <ReplyQuote replyTo={entry.metadata?.replyTo} />
               {entry.content && <p>{renderContent(entry.content, entry.metadata?.mentions, isMe)}</p>}
               {entry.metadata?.attachments?.length > 0 && (
-                <div className={`flex flex-wrap gap-2 ${entry.content ? "mt-2" : ""}`}>
-                  {entry.metadata.attachments.map((url, i) => (
-                    <a
-                      key={i}
-                      href={url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block rounded-xl overflow-hidden border border-white/10 hover:opacity-90 transition-opacity"
-                    >
-                      <img
-                        src={url}
-                        alt={`attachment-${i + 1}`}
-                        className="max-w-[200px] max-h-[200px] object-cover rounded-xl"
-                        loading="lazy"
-                      />
-                    </a>
-                  ))}
-                </div>
+                <AttachmentList 
+                  attachments={entry.metadata.attachments} 
+                  className={entry.content ? "mt-2" : ""} 
+                />
               )}
             </div>
           </SwipeToReplyWrapper>
@@ -298,9 +286,19 @@ export default function TaskActivityTimeline({
   const fileInputRef = useRef(null);
   const [message, setMessage] = useState("");
   const [mentions, setMentions] = useState([]);
+  
+  const attachmentsState = useFileAttachments();
+  const { 
+    files: attachments, 
+    isUploading, 
+    addFiles,
+    addFromPaste, 
+    removeFile: removeAttachment, 
+    clear: clearAttachments, 
+    upload: uploadAttachments 
+  } = attachmentsState;
+
   const [replyingTo, setReplyingTo] = useState(null);
-  const [attachments, setAttachments] = useState([]); // [{ file, preview }]
-  const [isUploading, setIsUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("ACTIVITY");
 
   const { data: employees = [] } = useQuery({
@@ -325,8 +323,19 @@ export default function TaskActivityTimeline({
     staleTime: 30_000,
   });
 
-  const comments = activity.filter(e => e.type === "COMMENT");
-  const history = activity.filter(e => e.type !== "COMMENT");
+  const comments = useMemo(
+    () => activity.filter(e => e.type === "COMMENT"),
+    [activity],
+  );
+  const history = useMemo(
+    () => activity.filter(e => e.type !== "COMMENT"),
+    [activity],
+  );
+
+  // Stable primitive for the auto-bump effect below: the array identity changes
+  // on every render, the timestamp only when the thread actually moves.
+  const latestCommentAt =
+    comments.length > 0 ? comments[comments.length - 1].createdAt : null;
 
   // Read Receipts
   const { data: readReceipts = [] } = useQuery({
@@ -423,28 +432,30 @@ export default function TaskActivityTimeline({
     };
   }, [taskId, entityType, queryClient]);
 
-  const markAsReadMutation = useMutation({
+  const { mutate: markAsRead } = useMutation({
     mutationFn: ({ entityType, entityId, latestCreatedAt }) =>
       activeChatService.markAsRead(user?.id, entityType, entityId, latestCreatedAt),
   });
 
-  // Auto-bump read receipts
+  // Auto-bump read receipts.
+  // Every dependency here must be a primitive or a stable callback. Depending on
+  // the `comments` array or the whole mutation object made this effect re-run on
+  // every render: each run upserted a receipt, the realtime listener above saw
+  // its own write and invalidated the receipts query, that re-rendered, and the
+  // effect fired again -- an unbounded POST/GET loop that exhausted the browser's
+  // connection pool (ERR_INSUFFICIENT_RESOURCES) and took unrelated requests
+  // down with it. `mutate` is referentially stable in react-query v5.
   useEffect(() => {
-    if (!taskId || !user?.id) return;
-    if (comments.length > 0) {
-      markAsReadMutation.mutate({
-        entityType,
-        entityId: taskId,
-        latestCreatedAt: comments[comments.length - 1].createdAt
-      });
-    } else {
-      markAsReadMutation.mutate({
-        entityType,
-        entityId: taskId,
-        latestCreatedAt: new Date().toISOString()
-      });
-    }
-  }, [comments.length, taskId, user?.id]);
+    // Waiting for the thread to load keeps this to a single upsert per open:
+    // bumping while `activity` is still empty writes a receipt that the real
+    // latest-comment timestamp immediately overwrites.
+    if (!taskId || !user?.id || isLoading) return;
+    markAsRead({
+      entityType,
+      entityId: taskId,
+      latestCreatedAt: latestCommentAt ?? new Date().toISOString(),
+    });
+  }, [taskId, user?.id, entityType, latestCommentAt, isLoading, markAsRead]);
 
   // Post comment mutation
   const postCommentMutation = useMutation({
@@ -458,7 +469,7 @@ export default function TaskActivityTimeline({
       });
       setMessage("");
       setMentions([]);
-      setAttachments([]);
+      clearAttachments();
       setReplyingTo(null);
     },
   });
@@ -505,35 +516,7 @@ export default function TaskActivityTimeline({
     }
   }, [activity, activeTab]);
 
-  const addFiles = useCallback((files) => {
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (!imageFiles.length) return;
-    setAttachments((prev) => [
-      ...prev,
-      ...imageFiles.map((file) => ({ file, preview: URL.createObjectURL(file) })),
-    ]);
-  }, []);
 
-  const removeAttachment = useCallback((index) => {
-    setAttachments((prev) => {
-      const next = [...prev];
-      URL.revokeObjectURL(next[index].preview);
-      next.splice(index, 1);
-      return next;
-    });
-  }, []);
-
-  const handlePaste = useCallback(
-    (e) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const imageItems = Array.from(items).filter((item) => item.type.startsWith("image/"));
-      if (!imageItems.length) return;
-      e.preventDefault();
-      addFiles(imageItems.map((item) => item.getAsFile()).filter(Boolean));
-    },
-    [addFiles],
-  );
 
   const handleSend = useCallback(async () => {
     const hasText = message.trim();
@@ -541,13 +524,10 @@ export default function TaskActivityTimeline({
     if ((!hasText && !hasFiles) || !taskId || !user?.id) return;
     if (isUploading || postCommentMutation.isPending) return;
 
-    setIsUploading(true);
     try {
       let attachmentUrls = [];
       if (hasFiles) {
-        attachmentUrls = await Promise.all(
-          attachments.map((a) => storageService.uploadToCloudinary(a.file)),
-        );
+        attachmentUrls = await uploadAttachments();
       }
       const metadata = {};
       if (attachmentUrls.length > 0) metadata.attachments = attachmentUrls;
@@ -557,11 +537,9 @@ export default function TaskActivityTimeline({
       postCommentMutation.mutate({ taskId, authorId: user.id, content: message.trim(), metadata: Object.keys(metadata).length > 0 ? metadata : null });
     } catch (err) {
       console.error("Failed to upload chat attachments:", err);
-    } finally {
-      setIsUploading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message, attachments, taskId, user?.id, isUploading, replyingTo]);
+  }, [message, attachments, taskId, user?.id, isUploading, replyingTo, uploadAttachments]);
 
   const toggleReaction = async (message, emoji) => {
     if (!message || !emoji) return;
@@ -696,31 +674,16 @@ export default function TaskActivityTimeline({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept={ALLOWED_MIME_TYPES.join(",")}
             multiple
             className="hidden"
             onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
           />
 
-          {/* Image preview strip */}
+          {/* Attachment preview strip */}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
-              {attachments.map((att, i) => (
-                <div
-                  key={i}
-                  className="relative group rounded-lg overflow-hidden border border-border"
-                  style={{ width: 56, height: 56 }}
-                >
-                  <img src={att.preview} alt={`preview-${i}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => removeAttachment(i)}
-                    className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X size={14} className="text-white" />
-                  </button>
-                </div>
-              ))}
+              <AttachmentPreviews files={attachments} onRemove={removeAttachment} />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
@@ -735,7 +698,7 @@ export default function TaskActivityTimeline({
             <MentionTextarea
               value={message}
               onChange={setMessage}
-              onPaste={handlePaste}
+              onPaste={addFromPaste}
               onEnterSubmit={handleSend}
               people={employees}
               mentions={mentions}

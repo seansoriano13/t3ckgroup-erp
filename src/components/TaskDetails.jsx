@@ -608,6 +608,7 @@ export default function TaskDetails({
                 <ProcurementResolutionPanel
                   taskId={activeTask?.id}
                   userId={user?.id}
+                  user={user}
                   // Mirrors sor_canvasses_write (0059): canvassing is
                   // purchasing's job regardless of which subject a Canvass
                   // hangs off.

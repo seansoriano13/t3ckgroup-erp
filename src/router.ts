@@ -13,6 +13,7 @@ export type Path =
   | `/hr`
   | `/hr/management`
   | `/hr/offsets`
+  | `/hr/offsets/components/DocumentCenterTab`
   | `/login`
   | `/offsets`
   | `/opportunities`
@@ -29,9 +30,10 @@ export type Path =
   | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
   | `/tasks`
+  | `/verify/:token`
 
 export type Params = {
-  
+  '/verify/:token': { token: string }
 }
 
 export type ModalPath = never

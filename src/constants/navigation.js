@@ -150,7 +150,7 @@ export const NAV_MODULES = {
         label: "Leaves Manager",
         link: "/hr/offsets",
         icon: Clock,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
       },
     ],
   },
@@ -204,6 +204,7 @@ export function buildUserPermissionContext(user) {
   const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
   const isHead = !!(user?.is_head || user?.isHead);
   const isHr = !!(user?.is_hr || user?.isHr);
+  const canManageLeaves = !!(user?.can_manage_leaves || user?.canManageLeaves);
   const hasSalesFlow = !!(user?.has_sales_flow ?? user?.hasSalesFlow);
   const hasTaskFlow = !!(user?.has_task_flow ?? user?.hasTaskFlow);
   const hasPurchasingFlow = !!(user?.has_purchasing_flow ?? user?.hasPurchasingFlow);
@@ -215,6 +216,7 @@ export function buildUserPermissionContext(user) {
     isSuperAdmin,
     isHead,
     isHr,
+    canManageLeaves,
     hasSalesFlow,
     hasTaskFlow,
     hasPurchasingFlow,

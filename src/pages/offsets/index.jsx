@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { Link } from 'react-router';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
-import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter } from 'lucide-react';
+import { Clock, PlusCircle, CheckCircle2, XCircle, Trash2, CalendarDays, Filter, ShieldCheck } from 'lucide-react';
 import ProtectedRoute from '../../components/ProtectedRoute';
 import PageContainer from '../../components/ui/PageContainer';
 import PageHeader from '../../components/ui/PageHeader';
@@ -16,6 +17,7 @@ import ApplyLeaveModal from '../../components/offsets/ApplyLeaveModal';
 import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { AttachmentList } from '../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../utils/dateUtils';
+import { formatWindow } from '../../utils/time';
 
 export default function EmployeeLeavesPage() {
   const { user } = useAuth();
@@ -38,6 +40,8 @@ export default function EmployeeLeavesPage() {
 
   const [overtimeHistory, setOvertimeHistory] = useState([]);
   const [leaveHistory, setLeaveHistory] = useState([]);
+  const [pendingOvertime, setPendingOvertime] = useState([]);
+  const [pendingLeaves, setPendingLeaves] = useState([]);
   const [globalApprovedLeaves, setGlobalApprovedLeaves] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
@@ -50,16 +54,23 @@ export default function EmployeeLeavesPage() {
         offsetLvData, 
         allOffsetLeavesData,
         silLvData,
-        allSilLeavesData
+        allSilLeavesData,
+        pendingOtData,
+        pendingOffsetData,
+        pendingSilData
       ] = await Promise.all([
         offsetService.getMyOvertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyOffsetLeaves(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate), // Filtered by RLS
         silService.getMySilLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate) // Filtered by RLS
+        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate), // Filtered by RLS
+        offsetService.getMyPendingOvertimeRequests(user.id),
+        offsetService.getMyPendingOffsetLeaves(user.id),
+        silService.getMyPendingSilLeaves(user.id)
       ]);
 
       setOvertimeHistory(otData);
+      setPendingOvertime(pendingOtData);
 
       // Map and tag leaves
       const mappedOffsetLv = offsetLvData.map(l => ({ ...l, type: 'OFFSET' }));
@@ -67,6 +78,11 @@ export default function EmployeeLeavesPage() {
       
       const combinedLeaveHistory = [...mappedOffsetLv, ...mappedSilLv].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setLeaveHistory(combinedLeaveHistory);
+
+      const mappedPendingOffset = pendingOffsetData.map(l => ({ ...l, type: 'OFFSET' }));
+      const mappedPendingSil = pendingSilData.map(l => ({ ...l, type: 'SIL' }));
+      const combinedPendingLeaves = [...mappedPendingOffset, ...mappedPendingSil].sort((a, b) => new Date(a.date) - new Date(b.date));
+      setPendingLeaves(combinedPendingLeaves);
 
       const approvedOffset = allOffsetLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'OFFSET' }));
       const approvedSil = allSilLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'SIL' }));
@@ -246,7 +262,79 @@ export default function EmployeeLeavesPage() {
         )}
 
         {activeTab === 'overtime' && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+          <div className="space-y-4">
+            {pendingOvertime.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+                <div className="px-6 py-4 border-b border-border bg-yellow-500/10">
+                  <h3 className="font-black text-sm text-yellow-600 dark:text-yellow-500">Awaiting Decision</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4">Applied On</th>
+                        <th className="p-4">Date Worked</th>
+                        <th className="p-4">Hours</th>
+                        <th className="p-4">Files</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">HR Notes</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pendingOvertime.map((req) => (
+                        <tr key={`pending-${req.id}`} className="hover:bg-muted/30 transition-colors bg-yellow-500/5">
+                          <td className="p-4 text-xs text-muted-foreground font-medium">
+                            {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="p-4 text-sm font-bold text-foreground">
+                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-primary bg-primary/10 px-2 py-0.5 rounded text-xs border border-primary/20 w-fit">
+                                {req.hours} hrs
+                              </span>
+                              {req.start_time && req.end_time && (
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {formatWindow(req.start_time, req.end_time)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {req.attachments?.length ? (
+                              <AttachmentList attachments={req.attachments} compact />
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50">-</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className="font-black text-[10px] uppercase tracking-wider text-yellow-600 bg-yellow-500/20 px-2 py-0.5 rounded border border-yellow-500/30">
+                              PENDING
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
+                            {req.hr_notes || '-'}
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleWithdrawLeave(req.id, req.status, 'OVERTIME')}
+                              className="p-2 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                              title="Withdraw Request"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
             {loadingHistory ? (
               <div className="p-8 text-center text-muted-foreground text-sm font-bold flex flex-col items-center gap-3">
                 <Clock className="animate-spin" size={24} />
@@ -269,6 +357,7 @@ export default function EmployeeLeavesPage() {
                     <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Date Worked</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Files</th>
                       <th className="p-4">Status</th>
@@ -285,10 +374,20 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </td>
+                        <td className="p-4 text-xs font-semibold text-foreground">
+                          {req.category?.label || '-'}
+                        </td>
                         <td className="p-4">
-                          <span className="font-black text-primary bg-primary/10 px-2 py-0.5 rounded text-xs border border-primary/20">
-                            {req.hours} hrs
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-black text-primary bg-primary/10 px-2 py-0.5 rounded text-xs border border-primary/20 w-fit">
+                              {req.hours} hrs
+                            </span>
+                            {req.start_time && req.end_time && (
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                {formatWindow(req.start_time, req.end_time)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4">
                           {req.attachments?.length ? (
@@ -303,10 +402,20 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          {req.verification_token && (
+                            <Link 
+                              to={`/verify/${req.verification_token}`} 
+                              target="_blank"
+                              className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                              title="View Verified Form"
+                            >
+                              <ShieldCheck size={18} />
+                            </Link>
+                          )}
                           {req.status === 'PENDING' && (
                             <button
-                              onClick={() => handleWithdrawOvertime(req.id)}
+                              onClick={() => handleWithdrawOvertime(req.id, req.status)}
                               className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
                               title="Withdraw Request"
                             >
@@ -321,10 +430,99 @@ export default function EmployeeLeavesPage() {
               </div>
             )}
           </div>
+        </div>
         )}
 
         {activeTab === 'leave' && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300 flex flex-col">
+          <div className="space-y-4">
+            {pendingLeaves.filter(req => leaveTypeFilter === 'ALL' || req.type === leaveTypeFilter).length > 0 && (
+              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300 flex flex-col">
+                <div className="px-6 py-4 border-b border-border bg-yellow-500/10">
+                  <h3 className="font-black text-sm text-yellow-600 dark:text-yellow-500">Awaiting Decision</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4">Applied On</th>
+                        <th className="p-4">Type</th>
+                        <th className="p-4">Leave Date</th>
+                        <th className="p-4">Category</th>
+                        <th className="p-4">Hours</th>
+                        <th className="p-4">Reason</th>
+                        <th className="p-4">Files</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">HR Notes</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pendingLeaves.filter(req => leaveTypeFilter === 'ALL' || req.type === leaveTypeFilter).map((req) => (
+                        <tr key={`pending-${req.type}-${req.id}`} className="hover:bg-muted/30 transition-colors bg-yellow-500/5">
+                          <td className="p-4 text-xs text-muted-foreground font-medium">
+                            {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="p-4">
+                             <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
+                              req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                            }`}>
+                              {req.type}
+                            </span>
+                          </td>
+                          <td className="p-4 text-sm font-bold text-foreground">
+                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-foreground">
+                            {req.category?.label || '-'}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-sm text-foreground">
+                                {req.hours} hrs
+                              </span>
+                              {req.start_time && req.end_time && (
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {formatWindow(req.start_time, req.end_time)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
+                            {req.reason || '-'}
+                          </td>
+                          <td className="p-4">
+                            {req.attachments?.length ? (
+                              <AttachmentList attachments={req.attachments} compact />
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50">-</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className="font-black text-[10px] uppercase tracking-wider text-yellow-600 bg-yellow-500/20 px-2 py-0.5 rounded border border-yellow-500/30">
+                              PENDING
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
+                            {req.hr_notes || '-'}
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleWithdrawLeave(req.id, req.status, req.type)}
+                              className="p-2 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                              title="Withdraw Request"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300 flex flex-col">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
               <h3 className="font-black text-sm text-foreground">Leave History</h3>
               <div className="flex items-center space-x-2">
@@ -364,6 +562,7 @@ export default function EmployeeLeavesPage() {
                       <th className="p-4">Applied On</th>
                       <th className="p-4">Type</th>
                       <th className="p-4">Leave Date</th>
+                      <th className="p-4">Category</th>
                       <th className="p-4">Hours</th>
                       <th className="p-4">Reason</th>
                       <th className="p-4">Files</th>
@@ -388,8 +587,20 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-sm font-bold text-foreground">
                           {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                         </td>
-                        <td className="p-4 font-black text-sm text-foreground">
-                          {req.hours} hrs
+                        <td className="p-4 text-xs font-semibold text-foreground">
+                          {req.category?.label || '-'}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-black text-sm text-foreground">
+                              {req.hours} hrs
+                            </span>
+                            {req.start_time && req.end_time && (
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                {formatWindow(req.start_time, req.end_time)}
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
                           {req.reason || '-'}
@@ -407,7 +618,17 @@ export default function EmployeeLeavesPage() {
                         <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
                           {req.hr_notes || '-'}
                         </td>
-                        <td className="p-4 text-right">
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          {req.verification_token && (
+                            <Link 
+                              to={`/verify/${req.verification_token}`} 
+                              target="_blank"
+                              className="p-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg transition-all inline-block border border-transparent hover:border-primary/20 cursor-pointer flex items-center justify-center"
+                              title="View Verified Form"
+                            >
+                              <ShieldCheck size={14} />
+                            </Link>
+                          )}
                           {req.status === 'PENDING' && (
                             <button
                               onClick={() => handleWithdrawLeave(req.id, req.status, req.type)}
@@ -425,6 +646,7 @@ export default function EmployeeLeavesPage() {
               </div>
             )}
           </div>
+        </div>
         )}
       </div>
 

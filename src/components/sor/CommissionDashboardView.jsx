@@ -106,7 +106,7 @@ function formatShortCurrency(num) {
 function downloadLedgerCsv(ledger = [], filename = "commission_ledger.csv") {
   const headers = [
     "SOR Number",
-    "Client Name",
+    "Company",
     "Project Title",
     "Stage",
     "Project Type",
@@ -844,7 +844,7 @@ export default function CommissionDashboardView() {
                 <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
                   <th className="font-bold px-3 py-3 w-[28px]"></th>
                   <th className="font-bold px-3 py-3 w-[84px]">SOR #</th>
-                  <th className="font-bold px-3 py-3 min-w-[160px]">Client & Project</th>
+                  <th className="font-bold px-3 py-3 min-w-[160px]">Company & Project</th>
                   <th className="font-bold px-3 py-3">Stage</th>
                   <th className="font-bold px-3 py-3 text-center">Type</th>
                   <th className="font-bold px-3 py-3">Contract Date</th>

@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
 
@@ -13,7 +13,7 @@ export default function AppLayout() {
   // floating toolbar already says what a page header would.
   const isFullBleed = location.pathname.startsWith("/super-admin/flow-canvas") || location.pathname.match(/^\/flow-plans\/.+/);
 
-  if (location.pathname === "/login") {
+  if (location.pathname === "/login" || location.pathname.startsWith("/verify/")) {
     return <Outlet />;
   }
 
@@ -30,9 +30,23 @@ export default function AppLayout() {
     );
   }
 
+  // Landing on any route while logged out has to end at the login screen.
+  // Individual pages wrap themselves in ProtectedRoute for role checks, but
+  // several never did, and those rendered a nav-less shell that stranded the
+  // visitor until they hand-edited the URL back down to the root.
+  if (!user) {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+
   return (
     <div className="flex h-screen bg-mauve-2 font-sans overflow-hidden">
-      {user && <SideNav />}
+      <SideNav />
 
       <main className="flex-1 flex flex-col min-w-0 bg-background md:my-2 md:mr-2 md:ml-2 md:rounded-2xl border-l md:border border-border shadow-sm overflow-hidden relative z-10 transition-transform">
         {isFullBleed ? (

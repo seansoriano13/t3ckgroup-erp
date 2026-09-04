@@ -5,6 +5,8 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
+import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
+import FormSettingsConfig from "../../../components/hr/FormSettingsConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
@@ -84,7 +86,7 @@ export default function EmployeeManagement() {
         if (roleFlagFilter === "HR") return e.isHr;
         if (roleFlagFilter === "HEAD") return e.isHead;
         if (roleFlagFilter === "STANDARD")
-          return !e.isSuperAdmin && !e.isHr && !e.isHead;
+          return !e.isSuperAdmin && !e.isHr && !e.isHead && !e.canManageLeaves;
         return true;
       });
     }
@@ -157,6 +159,7 @@ export default function EmployeeManagement() {
             tabs={[
               { value: "employees", label: "Employees" },
               { value: "categories", label: "Categories Config" },
+              { value: "leave_config", label: "Leave & Form Config" },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -164,6 +167,7 @@ export default function EmployeeManagement() {
           />
 
           <Button
+            variant="primary"
             className="h-[46px] px-6 rounded-xl shadow-lg shadow-primary/20 shrink-0"
             onClick={handleAddNew}
           >
@@ -273,11 +277,10 @@ export default function EmployeeManagement() {
                         </td>
                         <td className="p-4 text-sm">
                           {emp.employment_status ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
-                              emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
+                                emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-blue-100 text-blue-700'
+                              }`}>
                               {emp.employment_status}
                             </span>
                           ) : (
@@ -310,7 +313,12 @@ export default function EmployeeManagement() {
                               Head
                             </span>
                           )}
-                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && (
+                          {emp.canManageLeaves && (
+                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                              Leave Mgr
+                            </span>
+                          )}
+                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && !emp.canManageLeaves && (
                             <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
                               Standard
                             </span>
@@ -348,9 +356,14 @@ export default function EmployeeManagement() {
               </table>
             </div>
           </div>
-        ) : (
+        ) : activeTab === "categories" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <HRCategoriesConfig />
+          </div>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
+            <LeaveCategoriesConfig />
+            <FormSettingsConfig />
           </div>
         )}
 
@@ -394,9 +407,9 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
       return isEditing
         ? employeeService.updateEmployee(employee.id, payload, user?.id || null)
         : employeeService.createEmployee({
-            ...payload,
-            updatedBy: user?.id || null,
-          });
+          ...payload,
+          updatedBy: user?.id || null,
+        });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
@@ -481,6 +494,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         onSubmit={handleSubmit}
         rawCategories={rawCategories}
         rawEmployees={employees}
+        canGrantLeaveManagement={!!user?.isSuperAdmin}
       />
     </HRFormModal>
   );

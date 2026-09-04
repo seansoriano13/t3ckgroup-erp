@@ -18,6 +18,7 @@ import HighlightText from "./HighlightText";
 import { useAuth } from "../context/AuthContext";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { TASK_STATUS } from "../constants/status";
+import { ArrowUpRight } from "lucide-react";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -271,9 +272,8 @@ export default function TaskTableView({
                   <tr
                     key={task.id}
                     onClick={() => onView && onView(task)}
-                    className={`hover:bg-muted/40 transition-colors cursor-pointer group ${
-                      isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
-                    }`}
+                    className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
+                      }`}
                   >
                     {/* Task Title & Category */}
                     <td className="py-3.5 px-4 align-middle">
@@ -399,11 +399,10 @@ export default function TaskTableView({
                     <td className="py-3.5 px-3 align-middle">
                       <div className="flex flex-col">
                         <span
-                          className={`text-[12px] font-medium ${
-                            isOverdue
+                          className={`text-[12px] font-medium ${isOverdue
                               ? "text-amber-600 dark:text-amber-400 font-semibold"
                               : "text-foreground"
-                          }`}
+                            }`}
                         >
                           {formatDate(task.endAt || task.targetDate)}
                         </span>
@@ -449,7 +448,7 @@ export default function TaskTableView({
                         className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                         title="View details"
                       >
-                        <Eye size={13} />
+                        <ArrowUpRight size={13} />
                       </button>
                     </td>
                   </tr>
@@ -487,7 +486,7 @@ export default function TaskTableView({
                 setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:border-foreground/30 cursor-pointer"
             >
               <option value={10}>10</option>
               <option value={25}>25</option>

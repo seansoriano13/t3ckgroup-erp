@@ -244,8 +244,13 @@ export const SALES_REFERENCE_PATTERN = /^S\d+$/;
 export const SALES_REFERENCE_HINT =
   'Sales Reference must be the Odoo quotation number — "S" followed by digits, e.g. S01237.';
 
-export const normalizeSalesReference = (value) =>
-  (value || "").trim().toUpperCase();
+export const normalizeSalesReference = (value) => {
+  let val = (value || "").trim().toUpperCase();
+  if (val.startsWith("SO") && /^\d+$/.test(val.slice(2))) {
+    val = "S" + val.slice(2);
+  }
+  return val;
+};
 
 export const isValidSalesReference = (value) =>
   SALES_REFERENCE_PATTERN.test(normalizeSalesReference(value));

@@ -11,6 +11,7 @@ import {
   formatBytes,
   isImageAttachment,
   toDescriptor,
+  ALLOWED_EXTENSIONS_STRING,
 } from "../../utils/attachments";
 
 /** Files chosen but not yet uploaded. */
@@ -31,10 +32,10 @@ export function AttachmentPreviews({ files, onRemove, disabled }) {
               className="w-14 h-14 object-cover"
             />
           ) : (
-            <div className="w-14 h-14 flex flex-col items-center justify-center gap-0.5 px-1">
+            <div className="w-14 h-14 flex flex-col items-center justify-center gap-0.5 px-1" title={f.file.name}>
               <FileText size={16} className="text-muted-foreground shrink-0" />
-              <span className="text-[8px] font-bold text-muted-foreground uppercase truncate w-full text-center">
-                {f.file.name.split(".").pop()}
+              <span className="text-[8px] font-bold text-muted-foreground truncate w-full text-center">
+                {f.file.name}
               </span>
             </div>
           )}
@@ -77,6 +78,7 @@ export function AttachmentField({
         ref={inputRef}
         type="file"
         multiple
+        accept={ALLOWED_EXTENSIONS_STRING}
         className="hidden"
         onChange={(e) => {
           addFiles(e.target.files);
@@ -106,7 +108,7 @@ export function AttachmentField({
 
       <p className="text-[10px] text-muted-foreground/70 mt-1.5">
         {hint ||
-          `Optional — up to ${max} files, ${formatBytes(10 * 1024 * 1024)} each. Images, PDFs and documents.`}
+          `Optional — up to ${max} files, ${formatBytes(10 * 1024 * 1024)} each. Images, documents, and short videos.`}
       </p>
     </div>
   );

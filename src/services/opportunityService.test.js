@@ -1584,7 +1584,7 @@ describe("opportunityService", () => {
 
       const notes = await opportunityService.getNotes(created.id)
       expect(notes.at(-1).content).toContain(
-        'Client changed from "Quezon City Hall" to "Pasig City Hall"',
+        'Company changed from "Quezon City Hall" to "Pasig City Hall"',
       )
     })
 
