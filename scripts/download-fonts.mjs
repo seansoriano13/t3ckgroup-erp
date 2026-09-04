@@ -23,22 +23,6 @@ const FONTS = [
   {
     name: 'GeistMono-Bold.ttf',
     url: 'https://raw.githubusercontent.com/vercel/geist-font/main/packages/next/fonts/geist-mono/GeistMono-Bold.ttf'
-  },
-  {
-    name: 'Spectral-Regular.ttf',
-    url: 'https://github.com/google/fonts/raw/main/ofl/spectral/Spectral-Regular.ttf'
-  },
-  {
-    name: 'Spectral-Medium.ttf',
-    url: 'https://github.com/google/fonts/raw/main/ofl/spectral/Spectral-Medium.ttf'
-  },
-  {
-    name: 'Spectral-SemiBold.ttf',
-    url: 'https://github.com/google/fonts/raw/main/ofl/spectral/Spectral-SemiBold.ttf'
-  },
-  {
-    name: 'Spectral-Italic.ttf',
-    url: 'https://github.com/google/fonts/raw/main/ofl/spectral/Spectral-Italic.ttf'
   }
 ];
 

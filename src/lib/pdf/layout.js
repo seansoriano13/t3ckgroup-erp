@@ -66,20 +66,44 @@ export function getDayCount(record) {
 }
 
 /**
- * Pairs an ordered list of records into physical sheets, two per sheet
- * (matching the printed layout: two half-letter forms stacked on one
- * Letter page). Pairing is driven entirely by list order — the caller (the
- * Document Center tray) controls that order, including whether two
- * different record types end up sharing a sheet. An odd-count run leaves
- * the last sheet's `bottom` as `null`, which the renderer fills with a
- * blank-form placeholder rather than a second record.
+ * Splits an array of records into a nested array of sheets (max 2 records per sheet).
+ * Never mixes leave (TG-11) and overtime (TG-12) on the same sheet.
+ * Odd counts result in one record on the sheet (which the renderer prints with a blank second half).
  */
-export function pairIntoSheets(records) {
-  const sheets = [];
-  for (let i = 0; i < records.length; i += 2) {
-    sheets.push({ top: records[i], bottom: records[i + 1] ?? null });
+export function composeSheets(records) {
+  const leaves = [];
+  const overtimes = [];
+  
+  for (const record of records) {
+    if (record.type === 'OVERTIME') {
+      overtimes.push(record);
+    } else {
+      leaves.push(record);
+    }
   }
+  
+  const sheets = [];
+  
+  // Chunk leaves into pairs
+  for (let i = 0; i < leaves.length; i += 2) {
+    sheets.push(leaves.slice(i, i + 2));
+  }
+  
+  // Chunk overtimes into pairs
+  for (let i = 0; i < overtimes.length; i += 2) {
+    sheets.push(overtimes.slice(i, i + 2));
+  }
+  
   return sheets;
+}
+
+/**
+ * A dummy record carrying only the type the renderer needs to draw a blank
+ * half-sheet — used to fill the spare half of a sheet when an odd number of
+ * records is being printed.
+ */
+export function getBlankHalfRecord(type) {
+  return { type };
 }
 
 export function getOvertimeOutcome(status) {
