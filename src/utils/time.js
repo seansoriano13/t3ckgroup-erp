@@ -38,7 +38,31 @@ export function deriveHours(start, end, allowOvernight = false) {
       throw new Error('End time must be after start time.');
     }
   }
-
+  
+  // Exclude lunch break (12:00 PM to 1:00 PM = 720 to 780 minutes)
+  let lunchOverlap = 0;
+  const lunchStart = 720;
+  const lunchEnd = 780;
+  
+  if (endMins >= startMins) {
+    const overlapStart = Math.max(startMins, lunchStart);
+    const overlapEnd = Math.min(endMins, lunchEnd);
+    if (overlapStart < overlapEnd) {
+      lunchOverlap = overlapEnd - overlapStart;
+    }
+  } else {
+    // Overnight: handle day 1 and day 2 separately
+    const overlapStart1 = Math.max(startMins, lunchStart);
+    const overlapEnd1 = Math.min(1440, lunchEnd);
+    if (overlapStart1 < overlapEnd1) lunchOverlap += (overlapEnd1 - overlapStart1);
+    
+    const overlapStart2 = Math.max(0, lunchStart);
+    const overlapEnd2 = Math.min(endMins, lunchEnd);
+    if (overlapStart2 < overlapEnd2) lunchOverlap += (overlapEnd2 - overlapStart2);
+  }
+  
+  diff -= lunchOverlap;
+  
   // Return rounded to 2 decimals
   return Number((diff / 60).toFixed(2));
 }
