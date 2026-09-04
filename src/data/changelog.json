@@ -1,0 +1,11 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2026-09-04",
+    "title": "Changelog Feature Introduced",
+    "changes": [
+      "Added a new 'What's Changed' modal to announce updates natively within the application.",
+      "Established standard practice for recording version control updates."
+    ]
+  }
+]

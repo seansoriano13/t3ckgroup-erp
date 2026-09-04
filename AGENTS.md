@@ -40,3 +40,8 @@ database's live schema — never edit or apply them directly. Regenerate with
 (`.github/workflows/schema-drift.yml`) fails if either drifts from what is
 actually live, which is how an out-of-band change to a database gets caught
 the next morning instead of months later.
+
+### Changelog updates
+
+Whenever you complete a task that changes the application's behavior or UI, you must add an entry to `src/data/changelog.json` before pushing to origin. 
+This ensures all users see a "What's Changed" announcement modal on their next login. Keep the descriptions high-level, simple, and easy to understand for non-technical users.

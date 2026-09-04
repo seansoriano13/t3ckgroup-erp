@@ -1,6 +1,7 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import FAQModal from "./FAQModal";
+import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
   const [showFAQ, setShowFAQ] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
 
   // const isHr = user?.is_hr === true || user?.isHr === true;
   const isSuperAdmin = user?.isSuperAdmin;
@@ -69,6 +71,7 @@ export default function SettingsPage() {
   return (
     <PageContainer maxWidth="4xl" className="pt-4">
       <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
+      <ChangelogModal manualOpen={showChangelog} onManualClose={() => setShowChangelog(false)} />
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <PageHeader
@@ -130,6 +133,25 @@ export default function SettingsPage() {
               {/* Fake Toggle - Off */}
               <div className="w-11 h-6 bg-mauve-5 rounded-full relative cursor-pointer shrink-0">
                 <div className="absolute left-1 top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all" />
+              </div>
+            </div>
+
+            {/* What's New row */}
+            <div 
+              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => setShowChangelog(true)}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                  <Sparkles size={18} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground text-sm">What's New</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">View the latest updates and release notes.</p>
+                </div>
+              </div>
+              <div className="text-muted-foreground group-hover:text-foreground transition-colors pr-2">
+                <ArrowRight size={16} />
               </div>
             </div>
           </div>

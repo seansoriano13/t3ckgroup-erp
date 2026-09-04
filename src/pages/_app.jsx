@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
+import ChangelogModal from "../components/ChangelogModal";
 
 import Spinner from "@/components/ui/Spinner";
 
@@ -47,6 +48,7 @@ export default function AppLayout() {
   return (
     <div className="flex h-screen bg-mauve-2 font-sans overflow-hidden">
       <SideNav />
+      <ChangelogModal />
 
       <main className="flex-1 flex flex-col min-w-0 bg-background md:my-2 md:mr-2 md:ml-2 md:rounded-2xl border-l md:border border-border shadow-sm overflow-hidden relative z-10 transition-transform">
         {isFullBleed ? (

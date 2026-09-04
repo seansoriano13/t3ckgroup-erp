@@ -22,6 +22,7 @@
         "db:snapshot:staging": "node scripts/db-snapshot.mjs staging",
         "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
         "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
+        "clean:branches": "node scripts/cleanup-branches.mjs",
         "prepare": "node scripts/install-hooks.mjs"
     },
     "dependencies": {

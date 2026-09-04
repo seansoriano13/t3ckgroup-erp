@@ -11,6 +11,7 @@ import { useTheme } from "./hooks/useTheme"
 import { CustomToast } from "./components/ui/CustomToast"
 import { VersionUpdateNotifier } from "./components/VersionUpdateNotifier"
 import { EnvSwitcher } from "./components/EnvSwitcher"
+import { StagingBanner } from "./components/StagingBanner"
 
 // Auto-reload when dynamic chunk imports fail due to new deployments
 window.addEventListener("vite:preloadError", () => {
@@ -82,6 +83,7 @@ createRoot(document.getElementById("root")).render(
                 }
               </Toaster>
               <VersionUpdateNotifier />
+              <StagingBanner />
               <EnvSwitcher />
               <Routes />
             </ThemeApplier>
