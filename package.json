@@ -17,7 +17,11 @@
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
         "mirror:brochures": "node scripts/mirror-brochures.mjs",
-        "db:sync-staging": "node scripts/sync-data.mjs"
+        "db:sync-staging": "node scripts/sync-data.mjs",
+        "db:snapshot:prod": "node scripts/db-snapshot.mjs prod",
+        "db:snapshot:staging": "node scripts/db-snapshot.mjs staging",
+        "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
+        "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check"
     },
     "dependencies": {
         "@base-ui/react": "^1.4.0",
@@ -69,6 +73,7 @@
         "globals": "^16.5.0",
         "jsdom": "^30.0.1",
         "msw": "^2.15.0",
+        "pg": "^8.23.0",
         "vite": "^7.3.2",
         "vitest": "^3.2.7"
     }
