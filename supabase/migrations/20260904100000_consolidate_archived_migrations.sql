@@ -1823,7 +1823,17 @@ create policy flow_plans_delete on public.flow_plans
   using (created_by = public.get_employee_id());
 
 -- Broadcast channel for Yjs awareness/presence (if we want to enforce it, though realtime is generally configured at the realtime level, we can ensure the table is in publication if we use Postgres changes, but Yjs usually just uses Supabase Broadcast which doesn't require a table, OR it uses postgres changes on a table. If it uses postgres changes on `flow_plans` for syncing the blob, we need it in the publication).
-alter publication supabase_realtime add table public.flow_plans;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime'
+       AND schemaname = 'public'
+       AND tablename = 'flow_plans'
+  ) THEN
+    alter publication supabase_realtime add table public.flow_plans;
+  END IF;
+END $$;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -2125,11 +2135,43 @@ using (
 -- multiplayer edits instantly.
 -- ==============================================================================
 
-alter publication supabase_realtime add table public.sales_flows;
-alter publication supabase_realtime add table public.flow_stages;
-alter publication supabase_realtime add table public.flow_edges;
-alter publication supabase_realtime add table public.stage_conditions;
-alter publication supabase_realtime add table public.flow_stage_actions;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'sales_flows'
+  ) THEN
+    alter publication supabase_realtime add table public.sales_flows;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'flow_stages'
+  ) THEN
+    alter publication supabase_realtime add table public.flow_stages;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'flow_edges'
+  ) THEN
+    alter publication supabase_realtime add table public.flow_edges;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'stage_conditions'
+  ) THEN
+    alter publication supabase_realtime add table public.stage_conditions;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+     WHERE pubname = 'supabase_realtime' AND schemaname = 'public' AND tablename = 'flow_stage_actions'
+  ) THEN
+    alter publication supabase_realtime add table public.flow_stage_actions;
+  END IF;
+END $$;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
