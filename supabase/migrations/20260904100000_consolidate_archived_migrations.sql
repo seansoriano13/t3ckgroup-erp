@@ -413,87 +413,68 @@ alter table public.flow_stages add column if not exists pos_y integer not null d
 -- SAFE TO RUN AT ANY TIME: The feature was in scaffolding and not actively deployed.
 -- ==============================================================================
 
--- Guarded on stage_conditions not existing yet: 0064 below renames
--- stage_requirements -> stage_conditions, and on a remote where that rename
--- already really happened, recreating the old-named table here would just
--- collide with it at the rename step. Skip the whole old-named build in
--- that case and let the rest of this file operate on stage_conditions.
-DO $consolidate_stage_requirements$
-BEGIN
-  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_conditions') THEN
-    RETURN;
-  END IF;
+-- Unconditionally (re)built under the old name, same as every migration
+-- below that still refers to stage_requirements/sor_requirement_status —
+-- 0064 further down renames both to stage_conditions/sor_condition_status.
+-- On a remote where that rename already really happened, this recreates a
+-- throwaway old-named pair that 0064's guard (see there) drops instead of
+-- renaming, rather than colliding with the real stage_conditions.
+drop table if exists public.sor_requirement_status cascade;
+drop table if exists public.stage_requirements cascade;
 
-  EXECUTE 'drop table if exists public.sor_requirement_status cascade';
-  EXECUTE 'drop table if exists public.stage_requirements cascade';
+create table public.stage_requirements (
+  id           uuid primary key default gen_random_uuid(),
+  stage_id     uuid not null references public.flow_stages (id) on delete cascade,
+  kind         text not null,
+  label        text not null,
+  is_required  boolean not null default true,
+  sort_order   integer not null default 0,
+  config       jsonb not null default '{}'::jsonb,
+  archived_at  timestamptz,
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
 
-  EXECUTE $crt$
-    create table public.stage_requirements (
-      id           uuid primary key default gen_random_uuid(),
-      stage_id     uuid not null references public.flow_stages (id) on delete cascade,
-      kind         text not null,
-      label        text not null,
-      is_required  boolean not null default true,
-      sort_order   integer not null default 0,
-      config       jsonb not null default '{}'::jsonb,
-      archived_at  timestamptz,
-      created_at   timestamptz not null default now(),
-      updated_at   timestamptz not null default now(),
+  constraint stage_requirements_kind_chk check (kind in (
+    'attachment', 'field', 'tickbox', 'assignment', 'deadline'
+  ))
+);
 
-      constraint stage_requirements_kind_chk check (kind in (
-        'attachment', 'field', 'tickbox', 'assignment', 'deadline'
-      ))
+create index stage_requirements_stage_idx
+  on public.stage_requirements (stage_id, sort_order);
+
+create table public.sor_requirement_status (
+  id             uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references public.sales_opportunities (id) on delete cascade,
+  requirement_id uuid not null references public.stage_requirements (id) on delete cascade,
+  satisfied_by   uuid references public.employees (id),
+  satisfied_at   timestamptz not null default now(),
+
+  constraint sor_requirement_status_unique unique (opportunity_id, requirement_id)
+);
+
+create index sor_requirement_status_opp_idx
+  on public.sor_requirement_status (opportunity_id);
+
+-- RLS - stage_requirements: configuration, Super-Admin write only
+alter table public.stage_requirements enable row level security;
+
+create policy stage_requirements_read on public.stage_requirements
+  for select to authenticated using (true);
+
+create policy stage_requirements_write on public.stage_requirements
+  for all to authenticated
+  using (
+    exists (
+      select 1 from public.employees e
+      where e.id = public.get_employee_id() and e.is_super_admin
     )
-  $crt$;
-
-  EXECUTE $crt$
-    create index stage_requirements_stage_idx
-      on public.stage_requirements (stage_id, sort_order)
-  $crt$;
-
-  EXECUTE $crt$
-    create table public.sor_requirement_status (
-      id             uuid primary key default gen_random_uuid(),
-      opportunity_id uuid not null references public.sales_opportunities (id) on delete cascade,
-      requirement_id uuid not null references public.stage_requirements (id) on delete cascade,
-      satisfied_by   uuid references public.employees (id),
-      satisfied_at   timestamptz not null default now(),
-
-      constraint sor_requirement_status_unique unique (opportunity_id, requirement_id)
+  )
+  with check (
+    exists (
+      select 1 from public.employees e
+      where e.id = public.get_employee_id() and e.is_super_admin
     )
-  $crt$;
-
-  EXECUTE $crt$
-    create index sor_requirement_status_opp_idx
-      on public.sor_requirement_status (opportunity_id)
-  $crt$;
-
-  -- RLS - stage_requirements: configuration, Super-Admin write only
-  EXECUTE 'alter table public.stage_requirements enable row level security';
-
-  EXECUTE $crt$
-    create policy stage_requirements_read on public.stage_requirements
-      for select to authenticated using (true)
-  $crt$;
-
-  EXECUTE $crt$
-    create policy stage_requirements_write on public.stage_requirements
-      for all to authenticated
-      using (
-        exists (
-          select 1 from public.employees e
-          where e.id = public.get_employee_id() and e.is_super_admin
-        )
-      )
-      with check (
-        exists (
-          select 1 from public.employees e
-          where e.id = public.get_employee_id() and e.is_super_admin
-        )
-      )
-  $crt$;
-END
-$consolidate_stage_requirements$;
+  );
 
 -- sor_requirement_status deliberately has no RLS block, matching sales_opportunity_logs.
 -- Authorization is enforced at the service layer where the write actually happens.
@@ -1462,21 +1443,33 @@ END $$;
 -- "Condition" over "Requirement".
 -- ==============================================================================
 
-DO $$ 
+DO $$
 BEGIN
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_requirements') THEN
-    ALTER TABLE public.stage_requirements RENAME TO stage_conditions;
-    ALTER INDEX IF EXISTS public.stage_requirements_stage_idx RENAME TO stage_conditions_stage_idx;
-    ALTER TABLE public.stage_conditions RENAME CONSTRAINT stage_requirements_kind_chk TO stage_conditions_kind_chk;
-    ALTER POLICY stage_requirements_read ON public.stage_conditions RENAME TO stage_conditions_read;
-    ALTER POLICY stage_requirements_write ON public.stage_conditions RENAME TO stage_conditions_write;
+    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_conditions') THEN
+      -- stage_conditions is already the real table from an earlier deployment
+      -- that lived through this rename for real; the stage_requirements this
+      -- replay just (re)built above is throwaway scaffolding, so drop it
+      -- instead of colliding with the real one on rename.
+      DROP TABLE public.stage_requirements CASCADE;
+    ELSE
+      ALTER TABLE public.stage_requirements RENAME TO stage_conditions;
+      ALTER INDEX IF EXISTS public.stage_requirements_stage_idx RENAME TO stage_conditions_stage_idx;
+      ALTER TABLE public.stage_conditions RENAME CONSTRAINT stage_requirements_kind_chk TO stage_conditions_kind_chk;
+      ALTER POLICY stage_requirements_read ON public.stage_conditions RENAME TO stage_conditions_read;
+      ALTER POLICY stage_requirements_write ON public.stage_conditions RENAME TO stage_conditions_write;
+    END IF;
   END IF;
 
   IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sor_requirement_status') THEN
-    ALTER TABLE public.sor_requirement_status RENAME TO sor_condition_status;
-    ALTER TABLE public.sor_condition_status RENAME COLUMN requirement_id TO condition_id;
-    ALTER INDEX IF EXISTS public.sor_requirement_status_opp_idx RENAME TO sor_condition_status_opp_idx;
-    ALTER TABLE public.sor_condition_status RENAME CONSTRAINT sor_requirement_status_unique TO sor_condition_status_unique;
+    IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'sor_condition_status') THEN
+      DROP TABLE public.sor_requirement_status CASCADE;
+    ELSE
+      ALTER TABLE public.sor_requirement_status RENAME TO sor_condition_status;
+      ALTER TABLE public.sor_condition_status RENAME COLUMN requirement_id TO condition_id;
+      ALTER INDEX IF EXISTS public.sor_requirement_status_opp_idx RENAME TO sor_condition_status_opp_idx;
+      ALTER TABLE public.sor_condition_status RENAME CONSTRAINT sor_requirement_status_unique TO sor_condition_status_unique;
+    END IF;
   END IF;
 END $$;
 
