@@ -5,6 +5,8 @@ import {
   Archive,
   ArchiveRestore,
   ChevronDown,
+  Lock,
+  LockOpen,
   Pencil,
   Plus,
   Sparkles,
@@ -40,7 +42,7 @@ import { supabase } from "../../lib/supabase";
 import { salesFlowService } from "../../services/salesFlowService";
 import { stageConditionService } from "../../services/stageConditionService";
 import { stageActionService } from "../../services/stageActionService";
-import { entryStage } from "../../constants/salesFlow";
+import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
 import FlowSatelliteNode from "./FlowSatelliteNode";
@@ -137,6 +139,11 @@ function FlowCanvasInner() {
   const edges = useMemo(() => canvas?.edges ?? [], [canvas?.edges]);
   const flow = canvas?.flow ?? null;
   const entry = entryStage(stages);
+  const isLocked = flow?.state === "locked";
+  const lockBlockers = useMemo(
+    () => (flow && !isLocked ? flowLockBlockers({ stages, edges, wonStageId: flow.won_stage_id }) : []),
+    [flow, isLocked, stages, edges],
+  );
 
   const stageIds = useMemo(() => stages.map((s) => s.id), [stages]);
   const stageKey = useMemo(() => [...stageIds].sort().join(","), [stageIds]);
@@ -985,9 +992,52 @@ function FlowCanvasInner() {
             >
               <Sparkles /> Tidy layout
             </Button>
+
+            <div className="mx-1 h-4 w-px bg-border" />
+
+            {isLocked ? (
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() =>
+                  ask({
+                    title: "Unlock this flow?",
+                    description:
+                      "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing.",
+                    confirmLabel: "Unlock",
+                    required: true,
+                    field: { label: "Reason", placeholder: "Why is this flow being reopened?" },
+                    onConfirm: (reason) =>
+                      run(() => salesFlowService.unlockFlow(flow.id, reason, user?.id), "Flow unlocked."),
+                  })
+                }
+              >
+                <LockOpen /> Unlock
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="lg"
+                disabled={lockBlockers.length > 0}
+                onClick={() => run(() => salesFlowService.lockFlow(flow.id, user?.id), "Flow locked.")}
+              >
+                <Lock /> Lock this flow
+              </Button>
+            )}
           </div>
         )}
       </div>
+
+      {/* ── Lock blockers ───────────────────────────────────────────────── */}
+      {flow && !isLocked && lockBlockers.length > 0 && (
+        <div className="pointer-events-none absolute left-1/2 top-16 z-20 -translate-x-1/2">
+          <ul className="pointer-events-auto space-y-0.5 rounded-2xl bg-card/90 px-3.5 py-2.5 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+            {lockBlockers.map((blocker) => (
+              <li key={blocker}>• {blocker}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* ── Empty states ────────────────────────────────────────────────── */}
       {showEmptySaleTypes && (
@@ -1011,7 +1061,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Add-Stage dock ──────────────────────────────────────────────── */}
-      {flow && (
+      {flow && !isLocked && (
         <form
           onSubmit={handleAddStage}
           className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md"
@@ -1034,7 +1084,7 @@ function FlowCanvasInner() {
           stage={selectedStage}
           isEntry={entry?.id === selectedStage.id}
           isWon={flow.won_stage_id === selectedStage.id}
-          disabled={false}
+          disabled={isLocked}
           bracketOptions={bracketOptions}
           activeTab={selection.tab}
           onTabChange={(tab) => setSelection((prev) => ({ ...prev, tab }))}
