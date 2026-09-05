@@ -44,6 +44,21 @@ const makeMember = () => ({
   isRemoving: false,
 });
 
+/**
+ * Members arriving from a saved stage action carry no `id`: handleSubmit
+ * persists only the assignment fields. Identity is what the rail selects by,
+ * what the detail panel resolves through and what handleMemberChange writes
+ * back to, so anything without one gets a fresh one here. Skipping this makes
+ * every row answer to `undefined` — the whole rail highlights at once, the
+ * panel stays stuck on the first member, and an edit to one rewrites them all.
+ */
+const withMemberIds = (raw) =>
+  (raw || []).map((m) => {
+    if (m.id) return m;
+    const base = makeMember();
+    return { ...base, ...m, id: base.id };
+  });
+
 export default function CreateGroupTaskModal({
   isOpen,
   onClose,
@@ -75,8 +90,10 @@ export default function CreateGroupTaskModal({
         setTitle(initialData.title || "");
         setDescription(initialData.description || "");
         setDueOffsetDays(initialData.dueOffsetDays || "");
-        setMembers(initialData.members?.length > 0 ? initialData.members : [makeMember()]);
-        setSelectedMemberId(initialData.members?.[0]?.id || null);
+        const hydrated = withMemberIds(initialData.members);
+        const nextMembers = hydrated.length > 0 ? hydrated : [makeMember()];
+        setMembers(nextMembers);
+        setSelectedMemberId(nextMembers[0]?.id ?? null);
         setAppliedTemplateId(null);
         setIsSaveTemplateModalOpen(false);
       } else {

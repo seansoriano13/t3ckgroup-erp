@@ -37,7 +37,10 @@ export default function GroupTaskMemberRail({
       <div className="flex-1 overflow-y-auto px-2 pb-2 custom-scrollbar min-h-0">
         {members.map((member) => {
           const employee = resolveEmployee?.(member);
-          const isSelected = member.id === selectedId;
+          // Guarded against a null id on both sides: a member list that lost
+          // its ids would otherwise match `undefined === undefined` and light
+          // up every row at once instead of none.
+          const isSelected = member.id != null && member.id === selectedId;
           const isMe =
             currentUserId && (member.employeeId ?? member.employee_id) === currentUserId;
 
