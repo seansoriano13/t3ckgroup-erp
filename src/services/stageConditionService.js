@@ -20,16 +20,18 @@ async function requireSuperAdmin(actorId) {
  * Stage Gate Engine, ticket 5 (.scratch/stage-gate-engine/issues/05-per-kind-
  * satisfaction.md) — "a satisfied condition and an archived condition
  * both write timeline entries, as does an assignment". Every deal currently
- * sitting on the archived condition's Stage gets a note — those are the
- * deals whose "what this Stage owes" view just lost an item. A deal that has
- * already moved past this Stage isn't touched: its crossing was already
+ * sitting on the condition's Stage gets a note when it is archived (issue
+ * #36's rule) or added (issue #41's — a rule that has just been decided to
+ * matter should apply to the deals in front of you, so a user who suddenly
+ * can't advance a deal deserves to know why). A deal that has already moved
+ * past this Stage isn't touched either way: its crossing was already
  * evaluated (or blocked) under whatever conditions existed at the time.
  *
  * Not `opportunityService.addSystemNote` — this file replicates rather than
  * imports across service modules (see `requireSuperAdmin`, above, and its
  * own prior art in commissionService).
  */
-async function noteArchivalOnDealsAtStage(condition, actorId) {
+async function noteConditionEventOnDealsAtStage(condition, actorId, { event, content }) {
   const { data: deals, error } = await supabase
     .from("sales_opportunities")
     .select("id")
@@ -45,43 +47,25 @@ async function noteArchivalOnDealsAtStage(condition, actorId) {
     opportunity_id: deal.id,
     author_id: actorId,
     type: "SYSTEM",
+    content,
+    metadata: { event, conditionId: condition.id, label: condition.label, employeeId: actorId },
+  }));
+
+  const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
+  if (insertError) console.error(`Failed to write ${event} notes:`, insertError);
+}
+
+const noteArchivalOnDealsAtStage = (condition, actorId) =>
+  noteConditionEventOnDealsAtStage(condition, actorId, {
+    event: "STAGE_CONDITION_ARCHIVED",
     content: `Condition no longer applies: "${condition.label}" (archived).`,
-    metadata: { event: "STAGE_CONDITION_ARCHIVED", conditionId: condition.id, label: condition.label, employeeId: actorId },
-  }));
+  });
 
-  const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
-  if (insertError) console.error("Failed to write condition-archived notes:", insertError);
-}
-
-/**
- * Issue #41's other half of the same rule: a condition added to a Stage
- * blocks every deal sitting there from that moment on, so each gets a note
- * naming what just started applying to it. Same shape as
- * noteArchivalOnDealsAtStage, above, including the Scratch-SOR exclusion —
- * deals already past this Stage are untouched because the gate engine only
- * evaluates a condition created after their crossing as not-applicable.
- */
-async function noteAdditionOnDealsAtStage(condition, actorId) {
-  const { data: deals, error } = await supabase
-    .from("sales_opportunities")
-    .select("id")
-    .eq("flow_stage_id", condition.stage_id)
-    .neq("is_deleted", true)
-    .eq("is_scratch", false);
-  if (error) throw error;
-  if (!deals || deals.length === 0) return;
-
-  const rows = deals.map((deal) => ({
-    opportunity_id: deal.id,
-    author_id: actorId,
-    type: "SYSTEM",
+const noteAdditionOnDealsAtStage = (condition, actorId) =>
+  noteConditionEventOnDealsAtStage(condition, actorId, {
+    event: "STAGE_CONDITION_ADDED",
     content: `Condition now applies: "${condition.label}" (added).`,
-    metadata: { event: "STAGE_CONDITION_ADDED", conditionId: condition.id, label: condition.label, employeeId: actorId },
-  }));
-
-  const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
-  if (insertError) console.error("Failed to write condition-added notes:", insertError);
-}
+  });
 
 /**
  * Stage Gate Engine configuration (docs/stage-gate-engine-spec.md, ticket 3

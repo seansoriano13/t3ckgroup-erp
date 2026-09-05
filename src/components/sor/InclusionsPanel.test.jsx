@@ -155,11 +155,21 @@ describe("InclusionsPanel — import from Odoo (#44)", () => {
       expect(toast.error).toHaveBeenCalledWith('No Odoo quotation found matching "S06070".'),
     )
 
+    // A resolved `{ success: false }` with no `found` key is Odoo itself
+    // reporting an error (misconfiguration, a bad response) — still a normal
+    // round trip, distinct from the reference truly matching nothing above.
     odooService.fetchOrderLines.mockResolvedValue({
       success: false,
       message: "Odoo lookup failed.",
     })
     fireEvent.click(screen.getByRole("button", { name: /import from odoo/i }))
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Odoo lookup failed."))
+
+    // Odoo unreachable at the transport level is a third, genuinely different
+    // case — odooService throws rather than resolving — and reads as its own
+    // message too, not collapsed into either of the two above.
+    odooService.fetchOrderLines.mockRejectedValue(new Error("Could not reach Odoo."))
+    fireEvent.click(screen.getByRole("button", { name: /import from odoo/i }))
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Could not reach Odoo."))
   })
 })

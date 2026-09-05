@@ -565,7 +565,7 @@ export default function GroupTaskDetailModal({
     const member = task.members?.find((m) => m.employee_id === id);
     if (member?.employee?.name) return member.employee.name;
 
-    // 2. Try employees prop (only available for admins/heads)
+    // 2. Fall back to the employees prop, fetched for every viewer
     const emp = employees.find((e) => e.id === id);
     if (emp?.name) return emp.name;
 
