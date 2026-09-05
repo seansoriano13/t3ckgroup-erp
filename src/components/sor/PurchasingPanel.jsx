@@ -641,10 +641,19 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
 
   const openComposer = () => {
     setIsComposing(true);
+    // Autofocus only if nothing else has taken focus by the time these two
+    // animation frames fire: the trigger button itself unmounts as soon as
+    // the composer opens, which drops focus to <body> in the ordinary case,
+    // but two frames is also enough time for someone (or, in tests,
+    // userEvent) to have clicked into a real field already — grabbing focus
+    // back from that mid-keystroke would silently redirect whatever they're
+    // typing into the wrong input.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         composerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
-        firstFieldRef.current?.focus({ preventScroll: true });
+        if (document.activeElement === document.body) {
+          firstFieldRef.current?.focus({ preventScroll: true });
+        }
       }),
     );
   };
