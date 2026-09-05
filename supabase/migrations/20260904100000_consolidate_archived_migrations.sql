@@ -413,62 +413,87 @@ alter table public.flow_stages add column if not exists pos_y integer not null d
 -- SAFE TO RUN AT ANY TIME: The feature was in scaffolding and not actively deployed.
 -- ==============================================================================
 
-drop table if exists public.sor_requirement_status cascade;
-drop table if exists public.stage_requirements cascade;
+-- Guarded on stage_conditions not existing yet: 0064 below renames
+-- stage_requirements -> stage_conditions, and on a remote where that rename
+-- already really happened, recreating the old-named table here would just
+-- collide with it at the rename step. Skip the whole old-named build in
+-- that case and let the rest of this file operate on stage_conditions.
+DO $consolidate_stage_requirements$
+BEGIN
+  IF EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'stage_conditions') THEN
+    RETURN;
+  END IF;
 
-create table public.stage_requirements (
-  id           uuid primary key default gen_random_uuid(),
-  stage_id     uuid not null references public.flow_stages (id) on delete cascade,
-  kind         text not null,
-  label        text not null,
-  is_required  boolean not null default true,
-  sort_order   integer not null default 0,
-  config       jsonb not null default '{}'::jsonb,
-  archived_at  timestamptz,
-  created_at   timestamptz not null default now(),
-  updated_at   timestamptz not null default now(),
+  EXECUTE 'drop table if exists public.sor_requirement_status cascade';
+  EXECUTE 'drop table if exists public.stage_requirements cascade';
 
-  constraint stage_requirements_kind_chk check (kind in (
-    'attachment', 'field', 'tickbox', 'assignment', 'deadline'
-  ))
-);
+  EXECUTE $crt$
+    create table public.stage_requirements (
+      id           uuid primary key default gen_random_uuid(),
+      stage_id     uuid not null references public.flow_stages (id) on delete cascade,
+      kind         text not null,
+      label        text not null,
+      is_required  boolean not null default true,
+      sort_order   integer not null default 0,
+      config       jsonb not null default '{}'::jsonb,
+      archived_at  timestamptz,
+      created_at   timestamptz not null default now(),
+      updated_at   timestamptz not null default now(),
 
-create index stage_requirements_stage_idx
-  on public.stage_requirements (stage_id, sort_order);
-
-create table public.sor_requirement_status (
-  id             uuid primary key default gen_random_uuid(),
-  opportunity_id uuid not null references public.sales_opportunities (id) on delete cascade,
-  requirement_id uuid not null references public.stage_requirements (id) on delete cascade,
-  satisfied_by   uuid references public.employees (id),
-  satisfied_at   timestamptz not null default now(),
-
-  constraint sor_requirement_status_unique unique (opportunity_id, requirement_id)
-);
-
-create index sor_requirement_status_opp_idx
-  on public.sor_requirement_status (opportunity_id);
-
--- â”€â”€ RLS â€” stage_requirements: configuration, Super-Admin write only â”€â”€â”€â”€â”€â”€â”€â”€
-alter table public.stage_requirements enable row level security;
-
-create policy stage_requirements_read on public.stage_requirements
-  for select to authenticated using (true);
-
-create policy stage_requirements_write on public.stage_requirements
-  for all to authenticated
-  using (
-    exists (
-      select 1 from public.employees e
-      where e.id = public.get_employee_id() and e.is_super_admin
+      constraint stage_requirements_kind_chk check (kind in (
+        'attachment', 'field', 'tickbox', 'assignment', 'deadline'
+      ))
     )
-  )
-  with check (
-    exists (
-      select 1 from public.employees e
-      where e.id = public.get_employee_id() and e.is_super_admin
+  $crt$;
+
+  EXECUTE $crt$
+    create index stage_requirements_stage_idx
+      on public.stage_requirements (stage_id, sort_order)
+  $crt$;
+
+  EXECUTE $crt$
+    create table public.sor_requirement_status (
+      id             uuid primary key default gen_random_uuid(),
+      opportunity_id uuid not null references public.sales_opportunities (id) on delete cascade,
+      requirement_id uuid not null references public.stage_requirements (id) on delete cascade,
+      satisfied_by   uuid references public.employees (id),
+      satisfied_at   timestamptz not null default now(),
+
+      constraint sor_requirement_status_unique unique (opportunity_id, requirement_id)
     )
-  );
+  $crt$;
+
+  EXECUTE $crt$
+    create index sor_requirement_status_opp_idx
+      on public.sor_requirement_status (opportunity_id)
+  $crt$;
+
+  -- RLS - stage_requirements: configuration, Super-Admin write only
+  EXECUTE 'alter table public.stage_requirements enable row level security';
+
+  EXECUTE $crt$
+    create policy stage_requirements_read on public.stage_requirements
+      for select to authenticated using (true)
+  $crt$;
+
+  EXECUTE $crt$
+    create policy stage_requirements_write on public.stage_requirements
+      for all to authenticated
+      using (
+        exists (
+          select 1 from public.employees e
+          where e.id = public.get_employee_id() and e.is_super_admin
+        )
+      )
+      with check (
+        exists (
+          select 1 from public.employees e
+          where e.id = public.get_employee_id() and e.is_super_admin
+        )
+      )
+  $crt$;
+END
+$consolidate_stage_requirements$;
 
 -- sor_requirement_status deliberately has no RLS block, matching sales_opportunity_logs.
 -- Authorization is enforced at the service layer where the write actually happens.
