@@ -5,7 +5,8 @@
     "title": "Sales Flow Lock & Condition Improvements",
     "changes": [
       "Sales Flows can now be locked and unlocked directly from the Flow Canvas, with a clear list of what's blocking a lock.",
-      "Adding a 'Field on record' condition to a Stage now lets you specify which field to check."
+      "Adding a 'Field on record' condition to a Stage now lets you specify which field to check.",
+      "Fixed a bug in the Purchasing request form where quickly typing a buyer's name right after opening the form could scramble the product name field."
     ]
   },
   {
