@@ -390,8 +390,8 @@ comment on column public.sales_opportunities.flow_stage_id is
 -- on the canvas. These do not affect flow execution logic, only visual rendering.
 -- ==============================================================================
 
-alter table public.flow_stages add column pos_x integer not null default 0;
-alter table public.flow_stages add column pos_y integer not null default 0;
+alter table public.flow_stages add column if not exists pos_x integer not null default 0;
+alter table public.flow_stages add column if not exists pos_y integer not null default 0;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
@@ -1691,8 +1691,10 @@ update public.sales_opportunities as s
 -- app does.
 -- ==============================================================================
 
-alter table public.flow_stages add column color text;
+alter table public.flow_stages add column if not exists color text;
 
+alter table public.flow_stages
+  drop constraint if exists flow_stages_color_check;
 alter table public.flow_stages
   add constraint flow_stages_color_check
   check (color is null or color in ('mauve', 'amber', 'blue', 'red', 'violet', 'orange', 'green'));
@@ -1733,7 +1735,7 @@ alter table public.sil_leaves add column if not exists end_time time;
 -- as-is, with no fixed-width UI slot that a cap would be protecting.
 -- ==============================================================================
 
-alter table public.flow_stages add column bracket_label text;
+alter table public.flow_stages add column if not exists bracket_label text;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
