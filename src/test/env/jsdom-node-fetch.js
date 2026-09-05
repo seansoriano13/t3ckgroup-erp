@@ -60,13 +60,17 @@ export default {
         global.FormData = NodeFormData
 
         // Neither jsdom nor Node supplies a usable Storage here: Node 26's
-        // `localStorage` global is a disabled accessor, and jsdom leaves
-        // window.localStorage undefined without a storage-backed origin. Code
-        // that reads it — the theme hook, the Supabase session store — would
-        // see undefined. An in-memory Storage keeps that code on its normal
-        // path, and per-test isolation comes from the worker being fresh.
+        // `localStorage` global is a disabled accessor, and depending on
+        // jsdom's version/config, window.localStorage is either undefined
+        // (no storage-backed origin) or a real, Proxy-wrapped jsdom Storage
+        // that `vi.spyOn` cannot intercept (its methods live behind the Proxy,
+        // not as plain own/prototype properties spyOn can shadow). Always
+        // installing our own plain-object Storage sidesteps both: code that
+        // reads it — the theme hook, the Supabase session store — stays on
+        // its normal path, and tests can reliably spy on getItem/setItem.
+        // Per-test isolation comes from the worker being fresh.
         for (const key of ["localStorage", "sessionStorage"]) {
-            const storage = global.window?.[key] ?? createMemoryStorage()
+            const storage = createMemoryStorage()
             for (const target of [global, global.window]) {
                 if (!target) continue
                 Object.defineProperty(target, key, {
