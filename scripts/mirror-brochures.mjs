@@ -139,12 +139,18 @@ async function resolveGhostscript() {
   return null;
 }
 
+const GHOSTSCRIPT_INSTALL_HINT = {
+  win32: "winget install ArtifexSoftware.GhostScript, then reopen the shell",
+  darwin: "brew install ghostscript",
+  linux: "sudo apt-get install -y ghostscript",
+}[process.platform] || "install Ghostscript for your platform";
+
 async function compressPdf(bytes) {
   const bin = await resolveGhostscript();
   if (!bin) {
     throw new Error(
-      "Ghostscript not found — install it (winget install ArtifexSoftware.GhostScript) " +
-        "and reopen the shell, or pass --no-compress to skip oversized documents",
+      `Ghostscript not found — ${GHOSTSCRIPT_INSTALL_HINT}, ` +
+        "or pass --no-compress to skip oversized documents",
     );
   }
 

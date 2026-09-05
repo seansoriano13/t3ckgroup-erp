@@ -47,6 +47,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Oversized PDFs are compressed via Ghostscript before upload; ubuntu-latest
+      # does not ship it, and a missing binary must not fail the whole mirror run.
+      - name: Install Ghostscript
+        run: sudo apt-get update && sudo apt-get install -y ghostscript
+
       # The script reads a file rather than process.env, so that its local and
       # CI behaviour are identical — one code path, no "works on my machine".
       - name: Write .env.mirror from secrets
