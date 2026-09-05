@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { stageActionService } from "./stageActionService";
-import { makeEmployee, makeSaleType, makeSalesFlow, makeFlowStage, db } from "../test/factories";
-import { waitForNetworkIdle } from "../test/network";
+import { makeEmployee, makeSaleType, makeSalesFlow, makeFlowStage } from "../test/factories";
 
 describe("stageActionService", () => {
   let admin, regular, saleType, flow, stage;

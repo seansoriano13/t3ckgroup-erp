@@ -61,7 +61,6 @@ describe("StageSettingsPanel", () => {
 
   it("disables all action buttons when disabled is true", () => {
     render(<StageSettingsPanel {...defaultProps} disabled={true} />);
-    const buttons = screen.getAllByRole("button");
     // Ensure all semantic interactive buttons are disabled except tabs which might not use disabled
     // Let's specifically check the delete, entry, won, terminal buttons
     const deleteBtn = screen.getByRole("button", { name: /Delete Stage/i });
