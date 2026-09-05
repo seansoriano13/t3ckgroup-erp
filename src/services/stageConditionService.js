@@ -54,6 +54,36 @@ async function noteArchivalOnDealsAtStage(condition, actorId) {
 }
 
 /**
+ * Issue #41's other half of the same rule: a condition added to a Stage
+ * blocks every deal sitting there from that moment on, so each gets a note
+ * naming what just started applying to it. Same shape as
+ * noteArchivalOnDealsAtStage, above, including the Scratch-SOR exclusion —
+ * deals already past this Stage are untouched because the gate engine only
+ * evaluates a condition created after their crossing as not-applicable.
+ */
+async function noteAdditionOnDealsAtStage(condition, actorId) {
+  const { data: deals, error } = await supabase
+    .from("sales_opportunities")
+    .select("id")
+    .eq("flow_stage_id", condition.stage_id)
+    .neq("is_deleted", true)
+    .eq("is_scratch", false);
+  if (error) throw error;
+  if (!deals || deals.length === 0) return;
+
+  const rows = deals.map((deal) => ({
+    opportunity_id: deal.id,
+    author_id: actorId,
+    type: "SYSTEM",
+    content: `Condition now applies: "${condition.label}" (added).`,
+    metadata: { event: "STAGE_CONDITION_ADDED", conditionId: condition.id, label: condition.label, employeeId: actorId },
+  }));
+
+  const { error: insertError } = await supabase.from("sales_opportunity_logs").insert(rows);
+  if (insertError) console.error("Failed to write condition-added notes:", insertError);
+}
+
+/**
  * Stage Gate Engine configuration (docs/stage-gate-engine-spec.md, ticket 3
  * of .scratch/stage-gate-engine/issues/) — add, reorder and archive a
  * Stage's conditions. Every write is Super-Admin-gated and audit-logged.
@@ -157,6 +187,8 @@ export const stageConditionService = {
       { event: "STAGE_CONDITION_ADDED", stageId, kind, label: trimmedLabel, employeeId: actorId },
       actorId,
     ).catch(console.error);
+
+    await noteAdditionOnDealsAtStage(data, actorId);
 
     return data;
   },

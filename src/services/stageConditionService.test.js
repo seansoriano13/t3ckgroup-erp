@@ -227,6 +227,42 @@ describe("stageConditionService", () => {
       expect(entry.author_id).toBe(admin.id)
       expect(entry.metadata.event).toBe("STAGE_CONDITION_ADDED")
     })
+
+    // Issue #41: a rule that has just been decided to matter should apply to
+    // the deals in front of you, but a user who suddenly can't advance a deal
+    // deserves to know why.
+    it("narrates onto the timeline of every deal currently sitting on that Stage", async () => {
+      const onStage = makeOpportunity({
+        registered_by: admin.id,
+        flow_stage_id: stage.id, sale_type_id: saleType.id,
+        sales_reference: "S00998",
+      })
+      const elsewhere = makeOpportunity({ registered_by: admin.id, status: "LEAD" })
+
+      await stageConditionService.add(
+        { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
+        admin.id,
+      )
+
+      const onStageNotes = db
+        .rows("sales_opportunity_logs")
+        .filter((n) => n.opportunity_id === onStage.id)
+      expect(onStageNotes.some((n) => n.content.includes('Bid documents checked'))).toBe(true)
+
+      const elsewhereNotes = db
+        .rows("sales_opportunity_logs")
+        .filter((n) => n.opportunity_id === elsewhere.id)
+      expect(elsewhereNotes).toHaveLength(0)
+    })
+
+    it("writes no notes and does not fail when the Stage has no deals on it", async () => {
+      await expect(
+        stageConditionService.add(
+          { stageId: stage.id, kind: "tickbox", label: "Bid documents checked" },
+          admin.id,
+        ),
+      ).resolves.toBeTruthy()
+    })
   })
 
   describe("reorder", () => {
