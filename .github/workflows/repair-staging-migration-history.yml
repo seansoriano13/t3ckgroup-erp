@@ -1,0 +1,51 @@
+name: Repair staging migration history
+
+# One-off utility, not part of the normal pipeline. Use this only when
+# `supabase db push` on staging fails with "Remote migration versions not
+# found in local migrations directory" — that means the remote
+# supabase_migrations.schema_migrations ledger has an entry with no matching
+# file under supabase/migrations/. This marks that entry's status in the
+# ledger (does not touch schema) so migrate-staging.yml can push again.
+#
+# Press the button in the Actions tab; a human decides when, same as
+# migrate-prod.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Migration version/timestamp to repair, e.g. 20260904070000"
+        required: true
+      status:
+        description: 'Status to set: "reverted" (remove from ledger) or "applied" (mark as run)'
+        required: true
+        default: "reverted"
+
+concurrency:
+  group: migrate-staging
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: supabase migration repair --project-ref staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Repair migration history
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration repair --status ${{ github.event.inputs.status }} ${{ github.event.inputs.version }} --project-ref fpjxdyowngpnovotbzqi
+
+      - name: Show resulting migration list
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration list --project-ref fpjxdyowngpnovotbzqi
