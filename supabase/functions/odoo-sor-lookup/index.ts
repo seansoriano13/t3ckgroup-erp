@@ -36,6 +36,11 @@ async function fetchOrderItems(uid, orderId) {
     .filter((l) => !l.display_type) // section/note lines aren't products
     .map((l) => ({
       product_name: (l.product_id && l.product_id[1]) || l.name || "",
+      // Issue #44: a bundled order's Inclusions live as free text in the
+      // line's own description, not in the product name — kept as its own
+      // field rather than folded into product_name so the existing Product
+      // List mapping (and everything downstream of it) is untouched.
+      description: l.name || "",
       unit: (l.product_uom && l.product_uom[1]) || "",
       quantity: l.product_uom_qty || 0,
       unit_price: l.price_unit || 0,

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ChevronDown, ListChecks, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { ChevronDown, Download, ListChecks, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Dropdown from "../ui/Dropdown";
@@ -9,6 +9,7 @@ import { FilterOptionList } from "../ui/FilterDropdown";
 import { confirmDeleteToast } from "../ui/CustomToast";
 import { useAuth } from "../../context/AuthContext";
 import { projectEvaluationService } from "../../services/projectEvaluationService";
+import { odooService } from "../../services/odooService";
 import CanvassPanel, { CanvassTriggerButton } from "../CanvassPanel";
 import {
   COMPLETENESS,
@@ -302,13 +303,52 @@ function Composer({ onAdd, onCancel, isPending }) {
   );
 }
 
+/**
+ * One imported-but-unsaved row (issue #44). Lives only in this component's
+ * state until Save — nothing here has touched sor_inclusions yet, so editing
+ * or discarding a draft is a plain state update, no mutation, no confirm.
+ */
+function DraftRow({ draft, onChange, onDiscard, isPending }) {
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-dashed border-violet-7 bg-violet-a2 px-3 py-2">
+      <input
+        value={draft.description}
+        onChange={(e) => onChange({ description: e.target.value })}
+        aria-label="Imported description"
+        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none"
+      />
+      <input
+        type="number"
+        min="0"
+        step="any"
+        value={draft.quantity}
+        onChange={(e) => onChange({ quantity: e.target.value })}
+        aria-label="Imported quantity"
+        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+      />
+      <button
+        type="button"
+        onClick={onDiscard}
+        disabled={isPending}
+        aria-label={`Discard ${draft.description}`}
+        className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-red-a3 hover:text-red-11 disabled:opacity-30"
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
 export default function InclusionsPanel({ opportunity, isRequired = false }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [isComposing, setIsComposing] = useState(false);
   const [isFolded, setIsFolded] = useState(false);
+  const [drafts, setDrafts] = useState([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   const opportunityId = opportunity?.id;
+  const salesReference = opportunity?.sales_reference;
 
   const { data: inclusions = [] } = useQuery({
     queryKey: ["inclusions", opportunityId],
@@ -394,6 +434,72 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
     onError: (err) => toast.error(err.message),
   });
 
+  const saveDraftsMutation = useMutation({
+    mutationFn: () =>
+      projectEvaluationService.addInclusions(
+        opportunityId,
+        drafts.map(({ localId: _localId, ...entry }) => entry),
+        user?.id,
+      ),
+    onSuccess: (saved) => {
+      invalidate();
+      setDrafts([]);
+      toast.success(`Saved ${saved.length} imported inclusion(s).`);
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  // Issue #44: the client's spec on a bundled Odoo order lives as free text
+  // inside the order line's description — a separate field from the product
+  // name the Product List already maps, so importing here never touches
+  // that mapping or its consumers.
+  const handleImport = async () => {
+    if (!salesReference) return;
+    setIsImporting(true);
+    try {
+      const result = await odooService.fetchOrderLines(salesReference);
+      if (!result?.success) {
+        toast.error(result?.message || "Could not fetch items from Odoo.");
+        return;
+      }
+
+      const alreadyHave = new Set(
+        [...inclusions.map((i) => i.description), ...drafts.map((d) => d.description)].map((d) =>
+          d.trim().toLowerCase(),
+        ),
+      );
+
+      const candidates = (result.items || [])
+        .map((item) => ({
+          description: (item.description || item.product_name || "").trim(),
+          quantity: item.quantity || 1,
+          unit: item.unit || "",
+        }))
+        .filter((c) => c.description);
+
+      const fresh = candidates.filter((c) => !alreadyHave.has(c.description.toLowerCase()));
+
+      if (candidates.length === 0) {
+        toast.error("That quotation has no line description to import.");
+        return;
+      }
+      if (fresh.length === 0) {
+        toast.success("Already imported — nothing new to add.");
+        return;
+      }
+
+      setDrafts((prev) => [
+        ...prev,
+        ...fresh.map((entry, i) => ({ ...entry, localId: `${Date.now()}-${i}` })),
+      ]);
+      toast.success(`Imported ${fresh.length} line(s) — review before saving.`);
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo — try again.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const summary = summariseCompleteness(inclusions);
   const isPending = patchMutation.isPending || removeMutation.isPending;
 
@@ -414,6 +520,23 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
           />
           Inclusions
         </button>
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleImport}
+            disabled={!salesReference || isImporting}
+            title={
+              salesReference
+                ? "Import the order line description(s) from Odoo"
+                : "Bind a Sales Reference first to import from Odoo"
+            }
+            className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+          >
+            <Download size={12} />
+            {isImporting ? "Importing…" : "Import from Odoo"}
+          </button>
+        )}
 
         {/* An untouched breakdown has no percentage, deliberately — "0%" would
             tell a salesperson their spec is failing when nobody has looked. */}
@@ -447,6 +570,50 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
 
       {!isFolded && (
         <>
+          {canEdit && !salesReference && (
+            <p className="text-[11px] font-medium text-muted-foreground">
+              Bind a Sales Reference to this SOR to import Inclusions from Odoo.
+            </p>
+          )}
+
+          {drafts.length > 0 && (
+            <div className="space-y-1.5">
+              {drafts.map((draft) => (
+                <DraftRow
+                  key={draft.localId}
+                  draft={draft}
+                  isPending={saveDraftsMutation.isPending}
+                  onChange={(patch) =>
+                    setDrafts((prev) =>
+                      prev.map((d) => (d.localId === draft.localId ? { ...d, ...patch } : d)),
+                    )
+                  }
+                  onDiscard={() =>
+                    setDrafts((prev) => prev.filter((d) => d.localId !== draft.localId))
+                  }
+                />
+              ))}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => saveDraftsMutation.mutate()}
+                  disabled={saveDraftsMutation.isPending}
+                  className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+                >
+                  Save imported ({drafts.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDrafts([])}
+                  disabled={saveDraftsMutation.isPending}
+                  className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Discard all
+                </button>
+              </div>
+            </div>
+          )}
+
           {inclusions.length > 0 && (
             <div className="space-y-1.5">
               {inclusions.map((inclusion) => (
