@@ -1,5 +1,14 @@
 [
   {
+    "version": "1.1.0",
+    "date": "2026-09-05",
+    "title": "Sales Flow Lock & Condition Improvements",
+    "changes": [
+      "Sales Flows can now be locked and unlocked directly from the Flow Canvas, with a clear list of what's blocking a lock.",
+      "Adding a 'Field on record' condition to a Stage now lets you specify which field to check."
+    ]
+  },
+  {
     "version": "1.0.0",
     "date": "2026-09-04",
     "title": "Changelog Feature Introduced",
