@@ -63,6 +63,44 @@ describe('HrLeavesManagerPage', () => {
     });
   });
 
+  // Issue #106 (HR-03): HR used to see only the raw balance, so two
+  // legitimate-looking pending requests together could exceed what the
+  // employee actually has left — this is what tells HR before they approve.
+  it('shows available hours (balance minus every pending request) alongside each pending application', async () => {
+    const user = userEvent.setup();
+    const applicant = makeEmployee({ name: 'Stacked Requester', offset_hours_balance: 16 });
+
+    makeOffsetLeave({
+      employee_id: applicant.id,
+      date: '2026-03-10',
+      hours: 4,
+      status: 'PENDING',
+      reason: 'First request',
+    });
+    makeOffsetLeave({
+      employee_id: applicant.id,
+      date: '2026-03-11',
+      hours: 4,
+      status: 'PENDING',
+      reason: 'Second request',
+    });
+
+    renderWithProviders(
+      <MemoryRouter>
+        <HrLeavesManagerPage />
+      </MemoryRouter>
+    );
+
+    const pendingTab = await screen.findByRole('button', { name: /Pending Requests/i });
+    await user.click(pendingTab);
+
+    // Both requests together commit 8 of the 16 hrs, so each row should read
+    // 8 hrs available — not the raw 16 hr balance.
+    await waitFor(() => {
+      expect(screen.getAllByText('8 hrs available')).toHaveLength(2);
+    });
+  });
+
   it('hides deactivated employees from the Employee Balances register', async () => {
     const user = userEvent.setup();
     makeEmployee({ name: 'Active Worker', is_deleted: false });

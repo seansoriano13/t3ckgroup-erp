@@ -21,6 +21,7 @@ import { AttachmentList } from '../../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../../utils/dateUtils';
 import { formatWindow, isRequestInPendingPeriod } from '../../../utils/time';
 import { groupLeaveRows } from '../../../utils/leaveGroups';
+import { computeAvailableHours } from '../../../services/leaveRules';
 import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPreview';
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
@@ -254,6 +255,27 @@ export default function HrLeavesManagerPage() {
       return true;
     });
   }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter]);
+
+  // Every employee's total hours already committed to pending applications,
+  // by leave type — computed from the full pending queue (not the filtered
+  // view) so "available" stays accurate regardless of which filters are
+  // active (issue #106).
+  const pendingHoursByEmployee = useMemo(() => {
+    const totals = new Map();
+    pendingLeaves.forEach(req => {
+      if (req.type !== 'OFFSET' && req.type !== 'SIL') return;
+      const key = `${req.employee_id}_${req.type}`;
+      totals.set(key, (totals.get(key) || 0) + parseFloat(req.hours || 0));
+    });
+    return totals;
+  }, [pendingLeaves]);
+
+  const availableHoursFor = useCallback((req) => {
+    if (req.type !== 'OFFSET' && req.type !== 'SIL') return null;
+    const balance = req.type === 'OFFSET' ? req.employee?.offset_hours_balance : req.employee?.sil_hours_balance;
+    const pending = pendingHoursByEmployee.get(`${req.employee_id}_${req.type}`) || 0;
+    return computeAvailableHours(balance, pending);
+  }, [pendingHoursByEmployee]);
 
   // Group filtered pending by month
   const pendingByMonth = useMemo(() => {
@@ -516,6 +538,11 @@ export default function HrLeavesManagerPage() {
                                   {req.start_time && req.end_time && (
                                     <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
                                       {formatWindow(req.start_time, req.end_time)}
+                                    </span>
+                                  )}
+                                  {availableHoursFor(req) !== null && (
+                                    <span className="text-[10px] font-bold text-muted-foreground" title="Balance minus every pending application for this employee">
+                                      {availableHoursFor(req)} hrs available
                                     </span>
                                   )}
                                 </div>
