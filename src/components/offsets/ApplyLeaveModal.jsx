@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { hrSettingsService } from '../../services/hrSettingsService';
+import { employeeService } from '../../services/employeeService';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { X, Calendar, PlusCircle } from 'lucide-react';
@@ -14,7 +15,6 @@ import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
 import { applyLunchDeduction } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
-import { useEffect } from 'react';
 
 const DEFAULT_DAY_HOURS = 8;
 
@@ -93,9 +93,15 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
   );
 }
 
-export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
+/**
+ * One modal, two entry points: Self-Service employees file under their own
+ * identity, HR files on an employee's behalf via `showEmployeeSelector`
+ * (issue #107 — the two used to be separate 700-line forks that drifted).
+ */
+export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmployeeSelector = false }) {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'offset' | 'sil'
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
   // Overtime State
   const [otDate, setOtDate] = useState('');
@@ -142,6 +148,22 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     queryFn: () => hrSettingsService.getLeaveCategories(false),
   });
 
+  const { data: employees = [] } = useQuery({
+    queryKey: ['hrEmployeesList'],
+    enabled: showEmployeeSelector,
+    queryFn: async () => {
+      const allEmps = await employeeService.getAllEmployees();
+      return allEmps.sort((a, b) => a.name.localeCompare(b.name));
+    },
+  });
+
+  const selectedEmployeeName = useMemo(() => {
+    return employees.find((e) => e.id === selectedEmployeeId)?.name || 'Unknown';
+  }, [employees, selectedEmployeeId]);
+
+  const employeeId = showEmployeeSelector ? selectedEmployeeId : user.id;
+  const employeeName = showEmployeeSelector ? selectedEmployeeName : user.name;
+
   useEffect(() => {
     if (silDate && silApplyMode === 'single') {
       const dateObj = new Date(silDate);
@@ -166,12 +188,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     try {
       const attachments = await otFiles.upload();
       await offsetService.applyOvertime({
-        employeeId: user.id,
+        employeeId,
         date: otDate,
         startTime: otStartTime,
         endTime: otEndTime,
         reason: otReason,
-        employeeName: user.name,
+        employeeName,
         attachments,
       });
       toast.success('Overtime application submitted!');
@@ -203,11 +225,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       try {
         const attachments = await offsetFiles.upload();
         await offsetService.applyOffsetLeaveRange({
-          employeeId: user.id,
+          employeeId,
           days: days.map((date) => ({ date, hours: parseFloat(offsetDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: offsetReason,
           categoryId: offsetCategoryId,
-          employeeName: user.name,
+          employeeName,
           attachments,
         });
         toast.success(`Offset leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
@@ -236,13 +258,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     try {
       const attachments = await offsetFiles.upload();
       await offsetService.applyOffsetLeave({
-        employeeId: user.id,
+        employeeId,
         date: offsetDate,
         startTime: offsetStartTime,
         endTime: offsetEndTime,
         reason: offsetReason,
         categoryId: offsetCategoryId,
-        employeeName: user.name,
+        employeeName,
         attachments,
       });
       toast.success('Offset leave application submitted!');
@@ -275,11 +297,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
       try {
         const attachments = await silFiles.upload();
         await silService.applySilLeaveRange({
-          employeeId: user.id,
+          employeeId,
           days: days.map((date) => ({ date, hours: parseFloat(silDayHours[date] ?? DEFAULT_DAY_HOURS) })),
           reason: silReason,
           categoryId: silCategoryId,
-          employeeName: user.name,
+          employeeName,
           attachments,
         });
         toast.success(`SIL leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
@@ -308,13 +330,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
     try {
       const attachments = await silFiles.upload();
       await silService.applySilLeave({
-        employeeId: user.id,
+        employeeId,
         date: silDate,
         startTime: silStartTime,
         endTime: silEndTime,
         reason: silReason,
         categoryId: silCategoryId,
-        employeeName: user.name,
+        employeeName,
         attachments,
       });
       toast.success('SIL leave application submitted!');
@@ -363,6 +385,25 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
             onChange={setActiveTab}
             size="sm"
           />
+
+          {showEmployeeSelector && (
+            <div>
+              <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                Employee
+              </label>
+              <select
+                value={selectedEmployeeId}
+                onChange={(e) => setSelectedEmployeeId(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
+                required
+              >
+                <option value="" disabled>Select employee...</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>{emp.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {activeTab === 'overtime' && (
             <form onSubmit={handleApplyOvertime} className="space-y-4 animate-in fade-in duration-300">

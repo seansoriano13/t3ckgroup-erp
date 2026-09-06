@@ -2,18 +2,18 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { employeeService } from '../../../services/employeeService';
-import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
-import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List } from 'lucide-react';
+import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List, Plus } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
 import DocumentCenterTab from './_components/DocumentCenterTab';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
+import Spinner from '@/components/ui/Spinner';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
-import HrApplyLeaveModal from '../../../components/hr/HrApplyLeaveModal';
+import ApplyLeaveModal from '../../../components/offsets/ApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
 import { confirmActionToast } from '../../../components/ui/CustomToast';
@@ -299,10 +299,6 @@ export default function HrLeavesManagerPage() {
   return (
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
-      <PageHeader 
-        title="Offsets & Leaves" 
-        subtitle="Manage overtime credits, leave requests, and balances"
-      />
 
       <ApproveOvertimeModal
         isOpen={!!overtimeApproval}
@@ -320,22 +316,23 @@ export default function HrLeavesManagerPage() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <PageHeader
-          title="HR Leaves & Overtime Manager"
+          title="Leaves Manager"
           description="Review leave applications, approve overtime, and manage employee balances."
         />
         <button
           onClick={() => setIsApplyModalOpen(true)}
-          className="flex-none bg-primary text-primary-foreground font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-primary/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
+          className="flex-none bg-foreground text-background font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-foreground/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
         >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4"/></svg>
+          <Plus size={16} />
           File for Employee
         </button>
       </div>
 
-      <HrApplyLeaveModal 
+      <ApplyLeaveModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
         onSuccess={loadData}
+        showEmployeeSelector
       />
 
       <div className="space-y-4">
@@ -440,7 +437,10 @@ export default function HrLeavesManagerPage() {
         {activeTab === 'pending' && (
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
             {loading ? (
-              <div className="p-8 text-center text-muted-foreground">Loading pending requests...</div>
+            <div className="p-8 flex flex-col items-center gap-3 text-muted-foreground">
+              <Spinner size="md" />
+              <span className="text-sm font-medium">Loading pending requests...</span>
+            </div>
             ) : filteredPending.length === 0 ? (
                <div className="p-12 flex flex-col items-center justify-center text-center bg-muted/20">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground/50">
@@ -468,7 +468,7 @@ export default function HrLeavesManagerPage() {
                     {pendingByMonth.map(group => (
                       <React.Fragment key={group.label}>
                         <tr>
-                          <td colSpan="7" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
+                          <td colSpan="8" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
                             {group.label}
                           </td>
                         </tr>
@@ -485,7 +485,7 @@ export default function HrLeavesManagerPage() {
                               </td>
                               <td className="p-4">
                                 <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
-                                  req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
+                                  req.type === 'OVERTIME' ? 'bg-muted text-foreground border-border' :
                                   req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
                                 }`}>
                                   {req.type}
@@ -572,7 +572,10 @@ export default function HrLeavesManagerPage() {
         {activeTab === 'history' && (
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
              {loading ? (
-              <div className="p-8 text-center text-muted-foreground">Loading history...</div>
+              <div className="p-8 flex flex-col items-center gap-3 text-muted-foreground">
+                <Spinner size="md" />
+                <span className="text-sm font-medium">Loading history...</span>
+              </div>
             ) : filteredProcessed.length === 0 ? (
                <div className="p-12 text-center text-muted-foreground font-medium bg-muted/20">No history found for the selected period.</div>
             ) : (
@@ -695,77 +698,77 @@ export default function HrLeavesManagerPage() {
              {balancesLayout === 'grid' ? (
                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in fade-in duration-300">
                  {filteredBalances.map(emp => (
-                    <div key={emp.id} className="bg-white border border-[#E9E9E7] rounded-xl p-5 hover:border-[#D4D4D2] transition-colors shadow-sm flex flex-col gap-4">
-                      <div className="flex items-center gap-3 border-b border-[#F1F1EF] pb-4">
+                    <div key={emp.id} className="bg-card border border-border rounded-xl p-5 hover:border-mauve-8 transition-colors shadow-sm flex flex-col gap-4">
+                      <div className="flex items-center gap-3 border-b border-border pb-4">
                         <Avatar name={emp.name} src={emp.avatar_path} size="md" />
                         <div>
-                          <p className="text-[15px] font-bold text-[#37352F]">{emp.name}</p>
-                          <p className="text-[13px] text-[#9B9A97] font-medium">{emp.department || 'No Department'}</p>
+                          <p className="text-[15px] font-bold text-foreground">{emp.name}</p>
+                          <p className="text-[13px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="bg-[#F7F7F5] rounded-lg p-3 border border-[#E9E9E7] flex flex-col justify-center">
-                          <p className="text-[10px] font-black text-[#9B9A97] uppercase tracking-wider mb-1">Offset</p>
+                        <div className="bg-muted rounded-lg p-3 border border-border flex flex-col justify-center">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Offset</p>
                           <div className="flex items-baseline gap-1">
-                            <span className={`text-2xl font-black ${emp.offset_hours_balance > 0 ? 'text-[#0F7B42]' : 'text-[#37352F]'}`}>
+                            <span className={`text-2xl font-black ${emp.offset_hours_balance > 0 ? 'text-green-11' : 'text-foreground'}`}>
                               {emp.offset_hours_balance}
                             </span>
-                            <span className="text-xs text-[#9B9A97] font-bold tracking-tight">hrs</span>
+                            <span className="text-xs text-muted-foreground font-bold tracking-tight">hrs</span>
                           </div>
                         </div>
                         
-                        <div className="bg-[#F7F7F5] rounded-lg p-3 border border-[#E9E9E7] flex flex-col justify-center">
-                          <p className="text-[10px] font-black text-[#9B9A97] uppercase tracking-wider mb-1">SIL</p>
+                        <div className="bg-muted rounded-lg p-3 border border-border flex flex-col justify-center">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">SIL</p>
                           <div className="flex items-baseline gap-1">
-                            <span className={`text-2xl font-black ${emp.sil_hours_balance > 0 ? 'text-[#0F7B42]' : 'text-[#37352F]'}`}>
+                            <span className={`text-2xl font-black ${emp.sil_hours_balance > 0 ? 'text-green-11' : 'text-foreground'}`}>
                               {emp.sil_hours_balance}
                             </span>
-                            <span className="text-xs text-[#9B9A97] font-bold tracking-tight">hrs</span>
+                            <span className="text-xs text-muted-foreground font-bold tracking-tight">hrs</span>
                           </div>
                         </div>
                       </div>
                     </div>
                  ))}
                  {filteredBalances.length === 0 && (
-                   <div className="col-span-full py-16 text-center text-[#9B9A97] bg-[#F7F7F5] border border-[#E9E9E7] rounded-xl border-dashed flex flex-col items-center justify-center gap-2">
+                   <div className="col-span-full py-16 text-center text-muted-foreground bg-muted border border-border rounded-xl border-dashed flex flex-col items-center justify-center gap-2">
                      <span className="text-sm font-medium">No employee balances found</span>
                    </div>
                  )}
                </div>
              ) : (
-               <div className="bg-white border border-[#E9E9E7] rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+               <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-300">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse whitespace-nowrap">
                       <thead>
-                        <tr className="bg-[#F7F7F5] border-b border-[#E9E9E7] text-[10px] font-black text-[#9B9A97] uppercase tracking-[0.15em]">
+                        <tr className="bg-muted border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                           <th className="p-4">Employee</th>
                           <th className="p-4">Offset Balance</th>
                           <th className="p-4">SIL Balance</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E9E9E7]">
+                      <tbody className="divide-y divide-border">
                         {filteredBalances.map(emp => (
-                           <tr key={emp.id} className="hover:bg-[#F9F9F8] transition-colors">
+                           <tr key={emp.id} className="hover:bg-muted/50 transition-colors">
                               <td className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar name={emp.name} src={emp.avatar_path} size="sm" />
                                   <div>
-                                    <p className="text-[14px] font-bold text-[#37352F]">{emp.name}</p>
-                                    <p className="text-[12px] text-[#9B9A97] font-medium">{emp.department || 'No Department'}</p>
+                                    <p className="text-[14px] font-bold text-foreground">{emp.name}</p>
+                                    <p className="text-[12px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
                                   </div>
                                 </div>
                               </td>
                               <td className="p-4">
                                  <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
-                                   emp.offset_hours_balance > 0 ? 'bg-[#F3FBF4] text-[#0F7B42] border-[#E1F3E5]' : 'bg-[#F7F7F5] text-[#9B9A97] border-[#E9E9E7]'
+                                   emp.offset_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
                                  }`}>
                                    {emp.offset_hours_balance} hrs
                                  </span>
                               </td>
                                <td className="p-4">
                                  <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
-                                   emp.sil_hours_balance > 0 ? 'bg-[#F3FBF4] text-[#0F7B42] border-[#E1F3E5]' : 'bg-[#F7F7F5] text-[#9B9A97] border-[#E9E9E7]'
+                                   emp.sil_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
                                  }`}>
                                    {emp.sil_hours_balance} hrs
                                  </span>
@@ -774,7 +777,7 @@ export default function HrLeavesManagerPage() {
                         ))}
                         {filteredBalances.length === 0 && (
                           <tr>
-                            <td colSpan={3} className="py-16 text-center text-[#9B9A97] bg-[#F7F7F5]">
+                            <td colSpan={3} className="py-16 text-center text-muted-foreground bg-muted">
                               No employee balances found
                             </td>
                           </tr>

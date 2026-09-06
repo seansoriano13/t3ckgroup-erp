@@ -3,7 +3,7 @@ import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
 import { generateApplicationHash, generateApprovalHash } from '../utils/formHashes';
-import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours } from './leaveRules';
+import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertWithinAvailableBalance } from './leaveRules';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -79,6 +79,23 @@ export async function checkOverlap(employeeId, date, startTime, endTime) {
  * it collides with something else on the same date. Without a window to compare,
  * any other active application on that date is treated as a conflict.
  */
+/**
+ * Hours the employee has already committed to offset leaves still awaiting
+ * an HR decision — the piece of "available" (issue #106) that the raw
+ * `offset_hours_balance` column doesn't know about, since nothing is
+ * deducted from it until approval.
+ */
+export async function getPendingOffsetHours(employeeId) {
+  const { data, error } = await supabase
+    .from('offset_leaves')
+    .select('hours')
+    .eq('employee_id', employeeId)
+    .eq('status', 'PENDING');
+
+  if (error) throw new Error(error.message);
+  return (data || []).reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+}
+
 export async function checkDateTaken(employeeId, date) {
   const [ot, offset, sil] = await Promise.all([
     supabase.from('overtime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
@@ -185,9 +202,8 @@ export const offsetService = {
     if (empErr) throw new Error(empErr.message);
 
     const currentBalance = parseFloat(emp.offset_hours_balance || 0);
-    if (currentBalance < parsedHours) {
-      throw new Error(`Insufficient offset hours balance. You have ${currentBalance} hrs remaining.`);
-    }
+    const pendingHours = await getPendingOffsetHours(employeeId);
+    assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: parsedHours, leaveTypeLabel: 'offset' });
 
     const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
       employeeId,
@@ -288,9 +304,8 @@ export const offsetService = {
     if (empErr) throw new Error(empErr.message);
 
     const currentBalance = parseFloat(emp.offset_hours_balance || 0);
-    if (currentBalance < totalHours) {
-      throw new Error(`Insufficient offset hours balance. You have ${currentBalance} hrs remaining.`);
-    }
+    const pendingHours = await getPendingOffsetHours(employeeId);
+    assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: totalHours, leaveTypeLabel: 'offset' });
 
     const leaveGroupId = crypto.randomUUID();
     const cleanedAttachments = cleanAttachments(attachments);
@@ -503,6 +518,13 @@ export const offsetService = {
     if (error) throw new Error(error.message);
     return data || [];
   },
+
+  /**
+   * Hours already committed to the employee's own pending offset leaves —
+   * exposed for the apply forms and pending queue to compute "available"
+   * (issue #106) the same way the apply-time check does.
+   */
+  getPendingOffsetHours,
 
   /**
    * Fetch employee balances overview

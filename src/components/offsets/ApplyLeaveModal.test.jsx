@@ -307,4 +307,91 @@ describe("ApplyLeaveModal", () => {
 
     expect(db.rows("overtime_requests")).toEqual([])
   })
+
+  describe("with the employee selector (HR variant)", () => {
+    let hrOfficer
+    let targetEmployee
+
+    beforeEach(() => {
+      hrOfficer = makeEmployee({ name: "HR Manager", is_hr: true })
+      targetEmployee = makeEmployee({ name: "Alice Worker" })
+      mockUser.current = { id: hrOfficer.id, name: hrOfficer.name }
+    })
+
+    const openForHr = () => open({ showEmployeeSelector: true })
+
+    it("files an overtime request for the selected employee", async () => {
+      openForHr()
+      const user = userEvent.setup()
+
+      await waitFor(() => {
+        expect(screen.getByRole("combobox")).toBeInTheDocument()
+      })
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(employeeSelect, targetEmployee.id)
+
+      const form = screen.getByRole("button", { name: /submit/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+      const reasonField = form.querySelector("textarea")
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-15")
+
+      await user.clear(timeFields[0])
+      await user.type(timeFields[0], "17:00")
+
+      await user.clear(timeFields[1])
+      await user.type(timeFields[1], "20:00")
+
+      await user.clear(reasonField)
+      await user.type(reasonField, "Crunch time")
+
+      await user.click(screen.getByRole("button", { name: /submit/i }))
+
+      await waitFor(() => expect(db.rows("overtime_requests")).toHaveLength(1))
+
+      expect(db.rows("overtime_requests")[0]).toMatchObject({
+        employee_id: targetEmployee.id,
+        start_time: "17:00",
+        end_time: "20:00",
+        reason: "Crunch time",
+        status: "PENDING",
+      })
+
+      expect(toast.success).toHaveBeenCalledWith("Overtime application submitted!")
+      expect(onSuccess).toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it("hides deactivated employees from the employee picker", async () => {
+      makeEmployee({ name: "Active Worker", is_deleted: false })
+      makeEmployee({ name: "Deactivated Worker", is_deleted: true })
+
+      openForHr()
+      await waitFor(() => {
+        expect(screen.getByRole("combobox")).toBeInTheDocument()
+      })
+
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+
+      const options = Array.from(employeeSelect.options).map((opt) => opt.text)
+      expect(options).toContain("Active Worker")
+      expect(options).not.toContain("Deactivated Worker")
+    })
+
+    it("does not show the employee selector for the self-service variant", () => {
+      open()
+
+      expect(screen.queryByText("Employee")).not.toBeInTheDocument()
+    })
+  })
 })
