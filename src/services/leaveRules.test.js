@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertSilEligible, SIL_ELIGIBLE_STATUS } from "./leaveRules"
+import {
+  assertNotWeekend,
+  applyLunchDeduction,
+  deriveLeaveHours,
+  assertSilEligible,
+  SIL_ELIGIBLE_STATUS,
+  computeAvailableHours,
+  assertWithinAvailableBalance,
+} from "./leaveRules"
 
 describe("assertNotWeekend", () => {
   it("rejects a Saturday and a Sunday", () => {

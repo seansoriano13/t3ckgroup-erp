@@ -200,7 +200,55 @@ describe("offsetService", () => {
           startTime: '00:00', endTime: '23:59',
           reason: "Long break",
         }),
-      ).rejects.toThrow("Insufficient offset hours balance. You have 16 hrs remaining.")
+      ).rejects.toThrow("Insufficient offset hours. 0 hrs already committed to pending applications, leaving 16 hrs available.")
+    })
+
+    // Issue #106 (HR-03): every apply path checked the raw balance, and
+    // nothing deducted until HR approved — an employee could file the same
+    // hours against several pending applications and have every one pass.
+    it("refuses a second application once the first has already claimed the balance as pending", async () => {
+      const capped = makeEmployee({ name: "Capped Employee", offset_hours_balance: 4 })
+
+      await offsetService.applyOffsetLeave({
+        employeeId: capped.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '13:00', // 4 hrs, exactly the balance
+        reason: "First",
+      })
+
+      await expect(
+        offsetService.applyOffsetLeave({
+          employeeId: capped.id,
+          date: "2026-03-11",
+          startTime: '09:00', endTime: '13:00',
+          reason: "Second",
+        }),
+      ).rejects.toThrow("Insufficient offset hours. 4 hrs already committed to pending applications, leaving 0 hrs available.")
+
+      expect(await offsetService.getMyOffsetLeaves(capped.id)).toHaveLength(1)
+      expect(balanceOf(capped.id)).toBe(4)
+    })
+
+    it("frees the hours back up for a new application as soon as the pending one is withdrawn", async () => {
+      const capped = makeEmployee({ name: "Capped Employee", offset_hours_balance: 4 })
+
+      const first = await offsetService.applyOffsetLeave({
+        employeeId: capped.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '13:00',
+        reason: "First",
+      })
+
+      await offsetService.withdrawOffsetLeave({ leaveId: first.id, employeeId: capped.id })
+
+      const second = await offsetService.applyOffsetLeave({
+        employeeId: capped.id,
+        date: "2026-03-11",
+        startTime: '09:00', endTime: '13:00',
+        reason: "Second, after withdrawing the first",
+      })
+
+      expect(second.status).toBe("PENDING")
     })
   })
 
@@ -675,7 +723,7 @@ describe("offsetService", () => {
           ],
           reason: "Too long",
         }),
-      ).rejects.toThrow("Insufficient offset hours balance. You have 16 hrs remaining.")
+      ).rejects.toThrow("Insufficient offset hours. 0 hrs already committed to pending applications, leaving 16 hrs available.")
 
       expect(await offsetService.getMyOffsetLeaves(employee.id)).toHaveLength(0)
     })

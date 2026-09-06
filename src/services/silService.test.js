@@ -67,9 +67,35 @@ describe("silService", () => {
           endTime: "17:00",
           reason: "Long trip",
         }),
-      ).rejects.toThrow("Insufficient SIL hours balance. You have 4 hrs remaining.")
+      ).rejects.toThrow("Insufficient SIL hours. 0 hrs already committed to pending applications, leaving 4 hrs available.")
 
       expect(await silService.getMySilLeaves(short.id)).toEqual([])
+    })
+
+    // Issue #106 (HR-03): nothing deducts from the balance until HR
+    // approves, so a second application for the same already-spoken-for
+    // hours used to pass validation right alongside the first.
+    it("refuses a second application once the first has already claimed the balance as pending", async () => {
+      const capped = makeEmployee({ name: "Capped Employee", sil_hours_balance: 4 })
+
+      await silService.applySilLeave({
+        employeeId: capped.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '13:00', // 4 hrs, exactly the balance
+        reason: "First",
+      })
+
+      await expect(
+        silService.applySilLeave({
+          employeeId: capped.id,
+          date: "2026-03-11",
+          startTime: '09:00', endTime: '13:00',
+          reason: "Second",
+        }),
+      ).rejects.toThrow("Insufficient SIL hours. 4 hrs already committed to pending applications, leaving 0 hrs available.")
+
+      expect(await silService.getMySilLeaves(capped.id)).toHaveLength(1)
+      expect(balanceOf(capped.id)).toBe(4)
     })
 
     it("refuses a Saturday or Sunday, matching Offset", async () => {
@@ -498,7 +524,7 @@ describe("silService", () => {
           ],
           reason: "Too long",
         }),
-      ).rejects.toThrow("Insufficient SIL hours balance. You have 4 hrs remaining.")
+      ).rejects.toThrow("Insufficient SIL hours. 0 hrs already committed to pending applications, leaving 4 hrs available.")
 
       expect(await silService.getMySilLeaves(short.id)).toEqual([])
     })

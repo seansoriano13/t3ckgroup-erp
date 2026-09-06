@@ -3,7 +3,7 @@ import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication, stampApproval } from './offsetService';
 import { formatWindow } from '../utils/time';
-import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertSilEligible, SIL_ELIGIBLE_STATUS } from './leaveRules';
+import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertSilEligible, assertWithinAvailableBalance, SIL_ELIGIBLE_STATUS } from './leaveRules';
 
 /**
  * Loads the fields every SIL apply/approve path needs, and enforces
@@ -58,6 +58,22 @@ async function creditSilRefund(employeeId, hours, leaveId, actorId) {
   ).catch(console.error);
 }
 
+/**
+ * Hours the employee has already committed to SIL leaves still awaiting an
+ * HR decision — see offsetService.getPendingOffsetHours for why this can't
+ * be read off the stored balance directly.
+ */
+async function getPendingSilHours(employeeId) {
+  const { data, error } = await supabase
+    .from('sil_leaves')
+    .select('hours')
+    .eq('employee_id', employeeId)
+    .eq('status', 'PENDING');
+
+  if (error) throw new Error(error.message);
+  return (data || []).reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+}
+
 export const silService = {
   /**
    * Apply for SIL Leave (Employee)
@@ -78,9 +94,8 @@ export const silService = {
 
     const emp = await fetchEligibleSilEmployee(employeeId);
     const currentBalance = parseFloat(emp.sil_hours_balance || 0);
-    if (currentBalance < parsedHours) {
-      throw new Error(`Insufficient SIL hours balance. You have ${currentBalance} hrs remaining.`);
-    }
+    const pendingHours = await getPendingSilHours(employeeId);
+    assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: parsedHours, leaveTypeLabel: 'SIL' });
 
     const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
       employeeId,
@@ -172,9 +187,8 @@ export const silService = {
 
     const emp = await fetchEligibleSilEmployee(employeeId);
     const currentBalance = parseFloat(emp.sil_hours_balance || 0);
-    if (currentBalance < totalHours) {
-      throw new Error(`Insufficient SIL hours balance. You have ${currentBalance} hrs remaining.`);
-    }
+    const pendingHours = await getPendingSilHours(employeeId);
+    assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: totalHours, leaveTypeLabel: 'SIL' });
 
     const leaveGroupId = crypto.randomUUID();
     const cleanedAttachments = cleanAttachments(attachments);
@@ -307,6 +321,12 @@ export const silService = {
     if (error) throw new Error(error.message);
     return data || [];
   },
+
+  /**
+   * Hours already committed to the employee's own pending SIL leaves —
+   * exposed for the apply forms and pending queue (issue #106).
+   */
+  getPendingSilHours,
 
   /**
    * Fetch employee balances overview
