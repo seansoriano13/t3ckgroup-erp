@@ -569,88 +569,40 @@ export const offsetService = {
   /**
    * HR Decision on Overtime Request ('APPROVED_PAID', 'APPROVED_OFFSET', 'REJECTED')
    * `approvedHours` defaults to the requested hours and is what gets credited.
+   *
+   * The row update, the balance credit, and the approval hash/HR-signature
+   * stamp all happen inside one Postgres function (`decide_overtime_request`,
+   * see the atomic-overtime migration and ADR 0013) so two officers deciding
+   * two different requests for the same employee can never race each other
+   * into losing a balance movement.
    */
   async handleOvertimeDecision({ requestId, status, approvedHours, hrNotes, hrId }) {
-    const { data: request, error: reqErr } = await supabase
-      .from('overtime_requests')
-      .select('*')
-      .eq('id', requestId)
-      .single();
-
-    if (reqErr) throw new Error(reqErr.message);
-
-    const isApproval = status === 'APPROVED_OFFSET' || status === 'APPROVED_PAID';
-    const resolvedApprovedHours = isApproval
-      ? parseFloat(approvedHours ?? request.hours)
-      : null;
-
-    if (isApproval && !(resolvedApprovedHours > 0)) {
-      throw new Error('Approved hours must be greater than zero.');
-    }
-
-    // Snapshot the balance the employee will have AFTER this decision moves it
-    // (not the balance at the moment of approval), so a printed form or the
-    // verification page always reports the true remaining balance.
-    let creditsSnapshot = null;
-    let newBalance = null;
-    if (status === 'APPROVED_OFFSET') {
-      const { data: emp } = await supabase.from('employees').select('offset_hours_balance').eq('id', request.employee_id).single();
-      newBalance = parseFloat(emp?.offset_hours_balance || 0) + resolvedApprovedHours;
-      creditsSnapshot = newBalance;
-    }
-
-    const { approvalHash, hrSignatureVersion, hrSignatureTimestamp } = await stampApproval({
-      hrId,
-      applicationHash: request.application_hash,
-      status,
-      isDecision: status.startsWith('APPROVED') || status === 'REJECTED',
-      creditsSnapshot,
+    const { data: updatedReq, error } = await supabase.rpc('decide_overtime_request', {
+      p_request_id: requestId,
+      p_status: status,
+      p_approved_hours: approvedHours ?? null,
+      p_hr_notes: hrNotes || null,
+      p_hr_id: hrId || null,
     });
-    const now = new Date().toISOString();
 
-    const { data: updatedReq, error: updateErr } = await supabase
-      .from('overtime_requests')
-      .update({
-        status,
-        approved_hours: resolvedApprovedHours,
-        hr_notes: hrNotes || null,
-        updated_at: now,
-        approval_hash: approvalHash,
-        hr_signature_version: hrSignatureVersion,
-        hr_signature_timestamp: hrSignatureTimestamp,
-        approval_credits_snapshot: creditsSnapshot,
-        hr_processed_by: hrId || null,
-      })
-      .eq('id', requestId)
-      .select()
-      .single();
-
-    if (updateErr) throw new Error(updateErr.message);
-
-    // If APPROVED_OFFSET, credit the approved (not requested) hours to the balance
-    if (status === 'APPROVED_OFFSET' && newBalance !== null) {
-      await supabase
-        .from('employees')
-        .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
-        .eq('id', request.employee_id);
-    }
+    if (error) throw new Error(error.message);
 
     // Send Notification to Employee
     const statusLabel = status === 'APPROVED_OFFSET' ? 'Approved as Offset' : status === 'APPROVED_PAID' ? 'Approved as Paid OT' : 'Rejected';
     notificationService.createNotification({
-      recipient_id: request.employee_id,
+      recipient_id: updatedReq.employee_id,
       sender_id: hrId,
       type: 'OVERTIME_DECISION',
       title: 'Overtime Request Status Updated',
-      message: `Your overtime request for ${request.hours} hrs on ${request.date} has been ${statusLabel}.`,
+      message: `Your overtime request for ${updatedReq.hours} hrs on ${updatedReq.date} has been ${statusLabel}.`,
       reference_id: requestId,
     });
 
     systemAuditLogService.addApprovalEvent(
       'OVERTIME',
       requestId,
-      `Overtime request for ${request.hours} hrs on ${request.date} was ${statusLabel.toLowerCase()}.`,
-      { event: 'OVERTIME_DECISION', status, employeeId: request.employee_id },
+      `Overtime request for ${updatedReq.hours} hrs on ${updatedReq.date} was ${statusLabel.toLowerCase()}.`,
+      { event: 'OVERTIME_DECISION', status, employeeId: updatedReq.employee_id },
       hrId,
     ).catch(console.error);
 
@@ -660,72 +612,48 @@ export const offsetService = {
   /**
    * Undo HR Overtime Decision
    * - Reverts the status to PENDING
-   * - Refunds (deducts) the hours if they were APPROVED_OFFSET
+   * - Refunds (deducts) the hours if they were APPROVED_OFFSET, refusing
+   *   outright rather than clamping at zero if the credited hours have
+   *   already been spent elsewhere (issue #108) — clamping would silently
+   *   invent hours the employee never gave back.
+   * - Clears every trace of the decision being undone, `hr_processed_by`
+   *   included, so a PENDING record never still names who decided it.
+   *
+   * See `undo_overtime_decision` (atomic-overtime migration, ADR 0013) for
+   * where the balance check and the row revert now happen together.
    */
   async undoOvertimeDecision({ requestId, hrId }) {
-    const { data: request, error: reqErr } = await supabase
+    // Read-only, and only for the audit label below — the actual "already
+    // pending" guard, the balance math, and every write happen inside the
+    // RPC's lock, so a stale read here can at worst mislabel what the
+    // decision used to be, never corrupt the outcome.
+    const { data: before } = await supabase
       .from('overtime_requests')
-      .select('*')
+      .select('status')
       .eq('id', requestId)
       .single();
 
-    if (reqErr) throw new Error(reqErr.message);
-    if (request.status === 'PENDING') throw new Error('Request is already pending.');
+    const { data: updatedReq, error } = await supabase.rpc('undo_overtime_decision', {
+      p_request_id: requestId,
+      p_hr_id: hrId || null,
+    });
 
-    // If it was APPROVED_OFFSET, deduct what was actually credited.
-    if (request.status === 'APPROVED_OFFSET') {
-      const creditedHours = parseFloat(request.approved_hours ?? request.hours ?? 0);
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('offset_hours_balance')
-        .eq('id', request.employee_id)
-        .single();
+    if (error) throw new Error(error.message);
 
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) - creditedHours;
-        await supabase
-          .from('employees')
-          .update({ offset_hours_balance: Math.max(0, newBalance), updated_at: new Date().toISOString() })
-          .eq('id', request.employee_id);
-      }
-    }
-
-    // Revert status, and clear every trace of the decision being undone so a
-    // PENDING record never still carries a hash, HR signature, or credited
-    // balance snapshot from a decision it no longer has.
-    const { data: updatedReq, error: updateErr } = await supabase
-      .from('overtime_requests')
-      .update({
-        status: 'PENDING',
-        approved_hours: null,
-        hr_notes: null,
-        updated_at: new Date().toISOString(),
-        approval_hash: null,
-        hr_signature_version: null,
-        hr_signature_timestamp: null,
-        approval_credits_snapshot: null,
-      })
-      .eq('id', requestId)
-      .select()
-      .single();
-
-    if (updateErr) throw new Error(updateErr.message);
-
-    // Notify employee
     notificationService.createNotification({
-      recipient_id: request.employee_id,
+      recipient_id: updatedReq.employee_id,
       sender_id: hrId,
       type: 'OVERTIME_DECISION',
       title: 'Overtime Request Reverted',
-      message: `HR has reverted the decision on your overtime request for ${request.date}. It is now PENDING again.`,
+      message: `HR has reverted the decision on your overtime request for ${updatedReq.date}. It is now PENDING again.`,
       reference_id: requestId,
     });
 
     systemAuditLogService.addSystemEvent(
       'OVERTIME',
       requestId,
-      `Overtime decision for ${request.date} was reverted to PENDING (was ${request.status}).`,
-      { event: 'OVERTIME_DECISION_UNDONE', previousStatus: request.status, employeeId: request.employee_id },
+      `Overtime decision for ${updatedReq.date} was reverted to PENDING (was ${before?.status ?? 'unknown'}).`,
+      { event: 'OVERTIME_DECISION_UNDONE', previousStatus: before?.status ?? null, employeeId: updatedReq.employee_id },
       hrId,
     ).catch(console.error);
 
@@ -931,6 +859,10 @@ export const offsetService = {
     if (request.employee_id !== employeeId) throw new Error('Unauthorized');
     if (request.status !== 'PENDING') throw new Error('Only pending requests can be withdrawn.');
 
+    // The write repeats the PENDING check so an HR decision landing between
+    // the read above and this update can never be overwritten: the update
+    // then matches no rows instead of clobbering an approval (and its
+    // balance credit) with a blind CANCELLED status.
     const { data, error } = await supabase
       .from('overtime_requests')
       .update({
@@ -938,10 +870,13 @@ export const offsetService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', requestId)
-      .select()
-      .single();
+      .eq('status', 'PENDING')
+      .select();
 
     if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error('This request was just decided by HR and can no longer be withdrawn.');
+    }
 
     systemAuditLogService.addSystemEvent(
       'OVERTIME',
@@ -951,7 +886,7 @@ export const offsetService = {
       employeeId,
     ).catch(console.error);
 
-    return data;
+    return data[0];
   },
 
   /**

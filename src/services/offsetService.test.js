@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { cleanAttachments, offsetService } from "./offsetService"
 import { db } from "@/test/db/store"
+import { stubOvertimeDecisionRpcs } from "@/test/stubs/overtimeRpc"
 import { waitForNetworkIdle } from "@/test/network"
 import { getMonthBoundaries } from "@/utils/dateUtils"
 import {
@@ -22,9 +23,12 @@ describe("offsetService", () => {
   beforeEach(() => {
     employee = makeEmployee({ name: "Ana Reyes", offset_hours_balance: 16 })
     hr = makeHrEmployee({ name: "HR Officer" })
+    stubOvertimeDecisionRpcs()
   })
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).offset_hours_balance
+
+  const findRow = (table, id) => db.internal.rowsOf(table).find((row) => row.id === id)
 
   describe("applying for overtime", () => {
     it("files a pending request", async () => {
@@ -419,7 +423,7 @@ describe("offsetService", () => {
       expect((await offsetService.getMyOvertimeRequests(employee.id))[0].status).toBe("PENDING")
     })
 
-    it("never drives a balance negative when the hours were already spent", async () => {
+    it("refuses to undo when the credited hours have already been spent, rather than clamping the balance at zero", async () => {
       const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '00:00', endTime: '23:59' })
       await offsetService.handleOvertimeDecision({
         requestId: request.id,
@@ -429,9 +433,14 @@ describe("offsetService", () => {
       // The employee spends everything before HR reverses the approval.
       await setOffsetBalance(employee.id, 0)
 
-      await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+      await expect(
+        offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id }),
+      ).rejects.toThrow(/cannot undo/i)
 
+      // Neither the balance nor the request moved — the refusal happened
+      // before either write, not partway through.
       expect(balanceOf(employee.id)).toBe(0)
+      expect((await offsetService.getMyOvertimeRequests(employee.id))[0].status).toBe("APPROVED_OFFSET")
     })
 
     it("does not deduct when undoing a paid approval", async () => {
@@ -500,6 +509,67 @@ describe("offsetService", () => {
       expect(reverted.hr_signature_version).toBeNull()
       expect(reverted.hr_signature_timestamp).toBeNull()
       expect(reverted.approval_credits_snapshot).toBeNull()
+    })
+
+    it("clears hr_processed_by, so a reverted request carries no trace of who decided it", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+      await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        hrId: hr.id,
+      })
+      expect(findRow("overtime_requests", request.id).hr_processed_by).toBe(hr.id)
+
+      const reverted = await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+
+      expect(reverted.hr_processed_by).toBeNull()
+    })
+
+    it("records what the decision used to be in the audit trail", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+      await offsetService.handleOvertimeDecision({
+        requestId: request.id,
+        status: "APPROVED_OFFSET",
+        hrId: hr.id,
+      })
+
+      await offsetService.undoOvertimeDecision({ requestId: request.id, hrId: hr.id })
+      await waitForNetworkIdle()
+
+      const entry = db
+        .rows("system_audit_logs")
+        .find((e) => e.metadata?.event === "OVERTIME_DECISION_UNDONE")
+      expect(entry.metadata.previousStatus).toBe("APPROVED_OFFSET")
+      expect(entry.content).toContain("was APPROVED_OFFSET")
+    })
+
+    it("does not lose a balance movement when two officers decide two different requests for the same employee at once", async () => {
+      const first = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' }) // 4 hrs
+      const second = makeOvertimeRequest({ employee_id: employee.id, startTime: '14:00', endTime: '17:00' }) // 3 hrs
+
+      await Promise.all([
+        offsetService.handleOvertimeDecision({ requestId: first.id, status: "APPROVED_OFFSET", hrId: hr.id }),
+        offsetService.handleOvertimeDecision({ requestId: second.id, status: "APPROVED_OFFSET", hrId: hr.id }),
+      ])
+
+      // 16 (starting) + 4 + 3 — neither credit may be overwritten by the other.
+      expect(balanceOf(employee.id)).toBe(23)
+    })
+
+    it("does not lose a balance movement when an approval and an undo race for the same employee", async () => {
+      const alreadyApproved = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' }) // 4 hrs
+      await offsetService.handleOvertimeDecision({ requestId: alreadyApproved.id, status: "APPROVED_OFFSET", hrId: hr.id })
+      expect(balanceOf(employee.id)).toBe(20)
+
+      const toApprove = makeOvertimeRequest({ employee_id: employee.id, startTime: '14:00', endTime: '17:00' }) // 3 hrs
+
+      await Promise.all([
+        offsetService.undoOvertimeDecision({ requestId: alreadyApproved.id, hrId: hr.id }), // -4
+        offsetService.handleOvertimeDecision({ requestId: toApprove.id, status: "APPROVED_OFFSET", hrId: hr.id }), // +3
+      ])
+
+      // 20 - 4 + 3, regardless of which settled first.
+      expect(balanceOf(employee.id)).toBe(19)
     })
   })
 
@@ -776,6 +846,27 @@ describe("offsetService", () => {
       await expect(
         offsetService.withdrawOvertimeRequest({ requestId: request.id, employeeId: other.id }),
       ).rejects.toThrow("Unauthorized")
+    })
+
+    it("never lets a withdraw racing an HR approval erase the approval's credit", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' }) // 4 hrs
+
+      const outcomes = await Promise.allSettled([
+        offsetService.handleOvertimeDecision({ requestId: request.id, status: "APPROVED_OFFSET", hrId: hr.id }),
+        offsetService.withdrawOvertimeRequest({ requestId: request.id, employeeId: employee.id }),
+      ])
+
+      const finalStatus = findRow("overtime_requests", request.id).status
+      // Whichever one actually landed last, the row and the balance must
+      // agree: a CANCELLED row can never coexist with a credited balance,
+      // and an APPROVED_OFFSET row can never coexist with an uncredited one.
+      if (finalStatus === "CANCELLED") {
+        expect(balanceOf(employee.id)).toBe(16)
+      } else {
+        expect(finalStatus).toBe("APPROVED_OFFSET")
+        expect(balanceOf(employee.id)).toBe(20)
+        expect(outcomes.some((o) => o.status === "rejected")).toBe(true)
+      }
     })
 
     it("returns the hours when an approved offset leave is withdrawn", async () => {

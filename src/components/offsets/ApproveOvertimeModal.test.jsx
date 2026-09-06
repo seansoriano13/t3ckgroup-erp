@@ -5,6 +5,7 @@ import toast from "react-hot-toast"
 import ApproveOvertimeModal from "./ApproveOvertimeModal"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
+import { stubOvertimeDecisionRpcs } from "@/test/stubs/overtimeRpc"
 import { makeEmployee, makeHrEmployee, makeOvertimeRequest } from "@/test/factories"
 
 /**
@@ -25,6 +26,7 @@ describe("ApproveOvertimeModal", () => {
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
     vi.spyOn(toast, "success").mockImplementation(() => "id")
+    stubOvertimeDecisionRpcs()
   })
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).offset_hours_balance
