@@ -18,6 +18,7 @@ import {
   UserCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
@@ -323,22 +324,21 @@ export default function HrVerificationPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedTaskIds([]);
-      toast.success(`${idsToUndo.length} tasks verified successfully.`, {
-        action: {
-          label: "Undo",
-          onClick: async () => {
-            try {
-              await taskService.bulkUnverifyTasks(idsToUndo, user.id);
-              queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-              queryClient.invalidateQueries({ queryKey: ["tasks"] });
-              toast.success("Verification undone.");
-            } catch (e) {
-              toast.error(e.message || "Failed to undo.");
-            }
-          },
+      undoableSuccessToast(
+        `${idsToUndo.length} tasks verified successfully.`,
+        "Undo",
+        async () => {
+          try {
+            await taskService.bulkUnverifyTasks(idsToUndo, user.id);
+            queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
+            queryClient.invalidateQueries({ queryKey: ["tasks"] });
+            toast.success("Verification undone.");
+          } catch (e) {
+            toast.error(e.message || "Failed to undo.");
+          }
         },
-        duration: 6000,
-      });
+        6000,
+      );
     } catch (err) {
       toast.error(err.message || "Bulk verification failed.");
     }

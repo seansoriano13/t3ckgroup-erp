@@ -22,6 +22,7 @@ import {
   UserCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
@@ -393,10 +394,12 @@ export default function TaskApprovalsPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedTaskIds([]);
-      toast.success(`Success! ${idsToUndo.length} tasks approved.`, {
-        action: { label: "Undo", onClick: () => handleUndoBulk(idsToUndo) },
-        duration: 6000,
-      });
+      undoableSuccessToast(
+        `Success! ${idsToUndo.length} tasks approved.`,
+        "Undo",
+        () => handleUndoBulk(idsToUndo),
+        6000,
+      );
     } catch (err) {
       toast.error(err.message || "Bulk approval failed.");
     }
@@ -411,10 +414,12 @@ export default function TaskApprovalsPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedTaskIds([]);
-      toast.success(`Success! ${idsToUndo.length} tasks declined.`, {
-        action: { label: "Undo", onClick: () => handleUndoBulk(idsToUndo) },
-        duration: 6000,
-      });
+      undoableSuccessToast(
+        `Success! ${idsToUndo.length} tasks declined.`,
+        "Undo",
+        () => handleUndoBulk(idsToUndo),
+        6000,
+      );
     } catch (err) {
       toast.error(err.message || "Bulk decline failed.");
     }
