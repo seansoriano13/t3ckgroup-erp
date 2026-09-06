@@ -206,7 +206,8 @@ create table if not exists public."employees" (
   "sil_hours_balance" numeric default 0,
   "has_purchasing_flow" boolean not null default false,
   "can_manage_leaves" boolean not null default false,
-  "signature_path" text
+  "signature_path" text,
+  "last_seen_changelog_version" text
 );
 
 create table if not exists public."faq_data" (
@@ -488,7 +489,8 @@ create table if not exists public."sales_opportunities" (
   "sale_type_id" uuid,
   "flow_stage_id" uuid,
   "metadata" jsonb default '{}'::jsonb,
-  "odoo_partner_id" bigint
+  "odoo_partner_id" bigint,
+  "flow_snapshot_id" uuid
 );
 
 create table if not exists public."sales_opportunity_items" (
@@ -796,6 +798,82 @@ create table if not exists public."verification_rate_limits" (
 -- Constraints (primary key, unique, foreign key, check)
 -- ============================================================
 
+alter table app_settings add constraint "app_settings_pkey" PRIMARY KEY (id);
+alter table categories add constraint "categories_pkey" PRIMARY KEY (id);
+alter table chat_read_receipts add constraint "chat_read_receipts_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
+alter table chat_user_archives add constraint "chat_user_archives_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
+alter table commission_departments add constraint "commission_departments_pkey" PRIMARY KEY (id);
+alter table commission_positions add constraint "commission_positions_pkey" PRIMARY KEY (id);
+alter table commission_rates add constraint "commission_rates_pkey" PRIMARY KEY (id);
+alter table commission_splits add constraint "commission_splits_pkey" PRIMARY KEY (id);
+alter table committee_roles add constraint "committee_roles_pkey" PRIMARY KEY (id);
+alter table committee_task_activity add constraint "committee_task_activity_pkey" PRIMARY KEY (id);
+alter table committee_task_logs add constraint "committee_task_logs_pkey" PRIMARY KEY (id);
+alter table committee_task_members add constraint "committee_task_members_pkey" PRIMARY KEY (id);
+alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (id);
+alter table crm_lead_sources add constraint "crm_lead_sources_pkey" PRIMARY KEY (value);
+alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMARY KEY (code);
+alter table employees add constraint "employees_pkey" PRIMARY KEY (id);
+alter table faq_data add constraint "faq_data_pkey" PRIMARY KEY (id);
+alter table flow_edges add constraint "flow_edges_pkey" PRIMARY KEY (id);
+alter table flow_plans add constraint "flow_plans_pkey" PRIMARY KEY (id);
+alter table flow_snapshots add constraint "flow_snapshots_pkey" PRIMARY KEY (id);
+alter table flow_stage_actions add constraint "flow_stage_actions_pkey" PRIMARY KEY (id);
+alter table flow_stages add constraint "flow_stages_pkey" PRIMARY KEY (id);
+alter table group_task_template_members add constraint "group_task_template_members_pkey" PRIMARY KEY (id);
+alter table group_task_templates add constraint "group_task_templates_pkey" PRIMARY KEY (id);
+alter table hr_form_settings add constraint "hr_form_settings_pkey" PRIMARY KEY (id);
+alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
+alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
+alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
+alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
+alter table revenue_activity_logs add constraint "revenue_activity_logs_pkey" PRIMARY KEY (id);
+alter table sale_types add constraint "sale_types_pkey" PRIMARY KEY (id);
+alter table sales_activities add constraint "sales_activities_pkey" PRIMARY KEY (id);
+alter table sales_activity_logs add constraint "sales_activity_logs_pkey" PRIMARY KEY (id);
+alter table sales_custom_templates add constraint "sales_custom_templates_pkey" PRIMARY KEY (id);
+alter table sales_flows add constraint "sales_flows_pkey" PRIMARY KEY (id);
+alter table sales_opportunities add constraint "sales_opportunities_pkey" PRIMARY KEY (id);
+alter table sales_opportunity_items add constraint "sales_opportunity_items_pkey" PRIMARY KEY (id);
+alter table sales_opportunity_logs add constraint "sales_opportunity_logs_pkey" PRIMARY KEY (id);
+alter table sales_opportunity_members add constraint "sales_opportunity_members_pkey" PRIMARY KEY (id);
+alter table sales_quota_logs add constraint "sales_quota_logs_pkey" PRIMARY KEY (id);
+alter table sales_quotas add constraint "sales_quotas_pkey" PRIMARY KEY (id);
+alter table sales_revenue_logs add constraint "sales_revenue_logs_pkey" PRIMARY KEY (id);
+alter table sales_weekly_plans add constraint "sales_weekly_plans_pkey" PRIMARY KEY (id);
+alter table sil_leaves add constraint "sil_leaves_pkey" PRIMARY KEY (id);
+alter table sor_canvass_offers add constraint "sor_canvass_offers_pkey" PRIMARY KEY (id);
+alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
+alter table sor_condition_status add constraint "sor_requirement_status_pkey" PRIMARY KEY (id);
+alter table sor_inclusions add constraint "sor_inclusions_pkey" PRIMARY KEY (id);
+alter table sor_procurement_requests add constraint "sor_procurement_requests_pkey" PRIMARY KEY (id);
+alter table sor_project_evaluations add constraint "sor_project_evaluations_pkey" PRIMARY KEY (id);
+alter table sor_purchase_order_links add constraint "sor_purchase_order_links_pkey" PRIMARY KEY (id);
+alter table stage_conditions add constraint "stage_requirements_pkey" PRIMARY KEY (id);
+alter table system_audit_logs add constraint "system_audit_logs_pkey" PRIMARY KEY (id);
+alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id);
+alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
+alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
+alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
+alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
+alter table commission_departments add constraint "commission_departments_key_key" UNIQUE (key);
+alter table commission_departments add constraint "commission_departments_name_key" UNIQUE (name);
+alter table commission_positions add constraint "commission_positions_unique_name_per_department" UNIQUE (department_id, name);
+alter table commission_rates add constraint "commission_rates_unique_type_date" UNIQUE (rate_type, effective_from);
+alter table commission_splits add constraint "commission_splits_unique_role" UNIQUE (project_type, share_role);
+alter table committee_roles add constraint "committee_roles_role_name_key" UNIQUE (role_name);
+alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
+alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version);
+alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
+alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
+alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
+alter table sales_flows add constraint "sales_flows_sale_type_id_key" UNIQUE (sale_type_id);
+alter table sales_opportunities add constraint "sales_opportunities_opportunity_no_key" UNIQUE (opportunity_no);
+alter table sales_opportunity_members add constraint "sales_opportunity_members_unique" UNIQUE (opportunity_id, employee_id);
+alter table sil_leaves add constraint "sil_leaves_verification_token_key" UNIQUE (verification_token);
+alter table sor_condition_status add constraint "sor_condition_status_unique" UNIQUE (opportunity_id, condition_id);
+alter table sor_project_evaluations add constraint "sor_project_evaluations_opportunity_id_key" UNIQUE (opportunity_id);
+alter table sor_purchase_order_links add constraint "sor_purchase_order_links_unique" UNIQUE (opportunity_id, po_number);
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
@@ -884,6 +962,7 @@ alter table sales_flows add constraint "sales_flows_sale_type_id_fkey" FOREIGN K
 alter table sales_flows add constraint "sales_flows_won_stage_fkey" FOREIGN KEY (won_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
 alter table sales_opportunities add constraint "sales_opportunities_closing_sales_id_fkey" FOREIGN KEY (closing_sales_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sales_opportunities add constraint "sales_opportunities_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
+alter table sales_opportunities add constraint "sales_opportunities_flow_snapshot_id_fkey" FOREIGN KEY (flow_snapshot_id) REFERENCES flow_snapshots(id);
 alter table sales_opportunities add constraint "sales_opportunities_flow_stage_id_fkey" FOREIGN KEY (flow_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
 alter table sales_opportunities add constraint "sales_opportunities_registered_by_fkey" FOREIGN KEY (registered_by) REFERENCES employees(id);
 alter table sales_opportunities add constraint "sales_opportunities_sale_type_id_fkey" FOREIGN KEY (sale_type_id) REFERENCES sale_types(id) ON DELETE RESTRICT;
@@ -940,82 +1019,6 @@ alter table tasks add constraint "tasks_evaluated_by_fkey" FOREIGN KEY (evaluate
 alter table tasks add constraint "tasks_logged_by_fk" FOREIGN KEY (logged_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_reported_to_fkey" FOREIGN KEY (reported_to) REFERENCES employees(id);
-alter table app_settings add constraint "app_settings_pkey" PRIMARY KEY (id);
-alter table categories add constraint "categories_pkey" PRIMARY KEY (id);
-alter table chat_read_receipts add constraint "chat_read_receipts_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
-alter table chat_user_archives add constraint "chat_user_archives_pkey" PRIMARY KEY (user_id, entity_type, entity_id);
-alter table commission_departments add constraint "commission_departments_pkey" PRIMARY KEY (id);
-alter table commission_positions add constraint "commission_positions_pkey" PRIMARY KEY (id);
-alter table commission_rates add constraint "commission_rates_pkey" PRIMARY KEY (id);
-alter table commission_splits add constraint "commission_splits_pkey" PRIMARY KEY (id);
-alter table committee_roles add constraint "committee_roles_pkey" PRIMARY KEY (id);
-alter table committee_task_activity add constraint "committee_task_activity_pkey" PRIMARY KEY (id);
-alter table committee_task_logs add constraint "committee_task_logs_pkey" PRIMARY KEY (id);
-alter table committee_task_members add constraint "committee_task_members_pkey" PRIMARY KEY (id);
-alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (id);
-alter table crm_lead_sources add constraint "crm_lead_sources_pkey" PRIMARY KEY (value);
-alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMARY KEY (code);
-alter table employees add constraint "employees_pkey" PRIMARY KEY (id);
-alter table faq_data add constraint "faq_data_pkey" PRIMARY KEY (id);
-alter table flow_edges add constraint "flow_edges_pkey" PRIMARY KEY (id);
-alter table flow_plans add constraint "flow_plans_pkey" PRIMARY KEY (id);
-alter table flow_snapshots add constraint "flow_snapshots_pkey" PRIMARY KEY (id);
-alter table flow_stage_actions add constraint "flow_stage_actions_pkey" PRIMARY KEY (id);
-alter table flow_stages add constraint "flow_stages_pkey" PRIMARY KEY (id);
-alter table group_task_template_members add constraint "group_task_template_members_pkey" PRIMARY KEY (id);
-alter table group_task_templates add constraint "group_task_templates_pkey" PRIMARY KEY (id);
-alter table hr_form_settings add constraint "hr_form_settings_pkey" PRIMARY KEY (id);
-alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
-alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
-alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
-alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
-alter table revenue_activity_logs add constraint "revenue_activity_logs_pkey" PRIMARY KEY (id);
-alter table sale_types add constraint "sale_types_pkey" PRIMARY KEY (id);
-alter table sales_activities add constraint "sales_activities_pkey" PRIMARY KEY (id);
-alter table sales_activity_logs add constraint "sales_activity_logs_pkey" PRIMARY KEY (id);
-alter table sales_custom_templates add constraint "sales_custom_templates_pkey" PRIMARY KEY (id);
-alter table sales_flows add constraint "sales_flows_pkey" PRIMARY KEY (id);
-alter table sales_opportunities add constraint "sales_opportunities_pkey" PRIMARY KEY (id);
-alter table sales_opportunity_items add constraint "sales_opportunity_items_pkey" PRIMARY KEY (id);
-alter table sales_opportunity_logs add constraint "sales_opportunity_logs_pkey" PRIMARY KEY (id);
-alter table sales_opportunity_members add constraint "sales_opportunity_members_pkey" PRIMARY KEY (id);
-alter table sales_quota_logs add constraint "sales_quota_logs_pkey" PRIMARY KEY (id);
-alter table sales_quotas add constraint "sales_quotas_pkey" PRIMARY KEY (id);
-alter table sales_revenue_logs add constraint "sales_revenue_logs_pkey" PRIMARY KEY (id);
-alter table sales_weekly_plans add constraint "sales_weekly_plans_pkey" PRIMARY KEY (id);
-alter table sil_leaves add constraint "sil_leaves_pkey" PRIMARY KEY (id);
-alter table sor_canvass_offers add constraint "sor_canvass_offers_pkey" PRIMARY KEY (id);
-alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
-alter table sor_condition_status add constraint "sor_requirement_status_pkey" PRIMARY KEY (id);
-alter table sor_inclusions add constraint "sor_inclusions_pkey" PRIMARY KEY (id);
-alter table sor_procurement_requests add constraint "sor_procurement_requests_pkey" PRIMARY KEY (id);
-alter table sor_project_evaluations add constraint "sor_project_evaluations_pkey" PRIMARY KEY (id);
-alter table sor_purchase_order_links add constraint "sor_purchase_order_links_pkey" PRIMARY KEY (id);
-alter table stage_conditions add constraint "stage_requirements_pkey" PRIMARY KEY (id);
-alter table system_audit_logs add constraint "system_audit_logs_pkey" PRIMARY KEY (id);
-alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id);
-alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
-alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
-alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
-alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
-alter table commission_departments add constraint "commission_departments_key_key" UNIQUE (key);
-alter table commission_departments add constraint "commission_departments_name_key" UNIQUE (name);
-alter table commission_positions add constraint "commission_positions_unique_name_per_department" UNIQUE (department_id, name);
-alter table commission_rates add constraint "commission_rates_unique_type_date" UNIQUE (rate_type, effective_from);
-alter table commission_splits add constraint "commission_splits_unique_role" UNIQUE (project_type, share_role);
-alter table committee_roles add constraint "committee_roles_role_name_key" UNIQUE (role_name);
-alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
-alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version);
-alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
-alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
-alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
-alter table sales_flows add constraint "sales_flows_sale_type_id_key" UNIQUE (sale_type_id);
-alter table sales_opportunities add constraint "sales_opportunities_opportunity_no_key" UNIQUE (opportunity_no);
-alter table sales_opportunity_members add constraint "sales_opportunity_members_unique" UNIQUE (opportunity_id, employee_id);
-alter table sil_leaves add constraint "sil_leaves_verification_token_key" UNIQUE (verification_token);
-alter table sor_condition_status add constraint "sor_condition_status_unique" UNIQUE (opportunity_id, condition_id);
-alter table sor_project_evaluations add constraint "sor_project_evaluations_opportunity_id_key" UNIQUE (opportunity_id);
-alter table sor_purchase_order_links add constraint "sor_purchase_order_links_unique" UNIQUE (opportunity_id, po_number);
 
 -- ============================================================
 -- Indexes (excluding those backing constraints)
@@ -1044,6 +1047,7 @@ CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (l
 CREATE INDEX sales_opportunities_active_idx ON public.sales_opportunities USING btree (is_deleted, status);
 CREATE INDEX sales_opportunities_closing_sales_idx ON public.sales_opportunities USING btree (closing_sales_id);
 CREATE INDEX sales_opportunities_deal_owner_idx ON public.sales_opportunities USING btree (deal_owner_id);
+CREATE INDEX sales_opportunities_flow_snapshot_idx ON public.sales_opportunities USING btree (flow_snapshot_id) WHERE (flow_snapshot_id IS NOT NULL);
 CREATE INDEX sales_opportunities_flow_stage_idx ON public.sales_opportunities USING btree (flow_stage_id) WHERE (flow_stage_id IS NOT NULL);
 CREATE INDEX sales_opportunities_lead_source_idx ON public.sales_opportunities USING btree (lead_source);
 CREATE INDEX sales_opportunities_live_idx ON public.sales_opportunities USING btree (registration_date DESC, created_at DESC) WHERE ((is_scratch = false) AND (is_deleted = false));
@@ -2669,155 +2673,194 @@ CREATE OR REPLACE FUNCTION public.verify_form_token(lookup_token text)
  SECURITY DEFINER
  SET search_path TO 'public', 'extensions'
 AS $function$
-      DECLARE
-        result_json JSONB;
-        settings RECORD;
-        rec RECORD;
-        group_dates TEXT[];
-        group_hours NUMERIC;
-        dates_string TEXT;
-        canon_hours TEXT;
-        canon_credits TEXT;
-        computed_app_hash TEXT;
-        computed_appr_hash TEXT;
-        app_valid BOOLEAN;
-        appr_valid BOOLEAN;
-      BEGIN
-        SELECT * INTO settings FROM public.hr_form_settings WHERE id = 1;
+DECLARE
+  client_ip TEXT;
+  rate_limit_row RECORD;
+  result_json JSONB;
+  settings RECORD;
+  rec RECORD;
+  group_dates TEXT[];
+  group_hours NUMERIC;
+  dates_string TEXT;
+  canon_hours TEXT;
+  canon_credits TEXT;
+  computed_app_hash TEXT;
+  computed_appr_hash TEXT;
+  app_valid BOOLEAN;
+  appr_valid BOOLEAN;
+BEGIN
+  -- Extract client IP
+  client_ip := current_setting('request.headers', true)::json->>'x-forwarded-for';
+  IF client_ip IS NULL THEN
+    client_ip := 'unknown';
+  ELSE
+    client_ip := split_part(client_ip, ',', 1);
+  END IF;
 
-        -- Try SIL Leaves
-        SELECT s.*, e.name AS employee_name, c.label AS category_label,
-               hr.name AS hr_name
-        INTO rec
-        FROM public.sil_leaves s
-        JOIN public.employees e ON s.employee_id = e.id
-        LEFT JOIN public.hr_leave_categories c ON s.category_id = c.id
-        LEFT JOIN public.employees hr ON s.hr_processed_by = hr.id
-        WHERE s.verification_token = lookup_token;
+  -- Simple rate limiting logic
+  SELECT * INTO rate_limit_row FROM public.verification_rate_limits WHERE ip_address = client_ip;
+  IF FOUND THEN
+    IF rate_limit_row.last_request > NOW() - INTERVAL '1 minute' THEN
+      IF rate_limit_row.request_count >= 20 THEN
+        RAISE EXCEPTION 'Rate limit exceeded. Please try again later.';
+      ELSE
+        UPDATE public.verification_rate_limits
+        SET request_count = request_count + 1, last_request = NOW()
+        WHERE ip_address = client_ip;
+      END IF;
+    ELSE
+      UPDATE public.verification_rate_limits
+      SET request_count = 1, last_request = NOW()
+      WHERE ip_address = client_ip;
+    END IF;
+  ELSE
+    INSERT INTO public.verification_rate_limits (ip_address, request_count, last_request)
+    VALUES (client_ip, 1, NOW());
+  END IF;
 
-        IF FOUND THEN
-          SELECT array_agg(date::TEXT ORDER BY date), sum(hours) INTO group_dates, group_hours
-          FROM public.sil_leaves WHERE leave_group_id = rec.leave_group_id;
+  SELECT * INTO settings FROM public.hr_form_settings WHERE id = 1;
 
-          dates_string := array_to_string(group_dates, ',');
-          canon_hours := COALESCE(trim_scale(round(group_hours, 2))::text, '');
-          computed_app_hash := encode(digest(
-            format('%s|%s|%s|%s|%s', rec.employee_id, COALESCE(rec.category_id::text, ''), dates_string, canon_hours, COALESCE(rec.reason, '')),
-            'sha256'), 'hex');
-          app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
+  -- Try SIL Leaves
+  SELECT s.*, e.name AS employee_name, c.label AS category_label,
+         hr.name AS hr_name
+  INTO rec
+  FROM public.sil_leaves s
+  JOIN public.employees e ON s.employee_id = e.id
+  LEFT JOIN public.hr_leave_categories c ON s.category_id = c.id
+  LEFT JOIN public.employees hr ON s.hr_processed_by = hr.id
+  WHERE s.verification_token = lookup_token;
 
-          appr_valid := NULL;
-          IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
-            canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
-            computed_appr_hash := encode(digest(
-              format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_credits),
-              'sha256'), 'hex');
-            appr_valid := (computed_appr_hash = rec.approval_hash);
-          END IF;
+  IF FOUND THEN
+    SELECT array_agg(date::TEXT ORDER BY date), sum(hours) INTO group_dates, group_hours
+    FROM public.sil_leaves WHERE leave_group_id = rec.leave_group_id;
 
-          result_json := jsonb_build_object(
-            'form_type', 'SIL',
-            'status', rec.status,
-            'employee_name', rec.employee_name,
-            'category', rec.category_label,
-            'inclusive_dates', (SELECT min(date)::text || ' to ' || max(date)::text FROM public.sil_leaves WHERE leave_group_id = rec.leave_group_id),
-            'total_hours', group_hours,
-            'application_valid', app_valid,
-            'approval_valid', appr_valid,
-            'approver_name', rec.hr_name,
-            'approval_date', rec.updated_at
-          );
-          RETURN result_json;
-        END IF;
+    dates_string := array_to_string(group_dates, ',');
+    canon_hours := COALESCE(trim_scale(round(group_hours, 2))::text, '');
+    computed_app_hash := encode(digest(
+      format('%s|%s|%s|%s|%s', rec.employee_id, COALESCE(rec.category_id::text, ''), dates_string, canon_hours, COALESCE(rec.reason, '')),
+      'sha256'), 'hex');
+    app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
 
-        -- Try Offset Leaves
-        SELECT o.*, e.name AS employee_name,
-               hr.name AS hr_name
-        INTO rec
-        FROM public.offset_leaves o
-        JOIN public.employees e ON o.employee_id = e.id
-        LEFT JOIN public.employees hr ON o.hr_processed_by = hr.id
-        WHERE o.verification_token = lookup_token;
+    appr_valid := NULL;
+    IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
+      canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
+      computed_appr_hash := encode(digest(
+        format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_credits),
+        'sha256'), 'hex');
+      appr_valid := (computed_appr_hash = rec.approval_hash);
+    END IF;
 
-        IF FOUND THEN
-          SELECT array_agg(date::TEXT ORDER BY date), sum(hours) INTO group_dates, group_hours
-          FROM public.offset_leaves WHERE leave_group_id = rec.leave_group_id;
+    result_json := jsonb_build_object(
+      'form_type', 'Leave',
+      'employee_name', rec.employee_name,
+      'category', rec.category_label,
+      'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
+      'total_hours', group_hours,
+      'status', rec.status,
+      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approval_date', COALESCE(to_char(rec.hr_processed_at, 'Mon DD, YYYY'), to_char(rec.updated_at, 'Mon DD, YYYY')),
+      'application_valid', app_valid,
+      'approval_valid', appr_valid,
+      'employee_signature_timestamp', rec.employee_signature_timestamp,
+      'hr_signature_timestamp', rec.hr_signature_timestamp
+    );
+    RETURN result_json;
+  END IF;
 
-          dates_string := array_to_string(group_dates, ',');
-          canon_hours := COALESCE(trim_scale(round(group_hours, 2))::text, '');
-          computed_app_hash := encode(digest(
-            format('%s|%s|%s|%s|%s', rec.employee_id, 'OFFSET', dates_string, canon_hours, COALESCE(rec.reason, '')),
-            'sha256'), 'hex');
-          app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
+  -- Try Offset Leaves
+  SELECT o.*, e.name AS employee_name, c.label AS category_label,
+         hr.name AS hr_name
+  INTO rec
+  FROM public.offset_leaves o
+  JOIN public.employees e ON o.employee_id = e.id
+  LEFT JOIN public.hr_leave_categories c ON o.category_id = c.id
+  LEFT JOIN public.employees hr ON o.hr_processed_by = hr.id
+  WHERE o.verification_token = lookup_token;
 
-          appr_valid := NULL;
-          IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
-            canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
-            computed_appr_hash := encode(digest(
-              format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_credits),
-              'sha256'), 'hex');
-            appr_valid := (computed_appr_hash = rec.approval_hash);
-          END IF;
+  IF FOUND THEN
+    SELECT array_agg(date::TEXT ORDER BY date), sum(hours) INTO group_dates, group_hours
+    FROM public.offset_leaves WHERE leave_group_id = rec.leave_group_id;
 
-          result_json := jsonb_build_object(
-            'form_type', 'Offset',
-            'status', rec.status,
-            'employee_name', rec.employee_name,
-            'category', 'Offset Leave',
-            'inclusive_dates', (SELECT min(date)::text || ' to ' || max(date)::text FROM public.offset_leaves WHERE leave_group_id = rec.leave_group_id),
-            'total_hours', group_hours,
-            'application_valid', app_valid,
-            'approval_valid', appr_valid,
-            'approver_name', rec.hr_name,
-            'approval_date', rec.updated_at
-          );
-          RETURN result_json;
-        END IF;
+    dates_string := array_to_string(group_dates, ',');
+    canon_hours := COALESCE(trim_scale(round(group_hours, 2))::text, '');
+    computed_app_hash := encode(digest(
+      format('%s|%s|%s|%s|%s', rec.employee_id, COALESCE(rec.category_id::text, ''), dates_string, canon_hours, COALESCE(rec.reason, '')),
+      'sha256'), 'hex');
+    app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
 
-        -- Try Overtime
-        SELECT ot.*, e.name AS employee_name,
-               hr.name AS hr_name
-        INTO rec
-        FROM public.overtime_requests ot
-        JOIN public.employees e ON ot.employee_id = e.id
-        LEFT JOIN public.employees hr ON ot.hr_processed_by = hr.id
-        WHERE ot.verification_token = lookup_token;
+    appr_valid := NULL;
+    IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
+      canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
+      computed_appr_hash := encode(digest(
+        format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_credits),
+        'sha256'), 'hex');
+      appr_valid := (computed_appr_hash = rec.approval_hash);
+    END IF;
 
-        IF FOUND THEN
-          canon_hours := COALESCE(trim_scale(round(rec.hours, 2))::text, '');
-          computed_app_hash := encode(digest(
-            format('%s|%s|%s|%s|%s', rec.employee_id, 'OVERTIME', rec.date::TEXT, canon_hours, COALESCE(rec.reason, '')),
-            'sha256'), 'hex');
-          app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
+    result_json := jsonb_build_object(
+      'form_type', 'Offset',
+      'employee_name', rec.employee_name,
+      'category', rec.category_label,
+      'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
+      'total_hours', group_hours,
+      'status', rec.status,
+      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
+      'application_valid', app_valid,
+      'approval_valid', appr_valid,
+      'employee_signature_timestamp', rec.employee_signature_timestamp,
+      'hr_signature_timestamp', rec.hr_signature_timestamp
+    );
+    RETURN result_json;
+  END IF;
 
-          appr_valid := NULL;
-          IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
-            canon_hours := CASE WHEN rec.approved_hours IS NULL THEN '' ELSE trim_scale(round(rec.approved_hours, 2))::text END;
-            canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
-            computed_appr_hash := encode(digest(
-              format('%s|%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_hours, canon_credits),
-              'sha256'), 'hex');
-            appr_valid := (computed_appr_hash = rec.approval_hash);
-          END IF;
+  -- Try Overtime Requests
+  SELECT ot.*, e.name AS employee_name, c.label AS category_label,
+         hr.name AS hr_name
+  INTO rec
+  FROM public.overtime_requests ot
+  JOIN public.employees e ON ot.employee_id = e.id
+  LEFT JOIN public.hr_leave_categories c ON ot.category_id = c.id
+  LEFT JOIN public.employees hr ON ot.hr_processed_by = hr.id
+  WHERE ot.verification_token = lookup_token;
 
-          result_json := jsonb_build_object(
-            'form_type', 'Overtime',
-            'status', rec.status,
-            'employee_name', rec.employee_name,
-            'category', 'Overtime Request',
-            'inclusive_dates', rec.date::text,
-            'total_hours', rec.hours,
-            'application_valid', app_valid,
-            'approval_valid', appr_valid,
-            'approver_name', rec.hr_name,
-            'approval_date', rec.updated_at
-          );
-          RETURN result_json;
-        END IF;
+  IF FOUND THEN
+    canon_hours := COALESCE(trim_scale(round(rec.hours, 2))::text, '');
+    computed_app_hash := encode(digest(
+      format('%s|%s|%s|%s|%s', rec.employee_id, COALESCE(rec.category_id::text, ''), rec.date::TEXT, canon_hours, COALESCE(rec.reason, '')),
+      'sha256'), 'hex');
+    app_valid := (rec.application_hash IS NOT NULL) AND (computed_app_hash = rec.application_hash);
 
-        RETURN NULL;
-      END;
-      $function$
+    appr_valid := NULL;
+    IF rec.approval_hash IS NOT NULL AND (rec.status LIKE 'APPROVED%' OR rec.status = 'REJECTED') THEN
+      canon_credits := CASE WHEN rec.approval_credits_snapshot IS NULL THEN '' ELSE trim_scale(round(rec.approval_credits_snapshot, 2))::text END;
+      computed_appr_hash := encode(digest(
+        format('%s|%s|%s|%s', rec.application_hash, rec.status, COALESCE(rec.hr_processed_by::text, ''), canon_credits),
+        'sha256'), 'hex');
+      appr_valid := (computed_appr_hash = rec.approval_hash);
+    END IF;
+
+    result_json := jsonb_build_object(
+      'form_type', 'Overtime',
+      'employee_name', rec.employee_name,
+      'category', rec.category_label,
+      'inclusive_dates', to_char(rec.date, 'Mon DD, YYYY'),
+      'total_hours', rec.hours,
+      'status', rec.status,
+      'approver_name', COALESCE(rec.hr_name, settings.approver_name),
+      'approval_date', to_char(rec.updated_at, 'Mon DD, YYYY'),
+      'application_valid', app_valid,
+      'approval_valid', appr_valid,
+      'employee_signature_timestamp', rec.employee_signature_timestamp,
+      'hr_signature_timestamp', rec.hr_signature_timestamp
+    );
+    RETURN result_json;
+  END IF;
+
+  -- If not found
+  RETURN NULL;
+END;
+$function$
 ;
 
 -- ============================================================

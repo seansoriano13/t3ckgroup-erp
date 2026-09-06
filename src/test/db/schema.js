@@ -491,54 +491,48 @@ function applyAlterTable(sql, registry) {
 }
 
 /**
- * Pulls just the Tables/Constraints/Indexes sections out of a generated
- * schema mirror (supabase/schema/staging.sql) — never the whole file.
+ * All sources are now `supabase/migrations/*.sql`, in filename order — the
+ * baseline migration (issue #87, `20260904000000_baseline_schema.sql`) means
+ * the files alone build the full schema, so the schema mirror this parser
+ * used to lean on as a starting point (supabase/schema/staging.sql) is no
+ * longer needed as a base. That mirror is generated (pnpm db:snapshot:staging)
+ * and stays read-only reference/drift-detection material — see AGENTS.md
+ * § Database migrations — never a source this parser reads.
  *
- * The mirror also carries RLS policies, functions, and triggers, whose
+ * t3ckgroup.sql at the repo root is EXCLUDED on purpose: its own header reads
+ * "This schema is for context only and is not meant to be run" — it is a
+ * periodically regenerated snapshot for AI context, not an executable
+ * source, and it goes stale between regenerations (its
+ * sales_opportunities.status inline CHECK still lists the original twelve
+ * codes, missing FOR_BIDDING and Payment Verification). Ingesting it
+ * duplicated every table-level named constraint under a second,
+ * auto-generated `_check` name that no migration ever drops, so the fake DB
+ * silently enforced whatever this snapshot happened to say even after 0033+
+ * moved the real schema on.
+ *
+ * The baseline migration additionally carries Functions, RLS and Triggers
+ * sections (it is generated from a schema mirror — see docs/adr/0011), whose
  * bodies are dollar-quoted (`$function$ ... $function$`) and can embed their
- * own parentheses, commas, and semicolons. Nothing in this file's parser
- * understands dollar-quoting — it only tracks single-quoted strings and
- * paren depth — so feeding it a function body would corrupt statement
- * splitting for everything after it. Cutting the file off before the RLS
- * section keeps this parser inside the DDL shapes it actually handles.
+ * own parentheses, commas and semicolons. Nothing in this file's parser
+ * understands dollar-quoting — it only tracks single-quoted strings and paren
+ * depth — so feeding it a function body would corrupt statement splitting for
+ * everything after it. `truncateBeforeFunctions` drops a source at its first
+ * `-- Functions` section marker, the same cut the parser used to make against
+ * the schema mirror directly; an ordinary hand-written migration has no such
+ * marker and passes through whole.
  */
-function tablesSectionOf(mirrorSql) {
-  // Line endings can be CRLF (a Windows checkout) or LF (freshly generated),
-  // so the section markers are matched without depending on which.
-  const start = mirrorSql.indexOf("-- Tables")
-  const end = mirrorSql.indexOf("-- Row Level Security")
-  if (start === -1 || end === -1) return ""
-  return mirrorSql.slice(start, end)
+function truncateBeforeFunctions(sql) {
+  const marker = sql.indexOf("-- Functions\n")
+  return marker === -1 ? sql : sql.slice(0, marker)
 }
 
 function sqlSources() {
   const sources = []
-  // t3ckgroup.sql is EXCLUDED on purpose: its own header reads "This schema is
-  // for context only and is not meant to be run" — it is a periodically
-  // regenerated snapshot for AI context, not an executable source, and it goes
-  // stale between regenerations (its sales_opportunities.status inline CHECK
-  // still lists the original twelve codes, missing FOR_BIDDING and Payment
-  // Verification). Ingesting it duplicated every table-level named constraint
-  // under a second, auto-generated `_check` name that no migration ever drops,
-  // so the fake DB silently enforced whatever this snapshot happened to say
-  // even after 0033+ moved the real schema on.
-  //
-  // Base + forward: supabase/schema/staging.sql is the generated mirror of
-  // staging's live schema (2026-09-04 baseline; see docs/adr/ and
-  // AGENTS.md § Database migrations) — the single flat source of truth for
-  // everything up to that point. Anything landing in supabase/migrations/
-  // after the baseline is a real forward migration and layers on top, in
-  // order, same as before.
-
-  const mirror = path.join(REPO_ROOT, "supabase", "schema", "staging.sql")
-  if (fs.existsSync(mirror)) {
-    sources.push(tablesSectionOf(fs.readFileSync(mirror, "utf8")))
-  }
 
   const migrations = path.join(REPO_ROOT, "supabase", "migrations")
   if (fs.existsSync(migrations)) {
     for (const file of fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).sort()) {
-      sources.push(fs.readFileSync(path.join(migrations, file), "utf8"))
+      sources.push(truncateBeforeFunctions(fs.readFileSync(path.join(migrations, file), "utf8")))
     }
   }
   return sources

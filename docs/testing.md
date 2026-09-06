@@ -79,10 +79,11 @@ test rather than in production.
 
 ### The schema comes from your SQL
 
-`src/test/db/schema.js` parses `t3ckgroup.sql` and every file in
-`supabase/migrations/`, in order. Tables, columns, types, NOT NULL, defaults,
-primary keys, UNIQUE, CHECK constraints and foreign keys are all derived from
-there.
+`src/test/db/schema.js` parses every file in `supabase/migrations/`, in
+order — including the baseline (`20260904000000_baseline_schema.sql`, issue
+#87), so the fake starts from the same 57 tables a fresh `supabase db reset`
+does. Tables, columns, types, NOT NULL, defaults, primary keys, UNIQUE, CHECK
+constraints and foreign keys are all derived from there.
 
 **Add a table or column in a migration and the fake picks it up on the next test
 run.** Nothing in `src/test/` needs editing.

@@ -1,0 +1,69 @@
+name: Migration gate
+
+# Issue #87: this is a property of a commit (does the migration set, applied
+# from nothing, produce the right schema?), which is why it lives on the pull
+# request rather than as a third check on the nightly schema-drift job — that
+# job answers a different question, whether anyone changed a live database by
+# hand.
+#
+# Boots a throwaway local Postgres (via the Supabase CLI, so it is the exact
+# same baseline + migrations path a developer runs locally), applies every
+# migration from empty, and asserts the result matches the committed staging
+# mirror using the same comparator the nightly drift job and local
+# verification use (scripts/db-snapshot.mjs) — one implementation of "are
+# these schemas the same", not a second one invented for this gate.
+#
+# A migration that does not apply cleanly, or that applies but produces the
+# wrong schema, cannot reach the staging database.
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+concurrency:
+  group: migration-gate-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build from empty and compare to supabase/schema/staging.sql
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Only the Postgres container is needed to prove the schema builds —
+      # Auth, PostgREST, Storage, Realtime etc. don't change what a migration
+      # produces, and skipping them keeps this gate fast.
+      - name: Boot a throwaway local Postgres and apply every migration from empty
+        run: >
+          supabase start
+          -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+
+      - name: Compare the built schema to the committed staging mirror
+        run: >
+          node scripts/db-snapshot.mjs
+          --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          --check --against supabase/schema/staging.sql
+
+      - name: Stop the local stack
+        if: always()
+        run: supabase stop --no-backup

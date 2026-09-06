@@ -41,6 +41,68 @@ database's live schema — never edit or apply them directly. Regenerate with
 actually live, which is how an out-of-band change to a database gets caught
 the next morning instead of months later.
 
+`supabase/migrations/` is baselined (`20260904000000_baseline_schema.sql`,
+issue #87; see `docs/adr/0011-migration-baseline.md`): the files alone build
+the full schema from nothing, not just what changed most recently. A pull
+request touching `supabase/migrations/**` runs
+`.github/workflows/migration-gate.yml`, which boots a throwaway local
+Postgres, applies the baseline and every migration from empty, and asserts
+the result matches `supabase/schema/staging.sql` using the same comparator
+(`scripts/db-snapshot.mjs`) the drift job uses. A migration that does not
+apply cleanly, or produces the wrong schema, cannot reach staging. Run the
+same check locally before pushing:
+
+```
+supabase start
+node scripts/db-snapshot.mjs --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres --check --against supabase/schema/staging.sql
+```
+
+**A row the application needs to function travels in a migration, not a
+script.** A lead source, a pipeline stage, a leave category, a commission
+rate — anything the app requires to exist — belongs in an idempotent `insert`
+inside a migration, so it reaches staging and production through the same
+reviewed path as a schema change. There is no longer a script that writes
+such rows straight to a live project with the anon key.
+
+### Local development
+
+`pnpm dev` talks to a local Supabase project, not staging or production —
+`.env.local` carries its URL and anon key, and Vite's env precedence means it
+overrides `.env` in every mode. Nothing in a development build can reach a
+remote project: there is no browser flag or env var that switches the
+Supabase client to a different URL at runtime, on purpose (issue #87).
+
+```
+supabase start                      # first time: pulls images, applies every
+                                     # migration from empty, prints the local
+                                     # URL/anon key/Studio link
+pnpm dev                            # talks to that local instance
+supabase db reset                   # rebuild from the migrations, wipes local data
+```
+
+Seeing staging requires typing a different command: `pnpm dev:staging` runs
+Vite in `staging` mode against `.env.staging`, which is not overridden by
+`.env.local` (a mode-specific env file outranks it). There is deliberately no
+equivalent for production.
+
+Local data is disposable by design and never committed:
+
+- `pnpm db:seed:dump` — pulls a sanitized snapshot of staging's data into a
+  gitignored cache file (`supabase/.seed/`). Sanitization rules live in
+  `src/lib/seedSanitize.js`, tested without a database; re-run this only when
+  you deliberately want fresher data, since it's a live pull from staging.
+- `pnpm db:seed:restore` — loads that cache into the local database and
+  resets every account's password to `VITE_TEST_PASSWORD`, pairing with
+  `VITE_ALLOW_TEST_LOGIN` so you can sign in locally as any role.
+- `pnpm db:seed:snapshot` — saves the local database's *current* data before
+  a deliberate `supabase db reset`, if there's a working set worth keeping;
+  restore it with `pnpm db:seed:restore -- <the file it printed>`.
+
+The edge functions (`odoo-*`) are not run locally — they need live Odoo
+credentials to do anything, so `edge_runtime` is disabled in
+`supabase/config.toml`. They stay declared there so "Deploy to production"
+keeps auto-shipping function changes.
+
 ### Changelog updates
 
 Whenever you complete a task that changes the application's behavior or UI, you must add an entry to `src/data/changelog.json` before pushing to origin. 

@@ -35,6 +35,10 @@ if [ -n "$migration_changes" ]; then
   echo "     staging → automatic, on push (.github/workflows/migrate-staging.yml)"
   echo "     production → manual trigger only (.github/workflows/migrate-prod.yml)"
   echo "   Don't run 'supabase db push' from this machine."
+  echo "   A pull request touching these files also runs the migration gate"
+  echo "   (.github/workflows/migration-gate.yml) — it must pass before this"
+  echo "   reaches staging. This reminder is not the gate; it cannot be skipped"
+  echo "   with --no-verify."
   echo ""
 fi
 

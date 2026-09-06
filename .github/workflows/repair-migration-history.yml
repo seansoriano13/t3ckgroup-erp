@@ -1,0 +1,71 @@
+name: Repair migration history
+
+# One-off utility, not part of the normal pipeline. Use this only when
+# `supabase db push` fails with "Remote migration versions not found in
+# local migrations directory" — that means the remote
+# supabase_migrations.schema_migrations ledger has an entry with no matching
+# file under supabase/migrations/. This marks that entry's status in the
+# ledger (does not touch schema) so migrate-staging.yml / migrate-prod.yml
+# can push again.
+#
+# Generalized from the staging-only version (issue #87) to take a project
+# target: the baseline migration (20260904000000_baseline_schema.sql) needs
+# marking "applied" in BOTH ledgers, since both databases already have every
+# object it creates and neither should ever actually run it.
+#
+# Press the button in the Actions tab; a human decides when, same as
+# migrate-prod.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Which project's ledger to repair"
+        type: choice
+        options: ["staging", "prod"]
+        required: true
+      version:
+        description: "Migration version/timestamp to repair, e.g. 20260904000000"
+        required: true
+      status:
+        description: 'Status to set: "reverted" (remove from ledger) or "applied" (mark as run)'
+        required: true
+        default: "reverted"
+
+concurrency:
+  group: migrate-${{ github.event.inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: supabase migration repair --project-ref ${{ github.event.inputs.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Resolve project ref and DB password
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.project }}" = "prod" ]; then
+            echo "ref=epqmberwewztzbrkhhss" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=fpjxdyowngpnovotbzqi" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Repair migration history
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ github.event.inputs.project == 'prod' && secrets.PROD_DB_PASSWORD || secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration repair --status ${{ github.event.inputs.status }} ${{ github.event.inputs.version }} --project-ref ${{ steps.target.outputs.ref }}
+
+      - name: Show resulting migration list
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ github.event.inputs.project == 'prod' && secrets.PROD_DB_PASSWORD || secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration list --project-ref ${{ steps.target.outputs.ref }}

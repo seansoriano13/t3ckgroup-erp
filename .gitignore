@@ -51,6 +51,10 @@ supabase/.temp
 supabase/.branches
 supabase/.cache
 
+# Sanitized-but-still-real seed data (scripts/seed-dump.mjs, seed-snapshot.mjs)
+# — never committed, even scrubbed. See AGENTS.md § Local development.
+supabase/.seed
+
 # Cursor
 /.cursor
 

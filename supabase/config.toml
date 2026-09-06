@@ -1,9 +1,70 @@
-project_id = "epqmberwewztzbrkhhss"
+# Local Supabase stack (issue #87). `project_id` is a local identifier, not
+# a remote project ref — a bare `supabase` command on this machine cannot
+# address staging or production by accident. Reach a remote project only by
+# passing its --project-ref explicitly (as every CI workflow already does).
+project_id = "t3ckgroup-erp-local"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.seed]
+# Seeding is a deliberate, separate step (scripts/seed-restore.mjs, from a
+# sanitized staging dump) rather than a committed seed.sql — see AGENTS.md.
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+api_url = "http://127.0.0.1"
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:5173"
+additional_redirect_urls = ["http://127.0.0.1:5173"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[realtime]
+# Disabled locally (issue #87): the spec scopes local dev to Postgres, Auth
+# and PostgREST only ("Out of Scope: Local Storage, Realtime or Studio beyond
+# whatever supabase start provides by default"), and the CLI's realtime
+# image (public.ecr.aws/supabase/realtime:v2.129.3) currently ships a 0-byte
+# libapparmor.so.1, which fails its own internal migration and takes the
+# whole local stack down with it. Realtime subscriptions are inert locally
+# either way (see docs/testing.md's fake-DB limitations) — this just stops a
+# broken container from blocking `supabase start` entirely.
+enabled = false
+
+[storage]
+enabled = true
+file_size_limit = "50MiB"
+
+[local_smtp]
+enabled = true
+port = 54324
+
+# The edge runtime is disabled locally: the seven odoo-* functions below need
+# live Odoo credentials to do anything meaningful, so a local copy would test
+# nothing (see AGENTS.md and docs/adr/0011). They stay declared so "Deploy to
+# production" keeps auto-shipping function changes — that's their only job
+# in this file.
+[edge_runtime]
+enabled = false
 
 [functions.odoo-document-admin]
+[functions.odoo-po-rollup]
 [functions.odoo-po-verify]
 [functions.odoo-quotation-file]
 [functions.odoo-quotation-link]
 [functions.odoo-quotation-manifest]
 [functions.odoo-sor-lookup]
-# Declared here so Deploy to production auto-ships function changes. (v3)
