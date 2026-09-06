@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { employeeService } from '../../../services/employeeService';
@@ -29,6 +30,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'pending', 'documents', 'history', 'balances'
   
   // Date Range State (for FloatingMonthPicker)
@@ -42,11 +44,6 @@ export default function HrLeavesManagerPage() {
     endDate: initialBoundaries.endDate,
   });
 
-  const [pendingLeaves, setPendingLeaves] = useState([]);
-  const [processedLeaves, setProcessedLeaves] = useState([]);
-  const [approvedLeaves, setApprovedLeaves] = useState([]);
-  const [employeeBalances, setEmployeeBalances] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [previewToken, setPreviewToken] = useState(null);
@@ -69,9 +66,9 @@ export default function HrLeavesManagerPage() {
     };
   }, [activeTab]);
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    try {
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['hrLeaves', dateRange.startDate, dateRange.endDate],
+    queryFn: async () => {
       // 1. Fetch Balances
       const allEmps = await employeeService.getAllEmployees();
       const empData = allEmps.map(emp => ({
@@ -82,8 +79,6 @@ export default function HrLeavesManagerPage() {
         offset_hours_balance: emp.offset_hours_balance,
         sil_hours_balance: emp.sil_hours_balance,
       })).sort((a, b) => a.name.localeCompare(b.name));
-      
-      setEmployeeBalances(empData);
 
       // 2. Fetch Requests
       const [
@@ -127,21 +122,21 @@ export default function HrLeavesManagerPage() {
       // ungrouped so every day in a range still gets its own cell.
       const approved = combined.filter(req => ['APPROVED', 'APPROVED_OFFSET', 'APPROVED_PAID'].includes(req.status) && (req.type === 'OFFSET' || req.type === 'SIL'));
 
-      setPendingLeaves(pendingCombined);
-      setProcessedLeaves(processed);
-      setApprovedLeaves(approved);
-
-    } catch (err) {
-      console.error('Failed to load HR leave data:', err);
-      toast.error('Could not load data.');
-    } finally {
-      setLoading(false);
+      return {
+        employeeBalances: empData,
+        pendingLeaves: pendingCombined,
+        processedLeaves: processed,
+        approvedLeaves: approved,
+      };
     }
-  }, [dateRange.startDate, dateRange.endDate]);
+  });
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const {
+    pendingLeaves = [],
+    processedLeaves = [],
+    approvedLeaves = [],
+    employeeBalances = [],
+  } = data || {};
 
   const handleAction = useCallback((request, actionType) => {
     // actionType: 'approve', 'approve_paid' (for OT), 'reject'
@@ -175,12 +170,12 @@ export default function HrLeavesManagerPage() {
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
         }
         toast.success(`Request ${actionLabel.toLowerCase()}d successfully.`);
-        loadData();
+        queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
       } catch (err) {
         toast.error(err.message || `Failed to ${actionLabel.toLowerCase()} request.`);
       }
     });
-  }, [user?.id, loadData]);
+  }, [user?.id, queryClient]);
 
   const handleUndo = useCallback((request) => {
     const isOT = request.type === 'OVERTIME';
@@ -202,13 +197,13 @@ export default function HrLeavesManagerPage() {
             await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           }
           toast.success('Decision undone successfully.');
-          loadData();
+          queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
         } catch (err) {
           toast.error(err.message || 'Failed to undo decision.');
         }
       }
     );
-  }, [user?.id, loadData]);
+  }, [user?.id, queryClient]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -328,7 +323,7 @@ export default function HrLeavesManagerPage() {
         request={overtimeApproval?.request}
         status={overtimeApproval?.status}
         hrId={user?.id}
-        onSuccess={loadData}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
       />
 
       <FloatingMonthPicker
@@ -353,7 +348,7 @@ export default function HrLeavesManagerPage() {
       <ApplyLeaveModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
         showEmployeeSelector
       />
 
@@ -592,7 +587,7 @@ export default function HrLeavesManagerPage() {
             approvedRecords={approvedForDocuments}
             allLoadedRecords={[...pendingLeaves, ...processedLeaves]}
             hrId={user?.id}
-            onPrinted={loadData}
+            onPrinted={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
           />
         )}
 

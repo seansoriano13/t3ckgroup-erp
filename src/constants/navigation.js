@@ -190,6 +190,12 @@ export const NAV_MODULES = {
         isPermitted: () => true,
       },
       {
+        label: "Flow Plans",
+        link: "/super-admin/flow-plans",
+        icon: Workflow,
+        isPermitted: () => true,
+      },
+      {
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,

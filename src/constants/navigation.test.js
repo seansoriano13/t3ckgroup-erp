@@ -44,7 +44,7 @@ describe("navigation registry", () => {
         "My Leaves & Overtime",
       ]);
       expect(groups[1].key).toBe("administration");
-      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas", "Flow Plans"]);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -178,11 +178,9 @@ describe("navigation registry", () => {
       const adminGroup = groups.find((g) => g.key === "administration");
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         "System Admin",
-        // Activity Log lives in Human Resources now (#105) — Super Admin
-        // reaches it from there instead of a second copy here.
-        // Issue #36 — scaffolding, removed again once the locked flows are
-        // implemented as the production pipeline.
+        // Activity Log lives in Human Resources now (#105) — Super Admin uses that entry.
         "Flow Canvas",
+        "Flow Plans",
         "Commission Pool",
         "Lead Sources",
       ]);

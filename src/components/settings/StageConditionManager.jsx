@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
-import { stageConditionService } from "../../services/stageConditionService";
+import { useFlowData } from "./FlowDataContext";
 import { CONDITION_KINDS } from "../../constants/stageGate";
 import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
@@ -60,6 +60,7 @@ function configFor(kind, config) {
  */
 export default function StageConditionManager({ stageId, disabled = false }) {
   const { user } = useAuth();
+  const { stageCondition: stageConditionService } = useFlowData();
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
   const [kind, setKind] = useState(CONDITION_KINDS.FIELD);

@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-06",
+        "title": "Flow Plan Sandbox & Purchasing Queue Improvements",
+        "version": "1.4.0",
+        "changes": [
+            "Introduced a new Flow Plans sandbox where you can draft and experiment with sales flows without affecting production data.",
+            "The Purchasing Queue now includes a filter bar, allowing you to instantly filter requests by Assignee, Outcome, and SOR.",
+            "You can now quickly reassign a Purchasing request to another employee directly from its row in the queue.",
+            "Upgraded the HR and Employee Leaves pages to update instantly when a leave is approved or rejected, eliminating unnecessary full page reloads."
+        ]
+    },
+    {
         "date":  "2026-09-06",
         "title":  "Leave Manager Landing Page Fix",
         "version":  "1.3.17",

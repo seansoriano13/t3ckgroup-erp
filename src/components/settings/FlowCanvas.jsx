@@ -39,9 +39,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { supabase } from "../../lib/supabase";
 
-import { salesFlowService } from "../../services/salesFlowService";
-import { stageConditionService } from "../../services/stageConditionService";
-import { stageActionService } from "../../services/stageActionService";
+import { useFlowData, FlowDataProvider } from "./FlowDataContext";
 import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
@@ -102,14 +100,17 @@ const defaultEdgeOptions = {
  */
 export default function FlowCanvas() {
   return (
-    <ReactFlowProvider>
-      <FlowCanvasInner />
-    </ReactFlowProvider>
+    <FlowDataProvider>
+      <ReactFlowProvider>
+        <FlowCanvasInner />
+      </ReactFlowProvider>
+    </FlowDataProvider>
   );
 }
 
 function FlowCanvasInner() {
   const { user } = useAuth();
+  const { salesFlow: salesFlowService, stageCondition: stageConditionService, stageAction: stageActionService } = useFlowData();
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
   const [newSaleTypeName, setNewSaleTypeName] = useState("");

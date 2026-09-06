@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { Link } from 'react-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
@@ -22,8 +23,7 @@ import { groupLeaveRows } from '../../utils/leaveGroups';
 
 export default function EmployeeLeavesPage() {
   const { user } = useAuth();
-  const [offsetBalance, setOffsetBalance] = useState(user?.offset_hours_balance || 0);
-  const [silBalance, setSilBalance] = useState(user?.sil_hours_balance || 0);
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('calendar'); // 'calendar', 'overtime', 'leave'
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OFFSET', 'SIL'
@@ -39,17 +39,9 @@ export default function EmployeeLeavesPage() {
     endDate: initialBoundaries.endDate,
   });
 
-  const [overtimeHistory, setOvertimeHistory] = useState([]);
-  const [leaveHistory, setLeaveHistory] = useState([]);
-  const [pendingOvertime, setPendingOvertime] = useState([]);
-  const [pendingLeaves, setPendingLeaves] = useState([]);
-  const [globalApprovedLeaves, setGlobalApprovedLeaves] = useState([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-
-  const loadData = useCallback(async () => {
-    if (!user?.id) return;
-    setLoadingHistory(true);
-    try {
+  const { data, isLoading: loadingHistory } = useQuery({
+    queryKey: ['employeeLeaves', user?.id, dateRange.startDate, dateRange.endDate],
+    queryFn: async () => {
       const [
         otData, 
         offsetLvData, 
@@ -58,63 +50,55 @@ export default function EmployeeLeavesPage() {
         allSilLeavesData,
         pendingOtData,
         pendingOffsetData,
-        pendingSilData
+        pendingSilData,
+        empDataRes
       ] = await Promise.all([
         offsetService.getMyOvertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyOffsetLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        offsetService.getCalendarOffsetLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection: no reason/balance/signature (ADR 0012)
+        offsetService.getCalendarOffsetLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection
         silService.getMySilLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        silService.getCalendarSilLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection: no reason/balance/signature (ADR 0012)
+        silService.getCalendarSilLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection
         offsetService.getMyPendingOvertimeRequests(user.id),
         offsetService.getMyPendingOffsetLeaves(user.id),
-        silService.getMyPendingSilLeaves(user.id)
+        silService.getMyPendingSilLeaves(user.id),
+        supabase.from('employees').select('offset_hours_balance, sil_hours_balance').eq('id', user.id).single()
       ]);
 
-      setOvertimeHistory(otData);
-      setPendingOvertime(pendingOtData);
-
-      // Map and tag leaves
       const mappedOffsetLv = offsetLvData.map(l => ({ ...l, type: 'OFFSET' }));
       const mappedSilLv = silLvData.map(l => ({ ...l, type: 'SIL' }));
-      
-      const combinedLeaveHistory = groupLeaveRows([...mappedOffsetLv, ...mappedSilLv])
+      const leaveHistory = groupLeaveRows([...mappedOffsetLv, ...mappedSilLv])
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      setLeaveHistory(combinedLeaveHistory);
 
       const mappedPendingOffset = pendingOffsetData.map(l => ({ ...l, type: 'OFFSET' }));
       const mappedPendingSil = pendingSilData.map(l => ({ ...l, type: 'SIL' }));
-      const combinedPendingLeaves = groupLeaveRows([...mappedPendingOffset, ...mappedPendingSil])
+      const pendingLeaves = groupLeaveRows([...mappedPendingOffset, ...mappedPendingSil])
         .sort((a, b) => new Date(a.date) - new Date(b.date));
-      setPendingLeaves(combinedPendingLeaves);
 
       const approvedOffset = allOffsetLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'OFFSET' }));
       const approvedSil = allSilLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'SIL' }));
-      setGlobalApprovedLeaves([...approvedOffset, ...approvedSil]);
 
-      // Refresh balances
-      const { data: empData } = await supabase
-        .from('employees')
-        .select('offset_hours_balance, sil_hours_balance')
-        .eq('id', user.id)
-        .single();
+      return {
+        overtimeHistory: otData,
+        pendingOvertime: pendingOtData,
+        leaveHistory,
+        pendingLeaves,
+        globalApprovedLeaves: [...approvedOffset, ...approvedSil],
+        offsetBalance: empDataRes.data?.offset_hours_balance ?? user?.offset_hours_balance ?? 0,
+        silBalance: empDataRes.data?.sil_hours_balance ?? user?.sil_hours_balance ?? 0,
+      };
+    },
+    enabled: Boolean(user?.id)
+  });
 
-      if (empData) {
-        setOffsetBalance(empData.offset_hours_balance);
-        setSilBalance(empData.sil_hours_balance);
-      }
-    } catch (err) {
-      console.error('Failed to load leave data:', err);
-      toast.error('Could not load history or calendar.');
-    } finally {
-      setLoadingHistory(false);
-    }
-  }, [user?.id, dateRange.startDate, dateRange.endDate]);
-
-  useEffect(() => {
-    if (user?.id) {
-      loadData();
-    }
-  }, [user?.id, loadData]);
+  const {
+    overtimeHistory = [],
+    pendingOvertime = [],
+    leaveHistory = [],
+    pendingLeaves = [],
+    globalApprovedLeaves = [],
+    offsetBalance = user?.offset_hours_balance || 0,
+    silBalance = user?.sil_hours_balance || 0,
+  } = data || {};
 
   const handleWithdrawOvertime = useCallback((id) => {
     confirmDeleteToast(
@@ -124,13 +108,13 @@ export default function EmployeeLeavesPage() {
         try {
           await offsetService.withdrawOvertimeRequest({ requestId: id, employeeId: user?.id });
           toast.success('Overtime request withdrawn successfully.');
-          loadData();
+          queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] });
         } catch (err) {
           toast.error(err.message || 'Failed to withdraw request.');
         }
       }
     );
-  }, [user?.id, loadData]);
+  }, [user?.id, queryClient]);
 
   const handleWithdrawLeave = useCallback((id, status, type) => {
     confirmDeleteToast(
@@ -144,13 +128,13 @@ export default function EmployeeLeavesPage() {
             await silService.cancelMySilLeave({ leaveId: id, employeeId: user?.id });
           }
           toast.success('Leave request withdrawn successfully.');
-          loadData();
+          queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] });
         } catch (err) {
           toast.error(err.message || 'Failed to withdraw request.');
         }
       }
     );
-  }, [user?.id, loadData]);
+  }, [user?.id, queryClient]);
 
   const getStatusBadge = (status) => {
     switch (status) {
@@ -678,7 +662,7 @@ export default function EmployeeLeavesPage() {
       <ApplyLeaveModal
         isOpen={isApplyModalOpen}
         onClose={() => setIsApplyModalOpen(false)}
-        onSuccess={loadData}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] })}
       />
     </PageContainer>
     </ProtectedRoute>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
-import { stageActionService } from "../../services/stageActionService";
+import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
 import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
 import StageActionDetail from "./StageActionDetail";
@@ -26,6 +26,7 @@ import LogTaskModal from "../LogTaskModal";
  */
 export default function StageActionManager({ stageId, disabled = false }) {
   const { user } = useAuth();
+  const { stageAction: stageActionService } = useFlowData();
   const queryClient = useQueryClient();
   const [addingKind, setAddingKind] = useState(null);
   const [editingAction, setEditingAction] = useState(null);

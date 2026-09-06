@@ -1,6 +1,8 @@
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PackageSearch, ExternalLink } from "lucide-react";
+import toast from "react-hot-toast";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
@@ -8,8 +10,12 @@ import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
+import FilterBar from "../../components/ui/FilterBar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { purchasingService } from "../../services/purchasingService";
-import { daysWaiting, displayOutcome } from "../../constants/procurement";
+import { employeeService } from "../../services/employeeService";
+import { daysWaiting, displayOutcome, procurementAffinity, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
+import { useAuth } from "../../context/AuthContext";
 
 /**
  * The Purchasing queue (issue #39).
@@ -33,10 +39,21 @@ function waitedFor(request, now) {
   return `${days} days`;
 }
 
-function QueueRow({ request, now, onOpenSor }) {
+function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
+  const queryClient = useQueryClient();
   const { raw: outcomeRaw, label: outcomeLabel } = displayOutcome(request);
   const days = daysWaiting(request, now);
   const sor = request.opportunity;
+
+  const { mutate: assign, isPending: isAssigning } = useMutation({
+    mutationFn: (newAssigneeId) =>
+      purchasingService.assignRequests([request.id], newAssigneeId, currentUserId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["procurementQueue"] });
+      toast.success("Request reassigned.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   return (
     <tr className="group border-b border-border last:border-0 transition-colors hover:bg-mauve-a2">
@@ -84,22 +101,47 @@ function QueueRow({ request, now, onOpenSor }) {
       </td>
 
       <td className="px-4 py-3">
-        {request.assignee ? (
-          <div className="flex items-center gap-2">
-            <Avatar
-              src={request.assignee.avatar_path}
-              name={request.assignee.name}
-              size="xs"
-            />
-            <span className="truncate text-xs font-medium text-foreground">
-              {request.assignee.name}
-            </span>
-          </div>
-        ) : (
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-11">
-            Unassigned
-          </span>
-        )}
+        <Select
+          value={request.assignee?.id || "unassigned"}
+          onValueChange={(val) => {
+            if (val !== "unassigned" && val !== request.assignee?.id) assign(val);
+          }}
+          disabled={isAssigning}
+        >
+          <SelectTrigger className="h-8 w-40 border-transparent bg-transparent hover:bg-mauve-a3 focus:ring-0 shadow-none -ml-2">
+            <SelectValue>
+              {request.assignee ? (
+                <div className="flex items-center gap-2">
+                  <Avatar
+                    src={request.assignee.avatar_path}
+                    name={request.assignee.name}
+                    size="xs"
+                  />
+                  <span className="truncate text-xs font-medium text-foreground">
+                    {request.assignee.name}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-xs font-semibold uppercase tracking-wider text-amber-11">
+                  Unassigned
+                </span>
+              )}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent align="start">
+            <SelectItem value="unassigned" disabled>
+              Unassigned
+            </SelectItem>
+            {buyers.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                <div className="flex items-center gap-2">
+                  <Avatar src={b.avatar_path} name={b.name} size="xs" />
+                  <span className="truncate">{b.name}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </td>
 
       <td className="px-4 py-3">
@@ -123,6 +165,22 @@ function QueueRow({ request, now, onOpenSor }) {
 
 function PurchasingQueue() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const [filterAssignee, setFilterAssignee] = useState("all");
+  const [filterOutcome, setFilterOutcome] = useState("all");
+  const [filterSor, setFilterSor] = useState("all");
+
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const buyers = useMemo(() => {
+    return [...employees].sort(
+      (a, b) => procurementAffinity(a) - procurementAffinity(b) || a.name.localeCompare(b.name)
+    );
+  }, [employees]);
 
   // The age column is measured from when the queue was fetched, not from when
   // React happened to render — so every row on screen is measured against the
@@ -141,7 +199,25 @@ function PurchasingQueue() {
   const openSor = (opportunityId) =>
     navigate("/opportunities", { state: { openOpportunityId: opportunityId } });
 
-  const count = requests?.length ?? 0;
+  const uniqueSors = useMemo(() => {
+    if (!requests) return [];
+    return Array.from(new Map(requests.map((r) => [r.opportunity.id, r.opportunity])).values())
+      .sort((a, b) => (a.sales_reference || a.client_name).localeCompare(b.sales_reference || b.client_name));
+  }, [requests]);
+
+  const filteredRequests = useMemo(() => {
+    if (!requests) return [];
+    return requests.filter(req => {
+      if (filterAssignee === "unassigned" && req.assignee) return false;
+      if (filterAssignee !== "all" && filterAssignee !== "unassigned" && req.assignee?.id !== filterAssignee) return false;
+      const { raw } = displayOutcome(req);
+      if (filterOutcome !== "all" && raw !== filterOutcome) return false;
+      if (filterSor !== "all" && req.opportunity?.id !== filterSor) return false;
+      return true;
+    });
+  }, [requests, filterAssignee, filterOutcome, filterSor]);
+
+  const count = filteredRequests?.length ?? 0;
 
   return (
     <PageContainer maxWidth="7xl" className="pt-4">
@@ -149,6 +225,55 @@ function PurchasingQueue() {
         title="Purchasing Queue"
         description="Every product still waiting on purchasing, across all SORs."
       />
+
+      <FilterBar
+        className="mb-6"
+        hasActiveFilters={filterAssignee !== "all" || filterOutcome !== "all" || filterSor !== "all"}
+        onClearAll={() => {
+          setFilterAssignee("all");
+          setFilterOutcome("all");
+          setFilterSor("all");
+        }}
+      >
+        <Select value={filterAssignee} onValueChange={setFilterAssignee}>
+          <SelectTrigger className="w-[180px] bg-background">
+            <SelectValue placeholder="Assignee" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any Assignee</SelectItem>
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+            {buyers.map((b) => (
+              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterOutcome} onValueChange={setFilterOutcome}>
+          <SelectTrigger className="w-[180px] bg-background">
+            <SelectValue placeholder="Outcome" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any Outcome</SelectItem>
+            {Object.entries(PROCUREMENT_OUTCOME_LABELS).map(([val, label]) => (
+              <SelectItem key={val} value={val}>{label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filterSor} onValueChange={setFilterSor}>
+          <SelectTrigger className="w-[200px] bg-background">
+            <SelectValue placeholder="SOR" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Any SOR</SelectItem>
+            {uniqueSors.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.sales_reference || s.client_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </FilterBar>
 
       {isLoading && (
         <div className="flex justify-center py-20">
@@ -202,12 +327,14 @@ function PurchasingQueue() {
                 </tr>
               </thead>
               <tbody>
-                {requests.map((request) => (
+                {filteredRequests.map((request) => (
                   <QueueRow
                     key={request.id}
                     request={request}
                     now={now}
                     onOpenSor={openSor}
+                    buyers={buyers}
+                    currentUserId={user?.id}
                   />
                 ))}
               </tbody>
