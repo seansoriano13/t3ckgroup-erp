@@ -204,7 +204,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient offset hours balance. You have 16 hrs remaining.",
+          "Insufficient offset hours. 0 hrs already committed to pending applications, leaving 16 hrs available.",
         ),
       )
     })
@@ -266,7 +266,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient SIL hours balance. You have 5 hrs remaining.",
+          "Insufficient SIL hours. 0 hrs already committed to pending applications, leaving 5 hrs available.",
         ),
       )
     })

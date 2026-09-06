@@ -13,7 +13,7 @@ import { Button } from '../ui/button';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
-import { applyLunchDeduction } from '../../services/leaveRules';
+import { applyLunchDeduction, computeAvailableHours } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 
 const DEFAULT_DAY_HOURS = 8;
@@ -163,6 +163,26 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const employeeId = showEmployeeSelector ? selectedEmployeeId : user.id;
   const employeeName = showEmployeeSelector ? selectedEmployeeName : user.name;
+
+  const selectedEmployee = useMemo(
+    () => (showEmployeeSelector ? employees.find((e) => e.id === selectedEmployeeId) : user),
+    [showEmployeeSelector, employees, selectedEmployeeId, user],
+  );
+
+  // What the employee can still commit — the balance minus what their own
+  // pending applications already claim, not the raw balance (issue #106).
+  const { data: pendingOffsetHours = 0 } = useQuery({
+    queryKey: ['pendingOffsetHours', employeeId],
+    queryFn: () => offsetService.getPendingOffsetHours(employeeId),
+    enabled: !!employeeId,
+  });
+  const { data: pendingSilHours = 0 } = useQuery({
+    queryKey: ['pendingSilHours', employeeId],
+    queryFn: () => silService.getPendingSilHours(employeeId),
+    enabled: !!employeeId,
+  });
+  const availableOffsetHours = computeAvailableHours(selectedEmployee?.offset_hours_balance, pendingOffsetHours);
+  const availableSilHours = computeAvailableHours(selectedEmployee?.sil_hours_balance, pendingSilHours);
 
   useEffect(() => {
     if (silDate && silApplyMode === 'single') {
@@ -509,6 +529,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   size="sm"
                 />
               </div>
+              {employeeId && (
+                <div className="text-xs font-semibold text-muted-foreground px-1">
+                  Available: <span className="text-blue-11 font-black">{availableOffsetHours} hrs</span>
+                  {pendingOffsetHours > 0 && ` (${pendingOffsetHours} hrs already committed to pending applications)`}
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Category
@@ -636,6 +662,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   size="sm"
                 />
               </div>
+              {employeeId && (
+                <div className="text-xs font-semibold text-muted-foreground px-1">
+                  Available: <span className="text-green-11 font-black">{availableSilHours} hrs</span>
+                  {pendingSilHours > 0 && ` (${pendingSilHours} hrs already committed to pending applications)`}
+                </div>
+              )}
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Category
