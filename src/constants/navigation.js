@@ -152,6 +152,17 @@ export const NAV_MODULES = {
         icon: Clock,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.canManageLeaves,
       },
+      {
+        // #105 — HR needs a route to the log without a Super Admin opening it
+        // for them. The narrower leave-management capability stays excluded,
+        // the same way it stays out of the Employee Directory: the activity
+        // log spans every HR entity (employee edits, category changes,
+        // settings), not just leave records, so it stays scoped to full HR.
+        label: "Activity Log",
+        link: "/super-admin/activity-log",
+        icon: ClipboardList,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
+      },
     ],
   },
   administration: {

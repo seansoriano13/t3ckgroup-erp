@@ -104,6 +104,7 @@ describe("navigation registry", () => {
       expect(hrGroup.links.map((l) => l.label)).toEqual([
         "Employee Directory",
         "Leaves Manager",
+        "Activity Log",
       ]);
 
       const approvalsGroup = groups.find((g) => g.key === "approvals");
@@ -121,8 +122,9 @@ describe("navigation registry", () => {
       const groups = getFilteredNavigationGroups(leaveManager);
       const hrGroup = groups.find((g) => g.key === "human_resources");
       expect(hrGroup).toBeDefined();
-      // Employee Directory stays hidden — the capability is scoped to
-      // leave management, not the broader HR flag's directory-edit access.
+      // Employee Directory and Activity Log stay hidden — the capability is
+      // scoped to leave management, not the broader HR flag's access to the
+      // directory or the org-wide activity trail (#105).
       expect(hrGroup.links.map((l) => l.label)).toEqual(["Leaves Manager"]);
     });
 
