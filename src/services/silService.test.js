@@ -756,6 +756,43 @@ describe("silService", () => {
         expect(allPending[0].employee.name).toBe("Ana Reyes")
       })
     })
+
+    describe("calendar projection (issue #104)", () => {
+      it("omits reason from the calendar payload so it never reaches a non-HR browser", async () => {
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED", reason: "Medical appointment" })
+
+        const rows = await silService.getCalendarSilLeaves()
+
+        expect(rows).toHaveLength(1)
+        expect(rows[0]).not.toHaveProperty("reason")
+      })
+
+      it("omits sil_hours_balance and signature_path from the employee join in the calendar payload", async () => {
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED" })
+
+        const rows = await silService.getCalendarSilLeaves()
+
+        expect(rows[0].employee).not.toHaveProperty("sil_hours_balance")
+        expect(rows[0].employee).not.toHaveProperty("signature_path")
+      })
+
+      it("still includes the employee name, department, and avatar so the calendar can render the card", async () => {
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED" })
+
+        const rows = await silService.getCalendarSilLeaves()
+
+        expect(rows[0].employee).toMatchObject({ name: "Ana Reyes", id: employee.id })
+      })
+
+      it("allows HR to still receive reason and balance via getAllSilLeaves", async () => {
+        makeSilLeave({ employee_id: employee.id, date: "2026-03-10", status: "APPROVED", reason: "Medical appointment" })
+
+        const all = await silService.getAllSilLeaves()
+
+        expect(all[0].reason).toBe("Medical appointment")
+        expect(all[0].employee).toMatchObject({ sil_hours_balance: 40 })
+      })
+    })
   })
 
   describe("Document Center: stamping printed records", () => {

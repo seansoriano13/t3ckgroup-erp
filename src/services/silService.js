@@ -306,6 +306,32 @@ export const silService = {
   },
 
   /**
+   * Fetch approved SIL leaves for the shared calendar — employee view.
+   *
+   * Projects only the fields the calendar needs (person, date, type, time
+   * window). Reason, hours balance, and signature path are omitted at the
+   * query level so they never reach a non-HR browser. HR uses getAllSilLeaves
+   * instead. See ADR 0012.
+   */
+  async getCalendarSilLeaves(startDate = null, endDate = null) {
+    let query = supabase
+      .from('sil_leaves')
+      .select(`
+        id, employee_id, date, start_time, end_time, hours, status, leave_group_id,
+        employee:employees!sil_leaves_employee_id_fkey(id, name, department, avatar_path),
+        category:hr_leave_categories(label)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (startDate) query = query.gte('date', startDate);
+    if (endDate) query = query.lt('date', endDate);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
    * Fetch all pending SIL leaves across all time (HR)
    */
   async getAllPendingSilLeaves() {

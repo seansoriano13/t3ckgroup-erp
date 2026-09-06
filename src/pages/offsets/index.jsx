@@ -62,9 +62,9 @@ export default function EmployeeLeavesPage() {
       ] = await Promise.all([
         offsetService.getMyOvertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
         offsetService.getMyOffsetLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate), // Filtered by RLS
+        offsetService.getCalendarOffsetLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection: no reason/balance/signature (ADR 0012)
         silService.getMySilLeaves(user.id, dateRange.startDate, dateRange.endDate),
-        silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate), // Filtered by RLS
+        silService.getCalendarSilLeaves(dateRange.startDate, dateRange.endDate), // Calendar projection: no reason/balance/signature (ADR 0012)
         offsetService.getMyPendingOvertimeRequests(user.id),
         offsetService.getMyPendingOffsetLeaves(user.id),
         silService.getMyPendingSilLeaves(user.id)
