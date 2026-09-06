@@ -12,25 +12,10 @@ import pg from "pg"
 import { writeFileSync, mkdirSync } from "fs"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
+import { SEED_TABLES, DEFAULT_LOCAL_DB_URL } from "./lib/seedShared.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(__dirname, "..")
-const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
-
-// Same table list scripts/seed-dump.mjs uses, so a snapshot is restorable by
-// the same script that loads a staging dump.
-const TABLES = [
-  "app_settings", "faq_data", "committee_roles", "crm_pipeline_stages", "crm_lead_sources",
-  "commission_departments", "commission_positions", "commission_rates", "commission_splits",
-  "employees", "categories", "group_task_templates", "group_task_template_members",
-  "sales_quotas", "sales_weekly_plans", "system_updates", "chat_read_receipts",
-  "sales_custom_templates", "chat_user_archives", "overtime_requests", "offset_leaves",
-  "sil_leaves", "system_audit_logs", "sales_opportunities", "sales_opportunity_logs",
-  "sales_opportunity_items", "sales_activities", "sales_activity_logs", "sales_revenue_logs",
-  "revenue_activity_logs", "sales_quota_logs", "tasks", "task_activity", "committee_tasks",
-  "committee_task_members", "committee_task_activity", "committee_task_logs", "notifications",
-  "sor_procurement_requests",
-]
 
 async function main() {
   const dbUrl = process.env.LOCAL_DB_URL ?? DEFAULT_LOCAL_DB_URL
@@ -42,7 +27,7 @@ async function main() {
   const { rows: authUsers } = await client.query("select * from auth.users")
   dump.authUsers = authUsers
 
-  for (const table of TABLES) {
+  for (const table of SEED_TABLES) {
     try {
       const { rows } = await client.query(`select * from public."${table}"`)
       dump.tables[table] = rows

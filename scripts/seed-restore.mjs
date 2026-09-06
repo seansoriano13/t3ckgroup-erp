@@ -17,33 +17,14 @@ import pg from "pg"
 import { readFileSync } from "fs"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
+import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(__dirname, "..")
-const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 const DEFAULT_TEST_PASSWORD = "password123"
 
-function loadDotEnvLocal() {
-  const path = join(repoRoot, ".env.local")
-  const env = {}
-  try {
-    for (const line of readFileSync(path, "utf8").split("\n")) {
-      if (!line || line.startsWith("#")) continue
-      const i = line.indexOf("=")
-      if (i < 0) continue
-      env[line.slice(0, i).trim()] = line
-        .slice(i + 1)
-        .trim()
-        .replace(/^"|"$/g, "")
-    }
-  } catch {
-    // .env.local is optional; the local-db and test-password defaults cover it.
-  }
-  return env
-}
-
 async function main() {
-  const env = loadDotEnvLocal()
+  const env = loadDotEnvLocal(repoRoot)
   const dbUrl = process.env.LOCAL_DB_URL ?? env.LOCAL_DB_URL ?? DEFAULT_LOCAL_DB_URL
   const testPassword = env.VITE_TEST_PASSWORD || DEFAULT_TEST_PASSWORD
   const dumpPath = process.argv[2] ?? join(repoRoot, "supabase", ".seed", "staging-dump.json")

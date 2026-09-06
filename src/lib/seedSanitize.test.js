@@ -58,22 +58,20 @@ describe("sanitizeSalesActivity", () => {
 })
 
 describe("sanitizeSalesOpportunity", () => {
-  it("scrubs client email, phone and contact number", () => {
-    const row = {
-      id: "op1",
-      client_email: "buyer@agency.gov.ph",
-      client_phone: "0917-000-0000",
-      contact_number: "0917-111-1111",
-      client_name: "Some Agency",
-    }
+  it("scrubs the client-side contact person, leaving the client organization's name alone", () => {
+    const row = { id: "op1", contact_person: "Jane Buyer", client_name: "Some Agency" }
 
     expect(sanitizeSalesOpportunity(row)).toEqual({
       id: "op1",
-      client_email: "client_op1@staging.example.com",
-      client_phone: "555-0000",
-      contact_number: "555-0000",
+      contact_person: "Sanitized Contact",
       client_name: "Some Agency",
     })
+  })
+
+  it("leaves an already-null contact person null", () => {
+    const row = { id: "op2", contact_person: null }
+
+    expect(sanitizeSalesOpportunity(row)).toEqual(row)
   })
 })
 

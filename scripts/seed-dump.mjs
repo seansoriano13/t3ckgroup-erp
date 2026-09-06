@@ -11,84 +11,25 @@
  * writes anywhere but the cache file below.
  */
 import pg from "pg"
-import { readFileSync, writeFileSync, mkdirSync } from "fs"
+import { writeFileSync, mkdirSync } from "fs"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
 import { SANITIZERS } from "../src/lib/seedSanitize.js"
+import { SEED_TABLES, loadDotEnvLocal } from "./lib/seedShared.mjs"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(__dirname, "..")
 const cacheDir = join(repoRoot, "supabase", ".seed")
 const cacheFile = join(cacheDir, "staging-dump.json")
 
-function loadDotEnvLocal() {
-  const path = join(repoRoot, ".env.local")
-  const env = {}
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    if (!line || line.startsWith("#")) continue
-    const i = line.indexOf("=")
-    if (i < 0) continue
-    env[line.slice(0, i).trim()] = line
-      .slice(i + 1)
-      .trim()
-      .replace(/^"|"$/g, "")
-  }
-  return env
-}
-
-// Topological order: a table only follows the tables its foreign keys point
-// at, so seed-restore.mjs can insert straight down this list without
-// deferring constraints.
-const TABLES = [
-  "app_settings",
-  "faq_data",
-  "committee_roles",
-  "crm_pipeline_stages",
-  "crm_lead_sources",
-  "commission_departments",
-  "commission_positions",
-  "commission_rates",
-  "commission_splits",
-  "employees",
-  "categories",
-  "group_task_templates",
-  "group_task_template_members",
-  "sales_quotas",
-  "sales_weekly_plans",
-  "system_updates",
-  "chat_read_receipts",
-  "sales_custom_templates",
-  "chat_user_archives",
-  "overtime_requests",
-  "offset_leaves",
-  "sil_leaves",
-  "system_audit_logs",
-  "sales_opportunities",
-  "sales_opportunity_logs",
-  "sales_opportunity_items",
-  "sales_activities",
-  "sales_activity_logs",
-  "sales_revenue_logs",
-  "revenue_activity_logs",
-  "sales_quota_logs",
-  "tasks",
-  "task_activity",
-  "committee_tasks",
-  "committee_task_members",
-  "committee_task_activity",
-  "committee_task_logs",
-  "notifications",
-  "sor_procurement_requests",
-]
-
-async function dumpTable(sql, schema, table) {
+async function dumpTable(client, schema, table) {
   const sanitize = SANITIZERS[schema === "auth" ? `${schema}.${table}` : table]
-  const { rows } = await sql.query(`select * from ${schema}."${table}"`)
+  const { rows } = await client.query(`select * from ${schema}."${table}"`)
   return sanitize ? rows.map(sanitize) : rows
 }
 
 async function main() {
-  const env = loadDotEnvLocal()
+  const env = loadDotEnvLocal(repoRoot)
   const dbUrl = env.STAGING_DB_URL
   if (!dbUrl) {
     console.error("Missing STAGING_DB_URL in .env.local.")
@@ -103,7 +44,7 @@ async function main() {
   console.log("Dumping auth.users...")
   dump.authUsers = await dumpTable(client, "auth", "users")
 
-  for (const table of TABLES) {
+  for (const table of SEED_TABLES) {
     process.stdout.write(`- [${table}]... `)
     try {
       const rows = await dumpTable(client, "public", table)

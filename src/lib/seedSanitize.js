@@ -35,12 +35,19 @@ export function sanitizeSalesActivity(row) {
   }
 }
 
+/**
+ * `sales_opportunities` carries exactly one personal-contact field —
+ * `contact_person`, the client-side individual's name (`client_name` is the
+ * client organization, not a person). The columns this rule scrubbed before
+ * (`client_email`, `client_phone`, `contact_number`) don't exist on this
+ * table; they were carried over from the removed scripts/sync-data.mjs
+ * without checking them against the schema, which meant `contact_person` —
+ * the real PII here — was never scrubbed.
+ */
 export function sanitizeSalesOpportunity(row) {
   return {
     ...row,
-    client_email: row.client_email == null ? row.client_email : CLIENT_EMAIL(row.id),
-    client_phone: row.client_phone == null ? row.client_phone : SCRUBBED_CONTACT_NUMBER,
-    contact_number: row.contact_number == null ? row.contact_number : SCRUBBED_CONTACT_NUMBER,
+    contact_person: row.contact_person == null ? row.contact_person : "Sanitized Contact",
   }
 }
 
