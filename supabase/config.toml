@@ -53,6 +53,15 @@ file_size_limit = "50MiB"
 enabled = true
 port = 54324
 
+# Disabled locally: the CLI's analytics image (public.ecr.aws/supabase/
+# logflare:1.50.4) fails every exec inside its own container ("exec format
+# error" on /usr/bin/sh) even from a byte-verified fresh pull on a clean WSL2
+# VM — an upstream image problem, not something fixable from this repo. It
+# only backs Studio's Logs Explorer tab; every other Studio page, and the
+# whole app, work without it.
+[analytics]
+enabled = false
+
 # The edge runtime is disabled locally: the seven odoo-* functions below need
 # live Odoo credentials to do anything meaningful, so a local copy would test
 # nothing (see AGENTS.md and docs/adr/0011). They stay declared so "Deploy to
