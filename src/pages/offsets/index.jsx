@@ -18,6 +18,7 @@ import { confirmDeleteToast } from '../../components/ui/CustomToast';
 import { AttachmentList } from '../../components/ui/Attachments';
 import { getMonthBoundaries } from '../../utils/dateUtils';
 import { formatWindow } from '../../utils/time';
+import { groupLeaveRows } from '../../utils/leaveGroups';
 
 export default function EmployeeLeavesPage() {
   const { user } = useAuth();
@@ -76,12 +77,14 @@ export default function EmployeeLeavesPage() {
       const mappedOffsetLv = offsetLvData.map(l => ({ ...l, type: 'OFFSET' }));
       const mappedSilLv = silLvData.map(l => ({ ...l, type: 'SIL' }));
       
-      const combinedLeaveHistory = [...mappedOffsetLv, ...mappedSilLv].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      const combinedLeaveHistory = groupLeaveRows([...mappedOffsetLv, ...mappedSilLv])
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setLeaveHistory(combinedLeaveHistory);
 
       const mappedPendingOffset = pendingOffsetData.map(l => ({ ...l, type: 'OFFSET' }));
       const mappedPendingSil = pendingSilData.map(l => ({ ...l, type: 'SIL' }));
-      const combinedPendingLeaves = [...mappedPendingOffset, ...mappedPendingSil].sort((a, b) => new Date(a.date) - new Date(b.date));
+      const combinedPendingLeaves = groupLeaveRows([...mappedPendingOffset, ...mappedPendingSil])
+        .sort((a, b) => new Date(a.date) - new Date(b.date));
       setPendingLeaves(combinedPendingLeaves);
 
       const approvedOffset = allOffsetLeavesData.filter(l => l.status === 'APPROVED').map(l => ({ ...l, type: 'OFFSET' }));
@@ -470,7 +473,18 @@ export default function EmployeeLeavesPage() {
                             </span>
                           </td>
                           <td className="p-4 text-sm font-bold text-foreground">
-                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {req.dayCount > 1 ? (
+                              <>
+                                {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                {' – '}
+                                {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                  {req.dayCount} days
+                                </span>
+                              </>
+                            ) : (
+                              new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                            )}
                           </td>
                           <td className="p-4 text-xs font-semibold text-foreground">
                             {req.category?.label || '-'}
@@ -585,7 +599,18 @@ export default function EmployeeLeavesPage() {
                           </span>
                         </td>
                         <td className="p-4 text-sm font-bold text-foreground">
-                          {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          {req.dayCount > 1 ? (
+                            <>
+                              {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              {' – '}
+                              {new Date(req.endDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              <span className="ml-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                {req.dayCount} days
+                              </span>
+                            </>
+                          ) : (
+                            new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+                          )}
                         </td>
                         <td className="p-4 text-xs font-semibold text-foreground">
                           {req.category?.label || '-'}

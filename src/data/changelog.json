@@ -1,5 +1,37 @@
 [
   {
+    "version": "1.3.4",
+    "date": "2026-09-06",
+    "title": "Consistent Leave Rules for Offset and SIL",
+    "changes": [
+      "Applying for SIL leave on a Saturday or Sunday is now blocked, matching Offset leave.",
+      "The 1-hour lunch deduction on a leave window of 5+ hours now applies consistently to Offset and SIL, single-day and date-range applications, and the amount shown in the form now matches what gets recorded.",
+      "Only Regular employees can file for or be approved for SIL leave, closing a gap where a Probationary or OJT employee could spend a SIL balance they were not entitled to."
+    ]
+  },
+  {
+    "version": "1.3.3",
+    "date": "2026-09-06",
+    "title": "Employee Directory Improvements",
+    "changes": [
+      "Added new filters for Employment Status and Leave Manager in the Employee Directory.",
+      "Improved the reliability of employee email duplication checks.",
+      "Fixed an issue where the +40 SIL auto-grant was not reflected in the balance input field before saving.",
+      "Improved the Self-Service Leaves page to group multi-day leaves into a single application row for easier viewing."
+    ]
+  },
+  {
+    "version": "1.2.1",
+    "date": "2026-09-06",
+    "title": "HR Overtime Fix & Audit Trail Updates",
+    "changes": [
+      "Fixed an issue where deactivated employees were still visible in the Employee Balances register and HR file-for-employee picker.",
+      "Completed the HR audit trail to now track when leave categories are renamed, reordered, or deactivated, and when form printed settings are changed.",
+      "Fixed an issue where the Document Center print tray would lose its staged records if the page was reloaded or the month was changed.",
+      "Fixed an issue where HR officers were unable to file overtime on behalf of employees."
+    ]
+  },
+  {
     "version": "1.2.0",
     "date": "2026-09-05",
     "title": "Group Task Mentions, Stage Requirement Notices & Odoo Inclusions Import",
