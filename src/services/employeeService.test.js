@@ -84,6 +84,16 @@ describe("employeeService", () => {
 
       expect(found.find((e) => e.name === "Ysabelle").canManageLeaves).toBe(true)
     })
+
+    it("maps the signature path in both getEmployeeByEmail and getAllEmployees", async () => {
+      makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test", signature_path: "ana-sig.png" })
+
+      const single = await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")
+      expect(single.signaturePath).toBe("ana-sig.png")
+
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.name === "Ana Reyes").signaturePath).toBe("ana-sig.png")
+    })
   })
 
   describe("creating an employee", () => {
@@ -112,6 +122,22 @@ describe("employeeService", () => {
       await expect(
         employeeService.createEmployee({ name: "Impostor", email: "ana@t3ckgroup.test" }),
       ).rejects.toThrow('An active employee with the email "ana@t3ckgroup.test" already exists.')
+    })
+
+    it("blocks the save with a clear message if the duplicate-email lookup errors", async () => {
+      const { server } = await import("@/test/msw/server")
+      const { http, HttpResponse } = await import("msw")
+      const BASE_URL = import.meta.env.VITE_SUPABASE_URL
+
+      server.use(
+        http.get(`${BASE_URL}/rest/v1/employees`, () => {
+          return HttpResponse.json({ message: "Network error" }, { status: 500 })
+        })
+      )
+
+      await expect(
+        employeeService.createEmployee({ name: "Impostor", email: "ana@t3ckgroup.test" })
+      ).rejects.toThrow("Unable to verify if email is already in use. Please try again.")
     })
 
     it("trims the address before checking it", async () => {

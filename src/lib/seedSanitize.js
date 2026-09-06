@@ -13,17 +13,20 @@
  * local account with VITE_TEST_PASSWORD (see docs/adr/0011 and AGENTS.md).
  */
 
-const STAGING_EMAIL = (id) => `${id}@staging.example.com`
 const CLIENT_EMAIL = (id) => `client_${id}@staging.example.com`
 const SCRUBBED_CONTACT_NUMBER = "555-0000"
 const SCRUBBED_REASON = "Sanitized for local development — see the staging record for the original."
 
+// Employee emails are kept as-is (not client-facing PII in the sales tables'
+// sense, and local Supabase auth email delivery routes to Mailpit, not real
+// SMTP) so developers can log in locally with an employee's real email and
+// VITE_TEST_PASSWORD.
 export function sanitizeAuthUser(row) {
-  return { ...row, email: STAGING_EMAIL(row.id), phone: null }
+  return { ...row, phone: null }
 }
 
 export function sanitizeEmployee(row) {
-  return { ...row, email: STAGING_EMAIL(row.id) }
+  return { ...row }
 }
 
 export function sanitizeSalesActivity(row) {

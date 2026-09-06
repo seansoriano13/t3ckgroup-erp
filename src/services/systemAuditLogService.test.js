@@ -168,6 +168,7 @@ describe("systemAuditLogService", () => {
         "OVERTIME",
         "OFFSET_LEAVE",
         "SIL_LEAVE",
+        "HR_SETTINGS"
       ])
     })
 

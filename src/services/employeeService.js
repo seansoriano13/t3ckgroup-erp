@@ -14,7 +14,10 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
   }
 
   const { data: existingRows, error } = await query;
-  if (error || !existingRows || existingRows.length === 0) {
+  if (error) {
+    throw new Error("Unable to verify if email is already in use. Please try again.");
+  }
+  if (!existingRows || existingRows.length === 0) {
     return cleanEmail;
   }
 
@@ -95,6 +98,7 @@ export const employeeService = {
       isHr: employee.is_hr,
       isSuperAdmin: employee.is_super_admin,
       canManageLeaves: employee.can_manage_leaves,
+      signaturePath: employee.signature_path || null,
       avatarPath: employee.avatar_path || null,
       dashboardBannerPath: employee.dashboard_banner_path || null,
       dashboardQuote: employee.dashboard_quote || null,

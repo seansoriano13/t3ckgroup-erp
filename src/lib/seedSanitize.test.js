@@ -8,11 +8,11 @@ import {
 } from "./seedSanitize"
 
 describe("sanitizeAuthUser", () => {
-  it("replaces email and phone with a dummy value keyed by id", () => {
+  it("nulls phone but keeps the real email, so it can be used to log in locally", () => {
     const row = { id: "abc-123", email: "real.person@t3ckgroup.com", phone: "09171234567" }
 
     expect(sanitizeAuthUser(row)).toMatchObject({
-      email: "abc-123@staging.example.com",
+      email: "real.person@t3ckgroup.com",
       phone: null,
     })
   })
@@ -25,9 +25,9 @@ describe("sanitizeAuthUser", () => {
 })
 
 describe("sanitizeEmployee", () => {
-  it("comes out with no real email address", () => {
+  it("keeps the real email address", () => {
     expect(sanitizeEmployee({ id: "e1", email: "real@t3ckgroup.com", name: "Real Person" })).toMatchObject({
-      email: "e1@staging.example.com",
+      email: "real@t3ckgroup.com",
       name: "Real Person",
     })
   })

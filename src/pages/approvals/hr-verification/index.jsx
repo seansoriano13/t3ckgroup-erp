@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
+import { employeeService } from "../../../services/employeeService.js";
 import { supabase } from "../../../lib/supabase.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
@@ -31,6 +32,14 @@ import PageContainer from "../../../components/ui/PageContainer";
 import TabGroup from "../../../components/ui/TabGroup";
 
 export default function HrVerificationPage() {
+  return (
+    <ProtectedRoute requireHr={true}>
+      <HrVerificationQueueContent />
+    </ProtectedRoute>
+  );
+}
+
+function HrVerificationQueueContent() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -64,17 +73,23 @@ export default function HrVerificationPage() {
   const [sortBy, setSortBy] = useState("OLDEST");
   const [timeframe, setTimeframe] = useState("MONTHLY");
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
-  const [statusFilter] = useState(TASK_STATUS.COMPLETE);
   const [deptFilter, setDeptFilter] = useState("ALL");
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [employeeFilter, setEmployeeFilter] = useState("ALL");
   const [selectedTaskIds, setSelectedTaskIds] = useState([]);
-  const [allEmployees, setAllEmployees] = useState([]);
-  const [allCategories, setAllCategories] = useState([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   const [isBulkVerifyModalOpen, setIsBulkVerifyModalOpen] = useState(false);
-  const [, setIsBulkUnverifyPending] = useState(false);
+
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ["allEmployees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const { data: allCategories = [] } = useQuery({
+    queryKey: ["allCategories"],
+    queryFn: () => employeeService.getAllCategories(),
+  });
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -123,17 +138,7 @@ export default function HrVerificationPage() {
     activeTab,
   ]);
 
-  useEffect(() => {
-    const fetchTopology = async () => {
-      const { employeeService } =
-        await import("../../../services/employeeService.js");
-      const employees = await employeeService.getAllEmployees();
-      if (employees) setAllEmployees(employees);
-      const categories = await employeeService.getAllCategories();
-      if (categories) setAllCategories(categories);
-    };
-    fetchTopology();
-  }, []);
+
 
   const uniqueDepts = useMemo(
     () =>
@@ -154,7 +159,7 @@ export default function HrVerificationPage() {
   }, [allCategories, deptFilter]);
 
   const uniqueEmployees = useMemo(() => {
-    let pool = allEmployees.filter((e) => !e.is_super_admin);
+    let pool = allEmployees.filter((e) => !e.isSuperAdmin);
     if (deptFilter !== "ALL")
       pool = pool.filter((e) => e.department === deptFilter);
     if (subDeptFilter !== "ALL")
@@ -182,19 +187,23 @@ export default function HrVerificationPage() {
       );
   }, [rawTasks, user?.id]);
 
-  // Split HR pending into Active (<48h) and Stale/Backlog (>=48h)
+  // Split HR pending into Active (<48h since graded) and Stale/Backlog (>=48h since graded).
+  // The clock measures how long HR has been sitting on the work, not how long the employee
+  // took to get graded — so we use evaluatedAt, the moment the Head's decision landed.
   const activePendingTasks = useMemo(() => {
     return pendingTasks.filter((t) => {
-      if (!t.createdAt) return true;
-      const hrs = (new Date() - new Date(t.createdAt)) / (1000 * 60 * 60);
+      const clock = t.evaluatedAt || t.createdAt;
+      if (!clock) return true;
+      const hrs = (new Date() - new Date(clock)) / (1000 * 60 * 60);
       return hrs < 48;
     });
   }, [pendingTasks]);
 
   const stalePendingTasks = useMemo(() => {
     return pendingTasks.filter((t) => {
-      if (!t.createdAt) return false;
-      const hrs = (new Date() - new Date(t.createdAt)) / (1000 * 60 * 60);
+      const clock = t.evaluatedAt || t.createdAt;
+      if (!clock) return false;
+      const hrs = (new Date() - new Date(clock)) / (1000 * 60 * 60);
       return hrs >= 48;
     });
   }, [pendingTasks]);
@@ -346,7 +355,6 @@ export default function HrVerificationPage() {
 
   const handleBulkUnverify = async () => {
     if (!selectedTaskIds.length) return;
-    setIsBulkUnverifyPending(true);
     try {
       await taskService.bulkUnverifyTasks(selectedTaskIds, user.id);
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
@@ -355,8 +363,6 @@ export default function HrVerificationPage() {
       toast.success("Verification undone successfully.");
     } catch (err) {
       toast.error(err.message || "Failed to unverify tasks.");
-    } finally {
-      setIsBulkUnverifyPending(false);
     }
   };
 
@@ -372,7 +378,7 @@ export default function HrVerificationPage() {
   }
 
   return (
-    <ProtectedRoute requireHr={true}>
+    <>
       <PageContainer className="pt-3 pb-8 space-y-4">
         <ApprovalHeader
           isHr={true}
@@ -384,7 +390,6 @@ export default function HrVerificationPage() {
           onSelectAllPending={handleSelectAll}
           onDeselectAll={handleDeselectAll}
           handleBulkApprove={() => setIsBulkVerifyModalOpen(true)}
-          handleBulkDecline={() => { }}
           handleUndoBulk={handleBulkUnverify}
           isVerifiedTab={activeTab === "VERIFIED"}
           pageTitle="HR Verification Queue"
@@ -403,13 +408,13 @@ export default function HrVerificationPage() {
               },
               {
                 value: "ACTIVE",
-                label: "Active (<48h)",
+                label: "Active (<48h graded)",
                 icon: Clock,
                 badge: activePendingTasks.length || undefined,
               },
               {
                 value: "STALE",
-                label: "Stale Backlog (>48h)",
+                label: "Stale Backlog (≥48h graded)",
                 icon: AlertTriangle,
                 badge: stalePendingTasks.length || undefined,
                 activeClass: stalePendingTasks.length > 0 ? "bg-amber-500/10 text-amber-600 font-bold" : undefined,
@@ -497,7 +502,7 @@ export default function HrVerificationPage() {
                 <TaskFilters
                   searchTerm={searchQuery}
                   setSearchTerm={setSearchQuery}
-                  statusFilter={statusFilter}
+                  statusFilter={TASK_STATUS.COMPLETE}
                   setStatusFilter={() => { }}
                   priorityFilter={priorityFilter}
                   setPriorityFilter={setPriorityFilter}
@@ -586,6 +591,6 @@ export default function HrVerificationPage() {
         onConfirm={handleBulkVerify}
         isSubmitting={editTaskMutation.isPending}
       />
-    </ProtectedRoute>
+    </>
   );
 }

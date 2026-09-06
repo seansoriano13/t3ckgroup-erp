@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
+import { employeeService } from '../../../services/employeeService';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List } from 'lucide-react';
 import ProtectedRoute from '../../../components/ProtectedRoute.jsx';
-import DocumentCenterTab from './components/DocumentCenterTab';
+import DocumentCenterTab from './_components/DocumentCenterTab';
 import PageContainer from '../../../components/ui/PageContainer';
 import PageHeader from '../../../components/ui/PageHeader';
 import TabGroup from '../../../components/ui/TabGroup';
@@ -71,12 +72,16 @@ export default function HrLeavesManagerPage() {
     setLoading(true);
     try {
       // 1. Fetch Balances
-      const { data: empData, error: empErr } = await supabase
-        .from('employees')
-        .select('id, name, department, avatar_path, offset_hours_balance, sil_hours_balance')
-        .order('name');
+      const allEmps = await employeeService.getAllEmployees();
+      const empData = allEmps.map(emp => ({
+        id: emp.id,
+        name: emp.name,
+        department: emp.department,
+        avatar_path: emp.avatarPath,
+        offset_hours_balance: emp.offset_hours_balance,
+        sil_hours_balance: emp.sil_hours_balance,
+      })).sort((a, b) => a.name.localeCompare(b.name));
       
-      if (empErr) throw empErr;
       setEmployeeBalances(empData);
 
       // 2. Fetch Requests
@@ -558,6 +563,7 @@ export default function HrLeavesManagerPage() {
         {activeTab === 'documents' && (
           <DocumentCenterTab
             approvedRecords={approvedForDocuments}
+            allLoadedRecords={[...pendingLeaves, ...processedLeaves]}
             hrId={user?.id}
             onPrinted={loadData}
           />

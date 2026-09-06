@@ -33,6 +33,7 @@ export default function EmployeeManagement() {
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [roleFlagFilter, setRoleFlagFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
   const [sortBy, setSortBy] = useState("NAME_ASC");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -66,6 +67,10 @@ export default function EmployeeManagement() {
     () => [...new Set(employees.map((e) => e.role).filter(Boolean))].sort(),
     [employees],
   );
+  const uniqueStatuses = useMemo(
+    () => [...new Set(employees.map((e) => e.employment_status).filter(Boolean))].sort(),
+    [employees],
+  );
 
   const filteredEmployees = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -80,11 +85,13 @@ export default function EmployeeManagement() {
     if (subDeptFilter !== "ALL")
       list = list.filter((e) => e.subDepartment === subDeptFilter);
     if (roleFilter !== "ALL") list = list.filter((e) => e.role === roleFilter);
+    if (statusFilter !== "ALL") list = list.filter((e) => e.employment_status === statusFilter);
     if (roleFlagFilter !== "ALL") {
       list = list.filter((e) => {
         if (roleFlagFilter === "SUPER_ADMIN") return e.isSuperAdmin;
         if (roleFlagFilter === "HR") return e.isHr;
         if (roleFlagFilter === "HEAD") return e.isHead;
+        if (roleFlagFilter === "LEAVE_MANAGER") return e.canManageLeaves;
         if (roleFlagFilter === "STANDARD")
           return !e.isSuperAdmin && !e.isHr && !e.isHead && !e.canManageLeaves;
         return true;
@@ -111,6 +118,7 @@ export default function EmployeeManagement() {
     deptFilter,
     subDeptFilter,
     roleFilter,
+    statusFilter,
     roleFlagFilter,
     sortBy,
   ]);
@@ -192,11 +200,14 @@ export default function EmployeeManagement() {
                   setRoleFilter={setRoleFilter}
                   roleFlagFilter={roleFlagFilter}
                   setRoleFlagFilter={setRoleFlagFilter}
+                  statusFilter={statusFilter}
+                  setStatusFilter={setStatusFilter}
                   sortBy={sortBy}
                   setSortBy={setSortBy}
                   uniqueDepts={uniqueDepts}
                   uniqueSubDepts={uniqueSubDepts}
                   uniqueRoles={uniqueRoles}
+                  uniqueStatuses={uniqueStatuses}
                 />
               </div>
             </div>
@@ -395,15 +406,6 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
   const mutation = useMutation({
     mutationFn: (data) => {
       const payload = { ...data };
-      if (
-        isEditing &&
-        employee?.employment_status !== "Regular" &&
-        payload.employment_status === "Regular"
-      ) {
-        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
-      } else if (!isEditing && payload.employment_status === "Regular") {
-        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
-      }
       return isEditing
         ? employeeService.updateEmployee(employee.id, payload, user?.id || null)
         : employeeService.createEmployee({

@@ -28,17 +28,21 @@ export default function HRFilters({
   setRoleFilter,
   roleFlagFilter,
   setRoleFlagFilter,
+  statusFilter,
+  setStatusFilter,
   sortBy,
   setSortBy,
   uniqueDepts = [],
   uniqueSubDepts = [],
   uniqueRoles = [],
+  uniqueStatuses = [],
 }) {
   const [showAdvanced, setShowAdvanced] = useState(
     deptFilter !== "ALL" ||
       subDeptFilter !== "ALL" ||
       roleFilter !== "ALL" ||
-      roleFlagFilter !== "ALL",
+      roleFlagFilter !== "ALL" ||
+      statusFilter !== "ALL",
   );
 
   const isAnyFilterActive =
@@ -47,6 +51,7 @@ export default function HRFilters({
     subDeptFilter !== "ALL" ||
     roleFilter !== "ALL" ||
     roleFlagFilter !== "ALL" ||
+    statusFilter !== "ALL" ||
     (sortBy !== undefined && sortBy !== "NAME_ASC");
 
   const handleClearAll = () => {
@@ -55,6 +60,7 @@ export default function HRFilters({
     setSubDeptFilter("ALL");
     setRoleFilter("ALL");
     setRoleFlagFilter("ALL");
+    setStatusFilter("ALL");
     if (setSortBy) setSortBy("NAME_ASC");
   };
 
@@ -88,7 +94,13 @@ export default function HRFilters({
     { value: "SUPER_ADMIN", label: "Super Admin" },
     { value: "HR", label: "HR" },
     { value: "HEAD", label: "Head" },
+    { value: "LEAVE_MANAGER", label: "Leave Manager" },
     { value: "STANDARD", label: "Standard" },
+  ];
+
+  const statusOptions = [
+    { value: "ALL", label: "All Statuses" },
+    ...uniqueStatuses.filter((s) => s !== "ALL").map((s) => ({ value: s, label: s })),
   ];
 
   // ── Labels ─────────────────────────────────────────────────────────────────
@@ -105,6 +117,8 @@ export default function HRFilters({
   const currentRoleFlagLabel =
     roleFlagOptions.find((o) => o.value === roleFlagFilter)?.label ||
     roleFlagOptions[0].label;
+  const currentStatusLabel =
+    statusOptions.find((o) => o.value === statusFilter)?.label || statusOptions[0].label;
 
   return (
     <div className="grid gap-3 md:gap-4">
@@ -267,6 +281,28 @@ export default function HRFilters({
                 options={roleFlagOptions}
                 value={roleFlagFilter}
                 onChange={setRoleFlagFilter}
+                close={close}
+              />
+            )}
+          </Dropdown>
+
+          {/* Status */}
+          <Dropdown
+            className="flex-1 min-w-[160px]"
+            trigger={({ isOpen }) => (
+              <FilterTrigger
+                label={currentStatusLabel}
+                isActive={statusFilter !== "ALL"}
+                isOpen={isOpen}
+                icon={Users}
+              />
+            )}
+          >
+            {({ close }) => (
+              <FilterOptionList
+                options={statusOptions}
+                value={statusFilter}
+                onChange={setStatusFilter}
                 close={close}
               />
             )}

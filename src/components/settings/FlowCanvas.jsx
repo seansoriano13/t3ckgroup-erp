@@ -756,7 +756,7 @@ function FlowCanvasInner() {
       </ReactFlow>
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-evenly gap-3 p-3">
         <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Workflow size={16} strokeWidth={2.5} />

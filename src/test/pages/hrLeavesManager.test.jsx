@@ -63,6 +63,26 @@ describe('HrLeavesManagerPage', () => {
     });
   });
 
+  it('hides deactivated employees from the Employee Balances register', async () => {
+    const user = userEvent.setup();
+    makeEmployee({ name: 'Active Worker', is_deleted: false });
+    makeEmployee({ name: 'Deactivated Worker', is_deleted: true });
+
+    renderWithProviders(
+      <MemoryRouter>
+        <HrLeavesManagerPage />
+      </MemoryRouter>
+    );
+
+    const balancesTab = await screen.findByRole('button', { name: /Employee Balances/i });
+    await user.click(balancesTab);
+
+    await waitFor(() => {
+      expect(screen.getByText('Active Worker')).toBeInTheDocument();
+      expect(screen.queryByText('Deactivated Worker')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Document Center', () => {
     let fakePrintWindow;
 

@@ -32,6 +32,8 @@ export default function EmployeeForm({
     ...initialData,
   })
 
+  const [hasAutoGranted, setHasAutoGranted] = useState(false)
+
   useEffect(() => {
     // The form is reseeded whenever the record it edits changes; without
     // this it would keep showing the previously-opened employee.
@@ -54,6 +56,7 @@ export default function EmployeeForm({
       offset_hours_balance: 0,
       ...initialData,
     })
+    setHasAutoGranted(false)
   }, [initialData])
 
   const uniqueDepts = useMemo(() => {
@@ -183,7 +186,28 @@ export default function EmployeeForm({
                     key={status}
                     type="button"
                     onClick={() => {
-                      setFormData(prev => ({ ...prev, employment_status: status }));
+                      setFormData(prev => {
+                        const willBeRegular = status === "Regular";
+                        const wasRegularInitially = initialData?.employment_status === "Regular";
+                        let newSil = parseFloat(prev.sil_hours_balance) || 0;
+                        let newlyGranted = hasAutoGranted;
+                        
+                        if (willBeRegular && !wasRegularInitially && !hasAutoGranted) {
+                          newSil += 40;
+                          newlyGranted = true;
+                        } else if (!willBeRegular && !wasRegularInitially && hasAutoGranted) {
+                          newSil = Math.max(0, newSil - 40);
+                          newlyGranted = false;
+                        }
+                        
+                        setHasAutoGranted(newlyGranted);
+                        
+                        return { 
+                          ...prev, 
+                          employment_status: status,
+                          sil_hours_balance: newSil
+                        };
+                      });
                       close();
                     }}
                     className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
@@ -199,13 +223,14 @@ export default function EmployeeForm({
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
+          <label htmlFor="sil-balance" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
             <span>SIL Hours Balance</span>
-            {initialData?.employment_status !== "Regular" && formData.employment_status === "Regular" && (
-              <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-grant</span>
+            {hasAutoGranted && (
+              <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
             )}
           </label>
           <input
+            id="sil-balance"
             type="number"
             step="0.5"
             value={formData.sil_hours_balance}

@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
 import { hrSettingsService } from '../../services/hrSettingsService';
+import { employeeService } from '../../services/employeeService';
 import { supabase } from '../../lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -159,8 +160,8 @@ export default function HrApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const { data: employees = [] } = useQuery({
     queryKey: ['hrEmployeesList'],
     queryFn: async () => {
-      const { data } = await supabase.from('employees').select('id, name').order('name');
-      return data || [];
+      const allEmps = await employeeService.getAllEmployees();
+      return allEmps.sort((a, b) => a.name.localeCompare(b.name));
     },
   });
 
@@ -172,7 +173,7 @@ export default function HrApplyLeaveModal({ isOpen, onClose, onSuccess }) {
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
-    if (!otDate || !otStartTime || !otEndTime || !otReason || !otCategoryId) {
+    if (!otDate || !otStartTime || !otEndTime || !otReason) {
       toast.error('Please fill in all fields.');
       return;
     }

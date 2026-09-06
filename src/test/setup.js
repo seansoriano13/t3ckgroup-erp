@@ -64,6 +64,7 @@ afterEach(async () => {
   resetStubs()
   resetExternalStubs()
   resetStorageStubs()
+  localStorage.clear()
 })
 
 afterAll(() => {

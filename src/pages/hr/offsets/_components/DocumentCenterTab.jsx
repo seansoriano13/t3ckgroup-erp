@@ -44,8 +44,8 @@ function loadStoredTray() {
  * where HR wants a file instead of paper, so no paid conversion API is
  * involved anywhere in this flow.
  */
-export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) {
-  const [trayKeys, setTrayKeys] = useState(loadStoredTray);
+export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, hrId, onPrinted }) {
+  const [tray, setTray] = useState(loadStoredTray);
   const [previewHtml, setPreviewHtml] = useState('');
   const [isRendering, setIsRendering] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
@@ -53,36 +53,51 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
 
   useEffect(() => {
     try {
-      localStorage.setItem(TRAY_STORAGE_KEY, JSON.stringify(trayKeys));
+      localStorage.setItem(TRAY_STORAGE_KEY, JSON.stringify(tray));
     } catch {
       // localStorage unavailable (private browsing, quota) — the tray just won't survive a reload.
     }
-  }, [trayKeys]);
-
-  const recordsByKey = useMemo(() => {
-    const map = new Map();
-    for (const r of approvedRecords) map.set(recordKey(r), r);
-    return map;
-  }, [approvedRecords]);
-
-  const tray = useMemo(
-    () => trayKeys.map((k) => recordsByKey.get(k)).filter(Boolean),
-    [trayKeys, recordsByKey]
-  );
-
-  // A stored key can stop resolving (its record was undone, or fell out of
-  // the current date range) — drop it rather than showing a hole in the tray.
-  useEffect(() => {
-    if (tray.length !== trayKeys.length) {
-      setTrayKeys(tray.map(recordKey));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tray]);
+
+  const trayKeys = useMemo(() => tray.map(recordKey), [tray]);
+
+  // The tray should only drop a key once it is known that the record genuinely no longer exists,
+  // not merely that it is absent from the currently-loaded window.
+  useEffect(() => {
+    setTray((prevTray) => {
+      let changed = false;
+      const nextTray = [];
+      const approvedKeys = new Set(approvedRecords.map(recordKey));
+      const allLoadedKeys = new Set((allLoadedRecords || []).map(recordKey));
+
+      for (const item of prevTray) {
+        const k = recordKey(item);
+        if (allLoadedKeys.has(k)) {
+          if (approvedKeys.has(k)) {
+            // It's loaded and approved. Update to the latest version just in case fields changed.
+            const latest = approvedRecords.find((r) => recordKey(r) === k);
+            nextTray.push(latest);
+            // We consider it changed to trigger a re-render if the reference changes, though typically we just rely on length.
+            changed = true; 
+          } else {
+            // It's loaded but NOT approved (e.g. decision undone). Drop it.
+            changed = true;
+          }
+        } else {
+          // It's not in the loaded window at all. Keep it as is.
+          nextTray.push(item);
+        }
+      }
+
+      if (prevTray.length !== nextTray.length) changed = true;
+      return changed ? nextTray : prevTray;
+    });
+  }, [approvedRecords, allLoadedRecords]);
 
   const isInTray = useCallback((key) => trayKeys.includes(key), [trayKeys]);
 
   // Search scopes the picker to a name match — the tray can still hold records
-  // that later scroll out of a filtered view, so filtering never touches trayKeys.
+  // that later scroll out of a filtered view, so filtering never touches tray.
   const filteredRecords = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return approvedRecords;
@@ -91,19 +106,19 @@ export default function DocumentCenterTab({ approvedRecords, hrId, onPrinted }) 
 
   const toggleTray = (record) => {
     const key = recordKey(record);
-    setTrayKeys((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+    setTray((prev) => (prev.some((r) => recordKey(r) === key) ? prev.filter((r) => recordKey(r) !== key) : [...prev, record]));
   };
 
-  const removeFromTray = (key) => setTrayKeys((prev) => prev.filter((k) => k !== key));
+  const removeFromTray = (key) => setTray((prev) => prev.filter((r) => recordKey(r) !== key));
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    setTrayKeys((prev) => {
-      const oldIndex = prev.indexOf(active.id);
-      const newIndex = prev.indexOf(over.id);
+    setTray((prev) => {
+      const oldIndex = prev.findIndex((r) => recordKey(r) === active.id);
+      const newIndex = prev.findIndex((r) => recordKey(r) === over.id);
       return arrayMove(prev, oldIndex, newIndex);
     });
   };

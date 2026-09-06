@@ -11,6 +11,7 @@ import CategoryForm from "./hr/CategoryForm"
 
 export default function HRCategoriesConfig() {
   const queryClient = useQueryClient()
+  const { user } = useAuth()
 
   const {
     data: categories = [],
@@ -48,7 +49,7 @@ export default function HRCategoriesConfig() {
           "This category is already used by existing tasks. Delete is blocked to prevent breaking task mappings.",
         )
       }
-      return employeeService.deleteCategory(cat.id)
+      return employeeService.deleteCategory(cat.id, user?.id)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["allCategories"] })

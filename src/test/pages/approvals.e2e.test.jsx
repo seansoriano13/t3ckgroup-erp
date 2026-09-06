@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TASK_STATUS } from "@/constants/status.js"
 import { db } from "@/test/db/store"
-import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeTask } from "@/test/factories"
+import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin, makeTask } from "@/test/factories"
 import { renderWithProviders } from "@/test/support"
 import { waitForNetworkIdle } from "@/test/network"
 
@@ -355,4 +355,72 @@ describe("approval journeys", () => {
 
         await waitFor(() => expect(rowOf(task.id).grade).toBe(4))
     })
+
+    it("HR verification queue correctly filters super admins and measures staleness from evaluated_at", async () => {
+        const user = userEvent.setup()
+        const hr = makeHrEmployee({ name: "Hera HR" })
+        const superAdmin = makeSuperAdmin({ name: "Bruce Admin" })
+
+        // Task 1: Logged long ago (60h), but graded just now (1h ago) -> Should be ACTIVE
+        makeTask({
+            logged_by: author.id,
+            category_id: category.category_id,
+            task_description: "Active Task",
+            status: TASK_STATUS.COMPLETE,
+            grade: 5,
+            evaluated_by: reviewer.id,
+            evaluated_at: ago(1),
+            hr_verified: false,
+            created_at: ago(60),
+        })
+
+        // Task 2: Logged by a super admin
+        makeTask({
+            logged_by: superAdmin.id,
+            category_id: category.category_id,
+            task_description: "Admin Task",
+            status: TASK_STATUS.COMPLETE,
+            grade: 5,
+            evaluated_by: reviewer.id,
+            evaluated_at: ago(1),
+            hr_verified: false,
+            created_at: ago(2),
+        })
+
+        const HrVerification = await loadHrPage()
+        
+        // Clear the module-level cache from previous tests so it fetches the new superAdmin
+        const { employeeService } = await import("@/services/employeeService.js")
+        employeeService.allEmployeesCache = null
+
+        await renderPage(HrVerification, hr)
+        await waitForNetworkIdle()
+
+        // 1. Check Tabs (measures staleness from evaluated_at)
+        expect(screen.getByRole("button", { name: /Active.*graded.*2/i })).toBeInTheDocument()
+        
+        // Using .* for >= to avoid encoding issues when editing files via shell/API
+        expect(screen.getByRole("button", { name: /Stale Backlog \(.*48h graded\)/i })).toBeInTheDocument()
+
+        // 2. The Quick Filter Chips (queueEmployees) SHOULD show Bruce Admin, since he has a pending task
+        // We use getAllByRole because there is 1 Quick Filter Chip AND 1 Task Card for Bruce Admin!
+        expect(screen.getAllByRole("button", { name: /Bruce Admin/ })).toHaveLength(2)
+
+        // 3. Open Advanced Filters
+        await user.click(screen.getByRole("button", { name: /Filters/i }))
+
+        // 4. Open Employee filter dropdown
+        const employeeFilterBtn = screen.getByText("Logged By: Everyone").closest("div")
+        await user.click(employeeFilterBtn)
+        
+        // 5. The dropdown listbox should render "Ana Cruz" (uniqueEmployees filter).
+        // Since she has 1 Task Card, 1 Quick Filter Chip, and 1 Dropdown Option, it should be 3!
+        await waitFor(() => {
+            expect(screen.getAllByRole("button", { name: /Ana Cruz/ })).toHaveLength(3)
+        })
+        
+        // Bruce Admin should ONLY be in the Quick Filter Chips (1) and Task Card (1), NOT in the dropdown!
+        expect(screen.getAllByRole("button", { name: /Bruce Admin/ })).toHaveLength(2)
+    })
 })
+

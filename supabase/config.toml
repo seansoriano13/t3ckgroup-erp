@@ -34,6 +34,12 @@ jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
 
+[auth.external.google]
+enabled = true
+client_id = "657214572650-l21fq9k3kp078k343go0o22toagqgirs.apps.googleusercontent.com"
+secret = "dummy-secret"
+redirect_uri = "http://127.0.0.1:5173"
+
 [realtime]
 # Disabled locally (issue #87): the spec scopes local dev to Postgres, Auth
 # and PostgREST only ("Out of Scope: Local Storage, Realtime or Studio beyond
@@ -68,7 +74,7 @@ enabled = false
 # production" keeps auto-shipping function changes — that's their only job
 # in this file.
 [edge_runtime]
-enabled = false
+enabled = true
 
 [functions.odoo-document-admin]
 [functions.odoo-po-rollup]

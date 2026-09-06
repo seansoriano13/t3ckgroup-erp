@@ -7,23 +7,20 @@ export function StagingBanner() {
     import.meta.env.VITE_APP_ENV === "staging" ||
     window.location.hostname.includes("staging")
 
+  const isLocal = import.meta.env.VITE_APP_ENV === "local"
+
   useEffect(() => {
     if (isStaging) {
-      document.title = `[STAGING] ${document.title.replace("[STAGING] ", "")}`
-      
-      // Optional: Swap favicon to something distinct
-      let link = document.querySelector("link[rel~='icon']")
-      if (!link) {
-        link = document.createElement("link")
-        link.rel = "icon"
-        document.head.appendChild(link)
-      }
-      // Assuming you have an alternate favicon, else just changing title is highly effective
-      // link.href = "/favicon-staging.svg"; 
+      document.title = `[STAGING] ${document.title.replace("[STAGING] ", "").replace("[LOCAL] ", "")}`
+    } else if (isLocal) {
+      document.title = `[LOCAL] ${document.title.replace("[STAGING] ", "").replace("[LOCAL] ", "")}`
     }
-  }, [isStaging])
+  }, [isStaging, isLocal])
 
-  if (!isStaging) return null
+  if (!isStaging && !isLocal) return null
+
+  const bannerText = isStaging ? "STAGING - TEST DATA ONLY" : "LOCAL - DEVELOPMENT"
+  const bannerColor = isStaging ? "#f97316" : "#22c55e" // orange-500 vs green-500
 
   return (
     <div
@@ -41,7 +38,7 @@ export function StagingBanner() {
           right: "-80px",
           width: "340px",
           transform: "rotate(45deg)",
-          backgroundColor: "#f97316", // Tailwind orange-500
+          backgroundColor: bannerColor,
           backgroundImage:
             "repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.15) 10px, rgba(0,0,0,0.15) 20px)",
           color: "white",
@@ -52,7 +49,7 @@ export function StagingBanner() {
         }}
       >
         <AlertTriangle size={14} strokeWidth={3} />
-        STAGING - TEST DATA ONLY
+        {bannerText}
         <AlertTriangle size={14} strokeWidth={3} />
       </div>
     </div>
