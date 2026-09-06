@@ -57,3 +57,31 @@ export function assertSilEligible(employmentStatus) {
     throw new Error('Only Regular employees are eligible for SIL leave.');
   }
 }
+
+/**
+ * What an employee can actually still commit: the balance minus hours
+ * already claimed by their own pending applications (issue #106). Nothing is
+ * deducted from the stored balance until HR approves, so without this,
+ * checking a new application against the raw balance lets the same hours be
+ * promised to several pending requests at once — every one of them passes
+ * validation individually, and HR only discovers the conflict when
+ * approving the second one throws a balance error nobody was warned about.
+ */
+export function computeAvailableHours(balance, pendingHours) {
+  return parseFloat(balance || 0) - parseFloat(pendingHours || 0);
+}
+
+/**
+ * Refuses an application that would exceed what's actually available once
+ * pending applications are counted, naming both figures so the employee (or
+ * HR, filing on their behalf) understands why — not just the raw balance,
+ * which may still look sufficient on its own.
+ */
+export function assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours, leaveTypeLabel }) {
+  const available = computeAvailableHours(currentBalance, pendingHours);
+  if (requestedHours > available) {
+    throw new Error(
+      `Insufficient ${leaveTypeLabel} hours. ${pendingHours} hrs already committed to pending applications, leaving ${available} hrs available.`
+    );
+  }
+}

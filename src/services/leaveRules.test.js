@@ -50,3 +50,44 @@ describe("assertSilEligible", () => {
     expect(() => assertSilEligible("OJT")).toThrow("Only Regular employees are eligible for SIL leave.")
   })
 })
+
+describe("computeAvailableHours", () => {
+  it("subtracts what's already pending from the balance", () => {
+    expect(computeAvailableHours(16, 4)).toBe(12)
+  })
+
+  it("treats a missing balance or pending figure as zero", () => {
+    expect(computeAvailableHours(null, 4)).toBe(-4)
+    expect(computeAvailableHours(16, undefined)).toBe(16)
+  })
+})
+
+// Issue #106 (HR-03): the raw balance column is not enough to validate a new
+// application against — nothing is deducted from it until HR approves, so an
+// employee's own pending applications have to be counted too.
+describe("assertWithinAvailableBalance", () => {
+  it("allows a request that fits within what's available", () => {
+    expect(() =>
+      assertWithinAvailableBalance({ currentBalance: 16, pendingHours: 4, requestedHours: 12, leaveTypeLabel: "offset" }),
+    ).not.toThrow()
+  })
+
+  it("allows a request that exactly exhausts what's available", () => {
+    expect(() =>
+      assertWithinAvailableBalance({ currentBalance: 4, pendingHours: 0, requestedHours: 4, leaveTypeLabel: "offset" }),
+    ).not.toThrow()
+  })
+
+  it("refuses a request that would exceed the balance once pending applications are counted, naming both figures", () => {
+    expect(() =>
+      assertWithinAvailableBalance({ currentBalance: 4, pendingHours: 4, requestedHours: 4, leaveTypeLabel: "offset" }),
+    ).toThrow("Insufficient offset hours. 4 hrs already committed to pending applications, leaving 0 hrs available.")
+  })
+
+  it("refuses even when the raw balance alone would have covered it", () => {
+    // 4 hrs of balance, but 3 of it is already pending — only 1 is free.
+    expect(() =>
+      assertWithinAvailableBalance({ currentBalance: 4, pendingHours: 3, requestedHours: 2, leaveTypeLabel: "SIL" }),
+    ).toThrow("Insufficient SIL hours. 3 hrs already committed to pending applications, leaving 1 hrs available.")
+  })
+})
