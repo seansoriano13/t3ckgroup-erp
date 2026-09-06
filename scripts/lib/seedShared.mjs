@@ -46,6 +46,11 @@ export const SEED_TABLES = [
   "committee_task_logs",
   "notifications",
   "sor_procurement_requests",
+  "sale_types",
+  "sales_flows",
+  "flow_stages",
+  "flow_edges",
+  "flow_snapshots",
 ]
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
