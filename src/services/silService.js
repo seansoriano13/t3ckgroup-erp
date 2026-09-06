@@ -2,15 +2,34 @@ import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication, stampApproval } from './offsetService';
-import { deriveHours, formatWindow } from '../utils/time';
+import { formatWindow } from '../utils/time';
+import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertSilEligible, SIL_ELIGIBLE_STATUS } from './leaveRules';
 
 /**
- * Credits refunded SIL hours back onto an employee's balance, capped at the
- * employee's CURRENT status-appropriate ceiling rather than blindly re-adding
- * on top of whatever HR has set since the leave was approved. Only "Regular"
- * employees are SIL-eligible, so a non-Regular employee's ceiling is 0 — the
- * refund is withheld and flagged as an anomaly for HR to review, instead of
- * silently re-granting hours to someone HR has since made ineligible.
+ * Loads the fields every SIL apply/approve path needs, and enforces
+ * eligibility right there — so no caller can read the balance without also
+ * checking employment status.
+ */
+async function fetchEligibleSilEmployee(employeeId) {
+  const { data: emp, error: empErr } = await supabase
+    .from('employees')
+    .select('sil_hours_balance, employment_status')
+    .eq('id', employeeId)
+    .single();
+
+  if (empErr) throw new Error(empErr.message);
+
+  assertSilEligible(emp.employment_status);
+
+  return emp;
+}
+
+/**
+ * Credits refunded SIL hours back onto an employee's balance. This is a
+ * gate, not a cap: a SIL-eligible ("Regular") employee gets the full amount
+ * added unconditionally, and anyone else gets none — the refund is withheld
+ * and flagged as an anomaly for HR to review, instead of silently
+ * re-granting hours to someone HR has since made ineligible.
  */
 async function creditSilRefund(employeeId, hours, leaveId, actorId) {
   const { data: emp, error: empErr } = await supabase
@@ -21,7 +40,7 @@ async function creditSilRefund(employeeId, hours, leaveId, actorId) {
 
   if (empErr || !emp) return;
 
-  if (emp.employment_status === 'Regular') {
+  if (emp.employment_status === SIL_ELIGIBLE_STATUS) {
     const newBalance = parseFloat(emp.sil_hours_balance || 0) + parseFloat(hours || 0);
     await supabase
       .from('employees')
@@ -44,8 +63,7 @@ export const silService = {
    * Apply for SIL Leave (Employee)
    */
   async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
-    const parsedHoursRaw = deriveHours(startTime, endTime, false);
-    const parsedHours = parsedHoursRaw >= 5 ? parsedHoursRaw - 1 : parsedHoursRaw;
+    const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
     }
@@ -56,15 +74,9 @@ export const silService = {
 
     await checkOverlap(employeeId, date, startTime, endTime);
 
-    // Check Employee Balance
-    const { data: emp, error: empErr } = await supabase
-      .from('employees')
-      .select('sil_hours_balance')
-      .eq('id', employeeId)
-      .single();
+    assertNotWeekend(date);
 
-    if (empErr) throw new Error(empErr.message);
-
+    const emp = await fetchEligibleSilEmployee(employeeId);
     const currentBalance = parseFloat(emp.sil_hours_balance || 0);
     if (currentBalance < parsedHours) {
       throw new Error(`Insufficient SIL hours balance. You have ${currentBalance} hrs remaining.`);
@@ -143,10 +155,12 @@ export const silService = {
         if (seenDates.has(day.date)) throw new Error(`${day.date} was listed more than once.`);
         seenDates.add(day.date);
 
-        const hours = parseFloat(day.hours ?? 8);
-        if (!(hours > 0)) throw new Error(`Hours for ${day.date} must be greater than zero.`);
+        const rawHours = parseFloat(day.hours ?? 8);
+        if (!(rawHours > 0)) throw new Error(`Hours for ${day.date} must be greater than zero.`);
 
-        return { date: day.date, hours };
+        assertNotWeekend(day.date, day.date);
+
+        return { date: day.date, hours: applyLunchDeduction(rawHours) };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -156,14 +170,7 @@ export const silService = {
 
     const totalHours = normalizedDays.reduce((sum, day) => sum + day.hours, 0);
 
-    const { data: emp, error: empErr } = await supabase
-      .from('employees')
-      .select('sil_hours_balance')
-      .eq('id', employeeId)
-      .single();
-
-    if (empErr) throw new Error(empErr.message);
-
+    const emp = await fetchEligibleSilEmployee(employeeId);
     const currentBalance = parseFloat(emp.sil_hours_balance || 0);
     if (currentBalance < totalHours) {
       throw new Error(`Insufficient SIL hours balance. You have ${currentBalance} hrs remaining.`);
@@ -340,13 +347,7 @@ export const silService = {
     let newBalance = null;
 
     if (status === 'APPROVED') {
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('sil_hours_balance')
-        .eq('id', employeeId)
-        .single();
-
-      if (empErr) throw new Error(empErr.message);
+      const emp = await fetchEligibleSilEmployee(employeeId);
       const currentBal = parseFloat(emp.sil_hours_balance || 0);
 
       if (currentBal < totalHours) {
@@ -425,8 +426,8 @@ export const silService = {
   /**
    * Undo HR's decision on a SIL Leave group.
    * - Reverts every day-row in the group to PENDING
-   * - Refunds the group's total hours if it was APPROVED, capped per employee
-   *   rather than per day (see creditSilRefund)
+   * - Refunds the group's total hours if it was APPROVED and the employee is
+   *   still SIL-eligible; otherwise the refund is withheld (see creditSilRefund)
    */
   async undoSilLeaveDecision({ groupId, hrId }) {
     const { data: rows, error: rowsErr } = await supabase
@@ -526,7 +527,7 @@ export const silService = {
     if (updateErr) throw new Error(updateErr.message);
 
     // Only pending or approved leaves in the future can be cancelled by employee
-    // To be safe, let's refund if it was approved (capped — see creditSilRefund)
+    // Refund if it was approved, subject to the employee's current SIL eligibility (see creditSilRefund)
     if (clicked.status === 'APPROVED') {
       await creditSilRefund(employeeId, totalHours, clicked.leave_group_id, employeeId);
     }

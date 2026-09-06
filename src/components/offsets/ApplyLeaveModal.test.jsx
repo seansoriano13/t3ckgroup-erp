@@ -188,7 +188,8 @@ describe("ApplyLeaveModal", () => {
       await submit(user)
       await waitFor(() => expect(db.rows("offset_leaves")).toHaveLength(1))
 
-      expect(db.rows("offset_leaves")[0]).toMatchObject({ hours: 8, status: "PENDING" })
+      // 8-hour window minus the 1-hour lunch deduction (issue #91).
+      expect(db.rows("offset_leaves")[0]).toMatchObject({ hours: 7, status: "PENDING" })
     })
 
     it("tells the employee when they do not have the hours", async () => {
@@ -218,7 +219,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Offset leaves cannot be applied on weekends (Saturday / Sunday).",
+          "Leaves cannot be applied on weekends (Saturday / Sunday).",
         ),
       )
     })
@@ -280,6 +281,21 @@ describe("ApplyLeaveModal", () => {
       await waitForNetworkIdle()
 
       expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+
+    it("refuses a weekend, matching Offset", async () => {
+      open()
+      await goToSil()
+      // 2026-03-14 is a Saturday.
+      const { user } = await fillForm({ date: "2026-03-14", startTime: "09:00", endTime: "17:00", reason: "Weekend" })
+
+      await submit(user)
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Leaves cannot be applied on weekends (Saturday / Sunday).",
+        ),
+      )
     })
   })
 

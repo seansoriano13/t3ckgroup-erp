@@ -12,6 +12,7 @@ import { Button } from '../ui/button';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
+import { applyLunchDeduction } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 import { useEffect } from 'react';
 
@@ -58,26 +59,33 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
 
       {days.length > 0 && (
         <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-          {days.map((date) => (
-            <div key={date} className="flex items-center justify-between gap-3 bg-muted/60 border border-border rounded-lg px-3 py-2">
-              <span className="text-xs font-bold text-foreground">
-                {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-              </span>
-              <div className="flex items-center gap-1.5">
-                <input
-                  type="number"
-                  min="0.5"
-                  step="0.5"
-                  value={dayHours[date] ?? DEFAULT_DAY_HOURS}
-                  onChange={(e) => onDayHoursChange(date, e.target.value)}
-                  className={`w-16 px-2 py-1 bg-card border border-border rounded-md text-xs font-bold text-right text-foreground focus:outline-none focus:ring-2 ${accentClass}`}
-                />
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase">hrs</span>
+          {days.map((date) => {
+            const rawHours = parseFloat(dayHours[date] ?? DEFAULT_DAY_HOURS) || 0;
+            const netHours = applyLunchDeduction(rawHours);
+            return (
+              <div key={date} className="flex items-center justify-between gap-3 bg-muted/60 border border-border rounded-lg px-3 py-2">
+                <span className="text-xs font-bold text-foreground">
+                  {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min="0.5"
+                    step="0.5"
+                    value={dayHours[date] ?? DEFAULT_DAY_HOURS}
+                    onChange={(e) => onDayHoursChange(date, e.target.value)}
+                    className={`w-16 px-2 py-1 bg-card border border-border rounded-md text-xs font-bold text-right text-foreground focus:outline-none focus:ring-2 ${accentClass}`}
+                  />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase">hrs</span>
+                  {netHours !== rawHours && (
+                    <span className="text-[10px] font-semibold text-muted-foreground">→ {netHours} net</span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-0.5">
-            {days.length} day{days.length > 1 ? 's' : ''} · {days.reduce((sum, d) => sum + (parseFloat(dayHours[d] ?? DEFAULT_DAY_HOURS) || 0), 0)} hrs total
+            {days.length} day{days.length > 1 ? 's' : ''} · {days.reduce((sum, d) => sum + applyLunchDeduction(parseFloat(dayHours[d] ?? DEFAULT_DAY_HOURS) || 0), 0)} hrs total (1 hr lunch deducted per day of 5+ hrs)
           </p>
         </div>
       )}
@@ -124,9 +132,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
   const silFiles = useFileAttachments();
 
   const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
-  const currentOffsetHours = safeDeriveHours(offsetStartTime, offsetEndTime, false);
+  const currentOffsetHoursRaw = safeDeriveHours(offsetStartTime, offsetEndTime, false);
+  const currentOffsetHours = applyLunchDeduction(currentOffsetHoursRaw);
   const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
-  const currentSilHours = currentSilHoursRaw >= 5 ? currentSilHoursRaw - 1 : currentSilHoursRaw;
+  const currentSilHours = applyLunchDeduction(currentSilHoursRaw);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['activeLeaveCategories'],
@@ -528,6 +537,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   {currentOffsetHours > 0 && (
                     <div className="text-xs font-semibold text-blue-11 px-1">
                       Derived: {currentOffsetHours} hrs
+                      {currentOffsetHours !== currentOffsetHoursRaw && ' (1 hr lunch deducted)'}
                     </div>
                   )}
                 </>
@@ -665,6 +675,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess }) {
                   {currentSilHours > 0 && (
                     <div className="text-xs font-semibold text-green-11 px-1">
                       Derived: {currentSilHours} hrs
+                      {currentSilHours !== currentSilHoursRaw && ' (1 hr lunch deducted)'}
                     </div>
                   )}
                 </>

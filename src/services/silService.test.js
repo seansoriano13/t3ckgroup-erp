@@ -72,6 +72,50 @@ describe("silService", () => {
       expect(await silService.getMySilLeaves(short.id)).toEqual([])
     })
 
+    it("refuses a Saturday or Sunday, matching Offset", async () => {
+      // 2026-03-14 is a Saturday, 2026-03-15 a Sunday.
+      for (const date of ["2026-03-14", "2026-03-15"]) {
+        await expect(
+          silService.applySilLeave({
+            employeeId: employee.id,
+            date,
+            startTime: '09:00', endTime: '17:00',
+            reason: "Weekend",
+          }),
+        ).rejects.toThrow(/cannot be applied on weekends/i)
+      }
+
+      expect(await silService.getMySilLeaves(employee.id)).toEqual([])
+    })
+
+    it("deducts an hour for lunch on a window of 5 hours or more", async () => {
+      await silService.applySilLeave({
+        employeeId: employee.id,
+        date: "2026-03-10",
+        startTime: "07:30", endTime: "18:00",
+        reason: "Full day",
+      })
+
+      expect((await silService.getMySilLeaves(employee.id))[0].hours).toBe(9.5) // 10.5-hour window minus 1 hour for lunch
+    })
+
+    it("refuses to file for an employee who is not SIL-eligible", async () => {
+      // Only Regular employees accrue and spend SIL (issue #91) — this closes
+      // the gap where only the refund/undo path checked eligibility.
+      const probationary = makeEmployee({ name: "New Hire", sil_hours_balance: 40, employment_status: "Probationary" })
+
+      await expect(
+        silService.applySilLeave({
+          employeeId: probationary.id,
+          date: "2026-03-10",
+          startTime: '09:00', endTime: '17:00',
+          reason: "Medical appointment",
+        }),
+      ).rejects.toThrow("Only Regular employees are eligible for SIL leave.")
+
+      expect(await silService.getMySilLeaves(probationary.id)).toEqual([])
+    })
+
     it("computes the application hash and stamps the employee's signature version, matching every other apply path", async () => {
       const signed = makeEmployee({ name: "Signed Employee", sil_hours_balance: 40, signature_path: "sigs/v1.png" })
 
@@ -249,6 +293,20 @@ describe("silService", () => {
       expect((await silService.getMySilLeaves(employee.id))[0].status).toBe("PENDING")
     })
 
+    it("refuses to approve a leave for an employee who is no longer SIL-eligible", async () => {
+      // HR changed the employee's status after the leave was filed — approval
+      // must re-check eligibility, not just balance (issue #91).
+      const probationary = makeEmployee({ name: "New Hire", sil_hours_balance: 40, employment_status: "Probationary" })
+      const leave = makeSilLeave({ employee_id: probationary.id, startTime: '09:00', endTime: '17:00' })
+
+      await expect(
+        silService.handleSilLeaveDecision({ groupId: leave.leave_group_id, status: "APPROVED", hrId: hr.id }),
+      ).rejects.toThrow("Only Regular employees are eligible for SIL leave.")
+
+      expect((await silService.getMySilLeaves(probationary.id))[0].status).toBe("PENDING")
+      expect(balanceOf(probationary.id)).toBe(40)
+    })
+
     it("stamps who processed the decision and when", async () => {
       const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
@@ -300,7 +358,7 @@ describe("silService", () => {
 
       expect(updated).toHaveLength(2)
       expect(updated.every((row) => row.status === "APPROVED")).toBe(true)
-      expect(balanceOf(employee.id)).toBe(28) // 40 - 8 - 4
+      expect(balanceOf(employee.id)).toBe(29) // 40 - 7 (8 minus lunch) - 4
     })
 
     it("leaves every day in the range untouched when the group can't be approved", async () => {
@@ -374,7 +432,7 @@ describe("silService", () => {
   })
 
   describe("applying for leave across a date range", () => {
-    it("writes one row per day under a shared group, defaulting to 8 hours", async () => {
+    it("writes one row per day under a shared group, defaulting to 8 hours minus the 1-hour lunch deduction", async () => {
       const rows = await silService.applySilLeaveRange({
         employeeId: employee.id,
         days: [{ date: "2026-03-10" }, { date: "2026-03-11" }],
@@ -383,7 +441,7 @@ describe("silService", () => {
 
       expect(rows).toHaveLength(2)
       expect(rows[0].leave_group_id).toBe(rows[1].leave_group_id)
-      expect(rows.map((r) => r.hours)).toEqual([8, 8])
+      expect(rows.map((r) => r.hours)).toEqual([7, 7])
     })
 
     it("lets a half-day inside the range override the 8-hour default", async () => {
@@ -396,7 +454,36 @@ describe("silService", () => {
         reason: "Trip with a half day",
       })
 
-      expect(rows.map((r) => r.hours)).toEqual([8, 4])
+      // The 8-hour day loses an hour to lunch (issue #91); the 4-hour
+      // half-day is under the 5-hour threshold and is left alone.
+      expect(rows.map((r) => r.hours)).toEqual([7, 4])
+    })
+
+    it("refuses a range that includes a weekend day, matching Offset", async () => {
+      await expect(
+        silService.applySilLeaveRange({
+          employeeId: employee.id,
+          days: [
+            { date: "2026-03-13", hours: 8 }, // Friday
+            { date: "2026-03-14", hours: 8 }, // Saturday
+          ],
+          reason: "Bad range",
+        }),
+      ).rejects.toThrow(/cannot be applied on weekends/i)
+    })
+
+    it("refuses to file for an employee who is not SIL-eligible", async () => {
+      const probationary = makeEmployee({ name: "New Hire", sil_hours_balance: 40, employment_status: "Probationary" })
+
+      await expect(
+        silService.applySilLeaveRange({
+          employeeId: probationary.id,
+          days: [{ date: "2026-03-10" }],
+          reason: "Trip",
+        }),
+      ).rejects.toThrow("Only Regular employees are eligible for SIL leave.")
+
+      expect(await silService.getMySilLeaves(probationary.id)).toEqual([])
     })
 
     it("refuses a range whose total exceeds the balance", async () => {
@@ -557,7 +644,7 @@ describe("silService", () => {
         status: "APPROVED",
         hrId: hr.id,
       })
-      expect(balanceOf(employee.id)).toBe(28) // 40 - 8 - 4
+      expect(balanceOf(employee.id)).toBe(29) // 40 - 7 (8 minus lunch) - 4
 
       // Cancelling via just one day's row id must cancel and refund the whole group.
       await silService.cancelMySilLeave({ leaveId: group[0].id, employeeId: employee.id })

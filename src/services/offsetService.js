@@ -3,6 +3,7 @@ import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
 import { generateApplicationHash, generateApprovalHash } from '../utils/formHashes';
+import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours } from './leaveRules';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -161,7 +162,7 @@ export const offsetService = {
    * Apply for Offset Leave (Employee)
    */
   async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
-    const parsedHours = deriveHours(startTime, endTime, false);
+    const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
     }
@@ -172,12 +173,7 @@ export const offsetService = {
 
     await checkOverlap(employeeId, date, startTime, endTime);
 
-    // Check Weekend
-    const reqDate = new Date(date);
-    const day = reqDate.getUTCDay();
-    if (day === 0 || day === 6) {
-      throw new Error('Offset leaves cannot be applied on weekends (Saturday / Sunday).');
-    }
+    assertNotWeekend(date);
 
     // Check Employee Balance
     const { data: emp, error: empErr } = await supabase
@@ -268,15 +264,12 @@ export const offsetService = {
         if (seenDates.has(day.date)) throw new Error(`${day.date} was listed more than once.`);
         seenDates.add(day.date);
 
-        const hours = parseFloat(day.hours ?? 8);
-        if (!(hours > 0)) throw new Error(`Hours for ${day.date} must be greater than zero.`);
+        const rawHours = parseFloat(day.hours ?? 8);
+        if (!(rawHours > 0)) throw new Error(`Hours for ${day.date} must be greater than zero.`);
 
-        const weekday = new Date(day.date).getUTCDay();
-        if (weekday === 0 || weekday === 6) {
-          throw new Error(`Offset leaves cannot be applied on weekends (Saturday / Sunday): ${day.date}.`);
-        }
+        assertNotWeekend(day.date, day.date);
 
-        return { date: day.date, hours };
+        return { date: day.date, hours: applyLunchDeduction(rawHours) };
       })
       .sort((a, b) => a.date.localeCompare(b.date));
 

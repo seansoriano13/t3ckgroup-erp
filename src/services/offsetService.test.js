@@ -113,9 +113,31 @@ describe("offsetService", () => {
       expect(mine[0]).toMatchObject({
         start_time: "09:00",
         end_time: "17:00",
-        hours: 8,
+        hours: 7, // 8-hour window minus the 1-hour lunch deduction (issue #91)
         status: "PENDING",
       })
+    })
+
+    it("deducts an hour for lunch on a window of 5 hours or more, matching SIL", async () => {
+      await offsetService.applyOffsetLeave({
+        employeeId: employee.id,
+        date: "2026-03-10",
+        startTime: "07:30", endTime: "18:00",
+        reason: "Full day",
+      })
+
+      expect((await offsetService.getMyOffsetLeaves(employee.id))[0].hours).toBe(9.5) // 10.5-hour window minus 1 hour for lunch
+    })
+
+    it("does not deduct for lunch on a window under 5 hours", async () => {
+      await offsetService.applyOffsetLeave({
+        employeeId: employee.id,
+        date: "2026-03-10",
+        startTime: "09:00", endTime: "13:00",
+        reason: "Half day",
+      })
+
+      expect((await offsetService.getMyOffsetLeaves(employee.id))[0].hours).toBe(4)
     })
 
     it("refuses a Saturday or Sunday", async () => {
@@ -500,7 +522,7 @@ describe("offsetService", () => {
 
       expect(updated).toHaveLength(2)
       expect(updated.every((row) => row.status === "APPROVED")).toBe(true)
-      expect(balanceOf(employee.id)).toBe(4) // 16 - 8 - 4
+      expect(balanceOf(employee.id)).toBe(5) // 16 - 7 (8 minus lunch) - 4
     })
 
     it("leaves every day in the range untouched when the group can't be approved", async () => {
@@ -603,7 +625,7 @@ describe("offsetService", () => {
   })
 
   describe("applying for offset leave across a date range", () => {
-    it("writes one row per day under a shared group, defaulting to 8 hours", async () => {
+    it("writes one row per day under a shared group, defaulting to 8 hours minus the 1-hour lunch deduction", async () => {
       const rows = await offsetService.applyOffsetLeaveRange({
         employeeId: employee.id,
         days: [{ date: "2026-03-16" }, { date: "2026-03-17" }],
@@ -612,7 +634,7 @@ describe("offsetService", () => {
 
       expect(rows).toHaveLength(2)
       expect(rows[0].leave_group_id).toBe(rows[1].leave_group_id)
-      expect(rows.map((r) => r.hours)).toEqual([8, 8])
+      expect(rows.map((r) => r.hours)).toEqual([7, 7])
       expect(rows.every((r) => r.status === "PENDING")).toBe(true)
     })
 
@@ -637,7 +659,9 @@ describe("offsetService", () => {
         reason: "Trip with a half day",
       })
 
-      expect(rows.map((r) => r.hours)).toEqual([8, 4])
+      // The 8-hour day loses an hour to lunch (issue #91); the 4-hour
+      // half-day is under the 5-hour threshold and is left alone.
+      expect(rows.map((r) => r.hours)).toEqual([7, 4])
     })
 
     it("refuses a range whose total exceeds the balance", async () => {
@@ -752,7 +776,7 @@ describe("offsetService", () => {
         status: "APPROVED",
         hrId: hr.id,
       })
-      expect(balanceOf(employee.id)).toBe(4) // 16 - 8 - 4
+      expect(balanceOf(employee.id)).toBe(5) // 16 - 7 (8 minus lunch) - 4
 
       // Withdrawing via just one day's row id must withdraw and refund the whole group.
       await offsetService.withdrawOffsetLeave({ leaveId: group[0].id, employeeId: employee.id })
