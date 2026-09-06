@@ -178,10 +178,13 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        // #105 — HR reaches this route through its own Human Resources entry
+        // now, so this copy goes back to Super Admin-only rather than
+        // showing the same link twice in the sidebar.
         label: "Activity Log",
         link: "/super-admin/activity-log",
         icon: ClipboardList,
-        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
       },
 
       // Issue #36 — scaffolding. This entry comes back out once the locked

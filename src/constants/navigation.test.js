@@ -111,6 +111,12 @@ describe("navigation registry", () => {
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "HR Verifications",
       ]);
+
+      // The Administration copy of this link is Super Admin-only (#105) — HR
+      // reaches the log through its own module, not a second sidebar entry
+      // pointing at the same route.
+      const adminGroup = groups.find((g) => g.key === "administration");
+      expect(adminGroup.links.map((l) => l.label)).not.toContain("Activity Log");
     });
 
     it("opens Leaves Manager for a leave-management capability holder without full HR access", () => {
