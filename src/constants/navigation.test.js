@@ -178,13 +178,17 @@ describe("navigation registry", () => {
       const adminGroup = groups.find((g) => g.key === "administration");
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         "System Admin",
-        "Activity Log",
+        // Activity Log lives in Human Resources now (#105) — Super Admin
+        // reaches it from there instead of a second copy here.
         // Issue #36 — scaffolding, removed again once the locked flows are
         // implemented as the production pipeline.
         "Flow Canvas",
         "Commission Pool",
         "Lead Sources",
       ]);
+
+      const hrGroup = groups.find((g) => g.key === "human_resources");
+      expect(hrGroup.links.map((l) => l.label)).toContain("Activity Log");
     });
 
     // Issue #39. The Module is gated on an explicit flag rather than on the

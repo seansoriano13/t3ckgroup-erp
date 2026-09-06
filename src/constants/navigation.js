@@ -177,15 +177,9 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin,
         exactMatch: true,
       },
-      {
-        // #105 — HR reaches this route through its own Human Resources entry
-        // now, so this copy goes back to Super Admin-only rather than
-        // showing the same link twice in the sidebar.
-        label: "Activity Log",
-        link: "/super-admin/activity-log",
-        icon: ClipboardList,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-      },
+      // Activity Log moved to the Human Resources group (#105) — Super
+      // Admin already qualifies for that entry's isPermitted check, so it
+      // isn't duplicated here.
 
       // Issue #36 — scaffolding. This entry comes back out once the locked
       // flows are implemented as the production pipeline.
