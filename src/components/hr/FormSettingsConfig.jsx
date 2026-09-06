@@ -36,7 +36,7 @@ export default function FormSettingsConfig() {
   }, [settings]);
 
   const updateMutation = useMutation({
-    mutationFn: (updates) => hrSettingsService.updateFormSettings(updates, user.id),
+    mutationFn: (updates) => hrSettingsService.updateFormSettings(updates, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hrFormSettings'] });
       toast.success('Form settings updated successfully');

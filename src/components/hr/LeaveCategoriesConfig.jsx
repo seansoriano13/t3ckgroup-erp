@@ -6,6 +6,7 @@ import { Button } from '../ui/button';
 import { Edit2, Plus, Trash2, CheckCircle2, XCircle, ChevronUp, ChevronDown } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Input } from '../ui/input';
+import { confirmActionToast } from '../ui/CustomToast';
 
 export default function LeaveCategoriesConfig() {
   const queryClient = useQueryClient();
@@ -20,7 +21,7 @@ export default function LeaveCategoriesConfig() {
   });
 
   const addMutation = useMutation({
-    mutationFn: (label) => hrSettingsService.addLeaveCategory(label, user.id),
+    mutationFn: (label) => hrSettingsService.addLeaveCategory(label, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hrLeaveCategories'] });
       toast.success('Category added successfully');
@@ -30,7 +31,7 @@ export default function LeaveCategoriesConfig() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }) => hrSettingsService.updateLeaveCategory(id, updates, user.id),
+    mutationFn: ({ id, updates }) => hrSettingsService.updateLeaveCategory(id, updates, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hrLeaveCategories'] });
       toast.success('Category updated successfully');
@@ -40,7 +41,7 @@ export default function LeaveCategoriesConfig() {
   });
 
   const reorderMutation = useMutation({
-    mutationFn: (ordering) => hrSettingsService.reorderLeaveCategories(ordering, user.id),
+    mutationFn: (ordering) => hrSettingsService.reorderLeaveCategories(ordering, user?.id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['hrLeaveCategories'] });
       queryClient.invalidateQueries({ queryKey: ['activeLeaveCategories'] });
@@ -71,8 +72,19 @@ export default function LeaveCategoriesConfig() {
     updateMutation.mutate({ id, updates: { label: editLabel.trim() } });
   };
 
-  const toggleActive = (id, currentStatus) => {
-    updateMutation.mutate({ id, updates: { is_active: !currentStatus } });
+  const toggleActive = (id, label, currentStatus) => {
+    if (!currentStatus) {
+      updateMutation.mutate({ id, updates: { is_active: true } });
+      return;
+    }
+
+    confirmActionToast(
+      'Deactivate Category?',
+      `"${label}" will no longer be available for employees to select when applying for leave.`,
+      'Confirm Deactivation',
+      'deactivate',
+      () => updateMutation.mutate({ id, updates: { is_active: false } }),
+    );
   };
 
   if (isLoading) return <div className="p-4 text-muted-foreground text-sm font-semibold">Loading leave categories...</div>;
@@ -161,7 +173,7 @@ export default function LeaveCategoriesConfig() {
                       <Edit2 size={15} />
                     </button>
                     <button
-                      onClick={() => toggleActive(cat.id, cat.is_active)}
+                      onClick={() => toggleActive(cat.id, cat.label, cat.is_active)}
                       className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${cat.is_active ? 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20' : 'bg-green-3 text-green-11 border-green-6 hover:bg-green-4'}`}
                     >
                       {cat.is_active ? 'Deactivate' : 'Reactivate'}

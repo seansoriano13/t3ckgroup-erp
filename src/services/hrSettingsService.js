@@ -123,30 +123,33 @@ export const hrSettingsService = {
   // ==========================================
 
   /**
-   * Fetch the singleton form settings
+   * Fetch the singleton form settings. Returns null if the row hasn't been
+   * created yet — the database ships with no default row, so a fresh
+   * install has nothing to select until the first save creates it.
    */
   async getFormSettings() {
     const { data, error } = await supabase
       .from('hr_form_settings')
       .select('*')
       .eq('id', 1)
-      .single();
+      .maybeSingle();
 
     if (error) throw new Error(error.message);
     return data;
   },
 
   /**
-   * Update form settings
+   * Update form settings, creating the singleton row on first save if it
+   * doesn't exist yet.
    */
   async updateFormSettings(updates, actorId) {
     const { data, error } = await supabase
       .from('hr_form_settings')
-      .update({
+      .upsert({
+        id: 1,
         ...updates,
         updated_at: new Date().toISOString()
       })
-      .eq('id', 1)
       .select()
       .single();
 
