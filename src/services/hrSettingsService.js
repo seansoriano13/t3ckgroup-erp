@@ -25,21 +25,8 @@ export const hrSettingsService = {
    * Add a new leave category
    */
   async addLeaveCategory(label, actorId) {
-    // Get max sort_order
-    const { data: maxData, error: maxErr } = await supabase
-      .from('hr_leave_categories')
-      .select('sort_order')
-      .order('sort_order', { ascending: false })
-      .limit(1);
-
-    if (maxErr) throw new Error(maxErr.message);
-    const nextSortOrder = (maxData?.[0]?.sort_order || 0) + 1;
-
     const { data, error } = await supabase
-      .from('hr_leave_categories')
-      .insert([{ label, sort_order: nextSortOrder, is_active: true }])
-      .select()
-      .single();
+      .rpc('add_leave_category', { p_label: label });
 
     if (error) throw new Error(error.message);
 
@@ -86,28 +73,10 @@ export const hrSettingsService = {
    * @param {Array<{id: string, sort_order: number}>} ordering
    */
   async reorderLeaveCategories(ordering, actorId) {
-    // sort_order has a UNIQUE index, so updating rows one at a time straight
-    // to their target value raises a duplicate-key error the moment two
-    // categories swap positions (the second write collides with the first's
-    // now-vacated old value). Stage every row through a distinct negative,
-    // guaranteed-non-colliding value first, then apply the real ordering.
-    for (let i = 0; i < ordering.length; i++) {
-      const { error } = await supabase
-        .from('hr_leave_categories')
-        .update({ sort_order: -(i + 1) })
-        .eq('id', ordering[i].id);
+    const { error } = await supabase
+      .rpc('reorder_leave_categories', { p_ordering: ordering });
 
-      if (error) throw new Error(error.message);
-    }
-
-    for (const item of ordering) {
-      const { error } = await supabase
-        .from('hr_leave_categories')
-        .update({ sort_order: item.sort_order, updated_at: new Date().toISOString() })
-        .eq('id', item.id);
-
-      if (error) throw new Error(error.message);
-    }
+    if (error) throw new Error(error.message);
 
     systemAuditLogService.addSystemEvent(
       'HR_SETTINGS',

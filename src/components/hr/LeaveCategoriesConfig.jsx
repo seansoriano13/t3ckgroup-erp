@@ -42,11 +42,33 @@ export default function LeaveCategoriesConfig() {
 
   const reorderMutation = useMutation({
     mutationFn: (ordering) => hrSettingsService.reorderLeaveCategories(ordering, user?.id),
-    onSuccess: () => {
+    onMutate: async (ordering) => {
+      await queryClient.cancelQueries({ queryKey: ['hrLeaveCategories'] });
+      const previousCategories = queryClient.getQueryData(['hrLeaveCategories']);
+      
+      // Optimistically update the cache with the new sort order
+      if (previousCategories) {
+        const optimisticCategories = previousCategories.map(cat => {
+          const update = ordering.find(o => o.id === cat.id);
+          return update ? { ...cat, sort_order: update.sort_order } : cat;
+        });
+        optimisticCategories.sort((a, b) => a.sort_order - b.sort_order);
+        queryClient.setQueryData(['hrLeaveCategories'], optimisticCategories);
+      }
+      
+      return { previousCategories };
+    },
+    onError: (err, ordering, context) => {
+      if (context?.previousCategories) {
+        queryClient.setQueryData(['hrLeaveCategories'], context.previousCategories);
+      }
+      toast.error('Failed to reorder categories: ' + err.message);
+    },
+    onSettled: () => {
+      // Still invalidate to ensure we're in sync with the server eventually
       queryClient.invalidateQueries({ queryKey: ['hrLeaveCategories'] });
       queryClient.invalidateQueries({ queryKey: ['activeLeaveCategories'] });
     },
-    onError: (err) => toast.error('Failed to reorder categories: ' + err.message),
   });
 
   const moveCategory = (index, direction) => {
@@ -56,6 +78,7 @@ export default function LeaveCategoriesConfig() {
     const reordered = [...categories];
     [reordered[index], reordered[targetIndex]] = [reordered[targetIndex], reordered[index]];
 
+    // The mutation takes the array of { id, sort_order } mappings
     reorderMutation.mutate(
       reordered.map((cat, i) => ({ id: cat.id, sort_order: i + 1 }))
     );

@@ -1,4 +1,12 @@
-﻿[
+[
+    {
+        "date":  "2026-09-06",
+        "title":  "Leave Manager Redirect Fix",
+        "version":  "1.3.13",
+        "changes":  [
+                        "Leave managers who navigate directly to /hr are now correctly redirected to Offsets & Leaves, instead of being bounced to the dashboard."
+                    ]
+    },
     {
         "date":  "2026-09-06",
         "title":  "HR Config Screen Robustness",
@@ -8,6 +16,36 @@
                         "The activity log search no longer sends a request on every keystroke.",
                         "Config screens no longer throw if they render before your session finishes loading.",
                         "Deactivating a leave category now asks for confirmation, matching Delete elsewhere in the module."
+                    ]
+    },
+    {
+        "date":  "2026-09-06",
+        "title":  "HR Leave Categories Reliability",
+        "version":  "1.3.10",
+        "changes":  [
+                        "Reordering leave categories is now processed as a single atomic operation, preventing partial saves when reordering long lists.",
+                        "Adding a new category is now safe against concurrent modifications by multiple HR admins."
+                    ]
+    },
+    {
+        "date":  "2026-09-06",
+        "title":  "HR Module Consistency & Polish",
+        "version":  "1.3.9",
+        "changes":  [
+                        "The Leaves Manager page now shows one title instead of two stacked headers.",
+                        "The page, navigation, and tab now all use the same name for this screen.",
+                        "Loading states across the HR module now consistently show a spinner instead of bare text.",
+                        "The Employees and Categories tabs now share the same card style.",
+                        "Deleting an employee now uses the same styled confirmation prompt as other destructive actions, replacing the plain browser dialog."
+                    ]
+    },
+    {
+        "date":  "2026-09-06",
+        "title":  "HR Module Visual Improvements",
+        "version":  "1.3.8",
+        "changes":  [
+                        "Removed hardcoded colors across the HR module to ensure it displays correctly in dark mode.",
+                        "Replaced several flat palette steps with theme tokens for a more consistent visual hierarchy."
                     ]
     },
     {
