@@ -83,10 +83,24 @@ const NATIVE_ARRAY_COLUMNS = new Set(["attachment_urls"])
 
 async function insertRows(client, schema, table, rows) {
   if (!rows || rows.length === 0) return
-  const columns = Object.keys(rows[0])
+  // A generated column (auth.users.confirmed_at, computed from
+  // email/phone_confirmed_at by GoTrue's own migrations) rejects an
+  // explicit value outright — Postgres recomputes it from the columns it
+  // depends on, which are themselves being restored in this same insert.
+  const { rows: generated } = await client.query(
+    "select column_name from information_schema.columns where table_schema = $1 and table_name = $2 and is_generated = 'ALWAYS'",
+    [schema, table],
+  )
+  const generatedColumns = new Set(generated.map((r) => r.column_name))
+  const columns = Object.keys(rows[0]).filter((c) => !generatedColumns.has(c))
   const columnList = columns.map(quoteIdent).join(", ")
   const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ")
-  const insertSql = `insert into ${schema}.${quoteIdent(table)} (${columnList}) values (${placeholders})`
+  // `overriding system value` is required to set an explicit value on a
+  // GENERATED ALWAYS AS IDENTITY column (categories.id and others) — every
+  // row here needs its original id preserved, since other restored rows
+  // reference it by foreign key. Harmless on a table with no identity
+  // column at all.
+  const insertSql = `insert into ${schema}.${quoteIdent(table)} (${columnList}) overriding system value values (${placeholders})`
 
   for (const row of rows) {
     const values = columns.map((c) => {

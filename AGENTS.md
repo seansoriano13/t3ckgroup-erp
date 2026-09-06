@@ -19,6 +19,22 @@ When `main` is ahead of `staging` — legitimate for a hotfix, but a state someo
 decide about rather than let sit — `scripts/hooks/pre-push` warns on push and lists the
 commits. It only warns; it never blocks.
 
+### Local-first development
+
+Default to the local Supabase stack (see "Local development" below) for
+anything that touches data — testing a fix, checking a query, exploring the
+schema, reproducing a bug. `STAGING_DB_URL` and `PROD_DB_URL` in `.env.local`
+exist only for the specific scripts that already use them
+(`scripts/db-snapshot.mjs`'s drift checks, `scripts/seed-dump.mjs`'s
+read-only pull) — reaching either database any other way, including an ad
+hoc query to "just check something," is not part of the local workflow.
+
+Schema changes follow the same principle one level up: CI applies
+migrations, never a developer machine or an agent acting as one (see
+"Database migrations" immediately below) — `supabase db reset` against the
+local stack is how a migration gets proven, not how it reaches staging or
+production.
+
 ### Database migrations
 
 Name new migrations with a UTC timestamp prefix — `20260831143022_name.sql` — never the
@@ -57,6 +73,28 @@ supabase start
 node scripts/db-snapshot.mjs --db-url postgresql://postgres:postgres@127.0.0.1:54322/postgres --check --against supabase/schema/staging.sql
 ```
 
+**Author a migration against the local database, never against staging or
+production directly.** Two ways in, both write a normally-committed file
+under `supabase/migrations/` with a correctly timestamped name — nothing
+about them bypasses "CI applies migrations, not a developer machine" above,
+they only decide how the file's SQL gets written:
+
+- Hand-write the SQL: `supabase migration new <name>` scaffolds an empty
+  timestamped file; edit it directly, then `supabase db reset` to prove it
+  applies cleanly from empty (this replays the whole migration set, same as
+  `migration-gate.yml` does on a PR).
+- Extract it from a live change: edit the schema directly against the local
+  database (Studio's table editor, or raw SQL through any client pointed at
+  `127.0.0.1:54322`), then `supabase db diff --local -f <name>` — it diffs
+  the local database against what `supabase/migrations/` would build and
+  writes the difference as a new migration file. Review the generated SQL
+  before committing; a diff tool doesn't know your intent, only the before
+  and after.
+
+Either way, re-run the `db-snapshot.mjs --check` command above before
+pushing — it's the same check the PR gate runs, just faster to get feedback
+from locally.
+
 **A row the application needs to function travels in a migration, not a
 script.** A lead source, a pipeline stage, a leave category, a commission
 rate — anything the app requires to exist — belongs in an idempotent `insert`
@@ -72,13 +110,46 @@ overrides `.env` in every mode. Nothing in a development build can reach a
 remote project: there is no browser flag or env var that switches the
 Supabase client to a different URL at runtime, on purpose (issue #87).
 
+**New machine (including switching between two machines you already work
+from):**
+
 ```
-supabase start                      # first time: pulls images, applies every
-                                     # migration from empty, prints the local
-                                     # URL/anon key/Studio link
+pnpm install
+cp .env.local.example .env.local     # then fill in STAGING_DB_URL, PROD_DB_URL,
+                                      # VERCEL_OIDC_TOKEN from wherever the team
+                                      # keeps them — everything else in the file
+                                      # is already correct, see why below
+supabase start                       # first time: pulls images, applies every
+                                      # migration from empty
+pnpm db:seed:fresh                   # pulls + sanitizes + loads a staging snapshot
+pnpm dev
+```
+
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local.example` are
+committed as real, working values on purpose, not placeholders — they're
+derived entirely from `supabase/config.toml`'s committed `project_id` and the
+CLI's default local JWT secret, so they come out identical on every machine.
+Verified by deleting this project's Docker volumes outright and confirming
+every key `supabase start` prints (anon, service-role, the newer publishable/
+secret pair, even the S3 storage credentials) came back byte-for-byte
+unchanged. There's nothing to run `supabase status` and paste in.
+
+**Day to day, once set up:**
+
+```
+supabase start                      # resumes with your data intact — see below
 pnpm dev                            # talks to that local instance
+supabase stop                       # pauses; local data survives to next `start`
 supabase db reset                   # rebuild from the migrations, wipes local data
 ```
+
+`supabase stop` alone preserves the local database's Docker volume — your
+seeded data is still there next time you `supabase start`, on this machine.
+Only `supabase stop --no-backup` deletes it, so save that for a deliberate
+wipe, not routine shutdown. Data does not travel *between* machines either
+way — `.env.local` isn't committed, and `supabase/.seed/`'s cached dump is
+gitignored — so getting a second machine to the same working state means
+running the bootstrap above on it, not copying volumes across.
 
 Seeing staging requires typing a different command: `pnpm dev:staging` runs
 Vite in `staging` mode against `.env.staging`, which is not overridden by
@@ -94,6 +165,8 @@ Local data is disposable by design and never committed:
 - `pnpm db:seed:restore` — loads that cache into the local database and
   resets every account's password to `VITE_TEST_PASSWORD`, pairing with
   `VITE_ALLOW_TEST_LOGIN` so you can sign in locally as any role.
+- `pnpm db:seed:fresh` — the two above, chained; the one to reach for on a
+  fresh machine or after a deliberate `supabase db reset`.
 - `pnpm db:seed:snapshot` — saves the local database's *current* data before
   a deliberate `supabase db reset`, if there's a working set worth keeping;
   restore it with `pnpm db:seed:restore -- <the file it printed>`.

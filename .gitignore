@@ -15,6 +15,11 @@ lerna-debug.log*
 # ...and the template for the brochure mirror, which is all empty keys and
 # comments. The real .env.mirror holds a live Odoo API key and stays ignored.
 !.env.mirror.example
+# ...and the template for local Supabase dev (issue #87): the Supabase
+# URL/anon key are deterministic and safe to commit as real values (see
+# AGENTS.md); the three real secrets it also names are left blank. The real
+# .env.local holds those plus live staging/prod DB URLs and stays ignored.
+!.env.local.example
 
 .scratch
 
