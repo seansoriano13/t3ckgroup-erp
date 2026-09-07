@@ -15,6 +15,9 @@
 -- Extensions
 -- ============================================================
 
+create extension if not exists "pg_cron" with schema "pg_catalog";
+create extension if not exists "pg_graphql" with schema "graphql";
+create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
 create extension if not exists "pgcrypto" with schema "extensions";
 create extension if not exists "supabase_vault" with schema "vault";
@@ -1386,8 +1389,12 @@ create policy "flow_edges_write" on public."flow_edges"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "flow_plans_delete" on public."flow_plans"
   as permissive
   for delete
@@ -1430,8 +1437,12 @@ create policy "flow_stage_actions_write" on public."flow_stage_actions"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "flow_stages_read" on public."flow_stages"
   as permissive
   for select
@@ -1441,8 +1452,12 @@ create policy "flow_stages_write" on public."flow_stages"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "group_task_template_members_delete" on public."group_task_template_members"
   as permissive
   for delete
@@ -1694,8 +1709,12 @@ create policy "sales_flows_write" on public."sales_flows"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "sor_insert" on public."sales_opportunities"
   as permissive
   for insert
@@ -1930,8 +1949,12 @@ create policy "stage_conditions_write" on public."stage_conditions"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert

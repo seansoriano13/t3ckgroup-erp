@@ -15,6 +15,7 @@ import {
   ArrowDown,
   AlertTriangle,
   Clock,
+  ShoppingBag,
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
@@ -31,6 +32,7 @@ import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModa
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
+import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
@@ -47,6 +49,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
+import { getRetailQueuePendingCount } from "../../services/retailQueueService";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -175,6 +178,12 @@ export default function OpportunitiesPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const { data: retailQueueCount = 0 } = useQuery({
+    queryKey: ["retailQueueCount"],
+    queryFn: () => getRetailQueuePendingCount(),
+    refetchInterval: 60_000, // refresh every minute
   });
 
   const { data: activeLeadSources = [] } = useQuery({
@@ -548,6 +557,12 @@ export default function OpportunitiesPage() {
                 { value: "list", label: "List", icon: List },
                 { value: "board", label: "Board", icon: Kanban },
                 { value: "overview", label: "Overview", icon: LayoutDashboard },
+                {
+                  value: "retailQueue",
+                  icon: ShoppingBag,
+                  label: "Retail Queue",
+                  badge: retailQueueCount > 0 ? retailQueueCount : null,
+                },
               ]}
               activeTab={view}
               onChange={changeView}
@@ -770,7 +785,9 @@ export default function OpportunitiesPage() {
           </span>
         </div>
 
-        {view === "overview" ? (
+        {view === "retailQueue" ? (
+          <RetailOrdersQueue />
+        ) : view === "overview" ? (
           <div className="mt-4">
             {isLoading ? (
               <div className="border border-border rounded-2xl overflow-hidden bg-card">

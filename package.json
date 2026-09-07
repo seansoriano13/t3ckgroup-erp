@@ -23,8 +23,8 @@
         "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
         "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
         "db:seed:dump": "node scripts/seed-dump.mjs",
-        "db:seed:restore": "node scripts/seed-restore.mjs",
-        "db:seed:fresh": "node scripts/seed-dump.mjs && node scripts/seed-restore.mjs",
+        "db:seed:restore": "node scripts/seed-restore.mjs && node scripts/create-magic-user.mjs",
+        "db:seed:fresh": "node scripts/seed-dump.mjs && node scripts/seed-restore.mjs && node scripts/create-magic-user.mjs",
         "db:seed:snapshot": "node scripts/seed-snapshot.mjs",
         "clean:branches": "node scripts/cleanup-branches.mjs",
         "prepare": "node scripts/install-hooks.mjs"

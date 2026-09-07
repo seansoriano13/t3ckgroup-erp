@@ -100,3 +100,15 @@ eslint.json
 # Local pre-baseline safety dumps (ledgers + schema), not repo content —
 # supabase/schema/ is the tracked, reviewed mirror.
 .baseline-backup/
+
+# Odoo investigation / scratch files — one-off scripts and data dumps
+# used while building the SOR sync feature. Not project files.
+analyze-sor-odoo.mjs
+test-odoo-api.mjs
+test-odoo-api2.mjs
+deals.json
+deals_fixed.json
+diff.patch
+scratch-activities.json
+scratch-messages.json
+scratch/

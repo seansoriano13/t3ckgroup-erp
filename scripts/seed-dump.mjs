@@ -22,9 +22,19 @@ const repoRoot = join(__dirname, "..")
 const cacheDir = join(repoRoot, "supabase", ".seed")
 const cacheFile = join(cacheDir, "staging-dump.json")
 
+const LIMITS = {
+  task_activity: 1000,
+  notifications: 1000,
+  chat_read_receipts: 1000,
+  sales_activity_logs: 1000,
+  system_audit_logs: 1000,
+  committee_task_activity: 1000
+}
+
 async function dumpTable(client, schema, table) {
   const sanitize = SANITIZERS[schema === "auth" ? `${schema}.${table}` : table]
-  const { rows } = await client.query(`select * from ${schema}."${table}"`)
+  const limit = LIMITS[table] ? ` LIMIT ${LIMITS[table]}` : ''
+  const { rows } = await client.query(`select * from ${schema}."${table}"${limit}`)
   return sanitize ? rows.map(sanitize) : rows
 }
 

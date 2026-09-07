@@ -125,6 +125,17 @@ pnpm db:seed:fresh                   # pulls + sanitizes + loads a staging snaps
 pnpm dev
 ```
 
+**Magic Local Login (Zero Seeding):**
+To avoid needing to run `pnpm db:seed:fresh` every time you start fresh, you can use the magic local login feature.
+Add these variables to your `.env.local`:
+```
+VITE_MAGIC_LOGIN_EMAIL=dev@local.com
+VITE_MAGIC_LOGIN_PASSWORD=password123
+```
+This automatically pre-fills the login form on load.
+When you run `supabase start` or `supabase db reset`, this user is automatically created via `supabase/seed.sql`.
+If you run `pnpm db:seed:fresh` (which wipes the database and pulls from staging), the `scripts/create-magic-user.mjs` is automatically executed at the end of the script to ensure your magic account is always preserved!
+
 `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in `.env.local.example` are
 committed as real, working values on purpose, not placeholders — they're
 derived entirely from `supabase/config.toml`'s committed `project_id` and the
