@@ -39,12 +39,14 @@ export default function GlobalDetailManager() {
     return () => window.removeEventListener("OPEN_ENTITY_DETAILS", handleOpenDetails);
   }, []);
 
-  // Fetch employees for group task management (add member, etc.)
+  // Everyone needs the roster, not just managers: the detail modal feeds it to
+  // the mention picker, and gating it on `canManage` left a normal employee
+  // with an empty list and an `@` that silently matched nobody.
   useEffect(() => {
-    if (canManage && activeItem?.type === "GROUP_TASK") {
+    if (activeItem?.type === "GROUP_TASK") {
       employeeService.getAllEmployees().then(setEmployees);
     }
-  }, [canManage, activeItem?.type]);
+  }, [activeItem?.type]);
 
   // 1. Task Fetching
   const { data: taskData, isLoading: isLoadingTask } = useQuery({
