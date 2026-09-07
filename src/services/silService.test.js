@@ -688,6 +688,29 @@ describe("silService", () => {
       expect(balanceOf(employee.id)).toBe(40)
     })
 
+    it("does not lose a balance movement when two leaves for one employee are approved at once", async () => {
+      const first = makeSilLeave({
+        employee_id: employee.id,
+        date: "2026-03-10",
+        startTime: "09:00",
+        endTime: "13:00",
+      }) // 4 hrs
+      const second = makeSilLeave({
+        employee_id: employee.id,
+        date: "2026-03-11",
+        startTime: "13:00",
+        endTime: "17:00",
+      }) // 4 hrs
+
+      await Promise.all([
+        silService.handleSilLeaveDecision({ groupId: first.leave_group_id, status: "APPROVED", hrId: hr.id }),
+        silService.handleSilLeaveDecision({ groupId: second.leave_group_id, status: "APPROVED", hrId: hr.id }),
+      ])
+
+      // 40 (starting) - 4 - 4 — neither deduction may be overwritten by the other.
+      expect(balanceOf(employee.id)).toBe(32)
+    })
+
     it("does not lose a balance movement when an approval and an undo race for the same employee", async () => {
       const alreadyApproved = makeSilLeave({
         employee_id: employee.id,
