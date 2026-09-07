@@ -1,21 +1,38 @@
 import { supabase } from '../lib/supabase';
+import { bytesToHex, hexToBytes } from '../lib/bytes';
+import { encodeFlowPlanState, loadFlowPlanState } from '../lib/flowPlanDoc';
 
-function uint8ArrayToHex(arr) {
-  if (!arr) return null;
-  return '\\x' + Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-function hexToUint8Array(hex) {
-  if (!hex) return null;
-  if (hex.startsWith('\\x')) hex = hex.slice(2);
-  const arr = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < hex.length; i += 2) {
-    arr[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-  }
-  return arr;
-}
+/**
+ * How many times `saveState` will re-merge and retry when another session's
+ * save lands between its read and its write. Each round folds in the state
+ * that won, so the only way to exhaust this is a plan being saved by more
+ * writers than that, continuously — at which point the honest answer is an
+ * error rather than a silent loss.
+ */
+const SAVE_ATTEMPTS = 5;
 
 export const flowPlanService = {
+  async listPlans() {
+    const { data, error } = await supabase
+      .from('flow_plans')
+      .select('*')
+      .order('updated_at', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  async createPlan(name, createdBy) {
+    const { data, error } = await supabase
+      .from('flow_plans')
+      .insert({ name, created_by: createdBy })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
   async getPlan(id) {
     const { data, error } = await supabase
       .from('flow_plans')
@@ -26,40 +43,57 @@ export const flowPlanService = {
     if (error && error.code !== 'PGRST116') throw error;
     if (!data) return null;
 
-    if (data.yjs_state) {
-      data.yjs_state = hexToUint8Array(data.yjs_state);
-    }
-    return data;
+    return { ...data, yjs_state: hexToBytes(data.yjs_state) };
   },
 
-  async savePlan(id, yjsStateUint8, authorId) {
-    const hexState = uint8ArrayToHex(yjsStateUint8);
-    
-    const { data: existing } = await supabase
-      .from('flow_plans')
-      .select('id')
-      .eq('id', id)
-      .single();
+  /**
+   * Stores the plan document.
+   *
+   * What lands in the column is a merge, never a replacement: the stored state
+   * is applied into `doc` first, so anything written by a session this one
+   * never heard from survives the save instead of being overwritten by a
+   * document that had not seen it. Applying an update is idempotent and
+   * commutative, so doing this on every save costs nothing.
+   *
+   * Reading and writing are two statements, which leaves a window: a third
+   * session's save landing between them would be read by nobody and then
+   * overwritten. The write therefore carries the `updated_at` it read as a
+   * precondition — a compare-and-set — so a save that lost that race matches no
+   * rows and is retried against the state that actually won, rather than
+   * quietly discarding it. Retries are bounded; each one re-merges, so
+   * converging takes at most as many rounds as there are competing writers.
+   */
+  async saveState(id, doc, { attempts = SAVE_ATTEMPTS } = {}) {
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      const { data: existing, error: readError } = await supabase
+        .from('flow_plans')
+        .select('yjs_state, updated_at')
+        .eq('id', id)
+        .single();
 
-    if (existing) {
-      const { error } = await supabase
+      if (readError && readError.code !== 'PGRST116') throw readError;
+
+      // The plan is created by `createPlan` before anyone can open it, so a
+      // missing row means it has since been deleted. Retrying cannot bring it
+      // back, and looping until the attempts run out would report that as a
+      // contended save, which is the wrong thing to tell someone.
+      if (!existing) {
+        throw new Error('This plan no longer exists, so the changes could not be saved.');
+      }
+
+      if (existing.yjs_state) loadFlowPlanState(doc, hexToBytes(existing.yjs_state));
+
+      const { data, error } = await supabase
         .from('flow_plans')
-        .update({
-          yjs_state: hexState,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', id);
+        .update({ yjs_state: bytesToHex(encodeFlowPlanState(doc)), updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('updated_at', existing.updated_at)
+        .select('id');
+
       if (error) throw error;
-    } else {
-      const { error } = await supabase
-        .from('flow_plans')
-        .insert({
-          id,
-          name: 'Draft Plan',
-          created_by: authorId,
-          yjs_state: hexState
-        });
-      if (error) throw error;
+      if (data?.length) return;
     }
-  }
+
+    throw new Error('Could not save the plan: it kept changing underneath. Try again.');
+  },
 };

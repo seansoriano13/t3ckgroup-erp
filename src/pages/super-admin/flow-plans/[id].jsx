@@ -62,7 +62,9 @@ export default function FlowPlanSandboxPage() {
 
         {/* The Canvas */}
         <div className="flex-1 relative">
-          <SandboxFlowDataProvider planId={id}>
+          {/* Keyed on the plan so opening a different one starts a fresh
+              document rather than merging one plan's edits into another's. */}
+          <SandboxFlowDataProvider key={id} planId={id}>
             <FlowCanvas />
           </SandboxFlowDataProvider>
         </div>

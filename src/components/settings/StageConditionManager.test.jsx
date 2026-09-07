@@ -2,6 +2,7 @@ import { screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StageConditionManager from "./StageConditionManager";
 import { renderWithProviders } from "@/test/support";
+import { FlowDataProvider } from "./FlowDataContext";
 import { makeFlowStage, makeStageCondition, makeSuperAdmin } from "@/test/factories";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -25,7 +26,11 @@ describe("StageConditionManager", () => {
       config: { column: "amount" },
     });
 
-    renderWithProviders(<StageConditionManager stageId={stage.id} />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageConditionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
 
     expect(await screen.findByText("Check amount")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^Add$/i })).toBeInTheDocument();
@@ -34,7 +39,11 @@ describe("StageConditionManager", () => {
   it("does not render Add button if disabled", async () => {
     const stage = makeFlowStage();
 
-    renderWithProviders(<StageConditionManager stageId={stage.id} disabled />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageConditionManager stageId={stage.id} disabled />
+      </FlowDataProvider>,
+    );
 
     await screen.findByText(/Nothing gates this Stage/i);
     expect(screen.queryByRole("button", { name: /^Add$/i })).not.toBeInTheDocument();
@@ -43,7 +52,11 @@ describe("StageConditionManager", () => {
   it("toggles the Add Condition form", async () => {
     const stage = makeFlowStage();
 
-    renderWithProviders(<StageConditionManager stageId={stage.id} />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageConditionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
 
     const addBtn = await screen.findByRole("button", { name: /^Add$/i });
     fireEvent.click(addBtn);
@@ -54,7 +67,11 @@ describe("StageConditionManager", () => {
   it("adds a condition with the trimmed label and entered column", async () => {
     const stage = makeFlowStage();
 
-    renderWithProviders(<StageConditionManager stageId={stage.id} />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageConditionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
 
     fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
 

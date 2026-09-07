@@ -2,6 +2,7 @@ import { screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StageActionManager from "./StageActionManager";
 import { renderWithProviders } from "@/test/support";
+import { FlowDataProvider } from "./FlowDataContext";
 import { makeFlowStage, makeStageAction, makeSuperAdmin } from "@/test/factories";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -34,7 +35,11 @@ describe("StageActionManager", () => {
       config: { title: "Send email" },
     });
 
-    renderWithProviders(<StageActionManager stageId={stage.id} />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageActionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
 
     expect(await screen.findByText("Send email")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Add Action/i })).toBeInTheDocument();
@@ -43,7 +48,11 @@ describe("StageActionManager", () => {
   it("does not render Add button if disabled", async () => {
     const stage = makeFlowStage();
 
-    renderWithProviders(<StageActionManager stageId={stage.id} disabled />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageActionManager stageId={stage.id} disabled />
+      </FlowDataProvider>,
+    );
 
     await screen.findByText(/Nothing runs here/i);
     expect(screen.queryByRole("button", { name: /Add Action/i })).not.toBeInTheDocument();
@@ -57,7 +66,11 @@ describe("StageActionManager", () => {
       config: { title: "Send email" },
     });
 
-    renderWithProviders(<StageActionManager stageId={stage.id} />);
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageActionManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
 
     const title = await screen.findByText("Send email");
     fireEvent.click(title.closest("button"));

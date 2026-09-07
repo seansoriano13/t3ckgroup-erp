@@ -56,6 +56,16 @@ rather than hand-writing another `.channel()` call. It takes a table name and
 the query keys to invalidate when a change arrives, and handles subscribing on
 mount and tearing the channel down on unmount.
 
+A channel that is not a table stream is outside what this hook can express:
+it takes a table name and the query keys to invalidate when a row changes, and
+a channel carrying neither has nothing to give it. Flow Plans (#116, #117) are
+the first of these — `useFlowPlanDoc` moves CRDT document updates between the
+people editing one plan, and `useFlowPresence` carries a presence roster and
+cursor positions. Both hand-write `.channel()` deliberately, and both own the
+subscribe-on-mount / tear-down-on-unmount discipline the hook exists to
+standardise. The rule above still binds every consumer that *is* watching a
+table.
+
 The ten realtime subscriptions across eight files that predate this hook (two
 each in `taskActivityService.js` and `groupTaskActivityService.js`, one each
 in `notificationService.js`, `systemAuditLogService.js`,

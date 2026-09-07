@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as dagre from "@dagrejs/dagre";
 import {
@@ -40,6 +40,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import { supabase } from "../../lib/supabase";
 
 import { useFlowData, FlowDataProvider } from "./FlowDataContext";
+import { useFlowPresence } from "../../hooks/useFlowPresence";
 import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
 import FlowCanvasNode, { HANDLE_IN, HANDLE_OUT } from "./FlowCanvasNode";
@@ -110,7 +111,7 @@ export default function FlowCanvas() {
 
 function FlowCanvasInner() {
   const { user } = useAuth();
-  const { salesFlow: salesFlowService, stageCondition: stageConditionService, stageAction: stageActionService } = useFlowData();
+  const { salesFlow: salesFlowService, stageCondition: stageConditionService, stageAction: stageActionService, presenceScope } = useFlowData();
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
   const [newSaleTypeName, setNewSaleTypeName] = useState("");
@@ -172,102 +173,56 @@ function FlowCanvasInner() {
   }, [queryClient, effectiveSaleTypeId]);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
-  const [activeUsers, setActiveUsers] = useState({});
-  const [cursors, setCursors] = useState({});
-  const channelRef = useRef(null);
 
   // --- React Flow state ------------------------------------------------------
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
 
-  useEffect(() => {
-    if (!effectiveSaleTypeId) return;
+  // Live cursors belong to Flow Plans, not to the operational canvas (issue
+  // #117): a plan is a sketch several people work on together, while this
+  // canvas edits live records, where two people at once is a hazard. The
+  // provider decides — the sandbox one supplies a plan id, the live one null,
+  // and with null this subscribes to nothing.
+  const applyPeerDrag = useCallback(
+    ({ nodeId, position }) => {
+      setRfNodes((nodes) => nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)));
+    },
+    [setRfNodes],
+  );
 
-    const channel = supabase.channel(`flow_canvas_${effectiveSaleTypeId}`, {
-      config: {
-        presence: {
-          key: user?.id || 'anonymous',
-        },
-      },
-    });
-    
-    channelRef.current = channel;
+  const { peers, cursors, publishCursor, publishNodeDrag } = useFlowPresence({
+    scopeId: presenceScope,
+    user,
+    onPeerNodeDrag: applyPeerDrag,
+  });
+
+  // The live flow lives in tables, so this canvas still has to hear about a
+  // change another browser made to one. A plan has no rows to watch — its
+  // changes arrive through the document instead.
+  useEffect(() => {
+    if (!effectiveSaleTypeId || presenceScope) return undefined;
+
+    const channel = supabase.channel(`flow_canvas_${effectiveSaleTypeId}`);
 
     channel
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState();
-        const currentUsers = {};
-        for (const [key, presences] of Object.entries(state)) {
-          if (key !== user?.id && presences.length > 0) {
-            currentUsers[key] = presences[0];
-          }
-        }
-        setActiveUsers(currentUsers);
-        
-        // Clean up cursors for disconnected users
-        setCursors(prev => {
-          const next = { ...prev };
-          for (const key of Object.keys(next)) {
-            if (!currentUsers[key]) {
-              delete next[key];
-            }
-          }
-          return next;
-        });
-      })
-      .on('broadcast', { event: 'cursor' }, ({ payload }) => {
-        if (payload.userId !== user?.id) {
-          setCursors(prev => ({ ...prev, [payload.userId]: payload.cursor }));
-        }
-      })
-      .on('broadcast', { event: 'nodeDrag' }, ({ payload }) => {
-        if (payload.userId !== user?.id) {
-          setRfNodes((nds) =>
-            nds.map((n) => {
-              if (n.id === payload.nodeId) {
-                return { ...n, position: payload.position };
-              }
-              return n;
-            })
-          );
-        }
-      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sales_flows' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_stages' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_edges' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stage_conditions' }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'flow_stage_actions' }, refresh)
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          const COLORS = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#22c55e', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
-          const colorIndex = (user?.name?.length || 0) % 10;
-          await channel.track({
-            userId: user?.id,
-            name: user?.name || 'Unknown',
-            color: COLORS[colorIndex],
-          });
-        }
-      });
+      .subscribe();
 
     return () => {
       channel.unsubscribe();
-      channelRef.current = null;
     };
-  }, [effectiveSaleTypeId, refresh, user, setRfNodes]);
+  }, [effectiveSaleTypeId, presenceScope, refresh]);
 
-  const handlePointerMove = useCallback((e) => {
-    if (channelRef.current?.state === 'joined') {
-      const position = screenToFlowPosition({ x: e.clientX, y: e.clientY });
-      channelRef.current.send({
-        type: 'broadcast',
-        event: 'cursor',
-        payload: {
-          userId: user?.id,
-          cursor: position
-        }
-      }).catch(() => {});
-    }
-  }, [screenToFlowPosition, user]);
+  const handlePointerMove = useCallback(
+    (event) => {
+      publishCursor(screenToFlowPosition({ x: event.clientX, y: event.clientY }));
+    },
+    [publishCursor, screenToFlowPosition],
+  );
 
   const createSaleType = useMutation({
     mutationFn: (name) => salesFlowService.createSaleType(name, user?.id),
@@ -521,19 +476,9 @@ function FlowCanvasInner() {
   const onNodeDrag = useCallback(
     (_event, node) => {
       if (node.type !== "stage") return;
-      if (channelRef.current && user) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'nodeDrag',
-          payload: {
-            userId: user.id,
-            nodeId: node.id,
-            position: node.position
-          }
-        }).catch(() => {});
-      }
+      publishNodeDrag(node.id, node.position);
     },
-    [user]
+    [publishNodeDrag]
   );
 
   const onNodeDragStop = useCallback(
@@ -715,7 +660,7 @@ function FlowCanvasInner() {
         />
         
         {/* Render peer cursors */}
-      {Object.values(activeUsers).map((peer) => {
+      {peers.map((peer) => {
         const cursor = cursors[peer.userId];
         if (!cursor) return null;
         const screenPos = flowToScreenPosition(cursor);
@@ -971,9 +916,9 @@ function FlowCanvasInner() {
 
         {flow && (
           <div className="pointer-events-auto flex shrink-0 items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
-            {Object.keys(activeUsers).length > 0 && (
+            {peers.length > 0 && (
               <div className="ml-1 mr-2 flex -space-x-2">
-                {Object.values(activeUsers).map((peer) => (
+                {peers.map((peer) => (
                   <Tooltip key={peer.userId} content={peer.name} side="bottom">
                     <div
                       className="flex size-7 items-center justify-center rounded-full border-2 border-card text-[10px] font-bold text-white shadow-sm"

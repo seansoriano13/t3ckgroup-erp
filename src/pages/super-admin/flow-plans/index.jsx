@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '../../../lib/supabase';
+import { flowPlanService } from '../../../services/flowPlanService';
 import ProtectedRoute from '../../../components/ProtectedRoute';
 import { Plus, FolderOpen } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
@@ -18,26 +18,11 @@ export default function FlowPlansPage() {
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['flow_plans'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('flow_plans')
-        .select('*')
-        .order('updated_at', { ascending: false });
-      if (error) throw error;
-      return data;
-    },
+    queryFn: () => flowPlanService.listPlans(),
   });
 
   const createMutation = useMutation({
-    mutationFn: async (name) => {
-      const { data, error } = await supabase
-        .from('flow_plans')
-        .insert({ name, created_by: user?.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
-    },
+    mutationFn: (name) => flowPlanService.createPlan(name, user?.id),
     onSuccess: (data) => {
       toast.success('Flow Plan created.');
       queryClient.invalidateQueries({ queryKey: ['flow_plans'] });
@@ -117,10 +102,10 @@ export default function FlowPlansPage() {
                   key={plan.id}
                   role="button"
                   onClick={() => navigate(`/super-admin/flow-plans/${plan.id}`)}
-                  className="group flex cursor-pointer flex-col justify-between rounded-2xl bg-card p-5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-all hover:shadow-md hover:outline-primary"
+                  className="group flex cursor-pointer flex-col justify-between rounded-2xl bg-card p-5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-all hover:shadow-md hover:outline-mauve-8"
                 >
                   <div>
-                    <h3 className="font-bold text-foreground group-hover:text-primary transition-colors">
+                    <h3 className="font-bold text-foreground transition-colors">
                       {plan.name}
                     </h3>
                     <p className="mt-1 text-xs text-muted-foreground">

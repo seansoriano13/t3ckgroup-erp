@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-07",
+        "title": "Plan a Flow Together, and Safer Leave Withdrawals",
+        "version": "1.5.0",
+        "changes": [
+            "Two people can now open the same Flow Plan and work on it at once — adding, moving, renaming and deleting Stages all appear for everyone straight away, with nobody's work overwriting anyone else's and nobody needing to reload.",
+            "You can see who else has a Flow Plan open, with a named cursor for each person. Live cursors have moved off the operational Flow Canvas, which edits the real flow, onto Flow Plans, where working together is the point.",
+            "A leave you have already taken can no longer be withdrawn for a refund of its hours. If an approved leave was genuinely never taken, HR can undo the approval to put the hours back.",
+            "Approving, undoing or withdrawing an offset or SIL leave now moves every day of a multi-day leave and the hours balance together, so a leave can never end up half-decided and two HR officers acting at the same time can no longer lose a balance change between them."
+        ]
+    },
+    {
         "date": "2026-09-06",
         "title": "Flow Plan Sandbox & Purchasing Queue Improvements",
         "version": "1.4.0",
