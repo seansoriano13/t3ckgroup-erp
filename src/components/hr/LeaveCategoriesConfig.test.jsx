@@ -94,9 +94,7 @@ describe('LeaveCategoriesConfig reordering', () => {
 
     renderWithProviders(<LeaveCategoriesConfig />);
     
-    const user = userEvent.setup();
-    const input = await screen.findByPlaceholderText(/New category name/i);
-    const addBtn = screen.getByRole('button', { name: /Add Category/i });
+    await screen.findByPlaceholderText(/New category name/i);
 
     // Using userEvent to type and click fast might not truly fire concurrently due to JS await,
     // but the backend will receive the requests without waiting for the first to finish.

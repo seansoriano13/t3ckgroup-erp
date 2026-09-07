@@ -7,7 +7,7 @@
  * passing the action through the custom toast renderer so it actually appears.
  */
 
-import { screen, waitFor, act } from "@testing-library/react";
+import { screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import toast from "react-hot-toast";
