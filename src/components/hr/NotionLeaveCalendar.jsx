@@ -24,6 +24,32 @@ export default function NotionLeaveCalendar({
     }
   }
 
+
+  /**
+   * Whether the leave this card belongs to has already been taken — the same
+   * question `withdraw_offset_leave` and `cancel_sil_leave` ask before they
+   * refuse a refund (issue #111, ADR 0015), asked here so the button is absent
+   * rather than present and rejected.
+   *
+   * A multi-day leave is one application, so what matters is the group's first
+   * day, not the day whose card was clicked — otherwise a range that started
+   * yesterday would still offer "Withdraw" on tomorrow's card. Falls back to
+   * the card's own date for a leave with no group, which is a group of one.
+   *
+   * Compared as `YYYY-MM-DD` strings against today in UTC, which is exactly
+   * what the SQL does: `first_date < CURRENT_DATE`. Parsing either side into a
+   * `Date` would put the boundary eight hours into the Manila working day and
+   * would also exclude the start day itself, which ADR 0015 deliberately keeps
+   * withdrawable.
+   */
+  const hasAlreadyBeenTaken = (leave) => {
+    const groupDates = leave.leave_group_id
+      ? approvedLeaves.filter((l) => l.leave_group_id === leave.leave_group_id).map((l) => l.date)
+      : [leave.date];
+    const firstDate = (groupDates.sort()[0] || leave.date || '').slice(0, 10);
+    return Boolean(firstDate) && firstDate < new Date().toISOString().slice(0, 10);
+  };
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -313,7 +339,7 @@ export default function NotionLeaveCalendar({
 
               {/* Action for Employee to Withdraw their own future leave */}
               {currentUserId === selectedLeave.employee_id &&
-                new Date(selectedLeave.date) > new Date() &&
+                !hasAlreadyBeenTaken(selectedLeave) &&
                 onWithdrawLeave && (
                   <button
                     onClick={() => {

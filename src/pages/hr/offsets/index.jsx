@@ -115,7 +115,7 @@ export default function HrLeavesManagerPage() {
 
       // Processed (from period-scoped) — grouped the same way as pending.
       const processed = groupLeaveRows(
-        combined.filter(req => req.status !== 'PENDING' && req.status !== 'WITHDRAWN' && req.status !== 'CANCELLED')
+        combined.filter(req => req.status !== 'PENDING' && req.status !== 'CANCELLED')
       ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
 
       // Approved feeds the calendar, which plots one card per day — left

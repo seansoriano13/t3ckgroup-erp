@@ -85,6 +85,20 @@ export function formatWindow(start, end) {
 }
 
 /**
+ * Renders a leave group's dates as the label every notification and audit line
+ * about that group uses. A group of one reads as its single date; a range reads
+ * as its span, with the day count added where the message is about the decision
+ * rather than the dates themselves. `dates` arrives already sorted from the
+ * decision RPCs, which is where a group's dates are now assembled.
+ */
+export function describeLeaveRange(dates, { withDayCount = false } = {}) {
+  const days = dates || [];
+  if (days.length <= 1) return days[0];
+  const span = `${days[0]} to ${days[days.length - 1]}`;
+  return withDayCount ? `${span} (${days.length} days)` : span;
+}
+
+/**
  * A window at its shortest, for the calendar's month cells.
  *
  * Those cards are 9px text in a cell narrow enough to truncate, and the card

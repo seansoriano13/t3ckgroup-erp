@@ -163,7 +163,6 @@ export default function EmployeeLeavesPage() {
           </span>
         );
       case 'CANCELLED':
-      case 'WITHDRAWN':
         return (
           <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] inline-flex items-center gap-1 uppercase tracking-wider">
             <XCircle size={12} /> Withdrawn

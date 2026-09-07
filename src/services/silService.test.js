@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { silService } from "./silService"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeHrEmployee, makeSilLeave } from "@/test/factories"
+import { stubSilLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { waitForNetworkIdle } from "@/test/network"
+import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
 
 /**
@@ -18,7 +20,10 @@ describe("silService", () => {
   beforeEach(() => {
     employee = makeEmployee({ name: "Ana Reyes", sil_hours_balance: 40 })
     hr = makeHrEmployee({ name: "HR Officer" })
+    stubSilLeaveDecisionRpcs()
   })
+
+  const findRow = (table, id) => db.internal.rowsOf(table).find((row) => row.id === id)
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).sil_hours_balance
 
@@ -444,6 +449,34 @@ describe("silService", () => {
       expect(updated.approval_credits_snapshot).toBe(32)
     })
 
+    it("stamps the decision on every day-row, and the service does not compute it", async () => {
+      // Same as Offset: the stamp is produced inside the decision function
+      // (ADR 0013). The fake database does not execute SQL, so what this pins
+      // is that the stamp arrives with the rows and that no JS-side path
+      // writes one.
+      const group = await silService.applySilLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-10", hours: 4 },
+          { date: "2026-03-11", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+
+      const updated = await silService.handleSilLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated).toHaveLength(2)
+      for (const row of updated) {
+        expect(row.approval_hash).toBeTruthy()
+        expect(row.hr_processed_by).toBe(hr.id)
+        expect(row.hr_processed_at).toBeTruthy()
+      }
+    })
+
     it("snapshots null on rejection", async () => {
       const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
@@ -632,6 +665,113 @@ describe("silService", () => {
         expect(row.approval_credits_snapshot).toBeNull()
       }
     })
+
+    it("moves every day-row in a multi-day group together, never half of them", async () => {
+      const group = await silService.applySilLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-10", hours: 4 },
+          { date: "2026-03-11", hours: 4 },
+          { date: "2026-03-12", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+      const groupId = group[0].leave_group_id
+      const statuses = () => group.map((day) => findRow("sil_leaves", day.id).status)
+
+      await silService.handleSilLeaveDecision({ groupId, status: "APPROVED", hrId: hr.id })
+      expect(statuses()).toEqual(["APPROVED", "APPROVED", "APPROVED"])
+      expect(balanceOf(employee.id)).toBe(28) // 40 - 12
+
+      await silService.undoSilLeaveDecision({ groupId, hrId: hr.id })
+      expect(statuses()).toEqual(["PENDING", "PENDING", "PENDING"])
+      expect(balanceOf(employee.id)).toBe(40)
+    })
+
+    it("does not lose a balance movement when an approval and an undo race for the same employee", async () => {
+      const alreadyApproved = makeSilLeave({
+        employee_id: employee.id,
+        date: "2026-03-10",
+        startTime: "09:00",
+        endTime: "13:00",
+      }) // 4 hrs
+      await silService.handleSilLeaveDecision({
+        groupId: alreadyApproved.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(36)
+
+      const toApprove = makeSilLeave({
+        employee_id: employee.id,
+        date: "2026-03-11",
+        startTime: "14:00",
+        endTime: "17:00",
+      }) // 3 hrs
+
+      await Promise.all([
+        silService.undoSilLeaveDecision({ groupId: alreadyApproved.leave_group_id, hrId: hr.id }), // +4
+        silService.handleSilLeaveDecision({
+          groupId: toApprove.leave_group_id,
+          status: "APPROVED",
+          hrId: hr.id,
+        }), // -3
+      ])
+
+      // 36 + 4 - 3, regardless of which settled first.
+      expect(balanceOf(employee.id)).toBe(37)
+    })
+
+    it("refuses a second decision on a group that has already been decided", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id, startTime: "09:00", endTime: "13:00" }) // 4 hrs
+      await silService.handleSilLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      await expect(
+        silService.handleSilLeaveDecision({
+          groupId: leave.leave_group_id,
+          status: "REJECTED",
+          hrId: hr.id,
+        }),
+      ).rejects.toThrow("This leave application has already been decided.")
+
+      expect(balanceOf(employee.id)).toBe(36)
+    })
+
+    it("still withholds the refund and still flags the anomaly when an ineligible employee's group is undone", async () => {
+      // The eligibility gate on the refund has to survive the move into the
+      // atomic operation — the anomaly it records is the only signal HR gets
+      // that a balance needs correcting by hand.
+      const probationary = makeEmployee({
+        name: "New Hire",
+        sil_hours_balance: 0,
+        employment_status: "Probationary",
+      })
+      const groupId = crypto.randomUUID()
+      const days = ["2026-03-10", "2026-03-11"].map((date) =>
+        makeSilLeave({
+          employee_id: probationary.id,
+          date,
+          leave_group_id: groupId,
+          hours: 4,
+          status: "APPROVED",
+        }),
+      )
+
+      await silService.undoSilLeaveDecision({ groupId, hrId: hr.id })
+      await waitForNetworkIdle()
+
+      expect(balanceOf(probationary.id)).toBe(0)
+      expect(days.map((day) => findRow("sil_leaves", day.id).status)).toEqual(["PENDING", "PENDING"])
+
+      const anomaly = db.rows("system_audit_logs").find((e) => e.metadata?.event === "SIL_REFUND_ANOMALY")
+      expect(anomaly.content).toContain("New Hire")
+      expect(anomaly.content).toContain("Probationary")
+      expect(anomaly.metadata.hours).toBe(8)
+    })
   })
 
   describe("employee cancellation", () => {
@@ -644,7 +784,8 @@ describe("silService", () => {
     })
 
     it("returns the hours when cancelling an approved leave", async () => {
-      const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+      const [date] = upcomingWeekdays(1)
+      const leave = makeSilLeave({ employee_id: employee.id, date, startTime: '09:00', endTime: '17:00' })
       await silService.handleSilLeaveDecision({
         groupId: leave.leave_group_id,
         status: "APPROVED",
@@ -657,11 +798,12 @@ describe("silService", () => {
     })
 
     it("cancels every day in an approved date-range group together, refunding the group's total hours", async () => {
+      const [first, second] = upcomingWeekdays(2)
       const group = await silService.applySilLeaveRange({
         employeeId: employee.id,
         days: [
-          { date: "2026-03-10", hours: 8 },
-          { date: "2026-03-11", hours: 4 },
+          { date: first, hours: 8 },
+          { date: second, hours: 4 },
         ],
         reason: "Family trip",
       })
@@ -678,6 +820,49 @@ describe("silService", () => {
       expect(balanceOf(employee.id)).toBe(40)
       const rows = await silService.getMySilLeaves(employee.id)
       expect(rows.every((row) => row.status === "CANCELLED")).toBe(true)
+    })
+
+    // Issue #111 (HR-06): the same cutoff Offset uses, worded identically —
+    // an employee has no reason to learn two rules for the same act.
+    it("refuses to refund an approved leave whose date has already passed", async () => {
+      const leave = makeSilLeave({
+        employee_id: employee.id,
+        date: "2020-01-06",
+        status: "APPROVED",
+        startTime: "09:00",
+        endTime: "17:00",
+      }) // 8 hrs
+
+      await expect(
+        silService.cancelMySilLeave({ leaveId: leave.id, employeeId: employee.id }),
+      ).rejects.toThrow("This leave started on 2020-01-06 and has already been taken")
+
+      expect(balanceOf(employee.id)).toBe(40)
+      expect(findRow("sil_leaves", leave.id).status).toBe("APPROVED")
+    })
+
+    it("still cancels a past-dated leave HR never approved, since it spent nothing", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id, date: "2020-01-06" })
+
+      await silService.cancelMySilLeave({ leaveId: leave.id, employeeId: employee.id })
+
+      expect(findRow("sil_leaves", leave.id).status).toBe("CANCELLED")
+      expect(balanceOf(employee.id)).toBe(40)
+    })
+
+    it("leaves HR a route to give back an approved past leave that was never taken", async () => {
+      const leave = makeSilLeave({
+        employee_id: employee.id,
+        date: "2020-01-06",
+        status: "APPROVED",
+        startTime: "09:00",
+        endTime: "17:00",
+      }) // 8 hrs
+
+      await silService.undoSilLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id })
+
+      expect(balanceOf(employee.id)).toBe(48)
+      expect(findRow("sil_leaves", leave.id).status).toBe("PENDING")
     })
 
     it("refuses to let one employee cancel another's leave", async () => {

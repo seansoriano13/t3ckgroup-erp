@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { cleanAttachments, offsetService } from "./offsetService"
 import { db } from "@/test/db/store"
 import { stubOvertimeDecisionRpcs } from "@/test/stubs/overtimeRpc"
+import { stubOffsetLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { waitForNetworkIdle } from "@/test/network"
+import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
 import {
   makeEmployee,
@@ -24,6 +26,7 @@ describe("offsetService", () => {
     employee = makeEmployee({ name: "Ana Reyes", offset_hours_balance: 16 })
     hr = makeHrEmployee({ name: "HR Officer" })
     stubOvertimeDecisionRpcs()
+    stubOffsetLeaveDecisionRpcs()
   })
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).offset_hours_balance
@@ -395,6 +398,35 @@ describe("offsetService", () => {
       expect(updated.approval_credits_snapshot).toBe(20)
     })
 
+    it("stamps the decision on every day-row, and the service does not compute it", async () => {
+      // The approval hash and HR signature are produced inside the decision
+      // function now (ADR 0013), because they commit to the credits snapshot,
+      // which is only settled once it holds the employee-row lock. The fake
+      // database does not execute SQL, so what this pins is that the stamp
+      // arrives with the rows and that no JS-side path writes one — the
+      // formula itself is checked against `verify_form_token` in Postgres.
+      const group = await offsetService.applyOffsetLeaveRange({
+        employeeId: employee.id,
+        days: [
+          { date: "2026-03-16", hours: 4 },
+          { date: "2026-03-17", hours: 4 },
+        ],
+        reason: "Family trip",
+      })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        groupId: group[0].leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated).toHaveLength(2)
+      for (const row of updated) {
+        expect(row.approval_hash).toBeTruthy()
+        expect(row.hr_processed_by).toBe(hr.id)
+      }
+    })
+
     it("snapshots null on rejection", async () => {
       const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
@@ -740,6 +772,107 @@ describe("offsetService", () => {
         expect(row.approval_credits_snapshot).toBeNull()
       }
     })
+
+    it("refuses a second decision on a group that has already been decided", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: "09:00", endTime: "13:00" }) // 4 hrs
+      await offsetService.handleOffsetLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      await expect(
+        offsetService.handleOffsetLeaveDecision({
+          groupId: leave.leave_group_id,
+          status: "REJECTED",
+          hrId: hr.id,
+        }),
+      ).rejects.toThrow("This leave application has already been decided.")
+
+      // The hours may only be spent once, however many officers press approve.
+      expect(balanceOf(employee.id)).toBe(12)
+    })
+
+    it("does not lose a balance movement when two leaves for one employee are approved at once", async () => {
+      const first = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2026-03-12",
+        startTime: "09:00",
+        endTime: "13:00",
+      }) // 4 hrs
+      const second = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2026-03-13",
+        startTime: "13:00",
+        endTime: "17:00",
+      }) // 4 hrs
+
+      await Promise.all([
+        offsetService.handleOffsetLeaveDecision({ groupId: first.leave_group_id, status: "APPROVED", hrId: hr.id }),
+        offsetService.handleOffsetLeaveDecision({ groupId: second.leave_group_id, status: "APPROVED", hrId: hr.id }),
+      ])
+
+      // 16 (starting) - 4 - 4 — neither deduction may be overwritten by the other.
+      expect(balanceOf(employee.id)).toBe(8)
+    })
+
+    it("does not lose a balance movement when an approval and an undo race for the same employee", async () => {
+      const alreadyApproved = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2026-03-12",
+        startTime: "09:00",
+        endTime: "13:00",
+      }) // 4 hrs
+      await offsetService.handleOffsetLeaveDecision({
+        groupId: alreadyApproved.leave_group_id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(12)
+
+      const toApprove = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2026-03-13",
+        startTime: "14:00",
+        endTime: "17:00",
+      }) // 3 hrs
+
+      await Promise.all([
+        offsetService.undoOffsetLeaveDecision({ groupId: alreadyApproved.leave_group_id, hrId: hr.id }), // +4
+        offsetService.handleOffsetLeaveDecision({
+          groupId: toApprove.leave_group_id,
+          status: "APPROVED",
+          hrId: hr.id,
+        }), // -3
+      ])
+
+      // 12 + 4 - 3, regardless of which settled first.
+      expect(balanceOf(employee.id)).toBe(13)
+    })
+
+    it("moves every day-row in a multi-day group together, never half of them", async () => {
+      const groupId = crypto.randomUUID()
+      const days = ["2026-03-16", "2026-03-17", "2026-03-18"].map((date) =>
+        makeOffsetLeave({ employee_id: employee.id, date, leave_group_id: groupId, hours: 4 }),
+      )
+      await setOffsetBalance(employee.id, 12)
+
+      await offsetService.handleOffsetLeaveDecision({ groupId, status: "APPROVED", hrId: hr.id })
+      expect(days.map((day) => findRow("offset_leaves", day.id).status)).toEqual([
+        "APPROVED",
+        "APPROVED",
+        "APPROVED",
+      ])
+      expect(balanceOf(employee.id)).toBe(0)
+
+      await offsetService.undoOffsetLeaveDecision({ groupId, hrId: hr.id })
+      expect(days.map((day) => findRow("offset_leaves", day.id).status)).toEqual([
+        "PENDING",
+        "PENDING",
+        "PENDING",
+      ])
+      expect(balanceOf(employee.id)).toBe(12)
+    })
   })
 
   describe("applying for offset leave across a date range", () => {
@@ -870,7 +1003,8 @@ describe("offsetService", () => {
     })
 
     it("returns the hours when an approved offset leave is withdrawn", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+      const [date] = upcomingWeekdays(1)
+      const leave = makeOffsetLeave({ employee_id: employee.id, date, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
         groupId: leave.leave_group_id,
         status: "APPROVED",
@@ -884,7 +1018,8 @@ describe("offsetService", () => {
     })
 
     it("warns HR when an already-approved leave is withdrawn", async () => {
-      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+      const [date] = upcomingWeekdays(1)
+      const leave = makeOffsetLeave({ employee_id: employee.id, date, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
         groupId: leave.leave_group_id,
         status: "APPROVED",
@@ -902,11 +1037,12 @@ describe("offsetService", () => {
     })
 
     it("withdraws every day in an approved date-range group together, refunding the group's total hours", async () => {
+      const [first, second] = upcomingWeekdays(2)
       const group = await offsetService.applyOffsetLeaveRange({
         employeeId: employee.id,
         days: [
-          { date: "2026-03-16", hours: 8 },
-          { date: "2026-03-17", hours: 4 },
+          { date: first, hours: 8 },
+          { date: second, hours: 4 },
         ],
         reason: "Family trip",
       })
@@ -923,6 +1059,73 @@ describe("offsetService", () => {
       expect(balanceOf(employee.id)).toBe(16)
       const rows = await offsetService.getMyOffsetLeaves(employee.id)
       expect(rows.every((row) => row.status === "CANCELLED")).toBe(true)
+    })
+
+    it("never lets a withdraw racing an HR approval strand the deducted hours", async () => {
+      const [date] = upcomingWeekdays(1)
+      const leave = makeOffsetLeave({ employee_id: employee.id, date, startTime: "09:00", endTime: "13:00" }) // 4 hrs
+
+      await Promise.allSettled([
+        offsetService.handleOffsetLeaveDecision({
+          groupId: leave.leave_group_id,
+          status: "APPROVED",
+          hrId: hr.id,
+        }),
+        offsetService.withdrawOffsetLeave({ leaveId: leave.id, employeeId: employee.id }),
+      ])
+
+      // Whichever landed first, the employee ends up not having taken the
+      // leave — so the row is CANCELLED and every hour is back on the balance.
+      // A CANCELLED row can never coexist with hours still deducted for it.
+      expect(findRow("offset_leaves", leave.id).status).toBe("CANCELLED")
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    // Issue #111 (HR-06): withdrawal refused only rejected and cancelled
+    // records, so an approved leave dated years ago could be withdrawn today
+    // and its hours credited straight back. Reproduced with a leave dated
+    // 2020-01-06 and 8 hours refunded.
+    it("refuses to refund an approved leave whose date has already passed", async () => {
+      const leave = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2020-01-06",
+        status: "APPROVED",
+        startTime: "09:00",
+        endTime: "17:00",
+      }) // 8 hrs
+
+      await expect(
+        offsetService.withdrawOffsetLeave({ leaveId: leave.id, employeeId: employee.id }),
+      ).rejects.toThrow("This leave started on 2020-01-06 and has already been taken")
+
+      expect(balanceOf(employee.id)).toBe(16)
+      expect(findRow("offset_leaves", leave.id).status).toBe("APPROVED")
+    })
+
+    it("still withdraws a past-dated leave HR never approved, since it spent nothing", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, date: "2020-01-06" })
+
+      await offsetService.withdrawOffsetLeave({ leaveId: leave.id, employeeId: employee.id })
+
+      expect(findRow("offset_leaves", leave.id).status).toBe("CANCELLED")
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("leaves HR a route to give back an approved past leave that was never taken", async () => {
+      const leave = makeOffsetLeave({
+        employee_id: employee.id,
+        date: "2020-01-06",
+        status: "APPROVED",
+        startTime: "09:00",
+        endTime: "17:00",
+      }) // 8 hrs
+
+      // HR's undo is deliberately not date-guarded — it is the correction path
+      // for the genuine case where someone was approved and did not take the day.
+      await offsetService.undoOffsetLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id })
+
+      expect(balanceOf(employee.id)).toBe(24)
+      expect(findRow("offset_leaves", leave.id).status).toBe("PENDING")
     })
 
     it("refuses to withdraw a leave that was already rejected or cancelled", async () => {

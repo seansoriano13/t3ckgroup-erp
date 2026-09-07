@@ -41,16 +41,3 @@ export async function generateApplicationHash({ employeeId, categoryId, dates, t
   const payload = `${employeeId}|${categoryId || ''}|${datesString}|${canonicalNumber(totalHours)}|${reason || ''}`;
   return generateHash(payload);
 }
-
-/**
- * Generates the approval hash for leave/overtime forms.
- * @param {Object} params
- * @param {string} params.applicationHash
- * @param {string} params.status
- * @param {string} params.approverId
- * @param {number|string} params.creditsSnapshot
- */
-export async function generateApprovalHash({ applicationHash, status, approverId, creditsSnapshot }) {
-  const payload = `${applicationHash}|${status}|${approverId || ''}|${canonicalNumber(creditsSnapshot)}`;
-  return generateHash(payload);
-}

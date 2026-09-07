@@ -1,8 +1,8 @@
 import { supabase } from '../lib/supabase';
 import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
-import { deriveHours, formatWindow, windowsOverlap } from '../utils/time';
-import { generateApplicationHash, generateApprovalHash } from '../utils/formHashes';
+import { deriveHours, describeLeaveRange, formatWindow, windowsOverlap } from '../utils/time';
+import { generateApplicationHash } from '../utils/formHashes';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertWithinAvailableBalance } from './leaveRules';
 
 /**
@@ -32,26 +32,6 @@ export async function stampApplication({ employeeId, categoryId, dates, totalHou
     applicationHash,
     employeeSignatureVersion: signaturePath,
     employeeSignatureTimestamp: signaturePath ? now : null,
-  };
-}
-
-/**
- * Computes the approval hash and HR's signature stamp shared by every
- * decision path (overtime, offset, SIL). Returns nulls for a status that
- * isn't a real decision (approval/rejection), matching every caller's
- * existing "only hash on approve/reject" rule.
- */
-export async function stampApproval({ hrId, applicationHash, status, isDecision, creditsSnapshot }) {
-  const signaturePath = await fetchSignaturePath(hrId);
-  const now = new Date().toISOString();
-  const approvalHash = isDecision
-    ? await generateApprovalHash({ applicationHash, status, approverId: hrId, creditsSnapshot })
-    : null;
-
-  return {
-    approvalHash,
-    hrSignatureVersion: signaturePath,
-    hrSignatureTimestamp: signaturePath ? now : null,
   };
 }
 
@@ -664,90 +644,29 @@ export const offsetService = {
    * HR Decision on an Offset Leave group ('APPROVED', 'REJECTED').
    *
    * Acts on every day-row sharing `groupId` — a single-day application is a
-   * group of one, so this is the only decision path callers need. The balance
-   * is checked against the group's total hours before anything is written, and
-   * the day-rows are updated in one statement, so a range can never end up
-   * half-approved: either the whole group's precondition holds and every row
-   * moves together, or nothing does.
+   * group of one, so this is the only decision path callers need.
+   *
+   * The day-rows, the balance deduction, and the approval hash/HR-signature
+   * stamp all happen inside one Postgres function
+   * (`decide_offset_leave_decision`, see the atomic-offset-leave migration and
+   * ADR 0013). The group moving as one unit is no longer a claim about the
+   * order two writes are issued in — the function holds every day-row and the
+   * employee row locked while it works, so the group can never be observed
+   * half-decided and two officers deciding for one employee cannot race each
+   * other into losing a balance movement.
    */
   async handleOffsetLeaveDecision({ groupId, status, hrNotes, hrId }) {
-    const { data: rows, error: rowsErr } = await supabase
-      .from('offset_leaves')
-      .select('*')
-      .eq('leave_group_id', groupId);
-
-    if (rowsErr) throw new Error(rowsErr.message);
-    if (!rows || rows.length === 0) throw new Error('Leave application not found.');
-
-    const employeeId = rows[0].employee_id;
-    const applicationHash = rows[0].application_hash;
-    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
-    let creditsSnapshot = null;
-    let newBalance = null;
-
-    if (status === 'APPROVED') {
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('offset_hours_balance')
-        .eq('id', employeeId)
-        .single();
-
-      if (empErr) throw new Error(empErr.message);
-      const currentBal = parseFloat(emp.offset_hours_balance || 0);
-
-      if (currentBal < totalHours) {
-        throw new Error(`Cannot approve leave. Employee currently only has ${currentBal} hrs balance.`);
-      }
-
-      // Snapshot the balance the employee will have AFTER this deduction, not
-      // the balance at the moment of approval.
-      newBalance = currentBal - totalHours;
-      creditsSnapshot = newBalance;
-    }
-
-    const { approvalHash, hrSignatureVersion, hrSignatureTimestamp } = await stampApproval({
-      hrId,
-      applicationHash,
-      status,
-      isDecision: status === 'APPROVED' || status === 'REJECTED',
-      creditsSnapshot,
+    const { data: result, error } = await supabase.rpc('decide_offset_leave_decision', {
+      p_group_id: groupId,
+      p_status: status,
+      p_hr_notes: hrNotes || null,
+      p_hr_id: hrId || null,
     });
-    const now = new Date().toISOString();
 
-    // Row-status write first, balance write second: a failure between the two
-    // leaves the group PENDING and the balance untouched, rather than a spent
-    // balance backing an approval that never landed.
-    const { data: updatedRows, error: updateErr } = await supabase
-      .from('offset_leaves')
-      .update({
-        status,
-        hr_notes: hrNotes || null,
-        updated_at: now,
-        approval_hash: approvalHash,
-        hr_signature_version: hrSignatureVersion,
-        hr_signature_timestamp: hrSignatureTimestamp,
-        approval_credits_snapshot: creditsSnapshot,
-        hr_processed_by: hrId || null,
-      })
-      .eq('leave_group_id', groupId)
-      .select();
+    if (error) throw new Error(error.message);
 
-    if (updateErr) throw new Error(updateErr.message);
-
-    if (status === 'APPROVED' && newBalance !== null) {
-      await supabase
-        .from('employees')
-        .update({
-          offset_hours_balance: newBalance,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', employeeId);
-    }
-
-    const dates = rows.map((row) => row.date).sort();
-    const rangeLabel = dates.length > 1
-      ? `${dates[0]} to ${dates[dates.length - 1]} (${dates.length} days)`
-      : dates[0];
+    const { rows: updatedRows, employee_id: employeeId, total_hours: totalHours } = result;
+    const rangeLabel = describeLeaveRange(result.dates, { withDayCount: true });
 
     notificationService.createNotification({
       recipient_id: employeeId,
@@ -773,57 +692,22 @@ export const offsetService = {
    * Undo HR's decision on an Offset Leave group.
    * - Reverts every day-row in the group to PENDING
    * - Refunds (adds) the group's total hours if it was APPROVED
+   *
+   * See `undo_offset_leave_decision` (atomic-offset-leave migration, ADR 0013)
+   * for where the revert and the refund now happen together. Unlike overtime's
+   * undo, the refund here is an addition, so there is no "already spent" case
+   * to refuse.
    */
   async undoOffsetLeaveDecision({ groupId, hrId }) {
-    const { data: rows, error: rowsErr } = await supabase
-      .from('offset_leaves')
-      .select('*')
-      .eq('leave_group_id', groupId);
+    const { data: result, error } = await supabase.rpc('undo_offset_leave_decision', {
+      p_group_id: groupId,
+      p_hr_id: hrId || null,
+    });
 
-    if (rowsErr) throw new Error(rowsErr.message);
-    if (!rows || rows.length === 0) throw new Error('Leave application not found.');
+    if (error) throw new Error(error.message);
 
-    const status = rows[0].status;
-    if (status === 'PENDING') throw new Error('Leave is already pending.');
-
-    const employeeId = rows[0].employee_id;
-    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
-
-    if (status === 'APPROVED') {
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('offset_hours_balance')
-        .eq('id', employeeId)
-        .single();
-
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + totalHours;
-        await supabase
-          .from('employees')
-          .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', employeeId);
-      }
-    }
-
-    const { data: updatedRows, error: updateErr } = await supabase
-      .from('offset_leaves')
-      .update({
-        status: 'PENDING',
-        hr_notes: null,
-        updated_at: new Date().toISOString(),
-        approval_hash: null,
-        hr_signature_version: null,
-        hr_signature_timestamp: null,
-        approval_credits_snapshot: null,
-        hr_processed_by: null,
-      })
-      .eq('leave_group_id', groupId)
-      .select();
-
-    if (updateErr) throw new Error(updateErr.message);
-
-    const dates = rows.map((row) => row.date).sort();
-    const dateLabel = dates.length > 1 ? `${dates[0]} to ${dates[dates.length - 1]}` : dates[0];
+    const { rows: updatedRows, employee_id: employeeId, previous_status: previousStatus } = result;
+    const dateLabel = describeLeaveRange(result.dates);
 
     notificationService.createNotification({
       recipient_id: employeeId,
@@ -837,8 +721,8 @@ export const offsetService = {
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
       groupId,
-      `Offset leave decision for ${dateLabel} was reverted to PENDING (was ${status}).`,
-      { event: 'OFFSET_LEAVE_DECISION_UNDONE', previousStatus: status, employeeId, leaveGroupId: groupId },
+      `Offset leave decision for ${dateLabel} was reverted to PENDING (was ${previousStatus}).`,
+      { event: 'OFFSET_LEAVE_DECISION_UNDONE', previousStatus, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);
 
@@ -895,77 +779,44 @@ export const offsetService = {
    * Operates on the whole leave_group_id, not just the clicked row, mirroring
    * handleOffsetLeaveDecision's group-atomic pattern — a date-range leave is
    * withdrawn and refunded as one group, never partially.
+   *
+   * `withdraw_offset_leave` (atomic-offset-leave migration) reads the group's
+   * status under the same lock it writes through, which is what stops an HR
+   * approval landing mid-withdraw from leaving a CANCELLED leave with its
+   * hours still deducted.
    */
   async withdrawOffsetLeave({ leaveId, employeeId }) {
-    const { data: clicked, error: clickedErr } = await supabase
-      .from('offset_leaves')
-      .select('*')
-      .eq('id', leaveId)
-      .single();
-
-    if (clickedErr) throw new Error(clickedErr.message);
-    if (clicked.employee_id !== employeeId) throw new Error('Unauthorized');
-    if (clicked.status === 'REJECTED' || clicked.status === 'CANCELLED') {
-      throw new Error('Cannot withdraw this request.');
-    }
-
-    const { data: rows, error: rowsErr } = await supabase
-      .from('offset_leaves')
-      .select('*')
-      .eq('leave_group_id', clicked.leave_group_id);
-
-    if (rowsErr) throw new Error(rowsErr.message);
-
-    const totalHours = rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
-    const dates = rows.map((row) => row.date).sort();
-    const dateLabel = dates.length > 1 ? `${dates[0]} to ${dates[dates.length - 1]}` : dates[0];
-
-    const { data, error } = await supabase
-      .from('offset_leaves')
-      .update({
-        status: 'CANCELLED',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('leave_group_id', clicked.leave_group_id)
-      .select();
+    const { data: result, error } = await supabase.rpc('withdraw_offset_leave', {
+      p_leave_id: leaveId,
+      p_employee_id: employeeId,
+    });
 
     if (error) throw new Error(error.message);
 
-    // If it was APPROVED, refund the group's total hours back to the employee.
-    if (clicked.status === 'APPROVED') {
-      const { data: emp, error: empErr } = await supabase
-        .from('employees')
-        .select('offset_hours_balance')
-        .eq('id', employeeId)
-        .single();
+    const { rows: updatedRows, group_id: groupId, total_hours: totalHours, previous_status: previousStatus } = result;
+    const dateLabel = describeLeaveRange(result.dates);
 
-      if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + totalHours;
-        await supabase
-          .from('employees')
-          .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
-          .eq('id', employeeId);
-      }
-
-      // Notify HR that employee withdrew an approved leave
+    // Notify HR that the employee withdrew a leave HR had already approved —
+    // the balance has moved back, and HR may need to know why.
+    if (previousStatus === 'APPROVED') {
       notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
         sender_id: employeeId,
         type: 'OFFSET_LEAVE_DECISION',
         title: 'Approved Leave Withdrawn',
         message: `An employee withdrew their approved offset leave for ${totalHours} hrs (${dateLabel}).`,
-        reference_id: clicked.leave_group_id,
+        reference_id: groupId,
       });
     }
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
-      clicked.leave_group_id,
+      groupId,
       `Offset leave for ${dateLabel} was withdrawn by the employee.`,
-      { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId, leaveGroupId: clicked.leave_group_id },
+      { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId, leaveGroupId: groupId },
       employeeId,
     ).catch(console.error);
 
-    return data;
+    return updatedRows;
   },
 
   /**

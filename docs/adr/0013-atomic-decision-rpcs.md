@@ -37,11 +37,21 @@ its own change against the balance the first one actually left behind.
 
 Overtime's functions are `decide_overtime_request` and
 `undo_overtime_decision` (see the migration
-`20260906120000_atomic_overtime_decisions.sql`). Offset and SIL should add
-`decide_offset_leave_decision` / `undo_offset_leave_decision` and
-`decide_sil_leave_decision` / `undo_sil_leave_decision` following the same
-shape — group-atomic over `leave_group_id`, since those decisions already
-act on every day-row in a range together.
+`20260906120000_atomic_overtime_decisions.sql`). Offset (#109) and SIL (#110) added
+`decide_offset_leave_decision` / `undo_offset_leave_decision` /
+`withdraw_offset_leave` and `decide_sil_leave_decision` /
+`undo_sil_leave_decision` / `cancel_sil_leave` following the same shape,
+group-atomic over `leave_group_id` since those decisions already act on
+every day-row in a range together. Group atomicity is the one thing
+overtime never had to solve: each of those functions locks every day-row
+sharing the group id, in id order so two decisions cannot deadlock, before
+it reads anything off the group.
+
+The leave functions return `jsonb` rather than a row type, because a group
+decision has to hand back a set of rows plus the facts the service layer
+still needs to write its notification and audit lines — the group's total
+hours, its dates, the status it moved from, and for SIL whether the refund
+was withheld (see below).
 
 **The approval hash and HR signature are computed inside the function, in
 SQL, not in JavaScript beforehand.** The application hash (computed at
@@ -75,6 +85,25 @@ go negative. This is a policy call, not a technical constraint — the
 acceptance criteria for #108 allow either — and it should carry over to
 #109 and #110 for consistency.
 
+**A decision function refuses to re-decide a group that is already
+decided.** Overtime's `decide_overtime_request` has no such precondition
+because a single row cannot be half-decided; a group can, and without the
+check two officers approving the same leave at once would each deduct its
+hours. The leave functions therefore require every row in the group to be
+`PENDING`, which is the group-level equivalent of the `.eq('status',
+'PENDING')` guard #108 added to overtime's withdraw.
+
+**SIL's refund gate moved into the function; the anomaly it records did
+not.** A SIL refund is withheld from an employee whose employment status is
+no longer SIL-eligible, and that gate has to sit inside the same lock as the
+write it guards. But the audit line it produces is the only signal HR gets
+that a balance needs correcting by hand, and it belongs with every other SIL
+audit line, in the service layer. So `undo_sil_leave_decision` and
+`cancel_sil_leave` report `refund_withheld` (with the employment status and
+name that explain it) back to the caller, which writes the
+`SIL_REFUND_ANOMALY` event — rather than the function swallowing the
+decision silently or reaching into the audit table itself.
+
 **`hr_processed_by` is cleared alongside the hash, signature, and snapshot
 on every undo path**, matching what `undoOffsetLeaveDecision` and
 `undoSilLeaveDecision` already did correctly — overtime's undo was the one
@@ -88,10 +117,14 @@ place it had been missed.
   `offsetService.undoOvertimeDecision`) now do their notification and audit
   logging off the row the RPC returns, rather than a row fetched
   separately beforehand.
-- `stampApproval` / `fetchSignaturePath` in `offsetService.js` remain in use
-  for Offset and SIL until #109 and #110 move those paths onto the same RPC
-  pattern; at that point `stampApproval` becomes dead code and should be
-  removed rather than left as an unused alternate path.
+- `stampApproval` / `fetchSignaturePath` in `offsetService.js` remained in use
+  for Offset and SIL until #109 and #110 moved those paths onto the same RPC
+  pattern. With all three record types on it, `stampApproval` and the
+  `generateApprovalHash` it wrapped were removed rather than left as an unused
+  alternate path — the approval-hash formula now lives in exactly one place per
+  side of the comparison: the decision functions produce it, `verify_form_token`
+  recomputes it. `stampApplication` and `generateApplicationHash` stay, since
+  the application hash is still computed in the browser at apply time.
 - The fake Postgres the test suite runs against (`src/test/db`) does not
   execute SQL — RPC-backed service tests register a `stubRpc()` handler
   that re-implements the function's logic in JavaScript against the same
