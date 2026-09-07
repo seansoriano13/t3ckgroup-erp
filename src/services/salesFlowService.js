@@ -29,12 +29,19 @@ const foldName = (value) => trimName(value).toLowerCase();
  * Throws unless `actorId` is a Super Admin. Enforced independently at the
  * database via RLS (0047/0048) — this check exists so the failure is
  * immediate, testable without a real database, and doesn't depend on trusting
- * a client-supplied permission flag. Prior art:
- * stageConditionService.requireSuperAdmin.
+ * a client-supplied permission flag. Prior art: commissionService's own copy.
  */
 async function requireSuperAdmin(actorId) {
-  // Access control temporarily disabled as requested by user.
-  // Anyone can edit Flow Canvas nodes (CRUD).
+  const { data, error } = await supabase
+    .from("employees")
+    .select("is_super_admin")
+    .eq("id", actorId)
+    .single();
+  if (error) throw error;
+
+  if (!data?.is_super_admin) {
+    throw new Error("Only a Super Admin can make this change.");
+  }
 }
 
 async function loadFlow(flowId) {
@@ -84,6 +91,61 @@ async function edgesOf(flowId) {
   const { data, error } = await supabase.from("flow_edges").select("*").eq("flow_id", flowId);
   if (error) throw error;
   return data || [];
+}
+
+/**
+ * Turns a Flow Snapshot's stored shape into live Stages, Edges, Actions and
+ * Conditions on `flow` — the one write path `importSnapshot` (a brand-new
+ * Sale Type) and `restoreSnapshot` (an existing flow's draft, already
+ * cleared) both share, rather than each keeping its own copy of these four
+ * creation loops that could drift apart.
+ *
+ * Stage ids are never reused from the snapshot — every Stage created here is
+ * a new row, mapped back to the id it stood in for while wiring Edges,
+ * Actions and Conditions to the right new Stage.
+ */
+async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
+  const stageIdMap = {};
+
+  for (const oldStage of snapshotData.stages || []) {
+    const newStage = await salesFlowService.addStage(flow.id, oldStage.name, actorId);
+    stageIdMap[oldStage.id] = newStage.id;
+  }
+
+  if (snapshotData.wonStageId && stageIdMap[snapshotData.wonStageId]) {
+    await salesFlowService.setWonStage(flow.id, stageIdMap[snapshotData.wonStageId], actorId);
+  }
+
+  for (const oldEdge of snapshotData.edges || []) {
+    const sourceId = stageIdMap[oldEdge.from_stage_id];
+    const targetId = stageIdMap[oldEdge.to_stage_id];
+    if (sourceId && targetId) {
+      await salesFlowService.addEdge(flow.id, sourceId, targetId, actorId);
+    }
+  }
+
+  const actionsList = Array.isArray(snapshotData.actions)
+    ? snapshotData.actions
+    : Object.values(snapshotData.actions || {}).flat();
+  for (const action of actionsList) {
+    const stageId = stageIdMap[action.stage_id];
+    if (stageId) {
+      await stageActionService.add({ stageId, kind: action.kind, config: action.config }, actorId);
+    }
+  }
+
+  const conditionsList = Array.isArray(snapshotData.conditions)
+    ? snapshotData.conditions
+    : Object.values(snapshotData.conditions || {}).flat();
+  for (const req of conditionsList) {
+    const stageId = stageIdMap[req.stage_id];
+    if (stageId) {
+      await stageConditionService.add(
+        { stageId, kind: req.kind, label: req.label, isRequired: req.is_required, config: req.config },
+        actorId,
+      );
+    }
+  }
 }
 
 export const salesFlowService = {
@@ -765,6 +827,7 @@ export const salesFlowService = {
       .from("sales_opportunities")
       .select("flow_snapshot_id")
       .eq("sale_type_id", flow.sale_type_id)
+      .eq("is_scratch", false)
       .neq("is_deleted", true);
     if (error) throw error;
 
@@ -776,59 +839,92 @@ export const salesFlowService = {
     return counts;
   },
 
+  /**
+   * Every Flow Snapshot ever locked for `flowId`, newest first — a Super
+   * Admin's view of how the agreed process has evolved (issue #36's user
+   * story #64/#65). Never touches `sales_opportunities`: browsing history is
+   * a read of `flow_snapshots` alone.
+   */
+  async listSnapshots(flowId) {
+    const { data, error } = await supabase
+      .from("flow_snapshots")
+      .select("*")
+      .eq("flow_id", flowId)
+      .order("version", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Every reason `flowId` has been reopened, newest first — issue #36's
+   * "repeated reopening is a pattern... it has to be visible", surfaced
+   * alongside Snapshot history rather than a separate audit-log lookup.
+   */
+  async listUnlockEvents(flowId) {
+    const { data, error } = await supabase
+      .from("system_audit_logs")
+      .select("*")
+      .eq("entity_type", "SALES_FLOW")
+      .eq("entity_id", flowId)
+      .eq("metadata->>event", "SALES_FLOW_UNLOCKED")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    return (data || []).map((row) => ({
+      reason: row.metadata?.reason || "",
+      employeeId: row.metadata?.employeeId || null,
+      createdAt: row.created_at,
+    }));
+  },
+
   async importSnapshot(snapshotData, name, actorId) {
     await requireSuperAdmin(actorId);
 
     const saleType = await this.createSaleType(name, actorId);
     const flow = (await this.getFlow(saleType.id)).flow;
 
-    const stageIdMap = {};
-
-    // 1. Create Stages
-    for (const oldStage of snapshotData.stages || []) {
-      const newStage = await this.addStage(flow.id, oldStage.name, actorId);
-      stageIdMap[oldStage.id] = newStage.id;
-    }
-
-    // 2. Set Won Stage
-    if (snapshotData.wonStageId && stageIdMap[snapshotData.wonStageId]) {
-      await this.setWonStage(flow.id, stageIdMap[snapshotData.wonStageId], actorId);
-    }
-
-    // 3. Create Edges
-    for (const oldEdge of snapshotData.edges || []) {
-      const sourceId = stageIdMap[oldEdge.from_stage_id];
-      const targetId = stageIdMap[oldEdge.to_stage_id];
-      if (sourceId && targetId) {
-        await this.addEdge(flow.id, sourceId, targetId, actorId);
-      }
-    }
-
-    // 4. Create Actions
-    const actionsList = Array.isArray(snapshotData.actions) ? snapshotData.actions : Object.values(snapshotData.actions || {}).flat();
-    for (const action of actionsList) {
-      const stageId = stageIdMap[action.stage_id];
-      if (stageId) {
-        await stageActionService.add({ stageId, kind: action.kind, config: action.config }, actorId);
-      }
-    }
-
-    // 5. Create Conditions
-    const reqList = Array.isArray(snapshotData.conditions) ? snapshotData.conditions : Object.values(snapshotData.conditions || {}).flat();
-    for (const req of reqList) {
-      const stageId = stageIdMap[req.stage_id];
-      if (stageId) {
-        await stageConditionService.add({ 
-          stageId, 
-          kind: req.kind, 
-          label: req.label, 
-          isRequired: req.is_required, 
-          config: req.config 
-        }, actorId);
-      }
-    }
+    await materializeSnapshotIntoFlow(flow, snapshotData, actorId);
 
     return this.getFlow(saleType.id);
+  },
+
+  /**
+   * Reopens `flowId`'s draft and rebuilds it as `snapshotId`'s shape — the
+   * explicit, audited "we went back to how it worked before" that a change
+   * turning out wrong needs to be cheap to undo.
+   *
+   * This never rewrites the Snapshot itself, or any other Snapshot — issue
+   * #83's immutability is exactly what makes a restore trustworthy. The
+   * restored shape becomes its own new Snapshot only the next time this flow
+   * is locked, the same as any other draft edit.
+   */
+  async restoreSnapshot(flowId, snapshotId, actorId) {
+    await requireSuperAdmin(actorId);
+    const flow = await requireDraft(flowId);
+
+    const { data: snapshot, error } = await supabase
+      .from("flow_snapshots")
+      .select("*")
+      .eq("id", snapshotId)
+      .single();
+    if (error) throw error;
+    if (snapshot.flow_id !== flowId) {
+      throw new Error("That Flow Snapshot does not belong to this flow.");
+    }
+
+    // Clearing the Won Stage first means every Stage, including the current
+    // one, can be deleted by the same path deleteStage already uses — no
+    // second "delete, but this time skip the Won Stage" rule to keep in sync.
+    if (flow.won_stage_id) {
+      await this.setWonStage(flowId, null, actorId);
+    }
+    for (const stage of await stagesOf(flowId)) {
+      await this.deleteStage(stage.id, actorId);
+    }
+
+    await materializeSnapshotIntoFlow(flow, snapshot.snapshot_data, actorId);
+
+    return this.getFlow(flow.sale_type_id);
   },
 
   /**

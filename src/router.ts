@@ -27,14 +27,11 @@ export type Path =
   | `/super-admin/activity-log`
   | `/super-admin/commission`
   | `/super-admin/flow-canvas`
-  | `/super-admin/flow-plans`
-  | `/super-admin/flow-plans/:id`
   | `/super-admin/lead-sources`
   | `/tasks`
   | `/verify/:token`
 
 export type Params = {
-  '/super-admin/flow-plans/:id': { id: string }
   '/verify/:token': { token: string }
 }
 

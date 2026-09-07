@@ -181,17 +181,13 @@ export const NAV_MODULES = {
       // Admin already qualifies for that entry's isPermitted check, so it
       // isn't duplicated here.
 
-      // Issue #36 — scaffolding. This entry comes back out once the locked
-      // flows are implemented as the production pipeline.
+      // Issue #36/#83 and this reshape — a long-lived feature, not a
+      // one-time build. Live editing and its Flow Snapshot history are
+      // Super-Admin-gated; the Sandbox mode inside stays open to anyone,
+      // same as before.
       {
         label: "Flow Canvas",
         link: "/super-admin/flow-canvas",
-        icon: Workflow,
-        isPermitted: () => true,
-      },
-      {
-        label: "Flow Plans",
-        link: "/super-admin/flow-plans",
         icon: Workflow,
         isPermitted: () => true,
       },

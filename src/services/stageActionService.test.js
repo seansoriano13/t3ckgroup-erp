@@ -14,11 +14,7 @@ describe("stageActionService", () => {
   });
 
   describe("add", () => {
-    // Access control is deliberately off while Flow Canvas is a
-    // collaborative build surface (see requireSuperAdmin's comment) — this
-    // test is retired, not deleted, so it's easy to find when the gate
-    // comes back once flows are locked into the production pipeline.
-    it.skip("refuses for a non-Super-Admin", async () => {
+    it("refuses for a non-Super-Admin", async () => {
       await expect(
         stageActionService.add(
           { stageId: stage.id, kind: "create_group_task", config: { title: "Test" } },

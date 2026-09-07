@@ -32,10 +32,11 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      // Flow Canvas (issue #36) is deliberately visible to everyone while it
-      // is scaffolding for building Sales Flows with Operations, so even a
-      // standard employee sees the Administration group for that one link —
-      // it comes back out once locked flows are the production pipeline.
+      // Flow Canvas (issue #36) is deliberately visible to everyone: Live
+      // editing is Super-Admin gated internally, and its Sandbox mode (the
+      // former standalone Flow Plans, folded in by this reshape) stays open
+      // to anyone, so even a standard employee sees the Administration group
+      // for that one link.
       expect(groups).toHaveLength(2);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
@@ -44,7 +45,7 @@ describe("navigation registry", () => {
         "My Leaves & Overtime",
       ]);
       expect(groups[1].key).toBe("administration");
-      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas", "Flow Plans"]);
+      expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
     });
 
     it("includes My Tasks in Workspace when user has task flow", () => {
@@ -179,8 +180,8 @@ describe("navigation registry", () => {
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         "System Admin",
         // Activity Log lives in Human Resources now (#105) — Super Admin uses that entry.
+        // Flow Plans folded into Flow Canvas's Sandbox mode by this reshape.
         "Flow Canvas",
-        "Flow Plans",
         "Commission Pool",
         "Lead Sources",
       ]);

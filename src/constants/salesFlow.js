@@ -203,3 +203,51 @@ export function conditionsForSnapshotStage(snapshotConditions = [], stageId) {
 export function actionsForSnapshotStage(snapshotActions = [], stageId) {
   return (snapshotActions || []).filter((a) => a.stage_id === stageId)
 }
+
+/**
+ * Added, removed and changed entries between two lists of the same kind of
+ * row, matched by `id`. "Changed" means the same id survived with a
+ * different value somewhere on it — a deep comparison, since a Stage Action's
+ * `config` is itself an object a single field of which may have moved.
+ */
+function diffById(itemsA = [], itemsB = []) {
+  const byIdA = new Map(itemsA.map((item) => [item.id, item]))
+  const byIdB = new Map(itemsB.map((item) => [item.id, item]))
+
+  const added = itemsB.filter((item) => !byIdA.has(item.id))
+  const removed = itemsA.filter((item) => !byIdB.has(item.id))
+  const changed = []
+  for (const [id, before] of byIdA) {
+    const after = byIdB.get(id)
+    if (after && JSON.stringify(before) !== JSON.stringify(after)) {
+      changed.push({ id, before, after })
+    }
+  }
+
+  return { added, removed, changed }
+}
+
+/**
+ * What changed between two Flow Snapshots (issue #36's user story #65,
+ * issue #83's `snapshot_data` shape) — a Super Admin's answer to "what
+ * changed since Tuesday" without reading both in full.
+ *
+ * Edges carry no "changed" state: an edge is only ever present or absent,
+ * identified by the same `id` a Flow Snapshot already stores it under.
+ */
+export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
+  const stages = diffById(snapshotDataA.stages, snapshotDataB.stages)
+  const edgesDiff = diffById(snapshotDataA.edges, snapshotDataB.edges)
+  const edges = { added: edgesDiff.added, removed: edgesDiff.removed }
+  const actions = diffById(snapshotDataA.actions, snapshotDataB.actions)
+  const conditions = diffById(snapshotDataA.conditions, snapshotDataB.conditions)
+  const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
+
+  const hasChanges =
+    wonStageChanged ||
+    [stages, edges, actions, conditions].some(
+      (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
+    )
+
+  return { stages, edges, actions, conditions, wonStageChanged, hasChanges }
+}

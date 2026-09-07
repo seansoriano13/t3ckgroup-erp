@@ -125,14 +125,27 @@ describe("flowPlanService", () => {
     expect(loaded.name).toBe("Q4 rework")
   })
 
-  it("lists and creates plans", async () => {
-    const author = makeSuperAdmin()
-    seedPlan({ name: "Older" })
+  describe("getOrCreateSandbox", () => {
+    // Flow Plans folded into a Sandbox mode on Flow Canvas: there is only
+    // ever one active draft, so nobody names or picks one from a list —
+    // the first person to open it provisions the one that everyone shares.
+    it("provisions the one Sandbox on first use", async () => {
+      const author = makeSuperAdmin()
 
-    const created = await flowPlanService.createPlan("Newer", author.id)
-    const plans = await flowPlanService.listPlans()
+      const sandbox = await flowPlanService.getOrCreateSandbox(author.id)
 
-    expect(created.name).toBe("Newer")
-    expect(plans.map((p) => p.name)).toContain("Newer")
+      expect(sandbox.id).toBeTruthy()
+      expect(db.internal.rowsOf("flow_plans")).toHaveLength(1)
+    })
+
+    it("returns the same Sandbox on a later call rather than provisioning a second one", async () => {
+      const author = makeSuperAdmin()
+      const first = await flowPlanService.getOrCreateSandbox(author.id)
+
+      const second = await flowPlanService.getOrCreateSandbox(makeSuperAdmin().id)
+
+      expect(second.id).toBe(first.id)
+      expect(db.internal.rowsOf("flow_plans")).toHaveLength(1)
+    })
   })
 })

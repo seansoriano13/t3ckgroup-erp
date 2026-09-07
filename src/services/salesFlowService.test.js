@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { salesFlowService } from "./salesFlowService"
-import { makeEmployee, makeFlowStage, makeSaleType, makeSalesFlow, makeSuperAdmin } from "@/test/factories"
+import { waitForNetworkIdle } from "@/test/network"
+import {
+  makeEmployee,
+  makeFlowStage,
+  makeOpportunity,
+  makeSaleType,
+  makeSalesFlow,
+  makeSuperAdmin,
+} from "@/test/factories"
 
 /**
  * The Flow Canvas's persistence layer (issue #36, ADR 0006). Tested against
@@ -73,11 +81,7 @@ describe("salesFlowService", () => {
       expect((await salesFlowService.getSaleTypes()).map((t) => t.id)).toEqual([second.id])
     })
 
-    // Access control is deliberately off while Flow Canvas is a
-    // collaborative build surface (see requireSuperAdmin's comment) — this
-    // test is retired, not deleted, so it's easy to find when the gate
-    // comes back once flows are locked into the production pipeline.
-    it.skip("only a Super Admin may create a Sale Type", async () => {
+    it("only a Super Admin may create a Sale Type", async () => {
       await expect(salesFlowService.createSaleType("Bidding", operations.id)).rejects.toThrow(
         /Only a Super Admin/,
       )
@@ -351,6 +355,187 @@ describe("salesFlowService", () => {
       expect(imported.saleType.id).not.toBe(sourceSaleType.id)
       expect(imported.flow.id).not.toBe(sourceFlow.id)
       expect(imported.stages[0].id).not.toBe(lead.id)
+    })
+  })
+
+  describe("restoring a Flow Snapshot into the live draft", () => {
+    async function buildLockedFlow(stageNames) {
+      const saleType = await salesFlowService.createSaleType(`Flow ${Math.random()}`, admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const stages = []
+      for (const name of stageNames) {
+        stages.push(await salesFlowService.addStage(flow.id, name, admin.id))
+      }
+      for (let i = 0; i < stages.length - 1; i += 1) {
+        await salesFlowService.addEdge(flow.id, stages[i].id, stages[i + 1].id, admin.id)
+      }
+      await salesFlowService.setWonStage(flow.id, stages[stages.length - 1].id, admin.id)
+      const locked = await salesFlowService.lockFlow(flow.id, admin.id)
+      return { saleType, flow: locked, snapshot: locked.snapshot }
+    }
+
+    it("rebuilds the flow's draft as an earlier Snapshot's shape", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Qualified", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "Trying something different", admin.id)
+      await salesFlowService.addStage(flow.id, "Extra Stage", admin.id)
+
+      const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+
+      expect(restored.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Qualified"])
+      expect(restored.edges).toHaveLength(2)
+      expect(restored.flow.won_stage_id).toBeTruthy()
+      const wonStage = restored.stages.find((s) => s.id === restored.flow.won_stage_id)
+      expect(wonStage.name).toBe("Awarded")
+    })
+
+    it("does not touch the Snapshot it restored from, or any other Snapshot", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "Redrawing it", admin.id)
+      const before = await salesFlowService.getFlow(flow.sale_type_id)
+      const leadStage = before.stages.find((s) => s.name === "Lead")
+      const extraStage = await salesFlowService.addStage(flow.id, "Extra Stage", admin.id)
+      await salesFlowService.addEdge(flow.id, leadStage.id, extraStage.id, admin.id)
+      await salesFlowService.lockFlow(flow.id, admin.id) // now version 2, with the extra stage
+      await salesFlowService.unlockFlow(flow.id, "About to restore v1", admin.id)
+
+      const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+
+      expect(restored.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
+      // Restoring is additive: it becomes a new version only on the next lock.
+      const relocked = await salesFlowService.lockFlow(restored.flow.id, admin.id)
+      expect(relocked.snapshot.version).toBe(3)
+    })
+
+    it("refuses to restore into a locked flow", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+
+      await expect(salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)).rejects.toThrow(
+        /locked/,
+      )
+    })
+
+    it("refuses a Snapshot that belongs to a different flow", async () => {
+      const { flow: flowA } = await buildLockedFlow(["Lead", "Awarded"])
+      await salesFlowService.unlockFlow(flowA.id, "reopen", admin.id)
+      const { snapshot: snapshotB } = await buildLockedFlow(["Enquiry", "Won"])
+
+      await expect(salesFlowService.restoreSnapshot(flowA.id, snapshotB.id, admin.id)).rejects.toThrow(
+        /does not belong to this flow/,
+      )
+    })
+
+    it("refuses for a non-Super-Admin", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "reopen", admin.id)
+      const regular = makeEmployee()
+
+      await expect(salesFlowService.restoreSnapshot(flow.id, snapshot.id, regular.id)).rejects.toThrow(
+        /Only a Super Admin/,
+      )
+    })
+
+    it("shares its write path with importSnapshot — both build the same shape from the same Snapshot data", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Qualified", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "reopen", admin.id)
+
+      const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+      const imported = await salesFlowService.importSnapshot(
+        snapshot.snapshot_data,
+        `Imported ${Math.random()}`,
+        admin.id,
+      )
+
+      expect(restored.stages.map((s) => s.name).sort()).toEqual(imported.stages.map((s) => s.name).sort())
+      expect(restored.edges.length).toBe(imported.edges.length)
+    })
+  })
+
+  describe("how many live SORs are running each Flow Snapshot", () => {
+    it("counts SORs by the Snapshot they are pinned to, excluding Scratch and soft-deleted SORs", async () => {
+      const { flow, snapshot: v1 } = await buildLockedFlowFor("Government Bidding")
+      await salesFlowService.unlockFlow(flow.id, "revising", admin.id)
+      const relocked = await salesFlowService.lockFlow(flow.id, admin.id)
+      const v2 = relocked.snapshot
+
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v2.id })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id, is_scratch: true })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id, is_deleted: true })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: null })
+
+      const counts = await salesFlowService.getSnapshotUsageCounts(flow.id)
+
+      expect(counts).toEqual({ [v1.id]: 2, [v2.id]: 1, none: 1 })
+    })
+
+    async function buildLockedFlowFor(saleTypeName) {
+      const saleType = await salesFlowService.createSaleType(saleTypeName, admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      const locked = await salesFlowService.lockFlow(flow.id, admin.id)
+      return { saleType, flow: locked, snapshot: locked.snapshot }
+    }
+  })
+
+  describe("Flow Snapshot history", () => {
+    it("lists a flow's Snapshots newest first, with who locked each one", async () => {
+      const saleType = await salesFlowService.createSaleType("Outright Sale", admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      const v1 = (await salesFlowService.lockFlow(flow.id, admin.id)).snapshot
+      await salesFlowService.unlockFlow(flow.id, "One more pass", admin.id)
+      const v2 = (await salesFlowService.lockFlow(flow.id, admin.id)).snapshot
+
+      const history = await salesFlowService.listSnapshots(flow.id)
+
+      expect(history.map((s) => s.version)).toEqual([2, 1])
+      expect(history.map((s) => s.id)).toEqual([v2.id, v1.id])
+      expect(history[0].created_by).toBe(admin.id)
+    })
+
+    it("is empty for a flow that has never been locked", async () => {
+      const flow = makeSalesFlow()
+
+      expect(await salesFlowService.listSnapshots(flow.id)).toEqual([])
+    })
+  })
+
+  describe("unlock reasons", () => {
+    it("lists every reason a flow was reopened, newest first", async () => {
+      const saleType = await salesFlowService.createSaleType("Outright Sale", admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      await salesFlowService.lockFlow(flow.id, admin.id)
+      await salesFlowService.unlockFlow(flow.id, "Ops wanted one more Stage", admin.id)
+      await salesFlowService.lockFlow(flow.id, admin.id)
+      await salesFlowService.unlockFlow(flow.id, "A typo in a Stage name", admin.id)
+      // unlockFlow's audit write is fire-and-forget, same as every other
+      // event in this file — wait for it to actually land before reading it back.
+      await waitForNetworkIdle()
+
+      const unlocks = await salesFlowService.listUnlockEvents(flow.id)
+
+      expect(unlocks.map((u) => u.reason)).toEqual([
+        "A typo in a Stage name",
+        "Ops wanted one more Stage",
+      ])
+      expect(unlocks[0].employeeId).toBe(admin.id)
+    })
+
+    it("is empty for a flow that has never been unlocked", async () => {
+      const flow = makeSalesFlow()
+
+      expect(await salesFlowService.listUnlockEvents(flow.id)).toEqual([])
     })
   })
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
   flowStageTone,
@@ -239,4 +240,105 @@ describe("whether a deal is sitting where it entered", () => {
   // Whether the deal has EVER moved is a different question, and a loop back
   // to the entry Stage makes the two disagree. That one needs the deal's
   // history, so it is asked in opportunityService rather than here.
+})
+
+describe("comparing two Flow Snapshots", () => {
+  const base = {
+    stages: [stage("s-lead", "Lead", 10), stage("s-qualified", "Qualified", 20)],
+    edges: [edge("s-lead", "s-qualified")],
+    actions: [{ id: "a-1", stage_id: "s-lead", kind: "create_group_task", config: { title: "Kickoff" } }],
+    conditions: [{ id: "c-1", stage_id: "s-qualified", kind: "field", config: { column: "contact_person" } }],
+    wonStageId: "s-qualified",
+  }
+
+  it("reports no changes between two identical snapshots", () => {
+    const diff = diffFlowSnapshots(base, base)
+
+    expect(diff.hasChanges).toBe(false)
+    expect(diff.stages).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.edges).toEqual({ added: [], removed: [] })
+    expect(diff.actions).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.conditions).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.wonStageChanged).toBe(false)
+  })
+
+  it("reports a Stage added", () => {
+    const next = { ...base, stages: [...base.stages, stage("s-won", "Awarded", 30)] }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.hasChanges).toBe(true)
+    expect(diff.stages.added.map((s) => s.name)).toEqual(["Awarded"])
+    expect(diff.stages.removed).toEqual([])
+  })
+
+  it("reports a Stage removed", () => {
+    const next = { ...base, stages: base.stages.filter((s) => s.id !== "s-qualified") }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.removed.map((s) => s.name)).toEqual(["Qualified"])
+  })
+
+  it("reports a Stage renamed as changed, not as removed-and-added", () => {
+    const next = {
+      ...base,
+      stages: base.stages.map((s) => (s.id === "s-qualified" ? { ...s, name: "Vetted" } : s)),
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.added).toEqual([])
+    expect(diff.stages.removed).toEqual([])
+    expect(diff.stages.changed).toEqual([
+      { id: "s-qualified", before: base.stages[1], after: next.stages[1] },
+    ])
+  })
+
+  it("reports an edge added", () => {
+    const next = { ...base, edges: [...base.edges, edge("s-qualified", "s-lead")] }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.edges.added).toEqual([edge("s-qualified", "s-lead")])
+    expect(diff.edges.removed).toEqual([])
+  })
+
+  it("reports an edge removed", () => {
+    const next = { ...base, edges: [] }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.edges.removed).toEqual(base.edges)
+    expect(diff.edges.added).toEqual([])
+  })
+
+  it("reports a Stage Action's config changed", () => {
+    const next = {
+      ...base,
+      actions: [{ ...base.actions[0], config: { title: "Kickoff call" } }],
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.actions.changed).toEqual([
+      { id: "a-1", before: base.actions[0], after: next.actions[0] },
+    ])
+    expect(diff.actions.added).toEqual([])
+    expect(diff.actions.removed).toEqual([])
+  })
+
+  it("reports a Stage Condition added and one removed", () => {
+    const next = {
+      ...base,
+      conditions: [{ id: "c-2", stage_id: "s-lead", kind: "tickbox", config: {} }],
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.conditions.added).toEqual(next.conditions)
+    expect(diff.conditions.removed).toEqual(base.conditions)
+    expect(diff.conditions.changed).toEqual([])
+  })
+
+  it("reports the Won Stage changing", () => {
+    const next = { ...base, wonStageId: "s-lead" }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.wonStageChanged).toBe(true)
+    expect(diff.hasChanges).toBe(true)
+  })
 })

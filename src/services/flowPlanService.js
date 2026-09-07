@@ -12,25 +12,31 @@ import { encodeFlowPlanState, loadFlowPlanState } from '../lib/flowPlanDoc';
 const SAVE_ATTEMPTS = 5;
 
 export const flowPlanService = {
-  async listPlans() {
-    const { data, error } = await supabase
+  /**
+   * The one shared Sandbox, provisioned on whoever opens it first.
+   *
+   * Flow Plans folded into a Sandbox mode on Flow Canvas rather than staying
+   * a list of named, created-by-form plans: there is only ever one active
+   * draft in flight, so nobody names one or chooses from a list — they just
+   * open the Sandbox.
+   */
+  async getOrCreateSandbox(actorId) {
+    const { data: existing, error } = await supabase
       .from('flow_plans')
       .select('*')
-      .order('updated_at', { ascending: false });
-
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
     if (error) throw error;
-    return data || [];
-  },
+    if (existing) return existing;
 
-  async createPlan(name, createdBy) {
-    const { data, error } = await supabase
+    const { data: created, error: createError } = await supabase
       .from('flow_plans')
-      .insert({ name, created_by: createdBy })
+      .insert({ name: 'Sandbox', created_by: actorId })
       .select()
       .single();
-
-    if (error) throw error;
-    return data;
+    if (createError) throw createError;
+    return created;
   },
 
   async getPlan(id) {

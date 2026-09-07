@@ -4,11 +4,20 @@ import { systemAuditLogService } from "./systemAuditLogService";
 const VALID_KINDS = ["create_group_task", "create_individual_task"];
 
 /**
- * Throws unless `actorId` is a Super Admin.
+ * Throws unless `actorId` is a Super Admin. Prior art: commissionService's
+ * own copy of this same check.
  */
 async function requireSuperAdmin(actorId) {
-  // Access control temporarily disabled as requested by user.
-  // Anyone can edit Flow Canvas nodes (CRUD).
+  const { data, error } = await supabase
+    .from("employees")
+    .select("is_super_admin")
+    .eq("id", actorId)
+    .single();
+  if (error) throw error;
+
+  if (!data?.is_super_admin) {
+    throw new Error("Only a Super Admin can make this change.");
+  }
 }
 
 /**
