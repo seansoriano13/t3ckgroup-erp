@@ -1,6 +1,11 @@
 import { useMemo, useRef, useState } from "react";
 import { activeMentionQuery } from "../../utils/mentions";
 
+// Eight rows overflow the list's own 200px cap, so the scroll container below
+// finally does something. A cap low enough to fit without scrolling silently
+// hides most of the company, which is the failure this number exists to avoid.
+const MAX_SUGGESTIONS = 8;
+
 /**
  * A textarea that recognises `@` and offers people to mention.
  *
@@ -33,13 +38,19 @@ export default function MentionTextarea({
   const [query, setQuery] = useState(null);
   const [active, setActive] = useState(0);
 
+  // The roster arrives in whatever order Postgres returned it, so an unsorted
+  // list made a bare `@` open on an arbitrary handful of the company. Sorting
+  // by name gives the same people the same places every time, which is what
+  // makes the list scannable rather than something to read end to end.
   const matches = useMemo(() => {
     if (!query) return [];
     const q = query.token.trim().toLowerCase();
     const pool = q
       ? people.filter((p) => p.name.toLowerCase().includes(q))
       : people;
-    return pool.slice(0, 5);
+    return [...pool]
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .slice(0, MAX_SUGGESTIONS);
   }, [people, query]);
 
   const isOpen = !!query && matches.length > 0;

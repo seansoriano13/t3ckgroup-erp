@@ -67,12 +67,13 @@ export default function GroupTasksPage() {
     enabled: !!user?.id,
   });
 
+  // Everyone needs the roster, not just managers: the detail modal feeds it to
+  // the mention picker, and gating it on `canManage` left a normal employee
+  // with an empty list and an `@` that silently matched nobody.
   const [employees, setEmployees] = useState([]);
   useEffect(() => {
-    if (canManage) {
-      employeeService.getAllEmployees().then(setEmployees);
-    }
-  }, [canManage]);
+    employeeService.getAllEmployees().then(setEmployees);
+  }, []);
 
   // --- UI State ---
   const [viewMode, setViewMode] = useState(() => {
