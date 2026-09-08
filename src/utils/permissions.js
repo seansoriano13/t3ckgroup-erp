@@ -17,6 +17,7 @@ export function getPermissionContext(user) {
   const isRoleSimulator = !!(user?.is_role_simulator || user?.isRoleSimulator);
   const subDepartment = user?.subDepartment || user?.sub_department || null;
   const canManage = isHead || isSuperAdmin;
+  const hiddenNavKeys = user?.hidden_nav_keys || user?.hiddenNavKeys || [];
 
   return {
     user,
@@ -30,5 +31,23 @@ export function getPermissionContext(user) {
     isRoleSimulator,
     subDepartment,
     canManage,
+    hiddenNavKeys,
   };
+}
+
+/**
+ * Whether one navigation entry (a nav link or a quick action) should be
+ * shown to the person `ctx` describes.
+ *
+ * Subtractive only: `entry.isPermitted(ctx) AND NOT hidden`. The override
+ * can never reveal an entry the capability flags deny — an entry a person's
+ * flags don't permit stays invisible no matter what the override says,
+ * because the override is a hide-list, not an allow-list, and there is no
+ * code path that lets it add anything back. An entry with no `key` (or a
+ * `hiddenNavKeys` entry that names no current key) is never hidden by this.
+ */
+export function isNavEntryVisible(ctx, entry) {
+  if (!entry.isPermitted(ctx)) return false;
+  if (!entry.key) return true;
+  return !ctx.hiddenNavKeys?.includes(entry.key);
 }

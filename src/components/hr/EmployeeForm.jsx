@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown, Clock } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
+import { getAllOverridableEntries } from "@/constants/navigation"
+import { getPermissionContext } from "@/utils/permissions"
 
 export default function EmployeeForm({
   initialData,
@@ -51,6 +53,7 @@ export default function EmployeeForm({
       has_sales_flow: false,
       has_task_flow: true,
       has_purchasing_flow: false,
+      hiddenNavKeys: [],
       employment_status: "",
       sil_hours_balance: 0,
       offset_hours_balance: 0,
@@ -100,6 +103,25 @@ export default function EmployeeForm({
 
     return [...new Set([...subDepts, ...fromEmps])].sort()
   }, [rawCategories, rawEmployees, formData.department])
+
+  // What the toggles above currently permit, live — the override list only
+  // ever shows entries the flags already grant, since hiding one that the
+  // flags deny already would be a no-op and confusing to present as a choice.
+  const permittedEntries = useMemo(() => {
+    const ctx = getPermissionContext(formData)
+    return getAllOverridableEntries().filter((entry) => entry.isPermitted(ctx))
+  }, [formData])
+
+  const toggleHiddenKey = (key) =>
+    setFormData((prev) => {
+      const hiddenNavKeys = prev.hiddenNavKeys || []
+      return {
+        ...prev,
+        hiddenNavKeys: hiddenNavKeys.includes(key)
+          ? hiddenNavKeys.filter((k) => k !== key)
+          : [...hiddenNavKeys, key],
+      }
+    })
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -356,6 +378,65 @@ export default function EmployeeForm({
             hoverColor="group-hover:bg-fuchsia-50"
           />
         </div>
+      </div>
+
+      {/* Hidden-from-navigation override (#133-135). Presentation only: this
+          can never grant anything the toggles above deny, and it cannot
+          hide an entry HR just revoked here — the list always reflects the
+          current toggle state, live. */}
+      <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+            <EyeOff size={12} /> Hidden From Navigation
+          </label>
+          {formData.hiddenNavKeys?.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
+              className="text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
+            >
+              <X size={11} /> Clear all
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          This controls what is shown in this employee's sidebar, not what
+          they are permitted to do. It can only hide entries their access
+          rights above already grant — it can never reveal anything those
+          rights deny.
+        </p>
+        {permittedEntries.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/70 italic">
+            Nothing to hide yet — this employee's access rights don't grant any navigation entries.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {permittedEntries.map((entry) => {
+              const hidden = (formData.hiddenNavKeys || []).includes(entry.key)
+              return (
+                <div
+                  key={entry.key}
+                  onClick={() => toggleHiddenKey(entry.key)}
+                  className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors select-none"
+                >
+                  <div>
+                    <p className={`text-xs font-bold ${hidden ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                      {entry.label}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-medium">{entry.group}</p>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      className="data-checked:bg-foreground data-checked:text-background"
+                      checked={hidden}
+                      onCheckedChange={() => toggleHiddenKey(entry.key)}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </form>
   )

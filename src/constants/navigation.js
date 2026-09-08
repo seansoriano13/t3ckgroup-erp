@@ -16,7 +16,7 @@ import {
   Workflow,
   ShoppingCart,
 } from "lucide-react";
-import { getPermissionContext } from "@/utils/permissions";
+import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
 export const NAV_MODULES = {
   workspace: {
@@ -25,6 +25,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
+        key: "workspace.dashboard",
         label: "Dashboard",
         link: "/",
         icon: LayoutList,
@@ -32,12 +33,14 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        key: "workspace.myTasks",
         label: "My Tasks",
         link: "/tasks",
         icon: ListCheck,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
       },
       {
+        key: "workspace.myLeaves",
         label: "My Leaves & Overtime",
         link: "/offsets",
         icon: Clock,
@@ -51,6 +54,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
+        key: "operations.groupTasks",
         label: "Group Tasks",
         link: "/group-tasks",
         icon: UsersRound,
@@ -58,6 +62,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        key: "operations.taskTemplates",
         label: "Task Templates",
         link: "/group-tasks/templates",
         icon: LayoutTemplate,
@@ -71,6 +76,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
+        key: "sales.sorCrm",
         label: "SOR / CRM",
         link: "/opportunities",
         icon: Target,
@@ -78,6 +84,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        key: "sales.commissionDashboard",
         label: "Commission Dashboard",
         link: "/opportunities/commission",
         icon: Percent,
@@ -85,6 +92,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        key: "sales.commissionFormula",
         label: "Commission Formula",
         link: "/opportunities/commission-formula",
         icon: Percent,
@@ -98,6 +106,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
+        key: "purchasing.queue",
         label: "Purchasing Queue",
         link: "/purchasing",
         icon: ShoppingCart,
@@ -112,6 +121,7 @@ export const NAV_MODULES = {
     defaultExpanded: true,
     links: [
       {
+        key: "approvals.tasks",
         label: "Task Approvals",
         link: "/approvals/tasks",
         icon: ShieldCheck,
@@ -127,6 +137,7 @@ export const NAV_MODULES = {
         exactMatch: true,
       },
       {
+        key: "approvals.hrVerifications",
         label: "HR Verifications",
         link: "/approvals/hr-verification",
         icon: ShieldCheck,
@@ -142,12 +153,14 @@ export const NAV_MODULES = {
     defaultExpanded: false,
     links: [
       {
+        key: "hr.employeeDirectory",
         label: "Employee Directory",
         link: "/hr/management",
         icon: Users,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
       },
       {
+        key: "hr.leavesManager",
         label: "Leaves Manager",
         link: "/hr/offsets",
         icon: Clock,
@@ -159,6 +172,7 @@ export const NAV_MODULES = {
         // the same way it stays out of the Employee Directory: the activity
         // log spans every HR entity (employee edits, category changes,
         // settings), not just leave records, so it stays scoped to full HR.
+        key: "hr.activityLog",
         label: "Activity Log",
         link: "/super-admin/activity-log",
         icon: ClipboardList,
@@ -172,6 +186,7 @@ export const NAV_MODULES = {
     defaultExpanded: false,
     links: [
       {
+        key: "admin.systemAdmin",
         label: "System Admin",
         link: "/super-admin",
         icon: Crown,
@@ -187,18 +202,21 @@ export const NAV_MODULES = {
       // Super-Admin-gated; the Sandbox mode inside stays open to anyone,
       // same as before.
       {
+        key: "admin.flowCanvas",
         label: "Flow Canvas",
         link: "/super-admin/flow-canvas",
         icon: Workflow,
         isPermitted: () => true,
       },
       {
+        key: "admin.commissionPool",
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
       {
+        key: "admin.leadSources",
         label: "Lead Sources",
         link: "/super-admin/lead-sources",
         icon: Shuffle,
@@ -228,7 +246,7 @@ export function getFilteredNavigationGroups(user) {
 
   return Object.values(NAV_MODULES)
     .map((module) => {
-      const visibleLinks = module.links.filter((link) => link.isPermitted(ctx));
+      const visibleLinks = module.links.filter((link) => isNavEntryVisible(ctx, link));
       return {
         key: module.key,
         label: module.label,
@@ -248,12 +266,14 @@ export const QUICK_ACTIONS = [
     items: [
       {
         id: "task",
+        key: "quick.task",
         label: "Log Task",
         icon: SquarePen,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
       },
       {
         id: "offset",
+        key: "quick.offset",
         label: "Apply Leave / Overtime",
         icon: Clock,
         isPermitted: () => true,
@@ -265,6 +285,7 @@ export const QUICK_ACTIONS = [
     items: [
       {
         id: "group-task",
+        key: "quick.groupTask",
         label: "Create Group Task",
         icon: UsersRound,
         isPermitted: (ctx) => ctx.isSuperAdmin || (ctx.canManage && ctx.hasTaskFlow),
@@ -276,6 +297,7 @@ export const QUICK_ACTIONS = [
     items: [
       {
         id: "sor",
+        key: "quick.sor",
         label: "Register SOR",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
@@ -285,6 +307,25 @@ export const QUICK_ACTIONS = [
 ];
 
 /**
+ * Every navigation link and quick action that carries a stable `key`,
+ * flattened with the group it belongs to — for an override editor to list,
+ * not for filtering (that stays `isPermitted`/`isNavEntryVisible`).
+ */
+export function getAllOverridableEntries() {
+  const navEntries = Object.values(NAV_MODULES).flatMap((module) =>
+    module.links
+      .filter((link) => link.key)
+      .map((link) => ({ key: link.key, label: link.label, group: module.label, isPermitted: link.isPermitted })),
+  );
+  const quickActionEntries = QUICK_ACTIONS.flatMap((group) =>
+    group.items
+      .filter((item) => item.key)
+      .map((item) => ({ key: item.key, label: item.label, group: `Quick Action: ${group.category}`, isPermitted: item.isPermitted })),
+  );
+  return [...navEntries, ...quickActionEntries];
+}
+
+/**
  * Returns categorized quick actions filtered by user role.
  * Categories with zero permitted items are excluded.
  */
@@ -292,7 +333,7 @@ export function getFilteredQuickActions(user) {
   const ctx = buildUserPermissionContext(user);
 
   return QUICK_ACTIONS.map((group) => {
-    const visibleItems = group.items.filter((item) => item.isPermitted(ctx));
+    const visibleItems = group.items.filter((item) => isNavEntryVisible(ctx, item));
     return {
       category: group.category,
       items: visibleItems,

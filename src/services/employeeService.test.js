@@ -49,6 +49,22 @@ describe("employeeService", () => {
       expect(found.canManageLeaves).toBe(true)
     })
 
+    it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
+      makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
+      makeEmployee({ email: "unhidden@t3ckgroup.test" })
+
+      const withOverride = await employeeService.getEmployeeByEmail("hidden@t3ckgroup.test")
+      const withoutOverride = await employeeService.getEmployeeByEmail("unhidden@t3ckgroup.test")
+
+      expect(withOverride.hiddenNavKeys).toEqual(["sales.commissionDashboard"])
+      expect(withoutOverride.hiddenNavKeys).toEqual([])
+
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.email === "hidden@t3ckgroup.test").hiddenNavKeys).toEqual([
+        "sales.commissionDashboard",
+      ])
+    })
+
     it("returns null for an unknown address rather than throwing", async () => {
       expect(await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).toBeNull()
     })
@@ -200,6 +216,20 @@ describe("employeeService", () => {
           actor.id,
         ),
       ).resolves.toBeTruthy()
+    })
+
+    it("writes hiddenNavKeys through to hidden_nav_keys", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes", email: "ana@t3ckgroup.test", hiddenNavKeys: ["hr.activityLog"] },
+        actor.id,
+      )
+
+      expect(await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")).toMatchObject({
+        hiddenNavKeys: ["hr.activityLog"],
+      })
     })
 
     it("refuses to move an employee onto a colleague's address", async () => {

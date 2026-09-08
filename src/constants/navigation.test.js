@@ -233,6 +233,88 @@ describe("navigation registry", () => {
       const groups = getFilteredNavigationGroups(salesUser);
       expect(groups.map((g) => g.key)).not.toContain("purchasing");
     });
+
+    // Issue #133/#134 — the hidden_nav_keys override.
+    describe("hidden_nav_keys override", () => {
+      it("hides an entry the flags permit when its key is in the override", () => {
+        const salesUser = { id: "sales-3", has_sales_flow: true };
+        const withOverride = { ...salesUser, hidden_nav_keys: ["sales.commissionDashboard"] };
+
+        const groups = getFilteredNavigationGroups(withOverride);
+        const salesGroup = groups.find((g) => g.key === "sales");
+        expect(salesGroup.links.map((l) => l.label)).toEqual([
+          "SOR / CRM",
+          "Commission Formula",
+        ]);
+      });
+
+      it("leaves an entry visible when the override does not name it", () => {
+        const salesUser = { id: "sales-4", has_sales_flow: true, hidden_nav_keys: ["purchasing.queue"] };
+
+        const groups = getFilteredNavigationGroups(salesUser);
+        const salesGroup = groups.find((g) => g.key === "sales");
+        expect(salesGroup.links.map((l) => l.label)).toEqual([
+          "SOR / CRM",
+          "Commission Dashboard",
+          "Commission Formula",
+        ]);
+      });
+
+      it("is subtractive only: naming a flag-denied entry in the override changes nothing", () => {
+        // Flow Canvas is visible to everyone, so a standard employee still
+        // sees the Administration group — the assertion is that naming the
+        // flag-denied "System Admin" entry in the override doesn't reveal it.
+        const standardUser = { id: "std-2", hidden_nav_keys: ["admin.systemAdmin"] };
+
+        const groups = getFilteredNavigationGroups(standardUser);
+        const adminGroup = groups.find((g) => g.key === "administration");
+        expect(adminGroup.links.map((l) => l.label)).not.toContain("System Admin");
+        expect(adminGroup.links.map((l) => l.label)).toEqual(["Flow Canvas"]);
+      });
+
+      it("ignores an unknown key without error", () => {
+        const salesUser = { id: "sales-5", has_sales_flow: true, hidden_nav_keys: ["not.a.real.key"] };
+
+        expect(() => getFilteredNavigationGroups(salesUser)).not.toThrow();
+        const groups = getFilteredNavigationGroups(salesUser);
+        const salesGroup = groups.find((g) => g.key === "sales");
+        expect(salesGroup.links.map((l) => l.label)).toEqual([
+          "SOR / CRM",
+          "Commission Dashboard",
+          "Commission Formula",
+        ]);
+      });
+
+      it.each([
+        { isSuperAdmin: true },
+        { isHead: true, subDepartment: "Engineering" },
+        { isHead: true },
+        { isHr: true },
+        { canManageLeaves: true },
+        { has_sales_flow: true },
+        { has_task_flow: true },
+        { has_purchasing_flow: true },
+        { isHr: true, has_sales_flow: true, has_task_flow: true },
+        {},
+      ])(
+        "no override resolves to exactly the un-overridden result across the flag matrix: %j",
+        (flags) => {
+          const user = { id: "matrix-user", ...flags };
+          expect(getFilteredNavigationGroups(user)).toEqual(
+            getFilteredNavigationGroups({ ...user, hidden_nav_keys: [] }),
+          );
+          expect(getFilteredQuickActions(user)).toEqual(
+            getFilteredQuickActions({ ...user, hidden_nav_keys: [] }),
+          );
+        },
+      );
+
+      it("also hides a quick action named in the override", () => {
+        const salesUser = { id: "sales-7", has_sales_flow: true, hidden_nav_keys: ["quick.sor"] };
+        const actions = getFilteredQuickActions(salesUser);
+        expect(actions.find((a) => a.category === "Sales")).toBeUndefined();
+      });
+    });
   });
 
   describe("getFilteredQuickActions", () => {
