@@ -4,6 +4,7 @@ import { systemAuditLogService } from './systemAuditLogService';
 import { cleanAttachments, checkOverlap, checkDateTaken, stampApplication } from './offsetService';
 import { describeLeaveRange, formatWindow } from '../utils/time';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertSilEligible, assertWithinAvailableBalance } from './leaveRules';
+import { assertHeadCleared } from './headApprovalService';
 
 /**
  * Loads the fields every SIL apply/approve path needs, and enforces
@@ -374,6 +375,23 @@ export const silService = {
    * movement.
    */
   async handleSilLeaveDecision({ groupId, status, hrNotes, hrId }) {
+    // See handleOffsetLeaveDecision's matching comment: decide_sil_leave_decision
+    // does not yet gate on head_status itself, so this pre-read/assertHeadCleared
+    // call is the accepted interim pattern, with the same narrow race window a
+    // future migration should close.
+    if (status === 'APPROVED') {
+      const { data: gateRow, error: gateErr } = await supabase
+        .from('sil_leaves')
+        .select('head_status, hr_override')
+        .eq('leave_group_id', groupId)
+        .limit(1)
+        .maybeSingle();
+
+      if (gateErr) throw new Error(gateErr.message);
+      if (!gateRow) throw new Error('Leave application not found.');
+      assertHeadCleared(gateRow, { action: 'approve this SIL leave' });
+    }
+
     const { data: result, error } = await supabase.rpc('decide_sil_leave_decision', {
       p_group_id: groupId,
       p_status: status,

@@ -4,6 +4,7 @@ import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, describeLeaveRange, formatWindow, windowsOverlap } from '../utils/time';
 import { generateApplicationHash } from '../utils/formHashes';
 import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertWithinAvailableBalance } from './leaveRules';
+import { assertHeadCleared } from './headApprovalService';
 
 /**
  * Keeps only usable Cloudinary descriptors, and stores null rather than an
@@ -557,6 +558,15 @@ export const offsetService = {
    * into losing a balance movement.
    */
   async handleOvertimeDecision({ requestId, status, approvedHours, hrNotes, hrId }) {
+    if (status !== 'REJECTED') {
+      const { data: current, error: curErr } = await supabase
+        .from('overtime_requests')
+        .select('head_status, hr_override')
+        .eq('id', requestId)
+        .single();
+      if (curErr) throw new Error(curErr.message);
+      assertHeadCleared(current, { action: 'approve this overtime request' });
+    }
     const { data: updatedReq, error } = await supabase.rpc('decide_overtime_request', {
       p_request_id: requestId,
       p_status: status,
@@ -656,6 +666,24 @@ export const offsetService = {
    * other into losing a balance movement.
    */
   async handleOffsetLeaveDecision({ groupId, status, hrNotes, hrId }) {
+    // The head-status gate is not yet folded into decide_offset_leave_decision
+    // itself (unlike decide_overtime_request, see ADR 0013 and the
+    // gate-overtime-decision migration) — this pre-read/assertHeadCleared call
+    // is the same accepted interim pattern handleSilLeaveDecision uses below,
+    // with the same narrow race window a future migration should close.
+    if (status === 'APPROVED') {
+      const { data: gateRow, error: gateErr } = await supabase
+        .from('offset_leaves')
+        .select('head_status, hr_override')
+        .eq('leave_group_id', groupId)
+        .limit(1)
+        .maybeSingle();
+
+      if (gateErr) throw new Error(gateErr.message);
+      if (!gateRow) throw new Error('Leave application not found.');
+      assertHeadCleared(gateRow, { action: 'approve this offset leave' });
+    }
+
     const { data: result, error } = await supabase.rpc('decide_offset_leave_decision', {
       p_group_id: groupId,
       p_status: status,

@@ -179,13 +179,13 @@ export const notificationService = {
          .neq('is_deleted', true);
 
        if (!allHeads || allHeads.length === 0) return;
-       
+
        const targetHeads = allHeads.filter(h => {
            if (subDeptString && sameDepartment(h.sub_department, subDeptString)) return true;
            if (departmentString && sameDepartment(h.department, departmentString) && !h.sub_department) return true;
            return false;
         });
-         
+
        if (targetHeads.length === 0) return;
 
        const inserts = targetHeads.map(h => ({
