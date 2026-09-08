@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-09-08",
+        "title": "Deal Visibility Now Enforced by the Server",
+        "version": "1.7.4",
+        "changes": [
+            "Sales Opportunity Records are now only visible to the people actually attached to a deal (registrar, owner, supporting salespeople, sales director), plus department heads, HR, and Super Admins — a stray API call can no longer reveal every deal in the company.",
+            "Tasks and Group Tasks now carry real database-level access rules matching what the screens already showed, closing a gap where those tables previously accepted reads and writes from anyone.",
+            "A salesperson with no visible deals now sees a clear empty state instead of anything that could look broken."
+        ]
+    },
+    {
+        "date": "2026-09-08",
         "title": "See the Exact Flow Version Your Deal Is On",
         "version": "1.7.3",
         "changes": [
