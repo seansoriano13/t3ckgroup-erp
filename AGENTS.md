@@ -50,6 +50,20 @@ triggered workflow (`.github/workflows/migrate-prod.yml`) — a human decides *w
 but never runs the command by hand. `scripts/hooks/pre-push` prints a one-line
 reminder of this whenever a push includes changes under `supabase/migrations/`.
 
+This applies to an agent's tools exactly as much as a terminal: a Supabase MCP
+server's `apply_migration` and `execute_sql` (DDL) are the same act as running
+`supabase db push` or `psql` by hand, just through a different door — never call
+either against a remote `project_id` (staging is `fpjxdyowngpnovotbzqi`, production
+is `epqmberwewztzbrkhhss` — verify against `.env`, not whatever a `list_projects`
+call happens to return first). `apply_migration` also doesn't use the migration
+file's own filename — it stamps the version by wall-clock time when it runs, so a
+file applied this way and then committed will *always* disagree with what CI's
+ledger already expects, which is exactly the "before the last migration on remote"
+class of failure this section exists to prevent. Prove a migration against the local
+stack (`supabase db reset` / `supabase migration up`, or `execute_sql` against a
+local Postgres — never a remote `project_id`), then commit and let the push trigger
+CI.
+
 `supabase/schema/{prod,staging}.sql` are generated, read-only mirrors of each
 database's live schema — never edit or apply them directly. Regenerate with
 `pnpm db:snapshot:prod` / `pnpm db:snapshot:staging`; a scheduled CI job
