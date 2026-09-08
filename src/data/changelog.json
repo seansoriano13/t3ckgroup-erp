@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-09-08",
+        "title": "Department Head Approval for Leaves & Overtime",
+        "version": "1.7.5",
+        "changes": [
+            "SIL leave, offset leave, and overtime requests now go to your department head for approval first, before HR makes the final decision.",
+            "When you apply, the system automatically fills in your department head based on your department and sub-department. If it can't tell for sure who that is, you'll be asked to pick one yourself.",
+            "Department heads approve or reject requests with their own e-signature, and you'll get a notification as soon as they decide.",
+            "If a department head isn't available, HR can override the head-approval step and proceed directly, with the reason recorded for the record."
+        ]
+    },
+    {
+        "date": "2026-09-08",
         "title": "Deal Visibility Now Enforced by the Server",
         "version": "1.7.4",
         "changes": [

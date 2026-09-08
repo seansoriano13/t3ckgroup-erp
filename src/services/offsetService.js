@@ -559,22 +559,20 @@ export const offsetService = {
    * HR Decision on Overtime Request ('APPROVED_PAID', 'APPROVED_OFFSET', 'REJECTED')
    * `approvedHours` defaults to the requested hours and is what gets credited.
    *
-   * The row update, the balance credit, and the approval hash/HR-signature
-   * stamp all happen inside one Postgres function (`decide_overtime_request`,
-   * see the atomic-overtime migration and ADR 0013) so two officers deciding
-   * two different requests for the same employee can never race each other
-   * into losing a balance movement.
+   * The row update, the balance credit, the approval hash/HR-signature
+   * stamp, AND the department-head-cleared gate all happen inside one
+   * Postgres function (`decide_overtime_request`, see the atomic-overtime
+   * migration and ADR 0013, and the follow-up migration
+   * 20260908130000_gate_overtime_decision_on_head_status.sql) so two
+   * officers deciding two different requests for the same employee can
+   * never race each other into losing a balance movement, and a decision
+   * can never land between a client-side head-status read and the write —
+   * there is no client-side pre-read to race against, unlike
+   * handleOffsetLeaveDecision/handleSilLeaveDecision below, which are not
+   * yet folded into a single RPC (see ADR 0013) and so still gate with a
+   * pre-read `assertHeadCleared` call.
    */
   async handleOvertimeDecision({ requestId, status, approvedHours, hrNotes, hrId }) {
-    if (status !== 'REJECTED') {
-      const { data: current, error: curErr } = await supabase
-        .from('overtime_requests')
-        .select('head_status, hr_override')
-        .eq('id', requestId)
-        .single();
-      if (curErr) throw new Error(curErr.message);
-      assertHeadCleared(current, { action: 'approve this overtime request' });
-    }
     const { data: updatedReq, error } = await supabase.rpc('decide_overtime_request', {
       p_request_id: requestId,
       p_status: status,

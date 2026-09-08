@@ -229,4 +229,32 @@ describe("headApprovalService", () => {
       expect(updated.status).toBe("REJECTED")
     })
   })
+
+  describe("self-approval guard (issue #139)", () => {
+    // guard_head_status_change (migration
+    // 20260908090000_department_head_approval_stage.sql, broadened by
+    // 20260908140000_broaden_head_status_guard.sql) is what actually stops an
+    // ordinary employee from writing head_status='REJECTED' (or head_note /
+    // head_decided_at / head_signature_version) on their OWN application via
+    // the owner-update RLS policy that already lets them UPDATE that row.
+    //
+    // It cannot be exercised here: it is a permission trigger that branches
+    // on public.is_hr() / is_super_admin() / is_head() / get_employee_id() —
+    // who the caller is — and the fake database this suite runs against has
+    // no authenticated actor to answer with (RLS itself is not enforced by
+    // the fake either — see docs/testing.md's "Known limitations of the
+    // fake" and the corresponding note in src/test/db/triggers.js, where
+    // this trigger is listed as deliberately unmirrored alongside
+    // sor_procurement_requests_guard).
+    //
+    // This guarantee — an ordinary employee cannot record a head decision on
+    // their own application — is enforced at the database layer only and is
+    // not provable by `npm run test:unit` / `test:integration`. Proving it
+    // requires a real Postgres instance (e.g. a Supabase local/staging
+    // project) with two authenticated sessions: one as the applicant
+    // attempting the direct update, one as the actual routed head.
+    it.todo(
+      "an employee cannot set head_status/head_note/head_decided_at/head_signature_version on their own application — DB-layer only, see comment above",
+    )
+  })
 })

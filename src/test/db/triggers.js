@@ -156,6 +156,19 @@ export const TRIGGERS = {
       },
     ],
   },
+
+  // sil_leaves / offset_leaves / overtime_requests:
+  // guard_head_status_change() (20260908090000_department_head_approval_stage.sql,
+  // broadened by 20260908140000_broaden_head_status_guard.sql for issue #139)
+  // is deliberately NOT mirrored here, for the same reason as
+  // sor_procurement_requests_guard() above: it decides whether to reject a
+  // write to head_status/head_note/head_decided_at/head_signature_version
+  // based on public.is_hr()/is_super_admin()/is_head()/get_employee_id() —
+  // who the caller is — and the fake has no authenticated actor to answer
+  // with. The guarantee it enforces (an ordinary employee cannot record a
+  // head decision on their own application) is checked against a real
+  // database, like the RLS policies it sits alongside; it is not provable by
+  // `npm run test:unit` / `test:integration`.
 }
 
 export function runBeforeInsert(table, row, context) {

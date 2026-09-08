@@ -355,6 +355,56 @@ describe("offsetService", () => {
       expect(balanceOf(employee.id)).toBe(16)
     })
 
+    it("refuses to approve when the department head has not cleared the request (gated inside the RPC, ADR 0013)", async () => {
+      const request = makeOvertimeRequest({
+        employee_id: employee.id,
+        startTime: '09:00', endTime: '13:00',
+        head_status: "PENDING",
+      })
+
+      await expect(
+        offsetService.handleOvertimeDecision({ requestId: request.id, status: "APPROVED_OFFSET", hrId: hr.id }),
+      ).rejects.toThrow("the department head has not approved this request yet")
+
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("lets HR's override bypass an uncleared head stage", async () => {
+      const request = makeOvertimeRequest({
+        employee_id: employee.id,
+        startTime: '09:00', endTime: '13:00',
+        head_status: "REJECTED",
+        hr_override: true,
+      })
+
+      const updated = await offsetService.handleOvertimeDecision({ requestId: request.id, status: "APPROVED_OFFSET", hrId: hr.id })
+
+      expect(updated.status).toBe("APPROVED_OFFSET")
+      expect(balanceOf(employee.id)).toBe(20)
+    })
+
+    it("does not gate REJECTED on the head stage", async () => {
+      const request = makeOvertimeRequest({
+        employee_id: employee.id,
+        startTime: '09:00', endTime: '13:00',
+        head_status: "PENDING",
+      })
+
+      const updated = await offsetService.handleOvertimeDecision({ requestId: request.id, status: "REJECTED", hrId: hr.id })
+
+      expect(updated.status).toBe("REJECTED")
+    })
+
+    it("a request with no head routed (head_status defaulting to APPROVED) decides normally", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
+      expect(request.head_status).toBe("APPROVED") // factory mirrors the DB column's own DEFAULT 'APPROVED'
+
+      const updated = await offsetService.handleOvertimeDecision({ requestId: request.id, status: "APPROVED_OFFSET", hrId: hr.id })
+
+      expect(updated.status).toBe("APPROVED_OFFSET")
+      expect(balanceOf(employee.id)).toBe(20)
+    })
+
     it("refuses a non-positive approved-hours override", async () => {
       const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 

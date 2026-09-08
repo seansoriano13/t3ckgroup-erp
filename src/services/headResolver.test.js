@@ -70,14 +70,42 @@ describe("headResolver", () => {
   })
 
   describe("resolveHead", () => {
-    it("returns only the best match", () => {
+    // Pre-fill (issue #138) is only safe when there is exactly one match at
+    // the winning tier — zero or several must leave the field for the
+    // applicant to fill in themselves, not silently guess.
+    it("returns null when there are zero heads", () => {
+      expect(headResolver.resolveHead({ department: "SALES" }, heads)).toBeNull()
+      expect(headResolver.resolveHead({ department: "OPERATIONS" }, [])).toBeNull()
+    })
+
+    it("returns the single match", () => {
       expect(
         headResolver.resolveHead({ department: "OPERATIONS", sub_department: "PURCHASING" }, heads),
       ).toBe(purchasingHead)
     })
 
-    it("returns null when nothing matches", () => {
-      expect(headResolver.resolveHead({ department: "SALES" }, heads)).toBeNull()
+    it("resolves a sub-department head even though a lower-ranked department head also exists — not ambiguous, since sub-department strictly outranks department", () => {
+      expect(
+        headResolver.resolveHead({ department: "OPERATIONS", sub_department: "PURCHASING" }, heads),
+      ).toBe(purchasingHead)
+    })
+
+    it("returns null when two heads tie at the sub-department level", () => {
+      const secondPurchasingHead = { id: "h-purchasing-2", department: "OPERATIONS", sub_department: "PURCHASING" }
+      const result = headResolver.resolveHead(
+        { department: "OPERATIONS", sub_department: "PURCHASING" },
+        [...heads, secondPurchasingHead],
+      )
+      expect(result).toBeNull()
+    })
+
+    it("returns null when two heads tie at the department level with no sub-department head available", () => {
+      const secondOpsHead = { id: "h-ops-2", department: "OPERATIONS", sub_department: null }
+      const result = headResolver.resolveHead(
+        { department: "OPERATIONS", sub_department: "WAREHOUSING" },
+        [opsHead, secondOpsHead, itHead],
+      )
+      expect(result).toBeNull()
     })
   })
 })

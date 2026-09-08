@@ -25,6 +25,18 @@ export function stubOvertimeDecisionRpcs() {
     const isDecision = isApproval || args.p_status === "REJECTED"
     const approvedHours = isApproval ? parseFloat(args.p_approved_hours ?? request.hours) : null
 
+    // Mirrors decide_overtime_request's own gate (migration
+    // 20260908130000_gate_overtime_decision_on_head_status.sql): the
+    // department-head-cleared check now lives inside the RPC itself, under
+    // the same lock as the decision it guards, so this stub has to check it
+    // too or the fake would silently accept what the real function rejects.
+    const headStatus = request.head_status ?? "APPROVED"
+    if (isApproval && headStatus !== "APPROVED" && !request.hr_override) {
+      throw new Error(
+        `Cannot approve this overtime request: the department head has not approved this request yet (head_status=${headStatus}). Use the HR override if this needs to proceed anyway.`,
+      )
+    }
+
     if (isApproval && !(approvedHours > 0)) {
       throw new Error("Approved hours must be greater than zero.")
     }
