@@ -9,7 +9,7 @@ comment on column public.employees.hidden_nav_keys is
   'Presentation only — stable navigation/quick-action keys hidden from this employee''s sidebar. Never grants access; the permission flags still gate everything. Written by HR/Super Admin only, never by the employee themself (enforced in prevent_role_escalation()).';
 
 -- Extends the existing role-escalation trigger (see
--- 20260908080000_impersonation_capability_flag.sql for its prior shape)
+-- 20260908083308_impersonation_capability_flag.sql for its prior shape)
 -- with the same governance the capability flags already get: a caller may
 -- not touch their own restricted fields, and hidden_nav_keys joins that set
 -- with an extra rule — nobody edits their own override, not even HR or a

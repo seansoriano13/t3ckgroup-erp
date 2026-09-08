@@ -2,7 +2,7 @@
  * Issue #136 — nobody edits their own hidden_nav_keys override, not even HR
  * or a Super Admin; HR and Super Admins may edit anyone else's. Governed by
  * the same prevent_role_escalation trigger that guards the capability flags
- * (see 20260908093000_hidden_nav_overrides.sql).
+ * (see 20260908093616_hidden_nav_overrides.sql).
  *
  * Seam A: every assertion runs through an ordinary client holding a real
  * signed-in user's token, never the service role.
