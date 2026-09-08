@@ -6,7 +6,7 @@ import ApplyLeaveModal from "./ApplyLeaveModal"
 import { renderWithProviders } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee, makeLeaveCategory } from "@/test/factories"
+import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
 
 /**
  * The one form employees use to claim overtime and spend leave. It writes
@@ -32,7 +32,14 @@ describe("ApplyLeaveModal", () => {
       sil_hours_balance: 40,
     })
     defaultCategory = makeLeaveCategory({ label: "Medical" })
-    mockUser.current = { id: employee.id, name: employee.name }
+    // Every apply form now carries a required Department Head field (issue
+    // #137) that auto-fills only when exactly one head matches the
+    // applicant's department — a head is seeded here so the self-service
+    // forms below can submit without selecting one by hand. The mock user
+    // needs the department itself, since the self-service path resolves the
+    // head straight off `user`, not a fetched employee row.
+    makeHead({ name: "Dept Head", department: employee.department })
+    mockUser.current = { id: employee.id, name: employee.name, department: employee.department }
     onClose = vi.fn()
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
@@ -51,7 +58,13 @@ describe("ApplyLeaveModal", () => {
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
-    const selectField = form.querySelector("select")
+    // Not `form.querySelector("select")` — the overtime tab's only select is
+    // now the required Department Head field (issue #137), so the category
+    // select (offset/SIL only) is picked out by its own placeholder option
+    // instead of by position.
+    const selectField = Array.from(form.querySelectorAll("select")).find(
+      (s) => s.querySelector('option[value=""]')?.textContent === "Select category...",
+    )
 
     await user.clear(dateField)
     await user.type(dateField, date)
@@ -256,7 +269,7 @@ describe("ApplyLeaveModal", () => {
       // The guard reads the balance from the database, not from the signed-in
       // context, so the short balance has to be the one on the row.
       const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5 })
-      mockUser.current = { id: short.id, name: short.name }
+      mockUser.current = { id: short.id, name: short.name, department: short.department }
 
       open()
       await goToSil()
@@ -311,10 +324,16 @@ describe("ApplyLeaveModal", () => {
   describe("with the employee selector (HR variant)", () => {
     let hrOfficer
     let targetEmployee
+    let targetHead
 
     beforeEach(() => {
       hrOfficer = makeEmployee({ name: "HR Manager", is_hr: true })
       targetEmployee = makeEmployee({ name: "Alice Worker" })
+      // The Department Head field is required (issue #137); a head matching
+      // the target employee's department lets the field be filled. Named
+      // distinctly from the top-level describe's own seeded head, since both
+      // beforeEach hooks stack and both heads land in the same employee pool.
+      targetHead = makeHead({ name: "Alice's Dept Head", department: targetEmployee.department })
       mockUser.current = { id: hrOfficer.id, name: hrOfficer.name }
     })
 
@@ -324,8 +343,12 @@ describe("ApplyLeaveModal", () => {
       openForHr()
       const user = userEvent.setup()
 
+      // Two comboboxes exist once the tab body mounts: the Employee picker
+      // (DOM-first, since it sits above the tab forms) and the Department
+      // Head picker inside the active tab's form — so this can't be
+      // getByRole singular.
       await waitFor(() => {
-        expect(screen.getByRole("combobox")).toBeInTheDocument()
+        expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
       })
       const employeeSelect = screen.getAllByRole("combobox")[0]
 
@@ -333,6 +356,12 @@ describe("ApplyLeaveModal", () => {
         expect(employeeSelect.children.length).toBeGreaterThan(1)
       })
       await user.selectOptions(employeeSelect, targetEmployee.id)
+
+      const headSelect = screen.getAllByRole("combobox")[1]
+      await waitFor(() => {
+        expect(headSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(headSelect, targetHead.id)
 
       const form = screen.getByRole("button", { name: /submit/i }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
@@ -374,7 +403,7 @@ describe("ApplyLeaveModal", () => {
 
       openForHr()
       await waitFor(() => {
-        expect(screen.getByRole("combobox")).toBeInTheDocument()
+        expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
       })
 
       const employeeSelect = screen.getAllByRole("combobox")[0]
