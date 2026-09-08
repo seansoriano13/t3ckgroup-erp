@@ -17,7 +17,7 @@ async function creditSilRefund(employeeId, hours, leaveId, actorId) {
     .from('employees')
     .select('sil_hours_balance, employment_status, name')
     .eq('id', employeeId)
-    .single();
+    .maybeSingle();
 
   if (empErr || !emp) return;
 
@@ -201,9 +201,10 @@ export const silService = {
       .from('sil_leaves')
       .select('*')
       .eq('id', leaveId)
-      .single();
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('SIL leave request not found.');
 
     // If approving, deduct balance first (or re-verify balance)
     if (status === 'APPROVED') {
@@ -211,9 +212,10 @@ export const silService = {
         .from('employees')
         .select('sil_hours_balance')
         .eq('id', leave.employee_id)
-        .single();
+        .maybeSingle();
 
       if (empErr) throw new Error(empErr.message);
+      if (!emp) throw new Error('Employee record not found.');
       const currentBal = parseFloat(emp.sil_hours_balance || 0);
       const leaveHrs = parseFloat(leave.hours || 0);
 
@@ -232,7 +234,7 @@ export const silService = {
     }
 
     // Update Leave Status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedLeaves, error: updateErr } = await supabase
       .from('sil_leaves')
       .update({
         status,
@@ -241,10 +243,10 @@ export const silService = {
         hr_processed_at: new Date().toISOString(),
       })
       .eq('id', leaveId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status, hr_notes: hrNotes || null };
 
     // Send Notification to Employee
     notificationService.createNotification({
@@ -277,9 +279,10 @@ export const silService = {
       .from('sil_leaves')
       .select('*')
       .eq('id', leaveId)
-      .single();
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('SIL leave request not found.');
     if (leave.status === 'PENDING') throw new Error('Leave is already pending.');
 
     // If it was APPROVED, refund the balance (capped — see creditSilRefund)
@@ -288,7 +291,7 @@ export const silService = {
     }
 
     // Revert status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedLeaves, error: updateErr } = await supabase
       .from('sil_leaves')
       .update({
         status: 'PENDING',
@@ -297,10 +300,10 @@ export const silService = {
         hr_processed_at: null,
       })
       .eq('id', leaveId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status: 'PENDING', hr_notes: null };
 
     // Notify employee
     notificationService.createNotification({
@@ -326,32 +329,34 @@ export const silService = {
   /**
    * Cancel own SIL Leave application (Employee)
    */
-  async cancelMySilLeave({ leaveId, employeeId }) {
+  async cancelMySilLeave({ leaveId, requestId, id, employeeId }) {
+    const targetId = leaveId || requestId || id;
     const { data: leave, error: leaveErr } = await supabase
       .from('sil_leaves')
       .select('*')
-      .eq('id', leaveId)
-      .single();
+      .eq('id', targetId)
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('SIL leave request not found.');
     if (leave.employee_id !== employeeId) throw new Error('Unauthorized');
     
     // Only pending or approved leaves in the future can be cancelled by employee
     // To be safe, let's refund if it was approved (capped — see creditSilRefund)
     if (leave.status === 'APPROVED') {
-      await creditSilRefund(leave.employee_id, leave.hours, leaveId, employeeId);
+      await creditSilRefund(leave.employee_id, leave.hours, targetId, employeeId);
     }
 
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedLeaves, error: updateErr } = await supabase
       .from('sil_leaves')
       .update({
         status: 'CANCELLED',
       })
-      .eq('id', leaveId)
-      .select()
-      .single();
+      .eq('id', targetId)
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status: 'CANCELLED' };
 
     // Notify HR
     notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
@@ -359,12 +364,12 @@ export const silService = {
       type: 'SIL_LEAVE_CANCELLED',
       title: 'SIL Leave Cancelled',
       message: `An employee cancelled their SIL leave for ${leave.hours} hrs on ${leave.date}.`,
-      reference_id: leaveId,
+      reference_id: targetId,
     });
 
     systemAuditLogService.addSystemEvent(
       'SIL_LEAVE',
-      leaveId,
+      targetId,
       `SIL leave for ${leave.date} was cancelled by the employee.`,
       { event: 'SIL_LEAVE_CANCELLED', employeeId },
       employeeId,

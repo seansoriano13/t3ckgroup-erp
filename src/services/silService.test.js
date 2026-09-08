@@ -377,6 +377,18 @@ describe("silService", () => {
 
       expect((await silService.getMySilLeaves(employee.id))[0].status).toBe("PENDING")
     })
+
+    it("accepts requestId, leaveId, or id when cancelling SIL leave", async () => {
+      const leave = makeSilLeave({ employee_id: employee.id })
+      await silService.cancelMySilLeave({ requestId: leave.id, employeeId: employee.id })
+      expect((await silService.getMySilLeaves(employee.id))[0].status).toBe("CANCELLED")
+    })
+
+    it("throws a clean not-found error without single-row coercion error", async () => {
+      await expect(
+        silService.cancelMySilLeave({ leaveId: "nonexistent-id", employeeId: employee.id }),
+      ).rejects.toThrow("SIL leave request not found.")
+    })
   })
 
   describe("reading leaves", () => {

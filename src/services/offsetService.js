@@ -324,9 +324,10 @@ export const offsetService = {
       .from('overtime_requests')
       .select('*')
       .eq('id', requestId)
-      .single();
+      .maybeSingle();
 
     if (reqErr) throw new Error(reqErr.message);
+    if (!request) throw new Error('Overtime request not found.');
 
     const isApproval = status === 'APPROVED_OFFSET' || status === 'APPROVED_PAID';
     const resolvedApprovedHours = isApproval
@@ -338,7 +339,7 @@ export const offsetService = {
     }
 
     // Update Request Status
-    const { data: updatedReq, error: updateErr } = await supabase
+    const { data: updatedReqs, error: updateErr } = await supabase
       .from('overtime_requests')
       .update({
         status,
@@ -347,10 +348,10 @@ export const offsetService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', requestId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedReq = updatedReqs?.[0] || { ...request, status, approved_hours: resolvedApprovedHours };
 
     // If APPROVED_OFFSET, credit the approved (not requested) hours to the balance
     if (status === 'APPROVED_OFFSET') {
@@ -358,7 +359,7 @@ export const offsetService = {
         .from('employees')
         .select('offset_hours_balance')
         .eq('id', request.employee_id)
-        .single();
+        .maybeSingle();
 
       if (!empErr && emp) {
         const newBalance = parseFloat(emp.offset_hours_balance || 0) + resolvedApprovedHours;
@@ -401,9 +402,10 @@ export const offsetService = {
       .from('overtime_requests')
       .select('*')
       .eq('id', requestId)
-      .single();
+      .maybeSingle();
 
     if (reqErr) throw new Error(reqErr.message);
+    if (!request) throw new Error('Overtime request not found.');
     if (request.status === 'PENDING') throw new Error('Request is already pending.');
 
     // If it was APPROVED_OFFSET, deduct what was actually credited.
@@ -413,7 +415,7 @@ export const offsetService = {
         .from('employees')
         .select('offset_hours_balance')
         .eq('id', request.employee_id)
-        .single();
+        .maybeSingle();
 
       if (!empErr && emp) {
         const newBalance = parseFloat(emp.offset_hours_balance || 0) - creditedHours;
@@ -425,7 +427,7 @@ export const offsetService = {
     }
 
     // Revert status
-    const { data: updatedReq, error: updateErr } = await supabase
+    const { data: updatedReqs, error: updateErr } = await supabase
       .from('overtime_requests')
       .update({
         status: 'PENDING',
@@ -434,10 +436,10 @@ export const offsetService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', requestId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedReq = updatedReqs?.[0] || { ...request, status: 'PENDING', approved_hours: null, hr_notes: null };
 
     // Notify employee
     notificationService.createNotification({
@@ -468,9 +470,10 @@ export const offsetService = {
       .from('offset_leaves')
       .select('*')
       .eq('id', leaveId)
-      .single();
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('Offset leave request not found.');
 
     // If approving, deduct balance first (or re-verify balance)
     if (status === 'APPROVED') {
@@ -478,9 +481,10 @@ export const offsetService = {
         .from('employees')
         .select('offset_hours_balance')
         .eq('id', leave.employee_id)
-        .single();
+        .maybeSingle();
 
       if (empErr) throw new Error(empErr.message);
+      if (!emp) throw new Error('Employee record not found.');
       const currentBal = parseFloat(emp.offset_hours_balance || 0);
       const leaveHrs = parseFloat(leave.hours || 0);
 
@@ -499,7 +503,7 @@ export const offsetService = {
     }
 
     // Update Leave Status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedLeaves, error: updateErr } = await supabase
       .from('offset_leaves')
       .update({
         status,
@@ -507,10 +511,10 @@ export const offsetService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', leaveId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status, hr_notes: hrNotes || null };
 
     // Send Notification to Employee
     notificationService.createNotification({
@@ -543,9 +547,10 @@ export const offsetService = {
       .from('offset_leaves')
       .select('*')
       .eq('id', leaveId)
-      .single();
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('Offset leave request not found.');
     if (leave.status === 'PENDING') throw new Error('Leave is already pending.');
 
     // If it was APPROVED, refund the balance
@@ -554,7 +559,7 @@ export const offsetService = {
         .from('employees')
         .select('offset_hours_balance')
         .eq('id', leave.employee_id)
-        .single();
+        .maybeSingle();
 
       if (!empErr && emp) {
         const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(leave.hours || 0);
@@ -566,7 +571,7 @@ export const offsetService = {
     }
 
     // Revert status
-    const { data: updatedLeave, error: updateErr } = await supabase
+    const { data: updatedLeaves, error: updateErr } = await supabase
       .from('offset_leaves')
       .update({
         status: 'PENDING',
@@ -574,10 +579,10 @@ export const offsetService = {
         updated_at: new Date().toISOString(),
       })
       .eq('id', leaveId)
-      .select()
-      .single();
+      .select();
 
     if (updateErr) throw new Error(updateErr.message);
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status: 'PENDING', hr_notes: null };
 
     // Notify employee
     notificationService.createNotification({
@@ -603,14 +608,16 @@ export const offsetService = {
   /**
    * Withdraw Overtime Request (Employee)
    */
-  async withdrawOvertimeRequest({ requestId, employeeId }) {
+  async withdrawOvertimeRequest({ requestId, leaveId, id, employeeId }) {
+    const targetId = requestId || leaveId || id;
     const { data: request, error: reqErr } = await supabase
       .from('overtime_requests')
       .select('*')
-      .eq('id', requestId)
-      .single();
+      .eq('id', targetId)
+      .maybeSingle();
 
     if (reqErr) throw new Error(reqErr.message);
+    if (!request) throw new Error('Overtime request not found.');
     if (request.employee_id !== employeeId) throw new Error('Unauthorized');
     if (request.status !== 'PENDING') throw new Error('Only pending requests can be withdrawn.');
 
@@ -620,34 +627,36 @@ export const offsetService = {
         status: 'CANCELLED',
         updated_at: new Date().toISOString(),
       })
-      .eq('id', requestId)
-      .select()
-      .single();
+      .eq('id', targetId)
+      .select();
 
     if (error) throw new Error(error.message);
+    const updated = data?.[0] || { ...request, status: 'CANCELLED' };
 
     systemAuditLogService.addSystemEvent(
       'OVERTIME',
-      requestId,
+      targetId,
       `Overtime request for ${request.date} was withdrawn by the employee.`,
       { event: 'OVERTIME_WITHDRAWN', employeeId },
       employeeId,
     ).catch(console.error);
 
-    return data;
+    return updated;
   },
 
   /**
    * Withdraw Offset Leave (Employee)
    */
-  async withdrawOffsetLeave({ leaveId, employeeId }) {
+  async withdrawOffsetLeave({ leaveId, requestId, id, employeeId }) {
+    const targetId = leaveId || requestId || id;
     const { data: leave, error: leaveErr } = await supabase
       .from('offset_leaves')
       .select('*')
-      .eq('id', leaveId)
-      .single();
+      .eq('id', targetId)
+      .maybeSingle();
 
     if (leaveErr) throw new Error(leaveErr.message);
+    if (!leave) throw new Error('Offset leave request not found.');
     if (leave.employee_id !== employeeId) throw new Error('Unauthorized');
     if (leave.status === 'REJECTED' || leave.status === 'CANCELLED') {
       throw new Error('Cannot withdraw this request.');
@@ -659,7 +668,7 @@ export const offsetService = {
         .from('employees')
         .select('offset_hours_balance')
         .eq('id', employeeId)
-        .single();
+        .maybeSingle();
 
       if (!empErr && emp) {
         const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(leave.hours || 0);
@@ -675,7 +684,7 @@ export const offsetService = {
         type: 'OFFSET_LEAVE_DECISION',
         title: 'Approved Leave Withdrawn',
         message: `An employee withdrew their approved offset leave on ${leave.date}.`,
-        reference_id: leaveId,
+        reference_id: targetId,
       });
     }
 
@@ -685,20 +694,20 @@ export const offsetService = {
         status: 'CANCELLED',
         updated_at: new Date().toISOString(),
       })
-      .eq('id', leaveId)
-      .select()
-      .single();
+      .eq('id', targetId)
+      .select();
 
     if (error) throw new Error(error.message);
+    const updated = data?.[0] || { ...leave, status: 'CANCELLED' };
 
     systemAuditLogService.addSystemEvent(
       'OFFSET_LEAVE',
-      leaveId,
+      targetId,
       `Offset leave for ${leave.date} was withdrawn by the employee.`,
       { event: 'OFFSET_LEAVE_WITHDRAWN', employeeId },
       employeeId,
     ).catch(console.error);
 
-    return data;
+    return updated;
   }
 };

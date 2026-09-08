@@ -520,6 +520,36 @@ describe("offsetService", () => {
         ).rejects.toThrow("Cannot withdraw this request.")
       }
     })
+
+    it("accepts leaveId, requestId, or id when withdrawing overtime", async () => {
+      const request = makeOvertimeRequest({ employee_id: employee.id })
+      await offsetService.withdrawOvertimeRequest({
+        leaveId: request.id,
+        employeeId: employee.id,
+      })
+      expect((await offsetService.getMyOvertimeRequests(employee.id))[0].status).toBe("CANCELLED")
+    })
+
+    it("throws a clean not-found error without single-row coercion error on overtime", async () => {
+      await expect(
+        offsetService.withdrawOvertimeRequest({ requestId: "nonexistent-id", employeeId: employee.id }),
+      ).rejects.toThrow("Overtime request not found.")
+    })
+
+    it("accepts leaveId, requestId, or id when withdrawing offset leave", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id })
+      await offsetService.withdrawOffsetLeave({
+        requestId: leave.id,
+        employeeId: employee.id,
+      })
+      expect((await offsetService.getMyOffsetLeaves(employee.id))[0].status).toBe("CANCELLED")
+    })
+
+    it("throws a clean not-found error without single-row coercion error on offset leave", async () => {
+      await expect(
+        offsetService.withdrawOffsetLeave({ leaveId: "nonexistent-id", employeeId: employee.id }),
+      ).rejects.toThrow("Offset leave request not found.")
+    })
   })
 
   describe("reading requests", () => {

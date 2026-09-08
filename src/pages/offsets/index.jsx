@@ -129,17 +129,43 @@ export default function EmployeeLeavesPage() {
   }, [user?.id, loadData]);
 
   const handleWithdrawLeave = useCallback((id, status, type) => {
+    const isOvertime = type?.toUpperCase() === 'OVERTIME';
+    const isOffset = type?.toUpperCase() === 'OFFSET';
+    const isSil = type?.toUpperCase() === 'SIL';
+
+    const title = isOvertime ? 'Withdraw Overtime Request' : 'Withdraw Leave Request';
+    const message = isOvertime
+      ? 'Are you sure you want to withdraw this overtime request? This cannot be undone.'
+      : 'Are you sure you want to withdraw this leave request? This cannot be undone.';
+
     confirmDeleteToast(
-      'Withdraw Leave Request',
-      'Are you sure you want to withdraw this leave request? This cannot be undone.',
+      title,
+      message,
       async () => {
         try {
-          if (type === 'OFFSET') {
+          if (isOvertime) {
+            await offsetService.withdrawOvertimeRequest({ requestId: id, employeeId: user?.id });
+            toast.success('Overtime request withdrawn successfully.');
+          } else if (isOffset) {
             await offsetService.withdrawOffsetLeave({ leaveId: id, employeeId: user?.id });
-          } else {
+            toast.success('Leave request withdrawn successfully.');
+          } else if (isSil) {
             await silService.cancelMySilLeave({ leaveId: id, employeeId: user?.id });
+            toast.success('Leave request withdrawn successfully.');
+          } else {
+            // Fallback if type is not specified or unknown
+            try {
+              await offsetService.withdrawOffsetLeave({ leaveId: id, employeeId: user?.id });
+              toast.success('Leave request withdrawn successfully.');
+            } catch (err) {
+              if (err.message?.includes('not found')) {
+                await silService.cancelMySilLeave({ leaveId: id, employeeId: user?.id });
+                toast.success('Leave request withdrawn successfully.');
+              } else {
+                throw err;
+              }
+            }
           }
-          toast.success('Leave request withdrawn successfully.');
           loadData();
         } catch (err) {
           toast.error(err.message || 'Failed to withdraw request.');
@@ -318,7 +344,7 @@ export default function EmployeeLeavesPage() {
                           </td>
                           <td className="p-4 text-right">
                             <button
-                              onClick={() => handleWithdrawLeave(req.id, req.status, 'OVERTIME')}
+                              onClick={() => handleWithdrawOvertime(req.id)}
                               className="p-2 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
                               title="Withdraw Request"
                             >
