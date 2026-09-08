@@ -1,0 +1,76 @@
+name: Policy tests
+
+# The one tier that can see an RLS policy or run a plpgsql function (Seam A).
+# It needs a real Postgres, so it cannot ride along with the default suite in
+# ci.yml — that job has no stack.
+#
+# Triggered by anything that could change what the database enforces: a
+# migration, the tier itself, or the local stack's own configuration. A policy
+# change that reaches staging without passing through here has been reviewed by
+# eye and nothing else.
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - "src/test/policy/**"
+      - "vitest.db.config.js"
+      - ".github/workflows/policy-tests.yml"
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "supabase/config.toml"
+      - "src/test/policy/**"
+      - "vitest.db.config.js"
+      - ".github/workflows/policy-tests.yml"
+  # Available by hand, for when a change elsewhere warrants the check.
+  workflow_dispatch:
+
+concurrency:
+  group: policy-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policies:
+    name: RLS policies and decision functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      # Reset explicitly rather than trusting the container to be fresh. On a
+      # clean runner this is redundant; on a cached or reused one it is the
+      # difference between proving the migrations and proving whatever state
+      # the machine was carrying. `--local` is spelled out because the sibling
+      # flag, `--linked`, resets a *remote* project.
+      - name: Apply the migrations from scratch
+        run: supabase db reset --local
+
+      - name: Run the policy tier
+        run: pnpm test:db:only
+
+      - name: Stack logs on failure
+        if: failure()
+        run: supabase status || true

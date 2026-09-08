@@ -8,7 +8,7 @@ pnpm test
 
 ---
 
-## The three tiers
+## The tiers
 
 The suite is read as a pyramid, and each tier runs on its own:
 
@@ -17,6 +17,7 @@ The suite is read as a pyramid, and each tier runs on its own:
 | **Unit** | `pnpm test:unit` | One function, one hook, no I/O | `src/{utils,constants,lib,hooks}`, `src/test/db`, `src/test/factories` |
 | **Integration** | `pnpm test:integration` | A service or component against the fake database | `src/{services,context,components}`, `src/test/pages/*.test.jsx` |
 | **E2E** | `pnpm test:e2e` | A whole page, mounted and driven as a user | `src/test/pages/*.e2e.test.jsx` |
+| **Policy** | `pnpm test:db` | RLS policies and plpgsql functions, executed against a real Postgres | `src/test/policy/**` |
 
 The target shape is **70 / 20 / 10**. Where it actually stands:
 
@@ -25,6 +26,66 @@ The target shape is **70 / 20 / 10**. Where it actually stands:
 | Unit | 980 | 63% | 70% |
 | Integration | 574 | 37% | 20% |
 | E2E | 10 | 0.6% | 10% |
+
+### The policy tier is separate on purpose
+
+The first three tiers run against the fake database and are one command,
+`pnpm test`. The fourth is not part of it, because it needs the local Supabase
+stack running — a colleague without Docker up would otherwise see failures that
+say nothing about their change.
+
+It exists because the fake database is blind to the two things most likely to
+hurt somebody:
+
+- **Policies.** `src/test/db/schema.js` truncates every SQL source at its first
+  `-- Functions` marker, so the parser has never read a policy. The fake
+  enforces tables and constraints, and nothing about who may see a row.
+- **Stored procedures.** `src/test/msw/postgrest.js` answers `rpc()` from a stub
+  map. The functions that move an employee's leave balance have never run in a
+  test; the service tests assert only that they were *called* correctly.
+
+So a change to either can pass ~1,560 tests while being completely wrong. The
+policy tier is the only place it can fail.
+
+```bash
+pnpm test:db        # resets the local database, then runs the tier
+pnpm test:db:only   # runs it against the stack as it stands (for iterating)
+```
+
+`pnpm test:db` resets first because the tier is meant to prove the *migrations*,
+not whatever state a machine has accumulated. Use `test:db:only` while writing a
+test and `test:db` before trusting the result. CI runs it on any change under
+`supabase/migrations/` (`.github/workflows/policy-tests.yml`).
+
+> **`pnpm test:db` wipes your local database.** That includes the magic dev
+> login and whatever `pnpm db:seed:restore` last pulled down. Restore it
+> afterwards with `pnpm db:seed:fresh`. `test:db:only` touches nothing but the
+> tier's own fixture rows.
+
+Because it resets, the tier cannot assume any reference data exists. It seeds
+what its fixtures need — currently one `crm_pipeline_stages` row, because
+`sales_opportunities.status` has a foreign key to that table and no active
+migration fills it. If a fixture starts failing on a foreign key after a reset,
+that is the same gap, not a broken test.
+
+Three things about how it is built are load-bearing:
+
+- **Assertions go through an ordinary client holding a real signed-in user's
+  token**, never the service role, because the service role bypasses RLS and
+  would prove nothing. The service role appears only in seeding and teardown.
+- **Identity resolves by the email claim.** `get_employee_id()` matches
+  `auth.jwt() ->> 'email'` against `employees.email`, so every fixture creates an
+  auth user *and* an employee row with the same address. Get that wrong and the
+  helper returns null, every policy denies, and a matrix of refusals passes
+  while proving nothing — which is why `01-fixture.test.js` asserts the link for
+  all ten identities before anything else runs.
+- **Every rule is asserted in both directions.** A permission proven without its
+  matching refusal is half a test, and the refusals are the half that matters.
+
+Some tests in `02-policies.test.js` deliberately assert behaviour that is
+*wrong* — that every employee can read every deal, that `tasks` has no policies
+at all. They are named for the issue that will change them. When that work
+lands they fail, and rewriting them is how the change gets recorded.
 
 Two notes on the gap, so nobody closes it the wrong way.
 
@@ -51,6 +112,9 @@ and push everything narrower down a tier.
   **Integration.**
 - Is it a path a real person walks, start to finish? **E2E** — and check the
   path is not already covered before adding one.
+- Does it depend on an RLS policy or a plpgsql function actually running?
+  **Policy** — the other three tiers cannot see either, so a test placed
+  anywhere else will pass whether the rule is right or wrong.
 
 ### Why page tests live in `src/test/pages`
 

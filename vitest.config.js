@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config"
+import { defineConfig, configDefaults } from "vitest/config"
 import react from "@vitejs/plugin-react-swc"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -25,11 +25,18 @@ export default defineConfig({
         // assert different behaviour than production sees.
         env: { TZ: "Asia/Manila" },
         include: ["src/**/*.test.{js,jsx}"],
-        // The suite is read as three tiers, and each can be run on its own:
+        // The policy tier needs a real Postgres, so it must never be picked up
+        // by the default run — a colleague without the local stack up would
+        // otherwise see failures that say nothing about their change.
+        // It has its own config and its own command: `pnpm test:db`.
+        exclude: [...configDefaults.exclude, "src/test/policy/**"],
+        // The suite is read as tiers, and each can be run on its own:
         //
         //   pnpm test:unit         isolated functions and hooks, no I/O
         //   pnpm test:integration  a component or service against the fake DB
         //   pnpm test:e2e          a whole page, mounted, driven as a user
+        //   pnpm test:db           RLS policies and plpgsql, on a real Postgres
+        //                          (excluded below — it has its own config)
         //
         // Membership is by location, not by hand — see the scripts in
         // package.json and the tier table in docs/testing.md.
