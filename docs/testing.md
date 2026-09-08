@@ -82,10 +82,17 @@ Three things about how it is built are load-bearing:
 - **Every rule is asserted in both directions.** A permission proven without its
   matching refusal is half a test, and the refusals are the half that matters.
 
-Some tests in `02-policies.test.js` deliberately assert behaviour that is
-*wrong* — that every employee can read every deal, that `tasks` has no policies
-at all. They are named for the issue that will change them. When that work
-lands they fail, and rewriting them is how the change gets recorded.
+Some tests deliberately assert behaviour that is *wrong* — that every employee
+can read every SOR, that `tasks` has no policies at all, that an employee can
+approve their own overtime. They are named for the issue that will change them.
+When that work lands they fail, and rewriting them is how the change gets
+recorded.
+
+`04-flow-canvas.test.js` covers the Flow Canvas write policies, which are open
+to every signed-in employee by decision rather than by accident: a Sale Type's
+rules are pinned onto each SOR as a snapshot at registration, and a stage that
+deals are parked on cannot be deleted. The file records that decision so the
+next change to those tables is a deliberate one, whichever way it goes.
 
 Two notes on the gap, so nobody closes it the wrong way.
 

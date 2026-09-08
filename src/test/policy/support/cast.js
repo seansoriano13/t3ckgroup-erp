@@ -254,7 +254,12 @@ export async function seedReferenceData() {
                 is_default: true,
                 is_system: true,
             },
-            { onConflict: "code" },
+            // `ignoreDuplicates` matters: a developer running this against a
+            // stack restored from the staging dump already has the real stage
+            // set, and overwriting their LEAD row's label or flags with these
+            // placeholder values would quietly corrupt their environment. Seed
+            // only what is missing.
+            { onConflict: "code", ignoreDuplicates: true },
         )
     if (error) throw new Error(`Seeding pipeline stages: ${error.message}`)
 }
