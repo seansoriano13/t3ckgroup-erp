@@ -3,28 +3,21 @@ import { notificationService } from "../notificationService";
 import { taskActivityService } from "./taskActivityService";
 import { TASK_STATUS } from "../../constants/status";
 import { procurementDeletionBlock } from "../procurementTaskLinks";
+import { parseChecklist } from "../../utils/checklist";
 
 /**
  * Extracts a readable plain-text snippet from a task description.
- * Handles both plain text and JSON checklist format (e.g. [{"text":"...","checked":true}]).
+ * Handles plain text, flat checklists, grouped checklists, and legacy JSON objects.
  */
 function formatTaskDescription(desc, maxLen = 30) {
   if (!desc) return "(no description)";
   const trimmed = String(desc).trim();
-  let text = trimmed;
-  if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        text = parsed.map((item) => item.text || "").filter(Boolean).join(", ");
-      } else if (parsed?.text) {
-        text = parsed.text;
-      }
-    } catch {
-      // Not valid JSON — use as-is
-    }
+  const items = parseChecklist(trimmed);
+  if (items.length > 0) {
+    const text = items.map((item) => item.text || "").filter(Boolean).join(", ");
+    return text.length > maxLen ? text.substring(0, maxLen) + "..." : text;
   }
-  return text.length > maxLen ? text.substring(0, maxLen) + "..." : text;
+  return trimmed.length > maxLen ? trimmed.substring(0, maxLen) + "..." : trimmed;
 }
 
 export const taskMutationService = {

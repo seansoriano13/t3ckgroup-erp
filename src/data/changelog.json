@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-09-08",
+        "title": "Grouped Checklists with Smart Progressive Disclosure",
+        "version": "1.7.2",
+        "changes": [
+            "Organize long checklists into distinct sections and phases with an inline '+ Add Section' button.",
+            "Smart Progressive Disclosure: Completed phases automatically collapse into clean summary bars so you can focus on the active phase without visual clutter.",
+            "Visual Step Indicators: Kanban cards and table views now show active step progress (e.g. Step 2 of 3) alongside total item counts.",
+            "100% Backward Compatible: Simple, un-sectioned checklists continue to look and work exactly as before with zero disruption."
+        ]
+    },
+    {
+        "date": "2026-09-08",
         "title": "Flow Canvas Collaborative Editing & Realtime Preview",
         "version": "1.7.1",
         "changes": [

@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 import { taskService } from "../services/taskService"
 import { getCurrentLocalTime } from "../utils/formatDate"
+import { hasChecklistContent } from "../utils/checklist"
 
 const DRAFT_KEY = "logTask_draft"
 
@@ -140,13 +141,7 @@ export function useLogTaskHandlers({
               savedDraft.taskDescription?.trim()) ||
             savedDraft.categoryId ||
             savedDraft.attachments?.length > 0 ||
-            (savedDraft.checklist && (() => {
-              try {
-                const items = typeof savedDraft.checklist === "string"
-                  ? JSON.parse(savedDraft.checklist) : savedDraft.checklist;
-                return Array.isArray(items) && items.some(i => i.text?.trim());
-              } catch { return false; }
-            })())
+            hasChecklistContent(savedDraft.checklist)
 
           if (hasMeaningfulContent) {
             setFormData({
@@ -348,23 +343,6 @@ export function useLogTaskHandlers({
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  /**
-   * Check if the checklist has at least one non-empty item.
-   */
-  const hasChecklistContent = (checklist) => {
-    if (!checklist) return false
-    try {
-      const items =
-        typeof checklist === "string" ? JSON.parse(checklist) : checklist
-      if (Array.isArray(items)) {
-        return items.some((item) => item.text?.trim())
-      }
-    } catch {
-      /* not valid JSON */
-    }
-    return false
   }
 
   const handleTogglePopover = (name) => {

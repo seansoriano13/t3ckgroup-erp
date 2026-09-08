@@ -105,6 +105,14 @@ describe("formatTaskPreview with a checklist", () => {
         )
     })
 
+    it("counts the total items across all groups in a grouped checklist", () => {
+        const grouped = [
+            { id: "g1", title: "Phase 1", items: [{ text: "a" }, { text: "b" }] },
+            { id: "g2", title: "Phase 2", items: [{ text: "c" }] },
+        ]
+        expect(formatTaskPreview(null, grouped)).toBe("Checklist: 3 Items")
+    })
+
     it("names a titled checklist by its title", () => {
         const checklist = JSON.stringify({
             title: "Switch replacement",

@@ -136,6 +136,17 @@ describe("TaskCard", () => {
       expect(screen.getByText("Switch replacement")).toBeInTheDocument()
     })
 
+    it("displays the active step and total items for grouped multi-step checklists", () => {
+      const grouped = [
+        { id: "g1", title: "Phase 1", items: [{ text: "Step 1 Done", checked: true }] },
+        { id: "g2", title: "Phase 2", items: [{ text: "Step 2 Todo", checked: false }] },
+      ]
+
+      renderCard({ task: task({ checklist: grouped }) })
+
+      expect(screen.getByText(/Step 2\/2 · 1\/2/)).toBeInTheDocument()
+    })
+
     it("accepts a checklist that arrived already parsed", () => {
       renderCard({
         task: task({ taskDescription: [{ text: "Order the part", checked: false }] }),

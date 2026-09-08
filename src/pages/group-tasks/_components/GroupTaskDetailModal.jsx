@@ -53,8 +53,8 @@ import { groupTaskTemplateService } from "@/services/groupTaskTemplateService";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import {
-  parseChecklist,
   hasChecklistContent,
+  cleanChecklistForSave,
   resolveAssignment,
 } from "@/utils/checklist";
 import EmojiPicker from "@/components/ui/EmojiPicker";
@@ -162,7 +162,7 @@ export default function GroupTaskDetailModal({
         return {
           employeeId: m.employee_id,
           taskDescription: description,
-          checklist: checklist.length > 0 ? checklist : null,
+          checklist: m.checklist || (checklist.length > 0 ? checklist : null),
           role: m.role || "",
           customRole: m.custom_role || "",
         };
@@ -190,12 +190,13 @@ export default function GroupTaskDetailModal({
     // backfill does not drop its serialised checklist into the description box
     // and then save it back as prose.
     const { description, checklist } = resolveAssignment(member);
+    const resolvedChecklist = member.checklist || (checklist.length > 0 ? checklist : null);
     setDraft({
       id: member.id,
       employeeId: member.employee_id,
       taskDescription: description,
-      checklist: checklist.length > 0 ? checklist : null,
-      showChecklist: checklist.length > 0,
+      checklist: resolvedChecklist,
+      showChecklist: Boolean(resolvedChecklist && (Array.isArray(resolvedChecklist) ? resolvedChecklist.length > 0 : true)),
       role: member.role || "",
       customRole: member.custom_role || "",
     });
@@ -220,8 +221,7 @@ export default function GroupTaskDetailModal({
     setDraft((prev) => (prev ? { ...prev, [field]: value } : prev));
 
   const normaliseDraftChecklist = (value) => {
-    const items = parseChecklist(value).filter((i) => i?.text?.trim());
-    return items.length > 0 ? items : null;
+    return cleanChecklistForSave(value);
   };
 
   const handleSaveDraft = async () => {
@@ -1024,7 +1024,7 @@ export default function GroupTaskDetailModal({
                               </div>
                               <div className="bg-muted/30 rounded-xl p-3 border border-border/50">
                                 <ChecklistTaskRenderer
-                                  description={checklistItems}
+                                  description={member.checklist || checklistItems}
                                   isOwner={isMe}
                                   disabled={!isMe || isDone}
                                   searchTerm={searchTerm}

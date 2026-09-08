@@ -177,7 +177,13 @@ export default function GroupTaskMemberPanel({
                   selected member's items. */}
               <ChecklistTaskInput
                 key={member.id}
-                value={JSON.stringify(checklistItems)}
+                value={
+                  member.checklist
+                    ? typeof member.checklist === "string"
+                      ? member.checklist
+                      : JSON.stringify(member.checklist)
+                    : JSON.stringify(checklistItems)
+                }
                 onChange={(e) => onChange("checklist", e.target.value)}
                 name="checklist"
               />

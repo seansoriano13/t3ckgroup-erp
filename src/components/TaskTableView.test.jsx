@@ -95,4 +95,21 @@ describe("TaskTableView", () => {
 
     expect(screen.getByText("2/3")).toBeInTheDocument();
   });
+
+  it("renders grouped checklist progress with step indicator", () => {
+    const groupedTask = mockTask({
+      id: "t-grouped",
+      projectTitle: "Multi-Step Project",
+      checklist: [
+        { id: "g1", title: "Step 1", items: [{ text: "Item 1", checked: true }] },
+        { id: "g2", title: "Step 2", items: [{ text: "Item 2", checked: false }] },
+      ],
+    });
+
+    renderWithProviders(
+      <TaskTableView tasks={[groupedTask]} searchTerm="" onView={vi.fn()} />,
+    );
+
+    expect(screen.getByText(/S2\s*·\s*1\/2/)).toBeInTheDocument();
+  });
 });

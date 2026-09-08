@@ -11,7 +11,7 @@ import GroupRoleManagerModal from "../../_components/GroupRoleManagerModal";
 import GroupTaskMemberRail from "../../_components/GroupTaskMemberRail";
 import GroupTaskMemberPanel from "../../_components/GroupTaskMemberPanel";
 import { makeMemberDraft } from "../../utils/templateApply";
-import { parseChecklist } from "@/utils/checklist";
+import { cleanChecklistForSave } from "@/utils/checklist";
 
 /**
  * TemplateEditorModal — create/edit a Group Task Template.
@@ -77,11 +77,7 @@ export default function TemplateEditorModal({
   useEffect(() => {
     if (isOpen && isEditing && templateData) {
       const hydrated = (templateData.members || []).map((m) => {
-        const parsed = parseChecklist(m.checklist);
-        const validItems = parsed
-          .filter((i) => i?.text?.trim())
-          .map((i) => ({ text: i.text.trim(), checked: false }));
-        const checklist = validItems.length > 0 ? validItems : null;
+        const checklist = cleanChecklistForSave(m.checklist, { resetChecked: true });
         return {
           ...makeMemberDraft(),
           employeeId: m.employee_id || null,

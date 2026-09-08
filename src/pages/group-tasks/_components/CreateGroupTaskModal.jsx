@@ -25,7 +25,10 @@ import GroupRoleManagerModal from "./GroupRoleManagerModal";
 import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
-import { parseChecklist, hasChecklistContent } from "@/utils/checklist";
+import {
+  hasChecklistContent,
+  cleanChecklistForSave,
+} from "@/utils/checklist";
 import {
   applyTemplateToMembers,
   applyTemplateDefaults,
@@ -85,6 +88,7 @@ export default function CreateGroupTaskModal({
   const queryClient = useQueryClient();
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
     if (isOpen) {
       if (initialData) {
         setTitle(initialData.title || "");
@@ -101,7 +105,6 @@ export default function CreateGroupTaskModal({
         // Resetting on open is the point: the modal keeps its fields mounted
         // between openings, so without this the next open shows the last
         // session's input. isOpen is the external event being followed.
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setTitle("");
         setDescription("");
         setDueDate(null);
@@ -113,6 +116,7 @@ export default function CreateGroupTaskModal({
       }
       setTimeout(() => titleRef.current?.focus(), 150);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [isOpen, initialData]);
 
   const employeeOptions = useMemo(() => {
@@ -257,11 +261,10 @@ export default function CreateGroupTaskModal({
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
-        const items = parseChecklist(m.checklist).filter((i) => i?.text?.trim());
         return {
           employeeId: m.employeeId,
           taskDescription: m.taskDescription.trim(),
-          checklist: items.length > 0 ? items : null,
+          checklist: cleanChecklistForSave(m.checklist),
           role: m.role,
           customRole: m.customRole,
         };

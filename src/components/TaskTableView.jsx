@@ -20,6 +20,8 @@ import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import { TASK_STATUS } from "../constants/status";
 import { ArrowUpRight } from "lucide-react";
 
+import { getChecklistProgress } from "../utils/checklist";
+
 const formatDate = (dateString) => {
   if (!dateString) return "—";
   const date = new Date(dateString);
@@ -32,61 +34,27 @@ const formatDate = (dateString) => {
 };
 
 const getTaskProgress = (task) => {
-  let isChecklist = false;
-  let total = 0;
-  let checked = 0;
-  let parsed = null;
+  const source = task.checklist || task.taskDescription;
+  const progress = getChecklistProgress(source);
 
-  if (task.checklist) {
-    isChecklist = true;
-    if (typeof task.checklist === "string") {
-      try {
-        parsed = JSON.parse(task.checklist);
-      } catch {
-        parsed = task.checklist;
-      }
-    } else {
-      parsed = task.checklist;
-    }
-  } else if (task.taskDescription) {
-    const trimmed =
-      typeof task.taskDescription === "string"
-        ? task.taskDescription.trim()
-        : "";
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) isChecklist = true;
-      } catch {
-        /* empty */
-      }
-    } else if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-      try {
-        parsed = JSON.parse(trimmed);
-        if (parsed && Array.isArray(parsed.items)) isChecklist = true;
-      } catch {
-        /* empty */
-      }
-    } else if (Array.isArray(task.taskDescription)) {
-      isChecklist = true;
-      parsed = task.taskDescription;
-    }
+  if (progress.total > 0) {
+    return {
+      isChecklist: true,
+      total: progress.total,
+      checked: progress.checked,
+      percent: Math.round((progress.checked / progress.total) * 100),
+      isGrouped: progress.isGrouped,
+      activeStepIndex: progress.activeStepIndex,
+      totalSteps: progress.totalSteps,
+    };
   }
 
-  if (isChecklist && parsed) {
-    const items = Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed.items)
-        ? parsed.items
-        : [];
-    total = items.length;
-    checked = items.filter(
-      (item) => item && typeof item === "object" && item.checked,
-    ).length;
-    return { isChecklist: true, total, checked, percent: total > 0 ? Math.round((checked / total) * 100) : 0 };
-  }
-
-  return { isChecklist: false, total: 0, checked: 0, percent: task.status === TASK_STATUS.COMPLETE ? 100 : 0 };
+  return {
+    isChecklist: false,
+    total: 0,
+    checked: 0,
+    percent: task.status === TASK_STATUS.COMPLETE ? 100 : 0,
+  };
 };
 
 const getTaskDisplayData = (task) => {
@@ -417,7 +385,14 @@ export default function TaskTableView({
                     {/* Progress / Checklist */}
                     <td className="py-3.5 px-3 align-middle">
                       {progress.isChecklist ? (
-                        <div className="flex items-center gap-2 w-full max-w-[120px]">
+                        <div
+                          className="flex items-center gap-2 w-full max-w-[130px]"
+                          title={
+                            progress.isGrouped && progress.totalSteps > 1
+                              ? `Step ${progress.activeStepIndex + 1} of ${progress.totalSteps} · ${progress.checked}/${progress.total} completed`
+                              : `${progress.checked}/${progress.total} completed`
+                          }
+                        >
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-full rounded-full bg-green-600 transition-all duration-300"
@@ -425,7 +400,9 @@ export default function TaskTableView({
                             />
                           </div>
                           <span className="text-[10px] font-bold text-muted-foreground shrink-0 tabular-nums">
-                            {progress.checked}/{progress.total}
+                            {progress.isGrouped && progress.totalSteps > 1
+                              ? `S${progress.activeStepIndex + 1} · ${progress.checked}/${progress.total}`
+                              : `${progress.checked}/${progress.total}`}
                           </span>
                         </div>
                       ) : (

@@ -1,5 +1,5 @@
 import { supabase } from "../lib/supabase";
-import { parseChecklist } from "@/utils/checklist";
+import { cleanChecklistForSave } from "@/utils/checklist";
 
 export const groupTaskTemplateService = {
   async getTemplates({ includeArchived = false } = {}) {
@@ -179,16 +179,13 @@ export const groupTaskTemplateService = {
 function toMemberPayloads(templateId, members) {
   return members.map((m, index) => {
     const rawChecklist = m.checklist;
-    const parsed = parseChecklist(rawChecklist);
-    const validItems = parsed
-      .filter((i) => i?.text?.trim())
-      .map((i) => ({ text: i.text.trim(), checked: false }));
+    const checklist = cleanChecklistForSave(rawChecklist, { resetChecked: true });
 
     return {
       template_id: templateId,
       employee_id: m.employeeId || m.employee_id || null,
       task_description: (m.taskDescription ?? m.task_description ?? "").trim() || null,
-      checklist: validItems.length > 0 ? validItems : null,
+      checklist,
       role: m.role || null,
       custom_role: m.customRole || m.custom_role || null,
       sort_order: index,
