@@ -255,6 +255,63 @@ describe("locking a flow, which is what writes a snapshot", () => {
         },
     )
 
+    it("leaves the flow locked with no snapshot when a non-Super-Admin locks it (#181)", async () => {
+        // `lockFlow` flips `sales_flows.state` and then inserts the snapshot,
+        // as two separate calls with no transaction around them. Since the
+        // migration opened `sales_flows` but not `flow_snapshots`, the first
+        // succeeds and the second is refused — leaving the flow published but
+        // unusable: locked, so editing is refused until someone unlocks it,
+        // and with no snapshot, so `entryStageFor` can find nothing and no SOR
+        // can be registered against it.
+        //
+        // This reproduces the two writes in the order the service makes them.
+        const svc = serviceClient()
+        const saleType = await svc
+            .from("sale_types")
+            .insert({ name: `${MARKER} Half-locked` })
+            .select("id")
+            .single()
+        const flow = await svc
+            .from("sales_flows")
+            .insert({ sale_type_id: saleType.data.id })
+            .select("id, state")
+            .single()
+        expect(flow.data.state).toBe("draft")
+
+        try {
+            const client = await clientFor("head")
+
+            const flipped = await tryUpdate(client, "sales_flows", flow.data.id, {
+                state: "locked",
+            })
+            expect(flipped.affected, "the state flip was refused, so the trap is gone").toBe(1)
+
+            const snapshot = await tryInsert(client, "flow_snapshots", {
+                flow_id: flow.data.id,
+                version: 1,
+                snapshot_data: { stages: [], edges: [] },
+            })
+            expect(snapshot.ok).toBe(false)
+
+            const after = await svc
+                .from("sales_flows")
+                .select("state")
+                .eq("id", flow.data.id)
+                .single()
+            const snaps = await svc
+                .from("flow_snapshots")
+                .select("id")
+                .eq("flow_id", flow.data.id)
+
+            expect(after.data.state).toBe("locked")
+            expect(snaps.data).toHaveLength(0)
+        } finally {
+            await svc.from("flow_snapshots").delete().eq("flow_id", flow.data.id)
+            await svc.from("sales_flows").delete().eq("id", flow.data.id)
+            await svc.from("sale_types").delete().eq("id", saleType.data.id)
+        }
+    })
+
     it("a Super Admin can write one", async () => {
         const client = await clientFor("superAdmin")
         const result = await tryInsert(client, "flow_snapshots", {
