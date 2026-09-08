@@ -11,6 +11,10 @@ import { appSettingsService } from "../../services/appSettingsService";
 import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
+import { formatBuildFingerprint } from "@/utils/buildFingerprint";
+
+const appSemver = __APP_SEMVER__;
+const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
 
 function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPending, isLoading }) {
   return (
@@ -150,8 +154,11 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">View the latest updates and release notes.</p>
                 </div>
               </div>
-              <div className="text-muted-foreground group-hover:text-foreground transition-colors pr-2">
-                <ArrowRight size={16} />
+              <div className="flex items-center gap-2 pr-2">
+                <span className="text-xs font-semibold text-muted-foreground">v{appSemver}</span>
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                  <ArrowRight size={16} />
+                </span>
               </div>
             </div>
           </div>
@@ -253,6 +260,11 @@ export default function SettingsPage() {
           <HelpCircle size={12} />
           Have questions? View the Help & FAQ
         </button>
+      </div>
+
+      {/* Build fingerprint — for support conversations, not the reader */}
+      <div className="mt-2 flex items-center justify-center">
+        <span className="text-[10px] text-muted-foreground/40">{buildFingerprint}</span>
       </div>
     </PageContainer>
   );
