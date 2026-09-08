@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-09-08",
+        "title": "Flow Canvas Live & Sandbox Realtime Preview",
+        "version": "1.7.1",
+        "changes": [
+            "Enabled real-time live preview in Flow Canvas: see who else is viewing the canvas with active user indicators, live collaborative cursors, and real-time node drag previews across both Live and Sandbox modes.",
+            "Fixed an issue where switching to Sandbox mode did not properly activate collaborative presence and shared document editing."
+        ]
+    },
+    {
         "date": "2026-09-07",
         "title": "Retail Orders Queue",
         "version": "1.7.0",

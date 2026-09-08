@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderWithProviders } from "../support"
 import { db } from "../db/store"
-import { makeEmployee, makeSuperAdmin } from "../factories"
+import { makeEmployee, makeSaleType, makeSalesFlow, makeSuperAdmin } from "../factories"
 import { supabase } from "@/lib/supabase"
 
 /**
@@ -55,7 +55,7 @@ describe("FlowCanvasAdminPage modes", () => {
     expect(screen.queryByRole("button", { name: /Snapshot History/ })).not.toBeInTheDocument()
   })
 
-  it("provisions the one shared Sandbox on switching to Sandbox mode", async () => {
+  it("provisions the one shared Sandbox on switching to Sandbox mode and connects to sandbox presence", async () => {
     mockUser.current = makeSuperAdmin({ name: "Super Admin" })
     const user = userEvent.setup()
     renderWithProviders(<FlowCanvasAdminPage />)
@@ -64,8 +64,31 @@ describe("FlowCanvasAdminPage modes", () => {
     await user.click(screen.getByRole("button", { name: "Sandbox" }))
 
     await waitFor(() => expect(db.internal.rowsOf("flow_plans")).toHaveLength(1))
+    const sandbox = db.internal.rowsOf("flow_plans")[0]
     expect(screen.getByRole("button", { name: "Sandbox" })).toHaveAttribute("aria-pressed", "true")
     // Sandbox mode has no Snapshot history — that only ever describes Live.
     expect(screen.queryByRole("button", { name: /Snapshot History/ })).not.toBeInTheDocument()
+    // Verifies Sandbox presence is subscribed
+    await waitFor(() => {
+      expect(supabase.channel).toHaveBeenCalledWith(
+        `flow_presence_${sandbox.id}`,
+        expect.anything()
+      )
+    })
+  })
+
+  it("connects to live presence channel in Live mode when a sale type is active", async () => {
+    const saleType = makeSaleType({ name: "Live Sales Flow" })
+    makeSalesFlow({ sale_type_id: saleType.id })
+
+    mockUser.current = makeSuperAdmin({ name: "Super Admin" })
+    renderWithProviders(<FlowCanvasAdminPage />)
+
+    await waitFor(() => {
+      expect(supabase.channel).toHaveBeenCalledWith(
+        `flow_presence_live_${saleType.id}`,
+        expect.anything()
+      )
+    })
   })
 })

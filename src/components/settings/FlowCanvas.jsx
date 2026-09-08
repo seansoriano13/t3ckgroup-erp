@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useContext } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import * as dagre from "@dagrejs/dagre";
 import {
@@ -39,7 +39,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { supabase } from "../../lib/supabase";
 
-import { useFlowData, FlowDataProvider } from "./FlowDataContext";
+import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
 import { entryStage, flowLockBlockers } from "../../constants/salesFlow";
 import { useAuth } from "../../context/AuthContext";
@@ -100,18 +100,28 @@ const defaultEdgeOptions = {
  * so this component can never disagree with either about the answer.
  */
 export default function FlowCanvas() {
-  return (
-    <FlowDataProvider>
-      <ReactFlowProvider>
-        <FlowCanvasInner />
-      </ReactFlowProvider>
-    </FlowDataProvider>
+  const existingContext = useContext(FlowDataContext);
+  const content = (
+    <ReactFlowProvider>
+      <FlowCanvasInner />
+    </ReactFlowProvider>
   );
+
+  if (existingContext) {
+    return content;
+  }
+
+  return <FlowDataProvider>{content}</FlowDataProvider>;
 }
 
 function FlowCanvasInner() {
   const { user } = useAuth();
-  const { salesFlow: salesFlowService, stageCondition: stageConditionService, stageAction: stageActionService, presenceScope } = useFlowData();
+  const {
+    salesFlow: salesFlowService,
+    stageCondition: stageConditionService,
+    stageAction: stageActionService,
+    presenceScope: contextPresenceScope,
+  } = useFlowData();
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
   const [newSaleTypeName, setNewSaleTypeName] = useState("");
@@ -190,17 +200,20 @@ function FlowCanvasInner() {
     [setRfNodes],
   );
 
+  const effectivePresenceScope =
+    contextPresenceScope || (effectiveSaleTypeId ? `live_${effectiveSaleTypeId}` : null);
+
   const { peers, cursors, publishCursor, publishNodeDrag } = useFlowPresence({
-    scopeId: presenceScope,
+    scopeId: effectivePresenceScope,
     user,
     onPeerNodeDrag: applyPeerDrag,
   });
 
-  // The live flow lives in tables, so this canvas still has to hear about a
-  // change another browser made to one. A plan has no rows to watch — its
-  // changes arrive through the document instead.
+  // The live flow lives in tables, so this canvas hears about changes another
+  // browser made to them via postgres_changes. A sandbox plan has no rows to watch
+  // — its changes arrive through the Yjs CRDT document instead.
   useEffect(() => {
-    if (!effectiveSaleTypeId || presenceScope) return undefined;
+    if (!effectiveSaleTypeId || contextPresenceScope) return undefined;
 
     const channel = supabase.channel(`flow_canvas_${effectiveSaleTypeId}`);
 
@@ -214,8 +227,9 @@ function FlowCanvasInner() {
 
     return () => {
       channel.unsubscribe();
+      supabase.removeChannel(channel);
     };
-  }, [effectiveSaleTypeId, presenceScope, refresh]);
+  }, [effectiveSaleTypeId, contextPresenceScope, refresh]);
 
   const handlePointerMove = useCallback(
     (event) => {
