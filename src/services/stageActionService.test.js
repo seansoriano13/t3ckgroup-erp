@@ -14,13 +14,12 @@ describe("stageActionService", () => {
   });
 
   describe("add", () => {
-    it("refuses for a non-Super-Admin", async () => {
-      await expect(
-        stageActionService.add(
-          { stageId: stage.id, kind: "create_group_task", config: { title: "Test" } },
-          regular.id,
-        ),
-      ).rejects.toThrow(/Only a Super Admin/);
+    it("allows any authenticated employee to add an action", async () => {
+      const added = await stageActionService.add(
+        { stageId: stage.id, kind: "create_group_task", config: { title: "Test" } },
+        regular.id,
+      );
+      expect(added.kind).toBe("create_group_task");
     });
 
     it("adds a valid action", async () => {

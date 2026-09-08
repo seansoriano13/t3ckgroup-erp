@@ -26,22 +26,11 @@ const trimName = (value) => (value || "").trim();
 const foldName = (value) => trimName(value).toLowerCase();
 
 /**
- * Throws unless `actorId` is a Super Admin. Enforced independently at the
- * database via RLS (0047/0048) — this check exists so the failure is
- * immediate, testable without a real database, and doesn't depend on trusting
- * a client-supplied permission flag. Prior art: commissionService's own copy.
+ * Access control check for Flow Canvas modifications.
+ * Opened to allow all authenticated employees to edit Flow Canvas.
  */
-async function requireSuperAdmin(actorId) {
-  const { data, error } = await supabase
-    .from("employees")
-    .select("is_super_admin")
-    .eq("id", actorId)
-    .single();
-  if (error) throw error;
-
-  if (!data?.is_super_admin) {
-    throw new Error("Only a Super Admin can make this change.");
-  }
+async function requireSuperAdmin(_actorId) {
+  // Access control opened: anyone can make changes on Flow Canvas.
 }
 
 async function loadFlow(flowId) {

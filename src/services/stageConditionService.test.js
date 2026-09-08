@@ -78,15 +78,14 @@ describe("stageConditionService", () => {
   })
 
   describe("add", () => {
-    it("refuses for a non-Super-Admin", async () => {
-      await expect(
-        stageConditionService.add(
-          { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
-          regular.id,
-        ),
-      ).rejects.toThrow(/Only a Super Admin/)
+    it("allows any authenticated employee to add a condition", async () => {
+      const created = await stageConditionService.add(
+        { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
+        regular.id,
+      )
 
-      expect(await stageConditionService.getForStage(stage.id)).toEqual([])
+      expect(created.label).toBe("Contact person on file")
+      expect(await stageConditionService.getForStage(stage.id)).toHaveLength(1)
     })
 
     it("lets a Super Admin add a condition", async () => {
@@ -262,19 +261,17 @@ describe("stageConditionService", () => {
   })
 
   describe("reorder", () => {
-    it("refuses for a non-Super-Admin", async () => {
+    it("allows any authenticated employee to reorder conditions", async () => {
       const first = makeStageCondition({ stage_id: stage.id, sort_order: 0 })
       const second = makeStageCondition({ stage_id: stage.id, sort_order: 1 })
 
-      await expect(
-        stageConditionService.reorder(
-          [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
-          regular.id,
-        ),
-      ).rejects.toThrow(/Only a Super Admin/)
+      await stageConditionService.reorder(
+        [{ id: first.id, sortOrder: 1 }, { id: second.id, sortOrder: 0 }],
+        regular.id,
+      )
 
       const conditions = await stageConditionService.getForStage(stage.id)
-      expect(conditions.map((r) => r.id)).toEqual([first.id, second.id])
+      expect(conditions.map((r) => r.id)).toEqual([second.id, first.id])
     })
 
     it("persists a new order and round-trips through getForStage", async () => {
@@ -307,14 +304,11 @@ describe("stageConditionService", () => {
   })
 
   describe("archive", () => {
-    it("refuses for a non-Super-Admin", async () => {
+    it("allows any authenticated employee to archive a condition", async () => {
       const condition = makeStageCondition({ stage_id: stage.id })
 
-      await expect(stageConditionService.archive(condition.id, regular.id)).rejects.toThrow(
-        /Only a Super Admin/,
-      )
-
-      expect(await stageConditionService.getForStage(stage.id)).toHaveLength(1)
+      const archived = await stageConditionService.archive(condition.id, regular.id)
+      expect(archived.archived_at).toBeTruthy()
     })
 
     it("soft-archives — the row survives, just stops showing as live", async () => {

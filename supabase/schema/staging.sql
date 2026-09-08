@@ -1389,12 +1389,8 @@ create policy "flow_edges_write" on public."flow_edges"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "flow_plans_delete" on public."flow_plans"
   as permissive
   for delete
@@ -1437,12 +1433,8 @@ create policy "flow_stage_actions_write" on public."flow_stage_actions"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "flow_stages_read" on public."flow_stages"
   as permissive
   for select
@@ -1452,12 +1444,8 @@ create policy "flow_stages_write" on public."flow_stages"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "group_task_template_members_delete" on public."group_task_template_members"
   as permissive
   for delete
@@ -1646,12 +1634,8 @@ create policy "sale_types_write" on public."sale_types"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "Allow public read of sales activities" on public."sales_activities"
   as permissive
   for select
@@ -1709,12 +1693,8 @@ create policy "sales_flows_write" on public."sales_flows"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "sor_insert" on public."sales_opportunities"
   as permissive
   for insert
@@ -1949,12 +1929,8 @@ create policy "stage_conditions_write" on public."stage_conditions"
   as permissive
   for all
   to authenticated
-  using ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  using (true)
+  with check (true);
 create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert

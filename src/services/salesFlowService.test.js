@@ -81,10 +81,9 @@ describe("salesFlowService", () => {
       expect((await salesFlowService.getSaleTypes()).map((t) => t.id)).toEqual([second.id])
     })
 
-    it("only a Super Admin may create a Sale Type", async () => {
-      await expect(salesFlowService.createSaleType("Bidding", operations.id)).rejects.toThrow(
-        /Only a Super Admin/,
-      )
+    it("allows any employee to create a Sale Type", async () => {
+      const type = await salesFlowService.createSaleType("Bidding", operations.id)
+      expect(type.name).toBe("Bidding")
     })
   })
 
@@ -424,14 +423,13 @@ describe("salesFlowService", () => {
       )
     })
 
-    it("refuses for a non-Super-Admin", async () => {
+    it("allows any employee to restore a Snapshot", async () => {
       const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
       await salesFlowService.unlockFlow(flow.id, "reopen", admin.id)
       const regular = makeEmployee()
 
-      await expect(salesFlowService.restoreSnapshot(flow.id, snapshot.id, regular.id)).rejects.toThrow(
-        /Only a Super Admin/,
-      )
+      const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, regular.id)
+      expect(restored.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
     })
 
     it("shares its write path with importSnapshot — both build the same shape from the same Snapshot data", async () => {
