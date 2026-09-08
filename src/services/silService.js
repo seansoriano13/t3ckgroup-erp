@@ -89,7 +89,7 @@ export const silService = {
     const pendingHours = await getPendingSilHours(employeeId);
     assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: parsedHours, leaveTypeLabel: 'SIL' });
 
-    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
       employeeId,
       categoryId,
       dates: [date],
@@ -115,6 +115,7 @@ export const silService = {
           employee_signature_timestamp: employeeSignatureTimestamp,
           head_id: headId || null,
           head_status: headId ? 'PENDING' : 'APPROVED',
+          company_id: companyId,
         },
       ])
       .select()
@@ -187,7 +188,7 @@ export const silService = {
     const leaveGroupId = crypto.randomUUID();
     const cleanedAttachments = cleanAttachments(attachments);
 
-    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
       employeeId,
       categoryId,
       dates: normalizedDays.map((d) => d.date),
@@ -209,6 +210,7 @@ export const silService = {
         application_hash: applicationHash,
         employee_signature_version: employeeSignatureVersion,
         employee_signature_timestamp: employeeSignatureTimestamp,
+        company_id: companyId,
       })))
       .select();
 
@@ -287,7 +289,8 @@ export const silService = {
         *,
         employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance, signature_path),
         hr:employees!sil_leaves_hr_processed_by_fkey(id, name, signature_path),
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        company:companies(id, name)
       `)
       .order('created_at', { ascending: false });
 
@@ -333,7 +336,8 @@ export const silService = {
       .from('sil_leaves')
       .select(`
         *,
-        employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance)
+        employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance),
+        company:companies(id, name)
       `)
       .eq('status', 'PENDING')
       .or('head_status.eq.APPROVED,hr_override.eq.true')
@@ -355,7 +359,7 @@ export const silService = {
   async getEmployeeSilBalances() {
     const { data, error } = await supabase
       .from('employees')
-      .select('id, name, department, sub_department, sil_hours_balance, avatar_path')
+      .select('id, name, department, sub_department, sil_hours_balance, avatar_path, company:companies(id, name)')
       .neq('is_deleted', true)
       .order('name', { ascending: true });
 

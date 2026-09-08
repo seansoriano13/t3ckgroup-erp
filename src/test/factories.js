@@ -54,6 +54,16 @@ export function makeCategory(overrides = {}) {
   })
 }
 
+export function makeCompany(overrides = {}) {
+  const n = next()
+  return db.seed("companies", {
+    name: `Company ${n}`,
+    is_active: true,
+    sort_order: n,
+    ...overrides,
+  })
+}
+
 export function makeLeaveCategory(overrides = {}) {
   const n = next()
   return db.seed("hr_leave_categories", {

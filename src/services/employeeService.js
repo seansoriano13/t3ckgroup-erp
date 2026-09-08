@@ -47,7 +47,7 @@ export const employeeService = {
   async getEmployeeByEmail(email) {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      .select("*, company:companies(id, name)")
       .eq("email", email)
       .neq("is_deleted", true)
       .single();
@@ -79,13 +79,15 @@ export const employeeService = {
       offset_hours_balance: data.offset_hours_balance || 0,
       employment_status: data.employment_status || null,
       sil_hours_balance: data.sil_hours_balance || 0,
+      companyId: data.company_id || null,
+      company: data.company || null,
     };
   },
 
   async getAllEmployees() {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      .select("*, company:companies(id, name)")
       .neq("is_deleted", true);
     if (error) throw error;
 
@@ -112,6 +114,8 @@ export const employeeService = {
       offset_hours_balance: employee.offset_hours_balance || 0,
       employment_status: employee.employment_status || null,
       sil_hours_balance: employee.sil_hours_balance || 0,
+      companyId: employee.company_id || null,
+      company: employee.company || null,
     }));
   },
 
@@ -227,6 +231,7 @@ export const employeeService = {
           employment_status: employeeData.employment_status || null,
           sil_hours_balance: employeeData.sil_hours_balance || 0,
           offset_hours_balance: employeeData.offset_hours_balance || 0,
+          company_id: employeeData.companyId || null,
           updated_at: new Date().toISOString(),
           updated_by: employeeData?.updatedBy || null,
         },
@@ -274,6 +279,7 @@ export const employeeService = {
         employment_status: employeeData.employment_status || null,
         sil_hours_balance: employeeData.sil_hours_balance !== undefined ? employeeData.sil_hours_balance : undefined,
         offset_hours_balance: employeeData.offset_hours_balance !== undefined ? employeeData.offset_hours_balance : undefined,
+        company_id: employeeData.companyId !== undefined ? (employeeData.companyId || null) : undefined,
         updated_at: new Date().toISOString(),
         updated_by: actorId || employeeData?.updatedBy || null,
       })

@@ -105,6 +105,16 @@ describe('buildTG11ViewModel', () => {
     const vm = buildTG11ViewModel(record, formSettings);
     expect(vm.fields.map((f) => f.k)).not.toContain('Employee no.');
   });
+
+  it('prints the company recorded on the application (issue #142), not the employee\'s current one', () => {
+    const vm = buildTG11ViewModel({ ...record, company: { name: 'TG Global Trade OPC' } }, formSettings);
+    expect(vm.company).toBe('TG Global Trade OPC');
+  });
+
+  it('never fabricates a company when the record has none — prints blank, not a guess', () => {
+    const vm = buildTG11ViewModel(record, formSettings);
+    expect(vm.company).toBeNull();
+  });
 });
 
 describe('buildTG12ViewModel', () => {
@@ -150,5 +160,10 @@ describe('buildTG12ViewModel', () => {
 
   it('reports the outcome label from status', () => {
     expect(buildTG12ViewModel(record, formSettings).outcome).toBe('OFFSET CREDIT');
+  });
+
+  it('prints the company recorded on the request, and blank when absent (issue #142)', () => {
+    expect(buildTG12ViewModel({ ...record, company: { name: 'Store CDO' } }, formSettings).company).toBe('Store CDO');
+    expect(buildTG12ViewModel(record, formSettings).company).toBeNull();
   });
 });

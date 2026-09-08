@@ -13,6 +13,7 @@ export default function EmployeeForm({
   formId = "employee-form",
   rawCategories = [],
   rawEmployees = [],
+  rawCompanies = [],
   canGrantLeaveManagement = false,
 }) {
   const [formData, setFormData] = useState({
@@ -31,6 +32,7 @@ export default function EmployeeForm({
     employment_status: "",
     sil_hours_balance: 0,
     offset_hours_balance: 0,
+    companyId: null,
     ...initialData,
   })
 
@@ -57,6 +59,7 @@ export default function EmployeeForm({
       employment_status: "",
       sil_hours_balance: 0,
       offset_hours_balance: 0,
+      companyId: null,
       ...initialData,
     })
     setHasAutoGranted(false)
@@ -181,6 +184,61 @@ export default function EmployeeForm({
         uniqueDepts={uniqueDepts}
         uniqueSubDepts={uniqueSubDepts}
       />
+
+      {/* Company (issue #142) — nullable; a blank entry is filed as a blank
+          on the printed forms rather than guessed. */}
+      <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+          Name of Company
+        </label>
+        <Dropdown
+          usePortal={true}
+          placement="bottom-start"
+          trigger={({ isOpen }) => (
+            <button
+              type="button"
+              className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
+            >
+              {rawCompanies.find((c) => c.id === formData.companyId)?.name || (
+                <span className="text-muted-foreground/50">-- No company set --</span>
+              )}
+              <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        >
+          {({ close }) => (
+            <div className="p-1 flex flex-col min-w-[220px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, companyId: null }))
+                  close()
+                }}
+                className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                  !formData.companyId ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                }`}
+              >
+                -- No company set --
+              </button>
+              {rawCompanies.map((company) => (
+                <button
+                  key={company.id}
+                  type="button"
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, companyId: company.id }))
+                    close()
+                  }}
+                  className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                    formData.companyId === company.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {company.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </Dropdown>
+      </div>
 
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">

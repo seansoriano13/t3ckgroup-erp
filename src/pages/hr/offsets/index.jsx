@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { offsetService } from '../../../services/offsetService';
 import { silService } from '../../../services/silService';
 import { employeeService } from '../../../services/employeeService';
+import { companyService, matchesCompanyFilter } from '../../../services/companyService';
 import { useAuth } from '../../../context/AuthContext';
 import toast from 'react-hot-toast';
 import { Clock, CheckCircle2, XCircle, Search, Filter, LayoutGrid, List, Plus } from 'lucide-react';
@@ -53,6 +54,12 @@ export default function HrLeavesManagerPage() {
   const [leaveTypeFilter, setLeaveTypeFilter] = useState('ALL'); // 'ALL', 'OVERTIME', 'OFFSET', 'SIL'
   const [balancesLayout, setBalancesLayout] = useState('table'); // 'grid' | 'table'
   const [pendingPeriodFilter, setPendingPeriodFilter] = useState('ALL'); // 'ALL', 'THIS_MONTH', 'NEXT_MONTH', 'OVERDUE'
+  const [companyFilter, setCompanyFilter] = useState('ALL'); // company id, 'ALL', or 'NONE'
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ['companies'],
+    queryFn: () => companyService.getCompanies(),
+  });
 
   // Manage FloatingMonthPicker visibility
   useEffect(() => {
@@ -78,6 +85,7 @@ export default function HrLeavesManagerPage() {
         avatar_path: emp.avatarPath,
         offset_hours_balance: emp.offset_hours_balance,
         sil_hours_balance: emp.sil_hours_balance,
+        company: emp.company,
       })).sort((a, b) => a.name.localeCompare(b.name));
 
       // 2. Fetch Requests
@@ -243,13 +251,14 @@ export default function HrLeavesManagerPage() {
         const empName = (req.employee?.name || '').toLowerCase();
         if (!empName.includes(searchQuery.toLowerCase())) return false;
       }
-      
+
       if (pendingPeriodFilter !== 'ALL') {
         if (!isRequestInPendingPeriod(req.date, pendingPeriodFilter)) return false;
       }
+      if (!matchesCompanyFilter(req.company_id, companyFilter)) return false;
       return true;
     });
-  }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter]);
+  }, [pendingLeaves, leaveTypeFilter, searchQuery, pendingPeriodFilter, companyFilter]);
 
   // Every employee's total hours already committed to pending applications,
   // by leave type — computed from the full pending queue (not the filtered
@@ -295,16 +304,19 @@ export default function HrLeavesManagerPage() {
       if (leaveTypeFilter !== 'ALL' && req.type !== leaveTypeFilter) return false;
       if (searchQuery) {
         const empName = (req.employee?.name || '').toLowerCase();
-        return empName.includes(searchQuery.toLowerCase());
+        if (!empName.includes(searchQuery.toLowerCase())) return false;
       }
+      if (!matchesCompanyFilter(req.company_id, companyFilter)) return false;
       return true;
     });
-  }, [processedLeaves, leaveTypeFilter, searchQuery]);
+  }, [processedLeaves, leaveTypeFilter, searchQuery, companyFilter]);
 
   const filteredBalances = useMemo(() => {
-    if (!searchQuery) return employeeBalances;
-    return employeeBalances.filter(emp => emp.name.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [employeeBalances, searchQuery]);
+    let list = employeeBalances;
+    if (searchQuery) list = list.filter(emp => emp.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    list = list.filter(emp => matchesCompanyFilter(emp.company?.id, companyFilter));
+    return list;
+  }, [employeeBalances, searchQuery, companyFilter]);
 
   // The Document Center's picker is scoped to approved records only — same
   // restriction Request History enforced when it still had a print action.
@@ -397,6 +409,23 @@ export default function HrLeavesManagerPage() {
                 </div>
               )}
               
+              {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
+                <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
+                  <select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                    title="Filter by company"
+                  >
+                    <option value="ALL">All companies</option>
+                    <option value="NONE">No company set</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {activeTab === 'pending' && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Clock size={14} className="text-muted-foreground" />
@@ -726,6 +755,7 @@ export default function HrLeavesManagerPage() {
                         <div>
                           <p className="text-[15px] font-bold text-foreground">{emp.name}</p>
                           <p className="text-[13px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
+                          <p className="text-[11px] text-muted-foreground/80 font-medium">{emp.company?.name || 'No company'}</p>
                         </div>
                       </div>
                       
@@ -765,6 +795,7 @@ export default function HrLeavesManagerPage() {
                       <thead>
                         <tr className="bg-muted border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
                           <th className="p-4">Employee</th>
+                          <th className="p-4">Company</th>
                           <th className="p-4">Offset Balance</th>
                           <th className="p-4">SIL Balance</th>
                         </tr>
@@ -780,6 +811,15 @@ export default function HrLeavesManagerPage() {
                                     <p className="text-[12px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
                                   </div>
                                 </div>
+                              </td>
+                              <td className="p-4 text-sm">
+                                {emp.company?.name ? (
+                                  <span className="text-muted-foreground">{emp.company.name}</span>
+                                ) : (
+                                  <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
+                                    No company
+                                  </span>
+                                )}
                               </td>
                               <td className="p-4">
                                  <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${

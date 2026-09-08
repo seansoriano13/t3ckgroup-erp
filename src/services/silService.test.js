@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { silService } from "./silService"
 import { db } from "@/test/db/store"
-import { makeEmployee, makeHrEmployee, makeSilLeave } from "@/test/factories"
+import { makeCompany, makeEmployee, makeHrEmployee, makeSilLeave } from "@/test/factories"
 import { stubSilLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { waitForNetworkIdle } from "@/test/network"
 import { upcomingWeekdays } from "@/test/dates"
@@ -46,6 +46,37 @@ describe("silService", () => {
         status: "PENDING",
         reason: "Medical appointment",
       })
+    })
+
+    it("copies the employee's company onto the record at submission, and a later transfer does not rewrite it (issue #142)", async () => {
+      const original = makeCompany({ name: "T3CK Trading" })
+      const transferred = makeCompany({ name: "TG Global Trade OPC" })
+      const withCompany = makeEmployee({ sil_hours_balance: 40, company_id: original.id })
+
+      const created = await silService.applySilLeave({
+        employeeId: withCompany.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Medical appointment",
+      })
+      expect(created.company_id).toBe(original.id)
+
+      db.internal.rowsOf("employees").find((e) => e.id === withCompany.id).company_id = transferred.id
+
+      const [stillOnRecord] = await silService.getMySilLeaves(withCompany.id)
+      expect(stillOnRecord.id).toBe(created.id)
+      expect(stillOnRecord.company_id).toBe(original.id)
+    })
+
+    it("files with a null company when the employee has none recorded", async () => {
+      const noCompany = makeEmployee({ sil_hours_balance: 40 })
+      const created = await silService.applySilLeave({
+        employeeId: noCompany.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Medical appointment",
+      })
+      expect(created.company_id).toBeNull()
     })
 
     it("does not touch the balance until HR approves", async () => {

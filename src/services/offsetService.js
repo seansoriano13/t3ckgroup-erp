@@ -15,17 +15,20 @@ export function cleanAttachments(attachments) {
   return files.length > 0 ? files : null;
 }
 
-async function fetchSignaturePath(employeeId) {
-  const { data } = await supabase.from('employees').select('signature_path').eq('id', employeeId).single();
-  return data?.signature_path || null;
+async function fetchApplicationStamp(employeeId) {
+  const { data } = await supabase.from('employees').select('signature_path, company_id').eq('id', employeeId).single();
+  return { signaturePath: data?.signature_path || null, companyId: data?.company_id || null };
 }
 
 /**
- * Computes the application hash and the employee's signature stamp shared by
- * every apply path (overtime, single-day and range offset/SIL).
+ * Computes the application hash, the employee's signature stamp, and copies
+ * their company (issue #142) — all shared by every apply path (overtime,
+ * single-day and range offset/SIL). The company is read here, once, at
+ * submission and never re-read afterward: it is stamped onto the record so a
+ * later transfer never rewrites an already-filed form.
  */
 export async function stampApplication({ employeeId, categoryId, dates, totalHours, reason }) {
-  const signaturePath = await fetchSignaturePath(employeeId);
+  const { signaturePath, companyId } = await fetchApplicationStamp(employeeId);
   const applicationHash = await generateApplicationHash({ employeeId, categoryId, dates, totalHours, reason });
   const now = new Date().toISOString();
 
@@ -33,6 +36,7 @@ export async function stampApplication({ employeeId, categoryId, dates, totalHou
     applicationHash,
     employeeSignatureVersion: signaturePath,
     employeeSignatureTimestamp: signaturePath ? now : null,
+    companyId,
   };
 }
 
@@ -105,7 +109,7 @@ export const offsetService = {
 
     await checkOverlap(employeeId, date, startTime, endTime);
 
-    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
       employeeId,
       categoryId,
       dates: [date],
@@ -131,6 +135,7 @@ export const offsetService = {
           employee_signature_timestamp: employeeSignatureTimestamp,
           head_id: headId || null,
           head_status: headId ? 'PENDING' : 'APPROVED',
+          company_id: companyId,
         },
       ])
       .select()
@@ -188,7 +193,7 @@ export const offsetService = {
     const pendingHours = await getPendingOffsetHours(employeeId);
     assertWithinAvailableBalance({ currentBalance, pendingHours, requestedHours: parsedHours, leaveTypeLabel: 'offset' });
 
-    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
       employeeId,
       categoryId,
       dates: [date],
@@ -214,6 +219,7 @@ export const offsetService = {
           employee_signature_timestamp: employeeSignatureTimestamp,
           head_id: headId || null,
           head_status: headId ? 'PENDING' : 'APPROVED',
+          company_id: companyId,
         },
       ])
       .select()
@@ -295,7 +301,7 @@ export const offsetService = {
     const leaveGroupId = crypto.randomUUID();
     const cleanedAttachments = cleanAttachments(attachments);
 
-    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp } = await stampApplication({
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
       employeeId,
       categoryId,
       dates: normalizedDays.map((d) => d.date),
@@ -319,6 +325,7 @@ export const offsetService = {
         employee_signature_timestamp: employeeSignatureTimestamp,
         head_id: headId || null,
         head_status: headId ? 'PENDING' : 'APPROVED',
+        company_id: companyId,
       })))
       .select();
 
@@ -435,7 +442,8 @@ export const offsetService = {
         *,
         employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
         hr:employees!overtime_requests_hr_processed_by_fkey(id, name, signature_path),
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        company:companies(id, name)
       `)
       .order('created_at', { ascending: false });
 
@@ -456,7 +464,8 @@ export const offsetService = {
       .select(`
         *,
         employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        company:companies(id, name)
       `)
       .eq('status', 'PENDING')
       .or('head_status.eq.APPROVED,hr_override.eq.true')
@@ -477,7 +486,8 @@ export const offsetService = {
         *,
         employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
         hr:employees!offset_leaves_hr_processed_by_fkey(id, name, signature_path),
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        company:companies(id, name)
       `)
       .order('created_at', { ascending: false });
 
@@ -524,7 +534,8 @@ export const offsetService = {
       .select(`
         *,
         employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance),
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        company:companies(id, name)
       `)
       .eq('status', 'PENDING')
       .or('head_status.eq.APPROVED,hr_override.eq.true')
@@ -547,7 +558,7 @@ export const offsetService = {
   async getEmployeeOffsetBalances() {
     const { data, error } = await supabase
       .from('employees')
-      .select('id, name, department, sub_department, offset_hours_balance, avatar_path')
+      .select('id, name, department, sub_department, offset_hours_balance, avatar_path, company:companies(id, name)')
       .neq('is_deleted', true)
       .order('name', { ascending: true });
 

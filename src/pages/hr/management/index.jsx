@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
+import { companyService, matchesCompanyFilter } from "../../../services/companyService";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
@@ -34,6 +35,7 @@ export default function EmployeeManagement() {
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [roleFlagFilter, setRoleFlagFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  const [companyFilter, setCompanyFilter] = useState("ALL"); // company id, "ALL", or "NONE"
   const [sortBy, setSortBy] = useState("NAME_ASC");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -46,6 +48,11 @@ export default function EmployeeManagement() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["allEmployees"],
     queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => companyService.getCompanies(),
   });
 
   // Derived option lists
@@ -86,6 +93,7 @@ export default function EmployeeManagement() {
       list = list.filter((e) => e.subDepartment === subDeptFilter);
     if (roleFilter !== "ALL") list = list.filter((e) => e.role === roleFilter);
     if (statusFilter !== "ALL") list = list.filter((e) => e.employment_status === statusFilter);
+    list = list.filter((e) => matchesCompanyFilter(e.companyId, companyFilter));
     if (roleFlagFilter !== "ALL") {
       list = list.filter((e) => {
         if (roleFlagFilter === "SUPER_ADMIN") return e.isSuperAdmin;
@@ -119,6 +127,7 @@ export default function EmployeeManagement() {
     subDeptFilter,
     roleFilter,
     statusFilter,
+    companyFilter,
     roleFlagFilter,
     sortBy,
   ]);
@@ -210,6 +219,18 @@ export default function EmployeeManagement() {
                   uniqueStatuses={uniqueStatuses}
                 />
               </div>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="h-[46px] px-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
+                title="Filter by company"
+              >
+                <option value="ALL">All companies</option>
+                <option value="NONE">No company set</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
@@ -222,6 +243,7 @@ export default function EmployeeManagement() {
                     <th className="p-4">Sub-Dept</th>
                     <th className="p-4">Role</th>
                     <th className="p-4">Status</th>
+                    <th className="p-4">Company</th>
                     <th className="p-4">Balances</th>
                     <th className="p-4">Role Flags</th>
                     <th className="p-4 text-right">Actions</th>
@@ -296,6 +318,15 @@ export default function EmployeeManagement() {
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {emp.company?.name ? (
+                            <span className="text-muted-foreground">{emp.company.name}</span>
+                          ) : (
+                            <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
+                              No company
+                            </span>
                           )}
                         </td>
                         <td className="p-4">
@@ -403,6 +434,11 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     queryFn: () => employeeService.getAllEmployees(),
   });
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => companyService.getCompanies(),
+  });
+
   const mutation = useMutation({
     mutationFn: (data) => {
       const payload = { ...data };
@@ -496,6 +532,7 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         onSubmit={handleSubmit}
         rawCategories={rawCategories}
         rawEmployees={employees}
+        rawCompanies={companies}
         canGrantLeaveManagement={!!user?.isSuperAdmin}
       />
     </HRFormModal>

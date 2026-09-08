@@ -7,6 +7,7 @@ import { waitForNetworkIdle } from "@/test/network"
 import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
 import {
+  makeCompany,
   makeEmployee,
   makeHrEmployee,
   makeOffsetLeave,
@@ -123,6 +124,52 @@ describe("offsetService", () => {
         hours: 7, // 8-hour window minus the 1-hour lunch deduction (issue #91)
         status: "PENDING",
       })
+    })
+
+    it("copies the employee's company onto the record at submission (issue #142)", async () => {
+      const company = makeCompany({ name: "TG Global Trade OPC" })
+      const withCompany = makeEmployee({ offset_hours_balance: 16, company_id: company.id })
+
+      const created = await offsetService.applyOffsetLeave({
+        employeeId: withCompany.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Family matter",
+      })
+
+      expect(created.company_id).toBe(company.id)
+    })
+
+    it("does not rewrite an already-submitted record when the employee's company changes afterward", async () => {
+      const original = makeCompany({ name: "T3CK Trading" })
+      const transferred = makeCompany({ name: "TCA Concept Builders and Services" })
+      const withCompany = makeEmployee({ offset_hours_balance: 16, company_id: original.id })
+
+      const created = await offsetService.applyOffsetLeave({
+        employeeId: withCompany.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Family matter",
+      })
+
+      // The employee transfers after filing — the already-submitted record
+      // must keep naming the company it was actually filed against.
+      db.internal.rowsOf("employees").find((e) => e.id === withCompany.id).company_id = transferred.id
+
+      const [stillOnRecord] = await offsetService.getMyOffsetLeaves(withCompany.id)
+      expect(stillOnRecord.id).toBe(created.id)
+      expect(stillOnRecord.company_id).toBe(original.id)
+    })
+
+    it("files with a null company when the employee has none recorded, rather than blocking the application", async () => {
+      const noCompany = makeEmployee({ offset_hours_balance: 16 })
+      const created = await offsetService.applyOffsetLeave({
+        employeeId: noCompany.id,
+        date: "2026-03-10",
+        startTime: '09:00', endTime: '17:00',
+        reason: "Family matter",
+      })
+      expect(created.company_id).toBeNull()
     })
 
     it("deducts an hour for lunch on a window of 5 hours or more, matching SIL", async () => {

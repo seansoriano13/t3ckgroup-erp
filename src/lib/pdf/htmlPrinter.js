@@ -37,7 +37,8 @@ export function formHTML(d) {
     + '<span class="id"><span class="n m">' + d.recordNo + '</span><span class="r m" style="display:block">' + (d.recordNo.includes('LV') ? 'TG-11' : 'TG-12') + '</span></span>'
     + '</header>'
     + '<div class="head">'
-    + '<div class="l"><div class="kind">' + d.kind + '</div><div class="who">' + d.name + '</div><div class="meta">' + d.meta + '</div></div>'
+    + '<div class="l"><div class="kind">' + d.kind + '</div><div class="who">' + d.name + '</div><div class="meta">' + d.meta + '</div>'
+    + '<div class="company"><span class="k">Name of Company</span> ' + (d.company ? '<b>' + d.company + '</b>' : '<span class="companyblank"></span>') + '</div></div>'
     + '<div class="r"><div class="k">' + d.bigK + '</div>'
     + '<div class="big">' + d.bigN + '<em>' + d.bigU + '</em></div>'
     + '<div class="ledger">' + (d.ledger || (d.requestedHours ? 'Requested <span class="strike">' + d.requestedHours + '</span> · credited ' + d.bigN + ' hrs' : '')) + '</div></div>'
@@ -136,6 +137,10 @@ export function buildPrintableDocument(mappedData) {
   .head .kind { font-size: 10.5px; line-height: 1.3; font-weight: 600; letter-spacing: .19em; text-transform: uppercase; color: var(--f-ink); }
   .head .who { font-family: var(--serif); font-size: 25px; font-weight: 500; letter-spacing: -.017em; line-height: 1.12; margin-top: 9px; }
   .head .meta { font-size: 10.5px; line-height: 1.3; color: var(--f-2); margin-top: 5px; letter-spacing: .002em; }
+  .head .company { font-size: 9.5px; line-height: 1.3; color: var(--f-3); margin-top: 5px; }
+  .head .company .k { display: inline; margin-right: 5px; }
+  .head .company b { font-family: var(--mono); color: var(--f-ink); font-weight: 600; }
+  .companyblank { display: inline-block; width: 130px; height: 1em; vertical-align: -3px; border-bottom: 1px solid var(--f-rule); }
   .head .r { flex: 0 0 auto; text-align: right; }
   .head .big { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 31px; font-weight: 500; letter-spacing: -.035em; line-height: 1; margin-top: 8px; }
   .head .big em { font-style: normal; font-size: 12px; font-weight: 400; color: var(--f-2); margin-left: 6px; letter-spacing: 0; }
