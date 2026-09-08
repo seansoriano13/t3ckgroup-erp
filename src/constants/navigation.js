@@ -145,6 +145,14 @@ export const NAV_MODULES = {
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr,
         exactMatch: true,
       },
+      {
+        label: "Leave Approvals",
+        link: "/approvals/leaves",
+        icon: Clock,
+        badgeKey: "leaveApprovals",
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHead,
+        exactMatch: true,
+      },
     ],
   },
   human_resources: {

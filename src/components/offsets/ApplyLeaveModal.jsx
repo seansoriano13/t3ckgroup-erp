@@ -15,6 +15,7 @@ import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
 import { applyLunchDeduction, computeAvailableHours } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
+import HeadSelectField from './HeadSelectField';
 
 const DEFAULT_DAY_HOURS = 8;
 
@@ -108,6 +109,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [otStartTime, setOtStartTime] = useState('');
   const [otEndTime, setOtEndTime] = useState('');
   const [otReason, setOtReason] = useState('');
+  const [otHeadId, setOtHeadId] = useState('');
   const [otSubmitting, setOtSubmitting] = useState(false);
   const otFiles = useFileAttachments();
 
@@ -121,6 +123,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [offsetRangeEnd, setOffsetRangeEnd] = useState('');
   const [offsetDayHours, setOffsetDayHours] = useState({});
   const [offsetReason, setOffsetReason] = useState('');
+  const [offsetHeadId, setOffsetHeadId] = useState('');
   const [offsetSubmitting, setOffsetSubmitting] = useState(false);
   const offsetFiles = useFileAttachments();
 
@@ -134,6 +137,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [silRangeEnd, setSilRangeEnd] = useState('');
   const [silDayHours, setSilDayHours] = useState({});
   const [silReason, setSilReason] = useState('');
+  const [silHeadId, setSilHeadId] = useState('');
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
 
@@ -215,12 +219,14 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         reason: otReason,
         employeeName,
         attachments,
+        headId: otHeadId,
       });
       toast.success('Overtime application submitted!');
       setOtDate('');
       setOtStartTime('');
       setOtEndTime('');
       setOtReason('');
+      setOtHeadId('');
       otFiles.clear();
       onSuccess?.();
       onClose();
@@ -251,6 +257,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           categoryId: offsetCategoryId,
           employeeName,
           attachments,
+          headId: offsetHeadId,
         });
         toast.success(`Offset leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setOffsetRangeStart('');
@@ -258,6 +265,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         setOffsetDayHours({});
         setOffsetCategoryId('');
         setOffsetReason('');
+        setOffsetHeadId('');
         offsetFiles.clear();
         onSuccess?.();
         onClose();
@@ -286,6 +294,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         categoryId: offsetCategoryId,
         employeeName,
         attachments,
+        headId: offsetHeadId,
       });
       toast.success('Offset leave application submitted!');
       setOffsetDate('');
@@ -293,6 +302,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       setOffsetStartTime('');
       setOffsetEndTime('');
       setOffsetReason('');
+      setOffsetHeadId('');
       offsetFiles.clear();
       onSuccess?.();
       onClose();
@@ -323,6 +333,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           categoryId: silCategoryId,
           employeeName,
           attachments,
+          headId: silHeadId,
         });
         toast.success(`SIL leave application submitted for ${days.length} day${days.length > 1 ? 's' : ''}!`);
         setSilRangeStart('');
@@ -330,6 +341,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         setSilDayHours({});
         setSilCategoryId('');
         setSilReason('');
+        setSilHeadId('');
         silFiles.clear();
         onSuccess?.();
         onClose();
@@ -358,6 +370,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
         categoryId: silCategoryId,
         employeeName,
         attachments,
+        headId: silHeadId,
       });
       toast.success('SIL leave application submitted!');
       setSilDate('');
@@ -365,6 +378,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       setSilStartTime('');
       setSilEndTime('');
       setSilReason('');
+      setSilHeadId('');
       silFiles.clear();
       onSuccess?.();
       onClose();
@@ -476,6 +490,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   Derived: {currentOtHours} hrs
                 </div>
               )}
+              <HeadSelectField employee={selectedEmployee} value={otHeadId} onChange={setOtHeadId} />
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
@@ -609,6 +624,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   )}
                 </>
               )}
+              <HeadSelectField employee={selectedEmployee} value={offsetHeadId} onChange={setOffsetHeadId} />
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
@@ -753,6 +769,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   )}
                 </>
               )}
+              <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
               <div>
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason

@@ -143,4 +143,44 @@ export async function hrOverrideApprove({ table, matchColumn, matchValue, hrId, 
   return updatedRows;
 }
 
-export const headApprovalService = { decideHeadApproval, hrOverrideApprove, assertHeadCleared };
+/**
+ * Everything routed to `headId` still waiting on their decision, across all
+ * three request types — the Approval Center queue reads this instead of
+ * hitting sil/offset/overtime services separately and merging client-side.
+ */
+export async function getPendingForHead(headId) {
+  if (!headId) return [];
+
+  const [sil, offset, overtime] = await Promise.all([
+    supabase
+      .from('sil_leaves')
+      .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      .eq('head_id', headId)
+      .eq('head_status', 'PENDING')
+      .order('date', { ascending: true }),
+    supabase
+      .from('offset_leaves')
+      .select('*, employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      .eq('head_id', headId)
+      .eq('head_status', 'PENDING')
+      .order('date', { ascending: true }),
+    supabase
+      .from('overtime_requests')
+      .select('*, employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      .eq('head_id', headId)
+      .eq('head_status', 'PENDING')
+      .order('date', { ascending: true }),
+  ]);
+
+  if (sil.error) throw new Error(sil.error.message);
+  if (offset.error) throw new Error(offset.error.message);
+  if (overtime.error) throw new Error(overtime.error.message);
+
+  return [
+    ...(sil.data || []).map((r) => ({ ...r, requestType: 'SIL', table: 'sil_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
+    ...(offset.data || []).map((r) => ({ ...r, requestType: 'OFFSET', table: 'offset_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
+    ...(overtime.data || []).map((r) => ({ ...r, requestType: 'OVERTIME', table: 'overtime_requests', matchColumn: 'id', matchValue: r.id })),
+  ];
+}
+
+export const headApprovalService = { decideHeadApproval, hrOverrideApprove, assertHeadCleared, getPendingForHead };

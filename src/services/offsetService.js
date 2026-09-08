@@ -93,7 +93,7 @@ export const offsetService = {
   /**
    * Apply for Overtime (Employee)
    */
-  async applyOvertime({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
+  async applyOvertime({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
     const parsedHours = deriveHours(startTime, endTime, true);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -129,6 +129,8 @@ export const offsetService = {
           application_hash: applicationHash,
           employee_signature_version: employeeSignatureVersion,
           employee_signature_timestamp: employeeSignatureTimestamp,
+          head_id: headId || null,
+          head_status: headId ? 'PENDING' : 'APPROVED',
         },
       ])
       .select()
@@ -159,7 +161,7 @@ export const offsetService = {
   /**
    * Apply for Offset Leave (Employee)
    */
-  async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
+  async applyOffsetLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
     const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -210,6 +212,8 @@ export const offsetService = {
           application_hash: applicationHash,
           employee_signature_version: employeeSignatureVersion,
           employee_signature_timestamp: employeeSignatureTimestamp,
+          head_id: headId || null,
+          head_status: headId ? 'PENDING' : 'APPROVED',
         },
       ])
       .select()
@@ -247,7 +251,7 @@ export const offsetService = {
    * for defaulting each day to 8 hours and letting HR-visible edits narrow a
    * half-day inside the range.
    */
-  async applyOffsetLeaveRange({ employeeId, days, reason, categoryId, employeeName, attachments = [] }) {
+  async applyOffsetLeaveRange({ employeeId, days, reason, categoryId, employeeName, attachments = [], headId }) {
     if (!Array.isArray(days) || days.length === 0) {
       throw new Error('Please select at least one day.');
     }
@@ -313,6 +317,8 @@ export const offsetService = {
         application_hash: applicationHash,
         employee_signature_version: employeeSignatureVersion,
         employee_signature_timestamp: employeeSignatureTimestamp,
+        head_id: headId || null,
+        head_status: headId ? 'PENDING' : 'APPROVED',
       })))
       .select();
 
@@ -453,6 +459,7 @@ export const offsetService = {
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
+      .or('head_status.eq.APPROVED,hr_override.eq.true')
       .order('date', { ascending: true });
 
     if (error) throw new Error(error.message);
@@ -520,6 +527,7 @@ export const offsetService = {
         category:hr_leave_categories(label)
       `)
       .eq('status', 'PENDING')
+      .or('head_status.eq.APPROVED,hr_override.eq.true')
       .order('date', { ascending: true });
 
     if (error) throw new Error(error.message);

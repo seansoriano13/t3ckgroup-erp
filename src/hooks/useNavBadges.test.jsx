@@ -2,10 +2,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHookWithQuery } from "../test/support";
 import { useNavBadges } from "./useNavBadges";
 import { taskService } from "../services/taskService";
+import { headApprovalService } from "../services/headApprovalService";
 
 vi.mock("../services/taskService", () => ({
   taskService: {
     getAllTasks: vi.fn(),
+  },
+}));
+
+vi.mock("../services/headApprovalService", () => ({
+  headApprovalService: {
+    getPendingForHead: vi.fn().mockResolvedValue([]),
   },
 }));
 
@@ -33,6 +40,7 @@ describe("useNavBadges", () => {
     expect(result.current).toEqual({
       taskApprovals: 0,
       hrVerifications: 0,
+      leaveApprovals: 0,
     });
   });
 

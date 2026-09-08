@@ -70,7 +70,7 @@ export const silService = {
   /**
    * Apply for SIL Leave (Employee)
    */
-  async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [] }) {
+  async applySilLeave({ employeeId, date, startTime, endTime, reason, categoryId, employeeName, attachments = [], headId }) {
     const parsedHours = deriveLeaveHours(startTime, endTime);
     if (parsedHours <= 0) {
       throw new Error('Please enter a valid time window.');
@@ -113,6 +113,8 @@ export const silService = {
           application_hash: applicationHash,
           employee_signature_version: employeeSignatureVersion,
           employee_signature_timestamp: employeeSignatureTimestamp,
+          head_id: headId || null,
+          head_status: headId ? 'PENDING' : 'APPROVED',
         },
       ])
       .select()
@@ -334,6 +336,7 @@ export const silService = {
         employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance)
       `)
       .eq('status', 'PENDING')
+      .or('head_status.eq.APPROVED,hr_override.eq.true')
       .order('date', { ascending: true });
 
     if (error) throw new Error(error.message);

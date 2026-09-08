@@ -110,6 +110,28 @@ function approverSigBlock(record, formSettings) {
   return { role: 'Approved by', who, title: formSettings?.approver_title || 'Approving officer', state: 'wet' };
 }
 
+/**
+ * Department-head approval stage (issue #137). Only appears when the
+ * request was actually routed to a head — legacy/backfilled rows have no
+ * head_id and print nothing here, same as supervisorSigBlock's opt-in shape.
+ */
+function headSigBlock(record) {
+  if (!record.head_id) return null;
+  const who = record.head?.name || 'Department Head';
+  if (record.head_status === 'REJECTED') {
+    return { role: 'Department Head', who, title: 'Head', state: 'wet', note: 'Rejected' };
+  }
+  if (record.head_decided_at) {
+    return {
+      role: 'Department Head', who, title: 'Head',
+      state: 'signed',
+      signaturePath: record.head_signature_version,
+      stamp: getSignedStamp(record.head_decided_at, record.head_signature_version),
+    };
+  }
+  return { role: 'Department Head', who, title: 'Head', state: 'wet', note: 'Pending' };
+}
+
 function supervisorSigBlock(formSettings) {
   if (!formSettings?.supervisor_name) return null;
   return {
@@ -158,6 +180,7 @@ export function buildTG11ViewModel(record, formSettings) {
     hrd: hrdValidationRows(record, 'Credits remaining'),
     sigs: [
       employeeSigBlock(record),
+      headSigBlock(record),
       supervisorSigBlock(formSettings),
     ].filter(Boolean),
     note: 'This form must be filed before the leave commences, or immediately upon return for emergency or sick leave.',
@@ -191,6 +214,7 @@ export function buildTG12ViewModel(record, formSettings) {
     hrd: hrdValidationRows(record, 'Offset balance'),
     sigs: [
       employeeSigBlock(record),
+      headSigBlock(record),
       supervisorSigBlock(formSettings),
       approverSigBlock(record, formSettings),
     ].filter(Boolean),

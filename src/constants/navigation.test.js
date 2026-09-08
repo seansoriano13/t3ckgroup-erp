@@ -88,6 +88,7 @@ describe("navigation registry", () => {
       const approvalsGroup = groups.find((g) => g.key === "approvals");
       expect(approvalsGroup.links.map((l) => l.label)).toEqual([
         "Task Approvals",
+        "Leave Approvals",
       ]);
     });
 
