@@ -151,7 +151,8 @@ unchanged. There's nothing to run `supabase status` and paste in.
 supabase start                      # resumes with your data intact — see below
 pnpm dev                            # talks to that local instance
 supabase stop                       # pauses; local data survives to next `start`
-supabase db reset                   # rebuild from the migrations, wipes local data
+pnpm db:reset                       # rebuilds from migrations AND restores cached seed data (~5s total)
+supabase db reset                   # rebuilds from migrations only (clean, unseeded state for tests)
 ```
 
 `supabase stop` alone preserves the local database's Docker volume — your
@@ -169,17 +170,21 @@ equivalent for production.
 
 Local data is disposable by design and never committed:
 
+- `pnpm db:reset` — runs `supabase db reset` and immediately restores local seed
+  data via `pnpm db:seed:restore`. The fastest way to reset and test migrations locally.
+- `pnpm db:seed:restore` — loads the local cached dump into the local database
+  (restores ~12,500 rows in ~1s via batched inserts) and resets every account's
+  password to `VITE_TEST_PASSWORD`, pairing with `VITE_ALLOW_TEST_LOGIN` so you
+  can sign in locally as any role.
 - `pnpm db:seed:dump` — pulls a sanitized snapshot of staging's data into a
   gitignored cache file (`supabase/.seed/`). Sanitization rules live in
   `src/lib/seedSanitize.js`, tested without a database; re-run this only when
-  you deliberately want fresher data, since it's a live pull from staging.
-- `pnpm db:seed:restore` — loads that cache into the local database and
-  resets every account's password to `VITE_TEST_PASSWORD`, pairing with
-  `VITE_ALLOW_TEST_LOGIN` so you can sign in locally as any role.
-- `pnpm db:seed:fresh` — the two above, chained; the one to reach for on a
-  fresh machine or after a deliberate `supabase db reset`.
+  you deliberately want fresher data from the remote staging database.
+- `pnpm db:seed:fresh` — `db:seed:dump` + `db:seed:restore` chained. Use this
+  only on initial setup of a fresh machine or when intentionally refreshing
+  the staging cache over the network. For routine resets, use `pnpm db:reset`.
 - `pnpm db:seed:snapshot` — saves the local database's *current* data before
-  a deliberate `supabase db reset`, if there's a working set worth keeping;
+  a deliberate reset, if there's a working set worth keeping;
   restore it with `pnpm db:seed:restore -- <the file it printed>`.
 
 The edge functions (`odoo-*`) are not run locally — they need live Odoo

@@ -93,22 +93,37 @@ async function insertRows(client, schema, table, rows) {
   )
   const generatedColumns = new Set(generated.map((r) => r.column_name))
   const columns = Object.keys(rows[0]).filter((c) => !generatedColumns.has(c))
+  if (columns.length === 0) return
   const columnList = columns.map(quoteIdent).join(", ")
-  const placeholders = columns.map((_, i) => `$${i + 1}`).join(", ")
-  // `overriding system value` is required to set an explicit value on a
-  // GENERATED ALWAYS AS IDENTITY column (categories.id and others) — every
-  // row here needs its original id preserved, since other restored rows
-  // reference it by foreign key. Harmless on a table with no identity
-  // column at all.
-  const insertSql = `insert into ${schema}.${quoteIdent(table)} (${columnList}) overriding system value values (${placeholders})`
 
-  for (const row of rows) {
-    const values = columns.map((c) => {
-      const v = row[c]
-      if (v === null || typeof v !== "object") return v
-      if (Array.isArray(v) && NATIVE_ARRAY_COLUMNS.has(c)) return v
-      return JSON.stringify(v)
-    })
+  // Batch insert into chunks to avoid thousands of individual sequential queries.
+  // PostgreSQL maximum parameter count is 65,535.
+  const maxParams = 65000
+  const batchSize = Math.max(1, Math.min(500, Math.floor(maxParams / columns.length)))
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const chunk = rows.slice(i, i + batchSize)
+    const valuePlaceholders = []
+    const values = []
+    let paramIndex = 1
+
+    for (const row of chunk) {
+      const rowPlaceholders = []
+      for (const c of columns) {
+        rowPlaceholders.push(`$${paramIndex++}`)
+        const v = row[c]
+        if (v === null || typeof v !== "object") {
+          values.push(v)
+        } else if (Array.isArray(v) && NATIVE_ARRAY_COLUMNS.has(c)) {
+          values.push(v)
+        } else {
+          values.push(JSON.stringify(v))
+        }
+      }
+      valuePlaceholders.push(`(${rowPlaceholders.join(", ")})`)
+    }
+
+    const insertSql = `insert into ${schema}.${quoteIdent(table)} (${columnList}) overriding system value values ${valuePlaceholders.join(", ")}`
     await client.query(insertSql, values)
   }
 }
