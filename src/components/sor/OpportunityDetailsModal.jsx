@@ -1295,47 +1295,49 @@ export default function OpportunityDetailsModal({
         >
           {/* Pipeline Stage Tracker */}
           <div className="w-full">
-            <p className="mb-4 flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              Pipeline Stage
-              {isFlowDeal && flowCanvas && (
-                <>
-                  <span className="text-muted-foreground/40">—</span>
-                  <span className="text-foreground">{flowCanvas.saleType.name}</span>
-                  {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
-                    <span className="rounded-full bg-green-9/15 px-1.5 py-0.5 text-green-11">
-                      Won
-                    </span>
-                  ) : (
-                    currentFlowStage?.is_terminal && (
-                      <span className="rounded-full bg-mauve-9/15 px-1.5 py-0.5 text-mauve-11">
-                        Closed
+            <div className="flex-between align-center">
+              <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+                Pipeline Stage
+                {isFlowDeal && flowCanvas && (
+                  <>
+                    <span className="text-muted-foreground/40">—</span>
+                    <span className="text-foreground">{flowCanvas.saleType.name}</span>
+                    {flowCanvas.flow.won_stage_id === currentFlowStage?.id ? (
+                      <span className="rounded-full bg-green-9/15 px-1.5 py-0.5 text-green-11">
+                        Won
                       </span>
-                    )
-                  )}
-                </>
-              )}
-            </p>
-            {/* Issue #36 — a deal that carries a Sale Type runs a graph, not a
+                    ) : (
+                      currentFlowStage?.is_terminal && (
+                        <span className="rounded-full bg-mauve-9/15 px-1.5 py-0.5 text-mauve-11">
+                          Closed
+                        </span>
+                      )
+                    )}
+                  </>
+                )}
+              </p>
+              {/* Issue #36 — a deal that carries a Sale Type runs a graph, not a
                 line, so it gets a control that shows where it is and what it
                 may move to. The chevron ribbon below colours steps by their
                 position, which a graph has no answer for. */}
-            {/* Which version of that graph this deal is pinned to. The control
+              {/* Which version of that graph this deal is pinned to. The control
                 below draws the live flow, so where a flow has moved on since
                 registration this is the one telling the truth. */}
-            {isFlowDeal && (
-              <div className="mb-2 flex justify-end">
-                <FlowVersionBadge
-                  opportunity={opportunity}
-                  onOpenVersion={(snapshotId) => {
-                    // Carries where this deal is sitting, so the version opens
-                    // showing "you are here" rather than an unannotated graph.
-                    const stage = opportunity.flow_stage_id
-                    const query = stage ? `?stage=${encodeURIComponent(stage)}` : ""
-                    window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener")
-                  }}
-                />
-              </div>
-            )}
+              {isFlowDeal && (
+                <div className="flex justify-end">
+                  <FlowVersionBadge
+                    opportunity={opportunity}
+                    onOpenVersion={(snapshotId) => {
+                      // Carries where this deal is sitting, so the version opens
+                      // showing "you are here" rather than an unannotated graph.
+                      const stage = opportunity.flow_stage_id
+                      const query = stage ? `?stage=${encodeURIComponent(stage)}` : ""
+                      window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener")
+                    }}
+                  />
+                </div>
+              )}
+            </div>
             {isFlowDeal ? (
               <FlowStageControl
                 opportunity={opportunity}
@@ -1465,8 +1467,7 @@ export default function OpportunityDetailsModal({
                           onClick={() =>
                             confirmActionToast(
                               "Mark this deal outright?",
-                              `${ITB_EXEMPT_LABEL} — it moves to ${
-                                stageLabel(pendingStage) || pendingStage
+                              `${ITB_EXEMPT_LABEL} — it moves to ${stageLabel(pendingStage) || pendingStage
                               } with no ITB Number, and this is recorded on the log notes under your name.`,
                               "Mark outright",
                               "warning",
@@ -1859,10 +1860,10 @@ export default function OpportunityDetailsModal({
                         <span
                           data-testid="project-type-badge-edit"
                           className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md border truncate ${editForm.project_type === "STRATEGIC"
-                              ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                              : editForm.project_type === "CP"
-                                ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
-                                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                            : editForm.project_type === "CP"
+                              ? "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20"
+                              : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
                             }`}
                         >
                           {PROJECT_TYPE_LABELS[editForm.project_type] || editForm.project_type}
@@ -1882,8 +1883,8 @@ export default function OpportunityDetailsModal({
                             }))
                           }
                           className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${editForm.project_type === "STRATEGIC"
-                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
-                              : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
+                            ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                            : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
                             }`}
                           title="Toggle Strategic project override"
                         >
