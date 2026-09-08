@@ -5,6 +5,7 @@ import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
+import { getPermissionContext } from "../../utils/permissions";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { appSettingsService } from "../../services/appSettingsService";
@@ -51,8 +52,7 @@ export default function SettingsPage() {
   const [showFAQ, setShowFAQ] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
 
-  // const isHr = user?.is_hr === true || user?.isHr === true;
-  const isSuperAdmin = user?.isSuperAdmin;
+  const { isSuperAdmin } = getPermissionContext(user);
 
   const { data: appSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["appSettings"],

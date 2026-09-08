@@ -3,6 +3,7 @@
  * Centralised deep-link routing logic for notification clicks.
  * Extracted from NotificationDrawer so the component stays lean.
  */
+import { getPermissionContext } from "./permissions";
 
 /**
  * TODO: transition shim — drop after one release.
@@ -61,9 +62,7 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
       }),
     );
   } else if (notif.type.includes("TASK")) {
-    const isHrUser = user?.isHr || user?.is_hr;
-    const isHeadUser = user?.isHead || user?.is_head;
-    const isSA = user?.isSuperAdmin || user?.is_super_admin;
+    const { isHr: isHrUser, isHead: isHeadUser, isSuperAdmin: isSA } = getPermissionContext(user);
 
     if (notif.type === "TASK_APPROVED_BY_HEAD" && isHrUser) {
       navigate("/approvals/hr-verification", {

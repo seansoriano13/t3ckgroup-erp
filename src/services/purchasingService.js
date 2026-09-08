@@ -19,6 +19,7 @@ import {
 } from "../constants/procurement";
 import { completenessForOutcome } from "../constants/projectEvaluation";
 import { formatDueDate } from "../utils/formatDate";
+import { sameDepartment } from "../utils/compareDepartment";
 
 /**
  * Procurement requests raised from a SOR.
@@ -80,12 +81,9 @@ async function findHeadFor(employee) {
 
   if (!heads?.length) return null;
 
-  const sameText = (a, b) =>
-    !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
-
   return (
-    heads.find((h) => sameText(h.sub_department, employee.sub_department)) ||
-    heads.find((h) => sameText(h.department, employee.department) && !h.sub_department) ||
+    heads.find((h) => sameDepartment(h.sub_department, employee.sub_department)) ||
+    heads.find((h) => sameDepartment(h.department, employee.department) && !h.sub_department) ||
     null
   );
 }
@@ -107,8 +105,9 @@ async function categoryFor(employee) {
     .limit(50);
 
   if (!data?.length) return null;
-  const sub = employee.sub_department?.trim().toLowerCase();
-  const match = sub && data.find((c) => c.sub_department?.trim().toLowerCase() === sub);
+  const match =
+    employee.sub_department &&
+    data.find((c) => sameDepartment(c.sub_department, employee.sub_department));
   return (match || data[0]).category_id;
 }
 

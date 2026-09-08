@@ -4,6 +4,7 @@ import toast from "react-hot-toast"
 import { taskService } from "../services/taskService"
 import { getCurrentLocalTime } from "../utils/formatDate"
 import { hasChecklistContent } from "../utils/checklist"
+import { resolveDepartmentHeads, resolveOrgWideHeads } from "../utils/resolveDepartmentHeads"
 
 const DRAFT_KEY = "logTask_draft"
 
@@ -225,37 +226,12 @@ export function useLogTaskHandlers({
     const selectedEmployee = employees.find((e) => e.id === formData.loggedById)
     if (!selectedEmployee) return
 
-    const empSubDept = selectedEmployee.sub_department
-    const empDept = selectedEmployee.department
-
-    const directHeads = availableHeads.filter((h) => {
-      if (
-        empSubDept &&
-        h.sub_department &&
-        h.sub_department.toUpperCase() !== "ALL"
-      ) {
-        return (
-          h.sub_department.trim().toLowerCase() ===
-          empSubDept.trim().toLowerCase()
-        )
-      }
-      if (h.department?.toUpperCase() !== "SUPER ADMIN" && empDept) {
-        return (
-          h.department?.trim().toLowerCase() === empDept?.trim().toLowerCase()
-        )
-      }
-      return false
-    })
+    const directHeads = resolveDepartmentHeads(selectedEmployee, availableHeads)
 
     if (directHeads.length > 0) {
       queueMicrotask(() => setSelectedHead(directHeads[0].id))
     } else {
-      const adminHeads = availableHeads.filter(
-        (h) =>
-          h.is_super_admin ||
-          h.sub_department?.trim().toUpperCase() === "ALL" ||
-          h.department?.trim().toUpperCase() === "SUPER ADMIN",
-      )
+      const adminHeads = resolveOrgWideHeads(availableHeads)
       if (adminHeads.length > 0) {
         queueMicrotask(() => setSelectedHead(adminHeads[0].id))
       } else {

@@ -16,6 +16,7 @@ import {
   Workflow,
   ShoppingCart,
 } from "lucide-react";
+import { getPermissionContext } from "@/utils/permissions";
 
 export const NAV_MODULES = {
   workspace: {
@@ -209,30 +210,13 @@ export const NAV_MODULES = {
 
 /**
  * Normalizes user object into a clean context object for permission checking.
+ *
+ * Wraps the shared permission helper (`getPermissionContext`) rather than
+ * duplicating it — this function stays for callers that already import it
+ * from here.
  */
 export function buildUserPermissionContext(user) {
-  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
-  const isHead = !!(user?.is_head || user?.isHead);
-  const isHr = !!(user?.is_hr || user?.isHr);
-  const canManageLeaves = !!(user?.can_manage_leaves || user?.canManageLeaves);
-  const hasSalesFlow = !!(user?.has_sales_flow ?? user?.hasSalesFlow);
-  const hasTaskFlow = !!(user?.has_task_flow ?? user?.hasTaskFlow);
-  const hasPurchasingFlow = !!(user?.has_purchasing_flow ?? user?.hasPurchasingFlow);
-  const subDepartment = user?.subDepartment || user?.sub_department || null;
-  const canManage = isHead || isSuperAdmin;
-
-  return {
-    user,
-    isSuperAdmin,
-    isHead,
-    isHr,
-    canManageLeaves,
-    hasSalesFlow,
-    hasTaskFlow,
-    hasPurchasingFlow,
-    subDepartment,
-    canManage,
-  };
+  return getPermissionContext(user);
 }
 
 /**

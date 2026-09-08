@@ -33,6 +33,7 @@ import {
   summariseQueueEmployees,
   toggleSelectedId,
 } from "../../../utils/approvalQueue.js";
+import { sameDepartment } from "../../../utils/compareDepartment.js";
 import { ApprovalHeader } from "../_components/ApprovalHeader";
 import { ApprovalSplitView } from "../_components/ApprovalSplitView";
 import BulkGradeModal from "../_components/BulkGradeModal";
@@ -140,7 +141,7 @@ export default function TaskApprovalsPage() {
     const filteredCats =
       deptFilter === "ALL"
         ? allCategories
-        : allCategories.filter((c) => c.department === deptFilter);
+        : allCategories.filter((c) => sameDepartment(c.department, deptFilter));
     return [
       ...new Set(filteredCats.map((c) => c.subDepartment).filter(Boolean)),
     ].sort();
@@ -149,9 +150,9 @@ export default function TaskApprovalsPage() {
   const uniqueEmployees = useMemo(() => {
     let pool = allEmployees.filter((e) => !e.is_super_admin);
     if (deptFilter !== "ALL")
-      pool = pool.filter((e) => e.department === deptFilter);
+      pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
     if (subDeptFilter !== "ALL")
-      pool = pool.filter((e) => e.subDepartment === subDeptFilter);
+      pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
     return pool.sort((a, b) => a.name.localeCompare(b.name));
   }, [allEmployees, deptFilter, subDeptFilter]);
 

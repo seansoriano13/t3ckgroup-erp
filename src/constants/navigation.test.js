@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   NAV_MODULES,
+  QUICK_ACTIONS,
   getFilteredNavigationGroups,
   getFilteredQuickActions,
+  buildUserPermissionContext,
 } from "./navigation";
 
 describe("navigation registry", () => {
@@ -258,6 +260,91 @@ describe("navigation registry", () => {
       const actions = getFilteredQuickActions(superAdmin);
       const categories = actions.map((a) => a.category);
       expect(categories).toEqual(["Personal", "Operations", "Sales"]);
+    });
+  });
+
+  // The safety net for issue #124: every combination of the seven
+  // capability flags, crossed with department present/absent and
+  // sub-department present/absent, run through every navigation predicate.
+  // A single differing cell fails the build — that is what makes the
+  // permission-helper extraction in #126 provably a refactor rather than a
+  // rewrite.
+  describe("permission matrix (characterisation)", () => {
+    const FLAGS = [
+      "isSuperAdmin",
+      "isHead",
+      "isHr",
+      "canManageLeaves",
+      "hasSalesFlow",
+      "hasTaskFlow",
+      "hasPurchasingFlow",
+    ];
+
+    function* flagCombinations() {
+      const total = 2 ** FLAGS.length;
+      for (let mask = 0; mask < total; mask++) {
+        const combo = {};
+        FLAGS.forEach((flag, i) => {
+          combo[flag] = Boolean(mask & (1 << i));
+        });
+        yield combo;
+      }
+    }
+
+    function* userMatrix() {
+      for (const flags of flagCombinations()) {
+        for (const department of [undefined, "Engineering"]) {
+          for (const subDepartment of [undefined, "Backend"]) {
+            yield { ...flags, department, subDepartment };
+          }
+        }
+      }
+    }
+
+    function allLinks() {
+      return Object.values(NAV_MODULES).flatMap((module) =>
+        module.links.map((link) => ({
+          module: module.key,
+          label: link.label,
+          isPermitted: link.isPermitted,
+        })),
+      );
+    }
+
+    function allQuickActionItems() {
+      return QUICK_ACTIONS.flatMap((group) =>
+        group.items.map((item) => ({
+          category: group.category,
+          id: item.id,
+          isPermitted: item.isPermitted,
+        })),
+      );
+    }
+
+    it("produces a stable permission matrix across every flag/department combination", () => {
+      const links = allLinks();
+      const quickActionItems = allQuickActionItems();
+      const rows = [];
+
+      for (const user of userMatrix()) {
+        const ctx = buildUserPermissionContext(user);
+        const permittedLinks = links
+          .filter((link) => link.isPermitted(ctx))
+          .map((link) => `${link.module}:${link.label}`);
+        const permittedActions = quickActionItems
+          .filter((item) => item.isPermitted(ctx))
+          .map((item) => `${item.category}:${item.id}`);
+
+        rows.push({
+          flags: FLAGS.map((f) => (user[f] ? "1" : "0")).join(""),
+          department: user.department ?? "none",
+          subDepartment: user.subDepartment ?? "none",
+          permittedLinks,
+          permittedActions,
+        });
+      }
+
+      expect(rows).toMatchSnapshot();
     });
   });
 });

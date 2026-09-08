@@ -28,6 +28,7 @@ import { ApprovalHeader } from "../_components/ApprovalHeader";
 import { ApprovalSplitView } from "../_components/ApprovalSplitView";
 import BulkVerifyModal from "./_components/BulkVerifyModal";
 import { Button } from "@/components/ui/button";
+import { sameDepartment } from "../../../utils/compareDepartment.js";
 import PageContainer from "../../../components/ui/PageContainer";
 import TabGroup from "../../../components/ui/TabGroup";
 
@@ -152,7 +153,7 @@ function HrVerificationQueueContent() {
     const filteredCats =
       deptFilter === "ALL"
         ? allCategories
-        : allCategories.filter((c) => c.department === deptFilter);
+        : allCategories.filter((c) => sameDepartment(c.department, deptFilter));
     return [
       ...new Set(filteredCats.map((c) => c.subDepartment).filter(Boolean)),
     ].sort();
@@ -161,9 +162,9 @@ function HrVerificationQueueContent() {
   const uniqueEmployees = useMemo(() => {
     let pool = allEmployees.filter((e) => !e.isSuperAdmin);
     if (deptFilter !== "ALL")
-      pool = pool.filter((e) => e.department === deptFilter);
+      pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
     if (subDeptFilter !== "ALL")
-      pool = pool.filter((e) => e.subDepartment === subDeptFilter);
+      pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
     return pool.sort((a, b) => a.name.localeCompare(b.name));
   }, [allEmployees, deptFilter, subDeptFilter]);
 
@@ -271,9 +272,9 @@ function HrVerificationQueueContent() {
           matchesSubDept = true;
         const taskOwner = empMap.get(task.loggedById);
         if (deptFilter !== "ALL")
-          matchesDept = taskOwner?.department === deptFilter;
+          matchesDept = sameDepartment(taskOwner?.department, deptFilter);
         if (subDeptFilter !== "ALL")
-          matchesSubDept = taskOwner?.subDepartment === subDeptFilter;
+          matchesSubDept = sameDepartment(taskOwner?.subDepartment, subDeptFilter);
         return matchesDept && matchesSubDept;
       });
     }

@@ -7,8 +7,7 @@ import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import Select from "react-select";
 import { defaultSelectStyles } from "../styles/selectStyles";
-
-const TEST_EMAIL = "arkadatax03@gmail.com";
+import { getPermissionContext } from "../utils/permissions";
 
 // Custom sleek toggle switch
 const Toggle = ({ checked, onChange }) => (
@@ -29,6 +28,7 @@ const Toggle = ({ checked, onChange }) => (
 
 export default function RoleSwitcher() {
   const { user } = useAuth();
+  const { isRoleSimulator, isHead, isHr, isSuperAdmin } = getPermissionContext(user);
   const [isOpen, setIsOpen] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [, setIsMounted] = useState(false);
@@ -141,14 +141,14 @@ export default function RoleSwitcher() {
       setFormState({
         department: user.department || "OPERATIONS",
         sub_department: user.sub_department || "ALL",
-        is_head: Boolean(user.is_head || user.isHead),
-        is_hr: Boolean(user.is_hr || user.isHr),
-        is_super_admin: Boolean(user.is_super_admin || user.isSuperAdmin),
+        is_head: isHead,
+        is_hr: isHr,
+        is_super_admin: isSuperAdmin,
       });
     }
-  }, [isOpen, user]);
+  }, [isOpen, user, isHead, isHr, isSuperAdmin]);
 
-  if (!user || user.email !== TEST_EMAIL) return null;
+  if (!user || !isRoleSimulator) return null;
 
   // ── Derived Options ────────────────────────────────────────
   const uniqueDepts = [
@@ -192,7 +192,7 @@ export default function RoleSwitcher() {
       const { error } = await supabase
         .from("employees")
         .update(dbValues)
-        .eq("email", TEST_EMAIL);
+        .eq("email", user.email);
 
       if (error) throw error;
 
@@ -220,11 +220,11 @@ export default function RoleSwitcher() {
   };
 
   const currentStatusText = () => {
-    if (user.isSuperAdmin || user.is_super_admin) return "Testing: Super Admin";
+    if (isSuperAdmin) return "Testing: Super Admin";
     const d =
       user.department === "OPERATIONS" ? "OPS" : user.department || "N/A";
     const s = user.sub_department || "ALL";
-    const h = user.isHead || user.is_head ? " (Head)" : "";
+    const h = isHead ? " (Head)" : "";
     return `Simulating: ${d} / ${s}${h}`;
   };
 
