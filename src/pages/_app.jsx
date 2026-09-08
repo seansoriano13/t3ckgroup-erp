@@ -12,7 +12,11 @@ export default function AppLayout() {
   // Editor screens fill the frame instead of sitting in the centred page
   // column: a canvas that pans and zooms wants every pixel of it, and its own
   // floating toolbar already says what a page header would.
-  const isFullBleed = location.pathname.startsWith("/super-admin/flow-canvas");
+  // `/flow-versions/:id` is the same shape: a read-only Flow Snapshot, panned
+  // and zoomed, opened from the version badge on an SOR.
+  const isFullBleed =
+    location.pathname.startsWith("/super-admin/flow-canvas") ||
+    location.pathname.startsWith("/flow-versions/");
 
   if (location.pathname === "/login" || location.pathname.startsWith("/verify/")) {
     return <Outlet />;

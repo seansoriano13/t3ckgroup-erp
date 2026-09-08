@@ -503,6 +503,33 @@ describe("salesFlowService", () => {
 
       expect(await salesFlowService.listSnapshots(flow.id)).toEqual([])
     })
+
+    it("fetches one Snapshot by id, with the flow it belongs to", async () => {
+      // The read behind "which version is my deal running": an SOR pins a
+      // snapshot id at registration, and this is how that id becomes a version
+      // number and the rules it captured.
+      const saleType = await salesFlowService.createSaleType("Outright Sale", admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const won = await salesFlowService.addStage(flow.id, "Awarded", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, won.id, admin.id)
+      const locked = (await salesFlowService.lockFlow(flow.id, admin.id)).snapshot
+
+      const found = await salesFlowService.getSnapshot(locked.id)
+
+      expect(found.id).toBe(locked.id)
+      expect(found.version).toBe(1)
+      expect(found.snapshot_data.stages.map((s) => s.name)).toEqual(["Lead", "Awarded"])
+      expect(found.flow.sale_type_id).toBe(saleType.id)
+    })
+
+    it("returns nothing rather than raising when the Snapshot is not there", async () => {
+      // A deal carrying an id that resolves to nothing should render "no
+      // version on record", not an error page.
+      expect(await salesFlowService.getSnapshot(crypto.randomUUID())).toBeNull()
+      expect(await salesFlowService.getSnapshot(null)).toBeNull()
+    })
   })
 
   describe("unlock reasons", () => {

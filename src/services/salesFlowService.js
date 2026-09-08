@@ -834,6 +834,28 @@ export const salesFlowService = {
    * story #64/#65). Never touches `sales_opportunities`: browsing history is
    * a read of `flow_snapshots` alone.
    */
+  /**
+   * One Flow Snapshot by id, with the Sale Type it belongs to.
+   *
+   * This is the read behind "which version is my deal running, and what did it
+   * look like": an SOR pins `flow_snapshot_id` at registration and stays on
+   * that version for life, so the deal's rules live here rather than in the
+   * live tables the canvas edits. Returns null rather than throwing when the
+   * id resolves to nothing, because a caller asking about a deal's version
+   * wants to render "no version on record", not an error page.
+   */
+  async getSnapshot(snapshotId) {
+    if (!snapshotId) return null;
+
+    const { data, error } = await supabase
+      .from("flow_snapshots")
+      .select("*, flow:sales_flows!flow_snapshots_flow_id_fkey(id, sale_type_id, state)")
+      .eq("id", snapshotId)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+
   async listSnapshots(flowId) {
     const { data, error } = await supabase
       .from("flow_snapshots")

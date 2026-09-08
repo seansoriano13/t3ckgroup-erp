@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-09-08",
+        "title": "See the Exact Flow Version Your Deal Is On",
+        "version": "1.7.3",
+        "changes": [
+            "Each deal in the SOR now shows a version badge (e.g. 'Government · v1') next to the stage control, so you can tell at a glance which set of rules that deal is following.",
+            "Click the badge to open a read-only canvas of that version — centred on the deal's current stage so you immediately see where you are and what comes next.",
+            "Deals pin to a flow version at registration and stay there for life. If the flow has since been updated, the badge is what tells the truth about which rules actually apply."
+        ]
+    },
+    {
+        "date": "2026-09-08",
         "title": "Grouped Checklists with Smart Progressive Disclosure",
         "version": "1.7.2",
         "changes": [

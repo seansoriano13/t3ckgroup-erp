@@ -8,6 +8,7 @@ export type Path =
   | `/approvals`
   | `/approvals/hr-verification`
   | `/approvals/tasks`
+  | `/flow-versions/:snapshotId`
   | `/group-tasks`
   | `/group-tasks/templates`
   | `/hr`
@@ -32,6 +33,7 @@ export type Path =
   | `/verify/:token`
 
 export type Params = {
+  '/flow-versions/:snapshotId': { snapshotId: string }
   '/verify/:token': { token: string }
 }
 

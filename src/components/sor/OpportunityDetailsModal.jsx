@@ -53,6 +53,7 @@ import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procur
 import { formatDueDate } from "../../utils/formatDate";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import FlowStageControl from "./FlowStageControl";
+import FlowVersionBadge from "./FlowVersionBadge";
 import {
   isLostCode,
   PROJECT_TYPE_LABELS,
@@ -1318,6 +1319,23 @@ export default function OpportunityDetailsModal({
                 line, so it gets a control that shows where it is and what it
                 may move to. The chevron ribbon below colours steps by their
                 position, which a graph has no answer for. */}
+            {/* Which version of that graph this deal is pinned to. The control
+                below draws the live flow, so where a flow has moved on since
+                registration this is the one telling the truth. */}
+            {isFlowDeal && (
+              <div className="mb-2 flex justify-end">
+                <FlowVersionBadge
+                  opportunity={opportunity}
+                  onOpenVersion={(snapshotId) => {
+                    // Carries where this deal is sitting, so the version opens
+                    // showing "you are here" rather than an unannotated graph.
+                    const stage = opportunity.flow_stage_id
+                    const query = stage ? `?stage=${encodeURIComponent(stage)}` : ""
+                    window.open(`/flow-versions/${snapshotId}${query}`, "_blank", "noopener")
+                  }}
+                />
+              </div>
+            )}
             {isFlowDeal ? (
               <FlowStageControl
                 opportunity={opportunity}
