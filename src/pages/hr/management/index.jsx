@@ -7,7 +7,8 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
 import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
-import { UserPlus, Edit, Trash2, Shield } from "lucide-react";
+import { UserPlus, Edit, Trash2, Shield, KeyRound } from "lucide-react";
+import { passwordService } from "../../../services/passwordService";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageHeader from "../../../components/ui/PageHeader";
@@ -158,6 +159,28 @@ export default function EmployeeManagement() {
   const handleAddNew = () => {
     setEditingEmployee(null);
     setIsModalOpen(true);
+  };
+
+  const reissueMutation = useMutation({
+    mutationFn: (employeeId) => passwordService.reissuePassword(employeeId),
+    onSuccess: (password, employeeId) => {
+      const emp = employees.find((e) => e.id === employeeId);
+      toast.success(
+        `New password for ${emp?.name || "this employee"}: ${password}\nShown once — copy it now.`,
+        { duration: Infinity },
+      );
+    },
+    onError: (err) => toast.error(err.message || "Failed to reissue password."),
+  });
+
+  const handleReissuePassword = (employee) => {
+    if (
+      window.confirm(
+        `Issue ${employee.name} a new password? Their current one stops working immediately.`,
+      )
+    ) {
+      reissueMutation.mutate(employee.id);
+    }
   };
 
   return (
@@ -364,8 +387,25 @@ export default function EmployeeManagement() {
                               Standard
                             </span>
                           )}
+                          {emp.isIssuedPassword && (
+                            <span
+                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider"
+                              title="Still signed in with an issued password"
+                            >
+                              <KeyRound size={11} /> Issued Password
+                            </span>
+                          )}
                         </td>
                         <td className="p-4 text-right space-x-2">
+                          {!!user?.isSuperAdmin && emp.isIssuedPassword && (
+                            <button
+                              onClick={() => handleReissuePassword(emp)}
+                              className="p-2 bg-amber-2 hover:bg-amber-3 text-amber-11 rounded-xl transition-all inline-block border border-transparent hover:border-amber-6"
+                              title="Reissue Password"
+                            >
+                              <KeyRound size={15} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(emp)}
                             className="p-2 bg-muted hover:bg-muted/70 text-foreground rounded-xl transition-all inline-block hover:border-mauve-5 border border-transparent"
@@ -447,10 +487,25 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
           updatedBy: user?.id || null,
         });
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
       toast.success(isEditing ? "Employee updated!" : "Employee added!");
       onClose();
+
+      if (!isEditing && data?.id) {
+        try {
+          const password = await passwordService.issuePassword(data.id);
+          toast.success(
+            `Password for ${data.name}: ${password}\nShown once — copy it now.`,
+            { duration: Infinity },
+          );
+        } catch (err) {
+          console.error("Failed to issue a password for the new employee:", err);
+          toast.error(
+            `Employee added, but issuing a sign-in password failed: ${err.message || "unknown error"}`,
+          );
+        }
+      }
     },
     onError: (err) => {
       toast.error(err.message || "Failed to save employee.");

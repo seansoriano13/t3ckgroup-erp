@@ -1,0 +1,104 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Routes, Route } from "react-router";
+import toast from "react-hot-toast";
+import Login from "../../pages/login/index";
+import * as AuthContext from "../../context/AuthContext";
+import { supabase } from "../../lib/supabase";
+import { passwordService } from "../../services/passwordService";
+
+// Issue #162/#163 — the password form used to be a disabled test fixture,
+// gated behind VITE_ALLOW_TEST_LOGIN. It is now a real, ordinary route: no
+// env flag, no pre-filled credentials, no disabled styling.
+vi.mock("@react-oauth/google", () => ({
+  GoogleLogin: () => <button type="button">Sign in with Google</button>,
+}));
+
+function renderLoggedOut() {
+  vi.spyOn(AuthContext, "useAuth").mockReturnValue({
+    user: null,
+    isAuthLoading: false,
+    handleLogin: vi.fn().mockResolvedValue(true),
+  });
+
+  return render(
+    <MemoryRouter initialEntries={["/login"]}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/" element={<div>Dashboard Root</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+describe("Login password form", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("renders enabled, empty email and password fields", () => {
+    renderLoggedOut();
+    const email = screen.getByPlaceholderText("name@t3ckgroup.com");
+    const password = screen.getByPlaceholderText("••••••••");
+
+    expect(email).not.toBeDisabled();
+    expect(password).not.toBeDisabled();
+    expect(email).toHaveValue("");
+    expect(password).toHaveValue("");
+    expect(screen.queryByText("(Disabled)")).not.toBeInTheDocument();
+  });
+
+  it("submits with signInWithPassword and proceeds on success", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: { user: { email: "a@t3ckgroup.test" } },
+      error: null,
+    });
+
+    renderLoggedOut();
+    await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
+    await user.type(screen.getByPlaceholderText("••••••••"), "issued-pass-1");
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    await waitFor(() => {
+      expect(supabase.auth.signInWithPassword).toHaveBeenCalledWith({
+        email: "a@t3ckgroup.test",
+        password: "issued-pass-1",
+      });
+    });
+    await waitFor(() => expect(screen.getByText("Dashboard Root")).toBeInTheDocument());
+  });
+
+  it("shows a useful error and does not navigate when sign-in fails", async () => {
+    const user = userEvent.setup();
+    const toastSpy = vi.spyOn(toast, "error");
+    vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
+      data: null,
+      error: new Error("Invalid login credentials"),
+    });
+
+    renderLoggedOut();
+    await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
+    await user.type(screen.getByPlaceholderText("••••••••"), "wrong");
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    await waitFor(() => {
+      expect(toastSpy).toHaveBeenCalledWith(expect.stringMatching(/incorrect email or password/i));
+    });
+    expect(screen.queryByText("Dashboard Root")).not.toBeInTheDocument();
+  });
+
+  it("sends a reset email through Forgot password? without submitting the form", async () => {
+    const user = userEvent.setup();
+    const resetSpy = vi.spyOn(passwordService, "requestPasswordReset").mockResolvedValue();
+    const signInSpy = vi.spyOn(supabase.auth, "signInWithPassword");
+
+    renderLoggedOut();
+    await user.type(screen.getByPlaceholderText("name@t3ckgroup.com"), "a@t3ckgroup.test");
+    await user.click(screen.getByRole("button", { name: /forgot password/i }));
+
+    await waitFor(() => expect(resetSpy).toHaveBeenCalledWith("a@t3ckgroup.test"));
+    expect(signInSpy).not.toHaveBeenCalled();
+  });
+});

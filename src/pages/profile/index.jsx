@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
 import { signatureService } from "../../services/signatureService";
+import { passwordService } from "../../services/passwordService";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
@@ -52,6 +53,24 @@ export default function ProfilePage() {
 
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
+
+  // Changing a password — whether this is the first time or the tenth —
+  // always goes through the provider's email verification flow. There is no
+  // inline "type your new password" form: this only asks for a reset email.
+  const handleChangePassword = async () => {
+    if (!user?.email) return;
+    setIsSendingPasswordReset(true);
+    try {
+      await passwordService.requestPasswordReset(user.email);
+      toast.success("Check your email for a link to set a new password.");
+    } catch (error) {
+      console.error("Password reset request failed:", error);
+      toast.error(error.message || "Could not send reset email.");
+    } finally {
+      setIsSendingPasswordReset(false);
+    }
+  };
 
   const [bannerUrlInput, setBannerUrlInput] = useState(() =>
     isHttpUrl(user?.dashboardBannerPath) ? user.dashboardBannerPath : "",
@@ -355,6 +374,14 @@ export default function ProfilePage() {
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
                 <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
               </p>
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                disabled={isSendingPasswordReset}
+                className="mt-3 text-xs font-bold text-foreground hover:underline disabled:opacity-60"
+              >
+                {isSendingPasswordReset ? "Sending..." : "Change Password"}
+              </button>
             </div>
           </div>
         </div>

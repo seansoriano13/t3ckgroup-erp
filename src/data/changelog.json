@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-09-09",
+        "title": "A Second Way In: Email + Password Login",
+        "version": "1.7.7",
+        "changes": [
+            "Signing in with email and password is now a real, supported route alongside Google — no longer a disabled test form.",
+            "New employees are issued a password when their account is created; a banner reminds you while you're still on it, and it dismisses without blocking anything.",
+            "Change your password anytime from your profile, or reset it from the login page if you've forgotten it — both go through an emailed verification link.",
+            "A Super Admin can reissue a lost first-day password from Employee Management, but only while the employee hasn't yet set their own — after that, it's email verification only."
+        ]
+    },
+    {
+        "date": "2026-09-09",
         "title": "Undertime Requests, Filing Through Printing",
         "version": "1.7.6",
         "changes": [

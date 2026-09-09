@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
 import ChangelogModal from "../components/ChangelogModal";
+import IssuedPasswordBanner from "../components/IssuedPasswordBanner";
 
 import Spinner from "@/components/ui/Spinner";
 
@@ -18,7 +19,11 @@ export default function AppLayout() {
     location.pathname.startsWith("/super-admin/flow-canvas") ||
     location.pathname.startsWith("/flow-versions/");
 
-  if (location.pathname === "/login" || location.pathname.startsWith("/verify/")) {
+  if (
+    location.pathname === "/login" ||
+    location.pathname === "/reset-password" ||
+    location.pathname.startsWith("/verify/")
+  ) {
     return <Outlet />;
   }
 
@@ -62,6 +67,7 @@ export default function AppLayout() {
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             <div className="wrapper py-10 px-4 md:px-6">
+              <IssuedPasswordBanner />
               <Outlet />
             </div>
           </div>
