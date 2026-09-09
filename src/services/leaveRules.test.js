@@ -3,6 +3,7 @@ import {
   assertNotWeekend,
   applyLunchDeduction,
   deriveLeaveHours,
+  deriveUndertimeHours,
   assertSilEligible,
   SIL_ELIGIBLE_STATUS,
   computeAvailableHours,
@@ -97,5 +98,34 @@ describe("assertWithinAvailableBalance", () => {
     expect(() =>
       assertWithinAvailableBalance({ currentBalance: 4, pendingHours: 3, requestedHours: 2, leaveTypeLabel: "SIL" }),
     ).toThrow("Insufficient SIL hours. 3 hrs already committed to pending applications, leaving 1 hrs available.")
+  })
+})
+
+describe("deriveUndertimeHours", () => {
+  it("computes the shortfall for a Wednesday shift (07:30-18:30 scheduled, left at 16:30)", () => {
+    // Scheduled: 07:30-18:30 -> 11h - 1h lunch = 10h. Actual: 07:30-16:30 -> 9h - 1h lunch = 8h.
+    const hours = deriveUndertimeHours(
+      { startTime: "07:30", endTime: "18:30" },
+      { startTime: "07:30", endTime: "16:30" },
+    )
+    expect(hours).toBe(2)
+  })
+
+  it("is zero when the actual window matches the original exactly", () => {
+    const hours = deriveUndertimeHours(
+      { startTime: "07:30", endTime: "18:00" },
+      { startTime: "07:30", endTime: "18:00" },
+    )
+    expect(hours).toBe(0)
+  })
+
+  it("deducts lunch independently on each side when only one window crosses the 5-hour threshold", () => {
+    // Original: 07:30-13:00 -> 5.5h, crosses the threshold -> 4.5h net.
+    // Actual:   07:30-12:00 -> 4.5h, under the threshold -> 4.5h net (no lunch deducted).
+    const hours = deriveUndertimeHours(
+      { startTime: "07:30", endTime: "13:00" },
+      { startTime: "07:30", endTime: "12:00" },
+    )
+    expect(hours).toBe(0)
   })
 })

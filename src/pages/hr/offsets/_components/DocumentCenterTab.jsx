@@ -153,6 +153,7 @@ export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, h
       await printComposedHtml(previewHtml);
       await Promise.all(tray.map((r) => {
         if (r.type === 'OVERTIME') return offsetService.markOvertimeRequestsPrinted({ id: r.id, hrId });
+        if (r.type === 'UNDERTIME') return offsetService.markUndertimeRequestsPrinted({ id: r.id, hrId });
         if (r.type === 'SIL') return silService.markSilLeavesPrinted({ id: r.id, groupId: r.leave_group_id, hrId });
         return offsetService.markOffsetLeavesPrinted({ id: r.id, groupId: r.leave_group_id, hrId });
       }));

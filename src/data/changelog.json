@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-09-09",
+        "title": "Undertime Requests, Filing Through Printing",
+        "version": "1.7.6",
+        "changes": [
+            "You can now file for Undertime alongside Overtime, Offset, and SIL from the same Apply modal — record the scheduled work window, the window actually worked, and a purpose; the shortfall between the two is computed for you.",
+            "The scheduled window pre-fills from your department's working-week schedule for the day you pick, but stays fully editable.",
+            "Undertime goes through the same department-head approval stage as every other request type before HR makes the final call, with an editable approved-hours field on HR's side — no paid/offset choice, since undertime never touches your offset or SIL balance.",
+            "Employee Balances now shows a derived 'Undertime (this month)' column — summed from approved requests only, never a stored balance.",
+            "Approved undertime prints as its own TG-13 form, with the same QR verification and signature plates (Employee, Department Head, HR) as Overtime and Leave forms."
+        ]
+    },
+    {
         "date": "2026-09-08",
         "title": "Department Head Approval for Leaves & Overtime",
         "version": "1.7.5",

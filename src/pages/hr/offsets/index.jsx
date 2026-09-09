@@ -15,6 +15,7 @@ import TabGroup from '../../../components/ui/TabGroup';
 import Spinner from '@/components/ui/Spinner';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
+import ApproveUndertimeModal from '../../../components/offsets/ApproveUndertimeModal';
 import ApplyLeaveModal from '../../../components/offsets/ApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
 import Avatar from '../../../components/Avatar';
@@ -46,6 +47,7 @@ export default function HrLeavesManagerPage() {
   });
 
   const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
+  const [undertimeApproval, setUndertimeApproval] = useState(null); // { request, status }
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [previewToken, setPreviewToken] = useState(null);
 
@@ -78,6 +80,7 @@ export default function HrLeavesManagerPage() {
     queryFn: async () => {
       // 1. Fetch Balances
       const allEmps = await employeeService.getAllEmployees();
+      const undertimeTotals = await offsetService.getMonthlyUndertimeTotals();
       const empData = allEmps.map(emp => ({
         id: emp.id,
         name: emp.name,
@@ -85,6 +88,8 @@ export default function HrLeavesManagerPage() {
         avatar_path: emp.avatarPath,
         offset_hours_balance: emp.offset_hours_balance,
         sil_hours_balance: emp.sil_hours_balance,
+        // Derived, read-only — never a stored balance (issue #148).
+        undertime_this_month: undertimeTotals[emp.id] || 0,
         company: emp.company,
       })).sort((a, b) => a.name.localeCompare(b.name));
 
@@ -93,32 +98,38 @@ export default function HrLeavesManagerPage() {
         allOt,
         allOffset,
         allSil,
+        allUndertime,
         pendingOt,
         pendingOffset,
-        pendingSil
+        pendingSil,
+        pendingUndertime
       ] = await Promise.all([
         offsetService.getAllOvertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllOffsetLeaves(dateRange.startDate, dateRange.endDate),
         silService.getAllSilLeaves(dateRange.startDate, dateRange.endDate),
+        offsetService.getAllUndertimeRequests(dateRange.startDate, dateRange.endDate),
         offsetService.getAllPendingOvertimeRequests(),
         offsetService.getAllPendingOffsetLeaves(),
-        silService.getAllPendingSilLeaves()
+        silService.getAllPendingSilLeaves(),
+        offsetService.getAllPendingUndertimeRequests()
       ]);
 
       // Tag types for period-scoped requests
       const taggedOt = allOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedOffset = allOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedSil = allSil.map(l => ({ ...l, type: 'SIL' }));
-      const combined = [...taggedOt, ...taggedOffset, ...taggedSil];
+      const taggedUndertime = allUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
+      const combined = [...taggedOt, ...taggedOffset, ...taggedSil, ...taggedUndertime];
 
       // Tag types for dateless pending requests
       const taggedPendingOt = pendingOt.map(l => ({ ...l, type: 'OVERTIME' }));
       const taggedPendingOffset = pendingOffset.map(l => ({ ...l, type: 'OFFSET' }));
       const taggedPendingSil = pendingSil.map(l => ({ ...l, type: 'SIL' }));
+      const taggedPendingUndertime = pendingUndertime.map(l => ({ ...l, type: 'UNDERTIME' }));
       // A range writes one row per day (see ticket #63), so rows sharing a
       // leave_group_id are collapsed into one entry before the queue is built —
       // otherwise a 3-day leave would show as three separate pending requests.
-      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil])
+      const pendingCombined = groupLeaveRows([...taggedPendingOt, ...taggedPendingOffset, ...taggedPendingSil, ...taggedPendingUndertime])
         .sort((a, b) => new Date(a.date) - new Date(b.date));
 
       // Processed (from period-scoped) — grouped the same way as pending.
@@ -151,12 +162,21 @@ export default function HrLeavesManagerPage() {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isUndertime = request.type === 'UNDERTIME';
 
     // Approving overtime lets HR edit the hours actually rendered before
     // they're credited, so it opens a modal rather than a plain confirm.
     if (isOT && actionType !== 'reject') {
       const status = actionType === 'approve' ? 'APPROVED_OFFSET' : 'APPROVED_PAID';
       setOvertimeApproval({ request, status });
+      return;
+    }
+
+    // Undertime has no paid/offset split, but still lets HR edit the hours
+    // actually charged before they're recorded — same modal pattern.
+    if (isUndertime) {
+      const status = actionType === 'reject' ? 'REJECTED' : 'APPROVED';
+      setUndertimeApproval({ request, status });
       return;
     }
 
@@ -189,10 +209,11 @@ export default function HrLeavesManagerPage() {
     const isOT = request.type === 'OVERTIME';
     const isOffset = request.type === 'OFFSET';
     const isSIL = request.type === 'SIL';
+    const isUndertime = request.type === 'UNDERTIME';
 
     confirmActionToast(
       'Undo Decision',
-      `Are you sure you want to undo this decision? The request will return to PENDING status and balances will be restored.`,
+      `Are you sure you want to undo this decision? The request will return to PENDING status${isUndertime ? '' : ' and balances will be restored'}.`,
       'Undo Decision',
       'destructive',
       async () => {
@@ -203,6 +224,8 @@ export default function HrLeavesManagerPage() {
             await offsetService.undoOffsetLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
           } else if (isSIL) {
             await silService.undoSilLeaveDecision({ groupId: request.leave_group_id, hrId: user?.id });
+          } else if (isUndertime) {
+            await offsetService.undoUndertimeDecision({ requestId: request.id, hrId: user?.id });
           }
           toast.success('Decision undone successfully.');
           queryClient.invalidateQueries({ queryKey: ['hrLeaves'] });
@@ -338,6 +361,15 @@ export default function HrLeavesManagerPage() {
         onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
       />
 
+      <ApproveUndertimeModal
+        isOpen={!!undertimeApproval}
+        onClose={() => setUndertimeApproval(null)}
+        request={undertimeApproval?.request}
+        status={undertimeApproval?.status}
+        hrId={user?.id}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+      />
+
       <FloatingMonthPicker
         selectedRange={dateRange}
         onChange={setDateRange}
@@ -405,6 +437,7 @@ export default function HrLeavesManagerPage() {
                     <option value="OVERTIME">Overtime</option>
                     <option value="OFFSET">Offset Leave</option>
                     <option value="SIL">SIL Leave</option>
+                    <option value="UNDERTIME">Undertime</option>
                   </select>
                 </div>
               )}
@@ -532,7 +565,8 @@ export default function HrLeavesManagerPage() {
                               <td className="p-4">
                                 <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
                                   req.type === 'OVERTIME' ? 'bg-muted text-foreground border-border' :
-                                  req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                                  req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
+                                  req.type === 'UNDERTIME' ? 'bg-amber-2 text-amber-11 border-amber-6' : 'bg-green-2 text-green-11 border-green-6'
                                 }`}>
                                   {req.type}
                                 </span>
@@ -663,7 +697,8 @@ export default function HrLeavesManagerPage() {
                             <td className="p-4">
                               <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
                                 req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
-                                req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' : 'bg-green-2 text-green-11 border-green-6'
+                                req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
+                                req.type === 'UNDERTIME' ? 'bg-amber-2 text-amber-11 border-amber-6' : 'bg-green-2 text-green-11 border-green-6'
                               }`}>
                                 {req.type}
                               </span>
@@ -798,6 +833,7 @@ export default function HrLeavesManagerPage() {
                           <th className="p-4">Company</th>
                           <th className="p-4">Offset Balance</th>
                           <th className="p-4">SIL Balance</th>
+                          <th className="p-4">Undertime (this month)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
@@ -833,6 +869,13 @@ export default function HrLeavesManagerPage() {
                                    emp.sil_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
                                  }`}>
                                    {emp.sil_hours_balance} hrs
+                                 </span>
+                              </td>
+                              <td className="p-4">
+                                 {/* Derived from APPROVED undertime rows this calendar month — never a
+                                     stored balance, so it is styled plainly rather than as a credit. */}
+                                 <span className="font-bold text-sm px-3 py-1.5 rounded-lg border bg-muted text-muted-foreground border-border">
+                                   {emp.undertime_this_month} hrs
                                  </span>
                               </td>
                            </tr>

@@ -3,7 +3,7 @@ import { notificationService } from './notificationService';
 import { systemAuditLogService } from './systemAuditLogService';
 import { deriveHours, describeLeaveRange, formatWindow, windowsOverlap } from '../utils/time';
 import { generateApplicationHash } from '../utils/formHashes';
-import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, assertWithinAvailableBalance } from './leaveRules';
+import { assertNotWeekend, applyLunchDeduction, deriveLeaveHours, deriveUndertimeHours, assertWithinAvailableBalance } from './leaveRules';
 import { assertHeadCleared } from './headApprovalService';
 
 /**
@@ -41,16 +41,21 @@ export async function stampApplication({ employeeId, categoryId, dates, totalHou
 }
 
 export async function checkOverlap(employeeId, date, startTime, endTime) {
-  const [ot, offset, sil] = await Promise.all([
+  const [ot, offset, sil, undertime] = await Promise.all([
     supabase.from('overtime_requests').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('offset_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
-    supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")')
+    supabase.from('sil_leaves').select('start_time, end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    // Undertime carries no single start/end pair — the window that actually
+    // occupied the employee's day is the actual (worked) window, not the
+    // original schedule, so that's what's compared here.
+    supabase.from('undertime_requests').select('actual_start_time, actual_end_time').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
   ]);
 
   const allExisting = [
     ...(ot.data || []),
     ...(offset.data || []),
-    ...(sil.data || [])
+    ...(sil.data || []),
+    ...(undertime.data || []).map((r) => ({ start_time: r.actual_start_time, end_time: r.actual_end_time })),
   ].filter(r => r.start_time && r.end_time);
 
   if (allExisting.some(r => windowsOverlap({start: startTime, end: endTime}, {start: r.start_time, end: r.end_time}))) {
@@ -82,13 +87,14 @@ export async function getPendingOffsetHours(employeeId) {
 }
 
 export async function checkDateTaken(employeeId, date) {
-  const [ot, offset, sil] = await Promise.all([
+  const [ot, offset, sil, undertime] = await Promise.all([
     supabase.from('overtime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('offset_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
     supabase.from('sil_leaves').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
+    supabase.from('undertime_requests').select('id').eq('employee_id', employeeId).eq('date', date).not('status', 'in', '("REJECTED","CANCELLED")'),
   ]);
 
-  if ([...(ot.data || []), ...(offset.data || []), ...(sil.data || [])].length > 0) {
+  if ([...(ot.data || []), ...(offset.data || []), ...(sil.data || []), ...(undertime.data || [])].length > 0) {
     throw new Error(`An application already exists on ${date}.`);
   }
 }
@@ -890,5 +896,342 @@ export const offsetService = {
       .update({ printed_at: new Date().toISOString(), printed_by: hrId })
       .eq('id', id);
     if (error) throw new Error(error.message);
-  }
+  },
+
+  /**
+   * Apply for Undertime (Employee) — issue #147. Modeled directly on
+   * applyOvertime, with two differences: the hours figure is the shortfall
+   * between the scheduled ("original") window and what was actually worked
+   * ("actual"), via `deriveUndertimeHours`, and — like every leave
+   * application — a weekend date is refused outright (overtime allows one;
+   * you cannot fall short of a shift that was never scheduled).
+   */
+  async applyUndertime({
+    employeeId,
+    date,
+    originalStartTime,
+    originalEndTime,
+    actualStartTime,
+    actualEndTime,
+    reason,
+    categoryId,
+    employeeName,
+    attachments = [],
+    headId,
+  }) {
+    assertNotWeekend(date);
+
+    const parsedHours = deriveUndertimeHours(
+      { startTime: originalStartTime, endTime: originalEndTime },
+      { startTime: actualStartTime, endTime: actualEndTime },
+    );
+    if (!(parsedHours > 0)) {
+      throw new Error('Please enter a valid time window — the actual window must be shorter than the original schedule.');
+    }
+
+    if (!reason || reason.trim() === '') {
+      throw new Error('Please provide a purpose for the undertime request.');
+    }
+
+    await checkOverlap(employeeId, date, actualStartTime, actualEndTime);
+
+    const { applicationHash, employeeSignatureVersion, employeeSignatureTimestamp, companyId } = await stampApplication({
+      employeeId,
+      categoryId,
+      dates: [date],
+      totalHours: parsedHours,
+      reason,
+    });
+
+    const { data, error } = await supabase
+      .from('undertime_requests')
+      .insert([
+        {
+          employee_id: employeeId,
+          date,
+          original_start_time: originalStartTime,
+          original_end_time: originalEndTime,
+          actual_start_time: actualStartTime,
+          actual_end_time: actualEndTime,
+          hours: parsedHours,
+          reason,
+          category_id: categoryId || null,
+          status: 'PENDING',
+          attachments: cleanAttachments(attachments),
+          application_hash: applicationHash,
+          employee_signature_version: employeeSignatureVersion,
+          employee_signature_timestamp: employeeSignatureTimestamp,
+          head_id: headId || null,
+          head_status: headId ? 'PENDING' : 'APPROVED',
+          company_id: companyId,
+        },
+      ])
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
+
+    notificationService.broadcastToRole(['HR', 'SUPER_ADMIN'], {
+      sender_id: employeeId,
+      type: 'UNDERTIME_REQUEST',
+      title: 'New Undertime Application',
+      message: `${employeeName || 'An employee'} filed ${parsedHours} hrs of undertime on ${date}.`,
+      reference_id: data.id,
+    });
+
+    systemAuditLogService.addSystemEvent(
+      'UNDERTIME',
+      data.id,
+      `${employeeName || 'An employee'} filed ${parsedHours} hrs of undertime on ${date}.`,
+      { event: 'UNDERTIME_APPLIED', employeeId },
+      employeeId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Get employee's own undertime requests
+   */
+  async getMyUndertimeRequests(employeeId, startDate = null, endDate = null) {
+    let query = supabase
+      .from('undertime_requests')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
+      .eq('employee_id', employeeId)
+      .order('created_at', { ascending: false });
+
+    if (startDate) query = query.gte('date', startDate);
+    if (endDate) query = query.lt('date', endDate);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Get employee's own pending undertime requests (dateless)
+   */
+  async getMyPendingUndertimeRequests(employeeId) {
+    const { data, error } = await supabase
+      .from('undertime_requests')
+      .select(`
+        *,
+        category:hr_leave_categories(label)
+      `)
+      .eq('employee_id', employeeId)
+      .eq('status', 'PENDING')
+      .order('date', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Fetch all undertime requests (HR)
+   */
+  async getAllUndertimeRequests(startDate = null, endDate = null) {
+    let query = supabase
+      .from('undertime_requests')
+      .select(`
+        *,
+        employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, signature_path),
+        hr:employees!undertime_requests_hr_processed_by_fkey(id, name, signature_path),
+        category:hr_leave_categories(label),
+        company:companies(id, name)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (startDate) query = query.gte('date', startDate);
+    if (endDate) query = query.lt('date', endDate);
+
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * Fetch all pending undertime requests across all time (HR)
+   */
+  async getAllPendingUndertimeRequests() {
+    const { data, error } = await supabase
+      .from('undertime_requests')
+      .select(`
+        *,
+        employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path),
+        category:hr_leave_categories(label),
+        company:companies(id, name)
+      `)
+      .eq('status', 'PENDING')
+      .or('head_status.eq.APPROVED,hr_override.eq.true')
+      .order('date', { ascending: true });
+
+    if (error) throw new Error(error.message);
+    return data || [];
+  },
+
+  /**
+   * HR Decision on an Undertime Request ('APPROVED', 'REJECTED') — issue #148.
+   *
+   * Unlike handleOvertimeDecision, there is no balance to credit: undertime
+   * never touches offset_hours_balance or sil_hours_balance on any status,
+   * on any path. `decide_undertime_request` gates APPROVED-family decisions
+   * on the department-head stage exactly like `decide_overtime_request`
+   * does, but has no APPROVED_OFFSET branch to port — there simply isn't
+   * one for this request type.
+   */
+  async handleUndertimeDecision({ requestId, status, approvedHours, hrNotes, hrId }) {
+    const { data: updatedReq, error } = await supabase.rpc('decide_undertime_request', {
+      p_request_id: requestId,
+      p_status: status,
+      p_approved_hours: approvedHours ?? null,
+      p_hr_notes: hrNotes || null,
+      p_hr_id: hrId || null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    const statusLabel = status === 'APPROVED' ? 'Approved' : 'Rejected';
+    notificationService.createNotification({
+      recipient_id: updatedReq.employee_id,
+      sender_id: hrId,
+      type: 'UNDERTIME_DECISION',
+      title: 'Undertime Request Status Updated',
+      message: `Your undertime request for ${updatedReq.hours} hrs on ${updatedReq.date} has been ${statusLabel}.`,
+      reference_id: requestId,
+    });
+
+    systemAuditLogService.addApprovalEvent(
+      'UNDERTIME',
+      requestId,
+      `Undertime request for ${updatedReq.hours} hrs on ${updatedReq.date} was ${statusLabel.toLowerCase()}.`,
+      { event: 'UNDERTIME_DECISION', status, employeeId: updatedReq.employee_id },
+      hrId,
+    ).catch(console.error);
+
+    return updatedReq;
+  },
+
+  /**
+   * Undo HR Undertime Decision — reverts the status to PENDING and clears
+   * every trace of the decision. No balance to refund/refuse: see
+   * undo_undertime_decision (undertime never touches offset_hours_balance or
+   * sil_hours_balance).
+   */
+  async undoUndertimeDecision({ requestId, hrId }) {
+    const { data: before } = await supabase
+      .from('undertime_requests')
+      .select('status')
+      .eq('id', requestId)
+      .single();
+
+    const { data: updatedReq, error } = await supabase.rpc('undo_undertime_decision', {
+      p_request_id: requestId,
+      p_hr_id: hrId || null,
+    });
+
+    if (error) throw new Error(error.message);
+
+    notificationService.createNotification({
+      recipient_id: updatedReq.employee_id,
+      sender_id: hrId,
+      type: 'UNDERTIME_DECISION',
+      title: 'Undertime Request Reverted',
+      message: `HR has reverted the decision on your undertime request for ${updatedReq.date}. It is now PENDING again.`,
+      reference_id: requestId,
+    });
+
+    systemAuditLogService.addSystemEvent(
+      'UNDERTIME',
+      requestId,
+      `Undertime decision for ${updatedReq.date} was reverted to PENDING (was ${before?.status ?? 'unknown'}).`,
+      { event: 'UNDERTIME_DECISION_UNDONE', previousStatus: before?.status ?? null, employeeId: updatedReq.employee_id },
+      hrId,
+    ).catch(console.error);
+
+    return updatedReq;
+  },
+
+  /**
+   * Withdraw Undertime Request (Employee)
+   */
+  async withdrawUndertimeRequest({ requestId, employeeId }) {
+    const { data: request, error: reqErr } = await supabase
+      .from('undertime_requests')
+      .select('*')
+      .eq('id', requestId)
+      .single();
+
+    if (reqErr) throw new Error(reqErr.message);
+    if (request.employee_id !== employeeId) throw new Error('Unauthorized');
+    if (request.status !== 'PENDING') throw new Error('Only pending requests can be withdrawn.');
+
+    const { data, error } = await supabase
+      .from('undertime_requests')
+      .update({
+        status: 'CANCELLED',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', requestId)
+      .eq('status', 'PENDING')
+      .select();
+
+    if (error) throw new Error(error.message);
+    if (!data || data.length === 0) {
+      throw new Error('This request was just decided by HR and can no longer be withdrawn.');
+    }
+
+    systemAuditLogService.addSystemEvent(
+      'UNDERTIME',
+      requestId,
+      `Undertime request for ${request.date} was withdrawn by the employee.`,
+      { event: 'UNDERTIME_WITHDRAWN', employeeId },
+      employeeId,
+    ).catch(console.error);
+
+    return data[0];
+  },
+
+  /**
+   * Stamp a printed batch's undertime requests as printed (Document Center).
+   */
+  async markUndertimeRequestsPrinted({ id, hrId }) {
+    const { error } = await supabase
+      .from('undertime_requests')
+      .update({ printed_at: new Date().toISOString(), printed_by: hrId })
+      .eq('id', id);
+    if (error) throw new Error(error.message);
+  },
+
+  /**
+   * Derived, read-only monthly undertime totals per employee (issue #148) —
+   * summed from APPROVED requests only (pending/rejected/cancelled hours
+   * were never actually taken), for the current calendar month. Computed on
+   * read every time, never stored, so it can never drift from the
+   * underlying rows the way a cached balance column could.
+   */
+  async getMonthlyUndertimeTotals() {
+    const now = new Date();
+    const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthEnd = `${nextMonth.getFullYear()}-${String(nextMonth.getMonth() + 1).padStart(2, '0')}-01`;
+
+    const { data, error } = await supabase
+      .from('undertime_requests')
+      .select('employee_id, hours, approved_hours')
+      .eq('status', 'APPROVED')
+      .gte('date', monthStart)
+      .lt('date', monthEnd);
+
+    if (error) throw new Error(error.message);
+
+    const totals = {};
+    for (const row of data || []) {
+      const hours = row.approved_hours != null ? parseFloat(row.approved_hours) : parseFloat(row.hours || 0);
+      totals[row.employee_id] = (totals[row.employee_id] || 0) + hours;
+    }
+    return totals;
+  },
 };

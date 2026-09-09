@@ -43,14 +43,16 @@ export default function EmployeeLeavesPage() {
     queryKey: ['employeeLeaves', user?.id, dateRange.startDate, dateRange.endDate],
     queryFn: async () => {
       const [
-        otData, 
-        offsetLvData, 
+        otData,
+        offsetLvData,
         allOffsetLeavesData,
         silLvData,
         allSilLeavesData,
         pendingOtData,
         pendingOffsetData,
         pendingSilData,
+        utData,
+        pendingUtData,
         empDataRes
       ] = await Promise.all([
         offsetService.getMyOvertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
@@ -61,6 +63,8 @@ export default function EmployeeLeavesPage() {
         offsetService.getMyPendingOvertimeRequests(user.id),
         offsetService.getMyPendingOffsetLeaves(user.id),
         silService.getMyPendingSilLeaves(user.id),
+        offsetService.getMyUndertimeRequests(user.id, dateRange.startDate, dateRange.endDate),
+        offsetService.getMyPendingUndertimeRequests(user.id),
         supabase.from('employees').select('offset_hours_balance, sil_hours_balance').eq('id', user.id).single()
       ]);
 
@@ -80,6 +84,8 @@ export default function EmployeeLeavesPage() {
       return {
         overtimeHistory: otData,
         pendingOvertime: pendingOtData,
+        undertimeHistory: utData,
+        pendingUndertime: pendingUtData,
         leaveHistory,
         pendingLeaves,
         globalApprovedLeaves: [...approvedOffset, ...approvedSil],
@@ -93,6 +99,8 @@ export default function EmployeeLeavesPage() {
   const {
     overtimeHistory = [],
     pendingOvertime = [],
+    undertimeHistory = [],
+    pendingUndertime = [],
     leaveHistory = [],
     pendingLeaves = [],
     globalApprovedLeaves = [],
@@ -108,6 +116,22 @@ export default function EmployeeLeavesPage() {
         try {
           await offsetService.withdrawOvertimeRequest({ requestId: id, employeeId: user?.id });
           toast.success('Overtime request withdrawn successfully.');
+          queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] });
+        } catch (err) {
+          toast.error(err.message || 'Failed to withdraw request.');
+        }
+      }
+    );
+  }, [user?.id, queryClient]);
+
+  const handleWithdrawUndertime = useCallback((id) => {
+    confirmDeleteToast(
+      'Withdraw Undertime Request',
+      'Are you sure you want to withdraw this undertime request? This cannot be undone.',
+      async () => {
+        try {
+          await offsetService.withdrawUndertimeRequest({ requestId: id, employeeId: user?.id });
+          toast.success('Undertime request withdrawn successfully.');
           queryClient.invalidateQueries({ queryKey: ['employeeLeaves'] });
         } catch (err) {
           toast.error(err.message || 'Failed to withdraw request.');
@@ -208,6 +232,7 @@ export default function EmployeeLeavesPage() {
             tabs={[
               { value: 'calendar', label: `Calendar` },
               { value: 'overtime', label: `My Overtime (${overtimeHistory.length})` },
+              { value: 'undertime', label: `My Undertime (${undertimeHistory.length})` },
               { value: 'leave', label: `My Leaves (${leaveHistory.length})` },
             ]}
             activeTab={activeTab}
@@ -402,6 +427,178 @@ export default function EmployeeLeavesPage() {
                           {req.status === 'PENDING' && (
                             <button
                               onClick={() => handleWithdrawOvertime(req.id, req.status)}
+                              className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
+                              title="Withdraw Request"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+        )}
+
+        {activeTab === 'undertime' && (
+          <div className="space-y-4">
+            {pendingUndertime.length > 0 && (
+              <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+                <div className="px-6 py-4 border-b border-border bg-yellow-500/10">
+                  <h3 className="font-black text-sm text-yellow-600 dark:text-yellow-500">Awaiting Decision</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4">Applied On</th>
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Hours</th>
+                        <th className="p-4">Files</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">HR Notes</th>
+                        <th className="p-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {pendingUndertime.map((req) => (
+                        <tr key={`pending-${req.id}`} className="hover:bg-muted/30 transition-colors bg-yellow-500/5">
+                          <td className="p-4 text-xs text-muted-foreground font-medium">
+                            {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </td>
+                          <td className="p-4 text-sm font-bold text-foreground">
+                            {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                          </td>
+                          <td className="p-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="font-black text-amber-11 bg-amber-2 px-2 py-0.5 rounded text-xs border border-amber-6 w-fit">
+                                {req.hours} hrs
+                              </span>
+                              {req.actual_start_time && req.actual_end_time && (
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                  {formatWindow(req.actual_start_time, req.actual_end_time)}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            {req.attachments?.length ? (
+                              <AttachmentList attachments={req.attachments} compact />
+                            ) : (
+                              <span className="text-xs text-muted-foreground/50">-</span>
+                            )}
+                          </td>
+                          <td className="p-4">
+                            <span className="font-black text-[10px] uppercase tracking-wider text-yellow-600 bg-yellow-500/20 px-2 py-0.5 rounded border border-yellow-500/30">
+                              PENDING
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.hr_notes}>
+                            {req.hr_notes || '-'}
+                          </td>
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => handleWithdrawUndertime(req.id)}
+                              className="p-2 text-destructive/70 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                              title="Withdraw Request"
+                            >
+                              <XCircle size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden animate-in fade-in duration-300">
+            {loadingHistory ? (
+              <div className="p-8 text-center text-muted-foreground text-sm font-bold flex flex-col items-center gap-3">
+                <Clock className="animate-spin" size={24} />
+                Loading undertime history...
+              </div>
+            ) : undertimeHistory.length === 0 ? (
+              <div className="p-12 flex flex-col items-center justify-center text-center bg-muted/20 border-t border-border">
+                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 text-muted-foreground/50">
+                  <Clock size={32} />
+                </div>
+                <h3 className="text-lg font-black text-foreground mb-1 tracking-tight">No undertime requests found</h3>
+                <p className="text-sm font-semibold text-muted-foreground max-w-sm">
+                  You haven't filed any undertime in the selected month.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                      <th className="p-4">Applied On</th>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Category</th>
+                      <th className="p-4">Hours</th>
+                      <th className="p-4">Files</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">HR Notes</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {undertimeHistory.map((req) => (
+                      <tr key={req.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="p-4 text-xs text-muted-foreground font-medium">
+                          {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </td>
+                        <td className="p-4 text-sm font-bold text-foreground">
+                          {new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </td>
+                        <td className="p-4 text-xs font-semibold text-foreground">
+                          {req.category?.label || '-'}
+                        </td>
+                        <td className="p-4">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-black text-amber-11 bg-amber-2 px-2 py-0.5 rounded text-xs border border-amber-6 w-fit">
+                              {req.hours} hrs
+                            </span>
+                            {req.actual_start_time && req.actual_end_time && (
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                                {formatWindow(req.actual_start_time, req.actual_end_time)}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-4">
+                          {req.attachments?.length ? (
+                            <AttachmentList attachments={req.attachments} compact />
+                          ) : (
+                            <span className="text-xs text-muted-foreground/50">-</span>
+                          )}
+                        </td>
+                        <td className="p-4">
+                          {getStatusBadge(req.status)}
+                        </td>
+                        <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={req.hr_notes}>
+                          {req.hr_notes || '-'}
+                        </td>
+                        <td className="p-4 text-right flex items-center justify-end gap-2">
+                          {req.verification_token && (
+                            <Link
+                              to={`/verify/${req.verification_token}`}
+                              target="_blank"
+                              className="p-2 text-primary/70 hover:text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer"
+                              title="View Verified Form"
+                            >
+                              <ShieldCheck size={18} />
+                            </Link>
+                          )}
+                          {req.status === 'PENDING' && (
+                            <button
+                              onClick={() => handleWithdrawUndertime(req.id)}
                               className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
                               title="Withdraw Request"
                             >

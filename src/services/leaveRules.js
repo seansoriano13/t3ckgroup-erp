@@ -47,6 +47,20 @@ export function deriveLeaveHours(startTime, endTime) {
 }
 
 /**
+ * Undertime hours: the difference between the scheduled ("original") window
+ * and what was actually worked ("actual"), each net of its own lunch
+ * deduction. Written as two independent deriveLeaveHours calls (rather than
+ * one derivation over four times) so a window that crosses the 5-hour lunch
+ * threshold on one side but not the other is still deducted correctly on
+ * each side before the subtraction, not averaged away.
+ */
+export function deriveUndertimeHours(original, actual) {
+  const originalHours = deriveLeaveHours(original.startTime, original.endTime);
+  const actualHours = deriveLeaveHours(actual.startTime, actual.endTime);
+  return originalHours - actualHours;
+}
+
+/**
  * SIL is a Regular-only benefit end to end: only a Regular employee may file
  * for it or be approved for it. Non-Regular employees (Probationary, OJT)
  * are blocked at the same gate `creditSilRefund` already used one-way (on

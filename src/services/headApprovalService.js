@@ -21,6 +21,7 @@ const TABLE_NOTIFICATION_TYPE = {
   sil_leaves: 'SIL_LEAVE_HEAD_DECISION',
   offset_leaves: 'OFFSET_LEAVE_HEAD_DECISION',
   overtime_requests: 'OVERTIME_HEAD_DECISION',
+  undertime_requests: 'UNDERTIME_HEAD_DECISION',
 };
 
 const HEAD_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'];
@@ -151,7 +152,7 @@ export async function hrOverrideApprove({ table, matchColumn, matchValue, hrId, 
 export async function getPendingForHead(headId) {
   if (!headId) return [];
 
-  const [sil, offset, overtime] = await Promise.all([
+  const [sil, offset, overtime, undertime] = await Promise.all([
     supabase
       .from('sil_leaves')
       .select('*, employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
@@ -170,16 +171,24 @@ export async function getPendingForHead(headId) {
       .eq('head_id', headId)
       .eq('head_status', 'PENDING')
       .order('date', { ascending: true }),
+    supabase
+      .from('undertime_requests')
+      .select('*, employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, avatar_path)')
+      .eq('head_id', headId)
+      .eq('head_status', 'PENDING')
+      .order('date', { ascending: true }),
   ]);
 
   if (sil.error) throw new Error(sil.error.message);
   if (offset.error) throw new Error(offset.error.message);
   if (overtime.error) throw new Error(overtime.error.message);
+  if (undertime.error) throw new Error(undertime.error.message);
 
   return [
     ...(sil.data || []).map((r) => ({ ...r, requestType: 'SIL', table: 'sil_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(offset.data || []).map((r) => ({ ...r, requestType: 'OFFSET', table: 'offset_leaves', matchColumn: 'leave_group_id', matchValue: r.leave_group_id })),
     ...(overtime.data || []).map((r) => ({ ...r, requestType: 'OVERTIME', table: 'overtime_requests', matchColumn: 'id', matchValue: r.id })),
+    ...(undertime.data || []).map((r) => ({ ...r, requestType: 'UNDERTIME', table: 'undertime_requests', matchColumn: 'id', matchValue: r.id })),
   ];
 }
 

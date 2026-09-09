@@ -237,6 +237,25 @@ export function makeOvertimeRequest(overrides = {}) {
   )
 }
 
+export function makeUndertimeRequest(overrides = {}) {
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  const row = {
+    date: "2026-03-10",
+    original_start_time: "08:00",
+    original_end_time: "17:00",
+    actual_start_time: "08:00",
+    actual_end_time: "15:00",
+    status: "PENDING",
+    ...overrides,
+    employee_id: employeeId,
+  }
+  if (!("hours" in row)) {
+    // 8h scheduled (net of lunch) minus 6h actual (net of lunch) = 2h shortfall by default.
+    row.hours = 2
+  }
+  return db.seed("undertime_requests", row)
+}
+
 export function makeOffsetLeave(overrides = {}) {
   const employeeId = overrides.employee_id ?? makeEmployee({ offset_hours_balance: 16 }).id
   return seedWithWindow("offset_leaves", {

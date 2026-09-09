@@ -9,7 +9,7 @@ import { Check, X, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '@/components/ui/Spinner';
 
-const REQUEST_LABEL = { SIL: 'SIL Leave', OFFSET: 'Offset Leave', OVERTIME: 'Overtime' };
+const REQUEST_LABEL = { SIL: 'SIL Leave', OFFSET: 'Offset Leave', OVERTIME: 'Overtime', UNDERTIME: 'Undertime' };
 
 /**
  * Head-facing queue for the department-head approval stage (issue #137):

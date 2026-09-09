@@ -7,13 +7,13 @@ import { hrSettingsService } from '../../services/hrSettingsService';
 import { employeeService } from '../../services/employeeService';
 import { useQuery } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { X, Calendar, PlusCircle } from 'lucide-react';
+import { X, Calendar, PlusCircle, Clock } from 'lucide-react';
 import TabGroup from '../ui/TabGroup';
 import { Button } from '../ui/button';
 import { AttachmentField } from '../ui/Attachments';
 import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
-import { applyLunchDeduction, computeAvailableHours } from '../../services/leaveRules';
+import { applyLunchDeduction, computeAvailableHours, deriveUndertimeHours, assertNotWeekend } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
 import { dayShiftService } from '../../services/dayShiftService';
 import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShift';
@@ -103,7 +103,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
  */
 export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmployeeSelector = false }) {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'offset' | 'sil'
+  const [activeTab, setActiveTab] = useState('overtime'); // 'overtime' | 'offset' | 'sil' | 'undertime'
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
   // Overtime State
@@ -143,11 +143,34 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
   const [silSubmitting, setSilSubmitting] = useState(false);
   const silFiles = useFileAttachments();
 
+  // Undertime State
+  const [utDate, setUtDate] = useState('');
+  const [utOriginalStart, setUtOriginalStart] = useState('');
+  const [utOriginalEnd, setUtOriginalEnd] = useState('');
+  const [utActualStart, setUtActualStart] = useState('');
+  const [utActualEnd, setUtActualEnd] = useState('');
+  const [utReason, setUtReason] = useState('');
+  const [utHeadId, setUtHeadId] = useState('');
+  const [utSubmitting, setUtSubmitting] = useState(false);
+  const utFiles = useFileAttachments();
+
   const currentOtHours = safeDeriveHours(otStartTime, otEndTime, true);
   const currentOffsetHoursRaw = safeDeriveHours(offsetStartTime, offsetEndTime, false);
   const currentOffsetHours = applyLunchDeduction(currentOffsetHoursRaw);
   const currentSilHoursRaw = safeDeriveHours(silStartTime, silEndTime, false);
   const currentSilHours = applyLunchDeduction(currentSilHoursRaw);
+  // deriveUndertimeHours throws on a backwards window (via deriveHours) — the
+  // right behavior for the submit path, but this live preview renders on every
+  // keystroke while the user is still mid-edit, so a half-typed end time before
+  // its start must not take the render down (same reasoning as safeDeriveHours).
+  let currentUtHours = 0;
+  if (utOriginalStart && utOriginalEnd && utActualStart && utActualEnd) {
+    try {
+      currentUtHours = deriveUndertimeHours({ startTime: utOriginalStart, endTime: utOriginalEnd }, { startTime: utActualStart, endTime: utActualEnd });
+    } catch {
+      currentUtHours = 0;
+    }
+  }
 
   const { data: categories = [] } = useQuery({
     queryKey: ['activeLeaveCategories'],
@@ -206,6 +229,18 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
       }
     }
   }, [silDate, silApplyMode, dayShiftConfig]);
+
+  // Pre-fills the original (scheduled) window from the day-shift config for
+  // the chosen weekday — stays editable, never locked (issue #147).
+  useEffect(() => {
+    if (utDate) {
+      const shift = getShiftForDate(utDate, dayShiftConfig);
+      if (shift.isWorkingDay) {
+        if (!utOriginalStart) setUtOriginalStart(shift.startTime);
+        if (!utOriginalEnd) setUtOriginalEnd(shift.endTime);
+      }
+    }
+  }, [utDate, dayShiftConfig]);
 
   if (!isOpen) return null;
 
@@ -397,6 +432,53 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     }
   };
 
+  const handleApplyUndertime = async (e) => {
+    e.preventDefault();
+    if (!utDate || !utOriginalStart || !utOriginalEnd || !utActualStart || !utActualEnd || !utReason) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
+
+    try {
+      assertNotWeekend(utDate);
+    } catch (err) {
+      toast.error(err.message);
+      return;
+    }
+
+    setUtSubmitting(true);
+    try {
+      const attachments = await utFiles.upload();
+      await offsetService.applyUndertime({
+        employeeId,
+        date: utDate,
+        originalStartTime: utOriginalStart,
+        originalEndTime: utOriginalEnd,
+        actualStartTime: utActualStart,
+        actualEndTime: utActualEnd,
+        reason: utReason,
+        employeeName,
+        attachments,
+        headId: utHeadId,
+      });
+      toast.success('Undertime application submitted!');
+      setUtDate('');
+      setUtOriginalStart('');
+      setUtOriginalEnd('');
+      setUtActualStart('');
+      setUtActualEnd('');
+      setUtReason('');
+      setUtHeadId('');
+      utFiles.clear();
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      toast.error(err.message || 'Failed to submit undertime application.');
+    } finally {
+      setUtSubmitting(false);
+    }
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
@@ -422,6 +504,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               { value: 'overtime', label: 'Overtime' },
               { value: 'offset', label: 'Offset' },
               { value: 'sil', label: 'SIL' },
+              { value: 'undertime', label: 'Undertime' },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -796,6 +879,119 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     ? 'Uploading files...'
                     : 'Submitting...'
                   : 'Apply for Leave'}
+              </Button>
+            </form>
+          )}
+
+          {activeTab === 'undertime' && (
+            <form onSubmit={handleApplyUndertime} className="space-y-4 animate-in fade-in duration-300">
+              <div className="flex items-center space-x-2 pb-2 mb-2 border-b border-border">
+                <Clock size={16} className="text-amber-11" />
+                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">
+                  File Undertime
+                </h3>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Date
+                </label>
+                <input
+                  type="date"
+                  value={utDate}
+                  onChange={(e) => setUtDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                  required
+                />
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Original Work Schedule
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
+                    <input
+                      type="time"
+                      value={utOriginalStart}
+                      onChange={(e) => setUtOriginalStart(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
+                    <input
+                      type="time"
+                      value={utOriginalEnd}
+                      onChange={(e) => setUtOriginalEnd(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Actual Work Schedule
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
+                    <input
+                      type="time"
+                      value={utActualStart}
+                      onChange={(e) => setUtActualStart(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
+                    <input
+                      type="time"
+                      value={utActualEnd}
+                      onChange={(e) => setUtActualEnd(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              {currentUtHours > 0 && (
+                <div className="text-xs font-semibold text-amber-11 px-1">
+                  Derived shortfall: {currentUtHours} hrs
+                </div>
+              )}
+              <HeadSelectField employee={selectedEmployee} value={utHeadId} onChange={setUtHeadId} />
+              <div>
+                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                  Purpose
+                </label>
+                <textarea
+                  value={utReason}
+                  onChange={(e) => setUtReason(e.target.value)}
+                  placeholder="Purpose of the undertime"
+                  rows={3}
+                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                  required
+                />
+              </div>
+              <AttachmentField
+                label="Supporting Files"
+                attachments={utFiles}
+                disabled={utSubmitting}
+                hint={`Optional — supporting documentation. Up to ${utFiles.max} files, 10.0 MB each.`}
+              />
+              <Button
+                type="submit"
+                disabled={utSubmitting}
+                className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer mt-4"
+              >
+                {utSubmitting
+                  ? utFiles.isUploading
+                    ? 'Uploading files...'
+                    : 'Submitting...'
+                  : 'Submit Undertime'}
               </Button>
             </form>
           )}

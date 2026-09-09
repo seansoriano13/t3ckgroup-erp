@@ -206,6 +206,23 @@ credentials to do anything, so `edge_runtime` is disabled in
 `supabase/config.toml`. They stay declared there so "Deploy to production"
 keeps auto-shipping function changes.
 
+### Render-time errors must not throw
+
+A component's render path (JSX, live-preview computations shown as the user
+types, `useMemo`/inline derivations) must never call a function that throws
+on invalid-but-in-progress input — a half-typed time window, an end date
+before a start date, etc. `@generouted/react-router`'s default per-route
+error element intercepts these before they ever reach the app's own
+`ErrorBoundary` in `src/main.jsx`, so the user sees a raw stack trace instead
+of a toast — see `src/utils/time.js`'s `deriveHours` (throws, correct for the
+service/submit path) vs `safeDeriveHours` (catches, for live render/preview
+values) for the pattern every derive-on-render call site must follow. When
+adding a new form field whose value is computed live from user input,
+reach for (or add) a `safe*`/non-throwing variant rather than calling the
+throwing one directly in render, and wrap any submit-time validation error
+in a `try/catch` that surfaces `err.message` via `toast.error(...)` — never
+let it escape to the router's default error boundary.
+
 ### Changelog updates
 
 Whenever you complete a task that changes the application's behavior or UI, you must add an entry to `src/data/changelog.json` before pushing to origin. 

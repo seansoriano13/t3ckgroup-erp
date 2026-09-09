@@ -7,9 +7,9 @@
 
 import { resolveLeaveCategory, getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeOutcome, getOvertimeHoursDisplay } from './layout';
 
-/** "LV-2026-4F91" / "OT-2026-4F91" — stable per record, never a claimed sequence number. */
+/** "LV-2026-4F91" / "OT-2026-4F91" / "UT-2026-4F91" — stable per record, never a claimed sequence number. */
 export function getRecordNumber(record) {
-  const prefix = record.type === 'OVERTIME' ? 'OT' : 'LV';
+  const prefix = record.type === 'OVERTIME' ? 'OT' : record.type === 'UNDERTIME' ? 'UT' : 'LV';
   const year = record.created_at ? new Date(record.created_at).getUTCFullYear() : new Date().getUTCFullYear();
   const suffix = (record.id || '').replace(/-/g, '').slice(0, 4).toUpperCase() || '0000';
   return `${prefix}-${year}-${suffix}`;
@@ -155,6 +155,24 @@ function hrdValidationRows(record, balanceLabel) {
   ];
 }
 
+/**
+ * TG-13's own validation block, distinct from hrdValidationRows above: no
+ * balance/credits row at all, since undertime never moves one, and
+ * `hr_processed_at` is read directly rather than falling back to
+ * `updated_at` — undertime carries the real column from day one (see
+ * 20260909010000_undertime_requests.sql), so the fallback that papers over
+ * overtime/offset lacking it would only hide a bug here.
+ */
+function undertimeValidationRows(record) {
+  return [
+    ['Validated by', record.hr?.name || '—'],
+    ['Validation date', record.hr_processed_at
+      ? new Date(record.hr_processed_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      : '—'],
+    ['Filed', getFiledStatus(record)],
+  ];
+}
+
 export function buildTG11ViewModel(record, formSettings) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
@@ -221,6 +239,52 @@ export function buildTG12ViewModel(record, formSettings) {
       approverSigBlock(record, formSettings),
     ].filter(Boolean),
     note: 'File a day before scheduled overtime, or as soon as possible afterward if unscheduled.',
+    verificationToken: record.verification_token,
+  };
+}
+
+/**
+ * TG-13 — Undertime (issues #147-149). Mirrors buildTG12ViewModel's shape,
+ * with two deliberate differences: the HRD block reads `hr_processed_at`
+ * directly (undertime carries the real column from day one, unlike
+ * overtime/offset which fall back to `updated_at`) and drops the balance
+ * row entirely — undertime never credits or debits a balance, so there is
+ * no figure to print there.
+ */
+export function buildTG13ViewModel(record, formSettings) {
+  const fields = [
+    { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+    { k: 'Date of undertime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
+    { k: 'Employment status', v: record.employee?.employment_status || '—' },
+    { k: 'Original work schedule', v: (record.original_start_time && record.original_end_time) ? `${record.original_start_time} – ${record.original_end_time}` : '—' },
+    { k: 'Actual work schedule', v: (record.actual_start_time && record.actual_end_time) ? `${record.actual_start_time} – ${record.actual_end_time}` : '—' },
+  ];
+
+  const approvedHours = record.approved_hours ?? record.hours ?? 0;
+
+  return {
+    recordNo: getRecordNumber(record),
+    kind: 'Undertime',
+    name: record.employee?.name || 'Unknown',
+    meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
+    company: record.company?.name || null,
+    bigK: 'Total no. of hours',
+    bigN: trimNumber(approvedHours),
+    bigU: 'hrs',
+    fields,
+    outcome: record.status === 'APPROVED' ? 'Approved' : record.status,
+    remK: 'Purpose',
+    rem: [record.reason, record.hr_notes ? `HR Note: ${record.hr_notes}` : null].filter(Boolean).join('\n\n') || '',
+    // No balance row: undertime never credits or debits offset_hours_balance
+    // or sil_hours_balance, on any status.
+    hrd: undertimeValidationRows(record),
+    sigs: [
+      employeeSigBlock(record),
+      headSigBlock(record),
+      supervisorSigBlock(formSettings),
+      approverSigBlock(record, formSettings),
+    ].filter(Boolean),
+    note: 'File as soon as the shortfall against the scheduled work window is known.',
     verificationToken: record.verification_token,
   };
 }
