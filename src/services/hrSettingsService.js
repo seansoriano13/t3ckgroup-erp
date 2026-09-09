@@ -85,53 +85,5 @@ export const hrSettingsService = {
       { event: 'LEAVE_CATEGORIES_REORDERED' },
       actorId
     ).catch(console.error);
-  },
-
-  // ==========================================
-  // Form Settings
-  // ==========================================
-
-  /**
-   * Fetch the singleton form settings. Returns null if the row hasn't been
-   * created yet — the database ships with no default row, so a fresh
-   * install has nothing to select until the first save creates it.
-   */
-  async getFormSettings() {
-    const { data, error } = await supabase
-      .from('hr_form_settings')
-      .select('*')
-      .eq('id', 1)
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    return data;
-  },
-
-  /**
-   * Update form settings, creating the singleton row on first save if it
-   * doesn't exist yet.
-   */
-  async updateFormSettings(updates, actorId) {
-    const { data, error } = await supabase
-      .from('hr_form_settings')
-      .upsert({
-        id: 1,
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single();
-
-    if (error) throw new Error(error.message);
-
-    systemAuditLogService.addSystemEvent(
-      'HR_SETTINGS',
-      'form-settings',
-      `Updated form printed names/titles`,
-      { event: 'FORM_SETTINGS_UPDATED', updates },
-      actorId
-    ).catch(console.error);
-
-    return data;
   }
 };

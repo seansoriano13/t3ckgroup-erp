@@ -1,15 +1,7 @@
-import { buildTG11ViewModel, buildTG12ViewModel, buildTG13ViewModel } from './formViewModel';
+import { getFormType } from './formTypeRegistry';
 import { pairIntoSheets } from './layout';
-import { hrSettingsService } from '../../services/hrSettingsService';
 import { signatureService } from '../../services/signatureService';
 import QRCode from 'qrcode';
-
-/** "LV-…" -> TG-11, "OT-…" -> TG-12, "UT-…" -> TG-13. */
-function formLabelForRecordNo(recordNo) {
-  if (recordNo.includes('LV')) return 'TG-11';
-  if (recordNo.startsWith('UT-')) return 'TG-13';
-  return 'TG-12';
-}
 
 const MARK = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="204 177 650 550" role="img" aria-label="T3CKGROUP">
   <path d="M492.51 240.23C492.91 240.97 492.53 241.46 493.45 241.96C495.1 242.87 508.27 242.24 511.06 242.25C530.08 242.31 549.09 242.16 568.11 242.18C632.01 242.23 695.92 241.89 759.82 242.13C776.65 242.2 793.48 242.21 810.32 242.1C815 242.06 825.21 243.53 828.76 240.84C827.84 246.58 824.24 252.21 821.99 257.65C818.53 266.04 815.56 274.69 811.94 283.01C810.26 286.89 808.16 290.61 806.56 294.54C803.77 301.39 801.24 311.91 796.63 317.49C783.01 318.59 768.84 317.65 755.14 317.69C723.03 317.81 690.93 317.84 658.82 317.86C646.35 317.87 633.89 317.91 621.41 317.76C616.52 317.7 609.38 316.33 605.07 318.83C604.78 318.34 604.89 317.74 604.27 317.47C601.72 316.35 592.79 317.18 589.62 317.17C573.46 317.1 557.13 316.8 540.99 317.41C536.8 322.42 533.82 334.35 531.05 340.78C523.06 359.37 515.47 378.12 507.47 396.71C481.23 457.69 456.33 519.24 430.24 580.29C421.53 600.69 413.65 621.47 404.6 641.72C402.45 646.53 400.62 651.4 398.71 656.3C397.7 658.9 395.97 661.24 397.25 663.89C393.14 666.46 390.6 676.47 388.83 681.11C385.64 689.5 381.65 697.57 378.03 705.78C375.49 711.54 373.63 717.62 370.79 723.25C365.75 725.3 347.54 723.73 340.87 723.88C315.32 724.44 289.73 723.89 264.18 724.01C255.77 724.05 247.34 724.23 238.93 723.92C235.16 723.79 231.02 724.32 227.71 722.63C230.5 711.05 236.9 699.94 241.56 688.99C249.35 670.7 256.43 652.17 264.02 633.8C266.89 626.84 270.49 620.14 273.23 613.1C284.71 583.5 297.33 554.43 309.77 525.28C312.42 519.08 314.42 512.64 316.93 506.4C327.26 480.73 338.3 455.39 349.01 429.88C359.88 404.01 370.86 378.38 380.76 352.27C383.69 344.54 387.52 337.09 390.69 329.45C392.12 326 394.34 321.91 394.17 318.2C331.83 317.92 269.48 317.63 207.14 317.35C206.03 311.02 212.64 300.35 215.18 294.14C217.67 288.1 219.6 281.8 222.05 275.74C224.43 269.82 227.36 264.17 229.63 258.18C231.65 252.84 233.51 247.21 236.13 242.14C242.42 240.59 251.87 241.78 258.59 241.81C272.61 241.89 286.62 241.7 300.65 241.8C342.69 242.1 384.73 241.45 426.76 241.73C442.69 241.84 458.64 241.36 474.57 241.7C478.85 241.79 489.82 243.24 492.51 240.23Z" fill="currentColor" fill-rule="evenodd" stroke="currentColor" stroke-width="0.25" stroke-linejoin="round" />
@@ -41,7 +33,7 @@ export function formHTML(d) {
     + '<header class="rail"><span class="mark">' + MARK + '</span>'
     + '<span class="org"><b>T3CKGROUP</b>Human resources department</span>'
     + '<span class="sp"></span>'
-    + '<span class="id"><span class="n m">' + d.recordNo + '</span><span class="r m" style="display:block">' + formLabelForRecordNo(d.recordNo) + '</span></span>'
+    + '<span class="id"><span class="n m">' + d.recordNo + '</span><span class="r m" style="display:block">' + d.formLabel + '</span></span>'
     + '</header>'
     + '<div class="head">'
     + '<div class="l"><div class="kind">' + d.kind + '</div><div class="who">' + d.name + '</div><div class="meta">' + d.meta + '</div>'
@@ -83,7 +75,7 @@ export function buildSheetsHtml(mappedData) {
   return pairIntoSheets(mappedData).map((sheet) => {
     const bottomHtml = sheet.bottom
       ? '<div class="land b">' + formHTML(sheet.bottom) + '</div>'
-      : '<div class="land b"><div class="blank">Blank ' + formLabelForRecordNo(sheet.top.recordNo) + '</div></div>';
+      : '<div class="land b"><div class="blank">Blank ' + sheet.top.formLabel + '</div></div>';
     return '<div class="paper">'
       + '<div class="land a">' + formHTML(sheet.top) + '</div>'
       + bottomHtml
@@ -206,13 +198,7 @@ export function buildPrintableDocument(mappedData) {
  * (which needs the same hydrated data, never a second fetch of it).
  */
 export async function hydrateRecordsForPrint(records) {
-  const formSettings = await hrSettingsService.getFormSettings().catch(() => null);
-
-  const mappedData = records.map(r => {
-    if (r.type === 'OVERTIME') return buildTG12ViewModel(r, formSettings);
-    if (r.type === 'UNDERTIME') return buildTG13ViewModel(r, formSettings);
-    return buildTG11ViewModel(r, formSettings);
-  });
+  const mappedData = records.map(r => getFormType(r.type).buildViewModel(r));
 
   for (const d of mappedData) {
     const origin = window.location.hostname === 'localhost' ? 'http://localhost:5173' : 'https://t3ckgroup-erp.online';

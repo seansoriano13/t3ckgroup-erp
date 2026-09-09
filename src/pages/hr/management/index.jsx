@@ -7,7 +7,6 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
 import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
-import FormSettingsConfig from "../../../components/hr/FormSettingsConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
@@ -405,7 +404,6 @@ export default function EmployeeManagement() {
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
             <LeaveCategoriesConfig />
-            <FormSettingsConfig />
           </div>
         )}
 

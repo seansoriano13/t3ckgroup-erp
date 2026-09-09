@@ -1,15 +1,19 @@
 /**
- * Pure mapping from a raw offset/SIL/overtime record (plus HR form settings)
- * to exactly the fields TG-11 and TG-12 print. No I/O, no pdf-lib — every
- * value here is either read straight off the record or derived from it, so
- * a form never shows a fact the record can't back up.
+ * Pure mapping from a raw offset/SIL/overtime/undertime record to exactly
+ * the fields TG-11, TG-12 and TG-13 print. No I/O, no pdf-lib — every value
+ * here is either read straight off the record or derived from it, so a
+ * form never shows a fact the record can't back up.
  */
 
 import { resolveLeaveCategory, getInclusiveDates, getDayCount, isLateFiling, isLegacySignature, getOvertimeOutcome, getOvertimeHoursDisplay } from './layout';
 
+/** One record number prefix per record type — the single source the registry (formTypeRegistry.js) draws its label from. */
+const RECORD_PREFIXES = { OVERTIME: 'OT', UNDERTIME: 'UT', SIL: 'LV', OFFSET: 'LV' };
+
 /** "LV-2026-4F91" / "OT-2026-4F91" / "UT-2026-4F91" — stable per record, never a claimed sequence number. */
 export function getRecordNumber(record) {
-  const prefix = record.type === 'OVERTIME' ? 'OT' : record.type === 'UNDERTIME' ? 'UT' : 'LV';
+  const prefix = RECORD_PREFIXES[record.type];
+  if (!prefix) throw new Error(`Unknown form record type: "${record.type}"`);
   const year = record.created_at ? new Date(record.created_at).getUTCFullYear() : new Date().getUTCFullYear();
   const suffix = (record.id || '').replace(/-/g, '').slice(0, 4).toUpperCase() || '0000';
   return `${prefix}-${year}-${suffix}`;
@@ -67,79 +71,87 @@ export function getSignedStamp(timestamp, signaturePath) {
  * One signature-plate description. `state` is one of:
  *  - 'signed': a real digital signature exists, embed the image
  *  - 'legacy': predates the signing feature, print "signed on paper"
- *  - 'wet': the role never signs digitally in this system (supervisor, approver) — always a blank ruled line
+ *  - 'wet': no digital signature to show — a blank ruled line, either
+ *    because this role never signs digitally, or because the decision this
+ *    plate represents (head approval, HR processing) hasn't happened yet
  */
-function employeeSigBlock(record) {
+function requestedBySigBlock(record) {
   if (record.employee_signature_timestamp) {
     return {
-      role: 'Employee', who: record.employee?.name || 'Unknown', title: 'Applicant',
+      role: 'Requested by', who: record.employee?.name || 'Unknown', title: 'Applicant',
       state: 'signed',
       signaturePath: record.employee_signature_version,
       stamp: getSignedStamp(record.employee_signature_timestamp, record.employee_signature_version),
     };
   }
   if (isLegacySignature(record)) {
-    return { role: 'Employee', who: record.employee?.name || 'Unknown', title: 'Applicant', state: 'legacy' };
+    return { role: 'Requested by', who: record.employee?.name || 'Unknown', title: 'Applicant', state: 'legacy' };
   }
-  return { role: 'Employee', who: record.employee?.name || 'Unknown', title: 'Applicant', state: 'wet' };
-}
-
-function approverSigBlock(record, formSettings) {
-  const who = formSettings?.approver_name || record.hr?.name || 'Approving officer';
-  const isSigned = record.approval_hash || record.hr_signature_version;
-  
-  if (record.hr_signature_timestamp) {
-    return {
-      role: 'Approved by', who, title: formSettings?.approver_title || 'Approving officer',
-      state: 'signed',
-      signaturePath: record.hr_signature_version,
-      stamp: getSignedStamp(record.hr_signature_timestamp, record.hr_signature_version),
-    };
-  }
-  
-  if (isSigned) {
-    // Has a valid approval hash but no signature timestamp fetched or legacy
-    return {
-      role: 'Approved by', who, title: formSettings?.approver_title || 'Approving officer',
-      state: 'signed',
-      signaturePath: null,
-      stamp: 'Approved electronically',
-    };
-  }
-
-  return { role: 'Approved by', who, title: formSettings?.approver_title || 'Approving officer', state: 'wet' };
+  return { role: 'Requested by', who: record.employee?.name || 'Unknown', title: 'Applicant', state: 'wet' };
 }
 
 /**
- * Department-head approval stage (issue #137). Only appears when the
- * request was actually routed to a head — legacy/backfilled rows have no
- * head_id and print nothing here, same as supervisorSigBlock's opt-in shape.
+ * The department head who approved the request (issue #137's head stage,
+ * issue #153's real "Approved by" plate). Never omitted: a record with no
+ * head_id at all — either it predates the head stage, or a head was never
+ * routed — still prints this plate, as a blank ruled line captioned
+ * "Approved by", exactly like a decision that simply hasn't happened yet.
  */
-function headSigBlock(record) {
-  if (!record.head_id) return null;
+function approvedBySigBlock(record) {
+  if (!record.head_id) {
+    return { role: 'Approved by', who: '', title: 'Department Head', state: 'wet' };
+  }
   const who = record.head?.name || 'Department Head';
   if (record.head_status === 'REJECTED') {
-    return { role: 'Department Head', who, title: 'Head', state: 'wet', note: 'Rejected' };
+    return { role: 'Approved by', who, title: 'Department Head', state: 'wet', note: 'Rejected' };
   }
   if (record.head_decided_at) {
     return {
-      role: 'Department Head', who, title: 'Head',
+      role: 'Approved by', who, title: 'Department Head',
       state: 'signed',
       signaturePath: record.head_signature_version,
       stamp: getSignedStamp(record.head_decided_at, record.head_signature_version),
     };
   }
-  return { role: 'Department Head', who, title: 'Head', state: 'wet', note: 'Pending' };
+  return { role: 'Approved by', who, title: 'Department Head', state: 'wet', note: 'Pending' };
 }
 
-function supervisorSigBlock(formSettings) {
-  if (!formSettings?.supervisor_name) return null;
-  return {
-    role: 'Noted by',
-    who: formSettings.supervisor_name,
-    title: formSettings?.supervisor_title || 'Supervisor / Manager',
-    state: 'wet'
-  };
+/**
+ * The HR officer who processed the request (`hr_processed_by`), replacing
+ * the typed-name settings singleton issue #153 removes. Never omitted: an
+ * unprocessed record prints a blank ruled line captioned "Noted by" rather
+ * than vanishing the column, which is exactly the bug this plate replaces.
+ */
+function notedBySigBlock(record) {
+  const who = record.hr?.name || '';
+  if (record.hr_signature_timestamp) {
+    return {
+      role: 'Noted by', who, title: 'HR Officer',
+      state: 'signed',
+      signaturePath: record.hr_signature_version,
+      stamp: getSignedStamp(record.hr_signature_timestamp, record.hr_signature_version),
+    };
+  }
+  const isSigned = record.approval_hash || record.hr_signature_version;
+  if (isSigned) {
+    // Has a valid approval hash but no signature timestamp fetched or legacy
+    return { role: 'Noted by', who, title: 'HR Officer', state: 'signed', signaturePath: null, stamp: 'Approved electronically' };
+  }
+  return { role: 'Noted by', who, title: 'HR Officer', state: 'wet' };
+}
+
+/**
+ * The one signature band every form prints, in the fixed order the paper
+ * TG-13 already uses: Requested by, Approved by, Noted by. Always exactly
+ * three plates — an undecided plate renders as a ruled line rather than
+ * being omitted, so the form's shape never depends on what's been decided.
+ */
+function buildSignatureBand(record) {
+  return [
+    requestedBySigBlock(record),
+    approvedBySigBlock(record),
+    notedBySigBlock(record),
+  ];
 }
 
 /** Fields common to both templates' right-rail "HRD validation" block. */
@@ -173,7 +185,7 @@ function undertimeValidationRows(record) {
   ];
 }
 
-export function buildTG11ViewModel(record, formSettings) {
+export function buildTG11ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Employment status', v: record.employee?.employment_status || '—' },
@@ -184,6 +196,7 @@ export function buildTG11ViewModel(record, formSettings) {
 
   return {
     recordNo: getRecordNumber(record),
+    formLabel: 'TG-11',
     kind: 'Application for Leave',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
@@ -197,17 +210,13 @@ export function buildTG11ViewModel(record, formSettings) {
     remK: 'Remarks',
     rem: [record.reason, record.hr_notes ? `HR Note: ${record.hr_notes}` : null].filter(Boolean).join('\n\n') || '',
     hrd: hrdValidationRows(record, 'Credits remaining'),
-    sigs: [
-      employeeSigBlock(record),
-      headSigBlock(record),
-      supervisorSigBlock(formSettings),
-    ].filter(Boolean),
-    note: 'This form must be filed before the leave commences, or immediately upon return for emergency or sick leave.',
+    sigs: buildSignatureBand(record),
+    note: 'This form must be filed at least two (2) days before the leave commences, or immediately upon return for emergency or sick leave.',
     verificationToken: record.verification_token,
   };
 }
 
-export function buildTG12ViewModel(record, formSettings) {
+export function buildTG12ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Date of overtime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
@@ -219,6 +228,7 @@ export function buildTG12ViewModel(record, formSettings) {
 
   return {
     recordNo: getRecordNumber(record),
+    formLabel: 'TG-12',
     kind: 'Overtime Authorization',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
@@ -232,13 +242,8 @@ export function buildTG12ViewModel(record, formSettings) {
     remK: 'Notice of overtime',
     rem: [record.reason, record.hr_notes ? `HR Note: ${record.hr_notes}` : null].filter(Boolean).join('\n\n') || '',
     hrd: hrdValidationRows(record, 'Offset balance'),
-    sigs: [
-      employeeSigBlock(record),
-      headSigBlock(record),
-      supervisorSigBlock(formSettings),
-      approverSigBlock(record, formSettings),
-    ].filter(Boolean),
-    note: 'File a day before scheduled overtime, or as soon as possible afterward if unscheduled.',
+    sigs: buildSignatureBand(record),
+    note: 'This form must be filed a day before the scheduled OT, or at least four (4) hours in advance in the case of unscheduled OT.',
     verificationToken: record.verification_token,
   };
 }
@@ -251,7 +256,7 @@ export function buildTG12ViewModel(record, formSettings) {
  * row entirely — undertime never credits or debits a balance, so there is
  * no figure to print there.
  */
-export function buildTG13ViewModel(record, formSettings) {
+export function buildTG13ViewModel(record) {
   const fields = [
     { k: 'Date filed', v: record.created_at ? new Date(record.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
     { k: 'Date of undertime', v: record.date ? new Date(record.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—' },
@@ -264,6 +269,7 @@ export function buildTG13ViewModel(record, formSettings) {
 
   return {
     recordNo: getRecordNumber(record),
+    formLabel: 'TG-13',
     kind: 'Undertime',
     name: record.employee?.name || 'Unknown',
     meta: [record.employee?.role, record.employee?.department, record.employee?.sub_department].filter(Boolean).join(' · '),
@@ -278,12 +284,7 @@ export function buildTG13ViewModel(record, formSettings) {
     // No balance row: undertime never credits or debits offset_hours_balance
     // or sil_hours_balance, on any status.
     hrd: undertimeValidationRows(record),
-    sigs: [
-      employeeSigBlock(record),
-      headSigBlock(record),
-      supervisorSigBlock(formSettings),
-      approverSigBlock(record, formSettings),
-    ].filter(Boolean),
+    sigs: buildSignatureBand(record),
     note: 'File as soon as the shortfall against the scheduled work window is known.',
     verificationToken: record.verification_token,
   };

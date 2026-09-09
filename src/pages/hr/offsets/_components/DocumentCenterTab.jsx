@@ -6,9 +6,8 @@ import { GripVertical, Printer, X, FileStack, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Avatar from '../../../../components/Avatar';
 import HighlightText from '../../../../components/HighlightText';
-import { offsetService } from '../../../../services/offsetService';
-import { silService } from '../../../../services/silService';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
+import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
@@ -151,12 +150,7 @@ export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, h
     setIsBusy(true);
     try {
       await printComposedHtml(previewHtml);
-      await Promise.all(tray.map((r) => {
-        if (r.type === 'OVERTIME') return offsetService.markOvertimeRequestsPrinted({ id: r.id, hrId });
-        if (r.type === 'UNDERTIME') return offsetService.markUndertimeRequestsPrinted({ id: r.id, hrId });
-        if (r.type === 'SIL') return silService.markSilLeavesPrinted({ id: r.id, groupId: r.leave_group_id, hrId });
-        return offsetService.markOffsetLeavesPrinted({ id: r.id, groupId: r.leave_group_id, hrId });
-      }));
+      await Promise.all(tray.map((r) => getFormType(r.type).markPrinted(r, hrId)));
       onPrinted?.();
     } catch (err) {
       toast.error(err.message || 'Failed to print');

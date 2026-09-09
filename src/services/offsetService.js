@@ -448,6 +448,7 @@ export const offsetService = {
         *,
         employee:employees!overtime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
         hr:employees!overtime_requests_hr_processed_by_fkey(id, name, signature_path),
+        head:employees!overtime_requests_head_id_fkey(id, name, signature_path),
         category:hr_leave_categories(label),
         company:companies(id, name)
       `)
@@ -492,6 +493,7 @@ export const offsetService = {
         *,
         employee:employees!offset_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, offset_hours_balance, signature_path),
         hr:employees!offset_leaves_hr_processed_by_fkey(id, name, signature_path),
+        head:employees!offset_leaves_head_id_fkey(id, name, signature_path),
         category:hr_leave_categories(label),
         company:companies(id, name)
       `)
@@ -1039,6 +1041,7 @@ export const offsetService = {
         *,
         employee:employees!undertime_requests_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, signature_path),
         hr:employees!undertime_requests_hr_processed_by_fkey(id, name, signature_path),
+        head:employees!undertime_requests_head_id_fkey(id, name, signature_path),
         category:hr_leave_categories(label),
         company:companies(id, name)
       `)

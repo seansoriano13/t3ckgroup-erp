@@ -289,6 +289,7 @@ export const silService = {
         *,
         employee:employees!sil_leaves_employee_id_fkey(id, name, role, department, sub_department, employment_status, avatar_path, sil_hours_balance, signature_path),
         hr:employees!sil_leaves_hr_processed_by_fkey(id, name, signature_path),
+        head:employees!sil_leaves_head_id_fkey(id, name, signature_path),
         category:hr_leave_categories(label),
         company:companies(id, name)
       `)
