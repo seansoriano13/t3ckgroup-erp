@@ -16,7 +16,14 @@
 // This function can't import from src/ (it's a separately-deployed Deno
 // runtime), so the push-type allowlist is re-stated inline.
 // src/constants/pushNotificationTypes.js is its JS twin, proven at Seam B —
-// keep both in sync if either changes.
+// keep both in sync if either changes (pushNotificationTypes.sync.test.js
+// checks they match).
+//
+// Local testing: VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT go in
+// supabase/functions/.env (gitignored) — NOT supabase/.env.local, which the
+// local edge runtime container never reads. `supabase stop` (backs up data)
+// then `supabase start` after editing that file to make it pick up the
+// change; env vars are read once at container start.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 import webpush from "https://esm.sh/web-push@3.6.7";
