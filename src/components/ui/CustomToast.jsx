@@ -25,6 +25,9 @@ export function CustomToast({
   const content = resolveValue(t.message, t);
   let displayTitle = title;
   let displayDescription = description || content;
+  if (!displayDescription && resolvedVariant === "error") {
+    displayDescription = "Something went wrong. Please try again.";
+  }
 
   // Provide sensible default titles
   if (!displayTitle) {
@@ -157,7 +160,7 @@ export const confirmDeleteToast = (title, description, onConfirm) => {
         confirmText="Confirm Deletion"
       />
     ),
-    { duration: Infinity, id: "delete-confirm", position: "bottom-center" }
+    { duration: Infinity, id: "delete-confirm" }
   );
 };
 
@@ -175,7 +178,7 @@ export const confirmActionToast = (title, description, confirmText, actionType, 
         confirmText={confirmText}
       />
     ),
-    { duration: Infinity, id: `action-confirm-${Date.now()}`, position: "bottom-center" }
+    { duration: Infinity, id: `action-confirm-${Date.now()}` }
   );
 };
 

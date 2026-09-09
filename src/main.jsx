@@ -66,21 +66,30 @@ createRoot(document.getElementById("root")).render(
         <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
           <AuthProvider>
             <ThemeApplier>
-              <Toaster
-                position="top-center"
-                reverseOrder={false}
-                gutter={12}
-                containerStyle={{ zIndex: 99999999 }}
-                toastOptions={{ duration: 3000 }}
-              >
-                {(t) =>
-                  t.type === "custom" ? (
-                    resolveValue(t.message, t)
-                  ) : (
-                    <CustomToast t={t} />
-                  )
-                }
-              </Toaster>
+              {/* aria-live marks this wrapper (and everything in it) as a live
+                  region, which is the one thing that keeps a modal dialog from
+                  marking it aria-hidden/inert when it opens — without it, a
+                  toast raised while a dialog is open is stuck non-interactive
+                  for the dialog's whole lifetime, since the app's single
+                  Toaster is mounted once at boot, long before any toast (or
+                  its own aria-live) exists for the dialog to notice (#175). */}
+              <div aria-live="polite" aria-atomic="false" className="contents">
+                <Toaster
+                  position="top-center"
+                  reverseOrder={false}
+                  gutter={12}
+                  containerStyle={{ zIndex: 99999999 }}
+                  toastOptions={{ duration: 3000 }}
+                >
+                  {(t) =>
+                    t.type === "custom" ? (
+                      resolveValue(t.message, t)
+                    ) : (
+                      <CustomToast t={t} />
+                    )
+                  }
+                </Toaster>
+              </div>
               <VersionUpdateNotifier />
               <StagingBanner />
               <Routes />

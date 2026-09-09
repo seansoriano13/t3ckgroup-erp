@@ -1,5 +1,5 @@
 /**
- * Tests for `undoableSuccessToast` — the shared helper that replaced the dead
+ * Tests for `undoableSuccessToast` ï¿½ the shared helper that replaced the dead
  * `toast.success({ action: ... })` pattern across the app (#96).
  *
  * react-hot-toast's `toast.success` ignores any `action` option, so the Undo
@@ -12,7 +12,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import toast from "react-hot-toast";
 import { renderWithProviders } from "@/test/support";
-import { CustomToast, undoableSuccessToast } from "./CustomToast";
+import { CustomToast, confirmDeleteToast, confirmActionToast, undoableSuccessToast } from "./CustomToast";
 
 describe("undoableSuccessToast", () => {
   let customSpy;
@@ -69,5 +69,59 @@ describe("undoableSuccessToast", () => {
       expect.any(Function),
       expect.objectContaining({ duration: 8000 }),
     );
+  });
+});
+
+describe("CustomToast error fallback (#175)", () => {
+  it("shows a fallback message when the error has none", () => {
+    renderWithProviders(
+      <CustomToast t={{ id: "t1", visible: true, type: "error" }} variant="error" />,
+    );
+
+    expect(screen.getByText("Something went wrong. Please try again.")).toBeInTheDocument();
+  });
+
+  it("still shows the real message when the error has one", () => {
+    renderWithProviders(
+      <CustomToast t={{ id: "t1", visible: true, type: "error" }} variant="error" description="Network request failed." />,
+    );
+
+    expect(screen.getByText("Network request failed.")).toBeInTheDocument();
+    expect(screen.queryByText("Something went wrong. Please try again.")).not.toBeInTheDocument();
+  });
+});
+
+describe("confirmation toasts (#175)", () => {
+  let customSpy;
+
+  beforeEach(() => {
+    customSpy = vi.spyOn(toast, "custom");
+  });
+
+  it("does not pin confirmDeleteToast to a different position than the rest of the toaster", () => {
+    act(() => {
+      confirmDeleteToast("Delete this?", "This cannot be undone.", vi.fn());
+    });
+
+    const options = customSpy.mock.calls[0][1];
+    expect(options).not.toHaveProperty("position");
+  });
+
+  it("does not pin confirmActionToast to a different position than the rest of the toaster", () => {
+    act(() => {
+      confirmActionToast("Archive this?", "It can be restored later.", "Archive", "archive", vi.fn());
+    });
+
+    const options = customSpy.mock.calls[0][1];
+    expect(options).not.toHaveProperty("position");
+  });
+
+  it("keeps confirmDeleteToast from timing out on its own", () => {
+    act(() => {
+      confirmDeleteToast("Delete this?", "This cannot be undone.", vi.fn());
+    });
+
+    const options = customSpy.mock.calls[0][1];
+    expect(options.duration).toBe(Infinity);
   });
 });
