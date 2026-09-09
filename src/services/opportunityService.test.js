@@ -58,6 +58,23 @@ describe("opportunityService", () => {
       })
     })
 
+    // Issue #179 — `serial_no` (the SOR Register's first column and default
+    // sort) existed in production but was never created by a migration, so
+    // staging never had it. Reconciled by
+    // 20260909140000_reconcile_sor_register_serial_no.sql; this is the
+    // assertion that the drift closed, run against the fake database that
+    // schema.js builds straight from the migrations.
+    it("assigns a serial number on registration, distinct per opportunity", async () => {
+      const first = await opportunityService.createOpportunity(payload(), registrar.id)
+      const second = await opportunityService.createOpportunity(
+        payload({ client_name: "Manila Water District" }),
+        registrar.id,
+      )
+
+      expect(Number(first.serial_no)).toBeGreaterThan(0)
+      expect(Number(second.serial_no)).toBeGreaterThan(Number(first.serial_no))
+    })
+
     it("no longer carries an opportunity number", async () => {
       // Retired in migration 0012: it was minted as S0#### from a sequence
       // running through the same range as Odoo's quotation numbers, so an

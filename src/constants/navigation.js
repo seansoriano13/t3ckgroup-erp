@@ -102,6 +102,10 @@ export const NAV_MODULES = {
     key: "purchasing",
     label: "Purchasing",
     defaultExpanded: true,
+    // Issue #179 — a Purchase Request module for purchases outside a
+    // project (not tied to an SOR) was considered and deferred. This entry
+    // and the queue below are untouched; the note is here so the deferred
+    // plan is where the next person will look for it.
     links: [
       {
         key: "purchasing.queue",
