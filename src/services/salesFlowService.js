@@ -733,43 +733,11 @@ export const salesFlowService = {
       throw new Error(`This flow cannot be locked yet. ${blockers.join(" ")}`);
     }
 
-    const { data, error } = await supabase
-      .from("sales_flows")
-      .update({
-        state: "locked",
-        locked_at: new Date().toISOString(),
-        locked_by: actorId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", flowId)
-      .select()
-      .single();
-    if (error) throw error;
-
-    systemAuditLogService.addSystemEvent(
-      "SALES_FLOW",
-      flowId,
-      `Sales Flow locked.`,
-      { event: "SALES_FLOW_LOCKED", employeeId: actorId },
-      actorId,
-    ).catch(console.error);
-
-    // 1. Snapshotting
     const stageIds = stages.map(s => s.id);
     const [actionsObj, conditionsObj] = await Promise.all([
       stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
       stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {}
     ]);
-
-    const { data: latestSnapshot } = await supabase
-      .from("flow_snapshots")
-      .select("version")
-      .eq("flow_id", flowId)
-      .order("version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    const nextVersion = (latestSnapshot?.version || 0) + 1;
 
     const snapshotData = {
       stages,
@@ -780,27 +748,32 @@ export const salesFlowService = {
       saleTypeId: flow.sale_type_id
     };
 
-    const { data: snapshotResult, error: snapshotError } = await supabase
-      .from("flow_snapshots")
-      .insert({
-        flow_id: flowId,
-        version: nextVersion,
-        snapshot_data: snapshotData,
-        created_by: actorId
-      })
-      .select()
-      .single();
+    // Flipping the flow to locked and publishing the snapshot that pins its
+    // rules have to succeed or fail together — a flow stranded locked with no
+    // snapshot is unusable (issue #181). `lock_sales_flow` does both writes in
+    // one transaction instead of two unguarded round trips.
+    const { data, error } = await supabase.rpc("lock_sales_flow", {
+      p_flow_id: flowId,
+      p_actor_id: actorId,
+      p_snapshot_data: snapshotData,
+    });
+    if (error) throw error;
 
-    if (snapshotError) throw snapshotError;
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Sales Flow locked.`,
+      { event: "SALES_FLOW_LOCKED", employeeId: actorId },
+      actorId,
+    ).catch(console.error);
 
-    // 2. Emit artefacts
     const artefacts = {
       promotableConfiguration: JSON.stringify(snapshotData, null, 2),
-      readableDocument: `# Sales Flow Document\n\nVersion: ${nextVersion}\n...`,
+      readableDocument: `# Sales Flow Document\n\nVersion: ${data.snapshot.version}\n...`,
       notesList: "Notes...",
     };
 
-    return { ...data, snapshot: snapshotResult, artefacts };
+    return { ...data.flow, snapshot: data.snapshot, artefacts };
   },
 
   /**

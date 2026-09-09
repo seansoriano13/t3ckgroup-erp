@@ -13,6 +13,7 @@ import {
 } from "@/test/factories"
 
 import { supabase } from "@/lib/supabase"
+import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 
 // Mock ResizeObserver for React Flow
 global.ResizeObserver = class ResizeObserver {
@@ -42,6 +43,7 @@ const channelMock = {
 
 beforeEach(() => {
   vi.spyOn(supabase, "channel").mockReturnValue(channelMock)
+  stubLockSalesFlowRpc()
 })
 
 function seedFlow() {

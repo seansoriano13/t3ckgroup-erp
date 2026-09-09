@@ -6,6 +6,7 @@ import { renderWithProviders } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeSuperAdmin } from "@/test/factories"
+import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 
 const mockUser = vi.hoisted(() => ({ current: null }))
 
@@ -40,6 +41,7 @@ describe("FlowSnapshotHistoryPanel", () => {
   beforeEach(() => {
     admin = makeSuperAdmin({ name: "Super Admin" })
     mockUser.current = admin
+    stubLockSalesFlowRpc()
   })
 
   it("lists a Sale Type's Snapshots newest first once chosen", async () => {

@@ -9,6 +9,7 @@ import {
   makeSalesFlow,
   makeSuperAdmin,
 } from "@/test/factories"
+import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 
 /**
  * The Flow Canvas's persistence layer (issue #36, ADR 0006). Tested against
@@ -27,6 +28,7 @@ describe("salesFlowService", () => {
   beforeEach(() => {
     admin = makeSuperAdmin({ name: "Super Admin" })
     operations = makeEmployee({ name: "Ops Manager" })
+    stubLockSalesFlowRpc()
   })
 
   describe("Sale Types", () => {
