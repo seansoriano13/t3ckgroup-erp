@@ -76,10 +76,10 @@ function quoteIdent(name) {
 // pg deserializes both a jsonb array and a native Postgres array column into
 // a plain JS array — there is no way to tell them apart from the value
 // alone. Every jsonb column in this schema needs re-stringifying on the way
-// back in; `tasks.attachment_urls` is the one genuine `text[]` column among
-// the seeded tables, and pg already knows how to send a JS array as one
-// natively, so it is the one column excluded from that rule.
-const NATIVE_ARRAY_COLUMNS = new Set(["attachment_urls"])
+// back in; `tasks.attachment_urls` and `employees.hidden_nav_keys` are the
+// genuine `text[]` columns among the seeded tables, and pg already knows how
+// to send a JS array as one natively, so they're excluded from that rule.
+const NATIVE_ARRAY_COLUMNS = new Set(["attachment_urls", "hidden_nav_keys"])
 
 async function insertRows(client, schema, table, rows) {
   if (!rows || rows.length === 0) return
