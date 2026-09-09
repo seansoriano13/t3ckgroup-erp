@@ -59,6 +59,62 @@ export function bracketBox(members) {
   return { x: minX, y: minY - BRACKET_H, width: maxX - minX }
 }
 
+/** Canvas reading order: left to right by `pos_x`, top to bottom on a tie. */
+export function byCanvasPosition(a, b) {
+  if ((a.pos_x ?? 0) !== (b.pos_x ?? 0)) return (a.pos_x ?? 0) - (b.pos_x ?? 0)
+  return (a.pos_y ?? 0) - (b.pos_y ?? 0)
+}
+
+/**
+ * Consecutive runs of Stages sharing one `bracket_label`, in canvas order —
+ * the single grouping rule every bracket brace is drawn from. The Flow Canvas
+ * editor, the locked-snapshot viewer and the deal modal's stage control all
+ * call this, so the three pictures can no longer disagree (issue #182).
+ *
+ * A label reused on Stages that another Stage sits between yields more than one
+ * run, so a brace never spans a Stage it does not group. An unlabeled Stage is
+ * its own one-Stage run with a `null` label: brace-drawing callers skip those,
+ * the ribbon renders them with no heading.
+ */
+export function bracketRuns(stages = []) {
+  const runs = []
+  for (const stage of [...stages].sort(byCanvasPosition)) {
+    const label = stage.bracket_label || null
+    const last = runs[runs.length - 1]
+    if (last && last.label === label) {
+      last.stages.push(stage)
+    } else {
+      runs.push({ label, stages: [stage] })
+    }
+  }
+  return runs
+}
+
+/**
+ * The React Flow node for one labelled bracket run's brace — a pure annotation
+ * spanning its Stages, drawn behind every real node (`zIndex: -1`) and inert
+ * to the pointer. The Flow Canvas editor and the locked-snapshot viewer both
+ * build braces from `bracketRuns`, so the node shape lives here too rather
+ * than being hand-written at each call site. The id carries the run's first
+ * Stage so a label split across two runs yields two distinct nodes.
+ */
+export function bracketNode(run) {
+  const box = bracketBox(run.stages)
+  return {
+    id: `bracket:${run.label}:${run.stages[0].id}`,
+    type: "bracket",
+    position: { x: box.x, y: box.y },
+    draggable: false,
+    selectable: false,
+    connectable: false,
+    focusable: false,
+    deletable: false,
+    zIndex: -1,
+    data: { label: run.label, width: box.width },
+    style: { width: box.width, pointerEvents: "none" },
+  }
+}
+
 const COLUMN_X = {
   [GATE]: -(SAT_W + SAT_GAP_X),
   [RUN]: STAGE_W + SAT_GAP_X,

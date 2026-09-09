@@ -12,7 +12,7 @@ import "@xyflow/react/dist/style.css"
 
 import FlowCanvasNode from "../settings/FlowCanvasNode"
 import FlowBracketNode from "../settings/FlowBracketNode"
-import { bracketBox, STAGE_W, STAGE_H } from "../settings/flowCanvasLayout"
+import { bracketNode, bracketRuns, STAGE_W, STAGE_H } from "../settings/flowCanvasLayout"
 import { entryStage } from "../../constants/salesFlow"
 
 /**
@@ -64,32 +64,11 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
         const wonId = snapshotData?.wonStageId ?? null
 
         // Brackets are a shared text label rather than a container, so the
-        // brace is a synthetic node spanning its members — the same rule the
-        // canvas uses, kept identical on purpose so the two pictures agree.
-        const byLabel = new Map()
-        for (const stage of stages) {
-            const label = stage.bracket_label || null
-            if (!label) continue
-            if (!byLabel.has(label)) byLabel.set(label, [])
-            byLabel.get(label).push(stage)
-        }
-
-        const bracketNodes = [...byLabel.entries()].map(([label, members]) => {
-            const box = bracketBox(members)
-            return {
-                id: `bracket:${label}`,
-                type: "bracket",
-                position: { x: box.x, y: box.y },
-                data: { label, width: box.width },
-                draggable: false,
-                selectable: false,
-                connectable: false,
-                focusable: false,
-                deletable: false,
-                zIndex: -1,
-                style: { width: box.width, pointerEvents: "none" },
-            }
-        })
+        // brace is a synthetic node spanning a consecutive run of Stages that
+        // share the label — the same `bracketRuns` rule the canvas and the
+        // deal modal's stage control draw, kept identical on purpose so the
+        // pictures agree (issue #182).
+        const bracketNodes = bracketRuns(stages).filter((run) => run.label).map(bracketNode)
 
         const stageNodes = stages.map((stage) => ({
             id: stage.id,

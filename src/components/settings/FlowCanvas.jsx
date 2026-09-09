@@ -51,7 +51,8 @@ import StageSettingsPanel from "./StageSettingsPanel";
 import {
   GATE,
   RUN,
-  bracketBox,
+  bracketNode,
+  bracketRuns,
   columnSlots,
   satellitePosition,
   stageBox,
@@ -337,30 +338,13 @@ function FlowCanvasInner() {
     const nodes = [];
     const satelliteEdges = [];
 
-    // Brackets first and at a negative zIndex: a pure annotation drawn above
-    // whichever Stages share its label, so it has to sit behind every real
-    // node rather than compete with them for clicks.
-    const bracketed = new Map();
-    stages.forEach((stage) => {
-      if (!stage.bracket_label) return;
-      if (!bracketed.has(stage.bracket_label)) bracketed.set(stage.bracket_label, []);
-      bracketed.get(stage.bracket_label).push(stage);
-    });
-    bracketed.forEach((members, label) => {
-      const box = bracketBox(members);
-      nodes.push({
-        id: `bracket:${label}`,
-        type: "bracket",
-        position: { x: box.x, y: box.y },
-        draggable: false,
-        selectable: false,
-        connectable: false,
-        focusable: false,
-        deletable: false,
-        zIndex: -1,
-        data: { label, width: box.width },
-        style: { width: box.width, pointerEvents: "none" },
-      });
+    // Brackets first and at a negative zIndex: a pure annotation drawn above a
+    // consecutive run of Stages sharing its label, so it has to sit behind
+    // every real node rather than compete with them for clicks. One brace per
+    // run, not per label — a label reused past an intervening Stage draws two
+    // braces, the same rule the deal modal's stage control follows (#182).
+    bracketRuns(stages).forEach((run) => {
+      if (run.label) nodes.push(bracketNode(run));
     });
 
     // Parents first: React Flow reads `parentId` against nodes already in the

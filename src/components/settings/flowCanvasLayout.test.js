@@ -12,6 +12,9 @@ import {
   STAGE_H,
   STAGE_W,
   bracketBox,
+  bracketNode,
+  bracketRuns,
+  byCanvasPosition,
   columnRows,
   columnSlots,
   satellitePosition,
@@ -113,6 +116,92 @@ describe("flowCanvasLayout", () => {
       expect(box.x).toBe(50 - BRACKET_PAD_X)
       expect(box.width).toBe(STAGE_W + BRACKET_PAD_X * 2)
       expect(box.y).toBe(20 - BRACKET_H)
+    })
+  })
+
+  describe("byCanvasPosition", () => {
+    it("orders by pos_x, then pos_y to break a tie", () => {
+      const stages = [
+        { id: "c", pos_x: 200, pos_y: 0 },
+        { id: "a", pos_x: 100, pos_y: 50 },
+        { id: "b", pos_x: 100, pos_y: 10 },
+      ]
+      expect([...stages].sort(byCanvasPosition).map((s) => s.id)).toEqual(["b", "a", "c"])
+    })
+
+    it("treats a missing position as zero", () => {
+      const stages = [{ id: "x", pos_x: 5 }, { id: "y" }]
+      expect([...stages].sort(byCanvasPosition).map((s) => s.id)).toEqual(["y", "x"])
+    })
+  })
+
+  describe("bracketRuns", () => {
+    it("groups a consecutive run sharing a label into one run", () => {
+      const runs = bracketRuns([
+        { id: "a", pos_x: 0, bracket_label: "Pre-Sales" },
+        { id: "b", pos_x: 100, bracket_label: "Pre-Sales" },
+        { id: "c", pos_x: 200, bracket_label: null },
+      ])
+      expect(runs).toHaveLength(2)
+      expect(runs[0]).toMatchObject({ label: "Pre-Sales" })
+      expect(runs[0].stages.map((s) => s.id)).toEqual(["a", "b"])
+      expect(runs[1]).toMatchObject({ label: null })
+    })
+
+    it("splits a label reused past an intervening Stage into two runs", () => {
+      const runs = bracketRuns([
+        { id: "a", pos_x: 0, bracket_label: "Closing" },
+        { id: "b", pos_x: 100, bracket_label: "Delivery" },
+        { id: "c", pos_x: 200, bracket_label: "Closing" },
+      ])
+      expect(runs.map((r) => r.label)).toEqual(["Closing", "Delivery", "Closing"])
+      expect(runs[0].stages.map((s) => s.id)).toEqual(["a"])
+      expect(runs[2].stages.map((s) => s.id)).toEqual(["c"])
+    })
+
+    it("groups by canvas order, not array order", () => {
+      const runs = bracketRuns([
+        { id: "c", pos_x: 200, bracket_label: "Ops" },
+        { id: "a", pos_x: 0, bracket_label: "Ops" },
+        { id: "b", pos_x: 100, bracket_label: "Ops" },
+      ])
+      expect(runs).toHaveLength(1)
+      expect(runs[0].stages.map((s) => s.id)).toEqual(["a", "b", "c"])
+    })
+
+    it("treats an empty-string label as unlabeled", () => {
+      const runs = bracketRuns([{ id: "a", pos_x: 0, bracket_label: "" }])
+      expect(runs[0].label).toBeNull()
+    })
+
+    it("returns nothing for no Stages", () => {
+      expect(bracketRuns([])).toEqual([])
+    })
+  })
+
+  describe("bracketNode", () => {
+    const run = {
+      label: "Pre-Sales",
+      stages: [{ id: "a", pos_x: 100, pos_y: 0 }, { id: "b", pos_x: 500, pos_y: 0 }],
+    }
+
+    it("ids the node by label and its run's first Stage, so a split label stays unique", () => {
+      expect(bracketNode(run).id).toBe("bracket:Pre-Sales:a")
+      expect(bracketNode({ ...run, stages: [{ id: "c", pos_x: 900 }] }).id).toBe("bracket:Pre-Sales:c")
+    })
+
+    it("spans its run's Stages and carries the label to the brace", () => {
+      const node = bracketNode(run)
+      expect(node.data).toEqual({ label: "Pre-Sales", width: bracketBox(run.stages).width })
+      expect(node.position).toEqual({ x: bracketBox(run.stages).x, y: bracketBox(run.stages).y })
+    })
+
+    it("is an inert annotation behind every real node", () => {
+      const node = bracketNode(run)
+      expect(node.zIndex).toBe(-1)
+      expect(node.selectable).toBe(false)
+      expect(node.draggable).toBe(false)
+      expect(node.style.pointerEvents).toBe("none")
     })
   })
 })

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
+import { bracketRuns } from "../settings/flowCanvasLayout";
 
 /**
  * The stage control for a deal that runs a Sales Flow (issue #36, ADR 0006).
@@ -32,27 +33,16 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
   const current = stages.find((s) => s.id === opportunity.flow_stage_id) || null;
   const destinations = outgoingStages(opportunity.flow_stage_id, stages, edges);
 
-  const sortedStages = [...stages].sort((a, b) => {
-    if (a.pos_x !== b.pos_x) return (a.pos_x || 0) - (b.pos_x || 0);
-    return (a.pos_y || 0) - (b.pos_y || 0);
-  });
+  // Runs of consecutive Stages sharing one bracket label, in canvas order — a
+  // brace draws above each labelled run, the same `bracketRuns` grouping the
+  // Flow Canvas editor and the locked-snapshot viewer draw (issue #182). An
+  // unlabeled Stage is its own one-Stage run with no brace, so mixing
+  // bracketed and bare Stages never merges them under a heading neither drew.
+  const runs = bracketRuns(stages);
+  const sortedStages = runs.flatMap((run) => run.stages);
 
   const currentIndex = current ? sortedStages.findIndex((s) => s.id === current.id) : -1;
   const lastIndex = sortedStages.length - 1;
-
-  // Runs of consecutive Stages sharing one bracket label — a brace draws
-  // above each run, the same grouping the canvas draws over the node graph.
-  // An unlabeled Stage is its own one-Stage run with no brace, so mixing
-  // bracketed and bare Stages never merges them under a heading neither drew.
-  const runs = [];
-  sortedStages.forEach((s) => {
-    const last = runs[runs.length - 1];
-    if (last && last.label === (s.bracket_label || null)) {
-      last.stages.push(s);
-    } else {
-      runs.push({ label: s.bracket_label || null, stages: [s] });
-    }
-  });
 
   // A Stage's own `color` (migration 20260828090000) wins when set; otherwise
   // this falls back to the same role classification FlowCanvasNode draws on
