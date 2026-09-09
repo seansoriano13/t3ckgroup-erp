@@ -1491,6 +1491,116 @@ describe("opportunityService", () => {
       })
     })
 
+    // Issue #178 — an automated task is named after the deal, not the Stage.
+    describe("Stage Actions name the task after the deal", () => {
+      it("titles an individual-task automation with the Sales Reference and project name, and keeps the stage marker in the description", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: {},
+        })
+
+        const deal = await register({ sales_reference: "S04521" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = await vi.waitFor(() => {
+          const found = db.internal
+            .rowsOf("tasks")
+            .find((t) => t.opportunity_id === deal.id)
+          expect(found).toBeTruthy()
+          return found
+        })
+
+        expect(task.project_title).toBe("[S04521] [Fire truck supply]")
+        expect(task.task_description).toContain("entering stage: Qualified")
+      })
+
+      it("names a deal with no Sales Reference yet with a stated placeholder", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: {},
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = await vi.waitFor(() => {
+          const found = db.internal
+            .rowsOf("tasks")
+            .find((t) => t.opportunity_id === deal.id)
+          expect(found).toBeTruthy()
+          return found
+        })
+
+        expect(task.project_title).toBe("[No Sales Reference] [Fire truck supply]")
+      })
+
+      it("lets an explicitly configured individual-task title win", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { projectTitle: "Custom automation title" },
+        })
+
+        const deal = await register({ sales_reference: "S04521" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = await vi.waitFor(() => {
+          const found = db.internal
+            .rowsOf("tasks")
+            .find((t) => t.opportunity_id === deal.id)
+          expect(found).toBeTruthy()
+          return found
+        })
+
+        expect(task.project_title).toBe("Custom automation title")
+      })
+
+      it("titles a group-task automation the same way, keeping the stage marker in the description", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {},
+        })
+
+        const deal = await register({ sales_reference: "S04521" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const groupTask = await vi.waitFor(() => {
+          const found = db.internal
+            .rowsOf("committee_tasks")
+            .find((t) => t.opportunity_id === deal.id)
+          expect(found).toBeTruthy()
+          return found
+        })
+
+        expect(groupTask.title).toBe("[S04521] [Fire truck supply]")
+        expect(groupTask.description).toContain("entering stage: Qualified")
+      })
+
+      it("lets an explicitly configured group-task title win", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: { title: "Custom group automation title" },
+        })
+
+        const deal = await register({ sales_reference: "S04521" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const groupTask = await vi.waitFor(() => {
+          const found = db.internal
+            .rowsOf("committee_tasks")
+            .find((t) => t.opportunity_id === deal.id)
+          expect(found).toBeTruthy()
+          return found
+        })
+
+        expect(groupTask.title).toBe("Custom group automation title")
+      })
+    })
+
     // Issue #50.
     describe("a Stage requiring a Project Evaluation", () => {
       it("blocks leaving the Stage until a Project Evaluation exists for the deal, naming it in the error", async () => {

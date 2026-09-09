@@ -8,6 +8,7 @@ import {
   isFlowLockable,
   isLegalMove,
   outgoingStages,
+  stageActionTaskTitle,
 } from "./salesFlow"
 
 /**
@@ -340,5 +341,44 @@ describe("comparing two Flow Snapshots", () => {
     const diff = diffFlowSnapshots(base, next)
     expect(diff.wonStageChanged).toBe(true)
     expect(diff.hasChanges).toBe(true)
+  })
+})
+
+// Issue #178.
+describe("stageActionTaskTitle", () => {
+  it("brackets the Sales Reference and the project name", () => {
+    expect(
+      stageActionTaskTitle({ salesReference: "S01234", projectTitle: "Fire truck supply" }),
+    ).toBe("[S01234] [Fire truck supply]")
+  })
+
+  it("names the missing Sales Reference rather than leaving it blank", () => {
+    expect(stageActionTaskTitle({ salesReference: null, projectTitle: "Fire truck supply" })).toBe(
+      "[No Sales Reference] [Fire truck supply]",
+    )
+  })
+
+  it("names the missing project title rather than leaving it blank", () => {
+    expect(stageActionTaskTitle({ salesReference: "S01234", projectTitle: "" })).toBe(
+      "[S01234] [Untitled Project]",
+    )
+  })
+
+  it("keeps a long project name intact", () => {
+    const long = "A".repeat(200)
+    expect(stageActionTaskTitle({ salesReference: "S01234", projectTitle: long })).toBe(
+      `[S01234] [${long}]`,
+    )
+  })
+
+  it("does not strip pattern-breaking characters from the project name", () => {
+    const weird = '[PR #2] "Quoted" & <tag> — em-dash'
+    expect(stageActionTaskTitle({ salesReference: "S01234", projectTitle: weird })).toBe(
+      `[S01234] [${weird}]`,
+    )
+  })
+
+  it("neither argument required", () => {
+    expect(stageActionTaskTitle()).toBe("[No Sales Reference] [Untitled Project]")
   })
 })

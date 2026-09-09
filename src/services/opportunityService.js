@@ -31,6 +31,7 @@ import {
   isLegalMove,
   conditionsForSnapshotStage,
   actionsForSnapshotStage,
+  stageActionTaskTitle,
 } from "../constants/salesFlow";
 
 /**
@@ -670,11 +671,17 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
         for (const action of actions) {
           const config = action.config;
           const oppName = existing.sales_reference ? `${existing.sales_reference} - ${existing.client_name}` : existing.client_name;
-          
+          // Issue #178 — both automation kinds name their task after the
+          // deal, not the Stage, via this one shared builder.
+          const dealTitle = stageActionTaskTitle({
+            salesReference: existing.sales_reference,
+            projectTitle: existing.project_title,
+          });
+
           if (action.kind === "create_group_task") {
             // Group Task Automation
             const payload = {
-              title: config.title || `Action: ${to.name}`,
+              title: config.title || dealTitle,
               description: config.description
                 ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
                 : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
@@ -701,7 +708,10 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
               categoryId: config.categoryId,
               priority: config.priority || "MEDIUM",
               checklist: config.checklist || null,
-              projectTitle: oppName,
+              // An individual-task automation's explicit title lives in
+              // config.projectTitle, not config.title — that field belongs
+              // to the group-task kind (see flowStageKinds.actionTitle).
+              projectTitle: config.projectTitle || dealTitle,
               loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
               submittedById: actorId,
               opportunityId: existing.id,

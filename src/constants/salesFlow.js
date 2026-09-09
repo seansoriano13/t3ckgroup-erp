@@ -205,6 +205,26 @@ export function actionsForSnapshotStage(snapshotActions = [], stageId) {
 }
 
 /**
+ * The title a Stage Action automation gives the task it creates: the deal's
+ * Sales Reference then its project name, each bracketed (issue #178). Shared
+ * by both automation kinds — the one creating an individual task and the one
+ * creating a Group Task — so a deal is identifiable from a task list without
+ * opening anything, and the two automations can never drift into different
+ * formats.
+ *
+ * A deal with no Sales Reference yet (it has none until it leaves Lead)
+ * prints a stated placeholder rather than collapsing to a blank, so the
+ * `[ref] [project]` shape stays parseable either way. This is unrelated to
+ * `buildRequisitionTitle` (constants/procurement.js) — that prefix is
+ * matched by a recogniser and a batch-number pattern and is untouched here.
+ */
+export function stageActionTaskTitle({ salesReference, projectTitle } = {}) {
+  const ref = salesReference || "No Sales Reference"
+  const project = projectTitle || "Untitled Project"
+  return `[${ref}] [${project}]`
+}
+
+/**
  * Added, removed and changed entries between two lists of the same kind of
  * row, matched by `id`. "Changed" means the same id survived with a
  * different value somewhere on it — a deep comparison, since a Stage Action's
