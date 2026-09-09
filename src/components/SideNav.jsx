@@ -145,15 +145,10 @@ export default function SideNav() {
 
   const queryClient = useQueryClient();
 
-  const isSuperAdmin =
-    user?.is_super_admin === true || user?.isSuperAdmin === true;
-  const isHead = user?.is_head === true || user?.isHead === true;
-  const canManage = isHead || isSuperAdmin;
-
   const { data: employees = [] } = useQuery({
     queryKey: ["employees"],
     queryFn: () => employeeService.getAllEmployees(),
-    enabled: !!user?.id && canManage,
+    enabled: !!user?.id,
   });
 
   const createGroupMutation = useMutation({
@@ -497,16 +492,14 @@ export default function SideNav() {
         isOpen={isLogTaskOpen}
         onClose={() => setIsLogTaskOpen(false)}
       />
-      {canManage && (
-        <CreateGroupTaskModal
-          isOpen={isCreateGroupOpen}
-          onClose={() => setIsCreateGroupOpen(false)}
-          user={user}
-          employees={employees}
-          onSubmit={(payload) => createGroupMutation.mutateAsync(payload)}
-          isSubmitting={createGroupMutation.isPending}
-        />
-      )}
+      <CreateGroupTaskModal
+        isOpen={isCreateGroupOpen}
+        onClose={() => setIsCreateGroupOpen(false)}
+        user={user}
+        employees={employees}
+        onSubmit={(payload) => createGroupMutation.mutateAsync(payload)}
+        isSubmitting={createGroupMutation.isPending}
+      />
       <ApplyLeaveModal
         isOpen={isApplyOffsetOpen}
         onClose={() => setIsApplyOffsetOpen(false)}

@@ -8,6 +8,7 @@ import { employeeService } from "../../services/employeeService";
 import toast from "react-hot-toast";
 import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
+import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 
 import GroupTaskCard from "./_components/GroupTaskCard";
@@ -103,6 +104,8 @@ export default function GroupTasksPage() {
   const [selectedDateFilter, setSelectedDateFilter] = useState("");
   const [dueDate, setDueDate] = useState(null);
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const selectedTask = useMemo(() => {
     return groupTasks.find((t) => t.id === selectedTaskId) || null;
@@ -146,6 +149,16 @@ export default function GroupTasksPage() {
 
 
   // --- Mutations ---
+
+  const createGroupMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.createGroupTask(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task created!");
+      setIsCreateOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const markDoneMutation = useMutation({
     mutationFn: (memberId) =>
@@ -313,7 +326,12 @@ export default function GroupTasksPage() {
             ? "Create and manage group task assignments."
             : "View your group task assignments and update progress."
         }
-      />
+      >
+        <Button onClick={() => setIsCreateOpen(true)}>
+          <Plus size={16} className="mr-1.5" />
+          Create Group Task
+        </Button>
+      </PageHeader>
 
       {/* TOOLBAR */}
       <div className="mb-6">
@@ -399,6 +417,15 @@ export default function GroupTasksPage() {
       )}
 
       {/* MODALS */}
+
+      <CreateGroupTaskModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        user={user}
+        employees={employees}
+        onSubmit={(payload) => createGroupMutation.mutateAsync(payload)}
+        isSubmitting={createGroupMutation.isPending}
+      />
 
       <GroupTaskDetailModal
         isOpen={!!selectedTaskId}

@@ -296,7 +296,7 @@ export const QUICK_ACTIONS = [
         key: "quick.groupTask",
         label: "Create Group Task",
         icon: UsersRound,
-        isPermitted: (ctx) => ctx.isSuperAdmin || (ctx.canManage && ctx.hasTaskFlow),
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasTaskFlow,
       },
     ],
   },
