@@ -368,7 +368,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!overtime_requests_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
@@ -389,7 +390,8 @@ export const offsetService = {
       .from('overtime_requests')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!overtime_requests_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')
@@ -407,7 +409,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!offset_leaves_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
@@ -428,7 +431,8 @@ export const offsetService = {
       .from('offset_leaves')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!offset_leaves_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')
@@ -1000,7 +1004,8 @@ export const offsetService = {
       .from('undertime_requests')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!undertime_requests_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
@@ -1021,7 +1026,8 @@ export const offsetService = {
       .from('undertime_requests')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!undertime_requests_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')

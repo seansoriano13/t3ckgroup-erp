@@ -41,7 +41,7 @@ export const NAV_MODULES = {
       },
       {
         key: "workspace.myLeaves",
-        label: "My Leaves & Overtime",
+        label: "My Requests",
         link: "/offsets",
         icon: Clock,
         isPermitted: () => true,

@@ -39,7 +39,7 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
     expect(screen.queryByText("SOR / CRM")).not.toBeInTheDocument()
     // Dashboard and My Leaves are permitted unconditionally.
     expect(screen.getByText("Dashboard")).toBeInTheDocument()
-    expect(screen.getByText("My Leaves & Overtime")).toBeInTheDocument()
+    expect(screen.getByText("My Requests")).toBeInTheDocument()
   })
 
   it("adds an entry to the offered list live when a toggle that permits it is turned on", async () => {

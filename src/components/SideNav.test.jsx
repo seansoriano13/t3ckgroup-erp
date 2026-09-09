@@ -50,7 +50,7 @@ describe("SideNav Component", () => {
 
     expect(screen.getByText("Workspace")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("My Leaves & Overtime")).toBeInTheDocument();
+    expect(screen.getByText("My Requests")).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).not.toBeInTheDocument();
     expect(screen.queryByText("Human Resources")).not.toBeInTheDocument();
     // Flow Canvas (issue #36) is deliberately visible to everyone while it is

@@ -247,7 +247,8 @@ export const silService = {
       .from('sil_leaves')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!sil_leaves_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .order('created_at', { ascending: false });
@@ -268,7 +269,8 @@ export const silService = {
       .from('sil_leaves')
       .select(`
         *,
-        category:hr_leave_categories(label)
+        category:hr_leave_categories(label),
+        head:employees!sil_leaves_head_id_fkey(id, name)
       `)
       .eq('employee_id', employeeId)
       .eq('status', 'PENDING')

@@ -44,7 +44,7 @@ describe("navigation registry", () => {
       expect(groups[0].label).toBe("Workspace");
       expect(groups[0].links.map((l) => l.label)).toEqual([
         "Dashboard",
-        "My Leaves & Overtime",
+        "My Requests",
       ]);
       expect(groups[1].key).toBe("administration");
       expect(groups[1].links.map((l) => l.label)).toEqual(["Flow Canvas"]);
@@ -61,7 +61,7 @@ describe("navigation registry", () => {
       expect(workspaceGroup.links.map((l) => l.label)).toEqual([
         "Dashboard",
         "My Tasks",
-        "My Leaves & Overtime",
+        "My Requests",
       ]);
     });
 
