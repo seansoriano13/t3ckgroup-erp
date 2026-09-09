@@ -146,3 +146,13 @@ export async function rlsStatus(table) {
     if (!rows.length) throw new Error(`No such table: public.${table}`)
     return rows[0]
 }
+
+/** Whether a table is a member of the supabase_realtime publication. */
+export async function isInRealtimePublication(table) {
+    const { rows } = await sql().query(
+        `select 1 from pg_publication_tables
+          where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = $1`,
+        [table],
+    )
+    return rows.length > 0
+}

@@ -88,6 +88,8 @@ enabled = true
 # Supabase stack's own (deterministic, committed) keys — it works locally.
 [functions.manage-employee-password]
 
+[functions.send-push]
+
 [functions.odoo-document-admin]
 [functions.odoo-po-rollup]
 [functions.odoo-po-verify]

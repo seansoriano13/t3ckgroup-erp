@@ -5,6 +5,7 @@ import { stubOvertimeDecisionRpcs } from "@/test/stubs/overtimeRpc"
 import { stubUndertimeDecisionRpcs } from "@/test/stubs/undertimeRpc"
 import { stubOffsetLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { waitForNetworkIdle } from "@/test/network"
+import { stubEdgeFunction } from "@/test/msw/server"
 import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
 import {
@@ -350,6 +351,14 @@ describe("offsetService", () => {
     })
 
     it("tells the employee which kind of approval it was", async () => {
+      // OVERTIME_DECISION is one of the four types #168 pushes to a closed
+      // tab, so it is sent via the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const request = makeOvertimeRequest({ employee_id: employee.id, startTime: '09:00', endTime: '13:00' })
 
       await offsetService.handleOvertimeDecision({
@@ -359,7 +368,7 @@ describe("offsetService", () => {
       })
       await waitForNetworkIdle()
 
-      expect(db.rows("notifications")[0].message).toContain("Approved as Offset")
+      expect(pushed[0].message).toContain("Approved as Offset")
     })
 
     it("defaults approved hours to the requested figure and credits that", async () => {
@@ -1117,6 +1126,14 @@ describe("offsetService", () => {
     })
 
     it("warns HR when an already-approved leave is withdrawn", async () => {
+      // OFFSET_LEAVE_DECISION is one of the four types #168 pushes to a
+      // closed tab, so it is sent via the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const [date] = upcomingWeekdays(1)
       const leave = makeOffsetLeave({ employee_id: employee.id, date, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
@@ -1125,14 +1142,13 @@ describe("offsetService", () => {
         hrId: hr.id,
       })
       await waitForNetworkIdle()
-      const before = db.rows("notifications").length
+      pushed.length = 0
 
       await offsetService.withdrawOffsetLeave({ leaveId: leave.id, employeeId: employee.id })
       await waitForNetworkIdle()
 
-      const added = db.rows("notifications").slice(before)
-      expect(added.map((n) => n.recipient_id)).toEqual([hr.id])
-      expect(added[0].title).toBe("Approved Leave Withdrawn")
+      expect(pushed.map((n) => n.recipient_id)).toEqual([hr.id])
+      expect(pushed[0].title).toBe("Approved Leave Withdrawn")
     })
 
     it("withdraws every day in an approved date-range group together, refunding the group's total hours", async () => {

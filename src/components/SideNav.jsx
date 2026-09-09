@@ -25,6 +25,7 @@ import { useQuery } from "@tanstack/react-query";
 import { notificationService } from "../services/notificationService";
 import { activeChatService } from "../services/tasks/activeChatService";
 import NotificationDrawer from "./NotificationDrawer";
+import { usePushNotificationClick } from "../hooks/usePushNotificationClick";
 import ComprehensiveChatModal from "./ComprehensiveChatModal";
 
 import GlobalDetailManager from "./GlobalDetailManager";
@@ -53,6 +54,7 @@ import { useNavBadges } from "../hooks/useNavBadges";
 export default function SideNav() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  usePushNotificationClick(user, navigate);
   const badges = useNavBadges(user);
 
   const handleQuickAction = (actionId) => {

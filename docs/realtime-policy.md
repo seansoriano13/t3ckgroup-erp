@@ -25,12 +25,13 @@ nice-to-have doesn't qualify by itself.
 ## Every realtime table needs a tracked migration
 
 No more enabling realtime from the Supabase dashboard and leaving it
-unrecorded. As of this writing, four of the six realtime-enabled tables in
-this codebase were switched on that way — `notifications`, `task_activity`,
+unrecorded. As of this writing, three of the six realtime-enabled tables in
+this codebase were switched on that way — `task_activity`,
 `committee_task_activity`, `system_audit_logs`. That gap is acknowledged here,
 not fixed retroactively, and not the norm to repeat: every table enabled after
 this document exists gets a migration, the same way `sor_procurement_requests`
-(0020), `sales_opportunity_logs` (0021), and `tasks` (0027) did.
+(0020), `sales_opportunity_logs` (0021), `tasks` (0027), and `notifications`
+(#169) did.
 
 ## Two ways to enable a table, and how to choose
 

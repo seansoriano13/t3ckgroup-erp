@@ -16,6 +16,7 @@ import {
   seedPipeline,
 } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -1897,6 +1898,14 @@ describe("opportunityService", () => {
 
   describe("notes", () => {
     it("notifies the person named in a note", async () => {
+      // OPPORTUNITY_MENTION is one of the four types #168 pushes to a closed
+      // tab, so it is sent via the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const buyer = makeEmployee({ name: "Cjay Espina" })
       const opportunity = makeOpportunity({
         registered_by: registrar.id,
@@ -1913,7 +1922,7 @@ describe("opportunityService", () => {
       await waitForNetworkIdle()
 
       expect(note.metadata.mentions).toEqual([{ id: buyer.id, name: "Cjay Espina" }])
-      const [sent] = db.rows("notifications")
+      const [sent] = pushed
       expect(sent).toMatchObject({
         recipient_id: buyer.id,
         // No "TASK" substring: notificationRouter's fallthrough would send them

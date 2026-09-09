@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-09-09",
+        "title": "Desktop Notifications",
+        "version": "1.7.8",
+        "changes": [
+            "You can now turn on Desktop Notifications from Settings, so a mention, a task assigned to you, a decision on your request, or an approval waiting on you can reach you even with the portal closed.",
+            "Turn it off again anytime from the same toggle — it only ever asks for permission after you turn it on.",
+            "Everything still shows up in the notification drawer as before; desktop notifications are in addition to that, not a replacement.",
+            "Deleting a notification now actually removes it, instead of coming back on your next visit."
+        ]
+    },
+    {
+        "date": "2026-09-09",
         "title": "A Second Way In: Email + Password Login",
         "version": "1.7.7",
         "changes": [

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { notificationService } from "./notificationService"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee, makeNotification, makeSuperAdmin } from "@/test/factories"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * Notifications decide who finds out that something needs their attention.
@@ -95,6 +96,85 @@ describe("notificationService", () => {
     })
   })
 
+  describe("push-eligible types", () => {
+    it("sends a push type through the edge function instead of inserting directly", async () => {
+      let invoked
+      stubEdgeFunction("send-push", (body) => {
+        invoked = body
+        return { success: true }
+      })
+
+      await notificationService.createNotification({
+        recipient_id: recipient.id,
+        sender_id: "sender-1",
+        type: "TASK_ASSIGNED",
+        title: "New task",
+        message: "You were assigned a task",
+        reference_id: "task-1",
+      })
+
+      expect(invoked).toEqual({
+        recipient_id: recipient.id,
+        sender_id: "sender-1",
+        type: "TASK_ASSIGNED",
+        title: "New task",
+        message: "You were assigned a task",
+        reference_id: "task-1",
+      })
+      // The edge function is responsible for the row; nothing lands here.
+      expect(await notificationService.getMyNotifications(recipient.id)).toEqual([])
+    })
+
+    it("still inserts directly for a type outside the push list", async () => {
+      await notificationService.createNotification({
+        recipient_id: recipient.id,
+        type: "TASK_COMPLETED",
+        title: "Done",
+        message: "A task was completed",
+      })
+
+      const [stored] = await notificationService.getMyNotifications(recipient.id)
+      expect(stored.type).toBe("TASK_COMPLETED")
+    })
+
+    it("routes a push-eligible role broadcast through the edge function, once per recipient", async () => {
+      const hr = makeHrEmployee({ name: "HR Officer" })
+      const boss = makeSuperAdmin({ name: "Boss" })
+      const reached = []
+      stubEdgeFunction("send-push", (body) => {
+        reached.push(body.recipient_id)
+        return { success: true }
+      })
+
+      await notificationService.broadcastToRole(["HR", "SUPER_ADMIN"], {
+        type: "OVERTIME_REQUEST",
+        title: "New request",
+        message: "Someone applied",
+      })
+
+      expect(reached.sort()).toEqual([boss.id, hr.id].sort())
+      expect(await recipientsOf()).toEqual([])
+    })
+
+    it("routes a push-eligible department-head notification through the edge function", async () => {
+      const itHead = makeHead({ name: "IT Head", department: "IT", sub_department: null })
+      const reached = []
+      stubEdgeFunction("send-push", (body) => {
+        reached.push(body.recipient_id)
+        return { success: true }
+      })
+
+      await notificationService.notifyHeadByDepartment("IT", null, {
+        type: "OVERTIME_REQUEST",
+        title: "New request",
+        message: "Someone applied",
+      })
+
+      expect(reached).toEqual([itHead.id])
+      expect(await recipientsOf()).toEqual([])
+    })
+  })
+
   describe("role broadcasts", () => {
     it("reaches HR and super admins, and nobody else", async () => {
       const hr = makeHrEmployee({ name: "HR Officer" })
@@ -102,7 +182,7 @@ describe("notificationService", () => {
       const head = makeHead({ name: "Head Ito" })
 
       await notificationService.broadcastToRole(["HR", "SUPER_ADMIN"], {
-        type: "SIL_LEAVE_REQUEST",
+        type: "NEW_TASK_SUBMITTED",
         title: "New request",
         message: "Someone applied",
       })
@@ -132,7 +212,7 @@ describe("notificationService", () => {
       makeSuperAdmin({ name: "Boss" })
 
       await notificationService.broadcastToRole(["HR", "SUPER_ADMIN"], {
-        type: "SIL_LEAVE_REQUEST",
+        type: "NEW_TASK_SUBMITTED",
         title: "HR only",
         message: "For HR",
         excludeSuperAdmin: true,
@@ -146,7 +226,7 @@ describe("notificationService", () => {
       makeHrEmployee({ name: "Former HR", is_deleted: true })
 
       await notificationService.broadcastToRole(["HR"], {
-        type: "SIL_LEAVE_REQUEST",
+        type: "NEW_TASK_SUBMITTED",
         title: "New request",
         message: "Someone applied",
       })
@@ -159,7 +239,7 @@ describe("notificationService", () => {
       const both = makeEmployee({ name: "HR Boss", is_hr: true, is_super_admin: true })
 
       await notificationService.broadcastToRole(["HR", "SUPER_ADMIN"], {
-        type: "SIL_LEAVE_REQUEST",
+        type: "NEW_TASK_SUBMITTED",
         title: "New request",
         message: "Someone applied",
       })

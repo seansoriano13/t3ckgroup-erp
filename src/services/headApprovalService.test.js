@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { assertHeadCleared, decideHeadApproval, hrOverrideApprove } from "./headApprovalService"
 import { offsetService } from "./offsetService"
 import { silService } from "./silService"
+import { stubEdgeFunction } from "@/test/msw/server"
 import {
   makeEmployee,
   makeHead,
@@ -79,6 +80,14 @@ describe("headApprovalService", () => {
     })
 
     it("notifies the employee of the head's decision", async () => {
+      // A decision on your own request is one of the four types #168 pushes to
+      // a closed tab, so it goes through the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const head = makeHead()
       const leave = makeSilLeave({ head_status: "PENDING" })
 
@@ -91,8 +100,7 @@ describe("headApprovalService", () => {
       })
       await waitForNetworkIdle()
 
-      const notifications = db.internal.rowsOf("notifications")
-      const mine = notifications.find((n) => n.recipient_id === leave.employee_id)
+      const mine = pushed.find((n) => n.recipient_id === leave.employee_id)
       expect(mine).toBeTruthy()
       expect(mine.type).toBe("SIL_LEAVE_HEAD_DECISION")
     })

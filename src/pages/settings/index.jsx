@@ -1,5 +1,5 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import FAQModal from "./FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
@@ -14,6 +14,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
+import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
 
 const appSemver = __APP_SEMVER__;
 const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
@@ -52,6 +53,34 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [showFAQ, setShowFAQ] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  useEffect(() => {
+    isPushEnabled().then(setPushEnabled);
+  }, []);
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications(user.id);
+        setPushEnabled(false);
+      } else {
+        const granted = await enablePushNotifications(user.id);
+        if (granted) {
+          setPushEnabled(true);
+        } else {
+          toast.error("Desktop notifications were not enabled.");
+        }
+      }
+    } catch (err) {
+      toast.error(err.message || "Could not update desktop notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
 
   const { isSuperAdmin } = getPermissionContext(user);
 
@@ -124,22 +153,17 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Notifications row */}
-            <div className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                  <Bell size={18} />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground text-sm">Email Notifications</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Get alerted when a manager reviews your task.</p>
-                </div>
-              </div>
-              {/* Fake Toggle - Off */}
-              <div className="w-11 h-6 bg-mauve-5 rounded-full relative cursor-pointer shrink-0">
-                <div className="absolute left-1 top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all" />
-              </div>
-            </div>
+            {/* Desktop push notifications — #166/#167 */}
+            {isPushSupported() && (
+              <SettingToggle
+                label="Desktop Notifications"
+                description="Get notified on this device when someone mentions you, assigns you a task, decides on your request, or needs your approval — even with the portal closed."
+                icon={Bell}
+                checked={pushEnabled}
+                onToggle={togglePush}
+                isPending={pushBusy}
+              />
+            )}
 
             {/* What's New row */}
             <div 

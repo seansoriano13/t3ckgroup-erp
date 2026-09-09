@@ -6,6 +6,7 @@ import { stubSilLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { waitForNetworkIdle } from "@/test/network"
 import { upcomingWeekdays } from "@/test/dates"
 import { getMonthBoundaries } from "@/utils/dateUtils"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * Service Incentive Leave is a statutory entitlement measured in hours, so the
@@ -292,6 +293,14 @@ describe("silService", () => {
     })
 
     it("tells HR and the super admins about the request", async () => {
+      // SIL_LEAVE_REQUEST is a request awaiting your approval, one of the
+      // four types #168 pushes to a closed tab, so it goes through send-push.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const superAdmin = makeEmployee({ name: "Boss", is_super_admin: true })
       const bystander = makeEmployee({ name: "Colleague" })
 
@@ -305,8 +314,8 @@ describe("silService", () => {
 
       await waitForNetworkIdle()
 
-      expect(db.rows("notifications")).toHaveLength(2)
-      const recipients = db.rows("notifications").map((n) => n.recipient_id)
+      expect(pushed).toHaveLength(2)
+      const recipients = pushed.map((n) => n.recipient_id)
       expect(recipients).toContain(hr.id)
       expect(recipients).toContain(superAdmin.id)
       expect(recipients).not.toContain(bystander.id)
@@ -384,6 +393,14 @@ describe("silService", () => {
     })
 
     it("tells the employee the outcome", async () => {
+      // SIL_LEAVE_DECISION is one of the four types #168 pushes to a closed
+      // tab, so it is sent via the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       const leave = makeSilLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
 
       await silService.handleSilLeaveDecision({
@@ -394,8 +411,8 @@ describe("silService", () => {
 
       await waitForNetworkIdle()
 
-      expect(db.rows("notifications")).toHaveLength(1)
-      expect(db.rows("notifications")[0]).toMatchObject({
+      expect(pushed).toHaveLength(1)
+      expect(pushed[0]).toMatchObject({
         recipient_id: employee.id,
         sender_id: hr.id,
         type: "SIL_LEAVE_DECISION",

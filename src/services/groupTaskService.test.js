@@ -3,6 +3,7 @@ import { groupTaskService } from "./groupTaskService"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * A group task is one piece of work split across several people, each with
@@ -58,12 +59,20 @@ describe("groupTaskService", () => {
     })
 
     it("tells each member what they were assigned", async () => {
+      // GROUP_ASSIGNED is one of the four types #168 pushes to a closed tab,
+      // so it is created by the send-push edge function rather than inserted
+      // directly — see notificationService.createNotification.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       await createTask()
       await waitForNetworkIdle()
 
-      const notifications = db.rows("notifications")
-      expect(notifications.map((n) => n.recipient_id).sort()).toEqual([alice.id, bob.id].sort())
-      expect(notifications.find((n) => n.recipient_id === alice.id).message).toContain(
+      expect(pushed.map((n) => n.recipient_id).sort()).toEqual([alice.id, bob.id].sort())
+      expect(pushed.find((n) => n.recipient_id === alice.id).message).toContain(
         "Count aisle A",
       )
     })

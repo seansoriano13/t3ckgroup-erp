@@ -1,5 +1,39 @@
 import { supabase } from '../lib/supabase';
 import { sameDepartment } from '../utils/compareDepartment.js';
+import { isPushNotificationType } from '../constants/pushNotificationTypes.js';
+
+/**
+ * Writes one notification per recipient, routing each through the
+ * send-push edge function when `type` is push-eligible and inserting
+ * directly otherwise. The one place `createNotification`, `broadcastToRole`
+ * and `notifyHeadByDepartment` all funnel through, so the push/in-app split
+ * is made once rather than re-decided at each call site.
+ */
+async function dispatchToRecipients(recipientIds, { sender_id = null, type, title, message, reference_id = null }) {
+  if (recipientIds.length === 0) return;
+
+  if (isPushNotificationType(type)) {
+    await Promise.all(
+      recipientIds.map((recipient_id) =>
+        supabase.functions.invoke('send-push', {
+          body: { recipient_id, sender_id, type, title, message, reference_id },
+        }),
+      ),
+    );
+    return;
+  }
+
+  await supabase.from('notifications').insert(
+    recipientIds.map((recipient_id) => ({
+      recipient_id,
+      sender_id,
+      type,
+      title,
+      message,
+      reference_id,
+    })),
+  );
+}
 
 export const notificationService = {
   /**
@@ -110,19 +144,20 @@ export const notificationService = {
   },
 
   /**
-   * Internal mechanism to safely fire and forget a notification
+   * Internal mechanism to safely fire and forget a notification.
+   *
+   * #166/#168: a mention, a task assignment, a decision on your own request,
+   * and a request awaiting your approval also need to reach a closed tab, so
+   * those four types are created by the send-push edge function instead of
+   * inserted directly — a closed tab cannot send anything itself. Every
+   * other type keeps being written here, client-side, exactly as before.
+   * This is the one place that decision is made; callers do not need to know
+   * which path their type takes.
    */
   async createNotification({ recipient_id, sender_id = null, type, title, message, reference_id = null }) {
      try {
        // Fire & Forget so it doesn't block primary mutation flows
-       await supabase.from('notifications').insert({
-          recipient_id,
-          sender_id,
-          type,
-          title,
-          message,
-          reference_id
-       });
+       await dispatchToRecipients([recipient_id], { sender_id, type, title, message, reference_id });
      } catch (err) {
        console.error("Failed to silently dispatch notification:", err);
      }
@@ -136,7 +171,7 @@ export const notificationService = {
        const { data: emps } = await supabase.from('employees').select('id, department, is_super_admin, is_hr, is_head').neq('is_deleted', true);
        if (!emps) return;
 
-       const inserts = [];
+       const recipientIds = [];
        emps.forEach(emp => {
           let shouldInclude = false;
           if (rolesArray.includes('SUPER_ADMIN') && emp.is_super_admin) shouldInclude = true;
@@ -146,21 +181,10 @@ export const notificationService = {
           // Optionally exclude Super Admins (e.g. for HR-only signals they don't need)
           if (excludeSuperAdmin && emp.is_super_admin) shouldInclude = false;
 
-          if (shouldInclude) {
-             inserts.push({
-                recipient_id: emp.id,
-                sender_id,
-                type,
-                title,
-                message,
-                reference_id
-             });
-          }
+          if (shouldInclude) recipientIds.push(emp.id);
        });
 
-       if (inserts.length > 0) {
-          await supabase.from('notifications').insert(inserts);
-       }
+       await dispatchToRecipients(recipientIds, { sender_id, type, title, message, reference_id });
      } catch (err) {
        console.error("Failed to execute broadcast notification:", err);
      }
@@ -188,16 +212,7 @@ export const notificationService = {
 
        if (targetHeads.length === 0) return;
 
-       const inserts = targetHeads.map(h => ({
-          recipient_id: h.id,
-          sender_id,
-          type,
-          title,
-          message,
-          reference_id
-       }));
-
-       await supabase.from('notifications').insert(inserts);
+       await dispatchToRecipients(targetHeads.map((h) => h.id), { sender_id, type, title, message, reference_id });
      } catch (err) {
        console.error("Failed to notify department head:", err);
      }
