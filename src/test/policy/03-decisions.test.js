@@ -154,21 +154,19 @@ describe("who may decide", () => {
         expect(row.status).toBe("APPROVED_PAID")
     })
 
-    it("an ordinary employee can approve their own overtime and credit their own balance (#180)", async () => {
-        // Found by this tier on its first run, and it is a live privilege
-        // escalation rather than a curiosity.
+    it("an ordinary employee cannot approve their own overtime or credit their own balance (#180)", async () => {
+        // Found by this tier on its first run: a live privilege escalation.
         //
         // `decide_overtime_request` is SECURITY INVOKER, so the caller's own
-        // policies decide what it may touch. `overtime_requests_update` permits
-        // `employee_id = get_employee_id()`, and the "Employees can update their
-        // own profile" policy on `employees` permits the balance write. Between
-        // them, an employee needs no HR involvement to award themselves Offset
-        // hours — and the record ends up carrying a valid approval hash and an
-        // hr_processed_by of their own choosing, so the printed form verifies.
+        // policies decide what it may touch. `overtime_requests_update` used to
+        // permit `employee_id = get_employee_id()`, which — with "Employees can
+        // update their own profile" covering the balance write — let an employee
+        // award themselves Offset hours with no HR involvement and still end up
+        // with a valid approval hash and an hr_processed_by of their choosing.
         //
-        // Asserted as it behaves today. When #180 closes this, the call is
-        // refused and this test fails, which is the signal to rewrite it as the
-        // refusal it should always have been.
+        // #180 narrowed the decision policies to the HR capabilities, so the
+        // function's UPDATE now violates RLS and the whole call is refused. The
+        // request stays PENDING and no hours move.
         await setBalances(ids.ordinary, { offset: 0 })
         const id = await makeOvertime({ employeeId: ids.ordinary, hours: 4, date: "2026-03-06" })
         cleanup.push(async () => {
@@ -176,7 +174,7 @@ describe("who may decide", () => {
             await setBalances(ids.ordinary, { offset: 0 })
         })
 
-        const row = await rpcAs("ordinary", "decide_overtime_request", {
+        await rpcExpectingFailure("ordinary", "decide_overtime_request", {
             p_request_id: id,
             p_status: "APPROVED_OFFSET",
             p_approved_hours: 4,
@@ -184,17 +182,22 @@ describe("who may decide", () => {
             p_hr_id: ids.ordinary,
         })
 
-        expect(row.status).toBe("APPROVED_OFFSET")
-        expect(row.hr_processed_by).toBe(ids.ordinary)
-        expect(row.approval_hash).toBeTruthy()
-        await expectOffsetBalance(ids.ordinary, 4)
+        await expectOffsetBalance(ids.ordinary, 0)
+        const { data: after } = await svc()
+            .from("overtime_requests")
+            .select("status, approval_hash")
+            .eq("id", id)
+            .single()
+        expect(after.status).toBe("PENDING")
+        expect(after.approval_hash).toBeNull()
     })
 
-    it("an employee can approve their own Offset leave without HR (#180)", async () => {
-        // The same hole, one table over: `offset_leaves` permits an update on
-        // one's own row. Spending your own balance is less lucrative than
-        // awarding it, but it still produces a leave the system records as
-        // approved, and a TG-11 that prints as authorised.
+    it("an employee cannot approve their own Offset leave without HR (#180)", async () => {
+        // The same hole, one table over: `offset_leaves_update` used to permit
+        // an update on one's own row. Spending your own balance is less
+        // lucrative than awarding it, but it still produced a leave the system
+        // recorded as approved and a TG-11 that printed as authorised. The
+        // narrowed policy refuses the function's UPDATE, so nothing is spent.
         await setBalances(ids.ordinary, { offset: 16 })
         const group = await makeLeaveGroup("offset_leaves", {
             employeeId: ids.ordinary,
@@ -206,14 +209,110 @@ describe("who may decide", () => {
             await setBalances(ids.ordinary, { offset: 0 })
         })
 
-        await rpcAs("ordinary", "decide_offset_leave_decision", {
+        await rpcExpectingFailure("ordinary", "decide_offset_leave_decision", {
             p_group_id: group,
             p_status: "APPROVED",
             p_hr_notes: "approved by the applicant",
             p_hr_id: ids.ordinary,
         })
 
-        await expectOffsetBalance(ids.ordinary, 12)
+        await expectOffsetBalance(ids.ordinary, 16)
+        const { data: after } = await svc()
+            .from("offset_leaves")
+            .select("status")
+            .eq("leave_group_id", group)
+        expect(after.map((r) => r.status)).toEqual(["PENDING"])
+    })
+
+    it("an employee cannot approve their own SIL leave without HR (#180)", async () => {
+        // `sil_leaves_update` carried the identical policy shape and is narrowed
+        // with the other two.
+        await setBalances(ids.ordinary, { sil: 16, status: "Regular" })
+        const group = await makeLeaveGroup("sil_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-03-07"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(async () => {
+            await svc().from("sil_leaves").delete().eq("leave_group_id", group)
+            await setBalances(ids.ordinary, { sil: 0, status: "Regular" })
+        })
+
+        await rpcExpectingFailure("ordinary", "decide_sil_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_hr_notes: "approved by the applicant",
+            p_hr_id: ids.ordinary,
+        })
+
+        await expectSilBalance(ids.ordinary, 16)
+        const { data: after } = await svc()
+            .from("sil_leaves")
+            .select("status")
+            .eq("leave_group_id", group)
+        expect(after.map((r) => r.status)).toEqual(["PENDING"])
+    })
+
+    it("an employee can still withdraw their own pending overtime (#180)", async () => {
+        // The narrowing must not take the applicant's legitimate path with it:
+        // `overtime_requests_withdraw` keeps own-row -> CANCELLED open.
+        await setBalances(ids.ordinary, { offset: 0 })
+        const id = await makeOvertime({ employeeId: ids.ordinary, hours: 4, date: "2026-03-06" })
+        cleanup.push(() => svc().from("overtime_requests").delete().eq("id", id))
+
+        const client = await clientFor("ordinary")
+        const { data, error } = await client
+            .from("overtime_requests")
+            .update({ status: "CANCELLED" })
+            .eq("id", id)
+            .eq("status", "PENDING")
+            .select()
+        expect(error).toBeNull()
+        expect(data).toHaveLength(1)
+        expect(data[0].status).toBe("CANCELLED")
+    })
+
+    it("an employee can still withdraw their own Offset and SIL leave (#180)", async () => {
+        // `withdraw_offset_leave` and `cancel_sil_leave` are SECURITY INVOKER
+        // and move the group's rows to CANCELLED as the applicant — the
+        // `_withdraw` policies are what keep that working after the narrowing.
+        await setBalances(ids.ordinary, { offset: 8, sil: 8, status: "Regular" })
+        const offsetGroup = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-03-09"],
+            hoursPerDay: 4,
+        })
+        const silGroup = await makeLeaveGroup("sil_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-03-09"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(async () => {
+            await svc().from("offset_leaves").delete().eq("leave_group_id", offsetGroup)
+            await svc().from("sil_leaves").delete().eq("leave_group_id", silGroup)
+            await setBalances(ids.ordinary, { offset: 0, sil: 0, status: "Regular" })
+        })
+
+        const { data: offsetRow } = await svc()
+            .from("offset_leaves").select("id").eq("leave_group_id", offsetGroup).single()
+        const { data: silRow } = await svc()
+            .from("sil_leaves").select("id").eq("leave_group_id", silGroup).single()
+
+        await rpcAs("ordinary", "withdraw_offset_leave", {
+            p_leave_id: offsetRow.id,
+            p_employee_id: ids.ordinary,
+        })
+        await rpcAs("ordinary", "cancel_sil_leave", {
+            p_leave_id: silRow.id,
+            p_employee_id: ids.ordinary,
+        })
+
+        const { data: offsetAfter } = await svc()
+            .from("offset_leaves").select("status").eq("leave_group_id", offsetGroup)
+        const { data: silAfter } = await svc()
+            .from("sil_leaves").select("status").eq("leave_group_id", silGroup)
+        expect(offsetAfter.map((r) => r.status)).toEqual(["CANCELLED"])
+        expect(silAfter.map((r) => r.status)).toEqual(["CANCELLED"])
     })
 
     it("a stranger cannot decide somebody else's overtime", async () => {
