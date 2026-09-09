@@ -14,6 +14,7 @@ import { loadFAQFromDB } from "../../services/faqService";
 import { useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import HighlightText from "../../components/HighlightText";
+import { canEditFAQ as canEditFAQPredicate } from "../../utils/faqAccess";
 
 // ─── Role helpers ──────────────────────────────────────────────────────────────
 const ROLE_LABELS = {
@@ -143,10 +144,7 @@ export default function FAQModal({ isOpen, onClose }) {
     setPrevIsOpen(false);
   }
 
-  const canEditFAQ =
-    user?.name?.toLowerCase() === "geane mateo" ||
-    String(user?.id) === "101" ||
-    String(user?.id) === "201";
+  const canEditFAQ = canEditFAQPredicate(user);
 
   // Load FAQ data from Supabase whenever the modal opens
   useEffect(() => {

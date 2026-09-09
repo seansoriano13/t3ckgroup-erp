@@ -181,12 +181,11 @@ describe("navigation registry", () => {
 
       const adminGroup = groups.find((g) => g.key === "administration");
       expect(adminGroup.links.map((l) => l.label)).toEqual([
-        "System Admin",
         // Activity Log lives in Human Resources now (#105) — Super Admin uses that entry.
         // Flow Plans folded into Flow Canvas's Sandbox mode by this reshape.
+        // System Admin and Lead Sources moved into Settings (#177).
         "Flow Canvas",
         "Commission Pool",
-        "Lead Sources",
       ]);
 
       const hrGroup = groups.find((g) => g.key === "human_resources");
@@ -264,12 +263,12 @@ describe("navigation registry", () => {
       it("is subtractive only: naming a flag-denied entry in the override changes nothing", () => {
         // Flow Canvas is visible to everyone, so a standard employee still
         // sees the Administration group — the assertion is that naming the
-        // flag-denied "System Admin" entry in the override doesn't reveal it.
-        const standardUser = { id: "std-2", hidden_nav_keys: ["admin.systemAdmin"] };
+        // flag-denied "Commission Pool" entry in the override doesn't reveal it.
+        const standardUser = { id: "std-2", hidden_nav_keys: ["admin.commissionPool"] };
 
         const groups = getFilteredNavigationGroups(standardUser);
         const adminGroup = groups.find((g) => g.key === "administration");
-        expect(adminGroup.links.map((l) => l.label)).not.toContain("System Admin");
+        expect(adminGroup.links.map((l) => l.label)).not.toContain("Commission Pool");
         expect(adminGroup.links.map((l) => l.label)).toEqual(["Flow Canvas"]);
       });
 

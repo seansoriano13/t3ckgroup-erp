@@ -11,6 +11,14 @@ const __dirname = path.dirname(__filename)
 // and running it on every test boot is pure cost.
 export default defineConfig({
     plugins: [react()],
+    // Settings' build-fingerprint footer reads these Vite `define` globals;
+    // vite.config.js sets them from real build metadata, tests just need
+    // them to exist.
+    define: {
+        __APP_VERSION__: JSON.stringify("test"),
+        __APP_SEMVER__: JSON.stringify("test"),
+        __BUILD_TIME__: JSON.stringify(new Date(0).toISOString()),
+    },
     resolve: {
         alias: {
             "@": path.resolve(__dirname, "./src"),

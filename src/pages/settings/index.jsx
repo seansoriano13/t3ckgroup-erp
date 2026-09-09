@@ -1,11 +1,13 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import FAQModal from "./FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 import { getPermissionContext } from "../../utils/permissions";
+import { canEditFAQ } from "../../utils/faqAccess";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { appSettingsService } from "../../services/appSettingsService";
@@ -14,6 +16,9 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
+import LeadSourceManager from "../../components/settings/LeadSourceManager";
+import SystemUpdateBanner from "../../components/SystemUpdateBanner";
+import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
 
 const appSemver = __APP_SEMVER__;
@@ -49,6 +54,7 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
 
 export default function SettingsPage() {
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
   const [showFAQ, setShowFAQ] = useState(false);
@@ -83,6 +89,7 @@ export default function SettingsPage() {
   };
 
   const { isSuperAdmin } = getPermissionContext(user);
+  const canEditFAQContent = canEditFAQ(user);
 
   const { data: appSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["appSettings"],
@@ -253,6 +260,65 @@ export default function SettingsPage() {
 
         {/* WORKING WEEK — issue #150/#152: gated to Super Admin, same as Customization above */}
         {isSuperAdmin && <DayShiftConfig />}
+
+        {/* CONTENT SECTION — #177: FAQ editing was reachable only through a
+            button buried in the Help modal and its route had no guard of
+            its own; gated by the same predicate that button already used. */}
+        {canEditFAQContent && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30">
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Content
+              </h2>
+            </div>
+            <div
+              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => navigate("/settings/FAQEditor")}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                  <BookOpen size={18} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground text-sm">FAQ Editor</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Edit the Help &amp; FAQ content shown to every role.</p>
+                </div>
+              </div>
+              <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </div>
+        )}
+
+        {/* LEAD SOURCES — #177: moved from /super-admin/lead-sources, same Super Admin gate */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Shuffle size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Lead Sources
+              </h2>
+            </div>
+            <LeadSourceManager />
+          </div>
+        )}
+
+        {/* SYSTEM ANNOUNCEMENTS — #177: moved from /super-admin, same Super Admin gate */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Megaphone size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                System Announcements
+              </h2>
+            </div>
+            <SystemUpdateBanner />
+            <SystemUpdateManager />
+          </div>
+        )}
 
         {/* DANGER ZONE SECTION */}
         <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">

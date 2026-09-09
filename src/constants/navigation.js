@@ -9,10 +9,8 @@ import {
   ShieldCheck,
   Users,
   ClipboardList,
-  Crown,
   SquarePen,
   Percent,
-  Shuffle,
   Workflow,
   ShoppingCart,
 } from "lucide-react";
@@ -193,14 +191,9 @@ export const NAV_MODULES = {
     label: "Administration",
     defaultExpanded: false,
     links: [
-      {
-        key: "admin.systemAdmin",
-        label: "System Admin",
-        link: "/super-admin",
-        icon: Crown,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-        exactMatch: true,
-      },
+      // System Admin (announcements) and Lead Sources moved into Settings
+      // (#177) — both now live there, gated the same way (Super Admin).
+
       // Activity Log moved to the Human Resources group (#105) — Super
       // Admin already qualifies for that entry's isPermitted check, so it
       // isn't duplicated here.
@@ -221,13 +214,6 @@ export const NAV_MODULES = {
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,
-        isPermitted: (ctx) => ctx.isSuperAdmin,
-      },
-      {
-        key: "admin.leadSources",
-        label: "Lead Sources",
-        link: "/super-admin/lead-sources",
-        icon: Shuffle,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
     ],

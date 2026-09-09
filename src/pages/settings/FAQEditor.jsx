@@ -24,6 +24,9 @@ const ROLES = [
 import { loadFAQFromDB, saveFAQToDB } from "../../services/faqService";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
+import { Navigate } from "react-router";
+import { useAuth } from "../../context/AuthContext";
+import { canEditFAQ } from "../../utils/faqAccess";
 
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
@@ -362,6 +365,7 @@ function CategoryStylePicker({ cat, onChange }) {
 
 // ─── Main FAQEditor page ───────────────────────────────────────────────────────
 export default function FAQEditorPage() {
+  const { user } = useAuth();
   const [categories, setCategories] = useState([]);
   const [activeCatId, setActiveCatId] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -485,6 +489,10 @@ export default function FAQEditorPage() {
   };
 
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
+
+  if (!canEditFAQ(user)) {
+    return <Navigate to="/settings" replace />;
+  }
 
   return (
     <PageContainer maxWidth="7xl" className="pt-4">
