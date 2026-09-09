@@ -310,6 +310,43 @@ describe("ApplyLeaveModal", () => {
         ),
       )
     })
+
+    // Issue #150: picking a date used to fill the start/end times from two
+    // literal copies that disagreed about how to read the date — one in
+    // local time, one in UTC — so the two could land on different weekdays.
+    // Now there is one path, so both a Wednesday and an ordinary weekday
+    // pre-fill from the same shared shift configuration.
+    it("pre-fills Wednesday's later finish when a Wednesday is picked", async () => {
+      const user = userEvent.setup()
+      open()
+      await goToSil()
+
+      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-11") // a Wednesday
+
+      await waitFor(() => expect(timeFields[0]).toHaveValue("07:30"))
+      expect(timeFields[1]).toHaveValue("18:30")
+    })
+
+    it("pre-fills the ordinary finish time for a non-Wednesday weekday", async () => {
+      const user = userEvent.setup()
+      open()
+      await goToSil()
+
+      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-10") // a Tuesday
+
+      await waitFor(() => expect(timeFields[0]).toHaveValue("07:30"))
+      expect(timeFields[1]).toHaveValue("18:00")
+    })
   })
 
   it("closes without filing anything when dismissed", async () => {

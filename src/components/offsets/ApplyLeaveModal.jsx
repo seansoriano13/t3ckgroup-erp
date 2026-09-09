@@ -15,6 +15,8 @@ import { useFileAttachments } from '../../hooks/useFileAttachments';
 import { safeDeriveHours } from '../../utils/time';
 import { applyLunchDeduction, computeAvailableHours } from '../../services/leaveRules';
 import { enumerateDateRange } from '../../utils/dateUtils';
+import { dayShiftService } from '../../services/dayShiftService';
+import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShift';
 import HeadSelectField from './HeadSelectField';
 
 const DEFAULT_DAY_HOURS = 8;
@@ -152,6 +154,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     queryFn: () => hrSettingsService.getLeaveCategories(false),
   });
 
+  const { data: dayShiftConfig = DEFAULT_DAY_SHIFT_CONFIG } = useQuery({
+    queryKey: ['dayShiftConfig'],
+    queryFn: () => dayShiftService.getDayShiftConfig(),
+    initialData: DEFAULT_DAY_SHIFT_CONFIG,
+    staleTime: 5 * 60 * 1000,
+  });
+
   const { data: employees = [] } = useQuery({
     queryKey: ['hrEmployeesList'],
     enabled: showEmployeeSelector,
@@ -190,14 +199,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   useEffect(() => {
     if (silDate && silApplyMode === 'single') {
-      const dateObj = new Date(silDate);
-      if (!isNaN(dateObj)) {
-        const isWednesday = dateObj.getDay() === 3;
-        if (!silStartTime) setSilStartTime('07:30');
-        if (!silEndTime) setSilEndTime(isWednesday ? '18:30' : '18:00');
+      const shift = getShiftForDate(silDate, dayShiftConfig);
+      if (shift.isWorkingDay) {
+        if (!silStartTime) setSilStartTime(shift.startTime);
+        if (!silEndTime) setSilEndTime(shift.endTime);
       }
     }
-  }, [silDate, silApplyMode]);
+  }, [silDate, silApplyMode, dayShiftConfig]);
 
   if (!isOpen) return null;
 
@@ -719,18 +727,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     <input
                       type="date"
                       value={silDate}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setSilDate(val);
-                        if (val) {
-                          const dateObj = new Date(val);
-                          const day = dateObj.getUTCDay(); // 0 is Sunday, 1 is Monday
-                          if (day >= 1 && day <= 5) {
-                            setSilStartTime('07:30');
-                            setSilEndTime(day === 3 ? '18:30' : '18:00');
-                          }
-                        }
-                      }}
+                      onChange={(e) => setSilDate(e.target.value)}
                       className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
                       required
                     />
