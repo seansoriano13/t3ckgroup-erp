@@ -7,7 +7,7 @@ import { systemAuditLogService } from './systemAuditLogService';
  * overtime_requests (issue #137 and sub-issues #138-141).
  *
  * All three tables carry the same head_* columns (see migration
- * 20260908090000_department_head_approval_stage.sql):
+ * 20260908110000_department_head_approval_stage.sql):
  *   head_id, head_status ('PENDING'|'APPROVED'|'REJECTED'), head_note,
  *   head_decided_at, head_signature_version, hr_override
  *

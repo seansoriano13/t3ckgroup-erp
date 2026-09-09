@@ -9,7 +9,7 @@
 -- and the decision now share one lock instead of racing across two
 -- round-trips. A request routed to no head at all reads head_status as
 -- 'APPROVED' (the column's own DEFAULT — see migration
--- 20260908090000_department_head_approval_stage.sql's backfill note), so
+-- 20260908110000_department_head_approval_stage.sql's backfill note), so
 -- `head_status != 'APPROVED'` alone correctly lets those through without a
 -- separate "no head" branch.
 --

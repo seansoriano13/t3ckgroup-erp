@@ -235,7 +235,7 @@ describe("headApprovalService", () => {
 
   describe("self-approval guard (issue #139)", () => {
     // guard_head_status_change (migration
-    // 20260908090000_department_head_approval_stage.sql, broadened by
+    // 20260908110000_department_head_approval_stage.sql, broadened by
     // 20260908140000_broaden_head_status_guard.sql) is what actually stops an
     // ordinary employee from writing head_status='REJECTED' (or head_note /
     // head_decided_at / head_signature_version) on their OWN application via

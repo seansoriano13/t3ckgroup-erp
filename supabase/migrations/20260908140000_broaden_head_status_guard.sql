@@ -1,5 +1,5 @@
 -- Code review fix for issue #139: guard_head_status_change (migration
--- 20260908090000_department_head_approval_stage.sql) only fired when
+-- 20260908110000_department_head_approval_stage.sql) only fired when
 -- head_status was becoming APPROVED. The existing owner-update RLS policy
 -- already lets an employee UPDATE their own leave/offset/overtime row, so an
 -- employee could self-write head_status = 'REJECTED', or forge head_note /

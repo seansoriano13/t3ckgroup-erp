@@ -158,7 +158,7 @@ export const TRIGGERS = {
   },
 
   // sil_leaves / offset_leaves / overtime_requests:
-  // guard_head_status_change() (20260908090000_department_head_approval_stage.sql,
+  // guard_head_status_change() (20260908110000_department_head_approval_stage.sql,
   // broadened by 20260908140000_broaden_head_status_guard.sql for issue #139)
   // is deliberately NOT mirrored here, for the same reason as
   // sor_procurement_requests_guard() above: it decides whether to reject a
