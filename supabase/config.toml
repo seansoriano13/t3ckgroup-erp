@@ -29,7 +29,15 @@ api_url = "http://127.0.0.1"
 [auth]
 enabled = true
 site_url = "http://127.0.0.1:5173"
-additional_redirect_urls = ["http://127.0.0.1:5173"]
+# Wildcarded so the password-reset email's redirectTo (…/reset-password) is
+# actually honoured — GoTrue silently falls back to site_url for any
+# redirect_to that isn't an exact match or covered by a pattern here.
+# Same wildcard needs adding in staging/production's Auth > URL
+# Configuration (this file only controls the local stack).
+additional_redirect_urls = [
+  "http://127.0.0.1:5173/**",
+  "http://localhost:5173/**",
+]
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
@@ -75,6 +83,10 @@ enabled = false
 # in this file.
 [edge_runtime]
 enabled = true
+
+# Unlike the odoo-* functions above, this one needs nothing but the local
+# Supabase stack's own (deterministic, committed) keys — it works locally.
+[functions.manage-employee-password]
 
 [functions.odoo-document-admin]
 [functions.odoo-po-rollup]
