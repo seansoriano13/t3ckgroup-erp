@@ -13,6 +13,7 @@ import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
+import DayShiftConfig from "../../components/settings/DayShiftConfig";
 
 const appSemver = __APP_SEMVER__;
 const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
@@ -225,6 +226,9 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* WORKING WEEK — issue #150/#152: gated to Super Admin, same as Customization above */}
+        {isSuperAdmin && <DayShiftConfig />}
 
         {/* DANGER ZONE SECTION */}
         <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
