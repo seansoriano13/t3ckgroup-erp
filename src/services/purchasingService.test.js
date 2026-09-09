@@ -782,6 +782,16 @@ describe("purchasingService", () => {
       expect(queue).toEqual([])
     })
 
+    // Issue #170/#171 — a retail SOR never raises a procurement request in
+    // practice, but the join-level guard must match its scratch sibling.
+    it("shows nothing from a Retail SOR", async () => {
+      await raise()
+      updateRow("sales_opportunities", db.internal.rowsOf("sales_opportunities").find((o) => o.id === opportunity.id), { is_retail: true })
+
+      const queue = await purchasingService.listOpenQueue()
+      expect(queue).toEqual([])
+    })
+
     it("puts the newest ask at the top", async () => {
       const second = makeOpportunity({
         registered_by: salesperson.id,

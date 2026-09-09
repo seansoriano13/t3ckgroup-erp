@@ -22,7 +22,6 @@ import {
   approveQueueItem,
   dismissQueueItem,
 } from "../../services/retailQueueService";
-import { employeeService } from "../../services/employeeService";
 import { formatPHP } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
 
@@ -30,14 +29,12 @@ import { useAuth } from "../../context/AuthContext";
 // Approve / Edit Modal
 // ---------------------------------------------------------------------------
 
-function ApproveModal({ item, employees, onConfirm, onClose, isPending }) {
+function ApproveModal({ item, onConfirm, onClose, isPending }) {
   const [fields, setFields] = useState({
     client_name: item.client_name ?? item.odoo_partner_name ?? "",
     contact_person: item.contact_person ?? item.odoo_person_name ?? "",
-    project_title: item.project_title ?? `Shopee Retail: ${item.odoo_partner_name}`,
+    project_title: item.project_title ?? `Retail: ${item.odoo_partner_name}`,
     expected_value: item.expected_value ?? item.odoo_amount ?? 0,
-    deal_owner_id: item.deal_owner_id ?? "",
-    sales_director_id: item.sales_director_id ?? "",
   });
 
   const set = (key) => (e) => setFields((f) => ({ ...f, [key]: e.target.value }));
@@ -112,39 +109,6 @@ function ApproveModal({ item, employees, onConfirm, onClose, isPending }) {
               min={0}
             />
           </div>
-          {/* Deal Owner */}
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Deal Owner
-            </label>
-            <select
-              value={fields.deal_owner_id}
-              onChange={set("deal_owner_id")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:border-mauve-7 transition-colors"
-            >
-              <option value="">— Select employee —</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
-          {/* Sales Director */}
-          <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Sales Director
-            </label>
-            <select
-              value={fields.sales_director_id}
-              onChange={set("sales_director_id")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground outline-none focus:border-mauve-7 transition-colors"
-            >
-              <option value="">— Select employee —</option>
-              {employees.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
-
           {/* Odoo data readonly summary */}
           <div className="rounded-xl bg-muted/20 border border-border p-3 space-y-1.5">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
@@ -200,10 +164,13 @@ function ApproveModal({ item, employees, onConfirm, onClose, isPending }) {
 // Queue Row
 // ---------------------------------------------------------------------------
 
-function QueueRow({ item, onApprove, onDismiss, employees }) {
+function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
   const [approveOpen, setApproveOpen] = useState(false);
 
   const isDismissed = item.status === "dismissed";
+  // Issue #173 — the approve button was never disabled, so a double click
+  // fired two approvals for the same item. Both triggers below are guarded.
+  const isBusy = isApproving || isDismissing;
 
   return (
     <>
@@ -262,14 +229,16 @@ function QueueRow({ item, onApprove, onDismiss, employees }) {
             <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setApproveOpen(true)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600/10 border border-green-500/30 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-600/20 transition-colors"
+                disabled={isBusy}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600/10 border border-green-500/30 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-600/20 transition-colors disabled:opacity-50 disabled:pointer-events-none"
               >
                 <CheckCircle size={11} />
                 Approve
               </button>
               <button
                 onClick={() => onDismiss(item.id)}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted/40 border border-border text-muted-foreground text-xs font-bold hover:text-foreground hover:bg-muted/60 transition-colors"
+                disabled={isBusy}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted/40 border border-border text-muted-foreground text-xs font-bold hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50 disabled:pointer-events-none"
               >
                 <XCircle size={11} />
                 Dismiss
@@ -282,8 +251,7 @@ function QueueRow({ item, onApprove, onDismiss, employees }) {
       {approveOpen && (
         <ApproveModal
           item={item}
-          employees={employees}
-          isPending={false}
+          isPending={isApproving}
           onClose={() => setApproveOpen(false)}
           onConfirm={(edits) => {
             onApprove(item.id, edits);
@@ -315,13 +283,8 @@ export default function RetailOrdersQueue() {
     enabled: showDismissed,
   });
 
-  const { data: employees = [] } = useQuery({
-    queryKey: ["employees"],
-    queryFn: () => employeeService.getAllEmployees(),
-  });
-
   const approveMutation = useMutation({
-    mutationFn: ({ id, edits }) => approveQueueItem(id, edits, user?.id),
+    mutationFn: ({ id, edits }) => approveQueueItem(id, edits),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["retailQueue"] });
       queryClient.invalidateQueries({ queryKey: ["retailQueueCount"] });
@@ -357,7 +320,7 @@ export default function RetailOrdersQueue() {
             )}
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Shopee orders from Odoo waiting for review. Approve to create a SOR entry.
+            Marketplace orders from Odoo waiting for review. Approve to create a SOR entry.
           </p>
         </div>
         <button
@@ -383,7 +346,7 @@ export default function RetailOrdersQueue() {
             <CheckCircle size={32} className="text-green-500/50" />
             <p className="text-sm font-semibold">No pending retail orders</p>
             <p className="text-xs text-muted-foreground/70">
-              The hourly sync will add new Shopee orders here when they arrive.
+              The hourly sync will add new marketplace orders here when they arrive.
             </p>
           </div>
         ) : (
@@ -404,9 +367,10 @@ export default function RetailOrdersQueue() {
                   <QueueRow
                     key={item.id}
                     item={item}
-                    employees={employees}
                     onApprove={(id, edits) => approveMutation.mutate({ id, edits })}
                     onDismiss={(id) => dismissMutation.mutate(id)}
+                    isApproving={approveMutation.isPending && approveMutation.variables?.id === item.id}
+                    isDismissing={dismissMutation.isPending && dismissMutation.variables === item.id}
                   />
                 ))}
               </tbody>
@@ -456,7 +420,6 @@ export default function RetailOrdersQueue() {
                       <QueueRow
                         key={item.id}
                         item={item}
-                        employees={employees}
                         onApprove={() => {}}
                         onDismiss={() => {}}
                       />

@@ -275,6 +275,7 @@ export const purchasingService = {
       .or(`outcome.is.null,outcome.eq.${PROCUREMENT_OUTCOME.IN_PROGRESS}`)
       .eq("opportunity.is_deleted", false)
       .eq("opportunity.is_scratch", false)
+      .eq("opportunity.is_retail", false)
       .order("created_at", { ascending: false });
 
     if (error) throw error;

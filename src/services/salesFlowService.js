@@ -817,6 +817,9 @@ export const salesFlowService = {
       .select("flow_snapshot_id")
       .eq("sale_type_id", flow.sale_type_id)
       .eq("is_scratch", false)
+      // Issue #170/#171 — a retail order never runs a Sales Flow, so it must
+      // not appear in a flow's live-usage count.
+      .eq("is_retail", false)
       .neq("is_deleted", true);
     if (error) throw error;
 

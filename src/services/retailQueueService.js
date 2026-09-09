@@ -60,67 +60,36 @@ export async function getRetailQueuePendingCount() {
 }
 
 /**
- * Approve a queue item — creates the SOR entry and marks the queue item approved.
+ * Approve a queue item — creates the SOR entry (marked retail, issue #171)
+ * and marks the queue item approved, in one atomic call.
+ *
+ * Issue #173: this used to be two round trips from the client (insert, then
+ * update), so a failure in between orphaned a record with the queue item
+ * still pending, and a re-approve inserted a second SOR. The RPC does both
+ * writes in one transaction, with `FOR UPDATE` and a status check that
+ * refuses an item that isn't `pending` — a double-click now produces one
+ * insert and one rejected second call, not two SORs.
+ *
+ * Terminal stage, project type, ITB exemption and participant assignments
+ * are no longer sent — they never meant anything for a retail order, and
+ * the column defaults ('LEAD', 'SSP', false, null, null) apply instead.
+ * The RPC also derives the reviewer from the caller's own session
+ * (`get_employee_id()`), not from a client-supplied id.
+ *
  * @param {string} queueItemId
  * @param {object} edits  Editable fields the sales user may have changed
- * @param {string} reviewerId  The authenticated employee's UUID
+ * @returns {Promise<string>} the new SOR's id
  */
-export async function approveQueueItem(queueItemId, edits, reviewerId) {
-  // 1. Fetch the queue item
-  const { data: item, error: fetchErr } = await supabase
-    .from("odoo_retail_queue")
-    .select("*")
-    .eq("id", queueItemId)
-    .single();
-  if (fetchErr) throw fetchErr;
-  if (item.status !== "pending") throw new Error("Queue item is no longer pending.");
-
-  // 2. Create the SOR entry
-  const sorPayload = {
-    sales_reference: item.odoo_so_number,
-    client_name: edits.client_name ?? item.client_name,
-    contact_person: edits.contact_person ?? item.contact_person,
-    project_title: edits.project_title ?? item.project_title,
-    expected_value: edits.expected_value ?? item.expected_value,
-    lead_source: edits.lead_source ?? item.lead_source,
-    status: "CLOSED_WON",
-    registered_by: reviewerId,
-    project_type: "SSP",
-    itb_exempt: true,
-    expected_award_date: item.odoo_date_order ?? null,
-    registration_date: item.odoo_create_date ?? null,
-    deal_owner_id: edits.deal_owner_id ?? item.deal_owner_id,
-    sales_director_id: edits.sales_director_id ?? item.sales_director_id,
-  };
-
-  const { data: newOpp, error: sorErr } = await supabase
-    .from("sales_opportunities")
-    .insert(sorPayload)
-    .select("id")
-    .single();
-  if (sorErr) throw sorErr;
-
-  // 3. Mark the queue item as approved
-  const { error: updateErr } = await supabase
-    .from("odoo_retail_queue")
-    .update({
-      status: "approved",
-      reviewed_by: reviewerId,
-      reviewed_at: new Date().toISOString(),
-      opportunity_id: newOpp.id,
-      // Persist the final edited values
-      client_name: sorPayload.client_name,
-      contact_person: sorPayload.contact_person,
-      project_title: sorPayload.project_title,
-      expected_value: sorPayload.expected_value,
-      lead_source: sorPayload.lead_source,
-      deal_owner_id: sorPayload.deal_owner_id,
-      sales_director_id: sorPayload.sales_director_id,
-    })
-    .eq("id", queueItemId);
-  if (updateErr) throw updateErr;
-
-  return newOpp.id;
+export async function approveQueueItem(queueItemId, edits = {}) {
+  const { data, error } = await supabase.rpc("approve_retail_queue_item", {
+    p_queue_item_id: queueItemId,
+    p_client_name: edits.client_name ?? null,
+    p_contact_person: edits.contact_person ?? null,
+    p_project_title: edits.project_title ?? null,
+    p_expected_value: edits.expected_value ?? null,
+  });
+  if (error) throw error;
+  return data;
 }
 
 /**

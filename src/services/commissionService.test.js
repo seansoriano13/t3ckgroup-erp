@@ -395,6 +395,15 @@ describe("commissionService", () => {
 
       expect(await commissionService.isSalesDirector(director.id)).toBe(false)
     })
+
+    // Issue #170/#171 — approving one Shopee order through the retail queue
+    // must not hand the approver Commission Split write access.
+    it("is false for an employee who is only a sales director on a Retail SOR", async () => {
+      const director = makeEmployee({ name: "Retail Director" })
+      makeOpportunity({ sales_director_id: director.id, is_retail: true })
+
+      expect(await commissionService.isSalesDirector(director.id)).toBe(false)
+    })
   })
 
   describe("saveSplitsForProjectType", () => {
@@ -533,6 +542,42 @@ describe("commissionService", () => {
         contract_date: "2026-01-11",
         deal_owner_id: owner.id,
         is_scratch: true,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
+      expect(dashboard.dealLedger).toHaveLength(1)
+    })
+
+    // Issue #170/#171 — a retail order has no Contract Date, so before this
+    // flag it was invisible here (REALIZED) while still booked in full under
+    // Forecast. The flag removes it from both instead of leaving one side wrong.
+    it("leaves Retail SORs out of the commission totals entirely", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      makeOpportunity({
+        sales_reference: "S02003",
+        itb_number: "ITB-2026-103",
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+      })
+
+      makeOpportunity({
+        sales_reference: "S08286",
+        project_type: "SSP",
+        expected_value: 6_875,
+        status: "CLOSED_WON",
+        itb_exempt: true,
+        contract_date: null,
+        deal_owner_id: owner.id,
+        is_retail: true,
       })
 
       const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })

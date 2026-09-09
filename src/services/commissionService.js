@@ -42,10 +42,11 @@ async function requireSuperAdmin(actorId) {
  * rather than trusting a client-supplied role, for the same reason as
  * requireSuperAdmin.
  *
- * Scratch SORs are excluded (issue #36, migration 0046) because this is an
- * authorization check rather than a report: a deal drawn on the Flow Canvas
- * to watch a Stage fire must not be able to grant somebody the Commission
- * Dashboard as a side effect of being named on it.
+ * Scratch and Retail SORs are excluded (issue #36 migration 0046; issue #171)
+ * because this is an authorization check rather than a report: a deal drawn
+ * on the Flow Canvas to watch a Stage fire, or a Shopee order approved
+ * through the retail queue, must not be able to grant somebody the
+ * Commission Dashboard as a side effect of being named on it.
  */
 async function isSalesDirector(actorId) {
   const { data, error } = await supabase
@@ -53,6 +54,7 @@ async function isSalesDirector(actorId) {
     .select("id")
     .eq("sales_director_id", actorId)
     .eq("is_scratch", false)
+    .eq("is_retail", false)
     .limit(1);
   if (error) throw error;
 
@@ -388,6 +390,10 @@ async function getCommissionDashboardData({
       // Contract Date like any other deal, so the flag is the only thing
       // keeping it out of the company's booked money.
       .eq("is_scratch", false)
+      // Issue #170/#171 — a retail order has no Contract Date, so it was
+      // leaking in full into the Forecast scope while being invisible to
+      // Realized. The flag removes it from both instead of fixing one.
+      .eq("is_retail", false)
       .order("contract_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     supabase

@@ -852,8 +852,28 @@ export const opportunityService = {
       .select(PARTICIPANT_SELECT)
       .neq("is_deleted", true)
       .eq("is_scratch", false)
+      .eq("is_retail", false)
       .order("registration_date", { ascending: false })
       .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * The Retail tab (issue #174) — the same table as getOpportunities, flag
+   * inverted. No new table: a retail record is a real SOR with a real
+   * sales_reference and amount, just excluded from the pipeline (#171).
+   */
+  async getRetailOpportunities() {
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select(
+        "id, sales_reference, client_name, project_title, expected_value, registration_date, lead_source, created_at",
+      )
+      .neq("is_deleted", true)
+      .eq("is_retail", true)
+      .order("registration_date", { ascending: false });
 
     if (error) throw error;
     return data || [];

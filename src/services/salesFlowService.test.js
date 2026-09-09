@@ -459,6 +459,7 @@ describe("salesFlowService", () => {
       makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id })
       makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v2.id })
       makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id, is_scratch: true })
+      makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id, is_retail: true })
       makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: v1.id, is_deleted: true })
       makeOpportunity({ sale_type_id: flow.sale_type_id, flow_snapshot_id: null })
 

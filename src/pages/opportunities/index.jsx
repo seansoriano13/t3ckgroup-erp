@@ -33,6 +33,7 @@ import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
+import RetailTab from "../../components/sor/RetailTab";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
@@ -50,6 +51,7 @@ import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import { getRetailQueuePendingCount } from "../../services/retailQueueService";
+import { commissionService } from "../../services/commissionService";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -180,10 +182,22 @@ export default function OpportunitiesPage() {
     queryFn: () => employeeService.getAllEmployees(),
   });
 
+  // Issue #173 — the Retail Queue tab used to render for anyone with no role
+  // check at all. Same eligibility as the RLS policy that now guards the
+  // table: a Super Admin, or a Sales Director on a live opportunity.
+  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
+  const { data: isRetailSalesDirector = false } = useQuery({
+    queryKey: ["isSalesDirector", user?.id],
+    queryFn: () => commissionService.isSalesDirector(user.id),
+    enabled: !isSuperAdmin && !!user?.id,
+  });
+  const canHandleRetailQueue = isSuperAdmin || isRetailSalesDirector;
+
   const { data: retailQueueCount = 0 } = useQuery({
     queryKey: ["retailQueueCount"],
     queryFn: () => getRetailQueuePendingCount(),
     refetchInterval: 60_000, // refresh every minute
+    enabled: canHandleRetailQueue,
   });
 
   const { data: activeLeadSources = [] } = useQuery({
@@ -557,12 +571,17 @@ export default function OpportunitiesPage() {
                 { value: "list", label: "List", icon: List },
                 { value: "board", label: "Board", icon: Kanban },
                 { value: "overview", label: "Overview", icon: LayoutDashboard },
-                {
-                  value: "retailQueue",
-                  icon: ShoppingBag,
-                  label: "Retail Queue",
-                  badge: retailQueueCount > 0 ? retailQueueCount : null,
-                },
+                ...(canHandleRetailQueue
+                  ? [
+                      {
+                        value: "retailQueue",
+                        icon: ShoppingBag,
+                        label: "Retail Queue",
+                        badge: retailQueueCount > 0 ? retailQueueCount : null,
+                      },
+                      { value: "retail", icon: ShoppingBag, label: "Retail" },
+                    ]
+                  : []),
               ]}
               activeTab={view}
               onChange={changeView}
@@ -785,8 +804,10 @@ export default function OpportunitiesPage() {
           </span>
         </div>
 
-        {view === "retailQueue" ? (
+        {view === "retailQueue" && canHandleRetailQueue ? (
           <RetailOrdersQueue />
+        ) : view === "retail" && canHandleRetailQueue ? (
+          <RetailTab />
         ) : view === "overview" ? (
           <div className="mt-4">
             {isLoading ? (

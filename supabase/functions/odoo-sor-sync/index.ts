@@ -44,6 +44,36 @@ function requireEmployee(
 }
 
 /**
+ * Strip Odoo's message HTML down to plain text, preserving line breaks.
+ *
+ * Bug (issue #172): stripping tags to a space instead of a newline let the
+ * `NAME:` capture — which stops at `[^\n]+` — swallow everything after it on
+ * the same "line" of rendered HTML, because there was no `\n` left to stop
+ * at. Block-level closes and <br> become a newline first, so a real line
+ * break in the rendered note survives into the plain-text version.
+ */
+function toPlainText(rawText: string): string {
+  return rawText
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|tr)>/gi, "\n")
+    .replace(/<[^>]*>?/gm, " ")
+    .replace(/&nbsp;/g, " ");
+}
+
+/**
+ * Issue #172: retail is whoever the Odoo customer is, not what lead source a
+ * record was tagged with or what words appear in a note. Production has a
+ * ₱144,000 government proposal tagged Shopee, and retail-shaped records
+ * appear under three other lead sources — so this checks the one field that
+ * actually says who bought it.
+ */
+function isStorefrontCustomer(partnerName: string | null | undefined, storefronts: string[]): boolean {
+  if (!partnerName) return false;
+  const name = partnerName.toLowerCase();
+  return storefronts.some((s) => name.includes(s.toLowerCase()));
+}
+
+/**
  * Extract <img src="..."> URLs from raw Odoo message HTML and return them as
  * attachment objects suitable for sales_opportunity_logs.metadata.attachments.
  */
@@ -115,7 +145,7 @@ async function runSync() {
   if (soIds.length > 0) {
     saleOrders = await executeKw(uid, "sale.order", "read", [
       soIds,
-      ["name", "create_date", "date_order", "partner_id", "user_id"],
+      ["name", "create_date", "date_order", "partner_id", "user_id", "amount_total"],
     ]);
   }
   const soMap = Object.fromEntries(saleOrders.map((so: any) => [so.id, so]));
@@ -123,6 +153,16 @@ async function runSync() {
   // Fetch employees once for name matching
   const { data: employees } = await supabase.from("employees").select("id, name");
   const empList = employees || [];
+
+  // Issue #172: configurable storefront list, not a hardcoded lead source or
+  // note-text pattern.
+  const { data: appSettings } = await supabase
+    .from("app_settings")
+    .select("retail_storefronts")
+    .maybeSingle();
+  const storefronts: string[] = appSettings?.retail_storefronts?.length
+    ? appSettings.retail_storefronts
+    : ["Shopee", "Lazada"];
 
   // Resolve "Shara" as fallback deal owner and "101" as default sales director
   // by name so the UUIDs aren't environment-specific.
@@ -138,86 +178,86 @@ async function runSync() {
 
   for (const note of allNotes) {
     const rawText = typeof note.content === "string" ? note.content : "";
-    const cleanText = rawText.replace(/<[^>]*>?/gm, " ").replace(/&nbsp;/g, " ");
+    const cleanText = toPlainText(rawText);
     const text = cleanText.toUpperCase();
+    const soData = soMap[note.res_id];
+    const partnerName: string | null = soData?.partner_id ? soData.partner_id[1] : null;
 
     // -----------------------------------------------------------------------
-    // Shopee retail order: "ORDER INCOME" pattern → write to queue
+    // Retail order (issue #172): detected by the Odoo customer matching the
+    // configurable storefront list — not by words in the note, and not by
+    // lead source. The note, if present and parseable, only enriches the
+    // buyer's name; it never gates whether the order is processed.
     // -----------------------------------------------------------------------
-    if (text.includes("ORDER INCOME") && text.includes("ORDER ID")) {
+    if (isStorefrontCustomer(partnerName, storefronts)) {
       const nameMatch = cleanText.match(/NAME:?\s*([^\n]+)/i);
-      const incomeMatch = cleanText.match(/ORDER INCOME:?\s*([\d,.]+)/i);
+      const personName = nameMatch ? nameMatch[1].trim() : null;
+      // Issue #172: the sale's value is the Odoo order's own total, not a
+      // number typed into a note — the note may not even mention one.
+      const expectedValue = typeof soData?.amount_total === "number" ? soData.amount_total : 0;
+      const soNumber = note.res_name;
 
-      if (nameMatch && incomeMatch) {
-        const personName = nameMatch[1].trim();
-        const expectedValue = parseFloat(incomeMatch[1].replace(/,/g, "")) || 0;
-        const soNumber = note.res_name;
+      const odooDateOrder = soData?.date_order || null;
+      const odooCreateDate = soData?.create_date || null;
+      const clientName = partnerName || `Retail: ${personName || soNumber}`;
+      const odooSalesperson = soData?.user_id ? soData.user_id[1] : null;
+      const odooSoId = soData?.id || note.res_id;
 
-        const soData = soMap[note.res_id];
-        const odooDateOrder = soData?.date_order || null;
-        const odooCreateDate = soData?.create_date || null;
-        const partnerName = soData?.partner_id
-          ? soData.partner_id[1]
-          : `Shopee Retail: ${personName}`;
-        const odooSalesperson = soData?.user_id ? soData.user_id[1] : null;
-        const odooSoId = soData?.id || note.res_id;
+      // Resolve deal owner: try Odoo salesperson, fall back to Shara
+      const matchedOwnerId = odooSalesperson
+        ? findEmployeeId(empList, odooSalesperson)
+        : null;
+      const dealOwnerId = matchedOwnerId || fallbackOwnerId;
 
-        // Resolve deal owner: try Odoo salesperson, fall back to Shara
-        const matchedOwnerId = odooSalesperson
-          ? findEmployeeId(empList, odooSalesperson)
-          : null;
-        const dealOwnerId = matchedOwnerId || fallbackOwnerId;
+      // Check: already in queue (any status — we never re-insert dismissed items)
+      const { data: existingQueue } = await supabase
+        .from("odoo_retail_queue")
+        .select("id, status")
+        .eq("odoo_so_number", soNumber)
+        .maybeSingle();
 
-        // Check: already in queue (any status — we never re-insert dismissed items)
-        const { data: existingQueue } = await supabase
-          .from("odoo_retail_queue")
-          .select("id, status")
-          .eq("odoo_so_number", soNumber)
-          .maybeSingle();
+      if (existingQueue) {
+        skippedCount++;
+        continue; // already queued/approved/dismissed — do nothing
+      }
 
-        if (existingQueue) {
-          skippedCount++;
-          continue; // already queued/approved/dismissed — do nothing
-        }
+      // Check: already directly in SOR (pre-queue entries from old sync)
+      const { data: existingSor } = await supabase
+        .from("sales_opportunities")
+        .select("id")
+        .eq("sales_reference", soNumber)
+        .maybeSingle();
 
-        // Check: already directly in SOR (pre-queue entries from old sync)
-        const { data: existingSor } = await supabase
-          .from("sales_opportunities")
-          .select("id")
-          .eq("sales_reference", soNumber)
-          .maybeSingle();
+      if (existingSor) {
+        skippedCount++;
+        continue; // old direct SOR entry — leave it alone
+      }
 
-        if (existingSor) {
-          skippedCount++;
-          continue; // old direct SOR entry — leave it alone
-        }
+      // Insert into queue
+      const { error } = await supabase.from("odoo_retail_queue").insert({
+        odoo_so_number: soNumber,
+        odoo_so_id: odooSoId,
+        odoo_partner_name: clientName,
+        odoo_person_name: personName,
+        odoo_amount: expectedValue,
+        odoo_salesperson_name: odooSalesperson,
+        odoo_date_order: odooDateOrder,
+        odoo_create_date: odooCreateDate,
+        // Pre-filled editable fields
+        client_name: clientName,
+        contact_person: personName,
+        expected_value: expectedValue,
+        lead_source: "SHOPEE",
+        project_title: `Retail: ${clientName}`,
+        deal_owner_id: dealOwnerId,
+        sales_director_id: salesDirectorId,
+      });
 
-        // Insert into queue
-        const { error } = await supabase.from("odoo_retail_queue").insert({
-          odoo_so_number: soNumber,
-          odoo_so_id: odooSoId,
-          odoo_partner_name: partnerName,
-          odoo_person_name: personName,
-          odoo_amount: expectedValue,
-          odoo_salesperson_name: odooSalesperson,
-          odoo_date_order: odooDateOrder,
-          odoo_create_date: odooCreateDate,
-          // Pre-filled editable fields
-          client_name: partnerName,
-          contact_person: personName,
-          expected_value: expectedValue,
-          lead_source: "SHOPEE",
-          project_title: `Shopee Retail: ${partnerName}`,
-          deal_owner_id: dealOwnerId,
-          sales_director_id: salesDirectorId,
-        });
-
-        if (error) {
-          console.error(`[odoo-sor-sync] Error queuing ${soNumber}:`, error);
-        } else {
-          newQueueCount++;
-          console.log(`[odoo-sor-sync] Queued Shopee order: ${soNumber}`);
-        }
+      if (error) {
+        console.error(`[odoo-sor-sync] Error queuing ${soNumber}:`, error);
+      } else {
+        newQueueCount++;
+        console.log(`[odoo-sor-sync] Queued retail order: ${soNumber}`);
       }
 
     // -----------------------------------------------------------------------

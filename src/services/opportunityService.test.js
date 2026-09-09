@@ -180,6 +180,52 @@ describe("opportunityService", () => {
       expect(found.id).toBe(scratch.id)
       expect(found.is_scratch).toBe(true)
     })
+
+    // Issue #170/#171 — same mechanism as Scratch: a retail order runs
+    // identical code paths to a real deal, so the Register must ask.
+    it("hides Retail SORs from the register", async () => {
+      const real = makeOpportunity({ registered_by: registrar.id, client_name: "Real" })
+      makeOpportunity({ registered_by: registrar.id, client_name: "Retail", is_retail: true })
+
+      const list = await opportunityService.getOpportunities()
+
+      expect(list.map((o) => o.id)).toEqual([real.id])
+    })
+
+    it("still opens a Retail SOR by id, so the Retail tab can show it", async () => {
+      const retail = makeOpportunity({ registered_by: registrar.id, is_retail: true })
+
+      const found = await opportunityService.getOpportunityById(retail.id)
+
+      expect(found.id).toBe(retail.id)
+      expect(found.is_retail).toBe(true)
+    })
+  })
+
+  // Issue #174 — the Retail tab: same table as the register, flag inverted.
+  describe("getRetailOpportunities", () => {
+    it("returns only Retail SORs, not the ordinary register", async () => {
+      const real = makeOpportunity({ registered_by: registrar.id, client_name: "Real" })
+      const retail = makeOpportunity({
+        registered_by: registrar.id,
+        client_name: "Shopee T3ck Outdoor",
+        is_retail: true,
+      })
+
+      const list = await opportunityService.getRetailOpportunities()
+
+      expect(list.map((o) => o.id)).toEqual([retail.id])
+      expect(list.map((o) => o.id)).not.toContain(real.id)
+    })
+
+    it("excludes a soft-deleted retail record", async () => {
+      const retail = makeOpportunity({ registered_by: registrar.id, is_retail: true })
+      await opportunityService.deleteOpportunity(retail.id, registrar.id)
+
+      const list = await opportunityService.getRetailOpportunities()
+
+      expect(list).toHaveLength(0)
+    })
   })
 
   describe("moving through the pipeline", () => {
