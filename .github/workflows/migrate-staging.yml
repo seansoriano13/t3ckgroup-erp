@@ -15,6 +15,11 @@ on:
     branches: [staging]
     paths:
       - "supabase/migrations/**"
+  # After a ledger repair there is nothing to push — the files have not
+  # changed, only the remote's record of them — so without this the only way
+  # to re-run was to re-run an *old* run, which replays that commit's workflow
+  # rather than today's. A human presses this in the Actions tab.
+  workflow_dispatch:
 
 concurrency:
   group: migrate-staging
@@ -37,4 +42,13 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
-        run: supabase db push --project-ref fpjxdyowngpnovotbzqi
+        # --include-all applies pending migrations whose timestamp sorts before
+        # the remote's applied tip. Without it, a migration that merged from a
+        # branch started earlier is refused ("before the last migration on
+        # remote"), and the tempting fix is to rename the file forward — which
+        # orphans whatever ledger row already recorded it and blocks the whole
+        # pipeline. Two of this repo's four historical renames existed only to
+        # do that. Applying out-of-order arrivals is safe here because
+        # migration-gate.yml has already proven the set builds the right schema
+        # from empty, in filename order, on every PR that touches migrations.
+        run: supabase db push --include-all --project-ref fpjxdyowngpnovotbzqi
