@@ -28,7 +28,7 @@ api_url = "http://127.0.0.1"
 
 [auth]
 enabled = true
-site_url = "http://127.0.0.1:5173"
+site_url = "http://localhost:5173"
 # Wildcarded so the password-reset email's redirectTo (…/reset-password) is
 # actually honoured — GoTrue silently falls back to site_url for any
 # redirect_to that isn't an exact match or covered by a pattern here.
@@ -41,6 +41,15 @@ additional_redirect_urls = [
 jwt_expiry = 3600
 enable_signup = true
 enable_anonymous_sign_ins = false
+
+# The reset email links straight at the SPA (/reset-password?token_hash=…),
+# not at GoTrue's /auth/v1/verify GET hop, so the one-time token survives
+# mail-scanner and browser prefetches and is only redeemed by verifyOtp() in
+# the real browser. Staging/production carry the same body in their dashboard
+# template (this file only drives the local stack).
+[auth.email.template.recovery]
+subject = "Reset your T3ckgroup password"
+content_path = "./supabase/templates/recovery.html"
 
 [auth.external.google]
 enabled = true

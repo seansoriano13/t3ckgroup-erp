@@ -1,0 +1,25 @@
+<!--
+  Password-reset email.
+
+  Deliberately NOT {{ .ConfirmationURL }}: that points at GoTrue's
+  /auth/v1/verify GET endpoint, which spends the one-time token on the first
+  request (mail scanners and browser prefetch included) and then 302s to the
+  app. Linking straight at the SPA with {{ .TokenHash }} means the token is
+  only redeemed when the real browser runs verifyOtp() on /reset-password — a
+  POST, which prefetchers don't make.
+
+  Keep this in sync with the Reset Password template in staging's and
+  production's dashboard (Authentication > Email Templates) — this file only
+  drives the local stack.
+-->
+<h2>Reset your password</h2>
+<p>
+  Someone asked to reset the password for your T3ckgroup account. If that was
+  you, choose a new one here:
+</p>
+<p>
+  <a href="{{ .SiteURL }}/reset-password?token_hash={{ .TokenHash }}&type=recovery">
+    Set a new password
+  </a>
+</p>
+<p>The link opens once and expires shortly. If you didn't ask for this, ignore this email.</p>

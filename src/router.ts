@@ -7,6 +7,7 @@ export type Path =
   | `/`
   | `/approvals`
   | `/approvals/hr-verification`
+  | `/approvals/leaves`
   | `/approvals/tasks`
   | `/flow-versions/:snapshotId`
   | `/group-tasks`
@@ -21,6 +22,7 @@ export type Path =
   | `/opportunities/commission-formula`
   | `/profile`
   | `/purchasing`
+  | `/reset-password`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`

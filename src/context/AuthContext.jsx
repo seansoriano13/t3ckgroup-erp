@@ -3,6 +3,7 @@ import { employeeService } from "../services/employeeService.js";
 import { storageService } from "../services/storageService.js";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase.js";
+import { isRecoveryActive } from "../lib/recoveryFlag.js";
 
 const AuthContext = createContext(null);
 const PROFILE_CACHE_KEY = "t3ck_user_profile";
@@ -91,9 +92,29 @@ export const AuthProvider = ({ children }) => {
       }
     }, 15_000);
 
+    // A password reset owns its short-lived recovery session until the new
+    // password is set. Resolving the employee off it — or hitting the
+    // no-employee branch and calling logout(), which signs the session out and
+    // redirects to /login — tears that flow down mid-reset and spends the
+    // one-time token. `isRecoveryActive()` is the cross-tab guard: a lingering
+    // /login tab sees the recovery session appear via storage sync and must
+    // leave it alone too, not just the /reset-password tab itself. The reset
+    // page redirects out with a full load once done, booting a clean resolve.
+    const skipForRecovery = () =>
+      window.location.pathname === "/reset-password" || isRecoveryActive();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (skipForRecovery()) {
+        if (isMounted) {
+          setIsAuthLoading(false);
+          setInitFinished(true);
+          settledRef.current = true;
+        }
+        return;
+      }
+
       if (session?.user) {
         resolveEmployee(session.user, isMounted);
       } else {
@@ -109,6 +130,7 @@ export const AuthProvider = ({ children }) => {
 
     // Re-verify session when user returns to the tab
     const handleVisibilityChange = () => {
+      if (skipForRecovery()) return;
       if (document.visibilityState === "visible") {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user && isMounted) {

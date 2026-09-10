@@ -1,6 +1,7 @@
 // lib/supabase.js
 
 import { createClient } from "@supabase/supabase-js";
+import { markRecoveryActive } from "./recoveryFlag";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -101,6 +102,33 @@ const customFetch = async (url, options, retries = 2) => {
     callerSignal?.removeEventListener("abort", onCallerAbort);
   }
 };
+
+/**
+ * The auth params in the URL at first paint, captured before the client is
+ * built. `detectSessionInUrl` consumes the recovery hash and then wipes it
+ * with `history.replaceState`, so by the time the /reset-password screen's
+ * effect runs the live URL is already clean either way. This snapshot lets
+ * that screen still tell apart the three landings: GoTrue rejected the token
+ * (`#error=access_denied&error_code=otp_expired…`), a good token that's still
+ * being exchanged, and someone who reached the route with no token at all.
+ */
+export const initialAuthUrlParams =
+  typeof window === "undefined"
+    ? { hash: "", search: "" }
+    : { hash: window.location.hash || "", search: window.location.search || "" };
+
+// Landing on the reset route with recovery params: flag it for every tab now,
+// before detectSessionInUrl writes the recovery session to localStorage, so a
+// lingering /login tab can't race in and sign it out. See lib/recoveryFlag.js.
+if (
+  typeof window !== "undefined" &&
+  window.location.pathname === "/reset-password" &&
+  /token_hash|access_token|[?&#]code=|type=recovery/.test(
+    `${initialAuthUrlParams.hash}${initialAuthUrlParams.search}`,
+  )
+) {
+  markRecoveryActive();
+}
 
 /**
  * Singleton protection for the Supabase client.

@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-10",
+        "title": "Password Reset Links That Hold Up",
+        "version": "1.7.9",
+        "changes": [
+            "Password reset links no longer stop working before you get to them. Some email systems quietly open every link in a message to check it's safe, which used to use up your one-time reset link — so clicking it yourself gave an error. The link is now only spent when you actually open it.",
+            "The reset page tells you where you stand instead of guessing: it shows a brief check while your link is verified, opens the password form only once the link is confirmed good, and says plainly when a link has expired or has already been used — with a way straight back to the login page.",
+            "Saving a new password no longer fails with a confusing \"session missing\" message.",
+            "Having the portal open in another tab no longer interrupts a reset you're in the middle of."
+        ]
+    },
+    {
         "date": "2026-09-09",
         "title": "Desktop Notifications",
         "version": "1.7.8",

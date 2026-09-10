@@ -112,6 +112,21 @@ describe("AuthContext", () => {
       expect(screen.getByTestId("name")).toHaveTextContent("anonymous")
     })
 
+    it("leaves a recovery session alone while a reset is in flight", async () => {
+      // A password reset in another tab flags itself in localStorage; this tab
+      // must not treat the recovery session it sees via storage sync as a login
+      // to resolve — or, worse, sign it out for having no employee record.
+      localStorage.setItem("t3ck-recovery-active", String(Date.now()))
+      const signOut = vi.spyOn(supabase.auth, "signOut")
+      stubAuthState(sessionFor("stranger@t3ckgroup.test"))
+
+      renderAuth()
+
+      await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"))
+      expect(signOut).not.toHaveBeenCalled()
+      expect(screen.getByTestId("name")).toHaveTextContent("anonymous")
+    })
+
     it("refuses a deactivated employee", async () => {
       makeEmployee({ name: "Former Staff", email: "gone@t3ckgroup.test", is_deleted: true })
       const signOut = vi.spyOn(supabase.auth, "signOut")
