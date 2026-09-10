@@ -15,9 +15,6 @@
 -- Extensions
 -- ============================================================
 
-create extension if not exists "pg_cron" with schema "pg_catalog";
-create extension if not exists "pg_graphql" with schema "graphql";
-create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
 create extension if not exists "pgcrypto" with schema "extensions";
 create extension if not exists "supabase_vault" with schema "vault";
@@ -36,9 +33,7 @@ create table if not exists public."app_settings" (
   "enable_self_verification" boolean not null default false,
   "enable_bulk_approval" boolean not null default false,
   "enable_visual_shaming" boolean not null default false,
-  "require_revenue_verification" boolean not null default false,
-  "allow_reported_to_reassignment" boolean not null default false,
-  "sales_self_approve_expenses" boolean default false
+  "retail_storefronts" text[] not null default '{Shopee,Lazada}'::text[]
 );
 
 create table if not exists public."categories" (
@@ -162,6 +157,15 @@ create table if not exists public."committee_tasks" (
   "opportunity_id" uuid
 );
 
+create table if not exists public."companies" (
+  "id" uuid not null default gen_random_uuid(),
+  "name" text not null,
+  "is_active" boolean not null default true,
+  "sort_order" integer not null,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."crm_lead_sources" (
   "value" text not null,
   "label" text not null,
@@ -210,7 +214,11 @@ create table if not exists public."employees" (
   "has_purchasing_flow" boolean not null default false,
   "can_manage_leaves" boolean not null default false,
   "signature_path" text,
-  "last_seen_changelog_version" text
+  "last_seen_changelog_version" text,
+  "is_role_simulator" boolean not null default false,
+  "hidden_nav_keys" text[] not null default '{}'::text[],
+  "company_id" uuid,
+  "is_issued_password" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
@@ -294,12 +302,11 @@ create table if not exists public."group_task_templates" (
   "updated_at" timestamp with time zone not null default now()
 );
 
-create table if not exists public."hr_form_settings" (
-  "id" integer not null,
-  "supervisor_name" text not null default ''::text,
-  "supervisor_title" text not null default ''::text,
-  "approver_name" text not null default ''::text,
-  "approver_title" text not null default '201'::text,
+create table if not exists public."hr_day_shift_config" (
+  "weekday" smallint not null,
+  "start_time" time without time zone,
+  "end_time" time without time zone,
+  "is_working_day" boolean not null default true,
   "updated_at" timestamp with time zone not null default now()
 );
 
@@ -322,6 +329,31 @@ create table if not exists public."notifications" (
   "is_read" boolean default false,
   "reference_id" text,
   "created_at" timestamp with time zone not null default timezone('utc'::text, now())
+);
+
+create table if not exists public."odoo_retail_queue" (
+  "id" uuid not null default gen_random_uuid(),
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
+  "odoo_so_number" text not null,
+  "odoo_so_id" integer not null,
+  "odoo_partner_name" text not null,
+  "odoo_person_name" text,
+  "odoo_amount" numeric not null,
+  "odoo_salesperson_name" text,
+  "odoo_date_order" timestamp with time zone,
+  "odoo_create_date" timestamp with time zone,
+  "status" text not null default 'pending'::text,
+  "reviewed_by" uuid,
+  "reviewed_at" timestamp with time zone,
+  "client_name" text,
+  "contact_person" text,
+  "expected_value" numeric,
+  "lead_source" text default 'SHOPEE'::text,
+  "project_title" text,
+  "deal_owner_id" uuid,
+  "sales_director_id" uuid,
+  "opportunity_id" uuid
 );
 
 create table if not exists public."offset_leaves" (
@@ -349,7 +381,14 @@ create table if not exists public."offset_leaves" (
   "approval_credits_snapshot" numeric,
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
-  "printed_by" uuid
+  "printed_by" uuid,
+  "company_id" uuid,
+  "head_id" uuid,
+  "head_status" text not null default 'APPROVED'::text,
+  "head_note" text,
+  "head_decided_at" timestamp with time zone,
+  "head_signature_version" text,
+  "hr_override" boolean not null default false
 );
 
 create table if not exists public."overtime_requests" (
@@ -377,7 +416,23 @@ create table if not exists public."overtime_requests" (
   "approval_credits_snapshot" numeric,
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
-  "printed_by" uuid
+  "printed_by" uuid,
+  "company_id" uuid,
+  "head_id" uuid,
+  "head_status" text not null default 'APPROVED'::text,
+  "head_note" text,
+  "head_decided_at" timestamp with time zone,
+  "head_signature_version" text,
+  "hr_override" boolean not null default false
+);
+
+create table if not exists public."push_subscriptions" (
+  "id" uuid not null default gen_random_uuid(),
+  "employee_id" uuid not null,
+  "endpoint" text not null,
+  "p256dh" text not null,
+  "auth" text not null,
+  "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
 create table if not exists public."revenue_activity_logs" (
@@ -397,47 +452,6 @@ create table if not exists public."sale_types" (
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now(),
   "archived_at" timestamp with time zone
-);
-
-create table if not exists public."sales_activities" (
-  "id" bigint not null generated always as identity,
-  "plan_id" bigint,
-  "employee_id" uuid not null,
-  "scheduled_date" date not null,
-  "completed_at" timestamp with time zone,
-  "status" character varying default 'INCOMPLETE'::character varying,
-  "time_of_day" character varying not null,
-  "activity_type" character varying not null,
-  "account_name" text,
-  "contact_person" text,
-  "contact_number" text,
-  "email_address" text,
-  "address" text,
-  "remarks_plan" text,
-  "details_daily" text,
-  "is_unplanned" boolean default false,
-  "is_verified" boolean default false,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-  "head_remarks" text,
-  "head_verified_at" timestamp with time zone,
-  "head_verified_by" uuid,
-  "reference_number" text,
-  "expense_amount" numeric,
-  "sales_outcome" text,
-  "is_deleted" boolean default false,
-  "delete_reason" text,
-  "delete_requested_by" uuid,
-  "attachments" jsonb default '[]'::jsonb
-);
-
-create table if not exists public."sales_activity_logs" (
-  "id" uuid not null default gen_random_uuid(),
-  "sales_activity_id" bigint not null,
-  "author_id" uuid,
-  "type" character varying not null,
-  "content" text not null,
-  "metadata" jsonb,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now())
 );
 
 create table if not exists public."sales_custom_templates" (
@@ -493,7 +507,9 @@ create table if not exists public."sales_opportunities" (
   "flow_stage_id" uuid,
   "metadata" jsonb default '{}'::jsonb,
   "odoo_partner_id" bigint,
-  "flow_snapshot_id" uuid
+  "flow_snapshot_id" uuid,
+  "is_retail" boolean not null default false,
+  "serial_no" bigint not null generated by default as identity
 );
 
 create table if not exists public."sales_opportunity_items" (
@@ -526,67 +542,6 @@ create table if not exists public."sales_opportunity_members" (
   "added_at" timestamp with time zone not null default now()
 );
 
-create table if not exists public."sales_quota_logs" (
-  "id" uuid not null default gen_random_uuid(),
-  "quota_id" bigint not null,
-  "changed_by" uuid,
-  "old_amount" numeric,
-  "new_amount" numeric not null,
-  "action" character varying not null,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now())
-);
-
-create table if not exists public."sales_quotas" (
-  "id" bigint not null generated always as identity,
-  "employee_id" uuid not null,
-  "amount_target" numeric not null,
-  "month_year" character varying not null,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-  "status" character varying not null default 'PUBLISHED'::character varying,
-  "current_actual" numeric default 0,
-  "revenue_lost" numeric default 0,
-  "deals_won" integer default 0,
-  "deals_lost" integer default 0,
-  "deals_pending" integer default 0
-);
-
-create table if not exists public."sales_revenue_logs" (
-  "id" bigint not null generated always as identity,
-  "employee_id" uuid not null,
-  "date" date not null,
-  "status" character varying not null,
-  "account" character varying not null,
-  "product_item_sold" text not null,
-  "revenue_amount" numeric not null,
-  "remarks" text,
-  "is_deleted" boolean not null default false,
-  "deleted_at" timestamp with time zone,
-  "so_number" character varying,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-  "last_edited_by" uuid,
-  "last_edited_at" timestamp with time zone,
-  "is_verified" boolean default true,
-  "edit_request_amount" numeric,
-  "edit_request_reason" text,
-  "edit_request_status" character varying,
-  "edit_requested_at" timestamp with time zone,
-  "record_type" character varying not null default 'SALES_ORDER'::character varying,
-  "quotation_number" character varying,
-  "reference_number" character varying,
-  "is_converted" boolean default false
-);
-
-create table if not exists public."sales_weekly_plans" (
-  "id" bigint not null generated always as identity,
-  "employee_id" uuid not null,
-  "week_start_date" date not null,
-  "status" character varying not null,
-  "created_at" timestamp with time zone not null default timezone('utc'::text, now()),
-  "amendment_snapshot" jsonb,
-  "amendment_reason" text,
-  "amendment_requested_at" timestamp with time zone
-);
-
 create table if not exists public."sil_leaves" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -612,7 +567,14 @@ create table if not exists public."sil_leaves" (
   "hr_signature_timestamp" timestamp with time zone,
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
-  "printed_by" uuid
+  "printed_by" uuid,
+  "company_id" uuid,
+  "head_id" uuid,
+  "head_status" text not null default 'APPROVED'::text,
+  "head_note" text,
+  "head_decided_at" timestamp with time zone,
+  "head_signature_version" text,
+  "hr_override" boolean not null default false
 );
 
 create table if not exists public."sor_canvass_offers" (
@@ -791,6 +753,43 @@ create table if not exists public."tasks" (
   "opportunity_id" uuid
 );
 
+create table if not exists public."undertime_requests" (
+  "id" uuid not null default gen_random_uuid(),
+  "employee_id" uuid not null,
+  "date" date not null,
+  "hours" numeric not null,
+  "status" text not null default 'PENDING'::text,
+  "hr_notes" text,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now(),
+  "reason" text,
+  "attachments" jsonb,
+  "original_start_time" time without time zone,
+  "original_end_time" time without time zone,
+  "actual_start_time" time without time zone,
+  "actual_end_time" time without time zone,
+  "approved_hours" numeric,
+  "category_id" uuid,
+  "verification_token" text default encode(gen_random_bytes(16), 'hex'::text),
+  "application_hash" text,
+  "approval_hash" text,
+  "employee_signature_version" text,
+  "employee_signature_timestamp" timestamp with time zone,
+  "hr_signature_version" text,
+  "hr_signature_timestamp" timestamp with time zone,
+  "hr_processed_by" uuid,
+  "hr_processed_at" timestamp with time zone,
+  "printed_at" timestamp with time zone,
+  "printed_by" uuid,
+  "company_id" uuid,
+  "head_id" uuid,
+  "head_status" text not null default 'APPROVED'::text,
+  "head_note" text,
+  "head_decided_at" timestamp with time zone,
+  "head_signature_version" text,
+  "hr_override" boolean not null default false
+);
+
 create table if not exists public."verification_rate_limits" (
   "ip_address" text not null,
   "request_count" integer not null default 1,
@@ -814,6 +813,7 @@ alter table committee_task_activity add constraint "committee_task_activity_pkey
 alter table committee_task_logs add constraint "committee_task_logs_pkey" PRIMARY KEY (id);
 alter table committee_task_members add constraint "committee_task_members_pkey" PRIMARY KEY (id);
 alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (id);
+alter table companies add constraint "companies_pkey" PRIMARY KEY (id);
 alter table crm_lead_sources add constraint "crm_lead_sources_pkey" PRIMARY KEY (value);
 alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMARY KEY (code);
 alter table employees add constraint "employees_pkey" PRIMARY KEY (id);
@@ -825,25 +825,21 @@ alter table flow_stage_actions add constraint "flow_stage_actions_pkey" PRIMARY 
 alter table flow_stages add constraint "flow_stages_pkey" PRIMARY KEY (id);
 alter table group_task_template_members add constraint "group_task_template_members_pkey" PRIMARY KEY (id);
 alter table group_task_templates add constraint "group_task_templates_pkey" PRIMARY KEY (id);
-alter table hr_form_settings add constraint "hr_form_settings_pkey" PRIMARY KEY (id);
+alter table hr_day_shift_config add constraint "hr_day_shift_config_pkey" PRIMARY KEY (weekday);
 alter table hr_leave_categories add constraint "hr_leave_categories_pkey" PRIMARY KEY (id);
 alter table notifications add constraint "notifications_pkey" PRIMARY KEY (id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_pkey" PRIMARY KEY (id);
 alter table offset_leaves add constraint "offset_leaves_pkey" PRIMARY KEY (id);
 alter table overtime_requests add constraint "overtime_requests_pkey" PRIMARY KEY (id);
+alter table push_subscriptions add constraint "push_subscriptions_pkey" PRIMARY KEY (id);
 alter table revenue_activity_logs add constraint "revenue_activity_logs_pkey" PRIMARY KEY (id);
 alter table sale_types add constraint "sale_types_pkey" PRIMARY KEY (id);
-alter table sales_activities add constraint "sales_activities_pkey" PRIMARY KEY (id);
-alter table sales_activity_logs add constraint "sales_activity_logs_pkey" PRIMARY KEY (id);
 alter table sales_custom_templates add constraint "sales_custom_templates_pkey" PRIMARY KEY (id);
 alter table sales_flows add constraint "sales_flows_pkey" PRIMARY KEY (id);
 alter table sales_opportunities add constraint "sales_opportunities_pkey" PRIMARY KEY (id);
 alter table sales_opportunity_items add constraint "sales_opportunity_items_pkey" PRIMARY KEY (id);
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_pkey" PRIMARY KEY (id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_pkey" PRIMARY KEY (id);
-alter table sales_quota_logs add constraint "sales_quota_logs_pkey" PRIMARY KEY (id);
-alter table sales_quotas add constraint "sales_quotas_pkey" PRIMARY KEY (id);
-alter table sales_revenue_logs add constraint "sales_revenue_logs_pkey" PRIMARY KEY (id);
-alter table sales_weekly_plans add constraint "sales_weekly_plans_pkey" PRIMARY KEY (id);
 alter table sil_leaves add constraint "sil_leaves_pkey" PRIMARY KEY (id);
 alter table sor_canvass_offers add constraint "sor_canvass_offers_pkey" PRIMARY KEY (id);
 alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
@@ -857,6 +853,7 @@ alter table system_audit_logs add constraint "system_audit_logs_pkey" PRIMARY KE
 alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id);
 alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
 alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
+alter table undertime_requests add constraint "undertime_requests_pkey" PRIMARY KEY (id);
 alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
 alter table categories add constraint "categories_category_id_key" UNIQUE (category_id);
 alter table commission_departments add constraint "commission_departments_key_key" UNIQUE (key);
@@ -868,15 +865,19 @@ alter table committee_roles add constraint "committee_roles_role_name_key" UNIQU
 alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
 alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version);
 alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
 alter table overtime_requests add constraint "overtime_requests_verification_token_key" UNIQUE (verification_token);
+alter table push_subscriptions add constraint "push_subscriptions_employee_endpoint_key" UNIQUE (employee_id, endpoint);
 alter table sales_flows add constraint "sales_flows_sale_type_id_key" UNIQUE (sale_type_id);
 alter table sales_opportunities add constraint "sales_opportunities_opportunity_no_key" UNIQUE (opportunity_no);
+alter table sales_opportunities add constraint "sales_opportunities_serial_no_key" UNIQUE (serial_no);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_unique" UNIQUE (opportunity_id, employee_id);
 alter table sil_leaves add constraint "sil_leaves_verification_token_key" UNIQUE (verification_token);
 alter table sor_condition_status add constraint "sor_condition_status_unique" UNIQUE (opportunity_id, condition_id);
 alter table sor_project_evaluations add constraint "sor_project_evaluations_opportunity_id_key" UNIQUE (opportunity_id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_unique" UNIQUE (opportunity_id, po_number);
+alter table undertime_requests add constraint "undertime_requests_verification_token_key" UNIQUE (verification_token);
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
 alter table commission_rates add constraint "commission_rates_rate_type_chk" CHECK ((rate_type = ANY (ARRAY['VAT'::text, 'WITHHOLDING'::text, 'POOL'::text, 'RETENTION'::text])));
@@ -888,21 +889,19 @@ alter table flow_plans add constraint "flow_plans_name_not_blank" CHECK ((btrim(
 alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text])));
 alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color IS NULL) OR (color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text]))));
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
-alter table hr_form_settings add constraint "hr_form_settings_id_check" CHECK ((id = 1));
+alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_check" CHECK (((weekday >= 0) AND (weekday <= 6)));
+alter table odoo_retail_queue add constraint "odoo_retail_queue_status_check" CHECK ((status = ANY (ARRAY['pending'::text, 'approved'::text, 'dismissed'::text])));
+alter table offset_leaves add constraint "offset_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table offset_leaves add constraint "offset_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table overtime_requests add constraint "overtime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table overtime_requests add constraint "overtime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED_PAID'::text, 'APPROVED_OFFSET'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table sale_types add constraint "sale_types_name_not_blank" CHECK ((btrim(name) <> ''::text));
-alter table sales_activities add constraint "sales_activities_sales_outcome_check" CHECK (((sales_outcome = ANY (ARRAY['COMPLETED'::text, 'LOST'::text])) OR (sales_outcome IS NULL)));
-alter table sales_activity_logs add constraint "sales_activity_logs_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
 alter table sales_flows add constraint "sales_flows_state_chk" CHECK ((state = ANY (ARRAY['draft'::text, 'locked'::text])));
 alter table sales_opportunities add constraint "sales_opportunities_flow_pairing_chk" CHECK ((((sale_type_id IS NULL) AND (flow_stage_id IS NULL)) OR ((sale_type_id IS NOT NULL) AND (flow_stage_id IS NOT NULL))));
 alter table sales_opportunities add constraint "sales_opportunities_project_type_chk" CHECK ((project_type = ANY (ARRAY['SSP'::text, 'CP'::text, 'STRATEGIC'::text])));
 alter table sales_opportunities add constraint "sales_opportunities_sales_reference_chk" CHECK (((sales_reference IS NULL) OR (sales_reference ~ '^S[0-9]+$'::text)));
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_type_chk" CHECK ((type = ANY (ARRAY['COMMENT'::text, 'SYSTEM'::text])));
-alter table sales_quota_logs add constraint "sales_quota_logs_action_check" CHECK (((action)::text = ANY (ARRAY[('CREATED'::character varying)::text, ('UPDATED'::character varying)::text, ('PUBLISHED'::character varying)::text])));
-alter table sales_quotas add constraint "sales_quotas_status_check" CHECK (((status)::text = ANY (ARRAY[('DRAFT'::character varying)::text, ('PUBLISHED'::character varying)::text])));
-alter table sales_revenue_logs add constraint "sales_revenue_logs_edit_request_status_check" CHECK (((edit_request_status)::text = ANY (ARRAY[('PENDING'::character varying)::text, ('REJECTED'::character varying)::text, ('APPROVED'::character varying)::text])));
-alter table sales_revenue_logs add constraint "sales_revenue_logs_record_type_check" CHECK (((record_type)::text = ANY (ARRAY[('SALES_ORDER'::character varying)::text, ('SALES_QUOTATION'::character varying)::text])));
+alter table sil_leaves add constraint "sil_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table sil_leaves add constraint "sil_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table sil_leaves add constraint "sil_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table sor_canvasses add constraint "sor_canvasses_one_subject_chk" CHECK (((((procurement_request_id IS NOT NULL))::integer + ((inclusion_id IS NOT NULL))::integer) = 1));
@@ -914,6 +913,8 @@ alter table sor_procurement_requests add constraint "sor_procurement_requests_ve
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_origin_check" CHECK ((origin = ANY (ARRAY['ODOO_ORIGIN'::text, 'MANUAL'::text])));
 alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
+alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
+alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table categories add constraint "categories_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table chat_read_receipts add constraint "chat_read_receipts_user_id_fkey" FOREIGN KEY (user_id) REFERENCES employees(id);
 alter table chat_user_archives add constraint "chat_user_archives_user_id_fkey" FOREIGN KEY (user_id) REFERENCES employees(id);
@@ -929,6 +930,7 @@ alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOR
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
+alter table employees add constraint "employees_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table employees add constraint "employees_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table flow_edges add constraint "flow_edges_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_from_in_flow" FOREIGN KEY (flow_id, from_stage_id) REFERENCES flow_stages(flow_id, id) ON DELETE CASCADE;
@@ -943,22 +945,25 @@ alter table group_task_template_members add constraint "group_task_template_memb
 alter table group_task_templates add constraint "group_task_templates_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table notifications add constraint "notifications_recipient_id_fkey" FOREIGN KEY (recipient_id) REFERENCES employees(id);
 alter table notifications add constraint "notifications_sender_id_fkey" FOREIGN KEY (sender_id) REFERENCES employees(id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_reviewed_by_fkey" FOREIGN KEY (reviewed_by) REFERENCES employees(id);
+alter table odoo_retail_queue add constraint "odoo_retail_queue_sales_director_id_fkey" FOREIGN KEY (sales_director_id) REFERENCES employees(id);
 alter table offset_leaves add constraint "offset_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
+alter table offset_leaves add constraint "offset_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table offset_leaves add constraint "offset_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table offset_leaves add constraint "offset_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table overtime_requests add constraint "overtime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
+alter table overtime_requests add constraint "overtime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table overtime_requests add constraint "overtime_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table overtime_requests add constraint "overtime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table push_subscriptions add constraint "push_subscriptions_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table revenue_activity_logs add constraint "revenue_activity_logs_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
-alter table revenue_activity_logs add constraint "revenue_activity_logs_revenue_log_id_fkey" FOREIGN KEY (revenue_log_id) REFERENCES sales_revenue_logs(id);
 alter table sale_types add constraint "sale_types_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
-alter table sales_activities add constraint "sales_activities_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
-alter table sales_activities add constraint "sales_activities_head_verified_by_fkey" FOREIGN KEY (head_verified_by) REFERENCES employees(id);
-alter table sales_activities add constraint "sales_activities_plan_id_fkey" FOREIGN KEY (plan_id) REFERENCES sales_weekly_plans(id);
-alter table sales_activity_logs add constraint "sales_activity_logs_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
-alter table sales_activity_logs add constraint "sales_activity_logs_sales_activity_id_fkey" FOREIGN KEY (sales_activity_id) REFERENCES sales_activities(id);
 alter table sales_custom_templates add constraint "sales_custom_templates_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table sales_flows add constraint "sales_flows_locked_by_fkey" FOREIGN KEY (locked_by) REFERENCES employees(id);
 alter table sales_flows add constraint "sales_flows_sale_type_id_fkey" FOREIGN KEY (sale_type_id) REFERENCES sale_types(id) ON DELETE CASCADE;
@@ -979,14 +984,10 @@ alter table sales_opportunity_logs add constraint "sales_opportunity_logs_opport
 alter table sales_opportunity_members add constraint "sales_opportunity_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
-alter table sales_quota_logs add constraint "sales_quota_logs_changed_by_fkey" FOREIGN KEY (changed_by) REFERENCES employees(id);
-alter table sales_quota_logs add constraint "sales_quota_logs_quota_id_fkey" FOREIGN KEY (quota_id) REFERENCES sales_quotas(id);
-alter table sales_quotas add constraint "sales_quotas_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
-alter table sales_revenue_logs add constraint "sales_revenue_logs_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
-alter table sales_revenue_logs add constraint "sales_revenue_logs_last_edited_by_fkey" FOREIGN KEY (last_edited_by) REFERENCES employees(id);
-alter table sales_weekly_plans add constraint "sales_weekly_plans_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table sil_leaves add constraint "sil_leaves_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
+alter table sil_leaves add constraint "sil_leaves_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table sil_leaves add constraint "sil_leaves_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table sil_leaves add constraint "sil_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sil_leaves add constraint "sil_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sil_leaves add constraint "sil_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 alter table sor_canvass_offers add constraint "sor_canvass_offers_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES sor_canvasses(id) ON DELETE CASCADE;
@@ -1022,6 +1023,12 @@ alter table tasks add constraint "tasks_evaluated_by_fkey" FOREIGN KEY (evaluate
 alter table tasks add constraint "tasks_logged_by_fk" FOREIGN KEY (logged_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_reported_to_fkey" FOREIGN KEY (reported_to) REFERENCES employees(id);
+alter table undertime_requests add constraint "undertime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
+alter table undertime_requests add constraint "undertime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id);
+alter table undertime_requests add constraint "undertime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table undertime_requests add constraint "undertime_requests_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
+alter table undertime_requests add constraint "undertime_requests_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table undertime_requests add constraint "undertime_requests_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
 
 -- ============================================================
 -- Indexes (excluding those backing constraints)
@@ -1032,12 +1039,14 @@ CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btr
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
 CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING btree (opportunity_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
+CREATE UNIQUE INDEX companies_sort_order_key ON public.companies USING btree (sort_order);
 CREATE UNIQUE INDEX crm_pipeline_stages_one_anchor ON public.crm_pipeline_stages USING btree ((true)) WHERE is_anchor;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_default ON public.crm_pipeline_stages USING btree ((true)) WHERE is_default;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_itb_gate ON public.crm_pipeline_stages USING btree ((true)) WHERE is_itb_gate;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_lost ON public.crm_pipeline_stages USING btree ((true)) WHERE is_lost;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_won ON public.crm_pipeline_stages USING btree ((true)) WHERE is_won;
 CREATE UNIQUE INDEX crm_pipeline_stages_sort_order_key ON public.crm_pipeline_stages USING btree (sort_order);
+CREATE INDEX employees_company_id_idx ON public.employees USING btree (company_id);
 CREATE INDEX flow_edges_from_idx ON public.flow_edges USING btree (flow_id, from_stage_id);
 CREATE INDEX flow_stage_actions_stage_idx ON public.flow_stage_actions USING btree (stage_id, sort_order);
 CREATE INDEX flow_stages_flow_idx ON public.flow_stages USING btree (flow_id, sort_order);
@@ -1045,7 +1054,14 @@ CREATE UNIQUE INDEX flow_stages_name_per_flow_key ON public.flow_stages USING bt
 CREATE INDEX group_task_template_members_template_idx ON public.group_task_template_members USING btree (template_id);
 CREATE INDEX group_task_templates_active_idx ON public.group_task_templates USING btree (created_at DESC) WHERE (archived_at IS NULL);
 CREATE UNIQUE INDEX hr_leave_categories_sort_order_key ON public.hr_leave_categories USING btree (sort_order);
+CREATE INDEX odoo_retail_queue_created_at_idx ON public.odoo_retail_queue USING btree (created_at DESC);
+CREATE INDEX odoo_retail_queue_status_idx ON public.odoo_retail_queue USING btree (status);
+CREATE INDEX offset_leaves_company_id_idx ON public.offset_leaves USING btree (company_id);
+CREATE INDEX offset_leaves_head_id_idx ON public.offset_leaves USING btree (head_id);
 CREATE INDEX offset_leaves_leave_group_id_idx ON public.offset_leaves USING btree (leave_group_id);
+CREATE INDEX overtime_requests_company_id_idx ON public.overtime_requests USING btree (company_id);
+CREATE INDEX overtime_requests_head_id_idx ON public.overtime_requests USING btree (head_id);
+CREATE INDEX push_subscriptions_employee_id_idx ON public.push_subscriptions USING btree (employee_id);
 CREATE UNIQUE INDEX sale_types_live_name_key ON public.sale_types USING btree (lower(btrim(name))) WHERE (archived_at IS NULL);
 CREATE INDEX sales_opportunities_active_idx ON public.sales_opportunities USING btree (is_deleted, status);
 CREATE INDEX sales_opportunities_closing_sales_idx ON public.sales_opportunities USING btree (closing_sales_id);
@@ -1053,7 +1069,7 @@ CREATE INDEX sales_opportunities_deal_owner_idx ON public.sales_opportunities US
 CREATE INDEX sales_opportunities_flow_snapshot_idx ON public.sales_opportunities USING btree (flow_snapshot_id) WHERE (flow_snapshot_id IS NOT NULL);
 CREATE INDEX sales_opportunities_flow_stage_idx ON public.sales_opportunities USING btree (flow_stage_id) WHERE (flow_stage_id IS NOT NULL);
 CREATE INDEX sales_opportunities_lead_source_idx ON public.sales_opportunities USING btree (lead_source);
-CREATE INDEX sales_opportunities_live_idx ON public.sales_opportunities USING btree (registration_date DESC, created_at DESC) WHERE ((is_scratch = false) AND (is_deleted = false));
+CREATE INDEX sales_opportunities_live_idx ON public.sales_opportunities USING btree (registration_date DESC, created_at DESC) WHERE ((is_scratch = false) AND (is_retail = false) AND (is_deleted = false));
 CREATE INDEX sales_opportunities_reg_date_idx ON public.sales_opportunities USING btree (registration_date DESC);
 CREATE INDEX sales_opportunities_registered_by_idx ON public.sales_opportunities USING btree (registered_by);
 CREATE INDEX sales_opportunities_sales_reference_idx ON public.sales_opportunities USING btree (sales_reference);
@@ -1061,6 +1077,8 @@ CREATE INDEX sales_opportunities_status_idx ON public.sales_opportunities USING 
 CREATE INDEX sales_opportunity_items_opp_idx ON public.sales_opportunity_items USING btree (opportunity_id, sort_order);
 CREATE INDEX sales_opportunity_logs_opp_idx ON public.sales_opportunity_logs USING btree (opportunity_id, created_at);
 CREATE INDEX sales_opportunity_members_opp_idx ON public.sales_opportunity_members USING btree (opportunity_id);
+CREATE INDEX sil_leaves_company_id_idx ON public.sil_leaves USING btree (company_id);
+CREATE INDEX sil_leaves_head_id_idx ON public.sil_leaves USING btree (head_id);
 CREATE INDEX sil_leaves_leave_group_id_idx ON public.sil_leaves USING btree (leave_group_id);
 CREATE INDEX sor_canvass_offers_canvass_idx ON public.sor_canvass_offers USING btree (canvass_id, sort_order);
 CREATE UNIQUE INDEX sor_canvass_offers_one_winner_per_canvass ON public.sor_canvass_offers USING btree (canvass_id) WHERE is_winner;
@@ -1075,6 +1093,8 @@ CREATE INDEX sor_procurement_requests_task_idx ON public.sor_procurement_request
 CREATE INDEX sor_purchase_order_links_opp_idx ON public.sor_purchase_order_links USING btree (opportunity_id);
 CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (stage_id, sort_order);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
+CREATE INDEX undertime_requests_employee_id_idx ON public.undertime_requests USING btree (employee_id);
+CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING btree (head_id);
 
 -- ============================================================
 -- Row Level Security (enable/force)
@@ -1093,6 +1113,7 @@ alter table public."committee_task_activity" enable row level security;
 alter table public."committee_task_logs" enable row level security;
 alter table public."committee_task_members" enable row level security;
 alter table public."committee_tasks" enable row level security;
+alter table public."companies" enable row level security;
 alter table public."crm_pipeline_stages" enable row level security;
 alter table public."employees" enable row level security;
 alter table public."faq_data" enable row level security;
@@ -1103,24 +1124,21 @@ alter table public."flow_stage_actions" enable row level security;
 alter table public."flow_stages" enable row level security;
 alter table public."group_task_template_members" enable row level security;
 alter table public."group_task_templates" enable row level security;
-alter table public."hr_form_settings" enable row level security;
+alter table public."hr_day_shift_config" enable row level security;
 alter table public."hr_leave_categories" enable row level security;
 alter table public."notifications" enable row level security;
+alter table public."odoo_retail_queue" enable row level security;
 alter table public."offset_leaves" enable row level security;
 alter table public."overtime_requests" enable row level security;
+alter table public."push_subscriptions" enable row level security;
 alter table public."revenue_activity_logs" enable row level security;
 alter table public."sale_types" enable row level security;
-alter table public."sales_activities" enable row level security;
-alter table public."sales_activity_logs" enable row level security;
 alter table public."sales_custom_templates" enable row level security;
 alter table public."sales_flows" enable row level security;
 alter table public."sales_opportunities" enable row level security;
 alter table public."sales_opportunity_items" enable row level security;
 alter table public."sales_opportunity_logs" enable row level security;
-alter table public."sales_quota_logs" enable row level security;
-alter table public."sales_quotas" enable row level security;
-alter table public."sales_revenue_logs" enable row level security;
-alter table public."sales_weekly_plans" enable row level security;
+alter table public."sales_opportunity_members" enable row level security;
 alter table public."sil_leaves" enable row level security;
 alter table public."sor_canvass_offers" enable row level security;
 alter table public."sor_canvasses" enable row level security;
@@ -1130,6 +1148,9 @@ alter table public."sor_project_evaluations" enable row level security;
 alter table public."sor_purchase_order_links" enable row level security;
 alter table public."stage_conditions" enable row level security;
 alter table public."system_audit_logs" enable row level security;
+alter table public."task_activity" enable row level security;
+alter table public."tasks" enable row level security;
+alter table public."undertime_requests" enable row level security;
 alter table public."verification_rate_limits" enable row level security;
 
 -- ============================================================
@@ -1297,41 +1318,55 @@ create policy "Allow read on committee_task_logs" on public."committee_task_logs
   for select
   to authenticated
   using (true);
-create policy "Allow insert for authenticated users" on public."committee_task_members"
-  as permissive
-  for insert
-  to authenticated
-  with check (true);
-create policy "Allow select for authenticated users" on public."committee_task_members"
-  as permissive
-  for select
-  to authenticated
-  using (true);
 create policy "Allow update for authenticated users" on public."committee_task_members"
   as permissive
   for update
   to authenticated
   using (true);
-create policy "Allow insert for authenticated users" on public."committee_tasks"
+create policy "committee_task_members_insert" on public."committee_task_members"
   as permissive
   for insert
   to authenticated
-  with check (true);
-create policy "Allow select for authenticated users" on public."committee_tasks"
+  with check ((is_super_admin() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+create policy "committee_task_members_read" on public."committee_task_members"
   as permissive
   for select
   to authenticated
-  using (true);
+  using (committee_task_visible(committee_task_id));
 create policy "Allow update for authenticated users" on public."committee_tasks"
   as permissive
   for update
   to authenticated
   using (true);
-create policy "Enable insert" on public."committee_tasks"
+create policy "committee_tasks_insert" on public."committee_tasks"
   as permissive
   for insert
-  to public
-  with check (true);
+  to authenticated
+  with check ((created_by = get_employee_id()));
+create policy "committee_tasks_read" on public."committee_tasks"
+  as permissive
+  for select
+  to authenticated
+  using (((created_by = get_employee_id()) OR is_super_admin() OR (EXISTS ( SELECT 1
+   FROM committee_task_members ctm
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id()))))));
+create policy "companies_read" on public."companies"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "companies_write" on public."companies"
+  as permissive
+  for all
+  to authenticated
+  using ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))))
+  with check ((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
 create policy "crm_pipeline_stages_read" on public."crm_pipeline_stages"
   as permissive
   for select
@@ -1356,8 +1391,8 @@ create policy "Allow Super Admin and HR to update employees" on public."employee
   as permissive
   for update
   to public
-  using (((is_super_admin() = true) OR (is_hr() = true) OR (email = 'arkadatax03@gmail.com'::text) OR (can_manage_leaves() = true)))
-  with check (((is_super_admin() = true) OR (is_hr() = true) OR (email = 'arkadatax03@gmail.com'::text) OR (can_manage_leaves() = true)));
+  using (((is_super_admin() = true) OR (is_hr() = true) OR (is_role_simulator() = true) OR (can_manage_leaves() = true)))
+  with check (((is_super_admin() = true) OR (is_hr() = true) OR (is_role_simulator() = true) OR (can_manage_leaves() = true)));
 create policy "Allow public read of employees" on public."employees"
   as permissive
   for select
@@ -1421,9 +1456,7 @@ create policy "flow_snapshots_write" on public."flow_snapshots"
   as permissive
   for insert
   to authenticated
-  with check ((EXISTS ( SELECT 1
-   FROM employees e
-  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+  with check ((created_by = get_employee_id()));
 create policy "flow_stage_actions_read" on public."flow_stage_actions"
   as permissive
   for select
@@ -1496,21 +1529,21 @@ create policy "group_task_templates_update" on public."group_task_templates"
   with check (((created_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "hr_form_settings_read" on public."hr_form_settings"
+create policy "hr_day_shift_config_read" on public."hr_day_shift_config"
   as permissive
   for select
   to authenticated
   using (true);
-create policy "hr_form_settings_write" on public."hr_form_settings"
+create policy "hr_day_shift_config_write" on public."hr_day_shift_config"
   as permissive
   for all
   to authenticated
   using ((EXISTS ( SELECT 1
    FROM employees e
-  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))))
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))))
   with check ((EXISTS ( SELECT 1
    FROM employees e
-  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
+  WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
 create policy "hr_leave_categories_read" on public."hr_leave_categories"
   as permissive
   for select
@@ -1526,11 +1559,16 @@ create policy "hr_leave_categories_write" on public."hr_leave_categories"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin)))));
-create policy "Anyone can dispatch a notification" on public."notifications"
+create policy "Authenticated users can dispatch a notification as themselves" on public."notifications"
   as permissive
   for insert
+  to authenticated
+  with check (((sender_id IS NULL) OR (sender_id = get_employee_id())));
+create policy "Users can delete own notifications" on public."notifications"
+  as permissive
+  for delete
   to public
-  with check (true);
+  using ((recipient_id = get_employee_id()));
 create policy "Users can update own notifications" on public."notifications"
   as permissive
   for update
@@ -1541,6 +1579,27 @@ create policy "Users can view own notifications" on public."notifications"
   for select
   to public
   using ((recipient_id = get_employee_id()));
+create policy "Retail handlers can dismiss queue items" on public."odoo_retail_queue"
+  as permissive
+  for update
+  to authenticated
+  using ((can_handle_retail_queue() AND (status = 'pending'::text)))
+  with check (can_handle_retail_queue());
+create policy "Retail handlers can view queue" on public."odoo_retail_queue"
+  as permissive
+  for select
+  to authenticated
+  using (can_handle_retail_queue());
+create policy "offset_leaves_head_select" on public."offset_leaves"
+  as permissive
+  for select
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "offset_leaves_head_update" on public."offset_leaves"
+  as permissive
+  for update
+  to authenticated
+  using ((head_id = get_employee_id()));
 create policy "offset_leaves_insert" on public."offset_leaves"
   as permissive
   for insert
@@ -1557,9 +1616,15 @@ create policy "offset_leaves_update" on public."offset_leaves"
   as permissive
   for update
   to authenticated
-  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+  using ((EXISTS ( SELECT 1
    FROM employees e
-  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves)))));
+create policy "offset_leaves_withdraw" on public."offset_leaves"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
+  with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
 create policy "Employees can view their own overtime" on public."overtime_requests"
   as permissive
   for select
@@ -1572,6 +1637,16 @@ create policy "HR can view all overtime" on public."overtime_requests"
   using ((EXISTS ( SELECT 1
    FROM employees
   WHERE ((employees.id = auth.uid()) AND (employees.is_hr = true)))));
+create policy "overtime_requests_head_select" on public."overtime_requests"
+  as permissive
+  for select
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "overtime_requests_head_update" on public."overtime_requests"
+  as permissive
+  for update
+  to authenticated
+  using ((head_id = get_employee_id()));
 create policy "overtime_requests_insert" on public."overtime_requests"
   as permissive
   for insert
@@ -1588,9 +1663,30 @@ create policy "overtime_requests_update" on public."overtime_requests"
   as permissive
   for update
   to authenticated
-  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+  using ((EXISTS ( SELECT 1
    FROM employees e
-  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves)))));
+create policy "overtime_requests_withdraw" on public."overtime_requests"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) AND (status = 'PENDING'::text)))
+  with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "Users can create own push subscriptions" on public."push_subscriptions"
+  as permissive
+  for insert
+  to authenticated
+  with check ((employee_id = get_employee_id()));
+create policy "Users can delete own push subscriptions" on public."push_subscriptions"
+  as permissive
+  for delete
+  to authenticated
+  using ((employee_id = get_employee_id()));
+create policy "Users can view own push subscriptions" on public."push_subscriptions"
+  as permissive
+  for select
+  to authenticated
+  using ((employee_id = get_employee_id()));
 create policy "Allow all read" on public."revenue_activity_logs"
   as permissive
   for select
@@ -1636,26 +1732,6 @@ create policy "sale_types_write" on public."sale_types"
   to authenticated
   using (true)
   with check (true);
-create policy "Allow public read of sales activities" on public."sales_activities"
-  as permissive
-  for select
-  to public
-  using (true);
-create policy "Users can manage own sales activities" on public."sales_activities"
-  as permissive
-  for all
-  to public
-  using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_head() = true)));
-create policy "Enable insert access for all authenticated users" on public."sales_activity_logs"
-  as permissive
-  for insert
-  to authenticated
-  with check (true);
-create policy "Enable read access for all authenticated users" on public."sales_activity_logs"
-  as permissive
-  for select
-  to authenticated
-  using (true);
 create policy "Users can delete their own templates" on public."sales_custom_templates"
   as permissive
   for delete
@@ -1704,7 +1780,7 @@ create policy "sor_read" on public."sales_opportunities"
   as permissive
   for select
   to authenticated
-  using (true);
+  using (((registered_by = get_employee_id()) OR (deal_owner_id = get_employee_id()) OR (support_sales_1_id = get_employee_id()) OR (support_sales_2_id = get_employee_id()) OR (sales_director_id = get_employee_id()) OR is_head() OR is_super_admin() OR is_hr()));
 create policy "sor_update" on public."sales_opportunities"
   as permissive
   for update
@@ -1726,7 +1802,7 @@ create policy "sor_items_read" on public."sales_opportunity_items"
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sor_items_update" on public."sales_opportunity_items"
   as permissive
   for update
@@ -1741,7 +1817,7 @@ create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
@@ -1751,52 +1827,17 @@ create policy "sales_opportunity_members_read" on public."sales_opportunity_memb
   as permissive
   for select
   to authenticated
-  using (true);
-create policy "Enable insert access for all authenticated users" on public."sales_quota_logs"
-  as permissive
-  for insert
-  to public
-  with check ((auth.role() = 'authenticated'::text));
-create policy "Enable read access for all authenticated users" on public."sales_quota_logs"
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
+create policy "sil_leaves_head_select" on public."sil_leaves"
   as permissive
   for select
-  to public
-  using ((auth.role() = 'authenticated'::text));
-create policy "Allow public read of sales quotas" on public."sales_quotas"
-  as permissive
-  for select
-  to public
-  using (true);
-create policy "Management can manage quotas" on public."sales_quotas"
-  as permissive
-  for all
-  to public
-  using (((is_super_admin() = true) OR (is_head() = true)));
-create policy "Allow public read of sales revenue logs" on public."sales_revenue_logs"
-  as permissive
-  for select
-  to public
-  using (true);
-create policy "Owners and Management can update revenue logs" on public."sales_revenue_logs"
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "sil_leaves_head_update" on public."sil_leaves"
   as permissive
   for update
-  to public
-  using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_hr() = true) OR (is_head() = true)));
-create policy "Users can insert own revenue logs" on public."sales_revenue_logs"
-  as permissive
-  for insert
-  to public
-  with check ((employee_id = get_employee_id()));
-create policy "Allow public read of sales entries" on public."sales_weekly_plans"
-  as permissive
-  for select
-  to public
-  using (true);
-create policy "Users can manage own sales plans" on public."sales_weekly_plans"
-  as permissive
-  for all
-  to public
-  using (((employee_id = get_employee_id()) OR (is_super_admin() = true) OR (is_head() = true)));
+  to authenticated
+  using ((head_id = get_employee_id()));
 create policy "sil_leaves_insert" on public."sil_leaves"
   as permissive
   for insert
@@ -1813,14 +1854,28 @@ create policy "sil_leaves_update" on public."sil_leaves"
   as permissive
   for update
   to authenticated
-  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+  using ((EXISTS ( SELECT 1
    FROM employees e
-  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves)))));
+create policy "sil_leaves_withdraw" on public."sil_leaves"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
+  with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
 create policy "sor_canvass_offers_read" on public."sor_canvass_offers"
   as permissive
   for select
   to authenticated
-  using (true);
+  using (((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow))) OR (EXISTS ( SELECT 1
+   FROM sor_canvasses c
+  WHERE ((c.id = sor_canvass_offers.canvass_id) AND sor_can_edit_opportunity(COALESCE(( SELECT si.opportunity_id
+           FROM sor_inclusions si
+          WHERE (si.id = c.inclusion_id)), ( SELECT pr.opportunity_id
+           FROM sor_procurement_requests pr
+          WHERE (pr.id = c.procurement_request_id)))))))));
 create policy "sor_canvass_offers_write" on public."sor_canvass_offers"
   as permissive
   for all
@@ -1835,7 +1890,13 @@ create policy "sor_canvasses_read" on public."sor_canvasses"
   as permissive
   for select
   to authenticated
-  using (true);
+  using (((EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND e.has_purchasing_flow))) OR sor_can_edit_opportunity(COALESCE(( SELECT si.opportunity_id
+   FROM sor_inclusions si
+  WHERE (si.id = sor_canvasses.inclusion_id)), ( SELECT pr.opportunity_id
+   FROM sor_procurement_requests pr
+  WHERE (pr.id = sor_canvasses.procurement_request_id))))));
 create policy "sor_canvasses_write" on public."sor_canvasses"
   as permissive
   for all
@@ -1860,7 +1921,7 @@ create policy "sor_inclusions_read" on public."sor_inclusions"
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sor_inclusions_update" on public."sor_inclusions"
   as permissive
   for update
@@ -1887,7 +1948,7 @@ create policy "sor_procurement_read" on public."sor_procurement_requests"
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sor_procurement_update" on public."sor_procurement_requests"
   as permissive
   for update
@@ -1902,7 +1963,7 @@ create policy "sor_project_evaluations_read" on public."sor_project_evaluations"
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sor_project_evaluations_write" on public."sor_project_evaluations"
   as permissive
   for all
@@ -1913,7 +1974,7 @@ create policy "sor_purchase_order_links_read" on public."sor_purchase_order_link
   as permissive
   for select
   to authenticated
-  using (true);
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
 create policy "sor_purchase_order_links_write" on public."sor_purchase_order_links"
   as permissive
   for all
@@ -1952,6 +2013,60 @@ create policy "Authenticated users can update task activity" on public."task_act
   to public
   using (true)
   with check (true);
+create policy "Enable insert for authenticated users" on public."task_activity"
+  as permissive
+  for insert
+  to public
+  with check (true);
+create policy "Enable read access for all users" on public."task_activity"
+  as permissive
+  for select
+  to public
+  using (true);
+create policy "Allow public read of tasks" on public."tasks"
+  as permissive
+  for select
+  to public
+  using (true);
+create policy "Users and Managers can insert tasks" on public."tasks"
+  as permissive
+  for insert
+  to public
+  with check (((logged_by = get_employee_id()) OR is_head() OR is_hr() OR is_super_admin()));
+create policy "Users and Managers can update tasks" on public."tasks"
+  as permissive
+  for update
+  to public
+  using (((logged_by = get_employee_id()) OR is_head() OR is_hr() OR is_super_admin()));
+create policy "undertime_requests_head_select" on public."undertime_requests"
+  as permissive
+  for select
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "undertime_requests_head_update" on public."undertime_requests"
+  as permissive
+  for update
+  to authenticated
+  using ((head_id = get_employee_id()));
+create policy "undertime_requests_insert" on public."undertime_requests"
+  as permissive
+  for insert
+  to authenticated
+  with check ((employee_id = get_employee_id()));
+create policy "undertime_requests_select" on public."undertime_requests"
+  as permissive
+  for select
+  to authenticated
+  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
+create policy "undertime_requests_update" on public."undertime_requests"
+  as permissive
+  for update
+  to authenticated
+  using (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
 
 -- ============================================================
 -- Functions
@@ -1977,6 +2092,87 @@ BEGIN
   
   RETURN v_result;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.approve_retail_queue_item(p_queue_item_id uuid, p_client_name text DEFAULT NULL::text, p_contact_person text DEFAULT NULL::text, p_project_title text DEFAULT NULL::text, p_expected_value numeric DEFAULT NULL::numeric)
+ RETURNS uuid
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_item record;
+  v_reviewer uuid;
+  v_new_id uuid;
+begin
+  v_reviewer := get_employee_id();
+  if v_reviewer is null then
+    raise exception 'Not signed in as a recognized employee.';
+  end if;
+
+  if not (
+    exists (select 1 from employees e where e.id = v_reviewer and e.is_super_admin)
+    or exists (
+      select 1 from sales_opportunities o
+      where o.sales_director_id = v_reviewer
+        and o.is_scratch = false
+        and o.is_retail = false
+    )
+  ) then
+    raise exception 'Only a Sales Director or Super Admin can approve a retail order.';
+  end if;
+
+  select * into v_item from odoo_retail_queue where id = p_queue_item_id for update;
+  if not found then
+    raise exception 'Queue item not found.';
+  end if;
+  if v_item.status <> 'pending' then
+    raise exception 'Queue item is no longer pending.';
+  end if;
+
+  insert into sales_opportunities (
+    sales_reference, client_name, contact_person, project_title, expected_value,
+    lead_source, registered_by, registration_date, is_retail
+  ) values (
+    v_item.odoo_so_number,
+    coalesce(p_client_name, v_item.client_name, v_item.odoo_partner_name),
+    coalesce(p_contact_person, v_item.contact_person, v_item.odoo_person_name),
+    coalesce(p_project_title, v_item.project_title, 'Retail: ' || v_item.odoo_partner_name),
+    coalesce(p_expected_value, v_item.expected_value, v_item.odoo_amount),
+    coalesce(v_item.lead_source, 'SHOPEE'),
+    v_reviewer,
+    coalesce(v_item.odoo_create_date::date, current_date),
+    true
+  ) returning id into v_new_id;
+
+  update odoo_retail_queue set
+    status = 'approved',
+    reviewed_by = v_reviewer,
+    reviewed_at = now(),
+    opportunity_id = v_new_id,
+    client_name = coalesce(p_client_name, client_name),
+    contact_person = coalesce(p_contact_person, contact_person),
+    project_title = coalesce(p_project_title, project_title),
+    expected_value = coalesce(p_expected_value, expected_value)
+  where id = p_queue_item_id;
+
+  return v_new_id;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.can_handle_retail_queue()
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+AS $function$
+  select
+    exists (select 1 from employees e where e.id = get_employee_id() and e.is_super_admin)
+    or exists (
+      select 1 from sales_opportunities o
+      where o.sales_director_id = get_employee_id()
+        and o.is_scratch = false
+        and o.is_retail = false
+    );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.can_manage_leaves()
@@ -2062,6 +2258,38 @@ BEGIN
     'previous_status', v_previous_status
   );
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.clear_issued_password_flag()
+ RETURNS void
+ LANGUAGE sql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  update public.employees
+  set is_issued_password = false
+  where email = auth.jwt() ->> 'email';
+$function$
+;
+CREATE OR REPLACE FUNCTION public.committee_task_visible(p_task_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.committee_tasks ct
+    where ct.id = p_task_id
+      and (
+        ct.created_by = public.get_employee_id()
+        or public.is_super_admin()
+        or exists (
+          select 1 from public.committee_task_members ctm
+          where ctm.committee_task_id = ct.id
+            and ctm.employee_id = public.get_employee_id()
+        )
+      )
+  )
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.decide_offset_leave_decision(p_group_id uuid, p_status text, p_hr_notes text, p_hr_id uuid)
@@ -2181,6 +2409,12 @@ BEGIN
   SELECT * INTO v_request FROM overtime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Overtime request not found.';
+  END IF;
+
+  -- Same lock this function already holds on the row — the gate and the
+  -- decision it guards can no longer be split across two round-trips.
+  IF p_status LIKE 'APPROVED%' AND v_request.head_status <> 'APPROVED' AND NOT v_request.hr_override THEN
+    RAISE EXCEPTION 'Cannot approve this overtime request: the department head has not approved this request yet (head_status=%). Use the HR override if this needs to proceed anyway.', v_request.head_status;
   END IF;
 
   v_is_decision := p_status LIKE 'APPROVED%' OR p_status = 'REJECTED';
@@ -2336,6 +2570,70 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.decide_undertime_request(p_request_id uuid, p_status text, p_approved_hours numeric, p_hr_notes text, p_hr_id uuid)
+ RETURNS undertime_requests
+ LANGUAGE plpgsql
+ SET search_path TO 'public', 'extensions'
+AS $function$
+DECLARE
+  v_request undertime_requests;
+  v_is_decision boolean;
+  v_approved_hours numeric;
+  v_approval_hash text;
+  v_hr_signature_version text;
+  v_hr_signature_timestamp timestamptz;
+  v_hr_processed_at timestamptz;
+  v_now timestamptz := now();
+BEGIN
+  SELECT * INTO v_request FROM undertime_requests WHERE id = p_request_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Undertime request not found.';
+  END IF;
+
+  IF p_status = 'APPROVED' AND v_request.head_status <> 'APPROVED' AND NOT v_request.hr_override THEN
+    RAISE EXCEPTION 'Cannot approve this undertime request: the department head has not approved this request yet (head_status=%). Use the HR override if this needs to proceed anyway.', v_request.head_status;
+  END IF;
+
+  v_is_decision := p_status = 'APPROVED' OR p_status = 'REJECTED';
+
+  IF p_status = 'APPROVED' THEN
+    v_approved_hours := COALESCE(p_approved_hours, v_request.hours);
+    IF NOT (v_approved_hours > 0) THEN
+      RAISE EXCEPTION 'Approved hours must be greater than zero.';
+    END IF;
+  END IF;
+
+  SELECT signature_path INTO v_hr_signature_version FROM employees WHERE id = p_hr_id;
+  IF v_hr_signature_version IS NOT NULL THEN
+    v_hr_signature_timestamp := v_now;
+  END IF;
+
+  IF v_is_decision THEN
+    v_hr_processed_at := v_now;
+    -- Undertime moves no balance, so canon_credits is always '' — the hash
+    -- formula still matches every other record type's shape byte-for-byte.
+    v_approval_hash := encode(digest(
+      format('%s|%s|%s|%s', v_request.application_hash, p_status, COALESCE(p_hr_id::text, ''), ''),
+      'sha256'), 'hex');
+  END IF;
+
+  UPDATE undertime_requests SET
+    status = p_status,
+    approved_hours = COALESCE(v_approved_hours, v_request.approved_hours),
+    hr_notes = p_hr_notes,
+    updated_at = v_now,
+    approval_hash = COALESCE(v_approval_hash, v_request.approval_hash),
+    hr_signature_version = COALESCE(v_hr_signature_version, v_request.hr_signature_version),
+    hr_signature_timestamp = COALESCE(v_hr_signature_timestamp, v_request.hr_signature_timestamp),
+    hr_processed_by = p_hr_id,
+    hr_processed_at = COALESCE(v_hr_processed_at, v_request.hr_processed_at)
+  WHERE id = p_request_id
+  RETURNING * INTO v_request;
+
+  RETURN v_request;
+END;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.get_employee_id()
  RETURNS uuid
  LANGUAGE sql
@@ -2375,32 +2673,6 @@ AS $function$BEGIN
             )
         )
     ),
-    sales_chats AS (
-        SELECT
-            sa.id::TEXT AS entity_id,
-            'SALES'::TEXT AS entity_type,
-            COALESCE(sa.account_name, sa.activity_type) AS title,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = sa.employee_id) AS subtitle,
-            sa.status AS status,
-            sal.content AS latest_message,
-            (SELECT emp.name FROM public.employees emp WHERE emp.id = sal.author_id) AS latest_author,
-            sal.created_at AS latest_created_at,
-            COALESCE(sa.is_deleted, false) AS is_deleted
-        FROM public.sales_activities sa
-        JOIN public.sales_activity_logs sal ON sal.id = (
-            SELECT id FROM public.sales_activity_logs
-            WHERE sales_activity_id = sa.id AND type = 'COMMENT'
-            ORDER BY created_at DESC LIMIT 1
-        )
-        WHERE (
-            sa.employee_id = p_user_id OR
-            sa.head_verified_by = p_user_id OR
-            EXISTS (
-                SELECT 1 FROM public.sales_activity_logs
-                WHERE sales_activity_id = sa.id AND author_id = p_user_id
-            )
-        )
-    ),
     committee_chats AS (
         SELECT
             ct.id::text AS entity_id,
@@ -2434,8 +2706,6 @@ AS $function$BEGIN
     ),
     combined_chats AS (
         SELECT * FROM task_chats
-        UNION ALL
-        SELECT * FROM sales_chats
         UNION ALL
         SELECT * FROM committee_chats
     )
@@ -2494,6 +2764,30 @@ begin
   return new;
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.guard_head_status_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'extensions'
+AS $function$
+BEGIN
+  IF (
+       NEW.head_status IS DISTINCT FROM OLD.head_status
+       OR NEW.head_note IS DISTINCT FROM OLD.head_note
+       OR NEW.head_decided_at IS DISTINCT FROM OLD.head_decided_at
+       OR NEW.head_signature_version IS DISTINCT FROM OLD.head_signature_version
+     )
+     AND NOT (
+       public.is_hr() OR public.is_super_admin()
+       OR (public.is_head() AND OLD.head_id = public.get_employee_id())
+     )
+  THEN
+    RAISE EXCEPTION 'Only the routed department head, HR, or a super admin may record a head decision on this request.';
+  END IF;
+  RETURN NEW;
+END;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.is_head()
  RETURNS boolean
  LANGUAGE sql
@@ -2510,12 +2804,56 @@ AS $function$
   SELECT is_hr FROM public.employees WHERE email = auth.jwt() ->> 'email';
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.is_role_simulator()
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  select is_role_simulator from public.employees where email = auth.jwt() ->> 'email';
+$function$
+;
 CREATE OR REPLACE FUNCTION public.is_super_admin()
  RETURNS boolean
  LANGUAGE sql
  SECURITY DEFINER
 AS $function$
   SELECT is_super_admin FROM public.employees WHERE email = auth.jwt() ->> 'email';
+$function$
+;
+CREATE OR REPLACE FUNCTION public.lock_sales_flow(p_flow_id uuid, p_actor_id uuid, p_snapshot_data jsonb)
+ RETURNS json
+ LANGUAGE plpgsql
+AS $function$
+declare
+  v_flow record;
+  v_next_version integer;
+  v_snapshot record;
+begin
+  select * into v_flow from sales_flows where id = p_flow_id for update;
+  if not found then
+    raise exception 'Sales Flow not found.';
+  end if;
+  if v_flow.state <> 'draft' then
+    raise exception 'This Sales Flow is locked. Unlock it first, with a reason, to make changes.';
+  end if;
+
+  select coalesce(max(version), 0) + 1 into v_next_version
+  from flow_snapshots where flow_id = p_flow_id;
+
+  update sales_flows set
+    state = 'locked',
+    locked_at = now(),
+    locked_by = p_actor_id,
+    updated_at = now()
+  where id = p_flow_id
+  returning * into v_flow;
+
+  insert into flow_snapshots (flow_id, version, snapshot_data, created_by)
+  values (p_flow_id, v_next_version, p_snapshot_data, p_actor_id)
+  returning * into v_snapshot;
+
+  return json_build_object('flow', row_to_json(v_flow), 'snapshot', row_to_json(v_snapshot));
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.prevent_role_escalation()
@@ -2529,17 +2867,16 @@ DECLARE
   v_caller_is_super_admin    BOOLEAN;
   v_caller_is_hr             BOOLEAN;
   v_caller_can_manage_leaves BOOLEAN;
-  v_caller_email             TEXT;
+  v_caller_is_role_simulator BOOLEAN;
 BEGIN
   v_caller_id := public.get_employee_id();
 
-  SELECT is_super_admin, is_hr, can_manage_leaves, email
-  INTO   v_caller_is_super_admin, v_caller_is_hr, v_caller_can_manage_leaves, v_caller_email
+  SELECT is_super_admin, is_hr, can_manage_leaves, is_role_simulator
+  INTO   v_caller_is_super_admin, v_caller_is_hr, v_caller_can_manage_leaves, v_caller_is_role_simulator
   FROM   public.employees
   WHERE  id = v_caller_id;
 
-  -- Bypasses role escalation checks for the tester exception account
-  IF v_caller_email = 'arkadatax03@gmail.com' THEN
+  IF v_caller_is_role_simulator IS TRUE THEN
     RETURN NEW;
   END IF;
 
@@ -2570,6 +2907,12 @@ BEGIN
     RAISE EXCEPTION
       'Insufficient privileges: only a super-admin can change leave-management access.'
       USING ERRCODE = '42501';
+  END IF;
+
+  IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
+    IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
+      NEW.hidden_nav_keys := OLD.hidden_nav_keys;
+    END IF;
   END IF;
 
   IF v_caller_can_manage_leaves IS TRUE
@@ -2702,6 +3045,16 @@ begin
   new.updated_at := now();
   return new;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.set_odoo_retail_queue_updated_at()
+ RETURNS trigger
+ LANGUAGE plpgsql
+AS $function$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_can_edit_opportunity(p_opportunity_id uuid)
  RETURNS boolean
@@ -3179,73 +3532,36 @@ BEGIN
 END;
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.update_sales_quota_metrics()
- RETURNS trigger
+CREATE OR REPLACE FUNCTION public.undo_undertime_decision(p_request_id uuid, p_hr_id uuid)
+ RETURNS undertime_requests
  LANGUAGE plpgsql
 AS $function$
 DECLARE
-  verification_required BOOLEAN;
+  v_request undertime_requests;
+  v_now timestamptz := now();
 BEGIN
-  SELECT require_revenue_verification INTO verification_required FROM app_settings LIMIT 1;
-
-  IF (NOT verification_required OR NEW.is_verified) AND NEW.record_type = 'SALES_ORDER' THEN
-    -- Update sales_quotas logic here...
-  END IF;
-
-  RETURN NEW;
-END;
-$function$
-;
-CREATE OR REPLACE FUNCTION public.update_sales_quota_progress()
- RETURNS trigger
- LANGUAGE plpgsql
-AS $function$
-DECLARE
-  log_month_year VARCHAR;
-  emp_id UUID;
-  v_current_actual DECIMAL;
-  v_revenue_lost DECIMAL;
-  v_deals_won INTEGER;
-  v_deals_lost INTEGER;
-  v_deals_pending INTEGER;
-BEGIN
-  IF TG_OP = 'DELETE' THEN
-    emp_id := OLD.employee_id;
-    log_month_year := TO_CHAR(OLD.date, 'YYYY-MM-01');
-  ELSE
-    emp_id := NEW.employee_id;
-    log_month_year := TO_CHAR(NEW.date, 'YYYY-MM-01');
-  END IF;
-
-  SELECT
-    COALESCE(SUM(CASE WHEN status IN ('COMPLETED', 'APPROVED') THEN revenue_amount ELSE 0 END), 0),
-    COALESCE(SUM(CASE WHEN status = 'LOST' THEN revenue_amount ELSE 0 END), 0),
-    COUNT(CASE WHEN status IN ('COMPLETED', 'APPROVED') THEN 1 END),
-    COUNT(CASE WHEN status = 'LOST' THEN 1 END),
-    COUNT(CASE WHEN status NOT IN ('COMPLETED', 'APPROVED', 'LOST') THEN 1 END)
-  INTO
-    v_current_actual, v_revenue_lost, v_deals_won, v_deals_lost, v_deals_pending
-  FROM sales_revenue_logs
-  WHERE employee_id = emp_id
-    AND TO_CHAR(date, 'YYYY-MM-01') = log_month_year
-    AND record_type = 'SALES_ORDER'
-    AND is_deleted = false;
-
-  UPDATE sales_quotas
-  SET
-    current_actual = v_current_actual,
-    revenue_lost = v_revenue_lost,
-    deals_won = v_deals_won,
-    deals_lost = v_deals_lost,
-    deals_pending = v_deals_pending
-  WHERE employee_id = emp_id
-    AND month_year = log_month_year;
-
+  SELECT * INTO v_request FROM undertime_requests WHERE id = p_request_id FOR UPDATE;
   IF NOT FOUND THEN
-    RAISE WARNING 'update_sales_quota_progress: No sales_quota row found for employee % in month %. Revenue log not reflected in leaderboard.', emp_id, log_month_year;
+    RAISE EXCEPTION 'Undertime request not found.';
+  END IF;
+  IF v_request.status = 'PENDING' THEN
+    RAISE EXCEPTION 'Request is already pending.';
   END IF;
 
-  RETURN NULL;
+  UPDATE undertime_requests SET
+    status = 'PENDING',
+    approved_hours = NULL,
+    hr_notes = NULL,
+    updated_at = v_now,
+    approval_hash = NULL,
+    hr_signature_version = NULL,
+    hr_signature_timestamp = NULL,
+    hr_processed_by = NULL,
+    hr_processed_at = NULL
+  WHERE id = p_request_id
+  RETURNING * INTO v_request;
+
+  RETURN v_request;
 END;
 $function$
 ;
@@ -3522,11 +3838,14 @@ $function$
 
 CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.employees FOR EACH ROW EXECUTE FUNCTION prevent_role_escalation();
 CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task_templates FOR EACH ROW EXECUTE FUNCTION group_task_templates_touch();
+CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
+CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_guard();
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
-CREATE TRIGGER trigger_update_sales_quota_progress AFTER INSERT OR DELETE OR UPDATE ON public.sales_revenue_logs FOR EACH ROW EXECUTE FUNCTION update_sales_quota_progress();
+CREATE TRIGGER sil_leaves_guard_head_status BEFORE UPDATE ON public.sil_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER trg_sor_canvass_offers_touch BEFORE UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_touch();
 CREATE TRIGGER trg_sor_canvasses_touch BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_touch();
 CREATE TRIGGER trg_sor_inclusions_touch BEFORE UPDATE ON public.sor_inclusions FOR EACH ROW EXECUTE FUNCTION sor_inclusions_touch();
@@ -3536,6 +3855,7 @@ CREATE TRIGGER trg_sor_project_evaluations_touch BEFORE UPDATE ON public.sor_pro
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
+CREATE TRIGGER undertime_requests_guard_head_status BEFORE UPDATE ON public.undertime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 
 -- ============================================================
 -- Views
