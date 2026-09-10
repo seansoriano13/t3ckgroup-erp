@@ -53,6 +53,11 @@ export function useLogTaskHandlers({
   // Stable attachments ref – immune to React state resets (fixes tab-switch image loss)
   const attachmentsPersistRef = useRef([])
   const restoringAttachmentsRef = useRef(false)
+  // The hand-off below fires on a timer after the modal has already closed, so
+  // it can outlive the component. Left uncleared it reaches for `window` after
+  // unmount — harmless in a browser that is still there, an unhandled
+  // ReferenceError under a torn-down test environment.
+  const handOffTimerRef = useRef(null)
 
   // Keep persist ref in sync with form state
   useEffect(() => {
@@ -305,7 +310,11 @@ export function useLogTaskHandlers({
         setCategorySearch("")
       } else {
         onClose()
-        setTimeout(() => {
+        // Let the modal finish closing before the detail view opens over it.
+        clearTimeout(handOffTimerRef.current)
+        handOffTimerRef.current = setTimeout(() => {
+          handOffTimerRef.current = null
+          if (typeof window === "undefined") return
           window.dispatchEvent(
             new CustomEvent("OPEN_ENTITY_DETAILS", {
               detail: { id: data.id, type: "TASK", isNew: true },
@@ -315,6 +324,9 @@ export function useLogTaskHandlers({
       }
     },
   })
+
+  // Nothing may still be pending once this hook goes away.
+  useEffect(() => () => clearTimeout(handOffTimerRef.current), [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
