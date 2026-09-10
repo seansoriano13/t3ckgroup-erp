@@ -287,6 +287,44 @@ An imported item's true unit cost once everything is apportioned onto it —
 ILPAS sheet. The basis every markup and income figure is taken from.
 _Avoid_: Cost, Unit Cost, Acquire Cost
 
+### Chat & Mentions
+
+One vocabulary for a thing the code currently spells four ways. A Chat is the
+same concept whether it hangs off a Task, a Group Task, or an SOR, even though
+each stores its Messages in its own table.
+
+**Chat**:
+A single conversation bound to exactly one Task, Group Task, or SOR. There is
+no standalone Chat and no Chat between people — a Chat always belongs to the
+record it discusses, and is reached either from that record or from the chat
+list, which is the set of Chats an employee is currently party to.
+_Avoid_: Thread, Conversation, Discussion, Comments
+
+**Message**:
+One entry in a Chat, whichever table it lives in. The code says `task_activity`,
+`committee_task_activity`, and `sales_opportunity_logs`; those are three
+storage locations for one concept, not three concepts. Not editable and not
+deletable by design — a Chat is an append-only record of what was said.
+_Avoid_: Note, Comment, Log, Activity, Post
+
+**Mention**:
+A deliberate address of one employee inside a Message, captured when it is
+written rather than inferred from the text afterwards. Carries who was meant,
+not merely the name that was typed — so a Mention survives the mentioned
+employee later being renamed. Mentioning someone notifies them and suppresses
+the ordinary new-message notification they would otherwise receive, so a Mention
+replaces that notice rather than adding a second one.
+_Avoid_: Tag, @, Callout
+
+**Mention Target**:
+The one Message a mention notification takes the recipient to — the most recent
+Message in that Chat that mentions them. Resolved when the notification is
+opened, not recorded when it is sent, so a Mention Target is always the latest
+thing said to that employee in that Chat rather than the specific Message that
+raised the notification. Where an employee has been mentioned several times in
+one Chat, every one of those notifications leads to the same Mention Target.
+_Avoid_: Anchor, Deep link, Jump target
+
 ### Task Logging & Dictation
 
 **DTAR (Daily Task Accomplishment Report)**:
