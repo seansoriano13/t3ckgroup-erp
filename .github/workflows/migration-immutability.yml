@@ -1,0 +1,90 @@
+name: Migration immutability
+
+# A migration's timestamp is its IDENTITY, not its position. Once a file is on
+# `staging`, the staging database has recorded that identity in
+# supabase_migrations.schema_migrations — so renaming or deleting the file
+# orphans a ledger row, and an orphaned row makes `supabase db push` refuse to
+# apply ANYTHING until someone reconciles it by hand.
+#
+# This is not hypothetical. Between 2026-09-07 and 2026-09-09 four commits
+# renamed migrations (071e005, a32126f, 427956f, 9655097), each one a fix for
+# the breakage the previous rename caused. The last of them left two orphans in
+# staging's ledger and dammed up nineteen migrations for two days — including
+# the push_subscriptions table, which is how the whole thing was noticed.
+#
+# AGENTS.md has forbidden this in prose since the baseline (issue #87) and it
+# happened anyway, because a prohibition an agent reads is weaker than a check
+# it cannot merge past. That is the entire reason this file exists.
+#
+# Deliberately git-only: no secrets, no network, no database. A required check
+# that fails when a database is asleep is a check people learn to route around.
+# "Exists on `staging`" is a tight proxy for "a ledger has recorded it", since
+# pushing to `staging` is exactly what applies a migration (migrate-staging.yml).
+# It is stricter in one case — a migration merged to `staging` but not yet
+# applied is also frozen — and that strictness costs nothing, because the
+# remedy is always "write a new migration", which is what you wanted anyway.
+
+on:
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+
+concurrency:
+  group: migration-immutability-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  immutable:
+    name: Migrations on staging are frozen
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # A new baseline (issue #87, ADR 0011) legitimately moves the whole set into
+    # _archive/ at once. That is a deliberate, reviewed act — label the PR
+    # `migration-baseline` to say so out loud, rather than merging past a
+    # required check quietly.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'migration-baseline') }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch staging
+        run: git fetch --no-tags origin staging
+
+      - name: Fail on renamed or deleted migrations
+        run: |
+          set -euo pipefail
+
+          # Three-dot: compare against the merge-base, so a migration created
+          # AND renamed inside this branch reads as a plain addition at its
+          # final name. Renaming something you have not merged yet is fine.
+          changed=$(git diff --diff-filter=RD --name-status \
+            origin/staging...HEAD -- supabase/migrations/)
+
+          if [ -z "$changed" ]; then
+            echo "No migration was renamed or deleted. The set is append-only."
+            exit 0
+          fi
+
+          echo "::error::This pull request renames or deletes a migration that is already on staging."
+          echo ""
+          echo "$changed"
+          echo ""
+          echo "A migration's filename is its identity. Staging's ledger has already"
+          echo "recorded these versions; changing a name orphans the row and blocks"
+          echo "'supabase db push' for every migration behind it."
+          echo ""
+          echo "Whatever you were trying to fix, the remedy is a NEW migration:"
+          echo ""
+          echo "  timestamp sorts too early     CI now runs 'db push --include-all'."
+          echo "                                Leave the file alone; it will apply."
+          echo "  ledger disagrees with a file  Run 'pnpm db:ledger:check staging',"
+          echo "                                then repair the LEDGER via the"
+          echo "                                'Repair migration history' workflow."
+          echo "  wrong build order from empty  Add a new forward migration that"
+          echo "                                corrects the end state."
+          echo "  shipped SQL needs changing    Add a new migration that alters it."
+          echo ""
+          echo "See AGENTS.md, 'The migration set is append-only'."
+          exit 1

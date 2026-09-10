@@ -26,8 +26,9 @@ anything that touches data — testing a fix, checking a query, exploring the
 schema, reproducing a bug. `STAGING_DB_URL` and `PROD_DB_URL` in `.env.local`
 exist only for the specific scripts that already use them
 (`scripts/db-snapshot.mjs`'s drift checks, `scripts/seed-dump.mjs`'s
-read-only pull) — reaching either database any other way, including an ad
-hoc query to "just check something," is not part of the local workflow.
+read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff) — reaching
+either database any other way, including an ad hoc query to "just check
+something," is not part of the local workflow.
 
 Schema changes follow the same principle one level up: CI applies
 migrations, never a developer machine or an agent acting as one (see
@@ -37,11 +38,67 @@ production.
 
 ### Database migrations
 
+**The migration set is append-only.** A migration's timestamp is its
+*identity*, not its position. The moment any database records that identity in
+`supabase_migrations.schema_migrations`, the name is frozen — permanently, on
+every branch. **Never rename, renumber, reorder, delete, or edit the SQL of a
+migration that exists on `staging` or `main`.** Not to fix build order, not to
+move it past a remote's applied tip, not to make it match what a ledger
+recorded, not to turn a red `db push` green.
+
+When a file and a ledger disagree, **the ledger is the fact and the file is the
+claim** — the ledger records what a database actually ran. Reconcile the ledger
+to reflect that. Never reshape files to flatter a ledger.
+
+This is enforced, not trusted: `.github/workflows/migration-immutability.yml`
+fails any pull request that renames or deletes a migration already on
+`staging`. It is git-only — no database, no secrets — so it cannot be routed
+around by an unreachable project. A deliberate re-baseline (ADR 0011) is the
+one legitimate exception; label the PR `migration-baseline`.
+
+Begin every migration confusion by looking at the real divergence rather than
+inferring it from a failed CI log:
+
+```
+pnpm db:ledger:check staging      # or prod
+```
+
+It prints orphan ledger rows (recorded, no file — these block `db push`
+entirely), pending files, and which pending files sort before the remote's
+tip. One of these remedies always applies, so there is never a reason to
+rename:
+
+| Situation | Remedy |
+|---|---|
+| `db push`: "Remote migration versions not found in local migrations directory" | An orphan row. If its objects **are** live, the migration ran under an older filename — `renumber` the row to the file's current version via the *Repair migration history* workflow. If its objects are **absent**, the row is a lie — mark it `reverted`. Never touch the file. |
+| Your migration's timestamp sorts before the remote's applied tip | Nothing. CI runs `db push --include-all`; it will apply in filename order. |
+| The set builds the wrong schema from empty (`migration-gate.yml` fails) | Add a **new** forward migration that corrects the end state. Never reorder. |
+| A change reached a database outside a migration (hand-applied, or MCP `apply_migration`) | Write a **new** guarded migration (`if not exists`) that reconciles it — see `20260909140000_reconcile_sor_register_serial_no.sql`. |
+| A shipped migration's SQL is wrong | Write a **new** migration that alters the result. The shipped file is history. |
+
+Ledger repair happens through the *Repair migration history* workflow, never by
+hand and never through an MCP `execute_sql` against a remote project — the
+same rule as migrations themselves, for the same reason.
+`migration repair --status applied` writes a row with **no SQL body**: it
+asserts a change ran without carrying evidence that it did. Use it only once
+you have confirmed the objects exist in the live database. A false `applied`
+stays invisible until it isn't — `20260906104842 calendar_leaves_view` sat in
+staging's ledger for days claiming a view that had never been created, which is
+why `db:ledger:check` flags bodiless rows as `NO SQL BODY`.
+
+Why this section is emphatic: between 2026-09-07 and 2026-09-09 four commits
+renamed migrations, each a fix for the breakage the previous rename caused. The
+last left two orphans in staging's ledger and blocked nineteen migrations for
+two days. A rule against this already existed in this file, and was read and
+broken anyway — because it stated a prohibition without a remedy for the state
+you are actually standing in. The table above is that remedy; the workflow is
+what makes it real.
+
 Name new migrations with a UTC timestamp prefix — `20260831143022_name.sql` — never the
 next sequential number. Sequential numbering collides silently across branches: git
 merges the two files without a conflict because their names differ, and Supabase then
-applies only one of them. Existing numbered migrations keep their names; do not
-renumber anything a ledger has already recorded. See `docs/adr/0007-timestamped-migration-filenames.md`.
+applies only one of them. Existing numbered migrations keep their names — like
+every other migration, they are frozen (see above). See `docs/adr/0007-timestamped-migration-filenames.md`.
 
 Migrations are applied by CI only, never from a developer machine. Pushing to
 `staging` applies pending migrations to the staging database automatically
