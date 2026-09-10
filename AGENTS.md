@@ -197,6 +197,10 @@ Local data is disposable by design and never committed:
 - `pnpm db:seed:fresh` — `db:seed:dump` + `db:seed:restore` chained. Use this
   only on initial setup of a fresh machine or when intentionally refreshing
   the staging cache over the network. For routine resets, use `pnpm db:reset`.
+- `pnpm db:refresh` — `supabase db reset` + `db:seed:fresh`. The one command
+  to reproduce current staging state locally: replays every migration from
+  empty, then pulls, sanitizes and loads a live staging snapshot. The leading
+  reset is what lets the restore land when local migrations are behind.
 - `pnpm db:seed:snapshot` — saves the local database's *current* data before
   a deliberate reset, if there's a working set worth keeping;
   restore it with `pnpm db:seed:restore -- <the file it printed>`.
@@ -227,3 +231,14 @@ let it escape to the router's default error boundary.
 
 Whenever you complete a task that changes the application's behavior or UI, you must add an entry to `src/data/changelog.json` before pushing to origin. 
 This ensures all users see a "What's Changed" announcement modal on their next login. Keep the descriptions high-level, simple, and easy to understand for non-technical users.
+
+### Pushing to staging
+
+Pushing to `staging` auto-applies pending migrations to the staging database and
+deploys the staging site, so a finished feature or bug fix goes through a fixed
+routine first: run `pnpm preflight` and walk `docs/pre-staging-checklist.md`. The
+mechanical gates (lint, tests, build, and — when `supabase/migrations/**`
+changed — the local schema check `migration-gate.yml` runs) are in `preflight`;
+the checklist adds what CI can't see, chiefly a smoke test on seeded data and
+reconciling any `[auth]` change in `supabase/config.toml` against the staging
+Supabase dashboard, which a deploy does not touch.

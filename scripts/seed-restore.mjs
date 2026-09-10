@@ -76,10 +76,15 @@ function quoteIdent(name) {
 // pg deserializes both a jsonb array and a native Postgres array column into
 // a plain JS array — there is no way to tell them apart from the value
 // alone. Every jsonb column in this schema needs re-stringifying on the way
-// back in; `tasks.attachment_urls` and `employees.hidden_nav_keys` are the
-// genuine `text[]` columns among the seeded tables, and pg already knows how
-// to send a JS array as one natively, so they're excluded from that rule.
-const NATIVE_ARRAY_COLUMNS = new Set(["attachment_urls", "hidden_nav_keys"])
+// back in; `tasks.attachment_urls`, `employees.hidden_nav_keys` and
+// `app_settings.retail_storefronts` are the genuine `text[]` columns among the
+// seeded tables, and pg already knows how to send a JS array as one natively,
+// so they're excluded from that rule.
+const NATIVE_ARRAY_COLUMNS = new Set([
+  "attachment_urls",
+  "hidden_nav_keys",
+  "retail_storefronts",
+])
 
 async function insertRows(client, schema, table, rows) {
   if (!rows || rows.length === 0) return
@@ -87,12 +92,21 @@ async function insertRows(client, schema, table, rows) {
   // email/phone_confirmed_at by GoTrue's own migrations) rejects an
   // explicit value outright — Postgres recomputes it from the columns it
   // depends on, which are themselves being restored in this same insert.
-  const { rows: generated } = await client.query(
-    "select column_name from information_schema.columns where table_schema = $1 and table_name = $2 and is_generated = 'ALWAYS'",
+  const { rows: schemaColumns } = await client.query(
+    "select column_name, is_generated from information_schema.columns where table_schema = $1 and table_name = $2",
     [schema, table],
   )
-  const generatedColumns = new Set(generated.map((r) => r.column_name))
-  const columns = Object.keys(rows[0]).filter((c) => !generatedColumns.has(c))
+  const generatedColumns = new Set(
+    schemaColumns.filter((r) => r.is_generated === "ALWAYS").map((r) => r.column_name),
+  )
+  // A dump taken from an environment whose schema is ahead of (or behind) the
+  // local one can carry columns this table no longer has — e.g. staging still
+  // holds app_settings columns that a local migration has since dropped. Keep
+  // only columns that actually exist in the target table.
+  const liveColumns = new Set(schemaColumns.map((r) => r.column_name))
+  const columns = Object.keys(rows[0]).filter(
+    (c) => liveColumns.has(c) && !generatedColumns.has(c),
+  )
   if (columns.length === 0) return
   const columnList = columns.map(quoteIdent).join(", ")
 
