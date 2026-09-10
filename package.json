@@ -26,6 +26,7 @@
         "db:snapshot:staging": "node scripts/db-snapshot.mjs staging",
         "db:check-drift:prod": "node scripts/db-snapshot.mjs prod --check",
         "db:check-drift:staging": "node scripts/db-snapshot.mjs staging --check",
+        "db:ledger:check": "node scripts/db-ledger-check.mjs",
         "db:reset": "supabase db reset && pnpm db:seed:restore",
         "db:refresh": "supabase db reset && pnpm db:seed:fresh",
         "db:seed:dump": "node scripts/seed-dump.mjs",

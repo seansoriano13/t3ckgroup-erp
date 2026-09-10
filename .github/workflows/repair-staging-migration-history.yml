@@ -1,5 +1,13 @@
 name: Repair staging migration history
 
+# SUPERSEDED by repair-migration-history.yml, which does the same job for
+# either project and also supports `renumber`. Do not delete this file yet:
+# `workflow_dispatch` only registers a workflow that exists on the DEFAULT
+# branch, and the generalized one has never reached `main` — so today this is
+# the only repair tool that is actually pressable. Remove it in the release
+# that carries repair-migration-history.yml to `main`, not before, or the repo
+# is left with no working way to fix a ledger.
+#
 # One-off utility, not part of the normal pipeline. Use this only when
 # `supabase db push` on staging fails with "Remote migration versions not
 # found in local migrations directory" — that means the remote

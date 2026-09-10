@@ -28,9 +28,14 @@ on:
         description: "Migration version/timestamp to repair, e.g. 20260904000000"
         required: true
       status:
-        description: 'Status to set: "reverted" (remove from ledger) or "applied" (mark as run)'
+        description: 'reverted (remove from ledger) | applied (mark as run) | renumber (move to new_version)'
+        type: choice
+        options: ["reverted", "applied", "renumber"]
         required: true
         default: "reverted"
+      new_version:
+        description: "renumber only: the version to move the row to, e.g. 20260908150000"
+        required: false
 
 concurrency:
   group: migrate-${{ github.event.inputs.project }}
@@ -62,7 +67,36 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ github.event.inputs.project == 'prod' && secrets.PROD_DB_PASSWORD || secrets.STAGING_DB_PASSWORD }}
-        run: supabase migration repair --status ${{ github.event.inputs.status }} ${{ github.event.inputs.version }} --project-ref ${{ steps.target.outputs.ref }}
+        run: |
+          set -euo pipefail
+          ref='${{ steps.target.outputs.ref }}'
+          version='${{ github.event.inputs.version }}'
+          status='${{ github.event.inputs.status }}'
+          new_version='${{ github.event.inputs.new_version }}'
+
+          if [ "$status" != "renumber" ]; then
+            supabase migration repair --status "$status" "$version" --project-ref "$ref"
+            exit 0
+          fi
+
+          # A migration that ran under one filename and now lives under another
+          # (the file was renamed before the append-only rule was enforced).
+          # The schema is correct; only the ledger's idea of which version
+          # produced it is stale. Decomposes into the two operations the CLI
+          # does have — drop the stale identity, assert the current one.
+          #
+          # Note: `--status applied` writes a row with no SQL body, so the
+          # renumbered row will not carry the original statements. That is
+          # cosmetic — `db push` compares versions, not bodies — but it means
+          # you MUST have confirmed the migration's objects are actually live
+          # before running this, exactly as for a bare `applied`.
+          if [ -z "$new_version" ]; then
+            echo "::error::renumber requires new_version."
+            exit 1
+          fi
+          echo "Renumbering $version -> $new_version on $ref"
+          supabase migration repair --status reverted "$version" --project-ref "$ref"
+          supabase migration repair --status applied "$new_version" --project-ref "$ref"
 
       - name: Show resulting migration list
         env:
