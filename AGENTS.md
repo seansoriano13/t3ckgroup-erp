@@ -76,6 +76,20 @@ rename:
 | A change reached a database outside a migration (hand-applied, or MCP `apply_migration`) | Write a **new** guarded migration (`if not exists`) that reconciles it — see `20260909140000_reconcile_sor_register_serial_no.sql`. |
 | A shipped migration's SQL is wrong | Write a **new** migration that alters the result. The shipped file is history. |
 
+Write migrations so a re-run cannot fail, and check that the guard guards the
+thing you are about to create. `drop policy if exists "<old name>"` followed by
+`create policy "<new name>"` is a *rename*, not a guard — it reads as
+idempotent and is not, because nothing protects the new name. That exact shape
+in `20260909080000_retail_queue_atomic_approve.sql` failed with
+`policy ... already exists (SQLSTATE 42710)` and stopped a nineteen-migration
+backlog twelve migrations in. Postgres has no `create policy if not exists`, so
+drop the name you are creating:
+
+```
+drop policy if exists "Retail handlers can view queue" on public.odoo_retail_queue;
+create policy "Retail handlers can view queue" ...
+```
+
 Ledger repair happens through the *Repair migration history* workflow, never by
 hand and never through an MCP `execute_sql` against a remote project — the
 same rule as migrations themselves, for the same reason.
@@ -85,6 +99,14 @@ you have confirmed the objects exist in the live database. A false `applied`
 stays invisible until it isn't — `20260906104842 calendar_leaves_view` sat in
 staging's ledger for days claiming a view that had never been created, which is
 why `db:ledger:check` flags bodiless rows as `NO SQL BODY`.
+
+**Dispatch the repair workflow from a branch that contains the migration
+file.** `--status applied` reads the file to record it and fails with
+`glob supabase/migrations/<version>_*.sql: file does not exist` otherwise —
+so repairing a migration that lives only on `staging` must be run against
+`staging`, not the default branch. `--status reverted` only deletes a row and
+works from anywhere, which makes this easy to get wrong: the two reverts
+succeed from `main` and the `applied` then fails.
 
 Why this section is emphatic: between 2026-09-07 and 2026-09-09 four commits
 renamed migrations, each a fix for the breakage the previous rename caused. The
