@@ -2,6 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { markRecoveryActive } from "./recoveryFlag";
+import { isResetPasswordPath, isRecoveryLanding } from "./recoveryLink";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -111,22 +112,25 @@ const customFetch = async (url, options, retries = 2) => {
  * that screen still tell apart the three landings: GoTrue rejected the token
  * (`#error=access_denied&error_code=otp_expired…`), a good token that's still
  * being exchanged, and someone who reached the route with no token at all.
+ *
+ * Scoped to the reset route on purpose. A global snapshot outlives the page it
+ * was taken on: boot at /login with a Google `#access_token=…` fragment, then
+ * client-navigate to /reset-password, and the screen would read those stale
+ * params as a recovery link and raise the cross-tab hold with no reset in
+ * flight — which leaves every tab rendering signed-out until it expires.
+ * Off the reset route this stays empty and the screen reads the live URL.
  */
-export const initialAuthUrlParams =
-  typeof window === "undefined"
-    ? { hash: "", search: "" }
-    : { hash: window.location.hash || "", search: window.location.search || "" };
+const bootedOnResetRoute =
+  typeof window !== "undefined" && isResetPasswordPath(window.location.pathname);
+
+export const initialAuthUrlParams = bootedOnResetRoute
+  ? { hash: window.location.hash || "", search: window.location.search || "" }
+  : { hash: "", search: "" };
 
 // Landing on the reset route with recovery params: flag it for every tab now,
 // before detectSessionInUrl writes the recovery session to localStorage, so a
 // lingering /login tab can't race in and sign it out. See lib/recoveryFlag.js.
-if (
-  typeof window !== "undefined" &&
-  window.location.pathname === "/reset-password" &&
-  /token_hash|access_token|[?&#]code=|type=recovery/.test(
-    `${initialAuthUrlParams.hash}${initialAuthUrlParams.search}`,
-  )
-) {
+if (typeof window !== "undefined" && isRecoveryLanding(window.location)) {
   markRecoveryActive();
 }
 
@@ -173,4 +177,4 @@ export const supabase = globalThis._supabaseInstance;
  * updated too — accepted, because inventing a second, independently
  * maintained "which environment am I" signal risks the two disagreeing.
  */
-export const isProductionSupabase = Boolean(supabaseUrl?.includes("epqmberwewztzbrkhhss"));
+export const isProductionSupabase = Boolean(supabaseUrl?.includes("epqmberwewztzbrkhhss"));

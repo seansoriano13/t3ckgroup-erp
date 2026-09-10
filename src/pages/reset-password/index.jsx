@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import toast from "react-hot-toast";
 import { supabase, initialAuthUrlParams } from "../../lib/supabase";
 import { redeemRecoveryToken } from "../../lib/recoveryToken";
 import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag";
+import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
 import PrimaryButton from "../../components/PrimaryButton";
 import Spinner from "@/components/ui/Spinner";
@@ -39,34 +40,36 @@ const NO_TOKEN_COPY =
   "Open this page from the link in your password-reset email.";
 
 /**
- * What the URL said when the app booted. GoTrue reports a rejected link in the
- * fragment (implicit flow); the newer `&sb=` variant and the PKCE flow use the
- * query string — so check both. Falls back to the live URL for tests, which
- * drive the route directly and never populate the boot-time snapshot.
+ * What the URL said when the app booted, falling back to the live URL.
+ *
+ * lib/supabase.js only takes its snapshot when the app booted on this route,
+ * so an empty snapshot means we arrived by client navigation — in which case
+ * the live URL is the honest one. Tests drive the route directly and land in
+ * the same branch. The parsing itself is shared with lib/supabase.js so the
+ * two can't disagree about what counts as a recovery link.
  */
 function readAuthParams() {
   const snap =
     initialAuthUrlParams.hash || initialAuthUrlParams.search
       ? initialAuthUrlParams
       : { hash: window.location.hash, search: window.location.search };
-  const hash = new URLSearchParams((snap.hash || "").replace(/^#/, ""));
-  const query = new URLSearchParams(snap.search || "");
-  const get = (key) => hash.get(key) || query.get(key);
+  return readRecoveryParams(snap);
+}
 
-  return {
-    hasError: Boolean(get("error") || get("error_code")),
-    errorDescription: (get("error_description") || "").replace(/\+/g, " "),
-    // The current email links here directly with a token_hash for us to redeem
-    // via verifyOtp(); older `/auth/v1/verify` links arrive already exchanged,
-    // as an implicit `#access_token` fragment or a PKCE `?code`.
-    tokenHash: get("token_hash") || "",
-    otpType: get("type") || "recovery",
-    // A recovery token was in the URL — so "no session" means it was turned
-    // down, not that the visitor wandered in without a link.
-    hasRecoveryToken:
-      Boolean(get("access_token") || get("token_hash") || get("code")) ||
-      get("type") === "recovery",
-  };
+/**
+ * Did saving fail because the recovery session is gone, rather than because
+ * the provider rejected the password itself? Keyed off GoTrue's own error
+ * identity first; the message check is a narrow fallback for a plain Error and
+ * deliberately does not match "invalid" or "expired" on their own — a weak- or
+ * invalid-password refusal must leave the form up, not replace it with the
+ * expired-link notice.
+ */
+function isSessionGone(error) {
+  if (!error) return false;
+  if (error.name === "AuthSessionMissingError") return true;
+  if (error.code === "session_not_found" || error.code === "session_expired") return true;
+  if (error.status === 401) return true;
+  return /session (?:missing|not found|expired)|missing session/i.test(error.message || "");
 }
 
 /** Drops the token_hash from the address bar once it has been redeemed. */
@@ -85,6 +88,19 @@ export default function ResetPassword() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Did *this* tab raise the cross-tab hold? The flag lives in localStorage, so
+  // every tab can clear it — and a tab that never raised it must not. Opening
+  // this route by hand while a real reset runs elsewhere is landing (c), which
+  // ends in `done("invalid", ...)`; releasing there would drop the hold the
+  // other tab's reset depends on and re-open the race the flag exists to close.
+  const raisedHoldRef = useRef(false);
+
+  /** Release the hold, but only if this tab is the one holding it. */
+  const releaseHold = () => {
+    if (!raisedHoldRef.current) return;
+    raisedHoldRef.current = false;
+    clearRecoveryActive();
+  };
 
   useEffect(() => {
     let settled = false;
@@ -95,14 +111,17 @@ export default function ResetPassword() {
     // Tell every open tab a reset is mid-flight so none of them acts on the
     // recovery session that's about to appear in shared storage. Covers the
     // implicit `#access_token` link too, where redeemRecoveryToken never runs.
-    if (params.hasRecoveryToken) markRecoveryActive();
+    if (params.hasRecoveryToken) {
+      markRecoveryActive();
+      raisedHoldRef.current = true;
+    }
 
     const done = (nextPhase, reason) => {
       if (settled) return;
       settled = true;
       // A dead link releases the other tabs; a live one keeps the hold until
       // the password is actually saved.
-      if (nextPhase === "invalid") clearRecoveryActive();
+      if (nextPhase === "invalid") releaseHold();
       if (reason) setInvalidReason(reason);
       setPhase(nextPhase);
     };
@@ -124,6 +143,12 @@ export default function ResetPassword() {
           else done("invalid", error?.message?.replace(/\+/g, " ") || EXPIRED_COPY);
         },
       );
+    } else if (!params.hasRecoveryToken) {
+      // Landing (c): no link, just someone on the route. An ordinary signed-in
+      // visitor has a perfectly good session, so asking getSession() here would
+      // hand them the form; the way to change a known password is the profile
+      // screen, and the way here is the emailed link.
+      done("invalid", NO_TOKEN_COPY);
     } else {
       // Older `/auth/v1/verify` link: it arrives already exchanged. A late
       // recovery session (detectSessionInUrl finishing) flips us to the form;
@@ -145,7 +170,13 @@ export default function ResetPassword() {
 
     // Closing the tab is the likeliest way a reset gets abandoned, and React
     // does not run cleanup for that — `pagehide` does. Same release as below.
-    const releaseOnLeave = () => clearRecoveryActive();
+    // `event.persisted` means the page is going into the back/forward cache
+    // rather than away: it can be restored without this effect re-running, so
+    // releasing there would resume the reset with no hold at all.
+    const releaseOnLeave = (event) => {
+      if (event?.persisted) return;
+      releaseHold();
+    };
     window.addEventListener("pagehide", releaseOnLeave);
 
     return () => {
@@ -159,7 +190,7 @@ export default function ResetPassword() {
       // resolves the employee on boot — so the app renders signed-out until
       // it expires. The success path clears it and full-loads before this
       // runs; StrictMode's remount re-marks it.
-      clearRecoveryActive();
+      releaseHold();
     };
   }, []);
 
@@ -192,13 +223,12 @@ export default function ResetPassword() {
       // The session is now an ordinary one — let the other tabs resume, and
       // full-load rather than client-nav so AuthContext boots fresh and
       // resolves the employee behind it.
-      clearRecoveryActive();
+      releaseHold();
       window.location.assign("/");
     } catch (error) {
       console.error("Password update failed:", error);
-      const sessionGone = /session|expired|invalid/i.test(error.message || "");
-      if (sessionGone) {
-        clearRecoveryActive();
+      if (isSessionGone(error)) {
+        releaseHold();
         setInvalidReason("Your reset link has expired.");
         setPhase("invalid");
       } else {
@@ -230,10 +260,12 @@ export default function ResetPassword() {
             Can&rsquo;t reset your password
           </h1>
           <p className="text-mauve-10 text-sm">{invalidReason}</p>
-          <p className="text-mauve-10 text-sm">
-            Reset links open only once and time out after a while &mdash; request
-            a fresh one from the login page and use it straight away.
-          </p>
+          {invalidReason !== NO_TOKEN_COPY && (
+            <p className="text-mauve-10 text-sm">
+              Reset links open only once and time out after a while &mdash; request
+              a fresh one from the login page and use it straight away.
+            </p>
+          )}
           <Link
             to="/login"
             className="inline-block bg-mauve-3 hover:bg-mauve-4 border border-mauve-6 text-mauve-12 px-6 py-3 rounded-xl font-bold transition-all"

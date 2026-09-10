@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { RESET_PASSWORD_PATH } from "../lib/recoveryLink";
 
 /**
  * Issues or reissues a password-login credential for an employee, via the
@@ -34,7 +35,7 @@ export const passwordService = {
   /** Sends the provider's password-reset email for self-service changes. */
   async requestPasswordReset(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/reset-password`,
+      redirectTo: `${window.location.origin}${RESET_PASSWORD_PATH}`,
     });
     if (error) throw error;
   },

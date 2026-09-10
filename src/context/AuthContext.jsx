@@ -4,6 +4,7 @@ import { storageService } from "../services/storageService.js";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase.js";
 import { isRecoveryActive } from "../lib/recoveryFlag.js";
+import { isResetPasswordPath } from "../lib/recoveryLink.js";
 
 const AuthContext = createContext(null);
 const PROFILE_CACHE_KEY = "t3ck_user_profile";
@@ -101,21 +102,24 @@ export const AuthProvider = ({ children }) => {
     // leave it alone too, not just the /reset-password tab itself. The reset
     // page redirects out with a full load once done, booting a clean resolve.
     const skipForRecovery = () =>
-      window.location.pathname === "/reset-password" || isRecoveryActive();
+      isResetPasswordPath(window.location.pathname) || isRecoveryActive();
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (skipForRecovery()) {
-        if (isMounted) {
-          setIsAuthLoading(false);
-          setInitFinished(true);
-          settledRef.current = true;
-        }
-        return;
-      }
-
+      // Only the session-bearing branch is the hazard: it resolves the employee
+      // and, finding none, logs out. A SIGNED_OUT with no session has nothing
+      // left to protect, so it must still clear this tab — guarding it too
+      // would leave every tab unable to react to a genuine sign-out.
       if (session?.user) {
+        if (skipForRecovery()) {
+          if (isMounted) {
+            setIsAuthLoading(false);
+            setInitFinished(true);
+            settledRef.current = true;
+          }
+          return;
+        }
         resolveEmployee(session.user, isMounted);
       } else {
         if (isMounted) {

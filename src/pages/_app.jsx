@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from "react-router";
 import SideNav from "../components/SideNav";
 import { useAuth } from "../context/AuthContext";
+import { isResetPasswordPath } from "../lib/recoveryLink";
 import ChangelogModal from "../components/ChangelogModal";
 import IssuedPasswordBanner from "../components/IssuedPasswordBanner";
 
@@ -21,7 +22,7 @@ export default function AppLayout() {
 
   if (
     location.pathname === "/login" ||
-    location.pathname === "/reset-password" ||
+    isResetPasswordPath(location.pathname) ||
     location.pathname.startsWith("/verify/")
   ) {
     return <Outlet />;

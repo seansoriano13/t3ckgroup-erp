@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import { AuthProvider, useAuth } from "./AuthContext"
 import { supabase } from "@/lib/supabase"
+import { markRecoveryActive } from "@/lib/recoveryFlag"
 import { makeEmployee, makeHrEmployee } from "@/test/factories"
 
 /**
@@ -116,7 +117,7 @@ describe("AuthContext", () => {
       // A password reset in another tab flags itself in localStorage; this tab
       // must not treat the recovery session it sees via storage sync as a login
       // to resolve — or, worse, sign it out for having no employee record.
-      localStorage.setItem("t3ck-recovery-active", String(Date.now()))
+      markRecoveryActive()
       const signOut = vi.spyOn(supabase.auth, "signOut")
       stubAuthState(sessionFor("stranger@t3ckgroup.test"))
 
@@ -125,6 +126,22 @@ describe("AuthContext", () => {
       await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"))
       expect(signOut).not.toHaveBeenCalled()
       expect(screen.getByTestId("name")).toHaveTextContent("anonymous")
+    })
+
+    it("still clears the tab on a genuine sign-out while a reset is in flight", async () => {
+      // The recovery guard covers the session-bearing branch only: that is the
+      // one that resolves an employee and, finding none, signs out. Swallowing
+      // SIGNED_OUT as well would leave every tab showing a signed-in user for
+      // the flag's whole TTL, long after the session was actually gone.
+      makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+      const auth = stubAuthState(sessionFor("ana@t3ckgroup.test"))
+      renderAuth()
+      await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("Ana Reyes"))
+
+      markRecoveryActive()
+      await waitFor(() => auth.emit("SIGNED_OUT", null))
+
+      await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("anonymous"))
     })
 
     it("refuses a deactivated employee", async () => {

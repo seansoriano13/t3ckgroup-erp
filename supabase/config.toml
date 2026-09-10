@@ -28,6 +28,11 @@ api_url = "http://127.0.0.1"
 
 [auth]
 enabled = true
+# localhost, not 127.0.0.1: `{{ .SiteURL }}` in the recovery template builds
+# the link the browser opens, and a link on a different origin from the one you
+# are browsing lands on a tab with none of the app's stored session. Vite prints
+# localhost, so that is the origin people are actually on. Both are allowed
+# below, which covers redirect_to either way; only this one shapes the email.
 site_url = "http://localhost:5173"
 # Wildcarded so the password-reset email's redirectTo (…/reset-password) is
 # actually honoured — GoTrue silently falls back to site_url for any
