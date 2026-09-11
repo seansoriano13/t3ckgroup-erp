@@ -255,7 +255,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
       {showPlus && (
         <div
           className={cn(
-            "nodrag absolute -right-10 top-1/2 z-10 -translate-y-1/2 transition-opacity duration-150",
+            "nodrag absolute -right-16 top-1/2 z-10 -translate-y-1/2 transition-opacity duration-150",
             plusAlwaysVisible || addOpen
               ? "opacity-100"
               : "opacity-0 group-hover/stage:opacity-100 focus-within:opacity-100",

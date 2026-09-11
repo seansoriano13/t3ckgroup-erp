@@ -10,7 +10,8 @@
             "Fixed false diff changes: stages are no longer reported as changed when nothing changed. The comparator now compares actual process properties (name, sequence, terminal status, brackets, colors) rather than database timestamps, coordinates, or PostgreSQL key ordering.",
             "Clicking 'Compare with draft' in the version rail now automatically expands the version and reveals the exact comparison against your unpublished changes with a single click.",
             "Canvas editing is now strictly locked when viewing a published flow: stages and moves cannot be moved or deleted until you click 'Edit draft', eliminating confusion between live and draft states.",
-            "Prominent status badges make your current mode obvious at a glance: 'Live' on published versions, 'Editing' when modifying a draft, and 'Viewing' when inspecting version history."
+            "Prominent status badges make your current mode obvious at a glance: 'Live' on published versions, 'Editing' when modifying a draft, and 'Viewing' when inspecting version history.",
+            "Expanded the Versions panel with generous padding, comfortable spacing between version cards, and improved readability for version notes, author stamps, and comparisons."
         ]
     },
     {

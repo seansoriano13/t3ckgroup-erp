@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import { screen, fireEvent, waitFor } from "@testing-library/react"
+import { screen, fireEvent } from "@testing-library/react"
 import { MemoryRouter, Routes, Route } from "react-router"
 import FlowVersionPage from "@/pages/flow-versions/[snapshotId]"
 import { renderWithProviders } from "@/test/support"

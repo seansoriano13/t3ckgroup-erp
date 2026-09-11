@@ -121,15 +121,20 @@ export default function FlowVersionRail({
 
   return (
     <>
-      <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-72 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
-        <div className="flex items-center justify-between border-b border-border px-3 py-2">
+      <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-80 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+        <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Versions</p>
-          <button type="button" onClick={() => setOpen(false)} aria-label="Hide version history">
-            <ChevronLeft size={14} className="text-muted-foreground" />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Hide version history"
+            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <ChevronLeft size={16} />
           </button>
         </div>
 
-        <div className="flex-1 space-y-1.5 overflow-y-auto p-2">
+        <div className="flex-1 space-y-2.5 overflow-y-auto p-3.5">
           {!isLocked ? (
             <VersionRow
               label={`Draft${versionPreview?.label ? ` · ${versionPreview.label}` : ""}`}
@@ -165,7 +170,7 @@ export default function FlowVersionRail({
           ) : (
             <div
               className={cn(
-                "rounded-xl border p-2.5 transition-colors",
+                "rounded-xl border p-3.5 transition-colors",
                 !viewingSnapshotId
                   ? "border-blue-500/60 ring-1 ring-blue-500/30 bg-muted/20"
                   : "border-dashed border-border bg-muted/40 cursor-pointer hover:bg-muted/60",
@@ -181,7 +186,7 @@ export default function FlowVersionRail({
             >
               <div className="flex items-center justify-between gap-1.5 text-xs font-semibold text-foreground">
                 <div className="flex items-center gap-1.5">
-                  <Lock size={12} className="text-muted-foreground" />
+                  <Lock size={13} className="text-muted-foreground" />
                   <span>Flow is Locked</span>
                 </div>
                 {!viewingSnapshotId ? (
@@ -194,7 +199,7 @@ export default function FlowVersionRail({
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                 Currently running {latest ? formatSnapshotVersion(latest) : "published flow"}. Reopen draft to edit.
               </p>
             </div>
@@ -216,7 +221,7 @@ export default function FlowVersionRail({
             entry.type === "reopen" ? (
               <p
                 key={`reopen-${entry.event.createdAt}-${entry.event.employeeId}`}
-                className="px-1.5 py-1 text-[11px] text-muted-foreground"
+                className="px-2 py-1 text-xs text-muted-foreground"
               >
                 Reopened {new Date(entry.at).toLocaleDateString()} by {employeeName(entry.event.employeeId)}
                 {entry.event.reason ? ` — ${entry.event.reason}` : ""}
@@ -248,9 +253,9 @@ export default function FlowVersionRail({
                   !isLocked ? (
                     <Button
                       type="button"
-                      variant={compareTargetId === entry.snapshot.id ? "secondary" : "ghost"}
+                      variant={compareTargetId === entry.snapshot.id ? "secondary" : "outline"}
                       size="sm"
-                      className="h-7 text-xs"
+                      className="h-7 text-xs px-2.5 rounded-lg border-border/80"
                       onClick={() => {
                         if (compareTargetId === entry.snapshot.id) {
                           setCompareTargetId(null);
@@ -277,7 +282,7 @@ export default function FlowVersionRail({
                 />
 
                 {compareTargetId === entry.snapshot.id && (
-                  <div className="mt-2.5 rounded-xl border border-border bg-muted/40 p-2.5">
+                  <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3">
                     <div className="mb-1.5 flex items-center justify-between">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-foreground">
                         What the draft would change
@@ -326,21 +331,21 @@ function VersionRow({ label, subtitle, note, badge, expanded, onToggleExpand, on
   return (
     <div
       className={cn(
-        "rounded-xl border border-border transition-colors",
+        "rounded-xl border border-border/80 transition-colors",
         selected && "border-blue-500/60 ring-1 ring-blue-500/30 dark:border-blue-400/60",
       )}
     >
-      <div className="flex w-full items-start gap-2 px-2.5 py-2 text-left">
+      <div className="flex w-full items-start gap-2.5 p-3 text-left">
         <button
           type="button"
           onClick={onToggleExpand}
           aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
-          className="mt-0.5 shrink-0 hover:opacity-80"
+          className="mt-0.5 shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           {expanded ? (
-            <ChevronUp size={14} className="text-muted-foreground" />
+            <ChevronUp size={15} />
           ) : (
-            <ChevronDown size={14} className="text-muted-foreground" />
+            <ChevronDown size={15} />
           )}
         </button>
         {onSelect ? (
@@ -353,8 +358,8 @@ function VersionRow({ label, subtitle, note, badge, expanded, onToggleExpand, on
           </div>
         )}
       </div>
-      {actions && <div className="flex items-center gap-1 px-2.5 pb-2">{actions}</div>}
-      {expanded && <div className="border-t border-border px-2.5 py-2">{children}</div>}
+      {actions && <div className="flex items-center gap-1.5 px-3 pb-3 pt-0.5">{actions}</div>}
+      {expanded && <div className="border-t border-border/80 p-3">{children}</div>}
     </div>
   );
 }
@@ -362,12 +367,12 @@ function VersionRow({ label, subtitle, note, badge, expanded, onToggleExpand, on
 function RowLabel({ label, subtitle, note, badge }) {
   return (
     <>
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <p className="text-sm font-bold text-foreground">{label}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <p className="text-sm font-bold text-foreground leading-snug">{label}</p>
         {badge}
       </div>
-      <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
-      {note && <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground">“{note}”</p>}
+      <p className="mt-0.5 truncate text-xs text-muted-foreground">{subtitle}</p>
+      {note && <p className="mt-1 truncate text-xs italic text-muted-foreground">“{note}”</p>}
     </>
   );
 }

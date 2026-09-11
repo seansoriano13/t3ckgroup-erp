@@ -15,6 +15,8 @@
 -- Extensions
 -- ============================================================
 
+create extension if not exists "pg_graphql" with schema "graphql";
+create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
 create extension if not exists "pgcrypto" with schema "extensions";
 create extension if not exists "supabase_vault" with schema "vault";
@@ -241,7 +243,9 @@ create table if not exists public."flow_snapshots" (
   "version" integer not null,
   "snapshot_data" jsonb not null,
   "created_at" timestamp with time zone not null default now(),
-  "created_by" uuid
+  "created_by" uuid,
+  "version_minor" integer not null default 0,
+  "note" text
 );
 
 create table if not exists public."flow_stage_actions" (
@@ -373,13 +377,13 @@ create table if not exists public."offset_leaves" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
 );
 
 create table if not exists public."overtime_requests" (
@@ -408,13 +412,13 @@ create table if not exists public."overtime_requests" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
 );
 
 create table if not exists public."push_subscriptions" (
@@ -559,13 +563,13 @@ create table if not exists public."sil_leaves" (
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
 );
 
 create table if not exists public."sor_canvass_offers" (
@@ -853,7 +857,7 @@ alter table commission_rates add constraint "commission_rates_unique_type_date" 
 alter table commission_splits add constraint "commission_splits_unique_role" UNIQUE (project_type, share_role);
 alter table committee_roles add constraint "committee_roles_role_name_key" UNIQUE (role_name);
 alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
-alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version);
+alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version, version_minor);
 alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
 alter table offset_leaves add constraint "offset_leaves_verification_token_key" UNIQUE (verification_token);
@@ -1413,7 +1417,6 @@ create policy "flow_edges_write" on public."flow_edges"
   to authenticated
   using (true)
   with check (true);
-  with check (true);
 create policy "flow_snapshots_read" on public."flow_snapshots"
   as permissive
   for select
@@ -1571,7 +1574,9 @@ create policy "offset_leaves_insert" on public."offset_leaves"
   as permissive
   for insert
   to authenticated
-  with check ((employee_id = get_employee_id()));
+  with check (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
 create policy "offset_leaves_select" on public."offset_leaves"
   as permissive
   for select
@@ -1618,7 +1623,9 @@ create policy "overtime_requests_insert" on public."overtime_requests"
   as permissive
   for insert
   to authenticated
-  with check ((employee_id = get_employee_id()));
+  with check (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
 create policy "overtime_requests_select" on public."overtime_requests"
   as permissive
   for select
@@ -1809,7 +1816,9 @@ create policy "sil_leaves_insert" on public."sil_leaves"
   as permissive
   for insert
   to authenticated
-  with check ((employee_id = get_employee_id()));
+  with check (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
 create policy "sil_leaves_select" on public."sil_leaves"
   as permissive
   for select
@@ -2019,7 +2028,9 @@ create policy "undertime_requests_insert" on public."undertime_requests"
   as permissive
   for insert
   to authenticated
-  with check ((employee_id = get_employee_id()));
+  with check (((employee_id = get_employee_id()) OR (EXISTS ( SELECT 1
+   FROM employees e
+  WHERE ((e.id = get_employee_id()) AND (e.is_hr OR e.is_super_admin OR e.can_manage_leaves))))));
 create policy "undertime_requests_select" on public."undertime_requests"
   as permissive
   for select
@@ -2601,6 +2612,58 @@ BEGIN
 END;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.flow_snapshot_next_version(p_flow_id uuid, p_snapshot_data jsonb)
+ RETURNS TABLE(version_major integer, version_minor integer)
+ LANGUAGE plpgsql
+ STABLE
+AS $function$
+declare
+  v_latest record;
+  v_new_stage_ids text[];
+  v_stage_removed boolean;
+  v_won_changed boolean;
+begin
+  select fs.version, fs.version_minor, fs.snapshot_data
+    into v_latest
+  from flow_snapshots fs
+  where fs.flow_id = p_flow_id
+  order by fs.version desc, fs.version_minor desc
+  limit 1;
+
+  if not found then
+    version_major := 1;
+    version_minor := 0;
+    return next;
+    return;
+  end if;
+
+  select coalesce(array_agg(elem->>'id'), array[]::text[])
+    into v_new_stage_ids
+  from jsonb_array_elements(coalesce(p_snapshot_data->'stages', '[]'::jsonb)) as elem;
+
+  v_stage_removed := exists (
+    select 1
+    from jsonb_array_elements(coalesce(v_latest.snapshot_data->'stages', '[]'::jsonb)) as old_elem
+    where (old_elem->>'id') is not null
+      and not ((old_elem->>'id') = any (v_new_stage_ids))
+  );
+
+  v_won_changed :=
+    coalesce(nullif(v_latest.snapshot_data->>'wonStageId', ''), '')
+    is distinct from
+    coalesce(nullif(p_snapshot_data->>'wonStageId', ''), '');
+
+  if v_stage_removed or v_won_changed then
+    version_major := v_latest.version + 1;
+    version_minor := 0;
+  else
+    version_major := v_latest.version;
+    version_minor := v_latest.version_minor + 1;
+  end if;
+  return next;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.get_employee_id()
  RETURNS uuid
  LANGUAGE sql
@@ -2787,14 +2850,16 @@ AS $function$
   SELECT is_super_admin FROM public.employees WHERE email = auth.jwt() ->> 'email';
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.lock_sales_flow(p_flow_id uuid, p_actor_id uuid, p_snapshot_data jsonb)
+CREATE OR REPLACE FUNCTION public.lock_sales_flow(p_flow_id uuid, p_actor_id uuid, p_snapshot_data jsonb, p_note text DEFAULT NULL::text)
  RETURNS json
  LANGUAGE plpgsql
 AS $function$
 declare
   v_flow record;
-  v_next_version integer;
+  v_major integer;
+  v_minor integer;
   v_snapshot record;
+  v_latest_data jsonb;
 begin
   select * into v_flow from sales_flows where id = p_flow_id for update;
   if not found then
@@ -2804,8 +2869,20 @@ begin
     raise exception 'This Sales Flow is locked. Unlock it first, with a reason, to make changes.';
   end if;
 
-  select coalesce(max(version), 0) + 1 into v_next_version
-  from flow_snapshots where flow_id = p_flow_id;
+  select fs.snapshot_data
+    into v_latest_data
+  from flow_snapshots fs
+  where fs.flow_id = p_flow_id
+  order by fs.version desc, fs.version_minor desc
+  limit 1;
+
+  if v_latest_data is not null and v_latest_data = p_snapshot_data then
+    raise exception 'This draft is identical to the latest version. There is nothing to publish.';
+  end if;
+
+  select version_major, version_minor
+    into v_major, v_minor
+  from public.flow_snapshot_next_version(p_flow_id, p_snapshot_data);
 
   update sales_flows set
     state = 'locked',
@@ -2815,8 +2892,8 @@ begin
   where id = p_flow_id
   returning * into v_flow;
 
-  insert into flow_snapshots (flow_id, version, snapshot_data, created_by)
-  values (p_flow_id, v_next_version, p_snapshot_data, p_actor_id)
+  insert into flow_snapshots (flow_id, version, version_minor, snapshot_data, created_by, note)
+  values (p_flow_id, v_major, v_minor, p_snapshot_data, p_actor_id, nullif(trim(p_note), ''))
   returning * into v_snapshot;
 
   return json_build_object('flow', row_to_json(v_flow), 'snapshot', row_to_json(v_snapshot));
@@ -2876,6 +2953,8 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  -- Nobody edits their own hidden-navigation override — server-side, not by
+  -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
     IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
@@ -2930,6 +3009,227 @@ BEGIN
     UPDATE hr_leave_categories SET sort_order = item.sort_order, updated_at = now() WHERE id = item.id;
   END LOOP;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.restore_flow_snapshot(p_flow_id uuid, p_snapshot_id uuid)
+ RETURNS json
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_flow record;
+  v_snapshot record;
+  v_data jsonb;
+  v_target_stage_ids uuid[];
+  v_target_edge_ids uuid[];
+  v_target_action_ids uuid[];
+  v_target_condition_ids uuid[];
+  v_won_stage_id uuid;
+  v_blockers text[] := array[]::text[];
+  v_rec record;
+  v_elem jsonb;
+begin
+  -- Lock the Sales Flow row first (ADR 0013 / lock_sales_flow).
+  select * into v_flow from sales_flows where id = p_flow_id for update;
+  if not found then
+    raise exception 'Sales Flow not found.';
+  end if;
+  if v_flow.state <> 'draft' then
+    raise exception 'This Sales Flow is locked. Unlock it first, with a reason, to make changes.';
+  end if;
+
+  select * into v_snapshot from flow_snapshots where id = p_snapshot_id;
+  if not found then
+    raise exception 'That Flow Snapshot does not exist.';
+  end if;
+  if v_snapshot.flow_id <> p_flow_id then
+    raise exception 'That Flow Snapshot does not belong to this flow.';
+  end if;
+
+  v_data := v_snapshot.snapshot_data;
+  v_won_stage_id := nullif(v_data->>'wonStageId', '')::uuid;
+
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_stage_ids
+  from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e;
+
+  -- Refuse before writing anything if a live Stage the target drops is still
+  -- referenced by an SOR. The foreign key sees soft-deleted SORs too, so they
+  -- count, and the message says when they are the whole reason.
+  for v_rec in
+    select st.name as stage_name,
+           count(*) as total,
+           count(*) filter (where o.is_deleted is true) as soft_deleted
+    from flow_stages st
+    join sales_opportunities o on o.flow_stage_id = st.id
+    where st.flow_id = p_flow_id
+      and not (st.id = any(v_target_stage_ids))
+    group by st.id, st.name
+    order by st.name
+  loop
+    v_blockers := array_append(
+      v_blockers,
+      format(
+        '"%s" is referenced by %s SOR%s%s',
+        v_rec.stage_name,
+        v_rec.total,
+        case when v_rec.total = 1 then '' else 's' end,
+        case
+          when v_rec.soft_deleted = v_rec.total then format(' (all %s soft-deleted)', v_rec.total)
+          when v_rec.soft_deleted > 0 then format(' (%s of them soft-deleted)', v_rec.soft_deleted)
+          else ''
+        end
+      )
+    );
+  end loop;
+  if array_length(v_blockers, 1) > 0 then
+    raise exception 'This version cannot be restored yet: %. Move those deals to another Stage first.',
+      array_to_string(v_blockers, '; ');
+  end if;
+
+  -- From here the draft is reshaped to match the target, keeping ids. Clear
+  -- the Won Stage first so a dropped Stage that held it can be deleted.
+  update sales_flows set won_stage_id = null, updated_at = now() where id = p_flow_id;
+
+  -- Two Stages can swap names. The one-name-per-flow index is checked row by
+  -- row, so park every surviving Stage on a unique placeholder first.
+  update flow_stages set name = '__restore__' || id::text where flow_id = p_flow_id;
+
+  -- Drop the Stages the target does not have. Their edges, conditions and
+  -- actions go by cascade; the check above proved no SOR is referenced.
+  delete from flow_stages
+   where flow_id = p_flow_id
+     and not (id = any(v_target_stage_ids));
+
+  -- Upsert every target Stage under its original id.
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stages', '[]'::jsonb)) as e
+  loop
+    insert into flow_stages (
+      id, flow_id, name, sort_order, is_terminal, pos_x, pos_y, color, bracket_label, created_at, updated_at
+    )
+    values (
+      (v_elem->>'id')::uuid,
+      p_flow_id,
+      v_elem->>'name',
+      coalesce((v_elem->>'sort_order')::int, 0),
+      coalesce((v_elem->>'is_terminal')::boolean, false),
+      coalesce((v_elem->>'pos_x')::int, 0),
+      coalesce((v_elem->>'pos_y')::int, 0),
+      nullif(v_elem->>'color', ''),
+      nullif(v_elem->>'bracket_label', ''),
+      coalesce((v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (id) do update set
+      name = excluded.name,
+      sort_order = excluded.sort_order,
+      is_terminal = excluded.is_terminal,
+      pos_x = excluded.pos_x,
+      pos_y = excluded.pos_y,
+      color = excluded.color,
+      bracket_label = excluded.bracket_label,
+      updated_at = now();
+  end loop;
+
+  -- Moves.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_edge_ids
+  from jsonb_array_elements(coalesce(v_data->'edges', '[]'::jsonb)) as e;
+
+  delete from flow_edges
+   where flow_id = p_flow_id
+     and not (id = any(v_target_edge_ids));
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'edges', '[]'::jsonb)) as e
+  loop
+    insert into flow_edges (id, flow_id, from_stage_id, to_stage_id, created_at)
+    values (
+      (v_elem->>'id')::uuid,
+      p_flow_id,
+      (v_elem->>'from_stage_id')::uuid,
+      (v_elem->>'to_stage_id')::uuid,
+      coalesce((v_elem->>'created_at')::timestamptz, now())
+    )
+    on conflict (id) do update set
+      from_stage_id = excluded.from_stage_id,
+      to_stage_id = excluded.to_stage_id;
+  end loop;
+
+  -- Stage Actions.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_action_ids
+  from jsonb_array_elements(coalesce(v_data->'actions', '[]'::jsonb)) as e;
+
+  delete from flow_stage_actions
+   where stage_id in (select id from flow_stages where flow_id = p_flow_id)
+     and not (id = any(v_target_action_ids));
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'actions', '[]'::jsonb)) as e
+  loop
+    insert into flow_stage_actions (id, stage_id, kind, config, sort_order, archived_at, created_at, updated_at)
+    values (
+      (v_elem->>'id')::uuid,
+      (v_elem->>'stage_id')::uuid,
+      v_elem->>'kind',
+      coalesce(v_elem->'config', '{}'::jsonb),
+      coalesce((v_elem->>'sort_order')::int, 0),
+      nullif(v_elem->>'archived_at', '')::timestamptz,
+      coalesce((v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (id) do update set
+      stage_id = excluded.stage_id,
+      kind = excluded.kind,
+      config = excluded.config,
+      sort_order = excluded.sort_order,
+      archived_at = excluded.archived_at,
+      updated_at = now();
+  end loop;
+
+  -- Stage Conditions.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_condition_ids
+  from jsonb_array_elements(coalesce(v_data->'conditions', '[]'::jsonb)) as e;
+
+  delete from stage_conditions
+   where stage_id in (select id from flow_stages where flow_id = p_flow_id)
+     and not (id = any(v_target_condition_ids));
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'conditions', '[]'::jsonb)) as e
+  loop
+    insert into stage_conditions (id, stage_id, kind, label, is_required, sort_order, config, archived_at, created_at, updated_at)
+    values (
+      (v_elem->>'id')::uuid,
+      (v_elem->>'stage_id')::uuid,
+      v_elem->>'kind',
+      v_elem->>'label',
+      coalesce((v_elem->>'is_required')::boolean, true),
+      coalesce((v_elem->>'sort_order')::int, 0),
+      coalesce(v_elem->'config', '{}'::jsonb),
+      nullif(v_elem->>'archived_at', '')::timestamptz,
+      coalesce((v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (id) do update set
+      stage_id = excluded.stage_id,
+      kind = excluded.kind,
+      label = excluded.label,
+      is_required = excluded.is_required,
+      sort_order = excluded.sort_order,
+      config = excluded.config,
+      archived_at = excluded.archived_at,
+      updated_at = now();
+  end loop;
+
+  update sales_flows
+     set won_stage_id = v_won_stage_id,
+         updated_at = now()
+   where id = p_flow_id
+  returning * into v_flow;
+
+  return json_build_object('flow', row_to_json(v_flow), 'version', v_snapshot.version);
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sales_opportunities_guard()
