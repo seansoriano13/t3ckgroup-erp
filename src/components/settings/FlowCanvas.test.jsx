@@ -319,6 +319,37 @@ describe("FlowCanvas", () => {
     })
   })
 
+  it("points to the canvas plus when the flow is empty and removes the docked input box", async () => {
+    const user = userEvent.setup()
+    const saleType = makeSaleType({ name: "Direct Sale" })
+    makeSalesFlow({ sale_type_id: saleType.id })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: "Direct Sale" }))
+
+    expect(await screen.findByText("No Stages yet")).toBeInTheDocument()
+    expect(screen.getByText(/Use the plus in the corner to name your first Stage/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Add Stage" })).toBeInTheDocument()
+    // Docked input box is gone
+    expect(screen.queryByPlaceholderText(/Name a Stage in your own words/)).not.toBeInTheDocument()
+  })
+
+  it("hides all plus buttons while the Sales Flow is published", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // published
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    // Canvas-level plus is hidden
+    expect(screen.queryByRole("button", { name: "Add Stage" })).not.toBeInTheDocument()
+    // Stage-level plusses are hidden
+    expect(screen.queryByLabelText(/Add Stage after/)).not.toBeInTheDocument()
+  })
+
   // ── Version viewing and restore (issue #193) ─────────────────────────────
 
   it("draws a clicked version read-only under a banner, with no editing controls, and returns to the draft", async () => {

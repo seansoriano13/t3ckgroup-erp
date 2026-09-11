@@ -17,6 +17,7 @@ import {
   byCanvasPosition,
   columnRows,
   columnSlots,
+  nextStagePosition,
   satellitePosition,
   stageBox,
 } from "./flowCanvasLayout"
@@ -202,6 +203,38 @@ describe("flowCanvasLayout", () => {
       expect(node.selectable).toBe(false)
       expect(node.draggable).toBe(false)
       expect(node.style.pointerEvents).toBe("none")
+    })
+  })
+
+  describe("nextStagePosition (issue #195)", () => {
+    it("places the new Stage to the right of its source", () => {
+      const source = { pos_x: 100, pos_y: 150 }
+      const pos = nextStagePosition(source, [source])
+      expect(pos.x).toBe(100 + STAGE_W + 96)
+      expect(pos.y).toBe(150)
+    })
+
+    it("nudges down until it overlaps no existing Stage", () => {
+      const source = { pos_x: 100, pos_y: 100 }
+      const targetX = 100 + STAGE_W + 96
+      // Put an existing stage exactly where the default placement would land
+      const existing = [source, { pos_x: targetX, pos_y: 100 }]
+      const pos = nextStagePosition(source, existing)
+      expect(pos.x).toBe(targetX)
+      expect(pos.y).toBe(100 + STAGE_H + 24)
+    })
+
+    it("stacks multiple consecutive children downward without collision", () => {
+      const source = { pos_x: 0, pos_y: 0 }
+      const firstChild = { pos_x: STAGE_W + 96, pos_y: 0 }
+      const secondChildPos = nextStagePosition(source, [source, firstChild])
+      expect(secondChildPos.x).toBe(STAGE_W + 96)
+      expect(secondChildPos.y).toBe(STAGE_H + 24)
+
+      const secondChild = { pos_x: secondChildPos.x, pos_y: secondChildPos.y }
+      const thirdChildPos = nextStagePosition(source, [source, firstChild, secondChild])
+      expect(thirdChildPos.x).toBe(STAGE_W + 96)
+      expect(thirdChildPos.y).toBe((STAGE_H + 24) * 2)
     })
   })
 })

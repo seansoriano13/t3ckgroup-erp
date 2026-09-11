@@ -62,4 +62,36 @@ describe("FlowCanvasNode", () => {
     expect(screen.getByText(/Gate.*3/)).toBeInTheDocument()
     expect(screen.getByText(/On entry.*5/)).toBeInTheDocument()
   })
+
+  describe("outgoing plus button (issue #195)", () => {
+    it("is always visible when the stage has no outgoing move", () => {
+      renderNode({ canAddStage: true, hasOutgoing: false })
+      const button = screen.getByLabelText("Add Stage after Qualification")
+      const wrapper = button.closest(".nodrag")
+      expect(wrapper).toHaveClass("opacity-100")
+      expect(wrapper).not.toHaveClass("opacity-0")
+    })
+
+    it("appears only on hover when the stage already has an outgoing move", () => {
+      renderNode({ canAddStage: true, hasOutgoing: true })
+      const button = screen.getByLabelText("Add Stage after Qualification")
+      const wrapper = button.closest(".nodrag")
+      expect(wrapper).toHaveClass("opacity-0")
+      expect(wrapper).toHaveClass("group-hover/stage:opacity-100")
+    })
+
+    it("never appears on a terminal stage", () => {
+      renderNode({
+        canAddStage: true,
+        hasOutgoing: false,
+        stage: makeFlowStage({ name: "Lost", is_terminal: true }),
+      })
+      expect(screen.queryByLabelText(/Add Stage after/)).not.toBeInTheDocument()
+    })
+
+    it("never appears when the flow is published / editing is disabled", () => {
+      renderNode({ canAddStage: false, hasOutgoing: false })
+      expect(screen.queryByLabelText(/Add Stage after/)).not.toBeInTheDocument()
+    })
+  })
 })
