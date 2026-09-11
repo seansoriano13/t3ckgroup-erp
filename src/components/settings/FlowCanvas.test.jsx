@@ -207,6 +207,12 @@ describe("FlowCanvas", () => {
     await user.click(screen.getByRole("button", { name: "Publish" }))
 
     expect(await screen.findByText("Move 1 SOR on 1.x up to v1.1?")).toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Move deals" }))
+    expect(await screen.findByText("Deals moved")).toBeInTheDocument()
+    expect(screen.getByText("1 moved successfully.")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Done" }))
+    expect(screen.queryByText("Deals moved")).not.toBeInTheDocument()
   })
 
   it("does not offer to move deals after a major publish", async () => {

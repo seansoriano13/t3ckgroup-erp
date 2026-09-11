@@ -351,8 +351,8 @@ function FlowCanvasInner() {
   });
 
   const acceptMoveOffer = useMutation({
-    mutationFn: () =>
-      opportunityService.moveOpportunitiesToVersion(moveOffer.targetSnapshotId, user?.id),
+    mutationFn: (targetSnapshotId) =>
+      opportunityService.moveOpportunitiesToVersion(targetSnapshotId, user?.id),
     onSuccess: (result) => {
       setMoveResult(result);
       setMoveOffer(null);
@@ -1343,7 +1343,7 @@ function FlowCanvasInner() {
         title={`Move ${moveOffer?.count} SOR${moveOffer?.count === 1 ? "" : "s"} on ${moveOffer?.majorLabel} up to ${moveOffer?.targetLabel}?`}
         description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing moves unless you choose to."
         confirmLabel="Move deals"
-        onConfirm={() => acceptMoveOffer.mutate()}
+        onConfirm={() => acceptMoveOffer.mutate(moveOffer?.targetSnapshotId)}
       />
 
       {/* ── Move result summary ──────────────────────────────────────────── */}
