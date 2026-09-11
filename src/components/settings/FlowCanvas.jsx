@@ -5,6 +5,7 @@ import {
   Archive,
   ArchiveRestore,
   ChevronDown,
+  ChevronRight,
   Lock,
   LockOpen,
   Pencil,
@@ -152,6 +153,9 @@ function FlowCanvasInner() {
   // so switching flows never leaves one flow's version pinned over another's.
   const [viewingSnapshot, setViewingSnapshot] = useState(null);
   const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
+  // Collapsed by default (issue #194) — archived Sale Types stay out of the
+  // way of the working list until someone asks to see them.
+  const [showArchivedTypes, setShowArchivedTypes] = useState(false);
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ["saleTypes", "all"],
@@ -159,6 +163,9 @@ function FlowCanvasInner() {
   });
 
   const effectiveSaleTypeId = selectedSaleTypeId || saleTypes?.[0]?.id || "";
+
+  const activeSaleTypes = useMemo(() => saleTypes?.filter((t) => !t.archived_at) ?? [], [saleTypes]);
+  const archivedSaleTypes = useMemo(() => saleTypes?.filter((t) => t.archived_at) ?? [], [saleTypes]);
 
   const { data: canvas, isLoading: loadingCanvas } = useQuery({
     queryKey: ["salesFlow", effectiveSaleTypeId],
@@ -899,7 +906,7 @@ function FlowCanvasInner() {
                 >
                   {({ close }) => (
                     <div className="flex max-h-[60vh] flex-col overflow-y-auto">
-                      {saleTypes?.map((saleType) => (
+                      {activeSaleTypes.map((saleType) => (
                         <button
                           key={saleType.id}
                           onClick={() => {
@@ -910,16 +917,56 @@ function FlowCanvasInner() {
                           }}
                           className={cn(
                             "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors hover:bg-mauve-a3",
-                            saleType.id === effectiveSaleTypeId && "bg-foreground text-background hover:bg-foreground hover:text-background",
-                            saleType.archived_at && "opacity-60"
+                            saleType.id === effectiveSaleTypeId && "bg-foreground text-background hover:bg-foreground hover:text-background"
                           )}
                         >
-                          {saleType.name} {saleType.archived_at && "(Archived)"}
+                          {saleType.name}
                         </button>
                       ))}
+
+                      {archivedSaleTypes.length > 0 && (
+                        <div className="mt-1 border-t border-border pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowArchivedTypes((v) => !v)}
+                            className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:bg-mauve-a3"
+                          >
+                            <ChevronRight
+                              size={12}
+                              className={cn("transition-transform", showArchivedTypes && "rotate-90")}
+                            />
+                            {showArchivedTypes ? "Hide" : "Show"} archived ({archivedSaleTypes.length})
+                          </button>
+
+                          {showArchivedTypes &&
+                            archivedSaleTypes.map((saleType) => (
+                              <button
+                                key={saleType.id}
+                                onClick={() => {
+                                  setSelectedSaleTypeId(saleType.id);
+                                  setSelection(null);
+                                  setViewingSnapshot(null);
+                                  close();
+                                }}
+                                className={cn(
+                                  "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold opacity-60 transition-colors hover:bg-mauve-a3",
+                                  saleType.id === effectiveSaleTypeId && "bg-foreground text-background opacity-100 hover:bg-foreground hover:text-background"
+                                )}
+                              >
+                                {saleType.name} (Archived)
+                              </button>
+                            ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </Dropdown>
+
+                {selectedSaleType?.archived_at && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                    Archived
+                  </span>
+                )}
 
                 {selectedSaleType && (
                   <>

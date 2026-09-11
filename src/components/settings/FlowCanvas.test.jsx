@@ -400,4 +400,44 @@ describe("FlowCanvas", () => {
     const stages = (await salesFlowService.getFlow(saleType.id)).stages
     expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Negotiation"])
   })
+
+  describe("archived Sale Types in the picker (issue #194)", () => {
+    it("hides the archived section when there are none", async () => {
+      seedFlow()
+      renderWithProviders(<FlowCanvas />)
+      await userEvent.click(await screen.findByRole("button", { name: "Government Bidding" }))
+      expect(screen.queryByText(/Show archived/)).not.toBeInTheDocument()
+    })
+
+    it("lists archived Sale Types collapsed under a count, and expands on click", async () => {
+      const { saleType } = seedFlow()
+      const archived = makeSaleType({ name: "Retired Program", archived_at: new Date().toISOString() })
+      makeSalesFlow({ sale_type_id: archived.id })
+
+      renderWithProviders(<FlowCanvas />)
+      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+
+      expect(await screen.findByText("Show archived (1)")).toBeInTheDocument()
+      expect(screen.queryByText("Retired Program")).not.toBeInTheDocument()
+
+      await userEvent.click(screen.getByText("Show archived (1)"))
+      expect(await screen.findByText(/Retired Program/)).toBeInTheDocument()
+    })
+
+    it("opens an archived Sale Type from the collapsed section and marks the canvas archived", async () => {
+      const { saleType } = seedFlow()
+      const archived = makeSaleType({ name: "Retired Program", archived_at: new Date().toISOString() })
+      const archivedFlow = makeSalesFlow({ sale_type_id: archived.id })
+      makeFlowStage({ flow_id: archivedFlow.id, name: "Only Stage", sort_order: 0 })
+
+      renderWithProviders(<FlowCanvas />)
+      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+      await userEvent.click(screen.getByText("Show archived (1)"))
+      await userEvent.click(screen.getByText(/Retired Program/))
+
+      expect(await screen.findByRole("button", { name: "Retired Program" })).toBeInTheDocument()
+      expect(await screen.findByText("Archived")).toBeInTheDocument()
+      expect(await screen.findByText("Only Stage")).toBeInTheDocument()
+    })
+  })
 })
