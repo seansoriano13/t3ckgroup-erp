@@ -38,6 +38,8 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { supabase } from "../../lib/supabase";
+import { opportunityService } from "../../services/opportunityService";
+import { formatVersionNumber } from "../../constants/flowVersion";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
@@ -135,6 +137,12 @@ function FlowCanvasInner() {
   const [dialogValue, setDialogValue] = useState("");
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishNote, setPublishNote] = useState("");
+  // Set after a minor publish that has SORs to offer moving up (issue #190):
+  // { targetSnapshotId, majorLabel, targetLabel, count }. Never set after a
+  // major publish or a first publish — the offer is opt-in, so nothing here
+  // moves a deal until the Operations Manager accepts it.
+  const [moveOffer, setMoveOffer] = useState(null);
+  const [moveResult, setMoveResult] = useState(null);
   const [toolbarMode, setToolbarMode] = useState("select");
   const [inlineValue, setInlineValue] = useState("");
 
@@ -274,6 +282,52 @@ function FlowCanvasInner() {
   });
 
   const run = useCallback((fn, message) => doRun({ run: fn, message }), [doRun]);
+
+  // Publish gets its own mutation, rather than running through `run` above,
+  // because the post-publish "move deals up" offer (issue #190) needs the
+  // published snapshot's version numbers — `run`'s success handler only
+  // knows the toast message, not the mutation's result.
+  const publishFlow = useMutation({
+    // Takes the note as a mutate() argument, not read from `publishNote`
+    // state inside the closure: closing the popover resets that state right
+    // after `onConfirm`, and TanStack Query re-reads `mutationFn` from the
+    // latest render before this actually executes — a closure over state
+    // here would race that reset and publish an empty note.
+    mutationFn: (note) => salesFlowService.publishFlow(flow?.id, user?.id, note),
+    onSuccess: async (result) => {
+      refresh();
+      toast.success("Flow published.");
+      setPublishNote("");
+
+      const snapshot = result?.snapshot;
+      // Only a minor publish is safe to offer moving deals onto (ADR 0020):
+      // a fresh major (version_minor === 0, including the very first v1.0)
+      // may drop a Stage or change the Won Stage, so an earlier deal could
+      // be stranded or have its Realized timing shift.
+      if (!snapshot || snapshot.version_minor === 0) return;
+
+      const count = await opportunityService.countOpportunitiesEligibleForVersionMove(snapshot.id);
+      if (count > 0) {
+        setMoveOffer({
+          targetSnapshotId: snapshot.id,
+          majorLabel: `${snapshot.version}.x`,
+          targetLabel: formatVersionNumber(snapshot.version, snapshot.version_minor),
+          count,
+        });
+      }
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const acceptMoveOffer = useMutation({
+    mutationFn: () =>
+      opportunityService.moveOpportunitiesToVersion(moveOffer.targetSnapshotId, user?.id),
+    onSuccess: (result) => {
+      setMoveResult(result);
+      setMoveOffer(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   /** Opens the one dialog, seeded for whichever question is being asked. */
   const ask = useCallback((config) => {
@@ -1104,13 +1158,7 @@ function FlowCanvasInner() {
         description="Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
         confirmLabel="Publish"
         confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
-        onConfirm={() => {
-          run(
-            () => salesFlowService.publishFlow(flow?.id, user?.id, publishNote.trim() || null),
-            "Flow published.",
-          );
-          setPublishNote("");
-        }}
+        onConfirm={() => publishFlow.mutate(publishNote.trim() || null)}
       >
         <div className="space-y-3">
           <Input
@@ -1134,6 +1182,43 @@ function FlowCanvasInner() {
               <Spinner size="sm" />
             )}
           </div>
+        </div>
+      </ConfirmDialog>
+
+      {/* ── Move-deals-up offer, after a minor publish (issue #190) ──────── */}
+      <ConfirmDialog
+        open={Boolean(moveOffer)}
+        onOpenChange={(open) => {
+          if (!open) setMoveOffer(null);
+        }}
+        title={`Move ${moveOffer?.count} SOR${moveOffer?.count === 1 ? "" : "s"} on ${moveOffer?.majorLabel} up to ${moveOffer?.targetLabel}?`}
+        description="Every earlier version in this major contains every Stage of the new one and shares its Won Stage, so no deal can be stranded and no deal's Realized timing changes. This is opt-in — nothing moves unless you choose to."
+        confirmLabel="Move deals"
+        onConfirm={() => acceptMoveOffer.mutate()}
+      />
+
+      {/* ── Move result summary ──────────────────────────────────────────── */}
+      <ConfirmDialog
+        open={Boolean(moveResult)}
+        onOpenChange={(open) => {
+          if (!open) setMoveResult(null);
+        }}
+        title="Deals moved"
+        confirmLabel="Done"
+        onConfirm={() => setMoveResult(null)}
+      >
+        <div className="space-y-2 text-sm">
+          <p>{moveResult?.succeeded?.length ?? 0} moved successfully.</p>
+          {moveResult?.failed?.length > 0 && (
+            <div className="space-y-1">
+              <p className="font-semibold text-destructive">{moveResult.failed.length} failed:</p>
+              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
+                {moveResult.failed.map((f) => (
+                  <li key={f.id}>{f.reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </ConfirmDialog>
     </div>

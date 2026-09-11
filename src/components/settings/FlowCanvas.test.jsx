@@ -7,6 +7,7 @@ import { salesFlowService } from "@/services/salesFlowService"
 import {
   makeFlowEdge,
   makeFlowStage,
+  makeOpportunity,
   makeSaleType,
   makeSalesFlow,
   makeSuperAdmin,
@@ -174,6 +175,69 @@ describe("FlowCanvas", () => {
       const history = await salesFlowService.listSnapshots(flow.id)
       expect(history[0].note).toBe("Renamed for clarity.")
     })
+  })
+
+  it("offers to move deals up after a minor publish, naming how many", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    const [v1] = await salesFlowService.listSnapshots(flow.id)
+
+    makeOpportunity({
+      registered_by: mockUser.current.id,
+      sale_type_id: saleType.id,
+      flow_snapshot_id: v1.id,
+      flow_stage_id: lead.id,
+    })
+
+    await salesFlowService.unlockFlow(flow.id, "One more pass", mockUser.current.id)
+    await salesFlowService.renameStage(awarded.id, "Won", mockUser.current.id) // stays v1.x -> minor
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await waitFor(() => expect(screen.getAllByText("Won").length).toBeGreaterThan(0))
+
+    await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
+    await screen.findByText("Changes since the latest version")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+
+    expect(await screen.findByText("Move 1 SOR on 1.x up to v1.1?")).toBeInTheDocument()
+  })
+
+  it("does not offer to move deals after a major publish", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    const [v1] = await salesFlowService.listSnapshots(flow.id)
+
+    makeOpportunity({
+      registered_by: mockUser.current.id,
+      sale_type_id: saleType.id,
+      flow_snapshot_id: v1.id,
+      flow_stage_id: lead.id,
+    })
+
+    await salesFlowService.unlockFlow(flow.id, "Rework", mockUser.current.id)
+    // Changing the Won Stage forces a major bump (ADR 0020) — no earlier
+    // version can be safely assumed to share it.
+    await salesFlowService.setWonStage(flow.id, lead.id, mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    await user.click(await screen.findByRole("button", { name: /Publish v2\.0/ }))
+    await screen.findByText("Changes since the latest version")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+
+    await waitFor(async () => {
+      const history = await salesFlowService.listSnapshots(flow.id)
+      expect(history[0].version).toBe(2)
+    })
+    expect(screen.queryByText(/Move .* SOR.* up to/)).not.toBeInTheDocument()
   })
 
   it("hides every edit control once the flow is locked", async () => {

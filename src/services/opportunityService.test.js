@@ -1827,6 +1827,122 @@ describe("opportunityService", () => {
         ).rejects.toThrow(/not a Stage in this deal's flow/)
       })
     })
+
+    describe("moving deals to a version after a minor publish (issue #190)", () => {
+      it("moves only same-major SORs on an earlier minor, excludes soft-deleted, and includes Scratch", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 1 })
+
+        const onEarlierMinor = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: lead.id,
+        })
+        const scratchOnEarlierMinor = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: lead.id,
+          is_scratch: true,
+        })
+        const deletedOnEarlierMinor = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: lead.id,
+          is_deleted: true,
+        })
+        const alreadyOnTarget = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v2.id,
+          flow_stage_id: lead.id,
+        })
+
+        const otherMajor = makeFlowSnapshot({ flow_id: flow.id, version: 2, version_minor: 3 })
+        const onDifferentMajor = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: otherMajor.id,
+          flow_stage_id: lead.id,
+        })
+
+        const count = await opportunityService.countOpportunitiesEligibleForVersionMove(v2.id)
+        expect(count).toBe(2)
+
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
+
+        expect(result.succeeded.map((d) => d.id).sort()).toEqual(
+          [onEarlierMinor.id, scratchOnEarlierMinor.id].sort(),
+        )
+        expect(result.failed).toEqual([])
+
+        const moved = await opportunityService.getOpportunityById(onEarlierMinor.id)
+        expect(moved.flow_snapshot_id).toBe(v2.id)
+        const movedScratch = await opportunityService.getOpportunityById(scratchOnEarlierMinor.id)
+        expect(movedScratch.flow_snapshot_id).toBe(v2.id)
+
+        const untouchedDeleted = await opportunityService.getOpportunityById(deletedOnEarlierMinor.id)
+        expect(untouchedDeleted.flow_snapshot_id).toBe(v1.id)
+        const untouchedAlready = await opportunityService.getOpportunityById(alreadyOnTarget.id)
+        expect(untouchedAlready.flow_snapshot_id).toBe(v2.id)
+        const untouchedOtherMajor = await opportunityService.getOpportunityById(onDifferentMajor.id)
+        expect(untouchedOtherMajor.flow_snapshot_id).toBe(otherMajor.id)
+
+        const note = (await opportunityService.getNotes(onEarlierMinor.id)).find(
+          (n) => n.metadata?.event === "FLOW_SNAPSHOT_MOVED",
+        )
+        expect(note.content).toContain("v3.0")
+        expect(note.content).toContain("v3.1")
+      })
+
+      it("reports a partial failure without stopping the rest of the batch", async () => {
+        const v1 = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        const v2 = makeFlowSnapshot({
+          flow_id: flow.id,
+          version: 3,
+          version_minor: 1,
+          snapshot_data: { ...v1.snapshot_data, stages: [qualified, awarded, lost] },
+        })
+
+        const strandable = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: lead.id, // not in v2's stages — would be stranded
+        })
+        const movable = makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: v1.id,
+          flow_stage_id: qualified.id,
+        })
+
+        const result = await opportunityService.moveOpportunitiesToVersion(v2.id, registrar.id)
+
+        expect(result.succeeded.map((d) => d.id)).toEqual([movable.id])
+        expect(result.failed).toEqual([
+          { id: strandable.id, reason: expect.stringContaining("does not exist in Flow Snapshot") },
+        ])
+      })
+
+      it("returns nothing to move when there is no earlier minor within the same major", async () => {
+        const onlyVersion = makeFlowSnapshot({ flow_id: flow.id, version: 3, version_minor: 0 })
+        makeOpportunity({
+          registered_by: registrar.id,
+          sale_type_id: saleType.id,
+          flow_snapshot_id: onlyVersion.id,
+          flow_stage_id: lead.id,
+        })
+
+        expect(await opportunityService.countOpportunitiesEligibleForVersionMove(onlyVersion.id)).toBe(0)
+        expect(await opportunityService.moveOpportunitiesToVersion(onlyVersion.id, registrar.id)).toEqual({
+          succeeded: [],
+          failed: [],
+        })
+      })
+    })
   })
 
   describe("changing an SOR's Sale Type", () => {

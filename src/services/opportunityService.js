@@ -845,6 +845,42 @@ function auditLabel({ sales_reference, client_name }) {
     : `Sales opportunity for ${client_name}`;
 }
 
+/**
+ * Every non-deleted SOR pinned to an earlier Flow Snapshot of the same
+ * major as `targetSnapshotId` — the candidate set for "Move N SORs on 3.x
+ * up to 3.2" (issue #190). Scratch SORs are deliberately included: they run
+ * identical Sales Flow code, so the `is_scratch` exclusion this file applies
+ * elsewhere does not apply to a version move.
+ */
+async function eligibleOpportunityIdsForVersionMove(targetSnapshotId) {
+  const { data: targetSnapshot, error: snapshotError } = await supabase
+    .from("flow_snapshots")
+    .select("id, flow_id, version, version_minor")
+    .eq("id", targetSnapshotId)
+    .single();
+  if (snapshotError) throw snapshotError;
+
+  const { data: earlierSnapshots, error: earlierError } = await supabase
+    .from("flow_snapshots")
+    .select("id")
+    .eq("flow_id", targetSnapshot.flow_id)
+    .eq("version", targetSnapshot.version)
+    .lt("version_minor", targetSnapshot.version_minor);
+  if (earlierError) throw earlierError;
+
+  const earlierIds = (earlierSnapshots || []).map((s) => s.id);
+  if (earlierIds.length === 0) return [];
+
+  const { data: deals, error: dealsError } = await supabase
+    .from("sales_opportunities")
+    .select("id")
+    .in("flow_snapshot_id", earlierIds)
+    .neq("is_deleted", true);
+  if (dealsError) throw dealsError;
+
+  return (deals || []).map((d) => d.id);
+}
+
 export const opportunityService = {
   /**
    * The SOR Register. Every register count, the board, the matrix, and the
@@ -1508,6 +1544,28 @@ export const opportunityService = {
       }
     }
     return { succeeded, failed };
+  },
+
+  /**
+   * How many SORs a "Move up to vX.Y" offer would move, without moving them
+   * (issue #190) — the offer states N before anyone accepts it.
+   */
+  async countOpportunitiesEligibleForVersionMove(targetSnapshotId) {
+    const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
+    return ids.length;
+  },
+
+  /**
+   * Moves every non-deleted SOR (Scratch included) pinned to an earlier
+   * Flow Snapshot of the same major onto `targetSnapshotId`, through the
+   * existing audited single-deal move (issue #190). Opt-in only — this runs
+   * solely when the Operations Manager accepts the post-publish offer, never
+   * as a side effect of publishing itself.
+   */
+  async moveOpportunitiesToVersion(targetSnapshotId, actorId) {
+    const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
+    if (ids.length === 0) return { succeeded: [], failed: [] };
+    return opportunityService.bulkMoveOpportunitySnapshot(ids, targetSnapshotId, actorId);
   },
 
   async deleteOpportunity(id, actorId) {
