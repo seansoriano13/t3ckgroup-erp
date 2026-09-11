@@ -54,12 +54,14 @@ import StageSettingsPanel from "./StageSettingsPanel";
 import DiffSummary from "./FlowSnapshotDiffSummary";
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import FlowVersionViewer from "../sor/FlowVersionViewer";
+import AddStagePopoverForm from "./AddStagePopoverForm";
 import {
   GATE,
   RUN,
   bracketNode,
   bracketRuns,
   columnSlots,
+  nextStagePosition,
   satellitePosition,
   stageBox,
 } from "./flowCanvasLayout";
@@ -132,7 +134,6 @@ function FlowCanvasInner() {
   const queryClient = useQueryClient();
   const [selectedSaleTypeId, setSelectedSaleTypeId] = useState("");
   const [newSaleTypeName, setNewSaleTypeName] = useState("");
-  const [newStageName, setNewStageName] = useState("");
   // { nodeId, stageId, tab } — one selection covers the Stage and its satellites,
   // because clicking a condition should open the Stage that owns it.
   const [selection, setSelection] = useState(null);
@@ -376,19 +377,32 @@ function FlowCanvasInner() {
     [stages],
   );
 
-  const handleAddStage = (e) => {
-    e.preventDefault();
-    if (!newStageName.trim() || !flow) return;
+  // The canvas-level plus (issue #195): a Stage with no incoming move, so it
+  // is only staggered against its siblings rather than placed after any one
+  // of them.
+  const addUnconnectedStage = useCallback(
+    async (name) => {
+      const offset = (stages.length * 24) % 240;
+      await salesFlowService.addStage(flow.id, name, user?.id, 120 + offset, 140 + offset);
+      refresh();
+      toast.success("Stage added.");
+    },
+    [flow, stages.length, user?.id, refresh]
+  );
 
-    // Stagger new nodes so a run of them does not land on one another.
-    const offset = (stages.length * 24) % 240;
-
-    run(
-      () => salesFlowService.addStage(flow.id, newStageName, user?.id, 120 + offset, 140 + offset),
-      "Stage added."
-    );
-    setNewStageName("");
-  };
+  // A Stage's own outgoing plus (issue #195): creates the Stage placed to its
+  // right and the move from it in one step, so nobody has to hunt for a
+  // handle afterwards.
+  const addStageAfter = useCallback(
+    async (sourceStage, name) => {
+      const { x, y } = nextStagePosition(sourceStage, stages);
+      const newStage = await salesFlowService.addStage(flow.id, name, user?.id, x, y);
+      await salesFlowService.addEdge(flow.id, sourceStage.id, newStage.id, user?.id);
+      refresh();
+      toast.success("Stage added.");
+    },
+    [flow, stages, user?.id, refresh]
+  );
 
   const setAsEntryStage = useCallback((stageId) => {
     const order = [...stages].map((s) => s.id);
@@ -462,6 +476,9 @@ function FlowCanvasInner() {
           disabled: false,
           conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
+          hasOutgoing: edges.some((e) => e.from_stage_id === stage.id),
+          canAddStage: !isLocked,
+          onAddStage: (name) => addStageAfter(stage, name),
         },
         draggable: true,
       });
@@ -566,6 +583,8 @@ function FlowCanvasInner() {
     conditionsByStage,
     actionsByStage,
     selection,
+    isLocked,
+    addStageAfter,
     handleRemoveEdge,
     setRfNodes,
     setRfEdges,
@@ -1200,7 +1219,7 @@ function FlowCanvasInner() {
       {flow && stages.length === 0 && (
         <CanvasEmptyState
           title="No Stages yet"
-          body="Name the first Stage below. Drag a node to place it, drag from its right edge to another node's left edge to draw a move, and select a Stage to hang conditions and actions off it."
+          body="Use the plus in the corner to name your first Stage. Once one exists, use the plus on its edge to add the next Stage and draw the move in one step."
         />
       )}
 
@@ -1210,22 +1229,26 @@ function FlowCanvasInner() {
         </div>
       )}
 
-      {/* ── Add-Stage dock ──────────────────────────────────────────────── */}
+      {/* ── Add-Stage plus (issue #195) ─────────────────────────────────── */}
       {flow && !isLocked && !viewingSnapshot && (
-        <form
-          onSubmit={handleAddStage}
-          className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md"
-        >
-          <Input
-            value={newStageName}
-            onChange={(e) => setNewStageName(e.target.value)}
-            placeholder="Name a Stage in your own words…"
-            className="h-9 w-64 border-transparent bg-transparent"
-          />
-          <Button type="submit" size="lg" disabled={!newStageName.trim()}>
-            <Plus /> Add Stage
-          </Button>
-        </form>
+        <div className="absolute bottom-4 left-4 z-20">
+          <Dropdown
+            usePortal
+            placement="bottom-start"
+            popoverClassName="popover-enter z-[10001] w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
+            trigger={
+              <Button
+                size="icon-lg"
+                aria-label="Add Stage"
+                className="rounded-2xl bg-card/85 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md hover:bg-card"
+              >
+                <Plus />
+              </Button>
+            }
+          >
+            {({ close }) => <AddStagePopoverForm onSubmit={addUnconnectedStage} close={close} />}
+          </Dropdown>
+        </div>
       )}
 
       {/* ── Stage panel (hidden while viewing a version — FlowVersionViewer

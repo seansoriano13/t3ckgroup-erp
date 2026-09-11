@@ -1,8 +1,10 @@
-import { memo } from "react";
+import { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { CircleDot, Flag, Octagon } from "lucide-react";
+import { CircleDot, Flag, Octagon, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import Dropdown from "@/components/ui/Dropdown";
+import AddStagePopoverForm from "./AddStagePopoverForm";
 import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
 
 /**
@@ -143,12 +145,30 @@ const SubHandle = ({ id, left, tone, count, label }) => (
 );
 
 function FlowCanvasNode({ data, isConnectable, selected }) {
-  const { stage, isEntry, isWon, disabled, conditionCount = 0, actionCount = 0 } = data;
+  const {
+    stage,
+    isEntry,
+    isWon,
+    disabled,
+    conditionCount = 0,
+    actionCount = 0,
+    hasOutgoing = false,
+    canAddStage = false,
+    onAddStage,
+  } = data;
+  const [addOpen, setAddOpen] = useState(false);
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
   const RoleIcon = role.icon;
   const colorKey = stage.color || "mauve";
   const tile = COLOR_TILES[colorKey] || role.tile;
-  
+
+  // Always there when there's nowhere else to leave from; otherwise it's a
+  // hover affordance so a fully-wired flow doesn't read as a wall of plusses.
+  // Never on a Stage meant to end the flow, and never once the flow is
+  // published — Edit draft is the only way back to editing it (issue #195).
+  const showPlus = canAddStage && !stage.is_terminal;
+  const plusAlwaysVisible = !hasOutgoing;
+
   const outlineClass = selected
     ? `outline-2 ${COLOR_OUTLINES_SELECTED[colorKey] || COLOR_OUTLINES_SELECTED.mauve}`
     : `outline-1 ${COLOR_OUTLINES[colorKey] || COLOR_OUTLINES.mauve}`;
@@ -231,6 +251,37 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         label="On entry"
         tone="bg-violet-a3 text-violet-11"
       />
+
+      {showPlus && (
+        <div
+          className={cn(
+            "nodrag absolute -right-3 top-1/2 z-10 -translate-y-1/2 transition-opacity duration-150",
+            plusAlwaysVisible || addOpen
+              ? "opacity-100"
+              : "opacity-0 group-hover/stage:opacity-100 focus-within:opacity-100",
+          )}
+        >
+          <Dropdown
+            isOpen={addOpen}
+            onToggle={() => setAddOpen((prev) => !prev)}
+            onClose={() => setAddOpen(false)}
+            usePortal
+            placement="bottom-start"
+            popoverClassName="popover-enter z-[10001] w-72 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
+            trigger={
+              <button
+                type="button"
+                aria-label={`Add Stage after ${stage.name}`}
+                className="flex size-6 items-center justify-center rounded-full border-2 border-card bg-mauve-9 text-white shadow-sm transition-transform hover:scale-110 hover:bg-mauve-10"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+              </button>
+            }
+          >
+            {({ close }) => <AddStagePopoverForm onSubmit={onAddStage} close={close} />}
+          </Dropdown>
+        </div>
+      )}
 
       {/* Screen-reader summary: the two chips above read as counts out of context. */}
       <span className="sr-only">

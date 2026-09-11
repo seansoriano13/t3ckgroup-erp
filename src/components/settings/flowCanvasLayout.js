@@ -159,6 +159,43 @@ export function columnRows(total) {
  * node, so a flow that has not been configured yet lays out as tightly as it
  * did before any of this existed.
  */
+/** Horizontal gap between a Stage and one added from its outgoing plus. */
+const NEW_STAGE_GAP_X = 96
+/** Vertical step a nudged-down new Stage drops by, each time it still overlaps. */
+const NEW_STAGE_GAP_Y = 24
+
+function boxesOverlap(a, b) {
+  return (
+    a.x < b.x + STAGE_W &&
+    a.x + STAGE_W > b.x &&
+    a.y < b.y + STAGE_H &&
+    a.y + STAGE_H > b.y
+  )
+}
+
+/**
+ * Where a Stage created from another Stage's outgoing plus (issue #195) lands:
+ * straight to the source's right, nudged down a step at a time until its box
+ * clears every existing Stage's — so adding several in a row from the same
+ * source stacks them downward instead of piling them on one point. Ignores
+ * satellite columns, the same simplification the add-Stage dock's own
+ * staggering used, since a fresh Stage has none yet.
+ */
+export function nextStagePosition(source, stages = []) {
+  const x = (source.pos_x ?? 0) + STAGE_W + NEW_STAGE_GAP_X
+  let y = source.pos_y ?? 0
+
+  while (
+    stages.some((s) =>
+      boxesOverlap({ x, y }, { x: s.pos_x ?? 0, y: s.pos_y ?? 0 }),
+    )
+  ) {
+    y += STAGE_H + NEW_STAGE_GAP_Y
+  }
+
+  return { x, y }
+}
+
 export function stageBox({ conditionCount = 0, actionCount = 0 } = {}) {
   const gateRows = columnRows(conditionCount)
   const runRows = columnRows(actionCount)

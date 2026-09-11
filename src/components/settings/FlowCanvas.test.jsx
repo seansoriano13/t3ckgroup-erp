@@ -268,12 +268,54 @@ describe("FlowCanvas", () => {
 
     renderWithProviders(<FlowCanvas />)
 
+    await user.click(await screen.findByRole("button", { name: "Add Stage" }))
     await user.type(await screen.findByPlaceholderText(/Name a Stage/), "Post-Qualification")
-    await user.click(screen.getByRole("button", { name: /Add Stage/ }))
+    await user.click(screen.getByRole("button", { name: "Add" }))
 
     await waitFor(async () => {
       const { stages } = await salesFlowService.getFlow(saleType.id)
       expect(stages.map((s) => s.name)).toContain("Post-Qualification")
+    })
+  })
+
+  it("keeps the popover open with an inline error for a blank or duplicate Stage name", async () => {
+    const user = userEvent.setup()
+    seedFlow()
+
+    renderWithProviders(<FlowCanvas />)
+
+    await user.click(await screen.findByRole("button", { name: "Add Stage" }))
+    await user.click(screen.getByRole("button", { name: "Add" }))
+    expect(await screen.findByText("A Stage needs a name.")).toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText(/Name a Stage/), "Lead")
+    await user.click(screen.getByRole("button", { name: "Add" }))
+    expect(await screen.findByText(/already a Stage called "Lead"/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText(/Name a Stage/)).toBeInTheDocument()
+  })
+
+  it("adds the next Stage and its move from a Stage's own outgoing plus", async () => {
+    const user = userEvent.setup()
+    const { saleType, lead } = seedFlow()
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    // React Flow nodes stay `visibility: hidden` until measured (jsdom never
+    // fires the mocked ResizeObserver), which hides their contents from the
+    // accessibility tree without hiding them from the DOM — so the plus is
+    // found and clicked directly rather than through `getByRole`, the same
+    // reason node clicks elsewhere in this file use `fireEvent` (see below).
+    const leadNode = (await screen.findByText("Lead")).closest(".react-flow__node")
+    fireEvent.click(within(leadNode).getByLabelText(`Add Stage after ${lead.name}`))
+    await user.type(await screen.findByPlaceholderText(/Name a Stage/), "Qualified")
+    await user.click(screen.getByRole("button", { name: "Add" }))
+
+    await waitFor(async () => {
+      const { stages, edges } = await salesFlowService.getFlow(saleType.id)
+      const qualified = stages.find((s) => s.name === "Qualified")
+      expect(qualified).toBeTruthy()
+      expect(edges.some((e) => e.from_stage_id === lead.id && e.to_stage_id === qualified.id)).toBe(true)
     })
   })
 
