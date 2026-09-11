@@ -189,11 +189,10 @@ function FlowCanvasInner() {
   const [rfNodes, setRfNodes, onNodesChange] = useNodesState([]);
   const [rfEdges, setRfEdges, onEdgesChange] = useEdgesState([]);
 
-  // Live cursors belong to Flow Plans, not to the operational canvas (issue
-  // #117): a plan is a sketch several people work on together, while this
-  // canvas edits live records, where two people at once is a hazard. The
-  // provider decides — the sandbox one supplies a plan id, the live one null,
-  // and with null this subscribes to nothing.
+  // Peer presence is scoped per Sale Type: everyone editing the same live flow
+  // sees each other's avatars and drags. `presenceScope` from the provider is
+  // null (#186 removed the Sandbox that supplied one), so the fallback below
+  // builds the scope from the active Sale Type.
   const applyPeerDrag = useCallback(
     ({ nodeId, position }) => {
       setRfNodes((nodes) => nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)));
@@ -210,9 +209,8 @@ function FlowCanvasInner() {
     onPeerNodeDrag: applyPeerDrag,
   });
 
-  // The live flow lives in tables, so this canvas hears about changes another
-  // browser made to them via postgres_changes. A sandbox plan has no rows to watch
-  // — its changes arrive through the Yjs CRDT document instead.
+  // The flow lives in tables, so this canvas hears about changes another
+  // browser made to them via postgres_changes.
   useEffect(() => {
     if (!effectiveSaleTypeId || contextPresenceScope) return undefined;
 

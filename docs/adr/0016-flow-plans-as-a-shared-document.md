@@ -1,7 +1,10 @@
 # ADR 0016 — A Flow Plan is a shared document, not rows
 
 ## Status
-Accepted
+Superseded by [ADR 0019](0019-flow-canvas-is-one-editing-surface.md) (issue
+#186). The Sandbox mode and the `flow_plans` shared document it describes were
+removed; the Flow Canvas now edits the live Sales Flow only. This ADR is kept
+for the history of why the CRDT approach was chosen while it existed.
 
 ## Context
 

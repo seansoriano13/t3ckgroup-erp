@@ -202,10 +202,11 @@ export const NAV_MODULES = {
       // Admin already qualifies for that entry's isPermitted check, so it
       // isn't duplicated here.
 
-      // Issue #36/#83 and this reshape — a long-lived feature, not a
-      // one-time build. Live editing and its Flow Snapshot history are
-      // Super-Admin-gated; the Sandbox mode inside stays open to anyone,
-      // same as before.
+      // Issue #36/#83 — a long-lived feature, not a one-time build. One
+      // editing surface since #186 removed the Sandbox mode. The Flow Canvas
+      // tables are writable by every signed-in employee (see the policy
+      // tier), so the entry stays visible to all; the Flow Snapshot history
+      // reached from the canvas is Super-Admin-gated.
       {
         key: "admin.flowCanvas",
         label: "Flow Canvas",

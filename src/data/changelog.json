@@ -1,5 +1,14 @@
 [
     {
+        "date": "2026-09-11",
+        "title": "Flow Canvas Is One Canvas Now",
+        "version": "1.7.10",
+        "changes": [
+            "The Flow Canvas no longer has a Live/Sandbox switch. It opens straight onto the real Sales Flow, which is the only thing it ever edited that mattered — the shared Sandbox scratch space has been retired.",
+            "You still see who else is working on the same flow, and a Super Admin can still open the Snapshot History from the canvas."
+        ]
+    },
+    {
         "date": "2026-09-10",
         "title": "Password Reset Links That Hold Up",
         "version": "1.7.9",

@@ -34,11 +34,10 @@ describe("navigation registry", () => {
       };
 
       const groups = getFilteredNavigationGroups(standardUser);
-      // Flow Canvas (issue #36) is deliberately visible to everyone: Live
-      // editing is Super-Admin gated internally, and its Sandbox mode (the
-      // former standalone Flow Plans, folded in by this reshape) stays open
-      // to anyone, so even a standard employee sees the Administration group
-      // for that one link.
+      // Flow Canvas (issue #36) is deliberately visible to everyone: its
+      // tables are writable by every signed-in employee (see the policy
+      // tier), so even a standard employee sees the Administration group for
+      // that one link.
       expect(groups).toHaveLength(2);
       expect(groups[0].key).toBe("workspace");
       expect(groups[0].label).toBe("Workspace");
@@ -182,7 +181,7 @@ describe("navigation registry", () => {
       const adminGroup = groups.find((g) => g.key === "administration");
       expect(adminGroup.links.map((l) => l.label)).toEqual([
         // Activity Log lives in Human Resources now (#105) — Super Admin uses that entry.
-        // Flow Plans folded into Flow Canvas's Sandbox mode by this reshape.
+        // Flow Plans / the Sandbox mode were removed by #186.
         // System Admin and Lead Sources moved into Settings (#177).
         "Flow Canvas",
         "Commission Pool",

@@ -1,17 +1,15 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderWithProviders } from "../support"
-import { db } from "../db/store"
 import { makeEmployee, makeSaleType, makeSalesFlow, makeSuperAdmin } from "../factories"
 import { supabase } from "@/lib/supabase"
 
 /**
- * Flow Plans folded into a Sandbox mode on this one screen (this reshape).
- * Live and Sandbox render the same `FlowCanvas`, switching only the data
- * provider underneath — the interesting behaviour to prove here is the
- * toggle and the Sandbox's singleton provisioning, not the canvas itself
- * (already covered by FlowCanvas.test.jsx).
+ * The Sandbox mode was removed by #186: the Flow Canvas is now one editing
+ * surface, opening straight onto the live Sales Flow. What is worth proving
+ * here is that no mode toggle survives, that a Super Admin can still reach the
+ * Snapshot History, and that live presence is wired up — the canvas itself is
+ * covered by FlowCanvas.test.jsx.
  */
 const mockUser = vi.hoisted(() => ({ current: null }))
 
@@ -38,16 +36,25 @@ beforeEach(() => {
 
 import FlowCanvasAdminPage from "../../pages/super-admin/flow-canvas/index.jsx"
 
-describe("FlowCanvasAdminPage modes", () => {
-  it("opens in Live mode by default", async () => {
+describe("FlowCanvasAdminPage", () => {
+  it("opens straight into the editable canvas, with no Live/Sandbox toggle", async () => {
     mockUser.current = makeSuperAdmin({ name: "Super Admin" })
     renderWithProviders(<FlowCanvasAdminPage />)
 
     expect(await screen.findByText("No Sale Types yet")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Live" })).toHaveAttribute("aria-pressed", "true")
+    expect(screen.queryByRole("button", { name: "Live" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Sandbox" })).not.toBeInTheDocument()
   })
 
-  it("shows Snapshot History only to a Super Admin, in Live mode", async () => {
+  it("shows the Snapshot History button to a Super Admin", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Super Admin" })
+    renderWithProviders(<FlowCanvasAdminPage />)
+    await screen.findByText("No Sale Types yet")
+
+    expect(screen.getByRole("button", { name: /Snapshot History/ })).toBeInTheDocument()
+  })
+
+  it("hides the Snapshot History button from a non-Super-Admin", async () => {
     mockUser.current = makeEmployee({ is_super_admin: false })
     renderWithProviders(<FlowCanvasAdminPage />)
     await screen.findByText("No Sale Types yet")
@@ -55,29 +62,7 @@ describe("FlowCanvasAdminPage modes", () => {
     expect(screen.queryByRole("button", { name: /Snapshot History/ })).not.toBeInTheDocument()
   })
 
-  it("provisions the one shared Sandbox on switching to Sandbox mode and connects to sandbox presence", async () => {
-    mockUser.current = makeSuperAdmin({ name: "Super Admin" })
-    const user = userEvent.setup()
-    renderWithProviders(<FlowCanvasAdminPage />)
-    await screen.findByText("No Sale Types yet")
-
-    await user.click(screen.getByRole("button", { name: "Sandbox" }))
-
-    await waitFor(() => expect(db.internal.rowsOf("flow_plans")).toHaveLength(1))
-    const sandbox = db.internal.rowsOf("flow_plans")[0]
-    expect(screen.getByRole("button", { name: "Sandbox" })).toHaveAttribute("aria-pressed", "true")
-    // Sandbox mode has no Snapshot history — that only ever describes Live.
-    expect(screen.queryByRole("button", { name: /Snapshot History/ })).not.toBeInTheDocument()
-    // Verifies Sandbox presence is subscribed
-    await waitFor(() => {
-      expect(supabase.channel).toHaveBeenCalledWith(
-        `flow_presence_${sandbox.id}`,
-        expect.anything()
-      )
-    })
-  })
-
-  it("connects to live presence channel in Live mode when a sale type is active", async () => {
+  it("connects to the live presence channel when a sale type is active", async () => {
     const saleType = makeSaleType({ name: "Live Sales Flow" })
     makeSalesFlow({ sale_type_id: saleType.id })
 

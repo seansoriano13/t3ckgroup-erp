@@ -178,11 +178,10 @@ _Avoid_: Booked, Closed (when meaning the money pool)
 The module in which the developer and Operations build Sales Flows together,
 on staging — a long-lived feature, not a one-time build: the business's CRM
 process keeps changing after a flow is locked, so the canvas keeps being used
-to revise it, each revision landing as its own Flow Snapshot. It carries two
-modes on one screen: **Live** (editing `sales_flows` directly, Super-Admin
-gated) and **Sandbox** (a shared draft that touches no live record, open to
-anyone — formerly the standalone "Flow Plan").
-_Avoid_: Builder, Planner, Designer, Flow Plan (folded into Sandbox mode)
+to revise it, each revision landing as its own Flow Snapshot. One editing surface, editing `sales_flows` directly; the Flow Snapshot history
+opens from it.
+_Avoid_: Builder, Planner, Designer, Flow Plan (a sandbox mode removed by #186 —
+the canvas edits the live flow only)
 
 **Scratch SOR**:
 An SOR that exists only to be pushed through a Sales Flow so its behaviour can

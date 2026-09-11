@@ -226,15 +226,6 @@ create table if not exists public."flow_edges" (
   "created_at" timestamp with time zone not null default now()
 );
 
-create table if not exists public."flow_plans" (
-  "id" uuid not null default gen_random_uuid(),
-  "name" text not null,
-  "yjs_state" bytea,
-  "created_by" uuid,
-  "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
-);
-
 create table if not exists public."flow_snapshots" (
   "id" uuid not null default gen_random_uuid(),
   "flow_id" uuid not null,
@@ -818,7 +809,6 @@ alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMAR
 alter table employees add constraint "employees_pkey" PRIMARY KEY (id);
 alter table faq_data add constraint "faq_data_pkey" PRIMARY KEY (id);
 alter table flow_edges add constraint "flow_edges_pkey" PRIMARY KEY (id);
-alter table flow_plans add constraint "flow_plans_pkey" PRIMARY KEY (id);
 alter table flow_snapshots add constraint "flow_snapshots_pkey" PRIMARY KEY (id);
 alter table flow_stage_actions add constraint "flow_stage_actions_pkey" PRIMARY KEY (id);
 alter table flow_stages add constraint "flow_stages_pkey" PRIMARY KEY (id);
@@ -887,7 +877,6 @@ alter table commission_splits add constraint "commission_splits_project_type_chk
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table faq_data add constraint "faq_data_singleton" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
-alter table flow_plans add constraint "flow_plans_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text])));
 alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color IS NULL) OR (color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text]))));
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
@@ -937,7 +926,6 @@ alter table employees add constraint "employees_updated_by_fkey" FOREIGN KEY (up
 alter table flow_edges add constraint "flow_edges_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_from_in_flow" FOREIGN KEY (flow_id, from_stage_id) REFERENCES flow_stages(flow_id, id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_to_in_flow" FOREIGN KEY (flow_id, to_stage_id) REFERENCES flow_stages(flow_id, id) ON DELETE CASCADE;
-alter table flow_plans add constraint "flow_plans_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table flow_snapshots add constraint "flow_snapshots_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table flow_snapshots add constraint "flow_snapshots_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_stage_actions add constraint "flow_stage_actions_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
@@ -1120,7 +1108,6 @@ alter table public."crm_pipeline_stages" enable row level security;
 alter table public."employees" enable row level security;
 alter table public."faq_data" enable row level security;
 alter table public."flow_edges" enable row level security;
-alter table public."flow_plans" enable row level security;
 alter table public."flow_snapshots" enable row level security;
 alter table public."flow_stage_actions" enable row level security;
 alter table public."flow_stages" enable row level security;
@@ -1419,26 +1406,6 @@ create policy "flow_edges_write" on public."flow_edges"
   to authenticated
   using (true)
   with check (true);
-create policy "flow_plans_delete" on public."flow_plans"
-  as permissive
-  for delete
-  to authenticated
-  using ((created_by = get_employee_id()));
-create policy "flow_plans_insert" on public."flow_plans"
-  as permissive
-  for insert
-  to authenticated
-  with check ((created_by = get_employee_id()));
-create policy "flow_plans_read" on public."flow_plans"
-  as permissive
-  for select
-  to authenticated
-  using (true);
-create policy "flow_plans_update" on public."flow_plans"
-  as permissive
-  for update
-  to authenticated
-  using (true)
   with check (true);
 create policy "flow_snapshots_read" on public."flow_snapshots"
   as permissive

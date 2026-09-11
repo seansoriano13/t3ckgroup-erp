@@ -84,7 +84,7 @@ afterAll(async () => {
 // ===========================================================================
 
 describe("the Flow Canvas tables", () => {
-    it.each([...OPENED_TO_EVERYONE, "flow_snapshots", "flow_plans"])(
+    it.each([...OPENED_TO_EVERYONE, "flow_snapshots"])(
         "has row level security turned on and at least one policy: %s",
         async (table) => {
             const { enabled, policies } = await rlsStatus(table)
@@ -244,7 +244,7 @@ describe("locking a flow, which is what writes a snapshot", () => {
 
     it.each(EVERYONE)("%s cannot publish a snapshot in somebody else's name", async (key) => {
         // A snapshot records who published that version of the rules. Same
-        // shape as sor_insert and flow_plans_insert.
+        // shape as the sor_insert "own name only" check.
         const impersonated = key === "superAdmin" ? ids.ordinary : ids.superAdmin
         const client = await clientFor(key)
         const result = await tryInsert(client, "flow_snapshots", {
@@ -364,61 +364,5 @@ describe("locking a flow, which is what writes a snapshot", () => {
         const client = await clientFor("ordinary")
         const { error } = await client.from("flow_snapshots").select("id").limit(1)
         expect(error).toBeNull()
-    })
-})
-
-describe("the sandbox, which is a shared document by design", () => {
-    it("lets an employee create a plan only in their own name", async () => {
-        const client = await clientFor("ordinary")
-
-        const own = await tryInsert(client, "flow_plans", {
-            name: `${MARKER} My sandbox`,
-            created_by: ids.ordinary,
-        })
-        expect(own.ok, own.message).toBe(true)
-
-        const impersonated = await tryInsert(client, "flow_plans", {
-            name: `${MARKER} Not mine`,
-            created_by: ids.superAdmin,
-        })
-        expect(impersonated.ok).toBe(false)
-
-        await serviceClient().from("flow_plans").delete().eq("id", own.id)
-    })
-
-    it("lets anybody edit anybody's plan, because the sandbox is one shared document", async () => {
-        // ADR 0016: the sandbox is a single collaborative document, so a write
-        // policy scoped to the creator would defeat its purpose.
-        const svc = serviceClient()
-        const plan = await svc
-            .from("flow_plans")
-            .insert({ name: `${MARKER} Shared`, created_by: ids.ordinary })
-            .select("id")
-            .single()
-        if (plan.error) throw new Error(plan.error.message)
-
-        const client = await clientFor("outsider")
-        const result = await tryUpdate(client, "flow_plans", plan.data.id, {
-            name: `${MARKER} Edited by someone else`,
-        })
-        expect(result.affected).toBe(1)
-
-        await svc.from("flow_plans").delete().eq("id", plan.data.id)
-    })
-
-    it("lets only the creator delete their own plan", async () => {
-        const svc = serviceClient()
-        const plan = await svc
-            .from("flow_plans")
-            .insert({ name: `${MARKER} Mine to delete`, created_by: ids.ordinary })
-            .select("id")
-            .single()
-        if (plan.error) throw new Error(plan.error.message)
-
-        const stranger = await clientFor("outsider")
-        expect((await tryDelete(stranger, "flow_plans", plan.data.id)).affected).toBe(0)
-
-        const owner = await clientFor("ordinary")
-        expect((await tryDelete(owner, "flow_plans", plan.data.id)).affected).toBe(1)
     })
 })

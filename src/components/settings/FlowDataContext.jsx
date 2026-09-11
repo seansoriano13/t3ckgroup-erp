@@ -12,15 +12,14 @@ export function useFlowData() {
 }
 
 export function FlowDataProvider({ children }) {
-  // Currently, the live provider just delegates directly to the existing services.
+  // The one provider behind the canvas since #186 removed the Sandbox: it
+  // delegates straight to the live services.
   const value = {
     salesFlow: salesFlowService,
     stageCondition: stageConditionService,
     stageAction: stageActionService,
-    // No presence on the operational canvas (issue #117): it edits live
-    // records, where two people working at once is a hazard rather than a
-    // feature. Live cursors belong on Flow Plans, whose provider supplies a
-    // scope here.
+    // This provider names no presence scope; `FlowCanvas` falls back to a
+    // per-Sale-Type live scope so peers on the same flow still see each other.
     presenceScope: null,
   };
 

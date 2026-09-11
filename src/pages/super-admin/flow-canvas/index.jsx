@@ -1,41 +1,34 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { History } from "lucide-react";
 
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
 import FlowCanvas from "@/components/settings/FlowCanvas.jsx";
 import { FlowDataProvider } from "@/components/settings/FlowDataContext.jsx";
-import { SandboxFlowDataProvider } from "@/components/settings/SandboxFlowDataProvider.jsx";
-import FlowCanvasModeBar from "@/components/settings/FlowCanvasModeBar.jsx";
 import FlowSnapshotHistoryPanel from "@/components/settings/FlowSnapshotHistoryPanel.jsx";
-import Spinner from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
-import { flowPlanService } from "@/services/flowPlanService";
 import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**
- * The Flow Canvas (issue #36) and its Sandbox mode (issues #115-117, folded
- * in by this reshape) — one screen, one nav entry, for what was always one
- * activity: building and refining the CRM process.
+ * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
+ * one activity: building and refining the CRM process.
  *
- * **Live** edits `sales_flows` directly — real Sale Types, Stages and
- * Scratch SORs, Super-Admin-gated. **Sandbox** binds the same `FlowCanvas` to
- * the one shared Yjs document instead (ADR 0016); nothing it touches is a
- * live record, so it stays open to anyone, exactly as it was as a standalone
- * Flow Plan. Switching modes only ever swaps the data provider underneath —
- * `FlowCanvas` itself does not know which one it is talking to.
+ * It edits `sales_flows` directly — real Sale Types, Stages and Scratch SORs.
+ * The Live/Sandbox toggle and its one shared Sandbox document are gone (issue
+ * #186); the canvas always opens straight onto the real Sales Flow. A Super
+ * Admin can still reach the Flow Snapshot history, through the floating button
+ * where the mode bar used to be, until the version rail (#192) replaces it.
  *
  * Full-bleed: this screen is an editor, not a report. `_app.jsx` drops its
- * wrapper for this route; every control, including the mode toggle, floats
- * over the canvas rather than sitting in a page header.
+ * wrapper for this route; every control floats over the canvas rather than
+ * sitting in a page header.
  *
- * Staging only, for Live. "The canvas and its Scratch SORs live on staging.
- * Production is never the drafting surface" is a spec condition, not a
- * nicety — Scratch SORs are real rows on whatever database they are created
- * against.
+ * Staging only. "The canvas and its Scratch SORs live on staging. Production is
+ * never the drafting surface" is a spec condition, not a nicety — Scratch SORs
+ * are real rows on whatever database they are created against.
  */
 export default function FlowCanvasAdminPage() {
   const { user } = useAuth();
-  const [mode, setMode] = useState("live");
   const [historyOpen, setHistoryOpen] = useState(false);
 
   if (isProductionSupabase) {
@@ -60,45 +53,24 @@ export default function FlowCanvasAdminPage() {
   return (
     <ProtectedRoute>
       <div className="relative flex h-full flex-col">
-        <FlowCanvasModeBar
-          mode={mode}
-          onModeChange={setMode}
-          canSeeHistory={Boolean(user?.is_super_admin)}
-          onOpenHistory={() => setHistoryOpen(true)}
-        />
-
-        {mode === "sandbox" ? (
-          <SandboxCanvas actorId={user?.id} />
-        ) : (
-          <FlowDataProvider>
-            <FlowCanvas />
-          </FlowDataProvider>
+        {user?.is_super_admin && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="absolute left-3 top-3 z-30 gap-1.5 rounded-2xl bg-card/85 backdrop-blur-md"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <History size={14} /> Snapshot History
+          </Button>
         )}
+
+        <FlowDataProvider>
+          <FlowCanvas />
+        </FlowDataProvider>
 
         <FlowSnapshotHistoryPanel open={historyOpen} onOpenChange={setHistoryOpen} />
       </div>
     </ProtectedRoute>
-  );
-}
-
-/** Provisions the one shared Sandbox on first use, then binds the canvas to it. */
-function SandboxCanvas({ actorId }) {
-  const { data: sandbox, isLoading } = useQuery({
-    queryKey: ["flow_plans", "sandbox"],
-    queryFn: () => flowPlanService.getOrCreateSandbox(actorId),
-  });
-
-  if (isLoading || !sandbox) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <Spinner size="lg" />
-      </div>
-    );
-  }
-
-  return (
-    <SandboxFlowDataProvider key={sandbox.id} planId={sandbox.id}>
-      <FlowCanvas />
-    </SandboxFlowDataProvider>
   );
 }
