@@ -1,15 +1,16 @@
 import { screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderWithProviders } from "../support"
-import { makeEmployee, makeSaleType, makeSalesFlow, makeSuperAdmin } from "../factories"
+import { makeSaleType, makeSalesFlow, makeSuperAdmin } from "../factories"
 import { supabase } from "@/lib/supabase"
 
 /**
  * The Sandbox mode was removed by #186: the Flow Canvas is now one editing
- * surface, opening straight onto the live Sales Flow. What is worth proving
- * here is that no mode toggle survives, that a Super Admin can still reach the
- * Snapshot History, and that live presence is wired up — the canvas itself is
- * covered by FlowCanvas.test.jsx.
+ * surface, opening straight onto the live Sales Flow. The Snapshot History
+ * dialog was removed by #192 in favor of the canvas's own version rail. What
+ * is worth proving here is that no mode toggle survives and that live
+ * presence is wired up — the canvas itself, including the version rail, is
+ * covered by FlowCanvas.test.jsx and FlowVersionRail.test.jsx.
  */
 const mockUser = vi.hoisted(() => ({ current: null }))
 
@@ -46,16 +47,8 @@ describe("FlowCanvasAdminPage", () => {
     expect(screen.queryByRole("button", { name: "Sandbox" })).not.toBeInTheDocument()
   })
 
-  it("shows the Snapshot History button to a Super Admin", async () => {
+  it("has no Snapshot History button — the version rail replaces it (#192)", async () => {
     mockUser.current = makeSuperAdmin({ name: "Super Admin" })
-    renderWithProviders(<FlowCanvasAdminPage />)
-    await screen.findByText("No Sale Types yet")
-
-    expect(screen.getByRole("button", { name: /Snapshot History/ })).toBeInTheDocument()
-  })
-
-  it("hides the Snapshot History button from a non-Super-Admin", async () => {
-    mockUser.current = makeEmployee({ is_super_admin: false })
     renderWithProviders(<FlowCanvasAdminPage />)
     await screen.findByText("No Sale Types yet")
 

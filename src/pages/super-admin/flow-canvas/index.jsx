@@ -1,12 +1,6 @@
-import { useState } from "react";
-import { History } from "lucide-react";
-
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
 import FlowCanvas from "@/components/settings/FlowCanvas.jsx";
 import { FlowDataProvider } from "@/components/settings/FlowDataContext.jsx";
-import FlowSnapshotHistoryPanel from "@/components/settings/FlowSnapshotHistoryPanel.jsx";
-import { Button } from "@/components/ui/button";
-import { useAuth } from "@/context/AuthContext";
 import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**
@@ -15,9 +9,10 @@ import { isProductionSupabase } from "@/lib/supabase.js";
  *
  * It edits `sales_flows` directly — real Sale Types, Stages and Scratch SORs.
  * The Live/Sandbox toggle and its one shared Sandbox document are gone (issue
- * #186); the canvas always opens straight onto the real Sales Flow. A Super
- * Admin can still reach the Flow Snapshot history, through the floating button
- * where the mode bar used to be, until the version rail (#192) replaces it.
+ * #186); the canvas always opens straight onto the real Sales Flow. The
+ * Snapshot history dialog is gone too (issue #192) — the canvas's own version
+ * rail replaces it, open to everyone who can already publish from here, not
+ * just Super Admins.
  *
  * Full-bleed: this screen is an editor, not a report. `_app.jsx` drops its
  * wrapper for this route; every control floats over the canvas rather than
@@ -28,9 +23,6 @@ import { isProductionSupabase } from "@/lib/supabase.js";
  * are real rows on whatever database they are created against.
  */
 export default function FlowCanvasAdminPage() {
-  const { user } = useAuth();
-  const [historyOpen, setHistoryOpen] = useState(false);
-
   if (isProductionSupabase) {
     return (
       <ProtectedRoute>
@@ -53,23 +45,9 @@ export default function FlowCanvasAdminPage() {
   return (
     <ProtectedRoute>
       <div className="relative flex h-full flex-col">
-        {user?.is_super_admin && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="absolute left-3 top-3 z-30 gap-1.5 rounded-2xl bg-card/85 backdrop-blur-md"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <History size={14} /> Snapshot History
-          </Button>
-        )}
-
         <FlowDataProvider>
           <FlowCanvas />
         </FlowDataProvider>
-
-        <FlowSnapshotHistoryPanel open={historyOpen} onOpenChange={setHistoryOpen} />
       </div>
     </ProtectedRoute>
   );

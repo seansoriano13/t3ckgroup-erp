@@ -1052,6 +1052,11 @@ export const salesFlowService = {
 salesFlowService.publishFlow = salesFlowService.lockFlow;
 salesFlowService.reopenFlow = salesFlowService.unlockFlow;
 
+// Exposed for the version rail's "Compare with draft" (issue #192): it needs
+// the live draft's own `snapshot_data` shape to diff against an arbitrary
+// past Flow Snapshot, not just the "vs latest" diff `previewVersion` returns.
+salesFlowService.buildSnapshotData = buildSnapshotData;
+
 /**
  * Refuses a name that case/whitespace-insensitively clashes with one already
  * in `candidates`. Name checks live in the service as well as the database

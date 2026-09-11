@@ -3,6 +3,7 @@ import {
   actionsForSnapshotStage,
   buildDraftSnapshotData,
   conditionsForSnapshotStage,
+  countFlowSnapshotChanges,
   diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
@@ -463,5 +464,33 @@ describe("stageActionTaskTitle", () => {
 
   it("neither argument required", () => {
     expect(stageActionTaskTitle()).toBe("[No Sales Reference] [Untitled Project]")
+  })
+})
+
+// Issue #192.
+describe("countFlowSnapshotChanges", () => {
+  it("is zero for no diff and for a diff with no changes", () => {
+    expect(countFlowSnapshotChanges(null)).toBe(0)
+    expect(countFlowSnapshotChanges(diffFlowSnapshots({}, {}))).toBe(0)
+  })
+
+  it("sums added, removed and changed across every group plus the Won Stage flag", () => {
+    const before = {
+      stages: [{ id: "s1", name: "Lead" }],
+      edges: [{ id: "e1", from_stage_id: "s1", to_stage_id: "s1" }],
+      actions: [],
+      conditions: [],
+      wonStageId: "s1",
+    }
+    const after = {
+      stages: [{ id: "s1", name: "Lead Renamed" }, { id: "s2", name: "Awarded" }],
+      edges: [],
+      actions: [{ id: "a1", stage_id: "s2", kind: "task" }],
+      conditions: [{ id: "c1", stage_id: "s2", kind: "gate" }],
+      wonStageId: "s2",
+    }
+    // 1 changed stage + 1 added stage, 1 removed edge, 1 added action,
+    // 1 added condition, 1 Won Stage change = 6.
+    expect(countFlowSnapshotChanges(diffFlowSnapshots(before, after))).toBe(6)
   })
 })

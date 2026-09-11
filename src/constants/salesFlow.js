@@ -306,3 +306,23 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
 
   return { stages, edges, actions, conditions, wonStageChanged, hasChanges }
 }
+
+/**
+ * A single number for "how many changes" from a `diffFlowSnapshots` result
+ * (issue #192) — the status chip's "N changes" and the version rail's
+ * expanded rows both need one count, not four groups of `added`/`removed`/
+ * `changed` arrays to re-sum themselves.
+ */
+export function countFlowSnapshotChanges(diffResult) {
+  if (!diffResult) return 0
+  const byGroup = (group) =>
+    (group?.added?.length || 0) + (group?.removed?.length || 0) + (group?.changed?.length || 0)
+
+  return (
+    byGroup(diffResult.stages) +
+    byGroup(diffResult.edges) +
+    byGroup(diffResult.actions) +
+    byGroup(diffResult.conditions) +
+    (diffResult.wonStageChanged ? 1 : 0)
+  )
+}

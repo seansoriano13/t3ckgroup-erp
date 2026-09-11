@@ -51,6 +51,7 @@ import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
 import DiffSummary from "./FlowSnapshotDiffSummary";
+import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import {
   GATE,
   RUN,
@@ -768,6 +769,20 @@ function FlowCanvasInner() {
         )}
       </ReactFlow>
 
+      {/* ── Version rail (issue #192) ───────────────────────────────────── */}
+      {flow && (
+        <FlowVersionRail
+          flow={flow}
+          stages={stages}
+          edges={edges}
+          saleTypeName={selectedSaleType?.name}
+          salesFlowService={salesFlowService}
+          user={user}
+          versionPreview={versionPreview}
+          stageNameFor={stageNameFor}
+        />
+      )}
+
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-evenly gap-3 p-3">
         <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
@@ -997,6 +1012,16 @@ function FlowCanvasInner() {
                 ))}
               </div>
             )}
+            <FlowVersionStatusChip
+              flow={flow}
+              saleTypeName={selectedSaleType?.name}
+              versionPreview={versionPreview}
+              salesFlowService={salesFlowService}
+              stageNameFor={stageNameFor}
+            />
+
+            <div className="mx-1 h-4 w-px bg-border" />
+
             <Button
               variant="ghost"
               size="lg"
