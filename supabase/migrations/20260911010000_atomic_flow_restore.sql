@@ -18,22 +18,41 @@
 -- referenced (naming each Stage and its SOR count, soft-deleted SORs
 -- included), then reshapes the draft in place keeping every id.
 --
--- SECURITY INVOKER (the default): every flow table already carries
--- `using (true) / with check (true)` write policies for authenticated
--- employees (20260908034000, 20260908062650). This is about atomicity and
--- id preservation, not authorization.
+-- SECURITY DEFINER, not INVOKER, and that is deliberate here even though
+-- `lock_sales_flow` gets away with the default. Every flow table carries a
+-- `using (true) / with check (true)` write policy for authenticated employees
+-- (20260908034000, 20260908062650) — an invoker could write them regardless.
+-- But the pre-write blocking check reads `sales_opportunities`, whose read
+-- policy is nowhere near that open (an ordinary employee sees only their own
+-- SORs, and there is no exemption for soft-deleted ones). Under SECURITY
+-- INVOKER that SELECT would run filtered by the caller's own RLS, silently
+-- undercounting — an employee who cannot see somebody else's SOR would see
+-- the blocking check pass, and the restore would fail moments later on the
+-- raw `ON DELETE RESTRICT` violation instead of the named refusal the spec
+-- asks for. SECURITY DEFINER makes the count see the same truth regardless of
+-- who is asking, the way `getSnapshotUsageCounts` already exposes aggregate
+-- SOR-per-Stage counts to everyone; no SOR row content leaves the function,
+-- only a Stage name and a count.
 --
 -- Importing a snapshot as a brand-new Sale Type's starting point still goes
 -- through `materializeSnapshotIntoFlow` in the service and still mints new
 -- ids — that is a different Sales Flow, so it must.
+--
+-- No `p_actor_id`: unlike `lock_sales_flow`, nothing this function writes has
+-- an actor column to stamp (no `restored_by` on any flow table). The service
+-- layer already knows who called it and writes the audit event naming the
+-- restored version off its own actorId, the same way every other write in
+-- `salesFlowService.js` does — passing the id through here just to leave it
+-- unused would be a parameter with no job.
 
 create or replace function public.restore_flow_snapshot(
   p_flow_id uuid,
-  p_snapshot_id uuid,
-  p_actor_id uuid
+  p_snapshot_id uuid
 )
 returns json
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_flow record;
@@ -250,4 +269,4 @@ begin
 end;
 $$;
 
-grant execute on function public.restore_flow_snapshot(uuid, uuid, uuid) to authenticated;
+grant execute on function public.restore_flow_snapshot(uuid, uuid) to authenticated;

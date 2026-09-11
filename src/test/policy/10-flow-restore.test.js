@@ -9,7 +9,7 @@
  * SORs too.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
-import { ids, ensureCastLoaded } from "./support/cast.js"
+import { ids, ensureCastLoaded, clientFor } from "./support/cast.js"
 import { serviceClient } from "./support/stack.js"
 import { MARKER } from "./support/rows.js"
 
@@ -118,7 +118,6 @@ async function resetToSeededDraft() {
     await svc().rpc("restore_flow_snapshot", {
         p_flow_id: flowId,
         p_snapshot_id: snapshotId,
-        p_actor_id: ids.superAdmin,
     })
 }
 
@@ -138,10 +137,12 @@ describe("restore_flow_snapshot", () => {
             .from("flow_stages")
             .insert({ flow_id: flowId, name: `${MARKER} Intruder`, sort_order: 9 })
 
-        const { error } = await svc().rpc("restore_flow_snapshot", {
+        // The RPC is SECURITY INVOKER, so this is the assertion an ordinary
+        // signed-in employee — not the service role — can actually call it.
+        const client = await clientFor("ordinary")
+        const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,
-            p_actor_id: ids.superAdmin,
         })
         expect(error, error?.message).toBeNull()
 
@@ -166,10 +167,10 @@ describe("restore_flow_snapshot", () => {
         await svc().from("flow_stages").update({ name: `${MARKER} Lead` }).eq("id", stageIds.Qualified)
         await svc().from("flow_stages").update({ name: `${MARKER} Qualified` }).eq("id", stageIds.Lead)
 
-        const { error } = await svc().rpc("restore_flow_snapshot", {
+        const client = await clientFor("ordinary")
+        const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,
-            p_actor_id: ids.superAdmin,
         })
         expect(error, error?.message).toBeNull()
 
@@ -234,10 +235,10 @@ describe("restore_flow_snapshot", () => {
             .eq("flow_id", flowId)
             .order("sort_order")
 
-        const { error } = await svc().rpc("restore_flow_snapshot", {
+        const client = await clientFor("ordinary")
+        const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: twoStageSnap.data.id,
-            p_actor_id: ids.superAdmin,
         })
         expect(error).not.toBeNull()
         expect(error.message).toMatch(/Qualified.*soft-deleted/)
@@ -257,10 +258,10 @@ describe("restore_flow_snapshot", () => {
         await resetToSeededDraft()
         await svc().from("sales_flows").update({ state: "locked" }).eq("id", flowId)
 
-        const { error } = await svc().rpc("restore_flow_snapshot", {
+        const client = await clientFor("ordinary")
+        const { error } = await client.rpc("restore_flow_snapshot", {
             p_flow_id: flowId,
             p_snapshot_id: snapshotId,
-            p_actor_id: ids.superAdmin,
         })
         expect(error).not.toBeNull()
         expect(error.message).toMatch(/locked/i)

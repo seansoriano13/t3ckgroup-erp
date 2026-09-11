@@ -3,6 +3,24 @@ import { db, updateRow, insertRow, deleteRows } from "@/test/db/store"
 
 const rowsOf = (table) => db.internal.rowsOf(table)
 const findRow = (table, id) => rowsOf(table).find((row) => row.id === id)
+const deleteWhere = (table, predicate) => deleteRows(table, rowsOf(table).filter(predicate))
+const timestamp = () => new Date().toISOString()
+
+/**
+ * Upserts every row of a target list under its original id — the one shape
+ * behind reconciling Stages, moves, Actions and Conditions to a Snapshot's
+ * shape. `buildFields` turns a snapshot row into the columns to write;
+ * `extraOnInsert` supplies the columns only a fresh insert needs (the parent
+ * `flow_id` a Stage or move belongs to — an existing row already has it).
+ */
+function upsertByTarget(table, targetRows, buildFields, extraOnInsert = {}) {
+  for (const row of targetRows) {
+    const existing = findRow(table, row.id)
+    const fields = buildFields(row)
+    if (existing) updateRow(table, existing, fields)
+    else insertRow(table, { id: row.id, ...extraOnInsert, ...fields })
+  }
+}
 
 /**
  * `restore_flow_snapshot` (issue #187) lives in Postgres, which the fake
@@ -63,30 +81,20 @@ export function stubRestoreFlowSnapshotRpc() {
     }
 
     // Clear the Won Stage before any Stage is deleted.
-    updateRow("sales_flows", flow, { won_stage_id: null, updated_at: new Date().toISOString() })
+    updateRow("sales_flows", flow, { won_stage_id: null, updated_at: timestamp() })
 
     // Drop the Stages the target does not have, and everything hanging off them.
     const droppedIds = new Set(droppedStages.map((s) => s.id))
-    deleteRows(
-      "flow_edges",
-      rowsOf("flow_edges").filter(
-        (e) => droppedIds.has(e.from_stage_id) || droppedIds.has(e.to_stage_id),
-      ),
-    )
-    deleteRows(
-      "flow_stage_actions",
-      rowsOf("flow_stage_actions").filter((a) => droppedIds.has(a.stage_id)),
-    )
-    deleteRows(
-      "stage_conditions",
-      rowsOf("stage_conditions").filter((c) => droppedIds.has(c.stage_id)),
-    )
+    deleteWhere("flow_edges", (e) => droppedIds.has(e.from_stage_id) || droppedIds.has(e.to_stage_id))
+    deleteWhere("flow_stage_actions", (a) => droppedIds.has(a.stage_id))
+    deleteWhere("stage_conditions", (c) => droppedIds.has(c.stage_id))
     deleteRows("flow_stages", droppedStages)
 
-    // Upsert every target Stage under its original id.
-    for (const s of stages) {
-      const existing = findRow("flow_stages", s.id)
-      const fields = {
+    // Upsert every target Stage, move, Action and Condition under its original id.
+    upsertByTarget(
+      "flow_stages",
+      stages,
+      (s) => ({
         name: s.name,
         sort_order: s.sort_order ?? 0,
         is_terminal: s.is_terminal ?? false,
@@ -94,73 +102,43 @@ export function stubRestoreFlowSnapshotRpc() {
         pos_y: s.pos_y ?? 0,
         color: s.color ?? null,
         bracket_label: s.bracket_label ?? null,
-        updated_at: new Date().toISOString(),
-      }
-      if (existing) updateRow("flow_stages", existing, fields)
-      else insertRow("flow_stages", { id: s.id, flow_id: flowId, ...fields })
-    }
+        updated_at: timestamp(),
+      }),
+      { flow_id: flowId },
+    )
 
-    // Moves.
-    deleteRows(
+    deleteWhere("flow_edges", (e) => e.flow_id === flowId && !targetEdgeIds.has(e.id))
+    upsertByTarget(
       "flow_edges",
-      rowsOf("flow_edges").filter((e) => e.flow_id === flowId && !targetEdgeIds.has(e.id)),
+      edges,
+      (e) => ({ from_stage_id: e.from_stage_id, to_stage_id: e.to_stage_id }),
+      { flow_id: flowId },
     )
-    for (const e of edges) {
-      const existing = findRow("flow_edges", e.id)
-      const fields = { from_stage_id: e.from_stage_id, to_stage_id: e.to_stage_id }
-      if (existing) updateRow("flow_edges", existing, fields)
-      else insertRow("flow_edges", { id: e.id, flow_id: flowId, ...fields })
-    }
 
-    // Stage Actions.
     const flowStageIds = new Set(rowsOf("flow_stages").filter((s) => s.flow_id === flowId).map((s) => s.id))
-    deleteRows(
-      "flow_stage_actions",
-      rowsOf("flow_stage_actions").filter(
-        (a) => flowStageIds.has(a.stage_id) && !targetActionIds.has(a.id),
-      ),
-    )
-    for (const a of actions) {
-      const existing = findRow("flow_stage_actions", a.id)
-      const fields = {
-        stage_id: a.stage_id,
-        kind: a.kind,
-        config: a.config ?? {},
-        sort_order: a.sort_order ?? 0,
-        archived_at: a.archived_at ?? null,
-        updated_at: new Date().toISOString(),
-      }
-      if (existing) updateRow("flow_stage_actions", existing, fields)
-      else insertRow("flow_stage_actions", { id: a.id, ...fields })
-    }
+    deleteWhere("flow_stage_actions", (a) => flowStageIds.has(a.stage_id) && !targetActionIds.has(a.id))
+    upsertByTarget("flow_stage_actions", actions, (a) => ({
+      stage_id: a.stage_id,
+      kind: a.kind,
+      config: a.config ?? {},
+      sort_order: a.sort_order ?? 0,
+      archived_at: a.archived_at ?? null,
+      updated_at: timestamp(),
+    }))
 
-    // Stage Conditions.
-    deleteRows(
-      "stage_conditions",
-      rowsOf("stage_conditions").filter(
-        (c) => flowStageIds.has(c.stage_id) && !targetConditionIds.has(c.id),
-      ),
-    )
-    for (const c of conditions) {
-      const existing = findRow("stage_conditions", c.id)
-      const fields = {
-        stage_id: c.stage_id,
-        kind: c.kind,
-        label: c.label,
-        is_required: c.is_required ?? true,
-        sort_order: c.sort_order ?? 0,
-        config: c.config ?? {},
-        archived_at: c.archived_at ?? null,
-        updated_at: new Date().toISOString(),
-      }
-      if (existing) updateRow("stage_conditions", existing, fields)
-      else insertRow("stage_conditions", { id: c.id, ...fields })
-    }
+    deleteWhere("stage_conditions", (c) => flowStageIds.has(c.stage_id) && !targetConditionIds.has(c.id))
+    upsertByTarget("stage_conditions", conditions, (c) => ({
+      stage_id: c.stage_id,
+      kind: c.kind,
+      label: c.label,
+      is_required: c.is_required ?? true,
+      sort_order: c.sort_order ?? 0,
+      config: c.config ?? {},
+      archived_at: c.archived_at ?? null,
+      updated_at: timestamp(),
+    }))
 
-    const updatedFlow = updateRow("sales_flows", flow, {
-      won_stage_id: wonStageId,
-      updated_at: new Date().toISOString(),
-    })
+    const updatedFlow = updateRow("sales_flows", flow, { won_stage_id: wonStageId, updated_at: timestamp() })
 
     return { flow: updatedFlow, version: snapshot.version }
   })
