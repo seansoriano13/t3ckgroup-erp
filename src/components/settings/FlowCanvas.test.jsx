@@ -487,5 +487,53 @@ describe("FlowCanvas", () => {
       expect(await screen.findByText("Archived")).toBeInTheDocument()
       expect(await screen.findByText("Only Stage")).toBeInTheDocument()
     })
+
+    it("archives and unarchives a Sale Type from the toolbar", async () => {
+      const { saleType } = seedFlow()
+      const second = makeSaleType({ name: "Zebra Sale" })
+      makeSalesFlow({ sale_type_id: second.id })
+
+      const { container } = renderWithProviders(<FlowCanvas />)
+      await screen.findByRole("button", { name: saleType.name })
+
+      // Click Archive in toolbar
+      const archiveSvg = container.querySelector("svg.lucide-archive")
+      expect(archiveSvg).toBeInTheDocument()
+      await userEvent.click(archiveSvg.closest("button"))
+
+      // Confirm dialog appears and we confirm
+      const confirmDialog = await screen.findByRole("dialog")
+      const confirmArchiveBtn = within(confirmDialog).getByRole("button", { name: "Archive" })
+      await userEvent.click(confirmArchiveBtn)
+
+      // The active flow now shows Archived badge
+      expect(await screen.findByText("Archived")).toBeInTheDocument()
+
+      // The picker separates it: opening the picker shows Zebra Sale as active, and Show archived (1)
+      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+      expect(await screen.findByText("Show archived (1)")).toBeInTheDocument()
+
+      // Restore via the manage dropdown in the toolbar
+      const trashSvg = container.querySelector("svg.lucide-trash-2")
+      expect(trashSvg).toBeInTheDocument()
+      await userEvent.click(trashSvg.closest("button"))
+
+      const restoreMenuItem = await screen.findByRole("button", { name: /Restore/i })
+      await userEvent.click(restoreMenuItem)
+
+      const restoreDialog = await screen.findByRole("dialog")
+      const confirmRestoreBtn = within(restoreDialog).getByRole("button", { name: "Restore" })
+      await userEvent.click(confirmRestoreBtn)
+
+      // Restored: Archived badge is removed
+      await waitFor(() => {
+        expect(screen.queryByText("Archived")).not.toBeInTheDocument()
+      })
+
+      // In the picker, Show archived is gone
+      await userEvent.click(screen.getByRole("button", { name: saleType.name }))
+      expect(screen.queryByText(/Show archived/)).not.toBeInTheDocument()
+    })
   })
 })
+
