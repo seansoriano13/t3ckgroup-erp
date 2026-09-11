@@ -114,7 +114,7 @@ describe("FlowCanvas", () => {
     expect(leadNode.querySelector('[data-handleid="run"]')).not.toBeNull()
   })
 
-  it("shows why a flow cannot be locked yet, and disables locking", async () => {
+  it("shows why a flow cannot be published yet, and disables the button", async () => {
     seedFlow()
 
     renderWithProviders(<FlowCanvas />)
@@ -122,7 +122,10 @@ describe("FlowCanvas", () => {
     expect(
       await screen.findByText("• This flow has no Won Stage — set where the deal is won."),
     ).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: /Lock this flow/ })).toBeDisabled()
+    // A first publish reads "Publish v1.0" from the database preview, and is
+    // still disabled for the existing blockers.
+    const publish = await screen.findByRole("button", { name: /Publish v1\.0/ })
+    expect(publish).toBeDisabled()
   })
 
   it("hides every edit control once the flow is locked", async () => {
@@ -133,7 +136,7 @@ describe("FlowCanvas", () => {
 
     renderWithProviders(<FlowCanvas />)
 
-    expect(await screen.findByRole("button", { name: /Unlock/ })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /Edit draft/ })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: /Add Stage/ })).not.toBeInTheDocument()
     expect(screen.queryByLabelText("Delete Stage")).not.toBeInTheDocument()
   })

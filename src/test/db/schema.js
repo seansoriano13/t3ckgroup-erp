@@ -179,6 +179,7 @@ function emptyTable(name) {
     foreignKeys: {},
     checks: [],
     unique: [],
+    uniqueByName: {},
     uniqueIndexes: [],
     identity: [],
   }
@@ -275,7 +276,12 @@ function parseConstraint(table, part, registry) {
 
   const unique = body.match(/^unique\s*\(([^)]*)\)/i)
   if (unique) {
-    table.unique.push(unique[1].split(",").map((c) => c.trim().replace(/"/g, "")))
+    const cols = unique[1].split(",").map((c) => c.trim().replace(/"/g, ""))
+    table.unique.push(cols)
+    // Remember the column set under the constraint name so a later
+    // `drop constraint` can find and remove it — Postgres drops a UNIQUE by
+    // name, and without this the harness could only ever add them.
+    ;(table.uniqueByName ||= {})[name] = cols
     return true
   }
 
@@ -452,6 +458,15 @@ function applyAlterTable(sql, registry) {
       if (table.foreignKeys[statement.payload]) {
         delete table.foreignKeys[statement.payload]
         delete registry.relationsByConstraint[statement.payload]
+      }
+      const droppedUnique = table.uniqueByName?.[statement.payload]
+      if (droppedUnique) {
+        // Remove every entry with these columns: `create table if not exists`
+        // is replayed across migrations, so the same UNIQUE can sit in the
+        // list more than once.
+        const key = droppedUnique.join(",")
+        table.unique = table.unique.filter((cols) => cols.join(",") !== key)
+        delete table.uniqueByName[statement.payload]
       }
     } else if (statement.kind === "renameTable") {
       const newTableName = statement.payload

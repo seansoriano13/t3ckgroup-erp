@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft, History } from "lucide-react"
 
 import { salesFlowService } from "@/services/salesFlowService"
+import { formatSnapshotVersion } from "@/constants/flowVersion"
 import FlowVersionViewer from "@/components/sor/FlowVersionViewer"
 
 /**
@@ -56,7 +57,7 @@ export default function FlowVersionPage() {
                 <div className="flex items-center gap-2">
                     <History className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                     <h1 className="text-sm font-semibold text-foreground">
-                        {snapshot ? `Sales Flow — version ${snapshot.version}` : "Sales Flow version"}
+                        {snapshot ? `Sales Flow — ${formatSnapshotVersion(snapshot)}` : "Sales Flow version"}
                     </h1>
                 </div>
                 {snapshot?.created_at && (

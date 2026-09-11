@@ -161,6 +161,16 @@ function FlowCanvasInner() {
   const stageIds = useMemo(() => stages.map((s) => s.id), [stages]);
   const stageKey = useMemo(() => [...stageIds].sort().join(","), [stageIds]);
 
+  // The number the next publish would create (ADR 0020), straight from the
+  // database rule so the button's caption and the result can't disagree.
+  // Re-asks whenever the draft's shape changes.
+  const { data: versionPreview } = useQuery({
+    queryKey: ["flowVersionPreview", flow?.id, stageKey, edges.length, flow?.won_stage_id],
+    queryFn: () => salesFlowService.previewVersion(flow.id),
+    enabled: Boolean(flow?.id) && !isLocked,
+  });
+  const publishLabel = versionPreview ? `Publish ${versionPreview.label}` : "Publish";
+
   // One request per flow rather than one per Stage: a twelve-Stage flow drew
   // twenty-four requests on every switch when each node fetched its own.
   const { data: conditionsByStage = NO_SATELLITES } = useQuery({
@@ -943,27 +953,27 @@ function FlowCanvasInner() {
                 size="lg"
                 onClick={() =>
                   ask({
-                    title: "Unlock this flow?",
+                    title: "Edit draft?",
                     description:
                       "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing.",
-                    confirmLabel: "Unlock",
+                    confirmLabel: "Edit draft",
                     required: true,
                     field: { label: "Reason", placeholder: "Why is this flow being reopened?" },
                     onConfirm: (reason) =>
-                      run(() => salesFlowService.unlockFlow(flow.id, reason, user?.id), "Flow unlocked."),
+                      run(() => salesFlowService.reopenFlow(flow.id, reason, user?.id), "Draft reopened."),
                   })
                 }
               >
-                <LockOpen /> Unlock
+                <LockOpen /> Edit draft
               </Button>
             ) : (
               <Button
                 variant="outline"
                 size="lg"
                 disabled={lockBlockers.length > 0}
-                onClick={() => run(() => salesFlowService.lockFlow(flow.id, user?.id), "Flow locked.")}
+                onClick={() => run(() => salesFlowService.publishFlow(flow.id, user?.id), "Flow published.")}
               >
-                <Lock /> Lock this flow
+                <Lock /> {publishLabel}
               </Button>
             )}
           </div>

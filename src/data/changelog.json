@@ -1,6 +1,17 @@
 [
     {
         "date": "2026-09-11",
+        "title": "Publish vX.Y",
+        "version": "1.7.12",
+        "changes": [
+            "\"Lock this flow\" is now \"Publish\", and it shows the version number the click will create — \"Publish v3.2\" — straight from the database, so the preview and the result can never disagree. \"Unlock\" is now \"Edit draft\" and still asks for a reason.",
+            "Versions now carry meaning: v3.2 tells you it's a routine refinement of v3.x, while v4.0 means a Stage was removed or the Won Stage changed and deals on the old version may not move up safely. Adding, renaming or rewiring Stages is minor; losing a Stage or changing the Won Stage starts a new major version.",
+            "A Sales Flow's first publish is v1.0. Every version already on record — v1, v2, v3 — now reads as v1.0, v2.0, v3.0, so the numbers on old deals still match their history notes.",
+            "The version badge on an SOR, the version page, the history dialog and a deal's own history notes all read vX.Y now."
+        ]
+    },
+    {
+        "date": "2026-09-11",
         "title": "See a Past Version's Stage Rules",
         "version": "1.7.11",
         "changes": [

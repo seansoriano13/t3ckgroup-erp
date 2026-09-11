@@ -5,8 +5,10 @@ import FlowSnapshotHistoryPanel from "./FlowSnapshotHistoryPanel"
 import { renderWithProviders } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeSuperAdmin } from "@/test/factories"
+import { makeOpportunity, makeSuperAdmin } from "@/test/factories"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
+import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
+import toast from "react-hot-toast"
 
 const mockUser = vi.hoisted(() => ({ current: null }))
 
@@ -42,6 +44,7 @@ describe("FlowSnapshotHistoryPanel", () => {
     admin = makeSuperAdmin({ name: "Super Admin" })
     mockUser.current = admin
     stubLockSalesFlowRpc()
+    stubRestoreFlowSnapshotRpc()
   })
 
   it("lists a Sale Type's Snapshots newest first once chosen", async () => {
@@ -52,8 +55,10 @@ describe("FlowSnapshotHistoryPanel", () => {
     await screen.findByRole("option", { name: "Government Bidding" })
     await user.selectOptions(screen.getByLabelText("Sale Type"), saleType.id)
 
-    const versions = await screen.findAllByText(/^v\d$/)
-    expect(versions.map((el) => el.textContent)).toEqual(["v2", "v1"])
+    // Adding a Stage is a minor publish (ADR 0020), so the second Snapshot is
+    // v1.1, listed above v1.0.
+    const versions = await screen.findAllByText(/^v\d+\.\d+$/)
+    expect(versions.map((el) => el.textContent)).toEqual(["v1.1", "v1.0"])
   })
 
   it("restores an earlier Snapshot into the flow's draft after confirming", async () => {
@@ -63,12 +68,12 @@ describe("FlowSnapshotHistoryPanel", () => {
     renderWithProviders(<FlowSnapshotHistoryPanel open onOpenChange={() => {}} />)
     await screen.findByRole("option", { name: "Government Bidding" })
     await user.selectOptions(screen.getByLabelText("Sale Type"), saleType.id)
-    await screen.findByText("v2")
+    await screen.findByText("v1.1")
 
     const restoreButtons = screen.getAllByRole("button", { name: "Restore" })
     await user.click(restoreButtons[1]) // v1 is the second row (newest first)
 
-    await screen.findByText("Restore Flow Snapshot v1?")
+    await screen.findByText("Restore v1.0?")
     const confirmButtons = screen.getAllByRole("button", { name: "Restore" })
     await user.click(confirmButtons[confirmButtons.length - 1])
 
@@ -78,18 +83,48 @@ describe("FlowSnapshotHistoryPanel", () => {
     })
   })
 
+  it("shows the refusal message when a dropped Stage still has an SOR on it", async () => {
+    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => "id")
+    const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
+    await salesFlowService.unlockFlow(flow.id, "About to restore v1", admin.id)
+    const negotiation = (await salesFlowService.getFlow(saleType.id)).stages.find(
+      (s) => s.name === "Negotiation",
+    )
+    makeOpportunity({ sale_type_id: saleType.id, flow_stage_id: negotiation.id })
+
+    const user = userEvent.setup()
+    renderWithProviders(<FlowSnapshotHistoryPanel open onOpenChange={() => {}} />)
+    await screen.findByRole("option", { name: "Government Bidding" })
+    await user.selectOptions(screen.getByLabelText("Sale Type"), saleType.id)
+    await screen.findByText("v1.1")
+
+    await user.click(screen.getAllByRole("button", { name: "Restore" })[1]) // v1
+    await screen.findByText("Restore v1.0?")
+    const confirmButtons = screen.getAllByRole("button", { name: "Restore" })
+    await user.click(confirmButtons[confirmButtons.length - 1])
+
+    await waitFor(() => {
+      expect(errorToast).toHaveBeenCalledWith(
+        expect.stringMatching(/"Negotiation" is referenced by 1 SOR\b/),
+      )
+    })
+    // Nothing was written: Negotiation is still there.
+    const stages = (await salesFlowService.getFlow(saleType.id)).stages
+    expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Negotiation"])
+  })
+
   it("shows a plain-language diff once two Snapshots are checked", async () => {
     const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
     const user = userEvent.setup()
     renderWithProviders(<FlowSnapshotHistoryPanel open onOpenChange={() => {}} />)
     await screen.findByRole("option", { name: "Government Bidding" })
     await user.selectOptions(screen.getByLabelText("Sale Type"), saleType.id)
-    await screen.findByText("v2")
+    await screen.findByText("v1.1")
 
-    await user.click(screen.getByLabelText("Compare Snapshot v1"))
-    await user.click(screen.getByLabelText("Compare Snapshot v2"))
+    await user.click(screen.getByLabelText("Compare version v1.0"))
+    await user.click(screen.getByLabelText("Compare version v1.1"))
 
-    expect(await screen.findByText("v1 → v2")).toBeInTheDocument()
+    expect(await screen.findByText("v1.0 → v1.1")).toBeInTheDocument()
     expect(screen.getByText(/Added: Negotiation/)).toBeInTheDocument()
   })
 
@@ -100,7 +135,7 @@ describe("FlowSnapshotHistoryPanel", () => {
     await screen.findByRole("option", { name: "Government Bidding" })
     const user = userEvent.setup()
     await user.selectOptions(screen.getByLabelText("Sale Type"), saleType.id)
-    await screen.findByText("v2")
+    await screen.findByText("v1.1")
 
     expect(screen.getAllByText(/Locked by Super Admin/).length).toBeGreaterThan(0)
     expect(await screen.findByText(/Adding a stage/)).toBeInTheDocument()

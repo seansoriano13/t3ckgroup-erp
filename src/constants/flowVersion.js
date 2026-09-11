@@ -24,9 +24,36 @@
  *             than saying nothing.
  */
 
+/**
+ * A Flow Snapshot's number as `vX.Y`.
+ *
+ * `version` is the major part; `version_minor` is the minor, added by #188 and
+ * absent on rows locked before it — those read as `N.0`, which is why the
+ * fallback is `0` rather than throwing. The rule that decides which part moves
+ * on a publish lives in the `flow_snapshot_next_version` SQL function (ADR
+ * 0020), never here.
+ */
+export function formatSnapshotVersion(snapshot) {
+    if (!snapshot || snapshot.version == null) return null
+    return `v${snapshot.version}.${snapshot.version_minor ?? 0}`
+}
+
+/** `v3.2` from a bare pair of numbers — the Publish button's preview. */
+export function formatVersionNumber(major, minor) {
+    return `v${major}.${minor ?? 0}`
+}
+
 /** Human-readable summary of the flow version an SOR is pinned to. */
 export function describeFlowVersion({ opportunity, snapshot = null, saleTypeName = null } = {}) {
-    const base = { saleTypeName, snapshotId: null, version: null, publishedAt: null, canOpen: false }
+    const base = {
+        saleTypeName,
+        snapshotId: null,
+        version: null,
+        versionMinor: null,
+        versionLabel: null,
+        publishedAt: null,
+        canOpen: false,
+    }
 
     if (!opportunity?.sale_type_id) {
         return {
@@ -58,13 +85,15 @@ export function describeFlowVersion({ opportunity, snapshot = null, saleTypeName
         kind: "pinned",
         snapshotId: snapshot.id,
         version: snapshot.version,
+        versionMinor: snapshot.version_minor ?? 0,
+        versionLabel: formatSnapshotVersion(snapshot),
         publishedAt: snapshot.created_at ?? null,
-        label: withSaleType(saleTypeName, `v${snapshot.version}`),
+        label: withSaleType(saleTypeName, formatSnapshotVersion(snapshot)),
         canOpen: true,
     }
 }
 
-/** "Government · v3" where the Sale Type is known, "v3" where it is not. */
+/** "Government · v3.2" where the Sale Type is known, "v3.2" where it is not. */
 function withSaleType(saleTypeName, suffix) {
     return saleTypeName ? `${saleTypeName} · ${suffix}` : suffix
 }

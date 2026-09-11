@@ -163,7 +163,7 @@ _Avoid_: Comment, TODO, Placeholder
 **Won Stage**:
 The one Stage per Sales Flow that means the deal has been won. Reaching it
 stamps the Contract Date, which fixes that SOR's commission pricing forever.
-Exactly one per flow; a flow cannot be locked without one. Set by the
+Exactly one per flow; a Sales Flow cannot be published without one. Set by the
 developer, never presented to Operations in commission vocabulary.
 _Avoid_: Anchor, Anchor Stage, Award Stage
 
@@ -177,11 +177,39 @@ _Avoid_: Booked, Closed (when meaning the money pool)
 **Flow Canvas**:
 The module in which the developer and Operations build Sales Flows together,
 on staging — a long-lived feature, not a one-time build: the business's CRM
-process keeps changing after a flow is locked, so the canvas keeps being used
-to revise it, each revision landing as its own Flow Snapshot. One editing surface, editing `sales_flows` directly; the Flow Snapshot history
+process keeps changing after a Sales Flow is published, so the canvas keeps
+being used to revise it, each revision landing as its own Flow Snapshot. One
+editing surface, editing `sales_flows` directly; the Flow Snapshot history
 opens from it.
 _Avoid_: Builder, Planner, Designer, Flow Plan (a sandbox mode removed by #186 —
 the canvas edits the live flow only)
+
+**Publish**:
+The action that freezes the current draft into a new Flow Snapshot new SORs
+of that Sale Type are registered against, and — for a Sales Flow that already
+has one — makes it the one live deals can be moved onto. The database decides
+the version it creates, `vX.Y` (issue #188, ADR 0020): a Stage removed or the
+Won Stage changed starts a new major; anything else is a minor. The button
+shows the number the click will create, taken from the same rule, before it is
+pressed.
+_Avoid_: Lock, Lock this flow, Freeze
+
+**draft**:
+A Sales Flow's editable state — the one the Flow Canvas draws and lets the
+developer or Operations change. Every Sales Flow starts here; Publish moves it
+to `locked`, and Edit draft moves it back. The database column keeps the
+`draft`/`locked` values (and the `lock_sales_flow` function keeps its name);
+"draft" and "published" are what the screen calls those two states.
+_Avoid_: Unlocked, Editable
+
+**Edit draft**:
+Reopens a published Sales Flow for editing. Requires a reason, which is
+recorded, because repeated reopening is a pattern about how the process is
+being agreed and has to stay visible (issue #36). Deals already pinned to an
+earlier Flow Snapshot are unaffected — Edit draft only changes what the *next*
+Publish will produce.
+_Avoid_: Unlock, Reopen (as a button label — used only in prose about what
+Edit draft does)
 
 **Scratch SOR**:
 An SOR that exists only to be pushed through a Sales Flow so its behaviour can
@@ -191,11 +219,15 @@ Excluded from every register, dashboard, and commission total.
 _Avoid_: Test Deal, Dummy, Fixture
 
 **Flow Snapshot**:
-The entire Sales Flow captured at the moment it was locked. Answers "what did
-we agree on the day of the meeting" by being opened. A snapshot is also
+The entire Sales Flow captured at the moment it was published. Answers "what
+did we agree on the day of the meeting" by being opened. A snapshot is also
 importable as a new flow's starting point, so the baseline template and the
-version history are one thing.
-_Avoid_: Version, Backup, Export
+version history are one thing. Its on-screen label is lower-case **version**
+— the SOR's badge, the version page, the history dialog and per-deal history
+notes all read `vX.Y` (issue #188, ADR 0020) rather than naming the entity;
+"Flow Snapshot" is the vocabulary for talking about the record, not for what
+appears on screen.
+_Avoid_: Backup, Export
 
 ### Project Evaluation
 

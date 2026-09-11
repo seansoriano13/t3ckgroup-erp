@@ -50,7 +50,7 @@ describe("FlowVersionBadge", () => {
     it("tells a salesperson which version of the flow their deal follows", async () => {
         renderBadge({ opportunity: FLOW_DEAL })
 
-        expect(await screen.findByText("Government · v3")).toBeInTheDocument()
+        expect(await screen.findByText("Government · v3.0")).toBeInTheDocument()
     })
 
     it("says nothing at all for a deal on the legacy pipeline", () => {
@@ -79,7 +79,7 @@ describe("FlowVersionBadge", () => {
         const onOpenVersion = vi.fn()
         renderBadge({ opportunity: FLOW_DEAL, onOpenVersion })
 
-        const badge = await screen.findByRole("button", { name: /Government · v3/ })
+        const badge = await screen.findByRole("button", { name: /Government · v3.0/ })
         await userEvent.click(badge)
 
         expect(onOpenVersion).toHaveBeenCalledWith("snap-1")
@@ -90,7 +90,7 @@ describe("FlowVersionBadge", () => {
         // not look like a control that does nothing.
         renderBadge({ opportunity: FLOW_DEAL })
 
-        await screen.findByText("Government · v3")
+        await screen.findByText("Government · v3.0")
         expect(screen.queryByRole("button")).not.toBeInTheDocument()
     })
 
@@ -108,7 +108,7 @@ describe("FlowVersionBadge", () => {
         expect(screen.queryByText(/no version on record/)).not.toBeInTheDocument()
 
         resolve({ id: "snap-1", version: 3, created_at: null, snapshot_data: {} })
-        expect(await screen.findByRole("button", { name: /v3/ })).toBeInTheDocument()
+        expect(await screen.findByRole("button", { name: /v3.0/ })).toBeInTheDocument()
     })
 
     it("names the version even before the Sale Type has loaded", async () => {
@@ -116,6 +116,6 @@ describe("FlowVersionBadge", () => {
 
         renderBadge({ opportunity: FLOW_DEAL })
 
-        expect(await screen.findByText("v3")).toBeInTheDocument()
+        expect(await screen.findByText("v3.0")).toBeInTheDocument()
     })
 })

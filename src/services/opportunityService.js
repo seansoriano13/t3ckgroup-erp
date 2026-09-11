@@ -33,6 +33,7 @@ import {
   actionsForSnapshotStage,
   stageActionTaskTitle,
 } from "../constants/salesFlow";
+import { formatSnapshotVersion } from "../constants/flowVersion";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -1438,7 +1439,7 @@ export const opportunityService = {
     const targetStages = targetSnapshot.snapshot_data?.stages || [];
     if (!targetStages.some((s) => s.id === existing.flow_stage_id)) {
       throw new Error(
-        `This deal's current Stage does not exist in Flow Snapshot v${targetSnapshot.version}, so moving it would strand it. Move it to a different Stage first, or choose a different snapshot.`,
+        `This deal's current Stage does not exist in Flow Snapshot ${formatSnapshotVersion(targetSnapshot)}, so moving it would strand it. Move it to a different Stage first, or choose a different snapshot.`,
       );
     }
 
@@ -1446,10 +1447,10 @@ export const opportunityService = {
     if (existing.flow_snapshot_id) {
       const { data: sourceSnapshot } = await supabase
         .from("flow_snapshots")
-        .select("version")
+        .select("version, version_minor")
         .eq("id", existing.flow_snapshot_id)
         .maybeSingle();
-      sourceLabel = sourceSnapshot ? `v${sourceSnapshot.version}` : "an unknown Flow Snapshot";
+      sourceLabel = sourceSnapshot ? formatSnapshotVersion(sourceSnapshot) : "an unknown Flow Snapshot";
     }
 
     const { data, error } = await supabase
@@ -1460,9 +1461,11 @@ export const opportunityService = {
       .single();
     if (error) throw error;
 
+    const targetLabel = formatSnapshotVersion(targetSnapshot);
+
     await opportunityService.addSystemNote(
       opportunityId,
-      `Flow Snapshot changed: ${sourceLabel} → v${targetSnapshot.version}.`,
+      `Flow Snapshot changed: ${sourceLabel} → ${targetLabel}.`,
       {
         event: "FLOW_SNAPSHOT_MOVED",
         from: existing.flow_snapshot_id,
@@ -1475,7 +1478,7 @@ export const opportunityService = {
     systemAuditLogService.addSystemEvent(
       "OPPORTUNITY",
       opportunityId,
-      `${auditLabel(existing)}: Flow Snapshot changed ${sourceLabel} → v${targetSnapshot.version}.`,
+      `${auditLabel(existing)}: Flow Snapshot changed ${sourceLabel} → ${targetLabel}.`,
       {
         event: "FLOW_SNAPSHOT_MOVED",
         from: existing.flow_snapshot_id,

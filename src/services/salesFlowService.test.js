@@ -10,6 +10,8 @@ import {
   makeSuperAdmin,
 } from "@/test/factories"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
+import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
+import { db } from "@/test/db/store"
 
 /**
  * The Flow Canvas's persistence layer (issue #36, ADR 0006). Tested against
@@ -29,6 +31,7 @@ describe("salesFlowService", () => {
     admin = makeSuperAdmin({ name: "Super Admin" })
     operations = makeEmployee({ name: "Ops Manager" })
     stubLockSalesFlowRpc()
+    stubRestoreFlowSnapshotRpc()
   })
 
   describe("Sale Types", () => {
@@ -302,6 +305,7 @@ describe("salesFlowService", () => {
       
       expect(lockedResult.snapshot).toBeDefined()
       expect(lockedResult.snapshot.version).toBe(1)
+      expect(lockedResult.snapshot.version_minor).toBe(0) // a flow's first publish is v1.0
       expect(lockedResult.snapshot.snapshot_data).toBeDefined()
       expect(lockedResult.snapshot.snapshot_data.stages.length).toBe(2)
       expect(lockedResult.snapshot.snapshot_data.edges.length).toBe(1)
@@ -313,18 +317,51 @@ describe("salesFlowService", () => {
       expect(lockedResult.artefacts.notesList).toBeTruthy()
     })
 
-    it("creates a new snapshot version when locked again", async () => {
+    it("bumps only the minor part when a publish just adds a Stage (ADR 0020)", async () => {
       await salesFlowService.lockFlow(flow.id, admin.id)
       await salesFlowService.unlockFlow(flow.id, "Need to add a stage", admin.id)
-      
+
       const newStage = await salesFlowService.addStage(flow.id, "Negotiation", admin.id)
       await salesFlowService.addEdge(flow.id, entry.id, newStage.id, admin.id)
-      
+
       const secondLock = await salesFlowService.lockFlow(flow.id, admin.id)
-      
-      expect(secondLock.snapshot.version).toBe(2)
+
+      // Every Stage of v1.0 is still present, and the Won Stage is unchanged —
+      // every SOR on v1.x could be moved up, so this is v1.1.
+      expect(secondLock.snapshot.version).toBe(1)
+      expect(secondLock.snapshot.version_minor).toBe(1)
       expect(secondLock.snapshot.snapshot_data.stages.length).toBe(3)
       expect(secondLock.snapshot.snapshot_data.edges.length).toBe(2)
+    })
+
+    it("starts a new major version when a publish removes a Stage", async () => {
+      await salesFlowService.lockFlow(flow.id, admin.id) // v1.0: entry + won
+      await salesFlowService.unlockFlow(flow.id, "Dropping a Stage", admin.id)
+
+      const spare = await salesFlowService.addStage(flow.id, "Spare", admin.id)
+      await salesFlowService.addEdge(flow.id, entry.id, spare.id, admin.id)
+      const v1_1 = await salesFlowService.lockFlow(flow.id, admin.id)
+      expect([v1_1.snapshot.version, v1_1.snapshot.version_minor]).toEqual([1, 1])
+
+      await salesFlowService.unlockFlow(flow.id, "Now removing it", admin.id)
+      await salesFlowService.deleteStage(spare.id, admin.id)
+      const major = await salesFlowService.lockFlow(flow.id, admin.id)
+
+      // A Stage id present in v1.1 is gone — deals on it could be stranded.
+      expect([major.snapshot.version, major.snapshot.version_minor]).toEqual([2, 0])
+    })
+
+    it("previews the next version from the same database rule the publish uses", async () => {
+      await salesFlowService.lockFlow(flow.id, admin.id)
+      await salesFlowService.unlockFlow(flow.id, "tweak", admin.id)
+      const neg = await salesFlowService.addStage(flow.id, "Negotiation", admin.id)
+      await salesFlowService.addEdge(flow.id, entry.id, neg.id, admin.id)
+
+      const preview = await salesFlowService.previewVersion(flow.id)
+      expect(preview).toEqual({ major: 1, minor: 1, label: "v1.1" })
+
+      const published = await salesFlowService.lockFlow(flow.id, admin.id)
+      expect([published.snapshot.version, published.snapshot.version_minor]).toEqual([1, 1])
     })
   })
 
@@ -396,15 +433,17 @@ describe("salesFlowService", () => {
       const leadStage = before.stages.find((s) => s.name === "Lead")
       const extraStage = await salesFlowService.addStage(flow.id, "Extra Stage", admin.id)
       await salesFlowService.addEdge(flow.id, leadStage.id, extraStage.id, admin.id)
-      await salesFlowService.lockFlow(flow.id, admin.id) // now version 2, with the extra stage
+      await salesFlowService.lockFlow(flow.id, admin.id) // v1.1 — adds the extra stage
       await salesFlowService.unlockFlow(flow.id, "About to restore v1", admin.id)
 
       const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
 
       expect(restored.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
       // Restoring is additive: it becomes a new version only on the next lock.
+      // The restore drops "Extra Stage", whose id was in v1.1, so that publish
+      // is a new major (ADR 0020).
       const relocked = await salesFlowService.lockFlow(restored.flow.id, admin.id)
-      expect(relocked.snapshot.version).toBe(3)
+      expect([relocked.snapshot.version, relocked.snapshot.version_minor]).toEqual([2, 0])
     })
 
     it("refuses to restore into a locked flow", async () => {
@@ -434,19 +473,73 @@ describe("salesFlowService", () => {
       expect(restored.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
     })
 
-    it("shares its write path with importSnapshot — both build the same shape from the same Snapshot data", async () => {
+    it("keeps every Stage, move, Condition and Action id, unlike importSnapshot which mints new ones", async () => {
       const { flow, snapshot } = await buildLockedFlow(["Lead", "Qualified", "Awarded"])
+      const before = await salesFlowService.getFlow(flow.sale_type_id)
+      const stageIdsBefore = before.stages.map((s) => s.id).sort()
+      const edgeIdsBefore = before.edges.map((e) => e.id).sort()
+
       await salesFlowService.unlockFlow(flow.id, "reopen", admin.id)
+      await salesFlowService.addStage(flow.id, "Throwaway", admin.id)
 
       const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+      expect(restored.stages.map((s) => s.id).sort()).toEqual(stageIdsBefore)
+      expect(restored.edges.map((e) => e.id).sort()).toEqual(edgeIdsBefore)
+
       const imported = await salesFlowService.importSnapshot(
         snapshot.snapshot_data,
         `Imported ${Math.random()}`,
         admin.id,
       )
+      expect(imported.stages.some((s) => stageIdsBefore.includes(s.id))).toBe(false)
+    })
 
-      expect(restored.stages.map((s) => s.name).sort()).toEqual(imported.stages.map((s) => s.name).sort())
-      expect(restored.edges.length).toBe(imported.edges.length)
+    it("restores two Stages that have swapped names", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+      const before = await salesFlowService.getFlow(flow.sale_type_id)
+      const lead = before.stages.find((s) => s.name === "Lead")
+      const awarded = before.stages.find((s) => s.name === "Awarded")
+
+      await salesFlowService.unlockFlow(flow.id, "swap the names", admin.id)
+      await salesFlowService.renameStage(lead.id, "TEMP", admin.id)
+      await salesFlowService.renameStage(awarded.id, "Lead", admin.id)
+      await salesFlowService.renameStage(lead.id, "Awarded", admin.id)
+
+      const restored = await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+      expect(restored.stages.find((s) => s.id === lead.id).name).toBe("Lead")
+      expect(restored.stages.find((s) => s.id === awarded.id).name).toBe("Awarded")
+    })
+
+    it("refuses, changing nothing, when a dropped Stage still has an SOR on it — soft-deleted SORs included", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "trying a rework", admin.id)
+      const extra = await salesFlowService.addStage(flow.id, "Site Survey", admin.id)
+      makeOpportunity({
+        sale_type_id: flow.sale_type_id,
+        flow_stage_id: extra.id,
+        is_deleted: true,
+      })
+
+      await expect(
+        salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id),
+      ).rejects.toThrow(/"Site Survey" is referenced by 1 SOR \(all 1 soft-deleted\)/)
+
+      const after = await salesFlowService.getFlow(flow.sale_type_id)
+      expect(after.stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Site Survey"])
+    })
+
+    it("writes an audit event naming the version restored", async () => {
+      const { flow, snapshot } = await buildLockedFlow(["Lead", "Awarded"])
+      await salesFlowService.unlockFlow(flow.id, "reopen", admin.id)
+
+      await salesFlowService.restoreSnapshot(flow.id, snapshot.id, admin.id)
+      await waitForNetworkIdle()
+
+      const events = db.internal
+        .rowsOf("system_audit_logs")
+        .filter((r) => r.metadata?.event === "SALES_FLOW_SNAPSHOT_RESTORED")
+      expect(events).toHaveLength(1)
+      expect(events[0].content).toMatch(/v1 restored/)
     })
   })
 
@@ -496,7 +589,12 @@ describe("salesFlowService", () => {
 
       const history = await salesFlowService.listSnapshots(flow.id)
 
-      expect(history.map((s) => s.version)).toEqual([2, 1])
+      // A second publish with nothing removed is minor, so newest-first is by
+      // (major, minor).
+      expect(history.map((s) => [s.version, s.version_minor])).toEqual([
+        [1, 1],
+        [1, 0],
+      ])
       expect(history.map((s) => s.id)).toEqual([v2.id, v1.id])
       expect(history[0].created_by).toBe(admin.id)
     })

@@ -3,6 +3,7 @@ import { systemAuditLogService } from "./systemAuditLogService";
 import { flowLockBlockers } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
+import { formatSnapshotVersion, formatVersionNumber } from "../constants/flowVersion";
 
 /**
  * Flow Canvas persistence (issue #36, ADR 0006) — Sale Types, the Sales Flow
@@ -84,14 +85,14 @@ async function edgesOf(flowId) {
 
 /**
  * Turns a Flow Snapshot's stored shape into live Stages, Edges, Actions and
- * Conditions on `flow` — the one write path `importSnapshot` (a brand-new
- * Sale Type) and `restoreSnapshot` (an existing flow's draft, already
- * cleared) both share, rather than each keeping its own copy of these four
- * creation loops that could drift apart.
+ * Conditions on `flow` — the write path behind `importSnapshot`, where a
+ * brand-new Sale Type gets its starting point.
  *
  * Stage ids are never reused from the snapshot — every Stage created here is
  * a new row, mapped back to the id it stood in for while wiring Edges,
- * Actions and Conditions to the right new Stage.
+ * Actions and Conditions to the right new Stage. That is right for an import
+ * (a different Sales Flow) and wrong for a restore, which keeps ids: restore
+ * goes through the `restore_flow_snapshot` function instead (issue #187).
  */
 async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
   const stageIdMap = {};
@@ -135,6 +136,33 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
       );
     }
   }
+}
+
+/**
+ * The `snapshot_data` shape a publish writes — every Stage of the whole flow,
+ * its edges, and a flat list of every Stage's Actions and Conditions at this
+ * moment, plus the Won Stage and Sale Type ids.
+ *
+ * The one builder shared by `lockFlow` (which writes it) and `previewVersion`
+ * (which only asks the database what number it would get), so the preview on
+ * the Publish button and the version the publish actually creates are computed
+ * from byte-identical input.
+ */
+async function buildSnapshotData(flow, stages, edges) {
+  const stageIds = stages.map((s) => s.id);
+  const [actionsObj, conditionsObj] = await Promise.all([
+    stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
+    stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
+  ]);
+
+  return {
+    stages,
+    edges,
+    actions: Object.values(actionsObj || {}).flat(),
+    conditions: Object.values(conditionsObj || {}).flat(),
+    wonStageId: flow.won_stage_id,
+    saleTypeId: flow.sale_type_id,
+  };
 }
 
 export const salesFlowService = {
@@ -733,20 +761,7 @@ export const salesFlowService = {
       throw new Error(`This flow cannot be locked yet. ${blockers.join(" ")}`);
     }
 
-    const stageIds = stages.map(s => s.id);
-    const [actionsObj, conditionsObj] = await Promise.all([
-      stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
-      stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {}
-    ]);
-
-    const snapshotData = {
-      stages,
-      edges,
-      actions: Object.values(actionsObj || {}).flat(),
-      conditions: Object.values(conditionsObj || {}).flat(),
-      wonStageId: flow.won_stage_id,
-      saleTypeId: flow.sale_type_id
-    };
+    const snapshotData = await buildSnapshotData(flow, stages, edges);
 
     // Flipping the flow to locked and publishing the snapshot that pins its
     // rules have to succeed or fail together — a flow stranded locked with no
@@ -762,18 +777,46 @@ export const salesFlowService = {
     systemAuditLogService.addSystemEvent(
       "SALES_FLOW",
       flowId,
-      `Sales Flow locked.`,
+      `Sales Flow published: ${formatSnapshotVersion(data.snapshot)}.`,
       { event: "SALES_FLOW_LOCKED", employeeId: actorId },
       actorId,
     ).catch(console.error);
 
     const artefacts = {
       promotableConfiguration: JSON.stringify(snapshotData, null, 2),
-      readableDocument: `# Sales Flow Document\n\nVersion: ${data.snapshot.version}\n...`,
+      readableDocument: `# Sales Flow Document\n\nVersion: ${formatSnapshotVersion(data.snapshot)}\n...`,
       notesList: "Notes...",
     };
 
     return { ...data.flow, snapshot: data.snapshot, artefacts };
+  },
+
+  /**
+   * The number the next publish of this flow would create, as `{ major, minor,
+   * label }` — the Publish button's caption, taken straight from the database
+   * rule (`flow_snapshot_next_version`, ADR 0020) rather than recomputed here,
+   * so the preview and the result cannot disagree.
+   *
+   * Answers for any draft, including one that still has lock blockers: the
+   * caller keeps the button disabled for those, but a "Publish v3.2" caption
+   * is still the right thing to show while the reason it is disabled is a
+   * missing Won Stage.
+   */
+  async previewVersion(flowId) {
+    const flow = await loadFlow(flowId);
+    const [stages, edges] = await Promise.all([stagesOf(flowId), edgesOf(flowId)]);
+    const snapshotData = await buildSnapshotData(flow, stages, edges);
+
+    const { data, error } = await supabase.rpc("flow_snapshot_next_version", {
+      p_flow_id: flowId,
+      p_snapshot_data: snapshotData,
+    });
+    if (error) throw error;
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const major = row?.version_major ?? 1;
+    const minor = row?.version_minor ?? 0;
+    return { major, minor, label: formatVersionNumber(major, minor) };
   },
 
   /**
@@ -837,7 +880,8 @@ export const salesFlowService = {
       .from("flow_snapshots")
       .select("*")
       .eq("flow_id", flowId)
-      .order("version", { ascending: false });
+      .order("version", { ascending: false })
+      .order("version_minor", { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -887,31 +931,34 @@ export const salesFlowService = {
    */
   async restoreSnapshot(flowId, snapshotId, actorId) {
     await requireSuperAdmin(actorId);
-    const flow = await requireDraft(flowId);
 
-    const { data: snapshot, error } = await supabase
-      .from("flow_snapshots")
-      .select("*")
-      .eq("id", snapshotId)
-      .single();
+    // One call. `restore_flow_snapshot` (issue #187) locks the Sales Flow
+    // row, refuses before writing anything if a Stage the target drops still
+    // has an SOR on it (`flow_stage_id` is ON DELETE RESTRICT — the old
+    // client-side delete-and-rebuild half-deleted the draft when it hit one),
+    // then reshapes the draft in place keeping every id so the next version's
+    // changelog is not a full rewrite.
+    const { data, error } = await supabase.rpc("restore_flow_snapshot", {
+      p_flow_id: flowId,
+      p_snapshot_id: snapshotId,
+      p_actor_id: actorId,
+    });
     if (error) throw error;
-    if (snapshot.flow_id !== flowId) {
-      throw new Error("That Flow Snapshot does not belong to this flow.");
-    }
 
-    // Clearing the Won Stage first means every Stage, including the current
-    // one, can be deleted by the same path deleteStage already uses — no
-    // second "delete, but this time skip the Won Stage" rule to keep in sync.
-    if (flow.won_stage_id) {
-      await this.setWonStage(flowId, null, actorId);
-    }
-    for (const stage of await stagesOf(flowId)) {
-      await this.deleteStage(stage.id, actorId);
-    }
+    systemAuditLogService.addSystemEvent(
+      "SALES_FLOW",
+      flowId,
+      `Flow Snapshot v${data.version} restored into the draft.`,
+      {
+        event: "SALES_FLOW_SNAPSHOT_RESTORED",
+        version: data.version,
+        snapshotId,
+        employeeId: actorId,
+      },
+      actorId,
+    ).catch(console.error);
 
-    await materializeSnapshotIntoFlow(flow, snapshot.snapshot_data, actorId);
-
-    return this.getFlow(flow.sale_type_id);
+    return this.getFlow(data.flow.sale_type_id);
   },
 
   /**
@@ -951,7 +998,7 @@ export const salesFlowService = {
     systemAuditLogService.addSystemEvent(
       "SALES_FLOW",
       flowId,
-      `Sales Flow unlocked: ${trimmedReason}`,
+      `Sales Flow draft reopened: ${trimmedReason}`,
       { event: "SALES_FLOW_UNLOCKED", reason: trimmedReason, employeeId: actorId },
       actorId,
     ).catch(console.error);
@@ -959,6 +1006,14 @@ export const salesFlowService = {
     return data;
   },
 };
+
+// The vocabulary the rest of the app uses (issue #188): the canvas action is
+// "publish" and its reverse is "reopen". The database keeps the older names —
+// the `draft`/`locked` state values and the `lock_sales_flow` function — so
+// only the service surface is renamed, with the old names kept as aliases for
+// callers and tests not yet moved over.
+salesFlowService.publishFlow = salesFlowService.lockFlow;
+salesFlowService.reopenFlow = salesFlowService.unlockFlow;
 
 /**
  * Refuses a name that case/whitespace-insensitively clashes with one already

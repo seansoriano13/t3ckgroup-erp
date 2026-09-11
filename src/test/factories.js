@@ -457,6 +457,7 @@ export function makeFlowSnapshot(overrides = {}) {
 
   return db.seed("flow_snapshots", {
     version: nextVersion,
+    version_minor: 0,
     ...overrides,
     flow_id: flowId,
     snapshot_data: snapshotData,

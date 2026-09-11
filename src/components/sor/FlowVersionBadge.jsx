@@ -55,7 +55,7 @@ export default function FlowVersionBadge({ opportunity, onOpenVersion = null, cl
             onClick={openable ? () => onOpenVersion(version.snapshotId) : undefined}
             title={
                 version.kind === "pinned"
-                    ? `This deal follows version ${version.version} of its Sales Flow, pinned when it was registered.${
+                    ? `This deal follows version ${version.versionLabel} of its Sales Flow, pinned when it was registered.${
                           openable ? " Open it to see the flow as it stood." : ""
                       }`
                     : "This deal runs a Sales Flow but carries no version on record."

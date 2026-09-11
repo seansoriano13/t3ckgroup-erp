@@ -366,3 +366,142 @@ describe("locking a flow, which is what writes a snapshot", () => {
         expect(error).toBeNull()
     })
 })
+
+// ===========================================================================
+
+/**
+ * Version numbers carry compatibility (issue #188, ADR 0020). One rule,
+ * `flow_snapshot_next_version`, decides major vs. minor; `lock_sales_flow`
+ * calls it inside the same transaction that writes the snapshot. This is the
+ * table of cases the acceptance criteria name, run against real Postgres —
+ * the fake-store stub in `lockFlowRpc.js` mirrors this rule, but this file is
+ * the authority on it.
+ */
+describe("Flow Snapshot version numbers (issue #188, ADR 0020)", () => {
+    let svc
+    let versionFlowId
+
+    beforeAll(async () => {
+        svc = serviceClient()
+        const saleType = await svc
+            .from("sale_types")
+            .insert({ name: `${MARKER} Version Rule Sale Type` })
+            .select("id")
+            .single()
+        if (saleType.error) throw new Error(`Seeding a Sale Type: ${saleType.error.message}`)
+
+        const flow = await svc
+            .from("sales_flows")
+            .insert({ sale_type_id: saleType.data.id })
+            .select("id")
+            .single()
+        if (flow.error) throw new Error(`Seeding a flow: ${flow.error.message}`)
+        versionFlowId = flow.data.id
+    })
+
+    afterAll(async () => {
+        await svc.from("flow_snapshots").delete().eq("flow_id", versionFlowId)
+        await svc.from("sales_flows").delete().eq("id", versionFlowId)
+    })
+
+    /** A tidy `snapshot_data` payload — only what the rule reads. */
+    const snapshotData = (stageIds, wonStageId = null) => ({
+        stages: stageIds.map(([id, name]) => ({ id, name: name ?? id })),
+        wonStageId,
+    })
+
+    /** Publishes `versionFlowId` at whatever data is given, via `lock_sales_flow`. */
+    async function publish(stageIds, wonStageId = null) {
+        const { data, error } = await svc.rpc("lock_sales_flow", {
+            p_flow_id: versionFlowId,
+            p_actor_id: ids.superAdmin,
+            p_snapshot_data: snapshotData(stageIds, wonStageId),
+        })
+        if (error) throw new Error(error.message)
+        // Every call here follows a publish with an immediate reopen, so the
+        // next case in the same flow always starts from `draft` again.
+        await svc.from("sales_flows").update({ state: "draft" }).eq("id", versionFlowId)
+        return data.snapshot
+    }
+
+    const s1 = crypto.randomUUID()
+    const s2 = crypto.randomUUID()
+    const s3 = crypto.randomUUID()
+
+    it("makes a flow's first publish 1.0", async () => {
+        const snapshot = await publish([[s1, "Lead"], [s2, "Awarded"]], s2)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([1, 0])
+    })
+
+    it("bumps only the minor part when a publish only adds a Stage", async () => {
+        const snapshot = await publish([[s1, "Lead"], [s2, "Awarded"], [s3, "Negotiation"]], s2)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([1, 1])
+    })
+
+    it("bumps only the minor part when a publish renames a Stage", async () => {
+        const snapshot = await publish([[s1, "Enquiry"], [s2, "Awarded"], [s3, "Negotiation"]], s2)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([1, 2])
+    })
+
+    it("starts a new major version when a publish removes a Stage", async () => {
+        // Drops s3 ("Negotiation"), whose id was present in the latest (1.2).
+        const snapshot = await publish([[s1, "Enquiry"], [s2, "Awarded"]], s2)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([2, 0])
+    })
+
+    it("starts a new major version when a publish changes the Won Stage", async () => {
+        // Same Stages as the latest (2.0); only the Won Stage moves.
+        const snapshot = await publish([[s1, "Enquiry"], [s2, "Awarded"]], s1)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([3, 0])
+    })
+
+    it("bumps only the minor part when a removed Stage is re-added with its original id", async () => {
+        // s3 comes back under the id it always had — the id is what the rule
+        // and the ON DELETE RESTRICT foreign key both key off, not the name.
+        const snapshot = await publish([[s1, "Enquiry"], [s2, "Awarded"], [s3, "Negotiation, again"]], s1)
+        expect([snapshot.version, snapshot.version_minor]).toEqual([3, 1])
+    })
+
+    it("reads a Snapshot published before minor versions existed as N.0", async () => {
+        // `version_minor` defaults to 0, so a hand-inserted legacy-shaped row
+        // (no minor supplied) reads the same way a real pre-#188 row does.
+        const legacy = await svc
+            .from("flow_snapshots")
+            .insert({ flow_id: versionFlowId, version: 900, snapshot_data: { stages: [] } })
+            .select("version, version_minor")
+            .single()
+        if (legacy.error) throw new Error(legacy.error.message)
+        expect(legacy.data.version_minor).toBe(0)
+        await svc.from("flow_snapshots").delete().eq("flow_id", versionFlowId).eq("version", 900)
+    })
+
+    it("cannot collide: two Snapshots cannot share a (flow, major, minor)", async () => {
+        const first = await svc
+            .from("flow_snapshots")
+            .insert({ flow_id: versionFlowId, version: 901, version_minor: 0, snapshot_data: { stages: [] } })
+            .select("id")
+            .single()
+        expect(first.error).toBeNull()
+
+        const second = await svc
+            .from("flow_snapshots")
+            .insert({ flow_id: versionFlowId, version: 901, version_minor: 0, snapshot_data: { stages: [] } })
+            .select("id")
+            .single()
+        expect(second.error).not.toBeNull()
+        expect(second.error.code).toBe("23505")
+
+        await svc.from("flow_snapshots").delete().eq("id", first.data.id)
+    })
+
+    it("previews the same number the publish would create, from the one shared function", async () => {
+        const preview = await svc.rpc("flow_snapshot_next_version", {
+            p_flow_id: versionFlowId,
+            p_snapshot_data: snapshotData([[s1, "Enquiry"], [s2, "Awarded"], [s3, "Negotiation, again"]], s1),
+        })
+        expect(preview.error).toBeNull()
+        // Same input as the last publish above (3.1) — nothing changed, so the
+        // preview of the next one is a further minor.
+        expect(preview.data[0]).toEqual({ version_major: 3, version_minor: 2 })
+    })
+})

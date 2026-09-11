@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { describeFlowVersion } from "./flowVersion"
+import { describeFlowVersion, formatSnapshotVersion } from "./flowVersion"
 
 /**
  * What an SOR should say about the Sales Flow it runs.
@@ -13,6 +13,7 @@ describe("describeFlowVersion", () => {
     const snapshot = {
         id: "snap-1",
         version: 3,
+        version_minor: 0,
         created_at: "2026-09-01T02:00:00Z",
         snapshot_data: { stages: [{ id: "s1", name: "Enquiry" }], edges: [] },
     }
@@ -30,7 +31,24 @@ describe("describeFlowVersion", () => {
             snapshotId: "snap-1",
             saleTypeName: "Government",
         })
-        expect(result.label).toBe("Government · v3")
+        expect(result.label).toBe("Government · v3.0")
+    })
+
+    it("renders the minor part, so a routine refinement reads as vX.Y", () => {
+        const result = describeFlowVersion({
+            opportunity: { sale_type_id: "st-1", flow_snapshot_id: "snap-1" },
+            snapshot: { ...snapshot, version: 3, version_minor: 2 },
+            saleTypeName: "Government",
+        })
+        expect(result.label).toBe("Government · v3.2")
+        expect(result.versionLabel).toBe("v3.2")
+    })
+
+    it("reads a snapshot locked before minor versions existed as N.0", () => {
+        // Rows written before #188 carry no `version_minor`; the badge on a
+        // deal pinned to one still has to line up with its history notes.
+        expect(formatSnapshotVersion({ version: 2 })).toBe("v2.0")
+        expect(formatSnapshotVersion(null)).toBeNull()
     })
 
     it("names the version even when the Sale Type is not to hand", () => {
@@ -40,7 +58,7 @@ describe("describeFlowVersion", () => {
             opportunity: { sale_type_id: "st-1", flow_snapshot_id: "snap-1" },
             snapshot,
         })
-        expect(result.label).toBe("v3")
+        expect(result.label).toBe("v3.0")
     })
 
     it("says a deal is on the legacy pipeline when it runs no flow at all", () => {

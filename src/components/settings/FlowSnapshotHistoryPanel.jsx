@@ -11,6 +11,7 @@ import { useAuth } from "@/context/AuthContext";
 import { salesFlowService } from "@/services/salesFlowService";
 import { employeeService } from "@/services/employeeService";
 import { diffFlowSnapshots } from "@/constants/salesFlow";
+import { formatSnapshotVersion } from "@/constants/flowVersion";
 
 /**
  * A Super Admin's view of a Sale Type's Flow Snapshot history (issue #36's
@@ -83,8 +84,11 @@ export default function FlowSnapshotHistoryPanel({ open, onOpenChange }) {
     const a = history.find((s) => s.id === compareIds[0]);
     const b = history.find((s) => s.id === compareIds[1]);
     if (!a || !b) return null;
-    // Always diff older -> newer, so "added" reads as "added since".
-    const [older, newer] = a.version < b.version ? [a, b] : [b, a];
+    // Always diff older -> newer, so "added" reads as "added since". A real
+    // (major, minor) compare, not a scalar encoding — the minor part alone
+    // has no ceiling that would make one safe.
+    const isOlder = (x, y) => x.version - y.version || (x.version_minor ?? 0) - (y.version_minor ?? 0)
+    const [older, newer] = isOlder(a, b) < 0 ? [a, b] : [b, a];
     return { older, newer, result: diffFlowSnapshots(older.snapshot_data, newer.snapshot_data) };
   }, [compareIds, history])
 
@@ -155,12 +159,12 @@ export default function FlowSnapshotHistoryPanel({ open, onOpenChange }) {
                 >
                   <input
                     type="checkbox"
-                    aria-label={`Compare Snapshot v${snapshot.version}`}
+                    aria-label={`Compare version ${formatSnapshotVersion(snapshot)}`}
                     checked={compareIds.includes(snapshot.id)}
                     onChange={() => toggleCompare(snapshot.id)}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-foreground">v{snapshot.version}</p>
+                    <p className="text-sm font-bold text-foreground">{formatSnapshotVersion(snapshot)}</p>
                     <p className="truncate text-xs text-muted-foreground">
                       Locked by {employeeName(snapshot.created_by)},{" "}
                       {new Date(snapshot.created_at).toLocaleString()} ·{" "}
@@ -200,7 +204,7 @@ export default function FlowSnapshotHistoryPanel({ open, onOpenChange }) {
           {compareIds.length === 2 && diff && (
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                v{diff.older.version} → v{diff.newer.version}
+                {formatSnapshotVersion(diff.older)} → {formatSnapshotVersion(diff.newer)}
               </p>
               <DiffSummary result={diff.result} stageName={stageName} />
             </div>
@@ -211,7 +215,7 @@ export default function FlowSnapshotHistoryPanel({ open, onOpenChange }) {
       <ConfirmDialog
         open={Boolean(restoreTarget)}
         onOpenChange={(next) => !next && setRestoreTarget(null)}
-        title={`Restore Flow Snapshot v${restoreTarget?.version}?`}
+        title={`Restore ${restoreTarget ? formatSnapshotVersion(restoreTarget) : ""}?`}
         description="This discards whatever unlocked draft state this flow currently has and rebuilds it as this Snapshot's shape. Nothing in the Snapshot history is changed or deleted — the restored shape only becomes its own new Snapshot the next time this flow is locked."
         confirmLabel="Restore"
         tone="destructive"
