@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react"
+import { fireEvent, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import FlowMoveEdge from "./FlowMoveEdge"
@@ -30,7 +30,9 @@ describe("FlowMoveEdge", () => {
             fromName: "Lead",
             toName: "Qualification",
             disabled: false,
+            canInsertStage: true,
             onDelete: vi.fn(),
+            onInsertStage: vi.fn(),
             ...dataOverrides
           }}
           {...edgeOverrides}
@@ -66,5 +68,34 @@ describe("FlowMoveEdge", () => {
   it("hides the delete button completely when disabled (e.g. locked flow)", () => {
     renderEdge({ disabled: true })
     expect(screen.queryByRole("button", { name: /Delete the move/ })).not.toBeInTheDocument()
+  })
+
+  it("shows a midpoint insert button labelled with both Stage names (issue #196)", () => {
+    renderEdge()
+    expect(
+      screen.getByRole("button", { name: "Insert a Stage between Lead and Qualification" }),
+    ).toBeInTheDocument()
+  })
+
+  it("hides the insert button when the flow can't be edited (locked or viewing a version)", () => {
+    renderEdge({ canInsertStage: false })
+    expect(screen.queryByRole("button", { name: /Insert a Stage/ })).not.toBeInTheDocument()
+    // The delete button is unaffected by canInsertStage — it has its own gate.
+    expect(screen.getByRole("button", { name: /Delete the move/ })).toBeInTheDocument()
+  })
+
+  it("opens the name popover and submits the new Stage's name to onInsertStage", async () => {
+    const user = userEvent.setup()
+    const onInsertStage = vi.fn().mockResolvedValue()
+    renderEdge({ onInsertStage })
+
+    // The trigger sits at opacity-0/pointer-events:none until hover or
+    // selection — real for a mouse, invisible to jsdom's CSS engine, so it's
+    // clicked directly rather than through a hover-then-click sequence.
+    fireEvent.click(screen.getByRole("button", { name: "Insert a Stage between Lead and Qualification" }))
+    await user.type(await screen.findByPlaceholderText(/Name a Stage/), "Qualified")
+    await user.click(screen.getByRole("button", { name: "Add" }))
+
+    expect(onInsertStage).toHaveBeenCalledWith("Qualified")
   })
 })

@@ -61,6 +61,7 @@ import {
   bracketNode,
   bracketRuns,
   columnSlots,
+  midpointStagePosition,
   nextStagePosition,
   satellitePosition,
   stageBox,
@@ -404,6 +405,21 @@ function FlowCanvasInner() {
     [flow, stages, user?.id, refresh]
   );
 
+  // A move's own midpoint plus (issue #196): turns A → B into A → New → B in
+  // one step, the most common edit to an existing process — a missing Stage
+  // between two that are already connected.
+  const insertStageOnEdge = useCallback(
+    async (edge, name) => {
+      const source = stages.find((s) => s.id === edge.from_stage_id);
+      const target = stages.find((s) => s.id === edge.to_stage_id);
+      const { x, y } = midpointStagePosition(source, target, stages);
+      await salesFlowService.insertStageOnMove(edge.id, name, user?.id, x, y);
+      refresh();
+      toast.success("Stage added.");
+    },
+    [stages, user?.id, refresh]
+  );
+
   const setAsEntryStage = useCallback((stageId) => {
     const order = [...stages].map((s) => s.id);
     const targetIdx = order.indexOf(stageId);
@@ -570,6 +586,8 @@ function FlowCanvasInner() {
         fromName: stageName[e.from_stage_id],
         toName: stageName[e.to_stage_id],
         onDelete: (edgeId) => handleRemoveEdge(edgeId),
+        canInsertStage: !isLocked && !viewingSnapshot,
+        onInsertStage: (name) => insertStageOnEdge(e, name),
       },
     }));
 
@@ -584,7 +602,9 @@ function FlowCanvasInner() {
     actionsByStage,
     selection,
     isLocked,
+    viewingSnapshot,
     addStageAfter,
+    insertStageOnEdge,
     handleRemoveEdge,
     setRfNodes,
     setRfEdges,

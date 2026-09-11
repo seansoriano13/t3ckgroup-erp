@@ -709,6 +709,46 @@ export const salesFlowService = {
   },
 
   /**
+   * Inserts a new Stage into an existing move — the n8n-style midpoint plus
+   * (issue #196), turning A → B into A → New → B. The most common edit to a
+   * live process: a step everybody already does but nobody had drawn.
+   *
+   * A's Stage Conditions and Actions are its own gate and entry work, keyed
+   * to A regardless of what leaves it, so they are untouched. Only which
+   * Stage a deal lands on next changes.
+   *
+   * Writes create-then-delete, in an order chosen so a failure partway never
+   * cuts the flow in two:
+   *   1. create the Stage
+   *   2. add A → New
+   *   3. add New → B
+   *   4. only then remove A → B
+   * A crash after step 1 leaves an unreached, harmless orphan Stage; a crash
+   * after step 2 or 3 leaves the flow reachable through the old A → B edge as
+   * well as the new detour. Either way, A → B stays intact until step 4 is
+   * the only write left to do, so B is never unreachable from A.
+   */
+  async insertStageOnMove(edgeId, name, actorId, posX = 0, posY = 0) {
+    await requireSuperAdmin(actorId);
+
+    const { data: edge, error: readError } = await supabase
+      .from("flow_edges")
+      .select("*")
+      .eq("id", edgeId)
+      .single();
+    if (readError) throw readError;
+
+    await requireDraft(edge.flow_id);
+
+    const newStage = await salesFlowService.addStage(edge.flow_id, name, actorId, posX, posY);
+    await salesFlowService.addEdge(edge.flow_id, edge.from_stage_id, newStage.id, actorId);
+    await salesFlowService.addEdge(edge.flow_id, newStage.id, edge.to_stage_id, actorId);
+    await salesFlowService.removeEdge(edge.id, actorId);
+
+    return newStage;
+  },
+
+  /**
    * Designates where this flow's deals are won. Set by the developer on the
    * lock screen, phrased as "where have we won the deal" and never labelled
    * with commission vocabulary (issue #36) — but it is what

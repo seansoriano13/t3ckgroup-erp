@@ -17,6 +17,7 @@ import {
   byCanvasPosition,
   columnRows,
   columnSlots,
+  midpointStagePosition,
   nextStagePosition,
   satellitePosition,
   stageBox,
@@ -235,6 +236,24 @@ describe("flowCanvasLayout", () => {
       const thirdChildPos = nextStagePosition(source, [source, firstChild, secondChild])
       expect(thirdChildPos.x).toBe(STAGE_W + 96)
       expect(thirdChildPos.y).toBe((STAGE_H + 24) * 2)
+    })
+  })
+
+  describe("midpointStagePosition (issue #196)", () => {
+    it("places the new Stage halfway between the move's two ends", () => {
+      const source = { pos_x: 0, pos_y: 0 }
+      const target = { pos_x: 400, pos_y: 200 }
+      const pos = midpointStagePosition(source, target, [source, target])
+      expect(pos).toEqual({ x: 200, y: 100 })
+    })
+
+    it("nudges down until it overlaps no existing Stage", () => {
+      const source = { pos_x: 0, pos_y: 100 }
+      const target = { pos_x: 400, pos_y: 100 }
+      const occupyingMidpoint = { pos_x: 200, pos_y: 100 }
+      const pos = midpointStagePosition(source, target, [source, target, occupyingMidpoint])
+      expect(pos.x).toBe(200)
+      expect(pos.y).toBe(100 + STAGE_H + 24)
     })
   })
 })

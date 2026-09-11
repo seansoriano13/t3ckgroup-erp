@@ -174,17 +174,12 @@ function boxesOverlap(a, b) {
 }
 
 /**
- * Where a Stage created from another Stage's outgoing plus (issue #195) lands:
- * straight to the source's right, nudged down a step at a time until its box
- * clears every existing Stage's — so adding several in a row from the same
- * source stacks them downward instead of piling them on one point. Ignores
- * satellite columns, the same simplification the add-Stage dock's own
- * staggering used, since a fresh Stage has none yet.
+ * Drops `y` a step at a time until `(x, y)` clears every Stage's box — the one
+ * placement rule `nextStagePosition` and `midpointStagePosition` both nudge
+ * by, so a Stage landing on an occupied spot from either plus stacks
+ * downward instead of piling onto whatever is already there.
  */
-export function nextStagePosition(source, stages = []) {
-  const x = (source.pos_x ?? 0) + STAGE_W + NEW_STAGE_GAP_X
-  let y = source.pos_y ?? 0
-
+function nudgeUntilClear(x, y, stages) {
   while (
     stages.some((s) =>
       boxesOverlap({ x, y }, { x: s.pos_x ?? 0, y: s.pos_y ?? 0 }),
@@ -192,7 +187,30 @@ export function nextStagePosition(source, stages = []) {
   ) {
     y += STAGE_H + NEW_STAGE_GAP_Y
   }
+  return y
+}
 
+/**
+ * Where a Stage created from another Stage's outgoing plus (issue #195) lands:
+ * straight to the source's right, nudged down until its box clears every
+ * existing Stage's. Ignores satellite columns, the same simplification the
+ * add-Stage dock's own staggering used, since a fresh Stage has none yet.
+ */
+export function nextStagePosition(source, stages = []) {
+  const x = (source.pos_x ?? 0) + STAGE_W + NEW_STAGE_GAP_X
+  const y = nudgeUntilClear(x, source.pos_y ?? 0, stages)
+  return { x, y }
+}
+
+/**
+ * Where a Stage inserted on a move (issue #196) lands: the midpoint between
+ * the move's two ends, nudged down until its box clears every existing
+ * Stage's — the same rule `nextStagePosition` nudges by, so inserting several
+ * Stages on nearby moves stacks them rather than piling them on one point.
+ */
+export function midpointStagePosition(source, target, stages = []) {
+  const x = Math.round(((source.pos_x ?? 0) + (target.pos_x ?? 0)) / 2)
+  const y = nudgeUntilClear(x, Math.round(((source.pos_y ?? 0) + (target.pos_y ?? 0)) / 2), stages)
   return { x, y }
 }
 

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { salesFlowService } from "./salesFlowService"
 import { waitForNetworkIdle } from "@/test/network"
 import {
@@ -243,6 +243,83 @@ describe("salesFlowService", () => {
       await salesFlowService.removeEdge(drawn.id, admin.id)
 
       expect((await salesFlowService.getFlow(flow.sale_type_id)).edges).toEqual([])
+    })
+  })
+
+  describe("insertStageOnMove — the midpoint plus (issue #196)", () => {
+    it("turns A → B into A → New → B, leaving A's Conditions and Actions alone", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const edge = await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+
+      const newStage = await salesFlowService.insertStageOnMove(edge.id, "New", admin.id, 100, 100)
+
+      expect(newStage.name).toBe("New")
+
+      const { stages, edges } = await salesFlowService.getFlow(flow.sale_type_id)
+      expect(stages.map((s) => s.name).sort()).toEqual(["A", "B", "New"])
+      expect(edges).toHaveLength(2)
+      expect(edges.find((e) => e.from_stage_id === a.id)).toMatchObject({ to_stage_id: newStage.id })
+      expect(edges.find((e) => e.to_stage_id === b.id)).toMatchObject({ from_stage_id: newStage.id })
+      expect(edges.some((e) => e.from_stage_id === a.id && e.to_stage_id === b.id)).toBe(false)
+    })
+
+    it("refuses a blank or duplicate name, the same as adding a Stage", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const edge = await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+
+      await expect(salesFlowService.insertStageOnMove(edge.id, "   ", admin.id)).rejects.toThrow(
+        /needs a name/,
+      )
+      await expect(salesFlowService.insertStageOnMove(edge.id, "A", admin.id)).rejects.toThrow(
+        /already a Stage/,
+      )
+    })
+
+    it("refuses on a locked flow", async () => {
+      const saleType = await salesFlowService.createSaleType("Bidding", admin.id)
+      const flow = (await salesFlowService.getFlow(saleType.id)).flow
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const edge = await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+      await salesFlowService.setWonStage(flow.id, b.id, admin.id)
+      await salesFlowService.lockFlow(flow.id, admin.id)
+
+      await expect(salesFlowService.insertStageOnMove(edge.id, "New", admin.id)).rejects.toThrow(
+        /locked/,
+      )
+    })
+
+    it("leaves A → B intact — an extra move, never a gap — if the insert fails after the second write", async () => {
+      const flow = makeSalesFlow()
+      const a = await salesFlowService.addStage(flow.id, "A", admin.id)
+      const b = await salesFlowService.addStage(flow.id, "B", admin.id)
+      const edge = await salesFlowService.addEdge(flow.id, a.id, b.id, admin.id)
+
+      const originalAddEdge = salesFlowService.addEdge.bind(salesFlowService)
+      let calls = 0
+      vi.spyOn(salesFlowService, "addEdge").mockImplementation((...args) => {
+        calls += 1
+        // The first call inside insertStageOnMove draws A → New; the second
+        // draws New → B. Failing that second write, after the first already
+        // landed, is the exact partial failure the write order is chosen to
+        // survive: A → B must still be there afterwards.
+        if (calls === 2) return Promise.reject(new Error("Network dropped mid-write."))
+        return originalAddEdge(...args)
+      })
+
+      await expect(
+        salesFlowService.insertStageOnMove(edge.id, "New", admin.id),
+      ).rejects.toThrow(/Network dropped/)
+
+      vi.restoreAllMocks()
+
+      const { stages, edges } = await salesFlowService.getFlow(flow.sale_type_id)
+      expect(stages.some((s) => s.name === "New")).toBe(true)
+      expect(edges.some((e) => e.from_stage_id === a.id && e.to_stage_id === b.id)).toBe(true)
     })
   })
 
