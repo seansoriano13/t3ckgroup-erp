@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import {
     ReactFlow,
     ReactFlowProvider,
@@ -13,7 +13,13 @@ import "@xyflow/react/dist/style.css"
 import FlowCanvasNode from "../settings/FlowCanvasNode"
 import FlowBracketNode from "../settings/FlowBracketNode"
 import { bracketNode, bracketRuns, STAGE_W, STAGE_H } from "../settings/flowCanvasLayout"
-import { entryStage } from "../../constants/salesFlow"
+import {
+    actionsForSnapshotStage,
+    conditionsForSnapshotStage,
+    entryStage,
+    snapshotRows,
+} from "../../constants/salesFlow"
+import FlowVersionStagePanel from "./FlowVersionStagePanel"
 
 /**
  * Far below React Flow's default floor of 0.5. A Sales Flow is a long chain
@@ -54,14 +60,37 @@ export default function FlowVersionViewer(props) {
 function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     const stages = useMemo(() => snapshotData?.stages ?? [], [snapshotData])
     const edges = useMemo(() => snapshotData?.edges ?? [], [snapshotData])
-    const conditions = useMemo(() => snapshotData?.conditions ?? [], [snapshotData])
-    const actions = useMemo(() => snapshotData?.actions ?? [], [snapshotData])
+    // Both snapshot shapes — a flat array (newer) or an object keyed by
+    // stage_id (older) — flatten here so counts and the panel read the same
+    // list. `materializeSnapshotIntoFlow` already accepts both on import.
+    const conditions = useMemo(() => snapshotRows(snapshotData?.conditions), [snapshotData])
+    const actions = useMemo(() => snapshotRows(snapshotData?.actions), [snapshotData])
+
+    // A Stage clicked open, read-only. Independent of `currentStageId`, which
+    // only frames the deal's Stage — the reader may want to inspect any Stage.
+    const [selectedStageId, setSelectedStageId] = useState(null)
+    const [panelTab, setPanelTab] = useState("conditions")
+
+    const onNodeClick = useCallback((_event, node) => {
+        // Bracket braces are synthetic labels with nothing behind them.
+        if (node.type !== "stage") return
+        setSelectedStageId(node.id)
+    }, [])
+    const onPaneClick = useCallback(() => setSelectedStageId(null), [])
+
+    const selectedStage = useMemo(
+        () => stages.find((s) => s.id === selectedStageId) ?? null,
+        [stages, selectedStageId],
+    )
+    const versionHasNoRules = conditions.length === 0 && actions.length === 0
+
+    // The two Stages the snapshot singles out — the entry, and where a deal is
+    // won. Derived once here so the nodes below and the panel agree.
+    const entry = useMemo(() => entryStage(stages), [stages])
+    const wonStageId = snapshotData?.wonStageId ?? null
 
     const nodes = useMemo(() => {
         if (stages.length === 0) return []
-
-        const entry = entryStage(stages)
-        const wonId = snapshotData?.wonStageId ?? null
 
         // Brackets are a shared text label rather than a container, so the
         // brace is a synthetic node spanning a consecutive run of Stages that
@@ -83,11 +112,13 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
             draggable: false,
             connectable: false,
             deletable: false,
-            selected: currentStageId ? stage.id === currentStageId : false,
+            // A clicked-open Stage wins the highlight; failing that, the deal's
+            // own Stage when the viewer was opened from one.
+            selected: stage.id === (selectedStageId ?? currentStageId),
             data: {
                 stage,
                 isEntry: entry?.id === stage.id,
-                isWon: wonId === stage.id,
+                isWon: wonStageId === stage.id,
                 disabled: false,
                 conditionCount: conditions.filter((c) => c.stage_id === stage.id).length,
                 actionCount: actions.filter((a) => a.stage_id === stage.id).length,
@@ -95,7 +126,7 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
         }))
 
         return [...bracketNodes, ...stageNodes]
-    }, [stages, conditions, actions, snapshotData, currentStageId])
+    }, [stages, conditions, actions, entry, wonStageId, currentStageId, selectedStageId])
 
     const flowEdges = useMemo(
         () =>
@@ -152,23 +183,42 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     }
 
     return (
-        <ReactFlow
-            nodes={nodes}
-            edges={flowEdges}
-            nodeTypes={nodeTypes}
-            minZoom={MIN_ZOOM}
-            fitView={!currentStageId}
-            fitViewOptions={{ padding: 0.15, minZoom: MIN_ZOOM }}
-            // Every editing affordance off: this is a record of what the rules
-            // were, and nothing here can change them.
-            nodesDraggable={false}
-            nodesConnectable={false}
-            elementsSelectable={false}
-            edgesFocusable={false}
-            proOptions={{ hideAttribution: true }}
-        >
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
-            <Controls showInteractive={false} />
-        </ReactFlow>
+        <div className="relative h-full w-full">
+            <ReactFlow
+                nodes={nodes}
+                edges={flowEdges}
+                nodeTypes={nodeTypes}
+                minZoom={MIN_ZOOM}
+                fitView={!currentStageId}
+                fitViewOptions={{ padding: 0.15, minZoom: MIN_ZOOM }}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                // Every editing affordance off: this is a record of what the
+                // rules were, and nothing here can change them. Clicking a
+                // Stage still opens its panel — to read, not to edit.
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                edgesFocusable={false}
+                proOptions={{ hideAttribution: true }}
+            >
+                <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
+                <Controls showInteractive={false} />
+            </ReactFlow>
+
+            {selectedStage && (
+                <FlowVersionStagePanel
+                    stage={selectedStage}
+                    isEntry={entry?.id === selectedStage.id}
+                    isWon={wonStageId === selectedStage.id}
+                    conditions={conditionsForSnapshotStage(conditions, selectedStage.id)}
+                    actions={actionsForSnapshotStage(actions, selectedStage.id)}
+                    versionHasNoRules={versionHasNoRules}
+                    activeTab={panelTab}
+                    onTabChange={setPanelTab}
+                    onClose={() => setSelectedStageId(null)}
+                />
+            )}
+        </div>
     )
 }

@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-09-11",
+        "title": "See a Past Version's Stage Rules",
+        "version": "1.7.11",
+        "changes": [
+            "On the read-only Sales Flow version page you reach from an SOR's version badge, clicking a Stage now opens its panel and shows that version's actual Stage Conditions and Stage Actions — read from the saved version itself, not from the flow as it stands today. Until now the page showed only counts.",
+            "The panel has no editing controls; the live flow is still edited only on the Flow Canvas.",
+            "A version that was locked before any Conditions or Actions were drawn now says so plainly instead of showing an empty panel."
+        ]
+    },
+    {
+        "date": "2026-09-11",
         "title": "Flow Canvas Is One Canvas Now",
         "version": "1.7.10",
         "changes": [

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  actionsForSnapshotStage,
+  conditionsForSnapshotStage,
   diffFlowSnapshots,
   entryStage,
   flowLockBlockers,
@@ -8,6 +10,7 @@ import {
   isFlowLockable,
   isLegalMove,
   outgoingStages,
+  snapshotRows,
   stageActionTaskTitle,
 } from "./salesFlow"
 
@@ -341,6 +344,42 @@ describe("comparing two Flow Snapshots", () => {
     const diff = diffFlowSnapshots(base, next)
     expect(diff.wonStageChanged).toBe(true)
     expect(diff.hasChanges).toBe(true)
+  })
+})
+
+// Issue #191 — reading a Stage's rules out of a Flow Snapshot for the
+// read-only version page, whichever shape the snapshot stored them in.
+describe("a Stage's rules as recorded in a Flow Snapshot", () => {
+  const flatConditions = [
+    { id: "c1", stage_id: "s1", kind: "field", label: "PO date" },
+    { id: "c2", stage_id: "s2", kind: "attachment", label: "NOA" },
+    { id: "c3", stage_id: "s1", kind: "tickbox", label: "Checked" },
+  ]
+  const groupedConditions = {
+    s1: [
+      { id: "c1", stage_id: "s1", kind: "field", label: "PO date" },
+      { id: "c3", stage_id: "s1", kind: "tickbox", label: "Checked" },
+    ],
+    s2: [{ id: "c2", stage_id: "s2", kind: "attachment", label: "NOA" }],
+  }
+
+  it("filters a flat array to the Stage asked for", () => {
+    expect(conditionsForSnapshotStage(flatConditions, "s1").map((c) => c.id)).toEqual(["c1", "c3"])
+  })
+
+  it("flattens the older per-Stage-keyed shape before filtering", () => {
+    expect(conditionsForSnapshotStage(groupedConditions, "s1").map((c) => c.id)).toEqual([
+      "c1",
+      "c3",
+    ])
+    expect(actionsForSnapshotStage(groupedConditions, "s2").map((c) => c.id)).toEqual(["c2"])
+  })
+
+  it("treats a missing or empty rule set as no rules", () => {
+    expect(snapshotRows(undefined)).toEqual([])
+    expect(snapshotRows(null)).toEqual([])
+    expect(snapshotRows({})).toEqual([])
+    expect(conditionsForSnapshotStage(undefined, "s1")).toEqual([])
   })
 })
 

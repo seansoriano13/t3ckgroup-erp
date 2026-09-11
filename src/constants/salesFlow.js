@@ -189,19 +189,34 @@ export function isLostFlowStage(flowStage, wonStageId) {
 }
 
 /**
- * A Stage's Conditions/Actions as recorded in a Flow Snapshot (issue #83),
- * rather than as they stand live today. `snapshot_data.conditions`/`.actions`
- * are flat arrays (every Stage's, from the whole flow at lock time — see
- * `salesFlowService.lockFlow`), so resolving "this Stage's" is just a filter,
- * the same shape `stageConditionService`/`stageActionService`'s live queries
- * already narrow to when reading straight from the database.
+ * The rows out of a Flow Snapshot's `conditions` or `actions`, as a flat list
+ * whichever shape they were stored in.
+ *
+ * Newer snapshots store a flat array (every Stage's, from the whole flow at
+ * lock time — see `salesFlowService.lockFlow`). Older ones store an object
+ * keyed by `stage_id` with a list of rows under each. `materializeSnapshotIntoFlow`
+ * already accepts both when importing; this is the same coercion for the read
+ * paths, so a version page never has to know which era it is looking at.
  */
-export function conditionsForSnapshotStage(snapshotConditions = [], stageId) {
-  return (snapshotConditions || []).filter((c) => c.stage_id === stageId)
+export function snapshotRows(value) {
+  if (Array.isArray(value)) return value
+  if (value && typeof value === "object") return Object.values(value).flat()
+  return []
 }
 
-export function actionsForSnapshotStage(snapshotActions = [], stageId) {
-  return (snapshotActions || []).filter((a) => a.stage_id === stageId)
+/**
+ * A Stage's Conditions/Actions as recorded in a Flow Snapshot (issue #83),
+ * rather than as they stand live today — resolving "this Stage's" is just a
+ * filter, the same shape `stageConditionService`/`stageActionService`'s live
+ * queries already narrow to when reading straight from the database. Both
+ * snapshot shapes are accepted (see `snapshotRows`).
+ */
+export function conditionsForSnapshotStage(snapshotConditions, stageId) {
+  return snapshotRows(snapshotConditions).filter((c) => c.stage_id === stageId)
+}
+
+export function actionsForSnapshotStage(snapshotActions, stageId) {
+  return snapshotRows(snapshotActions).filter((a) => a.stage_id === stageId)
 }
 
 /**
