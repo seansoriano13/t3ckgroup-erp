@@ -222,7 +222,14 @@ function FlowCanvasInner() {
     queryClient.invalidateQueries({ queryKey: ["salesFlow", effectiveSaleTypeId] });
     queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
-  }, [queryClient, effectiveSaleTypeId]);
+    // The version rail's own reads (issue #192) — none of the tables the
+    // realtime subscription above watches is `flow_snapshots`, so a publish,
+    // restore or reopen would otherwise leave the rail showing a stale
+    // history until something else forced a refetch.
+    queryClient.invalidateQueries({ queryKey: ["flowSnapshots", flow?.id] });
+    queryClient.invalidateQueries({ queryKey: ["flowSnapshotUsage", flow?.id] });
+    queryClient.invalidateQueries({ queryKey: ["flowUnlockEvents", flow?.id] });
+  }, [queryClient, effectiveSaleTypeId, flow?.id]);
 
   const { screenToFlowPosition, flowToScreenPosition } = useReactFlow();
 
