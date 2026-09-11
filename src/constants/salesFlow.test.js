@@ -341,6 +341,38 @@ describe("comparing two Flow Snapshots", () => {
     ])
   })
 
+  it("does not report a Stage as changed when only layout coordinates or database timestamps differ", () => {
+    const next = {
+      ...base,
+      stages: base.stages.map((s) => ({
+        ...s,
+        pos_x: 240,
+        pos_y: 180,
+        updated_at: "2026-09-11T12:00:00Z",
+        created_at: "2026-09-11T10:00:00Z",
+      })),
+    }
+
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.changed).toEqual([])
+    expect(diff.hasChanges).toBe(false)
+  })
+
+  it("does not report changes when object keys are reordered (e.g. by PostgreSQL JSONB)", () => {
+    const reorderedStages = base.stages.map((s) => {
+      const inverted = {}
+      Object.keys(s).reverse().forEach((k) => {
+        inverted[k] = s[k]
+      })
+      return inverted
+    })
+
+    const next = { ...base, stages: reorderedStages }
+    const diff = diffFlowSnapshots(base, next)
+    expect(diff.stages.changed).toEqual([])
+    expect(diff.hasChanges).toBe(false)
+  })
+
   it("reports an edge added", () => {
     const next = { ...base, edges: [...base.edges, edge("s-qualified", "s-lead")] }
 

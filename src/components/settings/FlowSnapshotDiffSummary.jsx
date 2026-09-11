@@ -1,3 +1,5 @@
+import { cn } from "@/lib/utils";
+
 /**
  * The rendered form of `diffFlowSnapshots` (constants/salesFlow.js), shared
  * by the history dialog's compare view and the publish popover's change
@@ -8,13 +10,14 @@ export default function DiffSummary({
   result,
   stageName,
   emptyMessage = "No changes between these two Snapshots.",
+  className,
 }) {
   if (!result.hasChanges) {
     return <p className="text-sm text-muted-foreground">{emptyMessage}</p>;
   }
 
   return (
-    <div className="space-y-2 text-sm">
+    <div className={cn("space-y-2 text-sm", className)}>
       <DiffGroup label="Stages" group={result.stages} nameOf={(s) => s.name} />
       <DiffEdgeGroup group={result.edges} stageName={stageName} />
       <DiffGroup

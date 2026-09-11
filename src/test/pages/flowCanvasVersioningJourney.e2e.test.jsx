@@ -173,10 +173,10 @@ describe("Flow Canvas versioning journey", () => {
             await user.click(await screen.findByText("v1.0"))
             await screen.findByText("Viewing v1.0 — read-only")
 
-            // 7. Restore into draft.
-            await user.click(screen.getByRole("button", { name: "Restore into draft" }))
-            await screen.findByText("Restore v1.0?")
-            await user.click(screen.getByRole("button", { name: "Restore" }))
+            // 7. Revert to this version.
+            await user.click(screen.getByRole("button", { name: /Revert to this version|Restore into draft/i }))
+            await screen.findByText(/Revert to v1\.0\?|Restore v1\.0\?/)
+            await user.click(screen.getByRole("button", { name: /Revert|Restore/i }))
 
             expect(screen.queryByText("Viewing v1.0 — read-only")).not.toBeInTheDocument()
             await waitFor(async () => {

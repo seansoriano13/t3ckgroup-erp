@@ -350,6 +350,21 @@ describe("FlowCanvas", () => {
     expect(screen.queryByLabelText(/Add Stage after/)).not.toBeInTheDocument()
   })
 
+  it("locks the canvas and editing controls when the flow is locked", async () => {
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+    await screen.findByText("Lead")
+
+    expect(screen.getByRole("button", { name: /Edit draft/ })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Tidy layout/ })).toBeDisabled()
+    expect(screen.queryByRole("button", { name: /Add Stage/ })).not.toBeInTheDocument()
+  })
+
   // ── Version viewing and restore (issue #193) ─────────────────────────────
 
   it("draws a clicked version read-only under a banner, with no editing controls, and returns to the draft", async () => {
@@ -411,7 +426,7 @@ describe("FlowCanvas", () => {
     await user.click(await screen.findByRole("button", { name: saleType.name }))
     await user.click(await screen.findByText("v1.0"))
 
-    const restoreButton = await screen.findByRole("button", { name: "Restore into draft" })
+    const restoreButton = await screen.findByRole("button", { name: /Revert to this version|Restore into draft/i })
     expect(restoreButton).toBeDisabled()
   })
 
@@ -433,9 +448,9 @@ describe("FlowCanvas", () => {
     await user.click(screen.getByText("v1.0"))
     await screen.findByText("Viewing v1.0 — read-only")
 
-    await user.click(screen.getByRole("button", { name: "Restore into draft" }))
-    await screen.findByText("Restore v1.0?")
-    await user.click(screen.getByRole("button", { name: "Restore" }))
+    await user.click(screen.getByRole("button", { name: /Revert to this version|Restore into draft/i }))
+    await screen.findByText(/Revert to v1\.0\?|Restore v1\.0\?/)
+    await user.click(screen.getByRole("button", { name: /Revert|Restore/i }))
 
     await waitFor(async () => {
       const stages = (await salesFlowService.getFlow(saleType.id)).stages
@@ -465,9 +480,9 @@ describe("FlowCanvas", () => {
     await user.click(screen.getByText("v1.0"))
     await screen.findByText("Viewing v1.0 — read-only")
 
-    await user.click(screen.getByRole("button", { name: "Restore into draft" }))
-    await screen.findByText("Restore v1.0?")
-    await user.click(screen.getByRole("button", { name: "Restore" }))
+    await user.click(screen.getByRole("button", { name: /Revert to this version|Restore into draft/i }))
+    await screen.findByText(/Revert to v1\.0\?|Restore v1\.0\?/)
+    await user.click(screen.getByRole("button", { name: /Revert|Restore/i }))
 
     await waitFor(() => {
       expect(errorToast).toHaveBeenCalledWith(

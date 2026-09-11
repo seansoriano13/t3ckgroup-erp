@@ -8,6 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+import { cn } from "@/lib/utils";
+
 /**
  * A confirmation the app draws itself.
  *
@@ -30,19 +32,21 @@ export default function ConfirmDialog({
   tone = "default",
   onConfirm,
   confirmDisabled = false,
+  className,
+  footerClassName,
   children,
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className={cn("sm:max-w-md", className)}>
+        <DialogHeader className="shrink-0">
           <DialogTitle>{title}</DialogTitle>
           {description && <DialogDescription>{description}</DialogDescription>}
         </DialogHeader>
 
         {children}
 
-        <DialogFooter>
+        <DialogFooter className={footerClassName}>
           <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>

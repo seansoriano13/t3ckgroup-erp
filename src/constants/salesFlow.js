@@ -260,26 +260,54 @@ export function buildDraftSnapshotData({ flow, stages = [], edges = [], actions 
 }
 
 /**
+ * Normalizes an item for semantic comparison between Flow Snapshots:
+ * - Omits database timestamps (`created_at`, `updated_at`), canvas coordinates
+ *   (`pos_x`, `pos_y`), and container foreign keys (`flow_id`) that do not
+ *   represent changes to the CRM business process.
+ * - Omits null/undefined/empty-string optional properties so missing keys match
+ *   explicit nulls.
+ * - Recursively sorts object keys so key order differences (e.g. from Postgres
+ *   JSONB normalization) never cause false diffs.
+ */
+function canonicalItemForDiff(item) {
+  if (item === null || typeof item !== "object") return item;
+  if (Array.isArray(item)) return item.map(canonicalItemForDiff);
+
+  const ignoredKeys = new Set(["created_at", "updated_at", "pos_x", "pos_y", "flow_id"]);
+  const sorted = {};
+  for (const key of Object.keys(item).sort()) {
+    if (ignoredKeys.has(key)) continue;
+    const val = item[key];
+    if (val === null || val === undefined || val === "") continue;
+    sorted[key] = canonicalItemForDiff(val);
+  }
+  return sorted;
+}
+
+function areItemsEqual(itemA, itemB) {
+  return JSON.stringify(canonicalItemForDiff(itemA)) === JSON.stringify(canonicalItemForDiff(itemB));
+}
+
+/**
  * Added, removed and changed entries between two lists of the same kind of
  * row, matched by `id`. "Changed" means the same id survived with a
- * different value somewhere on it — a deep comparison, since a Stage Action's
- * `config` is itself an object a single field of which may have moved.
+ * different value somewhere on it — a deep semantic comparison.
  */
 function diffById(itemsA = [], itemsB = []) {
-  const byIdA = new Map(itemsA.map((item) => [item.id, item]))
-  const byIdB = new Map(itemsB.map((item) => [item.id, item]))
+  const byIdA = new Map(itemsA.map((item) => [item.id, item]));
+  const byIdB = new Map(itemsB.map((item) => [item.id, item]));
 
-  const added = itemsB.filter((item) => !byIdA.has(item.id))
-  const removed = itemsA.filter((item) => !byIdB.has(item.id))
-  const changed = []
+  const added = itemsB.filter((item) => !byIdA.has(item.id));
+  const removed = itemsA.filter((item) => !byIdB.has(item.id));
+  const changed = [];
   for (const [id, before] of byIdA) {
-    const after = byIdB.get(id)
-    if (after && JSON.stringify(before) !== JSON.stringify(after)) {
-      changed.push({ id, before, after })
+    const after = byIdB.get(id);
+    if (after && !areItemsEqual(before, after)) {
+      changed.push({ id, before, after });
     }
   }
 
-  return { added, removed, changed }
+  return { added, removed, changed };
 }
 
 /**

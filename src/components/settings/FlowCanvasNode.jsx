@@ -255,7 +255,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
       {showPlus && (
         <div
           className={cn(
-            "nodrag absolute -right-3 top-1/2 z-10 -translate-y-1/2 transition-opacity duration-150",
+            "nodrag absolute -right-10 top-1/2 z-10 -translate-y-1/2 transition-opacity duration-150",
             plusAlwaysVisible || addOpen
               ? "opacity-100"
               : "opacity-0 group-hover/stage:opacity-100 focus-within:opacity-100",
@@ -272,9 +272,9 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
               <button
                 type="button"
                 aria-label={`Add Stage after ${stage.name}`}
-                className="flex size-6 items-center justify-center rounded-full border-2 border-card bg-mauve-9 text-white shadow-sm transition-transform hover:scale-110 hover:bg-mauve-10"
+                className="flex size-8 items-center justify-center rounded-full border-2 border-card bg-mauve-9 text-white shadow-sm transition-transform hover:scale-110 hover:bg-mauve-10"
               >
-                <Plus size={13} strokeWidth={2.5} />
+                <Plus size={16} strokeWidth={2.5} />
               </button>
             }
           >

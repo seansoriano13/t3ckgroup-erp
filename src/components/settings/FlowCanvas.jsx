@@ -4,12 +4,14 @@ import * as dagre from "@dagrejs/dagre";
 import {
   Archive,
   ArchiveRestore,
+  ArrowLeft,
   ChevronDown,
   ChevronRight,
   Lock,
   LockOpen,
   Pencil,
   Plus,
+  RotateCcw,
   Sparkles,
   Workflow,
   Trash2,
@@ -349,7 +351,7 @@ function FlowCanvasInner() {
     mutationFn: (snapshotId) => salesFlowService.restoreSnapshot(flow.id, snapshotId, user?.id),
     onSuccess: () => {
       refresh();
-      toast.success("Flow Snapshot restored into the draft.");
+      toast.success("Working draft reverted to this version.");
       setRestoreConfirmOpen(false);
       setViewingSnapshot(null);
     },
@@ -496,14 +498,14 @@ function FlowCanvasInner() {
           stage,
           isEntry: entry?.id === stage.id,
           isWon: flow?.won_stage_id === stage.id,
-          disabled: false,
+          disabled: isLocked,
           conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
           hasOutgoing: edges.some((e) => e.from_stage_id === stage.id),
           canAddStage: !isLocked,
           onAddStage: (name) => addStageAfter(stage, name),
         },
-        draggable: true,
+        draggable: !isLocked,
       });
     });
 
@@ -566,7 +568,7 @@ function FlowCanvasInner() {
 
         // The empty slot is an affordance, not decoration — so it appears only
         // on the Stage being worked on, and never on a locked flow.
-        if (isSelected && overflow === 0) {
+        if (isSelected && overflow === 0 && !isLocked) {
           addSatellite(stage, column, items.length, `sat:${stage.id}:${column}:add`, {
             variant: "add",
             addLabel,
@@ -586,10 +588,10 @@ function FlowCanvasInner() {
       // underneath it — and the move draws from the wrong side of the Stage.
       sourceHandle: HANDLE_OUT,
       targetHandle: HANDLE_IN,
-      deletable: true,
-      reconnectable: true,
+      deletable: !isLocked,
+      reconnectable: !isLocked,
       data: {
-        disabled: false,
+        disabled: isLocked,
         fromName: stageName[e.from_stage_id],
         toName: stageName[e.to_stage_id],
         onDelete: (edgeId) => handleRemoveEdge(edgeId),
@@ -619,15 +621,15 @@ function FlowCanvasInner() {
 
   const onNodeDrag = useCallback(
     (_event, node) => {
-      if (node.type !== "stage") return;
+      if (isLocked || node.type !== "stage") return;
       publishNodeDrag(node.id, node.position);
     },
-    [publishNodeDrag]
+    [isLocked, publishNodeDrag]
   );
 
   const onNodeDragStop = useCallback(
     (_event, node) => {
-      if (node.type !== "stage") return;
+      if (isLocked || node.type !== "stage") return;
       salesFlowService
         .updateStagePosition(node.id, node.position.x, node.position.y, user?.id)
         .catch((err) => {
@@ -635,28 +637,30 @@ function FlowCanvasInner() {
           toast.error("That Stage's new position could not be saved. Move it again to retry.");
         });
     },
-    [user?.id]
+    [isLocked, user?.id]
   );
 
   const stageIdSet = useMemo(() => new Set(stageIds), [stageIds]);
 
   const onConnect = useCallback(
     (params) => {
+      if (isLocked) return;
       // Only Stage-to-Stage is a move. A satellite is a property of its Stage,
       // and the schema has nowhere to put an edge that ends on one.
       if (!stageIdSet.has(params.source) || !stageIdSet.has(params.target)) return;
       run(() => salesFlowService.addEdge(flow.id, params.source, params.target, user?.id));
     },
-    [flow, user?.id, run, stageIdSet]
+    [isLocked, flow, user?.id, run, stageIdSet]
   );
 
   const onEdgesDelete = useCallback(
     (edgesToDelete) => {
+      if (isLocked) return;
       edgesToDelete
         .filter((edge) => !edge.id.startsWith("satedge:"))
         .forEach((edge) => run(() => salesFlowService.removeEdge(edge.id, user?.id)));
     },
-    [user?.id, run]
+    [isLocked, user?.id, run]
   );
 
   /**
@@ -669,6 +673,7 @@ function FlowCanvasInner() {
    */
   const onReconnect = useCallback(
     (oldEdge, connection) => {
+      if (isLocked) return;
       if (!stageIdSet.has(connection.source) || !stageIdSet.has(connection.target)) return;
       if (connection.source === connection.target) {
         toast.error("A Stage cannot move to itself.");
@@ -686,7 +691,7 @@ function FlowCanvasInner() {
         await salesFlowService.removeEdge(oldEdge.id, user?.id);
       }, "Move rerouted.");
     },
-    [stageIdSet, flow, user?.id, run]
+    [isLocked, stageIdSet, flow, user?.id, run]
   );
 
   const onNodeClick = useCallback((_event, node) => {
@@ -784,9 +789,9 @@ function FlowCanvasInner() {
           edgeTypes={edgeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           connectionRadius={28}
-          edgesReconnectable={true}
-          nodesConnectable={true}
-          nodesDraggable={true}
+          edgesReconnectable={!isLocked}
+          nodesConnectable={!isLocked}
+          nodesDraggable={!isLocked}
           elementsSelectable={true}
           fitView
           fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
@@ -794,8 +799,7 @@ function FlowCanvasInner() {
           maxZoom={1.75}
           panOnScroll
           selectionOnDrag={false}
-          proOptions={{ hideAttribution: false }}
-          attributionPosition="bottom-left"
+          proOptions={{ hideAttribution: true }}
           deleteKeyCode={["Backspace", "Delete"]}
           className="flow-canvas"
         >
@@ -841,8 +845,8 @@ function FlowCanvasInner() {
             <MiniMap
               pannable
               zoomable
-              position="top-right"
-              className="!top-20 !right-4 !mb-0 !h-24 !w-40 !rounded-xl !bg-card"
+              position="bottom-right"
+              className="!bottom-24 !right-4 !mb-0 !h-24 !w-36 !rounded-xl !bg-card/90 shadow-md border border-border backdrop-blur-sm"
               maskColor="var(--mauve-a4)"
               nodeColor={(node) =>
                 node.type === "stage" ? "var(--mauve-9)" : "var(--mauve-6)"
@@ -857,26 +861,50 @@ function FlowCanvasInner() {
       {/* ── Version-viewing banner (issue #193) ────────────────────────── */}
       {flow && viewingSnapshot && (
         <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center p-3">
-          <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-card/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
-            <p className="text-sm font-bold text-foreground">
-              Viewing {formatSnapshotVersion(viewingSnapshot)} — read-only
-            </p>
+          <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-card/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Preview
+              </span>
+              <p className="text-sm font-bold text-foreground">
+                Viewing {formatSnapshotVersion(viewingSnapshot)} — read-only
+              </p>
+            </div>
             <div className="mx-1 h-4 w-px bg-border" />
-            <Button variant="ghost" size="sm" onClick={() => setViewingSnapshot(null)}>
-              Back to draft
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setViewingSnapshot(null)}
+              aria-label="Back to draft"
+              className="gap-1.5 font-medium shadow-sm"
+            >
+              <ArrowLeft size={14} />
+              {isLocked ? "Back to live flow" : "Back to draft"}
             </Button>
-            <Tooltip content={isLocked ? "Edit draft first to restore into it." : ""}>
+            <Tooltip content={isLocked ? "Edit draft first to revert to this version." : "Replace current draft with this version's stages and edges."}>
               <span>
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   disabled={isLocked}
                   onClick={() => setRestoreConfirmOpen(true)}
+                  aria-label="Revert to this version"
+                  className="gap-1.5 text-muted-foreground hover:text-foreground"
                 >
-                  Restore into draft
+                  <RotateCcw size={13} />
+                  Revert to this version
                 </Button>
               </span>
             </Tooltip>
+            <button
+              type="button"
+              onClick={() => setViewingSnapshot(null)}
+              className="ml-0.5 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Exit preview"
+              title={isLocked ? "Exit preview (back to live flow)" : "Exit preview (back to draft)"}
+            >
+              <X size={15} />
+            </button>
           </div>
         </div>
       )}
@@ -897,7 +925,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-evenly gap-3 p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center justify-between gap-4 px-4 py-3">
         <div className="pointer-events-auto flex min-w-0 items-center gap-1.5 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
             <Workflow size={16} strokeWidth={2.5} />
@@ -1182,7 +1210,7 @@ function FlowCanvasInner() {
                   variant="ghost"
                   size="lg"
                   onClick={handleAutoLayout}
-                  disabled={stages.length === 0}
+                  disabled={stages.length === 0 || isLocked}
                 >
                   <Sparkles /> Tidy layout
                 </Button>
@@ -1256,20 +1284,20 @@ function FlowCanvasInner() {
         </div>
       )}
 
-      {/* ── Add-Stage plus (issue #195) ─────────────────────────────────── */}
+      {/* ── Add-Stage plus (issue #195) ───────────────────────────────── */}
       {flow && !isLocked && !viewingSnapshot && (
         <div className="absolute bottom-4 left-4 z-20">
           <Dropdown
             usePortal
-            placement="bottom-start"
+            placement="top-start"
             popoverClassName="popover-enter z-[10001] w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
             trigger={
               <Button
-                size="icon-lg"
+                size="sm"
                 aria-label="Add Stage"
-                className="rounded-2xl bg-card/85 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md hover:bg-card"
+                className="gap-2 rounded-2xl bg-card/90 px-3.5 py-2 text-xs font-bold text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md hover:bg-card"
               >
-                <Plus />
+                <Plus size={15} /> Add Stage
               </Button>
             }
           >
@@ -1347,8 +1375,10 @@ function FlowCanvasInner() {
         confirmLabel="Publish"
         confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
         onConfirm={() => publishFlow.mutate(publishNote.trim() || null)}
+        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-6 gap-5"
+        footerClassName="-mx-6 -mb-6 p-6 sm:px-6 sm:py-4 mt-auto shrink-0"
       >
-        <div className="space-y-3">
+        <div className="space-y-4 flex-1 min-h-0 flex flex-col">
           <Input
             autoFocus
             label="Note (optional)"
@@ -1356,30 +1386,33 @@ function FlowCanvasInner() {
             value={publishNote}
             onChange={(e) => setPublishNote(e.target.value)}
           />
-          <div className="rounded-xl border border-border bg-muted/30 p-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          <div className="rounded-xl border border-border bg-muted/30 p-5 flex-1 min-h-0 flex flex-col">
+            <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground shrink-0">
               Changes since the latest version
             </p>
-            {versionPreview?.diff ? (
-              <DiffSummary
-                result={versionPreview.diff}
-                stageName={stageNameFor}
-                emptyMessage="This draft is identical to the latest version — nothing to publish."
-              />
-            ) : (
-              <Spinner size="sm" />
-            )}
+            <div className="overflow-y-auto max-h-[42vh] pr-2 scrollbar-thin">
+              {versionPreview?.diff ? (
+                <DiffSummary
+                  result={versionPreview.diff}
+                  stageName={stageNameFor}
+                  emptyMessage="This draft is identical to the latest version — nothing to publish."
+                  className="space-y-3"
+                />
+              ) : (
+                <Spinner size="sm" />
+              )}
+            </div>
           </div>
         </div>
       </ConfirmDialog>
 
-      {/* ── Restore into draft, from the version banner (issue #193) ─────── */}
+      {/* ── Revert to this version, from the version banner ─────── */}
       <ConfirmDialog
         open={restoreConfirmOpen}
         onOpenChange={setRestoreConfirmOpen}
-        title={`Restore ${viewingSnapshot ? formatSnapshotVersion(viewingSnapshot) : ""}?`}
-        description="This replaces whatever the current draft has with this Snapshot's shape. No published version changes — the restored shape only becomes its own new Snapshot the next time this flow is locked."
-        confirmLabel="Restore"
+        title={`Revert to ${viewingSnapshot ? formatSnapshotVersion(viewingSnapshot) : ""}?`}
+        description="This replaces your working draft with this version's stages, moves, and rules. The live published flow will not change until you publish."
+        confirmLabel="Revert"
         tone="destructive"
         onConfirm={() => restoreMutation.mutate(viewingSnapshot.id)}
       />

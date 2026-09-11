@@ -1,6 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Lock, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -109,7 +109,7 @@ export default function FlowVersionRail({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Show version history"
-        className="pointer-events-auto absolute left-3 top-20 z-20 flex size-8 items-center justify-center rounded-xl bg-card/85 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md"
+        className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex size-8 items-center justify-center rounded-xl bg-card/85 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md transition-colors hover:bg-card hover:text-foreground"
       >
         <ChevronRight size={14} className="text-muted-foreground" />
       </button>
@@ -121,7 +121,7 @@ export default function FlowVersionRail({
 
   return (
     <>
-      <div className="pointer-events-auto absolute left-3 top-20 z-20 flex max-h-[calc(100%-6rem)] w-72 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+      <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-72 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-border px-3 py-2">
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Versions</p>
           <button type="button" onClick={() => setOpen(false)} aria-label="Hide version history">
@@ -130,9 +130,16 @@ export default function FlowVersionRail({
         </div>
 
         <div className="flex-1 space-y-1.5 overflow-y-auto p-2">
-          {!isLocked && (
+          {!isLocked ? (
             <VersionRow
               label={`Draft${versionPreview?.label ? ` · ${versionPreview.label}` : ""}`}
+              badge={
+                !viewingSnapshotId ? (
+                  <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    Editing
+                  </span>
+                ) : null
+              }
               subtitle={
                 !latest
                   ? "Never published"
@@ -142,6 +149,8 @@ export default function FlowVersionRail({
               }
               expanded={expandedId === "draft"}
               onToggleExpand={() => setExpandedId((id) => (id === "draft" ? null : "draft"))}
+              onSelect={onViewVersion ? () => onViewVersion(null) : undefined}
+              selected={!viewingSnapshotId}
             >
               {versionPreview?.diff ? (
                 <DiffSummary
@@ -153,6 +162,42 @@ export default function FlowVersionRail({
                 <Spinner size="sm" />
               )}
             </VersionRow>
+          ) : (
+            <div
+              className={cn(
+                "rounded-xl border p-2.5 transition-colors",
+                !viewingSnapshotId
+                  ? "border-blue-500/60 ring-1 ring-blue-500/30 bg-muted/20"
+                  : "border-dashed border-border bg-muted/40 cursor-pointer hover:bg-muted/60",
+              )}
+              onClick={() => {
+                if (viewingSnapshotId && onViewVersion) {
+                  onViewVersion(null);
+                }
+              }}
+              role={viewingSnapshotId ? "button" : undefined}
+              tabIndex={viewingSnapshotId ? 0 : undefined}
+              aria-label={viewingSnapshotId ? "Return to live flow" : undefined}
+            >
+              <div className="flex items-center justify-between gap-1.5 text-xs font-semibold text-foreground">
+                <div className="flex items-center gap-1.5">
+                  <Lock size={12} className="text-muted-foreground" />
+                  <span>Flow is Locked</span>
+                </div>
+                {!viewingSnapshotId ? (
+                  <span className="rounded-md bg-green-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                    Live
+                  </span>
+                ) : (
+                  <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                    Click to return
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Currently running {latest ? formatSnapshotVersion(latest) : "published flow"}. Reopen draft to edit.
+              </p>
+            </div>
           )}
 
           {isHistoryLoading && (
@@ -180,6 +225,17 @@ export default function FlowVersionRail({
               <VersionRow
                 key={entry.snapshot.id}
                 label={formatSnapshotVersion(entry.snapshot)}
+                badge={
+                  viewingSnapshotId === entry.snapshot.id ? (
+                    <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                      Viewing
+                    </span>
+                  ) : entry.snapshot.id === latest?.id ? (
+                    <span className="rounded-md bg-green-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                      Live
+                    </span>
+                  ) : null
+                }
                 subtitle={`${employeeName(entry.snapshot.created_by)} · ${new Date(entry.snapshot.created_at).toLocaleDateString()} · ${usageCounts[entry.snapshot.id] || 0} SOR${usageCounts[entry.snapshot.id] === 1 ? "" : "s"}`}
                 note={entry.snapshot.note}
                 expanded={expandedId === entry.snapshot.id}
@@ -189,16 +245,26 @@ export default function FlowVersionRail({
                 onSelect={onViewVersion ? () => onViewVersion(entry.snapshot) : undefined}
                 selected={viewingSnapshotId === entry.snapshot.id}
                 actions={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setCompareTargetId((id) => (id === entry.snapshot.id ? null : entry.snapshot.id))
-                    }
-                  >
-                    Compare with draft
-                  </Button>
+                  !isLocked ? (
+                    <Button
+                      type="button"
+                      variant={compareTargetId === entry.snapshot.id ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        if (compareTargetId === entry.snapshot.id) {
+                          setCompareTargetId(null);
+                        } else {
+                          setCompareTargetId(entry.snapshot.id);
+                          setExpandedId(entry.snapshot.id);
+                        }
+                      }}
+                    >
+                      {compareTargetId === entry.snapshot.id
+                        ? "Comparing with draft"
+                        : "Compare with draft"}
+                    </Button>
+                  ) : null
                 }
               >
                 <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -211,10 +277,20 @@ export default function FlowVersionRail({
                 />
 
                 {compareTargetId === entry.snapshot.id && (
-                  <div className="mt-2 border-t border-border pt-2">
-                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                      What the draft would change
-                    </p>
+                  <div className="mt-2.5 rounded-xl border border-border bg-muted/40 p-2.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-foreground">
+                        What the draft would change
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCompareTargetId(null)}
+                        className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                        aria-label="Close draft comparison"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
                     {draftSnapshotData ? (
                       <DiffSummary
                         result={diffFlowSnapshots(entry.snapshot.snapshot_data, draftSnapshotData)}
@@ -222,7 +298,10 @@ export default function FlowVersionRail({
                         emptyMessage="The draft is identical to this version."
                       />
                     ) : (
-                      <Spinner size="sm" />
+                      <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">
+                        <Spinner size="sm" />
+                        <span>Calculating diff against draft…</span>
+                      </div>
                     )}
                   </div>
                 )}
@@ -243,15 +322,20 @@ export default function FlowVersionRail({
  * canvas to switch to viewing that version, so a viewer who wants to read
  * "what changed" without leaving the draft can still do that.
  */
-function VersionRow({ label, subtitle, note, expanded, onToggleExpand, onSelect, selected, actions, children }) {
+function VersionRow({ label, subtitle, note, badge, expanded, onToggleExpand, onSelect, selected, actions, children }) {
   return (
-    <div className={cn("rounded-xl border border-border", selected && "border-primary ring-1 ring-primary")}>
+    <div
+      className={cn(
+        "rounded-xl border border-border transition-colors",
+        selected && "border-blue-500/60 ring-1 ring-blue-500/30 dark:border-blue-400/60",
+      )}
+    >
       <div className="flex w-full items-start gap-2 px-2.5 py-2 text-left">
         <button
           type="button"
           onClick={onToggleExpand}
           aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
-          className="mt-0.5 shrink-0"
+          className="mt-0.5 shrink-0 hover:opacity-80"
         >
           {expanded ? (
             <ChevronUp size={14} className="text-muted-foreground" />
@@ -260,12 +344,12 @@ function VersionRow({ label, subtitle, note, expanded, onToggleExpand, onSelect,
           )}
         </button>
         {onSelect ? (
-          <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
-            <RowLabel label={label} subtitle={subtitle} note={note} />
+          <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left group/row">
+            <RowLabel label={label} subtitle={subtitle} note={note} badge={badge} />
           </button>
         ) : (
           <div className="min-w-0 flex-1">
-            <RowLabel label={label} subtitle={subtitle} note={note} />
+            <RowLabel label={label} subtitle={subtitle} note={note} badge={badge} />
           </div>
         )}
       </div>
@@ -275,10 +359,13 @@ function VersionRow({ label, subtitle, note, expanded, onToggleExpand, onSelect,
   );
 }
 
-function RowLabel({ label, subtitle, note }) {
+function RowLabel({ label, subtitle, note, badge }) {
   return (
     <>
-      <p className="text-sm font-bold text-foreground">{label}</p>
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <p className="text-sm font-bold text-foreground">{label}</p>
+        {badge}
+      </div>
       <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
       {note && <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground">“{note}”</p>}
     </>
@@ -292,7 +379,28 @@ function RowLabel({ label, subtitle, note }) {
  */
 export function FlowVersionStatusChip({ flow, saleTypeName, versionPreview, salesFlowService, stageNameFor }) {
   const [open, setOpen] = useState(false);
+  const chipRef = useRef(null);
   const isLocked = flow?.state === "locked";
+
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e) => {
+      if (chipRef.current && !chipRef.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside, true);
+    document.addEventListener("touchstart", handleClickOutside, true);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside, true);
+      document.removeEventListener("touchstart", handleClickOutside, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
 
   const { data: history = [] } = useQuery({
     queryKey: ["flowSnapshots", flow?.id],
@@ -316,27 +424,43 @@ export function FlowVersionStatusChip({ flow, saleTypeName, versionPreview, sale
   }
 
   return (
-    <div className="relative">
+    <div ref={chipRef} className="relative">
       <button
         type="button"
         onClick={() => canShowChanges && setOpen((o) => !o)}
         className={cn(
-          "whitespace-nowrap rounded-xl px-2.5 py-1.5 text-xs font-bold text-muted-foreground",
-          canShowChanges && "hover:bg-mauve-a3",
+          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors",
+          isLocked
+            ? "text-muted-foreground bg-muted/30 border border-border/50"
+            : "text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20",
+          canShowChanges && "hover:bg-amber-500/20 hover:text-foreground cursor-pointer",
         )}
       >
-        {text}
+        {isLocked && <Lock size={12} className="shrink-0 text-muted-foreground" />}
+        <span>{text}</span>
       </button>
       {open && canShowChanges && (
-        <div className="absolute left-0 top-full z-[10001] mt-1 w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6">
-          <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-            Unpublished changes
-          </p>
-          <DiffSummary
-            result={versionPreview.diff}
-            stageName={stageNameFor}
-            emptyMessage="No unpublished changes."
-          />
+        <div className="popover-enter absolute right-0 top-full z-[10001] mt-2 w-84 rounded-2xl bg-popover p-3.5 shadow-2xl ring-1 ring-mauve-6">
+          <div className="flex items-center justify-between border-b border-border pb-2 mb-2.5">
+            <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
+              Unpublished changes
+            </p>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Close unpublished changes"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
+            <DiffSummary
+              result={versionPreview.diff}
+              stageName={stageNameFor}
+              emptyMessage="No unpublished changes."
+            />
+          </div>
         </div>
       )}
     </div>

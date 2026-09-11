@@ -119,6 +119,31 @@ describe("FlowVersionRail", () => {
     expect(await screen.findByText(/Added: Onboarding/)).toBeInTheDocument()
   })
 
+  it("auto-expands a collapsed row when Compare with draft is clicked directly", async () => {
+    const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
+    await salesFlowService.unlockFlow(flow.id, "Back to editing", admin.id)
+    await salesFlowService.addStage(flow.id, "Onboarding", admin.id)
+    const user = userEvent.setup()
+    renderWithProviders(<Rail saleTypeId={saleType.id} />)
+    await screen.findByText("v1.1")
+
+    // Do NOT expand v1.0 first — clicking Compare with draft must auto-expand the row
+    const compareButtons = screen.getAllByRole("button", { name: "Compare with draft" })
+    await user.click(compareButtons[compareButtons.length - 1])
+
+    expect(await screen.findByText(/Added: Onboarding/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Comparing with draft" })).toBeInTheDocument()
+  })
+
+  it("shows Flow is Locked in the rail and hides Compare with draft when flow is locked", async () => {
+    const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
+    renderWithProviders(<Rail saleTypeId={saleType.id} />)
+    await screen.findByText("v1.1")
+
+    expect(screen.getByText("Flow is Locked")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Compare with draft" })).not.toBeInTheDocument()
+  })
+
   it("calls onViewVersion when a row's label is clicked, and highlights the viewed row", async () => {
     const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
     const onViewVersion = vi.fn()
@@ -129,6 +154,18 @@ describe("FlowVersionRail", () => {
     await user.click(screen.getByText("v1.0"))
     expect(onViewVersion).toHaveBeenCalledTimes(1)
     expect(onViewVersion.mock.calls[0][0]).toMatchObject({ version: 1, version_minor: 0 })
+  })
+
+  it("calls onViewVersion(null) when the Draft row is clicked", async () => {
+    const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
+    await salesFlowService.unlockFlow(flow.id, "Back to editing", admin.id)
+    const onViewVersion = vi.fn()
+    const user = userEvent.setup()
+    renderWithProviders(<Rail saleTypeId={saleType.id} onViewVersion={onViewVersion} viewingSnapshotId="some-id" />)
+    await screen.findByText("Draft")
+
+    await user.click(screen.getByText("Draft"))
+    expect(onViewVersion).toHaveBeenCalledWith(null)
   })
 
   it("no longer offers a per-row Restore action (issue #193 moved it to the canvas banner)", async () => {
@@ -262,6 +299,17 @@ describe("FlowVersionStatusChip", () => {
     const chip = await screen.findByText(`${saleType.name} · v1.1 · draft (1 change)`)
     await user.click(chip)
     expect(await screen.findByText(/Added: Negotiation/)).toBeInTheDocument()
+
+    // Pressing Escape closes the popover
+    await user.keyboard("{Escape}")
+    expect(screen.queryByText(/Added: Negotiation/)).not.toBeInTheDocument()
+
+    // Reopen and click outside
+    await user.click(chip)
+    expect(await screen.findByText(/Added: Negotiation/)).toBeInTheDocument()
+    await user.click(document.body)
+    expect(screen.queryByText(/Added: Negotiation/)).not.toBeInTheDocument()
+
     void edges
   })
 })

@@ -1,6 +1,39 @@
 [
     {
         "date": "2026-09-11",
+        "title": "Clearer Flow Modes & Accurate Draft Diffing",
+        "version": "1.7.15",
+        "changes": [
+            "Renamed the misleading 'Restore into draft' button to 'Revert to this version', with clear confirmation explaining that your draft will take on that version's rules without altering live deals until you publish.",
+            "The Draft version row in the left-hand Versions panel is now directly clickable to return to draft mode at any time, with clear selection highlighting and an 'Editing' status badge.",
+            "The top version-preview banner is now reassuring and friendly for new users: featuring a clear 'Back to draft' action with back arrow, an explicit (X) close button, and a separate, guarded 'Revert to this version' action with helpful tooltip explanations.",
+            "Fixed false diff changes: stages are no longer reported as changed when nothing changed. The comparator now compares actual process properties (name, sequence, terminal status, brackets, colors) rather than database timestamps, coordinates, or PostgreSQL key ordering.",
+            "Clicking 'Compare with draft' in the version rail now automatically expands the version and reveals the exact comparison against your unpublished changes with a single click.",
+            "Canvas editing is now strictly locked when viewing a published flow: stages and moves cannot be moved or deleted until you click 'Edit draft', eliminating confusion between live and draft states.",
+            "Prominent status badges make your current mode obvious at a glance: 'Live' on published versions, 'Editing' when modifying a draft, and 'Viewing' when inspecting version history."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Cleaner Flow Canvas Layout & Intuitive Popovers",
+        "version": "1.7.14",
+        "changes": [
+            "The Flow Canvas controls are now cleanly anchored across the screen: the Sale Type switcher aligns with the version history rail on the left, while status indicators and publish actions sit neatly on the right.",
+            "Canvas navigation tools (minimap and zoom controls) are logically grouped in the bottom-right corner, and the Add Stage button is a clear, polished action in the bottom-left.",
+            "Menus and popovers — including unpublished changes and the Add Stage dialog — now reliably close whenever you click away on the canvas or press the Escape key."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Roomier Flow Publish Window",
+        "version": "1.7.13",
+        "changes": [
+            "The publish dialog on the Sales Flow canvas is now wider and more spacious, with increased padding and comfortable room for reviewing draft changes.",
+            "Long change lists now scroll neatly inside the window, keeping the Cancel and Publish action buttons always visible and accessible."
+        ]
+    },
+    {
+        "date": "2026-09-11",
         "title": "Publish vX.Y",
         "version": "1.7.12",
         "changes": [
