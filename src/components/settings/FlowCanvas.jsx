@@ -48,6 +48,7 @@ import FlowSatelliteNode from "./FlowSatelliteNode";
 import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
+import DiffSummary from "./FlowSnapshotDiffSummary";
 import {
   GATE,
   RUN,
@@ -132,6 +133,8 @@ function FlowCanvasInner() {
   const [selection, setSelection] = useState(null);
   const [dialog, setDialog] = useState(null);
   const [dialogValue, setDialogValue] = useState("");
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishNote, setPublishNote] = useState("");
   const [toolbarMode, setToolbarMode] = useState("select");
   const [inlineValue, setInlineValue] = useState("");
 
@@ -170,6 +173,10 @@ function FlowCanvasInner() {
     enabled: Boolean(flow?.id) && !isLocked,
   });
   const publishLabel = versionPreview ? `Publish ${versionPreview.label}` : "Publish";
+  const stageNameFor = useCallback(
+    (stageId) => stages.find((s) => s.id === stageId)?.name || stageId,
+    [stages],
+  );
 
   // One request per flow rather than one per Stage: a twelve-Stage flow drew
   // twenty-four requests on every switch when each node fetched its own.
@@ -971,7 +978,7 @@ function FlowCanvasInner() {
                 variant="outline"
                 size="lg"
                 disabled={lockBlockers.length > 0}
-                onClick={() => run(() => salesFlowService.publishFlow(flow.id, user?.id), "Flow published.")}
+                onClick={() => setPublishOpen(true)}
               >
                 <Lock /> {publishLabel}
               </Button>
@@ -1084,6 +1091,50 @@ function FlowCanvasInner() {
             onChange={(e) => setDialogValue(e.target.value)}
           />
         )}
+      </ConfirmDialog>
+
+      {/* ── Publish popover (issue #189) ───────────────────────────────── */}
+      <ConfirmDialog
+        open={publishOpen}
+        onOpenChange={(open) => {
+          setPublishOpen(open);
+          if (!open) setPublishNote("");
+        }}
+        title={publishLabel}
+        description="Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
+        confirmLabel="Publish"
+        confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
+        onConfirm={() => {
+          run(
+            () => salesFlowService.publishFlow(flow?.id, user?.id, publishNote.trim() || null),
+            "Flow published.",
+          );
+          setPublishNote("");
+        }}
+      >
+        <div className="space-y-3">
+          <Input
+            autoFocus
+            label="Note (optional)"
+            placeholder="Why this version exists…"
+            value={publishNote}
+            onChange={(e) => setPublishNote(e.target.value)}
+          />
+          <div className="rounded-xl border border-border bg-muted/30 p-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Changes since the latest version
+            </p>
+            {versionPreview?.diff ? (
+              <DiffSummary
+                result={versionPreview.diff}
+                stageName={stageNameFor}
+                emptyMessage="This draft is identical to the latest version — nothing to publish."
+              />
+            ) : (
+              <Spinner size="sm" />
+            )}
+          </div>
+        </div>
       </ConfirmDialog>
     </div>
   );

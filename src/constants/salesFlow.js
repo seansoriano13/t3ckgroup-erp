@@ -240,6 +240,26 @@ export function stageActionTaskTitle({ salesReference, projectTitle } = {}) {
 }
 
 /**
+ * The `snapshot_data` shape a publish would write, from the live pieces of a
+ * draft (issue #189). Pure — everything the caller already fetched comes in
+ * as an argument — so the shaping rule this Flow Snapshot commits to can be
+ * unit tested without a database, and so `salesFlowService.buildSnapshotData`
+ * (the async wrapper that actually fetches `actions`/`conditions`) and
+ * `diffFlowSnapshots` (which reads this same shape from an already-published
+ * Snapshot) can never disagree about what a "changed" flow looks like.
+ */
+export function buildDraftSnapshotData({ flow, stages = [], edges = [], actions = [], conditions = [] } = {}) {
+  return {
+    stages,
+    edges,
+    actions,
+    conditions,
+    wonStageId: flow?.won_stage_id ?? null,
+    saleTypeId: flow?.sale_type_id ?? null,
+  }
+}
+
+/**
  * Added, removed and changed entries between two lists of the same kind of
  * row, matched by `id`. "Changed" means the same id survived with a
  * different value somewhere on it — a deep comparison, since a Stage Action's

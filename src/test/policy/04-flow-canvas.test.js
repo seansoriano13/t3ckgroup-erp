@@ -505,3 +505,94 @@ describe("Flow Snapshot version numbers (issue #188, ADR 0020)", () => {
         expect(preview.data[0]).toEqual({ version_major: 3, version_minor: 2 })
     })
 })
+
+// ===========================================================================
+
+/**
+ * A publish note (issue #189) is optional and stored verbatim, blank rather
+ * than empty-string when nothing meaningful was typed — the same trim the
+ * migration's `nullif(trim(p_note), '')` applies, so a note of all whitespace
+ * reads back as "no note" rather than as a note nobody could see.
+ */
+describe("Flow Snapshot publish notes (issue #189)", () => {
+    let svc
+    let noteFlowId
+
+    beforeAll(async () => {
+        svc = serviceClient()
+        const saleType = await svc
+            .from("sale_types")
+            .insert({ name: `${MARKER} Publish Note Sale Type` })
+            .select("id")
+            .single()
+        if (saleType.error) throw new Error(`Seeding a Sale Type: ${saleType.error.message}`)
+
+        const flow = await svc
+            .from("sales_flows")
+            .insert({ sale_type_id: saleType.data.id })
+            .select("id")
+            .single()
+        if (flow.error) throw new Error(`Seeding a flow: ${flow.error.message}`)
+        noteFlowId = flow.data.id
+    })
+
+    afterAll(async () => {
+        await svc.from("flow_snapshots").delete().eq("flow_id", noteFlowId)
+        await svc.from("sales_flows").delete().eq("id", noteFlowId)
+    })
+
+    async function publish(stageIds, note) {
+        const { data, error } = await svc.rpc("lock_sales_flow", {
+            p_flow_id: noteFlowId,
+            p_actor_id: ids.superAdmin,
+            p_snapshot_data: { stages: stageIds.map((id) => ({ id, name: id })), wonStageId: stageIds[0] },
+            p_note: note,
+        })
+        if (error) throw new Error(error.message)
+        await svc.from("sales_flows").update({ state: "draft" }).eq("id", noteFlowId)
+        return data.snapshot
+    }
+
+    it("stores the note given at publish", async () => {
+        const snapshot = await publish([crypto.randomUUID()], "First cut of this process.")
+        expect(snapshot.note).toBe("First cut of this process.")
+    })
+
+    it("stores null when no note is given, or when it is blank", async () => {
+        const noNote = await publish([crypto.randomUUID()], null)
+        expect(noNote.note).toBeNull()
+
+        const blankNote = await publish([crypto.randomUUID()], "   ")
+        expect(blankNote.note).toBeNull()
+    })
+
+    it("refuses a draft that is identical to the latest version, even called directly", async () => {
+        const stageId = crypto.randomUUID()
+        const snapshotData = { stages: [{ id: stageId, name: stageId }], wonStageId: stageId }
+
+        const first = await svc.rpc("lock_sales_flow", {
+            p_flow_id: noteFlowId,
+            p_actor_id: ids.superAdmin,
+            p_snapshot_data: snapshotData,
+            p_note: null,
+        })
+        expect(first.error).toBeNull()
+        await svc.from("sales_flows").update({ state: "draft" }).eq("id", noteFlowId)
+
+        // Same shape as what is already the latest Flow Snapshot — the RPC is
+        // the backstop for "no empty publishes" (issue #189), independent of
+        // whether the caller is the UI's popover or a direct RPC call.
+        const second = await svc.rpc("lock_sales_flow", {
+            p_flow_id: noteFlowId,
+            p_actor_id: ids.superAdmin,
+            p_snapshot_data: snapshotData,
+            p_note: "A note does not make an unchanged draft publishable.",
+        })
+        expect(second.error).not.toBeNull()
+        expect(second.error.message).toMatch(/identical to the latest version/)
+
+        // The flow itself is untouched by the refused attempt — still draft.
+        const flow = await svc.from("sales_flows").select("state").eq("id", noteFlowId).single()
+        expect(flow.data.state).toBe("draft")
+    })
+})

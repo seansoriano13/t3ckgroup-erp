@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   actionsForSnapshotStage,
+  buildDraftSnapshotData,
   conditionsForSnapshotStage,
   diffFlowSnapshots,
   entryStage,
@@ -244,6 +245,49 @@ describe("whether a deal is sitting where it entered", () => {
   // Whether the deal has EVER moved is a different question, and a loop back
   // to the entry Stage makes the two disagree. That one needs the deal's
   // history, so it is asked in opportunityService rather than here.
+})
+
+describe("shaping a draft into a Flow Snapshot's shape", () => {
+  it("carries the Won Stage and Sale Type off the flow, and the rest as given", () => {
+    const flow = { won_stage_id: "s-won", sale_type_id: "st-1" }
+    const stages = [stage("s-lead", "Lead", 10)]
+    const edges = [edge("s-lead", "s-won")]
+    const actions = [{ id: "a-1", stage_id: "s-lead", kind: "create_group_task", config: {} }]
+    const conditions = [{ id: "c-1", stage_id: "s-lead", kind: "field", config: {} }]
+
+    expect(buildDraftSnapshotData({ flow, stages, edges, actions, conditions })).toEqual({
+      stages,
+      edges,
+      actions,
+      conditions,
+      wonStageId: "s-won",
+      saleTypeId: "st-1",
+    })
+  })
+
+  it("defaults every list to empty and every id to null for a flow with nothing drawn yet", () => {
+    expect(buildDraftSnapshotData({ flow: { won_stage_id: null, sale_type_id: null } })).toEqual({
+      stages: [],
+      edges: [],
+      actions: [],
+      conditions: [],
+      wonStageId: null,
+      saleTypeId: null,
+    })
+  })
+
+  it("round-trips through diffFlowSnapshots as identical to its own snapshot_data shape", () => {
+    // The same guarantee `previewVersion`/`lockFlow` lean on (issue #189): a
+    // draft shaped by this helper, compared against itself, reports no
+    // changes — this is what makes "identical to the latest version" a real
+    // question rather than one the shapes themselves could answer wrongly.
+    const flow = { won_stage_id: "s-won", sale_type_id: "st-1" }
+    const stages = [stage("s-lead", "Lead", 10), stage("s-won", "Awarded", 20)]
+    const edges = [edge("s-lead", "s-won")]
+    const draft = buildDraftSnapshotData({ flow, stages, edges, actions: [], conditions: [] })
+
+    expect(diffFlowSnapshots(draft, draft).hasChanges).toBe(false)
+  })
 })
 
 describe("comparing two Flow Snapshots", () => {

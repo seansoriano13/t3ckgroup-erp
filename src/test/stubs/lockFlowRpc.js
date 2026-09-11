@@ -59,6 +59,14 @@ export function stubLockSalesFlowRpc() {
       throw new Error("This Sales Flow is locked. Unlock it first, with a reason, to make changes.")
     }
 
+    // Mirrors the migration's whole-value equality backstop (issue #189):
+    // stricter than the client's field-by-field diff, so it never blocks a
+    // publish the popover would have allowed, only ones nothing changed at all.
+    const latest = latestSnapshot(args.p_flow_id)
+    if (latest && JSON.stringify(latest.snapshot_data) === JSON.stringify(args.p_snapshot_data)) {
+      throw new Error("This draft is identical to the latest version. There is nothing to publish.")
+    }
+
     const { major, minor } = nextFlowVersion(args.p_flow_id, args.p_snapshot_data)
 
     const lockedFlow = updateRow("sales_flows", flow, {
@@ -68,12 +76,15 @@ export function stubLockSalesFlowRpc() {
       updated_at: new Date().toISOString(),
     })
 
+    const note = typeof args.p_note === "string" ? args.p_note.trim() : ""
+
     const snapshot = db.seed("flow_snapshots", {
       flow_id: args.p_flow_id,
       version: major,
       version_minor: minor,
       snapshot_data: args.p_snapshot_data,
       created_by: args.p_actor_id,
+      note: note || null,
     })
 
     return { flow: lockedFlow, snapshot }

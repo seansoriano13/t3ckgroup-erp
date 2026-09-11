@@ -1,6 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { flowLockBlockers } from "../constants/salesFlow";
+import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
 import { formatSnapshotVersion, formatVersionNumber } from "../constants/flowVersion";
@@ -155,14 +155,27 @@ async function buildSnapshotData(flow, stages, edges) {
     stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
   ]);
 
-  return {
+  return buildDraftSnapshotData({
+    flow,
     stages,
     edges,
     actions: Object.values(actionsObj || {}).flat(),
     conditions: Object.values(conditionsObj || {}).flat(),
-    wonStageId: flow.won_stage_id,
-    saleTypeId: flow.sale_type_id,
-  };
+  });
+}
+
+/** The most recently published Flow Snapshot of `flowId`, or null if it has never been locked. */
+async function latestSnapshotOf(flowId) {
+  const { data, error } = await supabase
+    .from("flow_snapshots")
+    .select("*")
+    .eq("flow_id", flowId)
+    .order("version", { ascending: false })
+    .order("version_minor", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data || null;
 }
 
 export const salesFlowService = {
@@ -751,7 +764,7 @@ export const salesFlowService = {
    * reported at once — being told about the next problem only after fixing the
    * last is the wrong shape of feedback for a meeting.
    */
-  async lockFlow(flowId, actorId) {
+  async lockFlow(flowId, actorId, note = null) {
     await requireSuperAdmin(actorId);
     const flow = await requireDraft(flowId);
 
@@ -763,6 +776,18 @@ export const salesFlowService = {
 
     const snapshotData = await buildSnapshotData(flow, stages, edges);
 
+    // No empty versions (issue #189): a flow that has never been published
+    // has no latest Snapshot to diff against, so it can always publish once
+    // the blockers above clear. Otherwise an identical draft would create a
+    // Flow Snapshot nothing distinguishes from the one before it — a version
+    // number with no meaning behind it. This mirrors the popover's own gate
+    // (FlowCanvas), but is enforced here too since the popover is not the
+    // only caller of this method.
+    const latest = await latestSnapshotOf(flowId);
+    if (latest && !diffFlowSnapshots(latest.snapshot_data, snapshotData).hasChanges) {
+      throw new Error("This draft is identical to the latest version. There is nothing to publish.");
+    }
+
     // Flipping the flow to locked and publishing the snapshot that pins its
     // rules have to succeed or fail together — a flow stranded locked with no
     // snapshot is unusable (issue #181). `lock_sales_flow` does both writes in
@@ -771,6 +796,7 @@ export const salesFlowService = {
       p_flow_id: flowId,
       p_actor_id: actorId,
       p_snapshot_data: snapshotData,
+      p_note: note,
     });
     if (error) throw error;
 
@@ -807,16 +833,27 @@ export const salesFlowService = {
     const [stages, edges] = await Promise.all([stagesOf(flowId), edgesOf(flowId)]);
     const snapshotData = await buildSnapshotData(flow, stages, edges);
 
-    const { data, error } = await supabase.rpc("flow_snapshot_next_version", {
-      p_flow_id: flowId,
-      p_snapshot_data: snapshotData,
-    });
+    const [{ data, error }, latest] = await Promise.all([
+      supabase.rpc("flow_snapshot_next_version", {
+        p_flow_id: flowId,
+        p_snapshot_data: snapshotData,
+      }),
+      latestSnapshotOf(flowId),
+    ]);
     if (error) throw error;
 
     const row = Array.isArray(data) ? data[0] : data;
     const major = row?.version_major ?? 1;
     const minor = row?.version_minor ?? 0;
-    return { major, minor, label: formatVersionNumber(major, minor) };
+    const diff = diffFlowSnapshots(latest?.snapshot_data ?? {}, snapshotData);
+
+    return {
+      major,
+      minor,
+      label: formatVersionNumber(major, minor),
+      diff,
+      hasChanges: latest ? diff.hasChanges : true,
+    };
   },
 
   /**

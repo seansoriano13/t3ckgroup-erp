@@ -75,6 +75,12 @@ export default function FlowVersionPage() {
                 </span>
             </header>
 
+            {snapshot?.note && (
+                <p className="border-b border-border px-4 py-2 text-sm italic text-muted-foreground">
+                    “{snapshot.note}”
+                </p>
+            )}
+
             <main className="min-h-0 flex-1">
                 {isLoading && (
                     <p className="p-8 text-sm text-muted-foreground">Loading this version…</p>

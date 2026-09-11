@@ -275,6 +275,16 @@ describe("salesFlowService", () => {
       expect(locked.locked_at).toBeTruthy()
     })
 
+    it("stores the publish note on the Flow Snapshot, and blanks it when none was given", async () => {
+      const withNote = await salesFlowService.lockFlow(flow.id, admin.id, "Tightened the award Stage.")
+      expect(withNote.snapshot.note).toBe("Tightened the award Stage.")
+
+      await salesFlowService.unlockFlow(flow.id, "One more pass", admin.id)
+      await salesFlowService.renameStage(won.id, "Awarded (final)", admin.id)
+      const withoutNote = await salesFlowService.lockFlow(flow.id, admin.id)
+      expect(withoutNote.snapshot.note).toBeNull()
+    })
+
     it("refuses every edit once locked", async () => {
       await salesFlowService.lockFlow(flow.id, admin.id)
 
@@ -358,7 +368,14 @@ describe("salesFlowService", () => {
       await salesFlowService.addEdge(flow.id, entry.id, neg.id, admin.id)
 
       const preview = await salesFlowService.previewVersion(flow.id)
-      expect(preview).toEqual({ major: 1, minor: 1, label: "v1.1" })
+      expect(preview.major).toBe(1)
+      expect(preview.minor).toBe(1)
+      expect(preview.label).toBe("v1.1")
+      // Issue #189 — the preview also carries the diff against the latest
+      // version, so the publish popover's change summary and "no empty
+      // publishes" gate read the same computation the button's label does.
+      expect(preview.hasChanges).toBe(true)
+      expect(preview.diff.stages.added.map((s) => s.name)).toEqual(["Negotiation"])
 
       const published = await salesFlowService.lockFlow(flow.id, admin.id)
       expect([published.snapshot.version, published.snapshot.version_minor]).toEqual([1, 1])
@@ -545,8 +562,9 @@ describe("salesFlowService", () => {
 
   describe("how many live SORs are running each Flow Snapshot", () => {
     it("counts SORs by the Snapshot they are pinned to, excluding Scratch and soft-deleted SORs", async () => {
-      const { flow, snapshot: v1 } = await buildLockedFlowFor("Government Bidding")
+      const { flow, snapshot: v1, lead } = await buildLockedFlowFor("Government Bidding")
       await salesFlowService.unlockFlow(flow.id, "revising", admin.id)
+      await salesFlowService.renameStage(lead.id, "Enquiry", admin.id)
       const relocked = await salesFlowService.lockFlow(flow.id, admin.id)
       const v2 = relocked.snapshot
 
@@ -571,7 +589,7 @@ describe("salesFlowService", () => {
       await salesFlowService.addEdge(flow.id, lead.id, won.id, admin.id)
       await salesFlowService.setWonStage(flow.id, won.id, admin.id)
       const locked = await salesFlowService.lockFlow(flow.id, admin.id)
-      return { saleType, flow: locked, snapshot: locked.snapshot }
+      return { saleType, flow: locked, snapshot: locked.snapshot, lead }
     }
   })
 
@@ -585,6 +603,7 @@ describe("salesFlowService", () => {
       await salesFlowService.setWonStage(flow.id, won.id, admin.id)
       const v1 = (await salesFlowService.lockFlow(flow.id, admin.id)).snapshot
       await salesFlowService.unlockFlow(flow.id, "One more pass", admin.id)
+      await salesFlowService.renameStage(lead.id, "Enquiry", admin.id)
       const v2 = (await salesFlowService.lockFlow(flow.id, admin.id)).snapshot
 
       const history = await salesFlowService.listSnapshots(flow.id)
@@ -643,6 +662,7 @@ describe("salesFlowService", () => {
       await salesFlowService.setWonStage(flow.id, won.id, admin.id)
       await salesFlowService.lockFlow(flow.id, admin.id)
       await salesFlowService.unlockFlow(flow.id, "Ops wanted one more Stage", admin.id)
+      await salesFlowService.renameStage(lead.id, "Enquiry", admin.id)
       await salesFlowService.lockFlow(flow.id, admin.id)
       await salesFlowService.unlockFlow(flow.id, "A typo in a Stage name", admin.id)
       // unlockFlow's audit write is fire-and-forget, same as every other

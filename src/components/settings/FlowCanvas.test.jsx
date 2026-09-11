@@ -128,6 +128,54 @@ describe("FlowCanvas", () => {
     expect(publish).toBeDisabled()
   })
 
+  it("disables Publish in the popover while the draft is unchanged, and shows why", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+
+    // Publish once, then reopen the draft without changing anything — the
+    // draft the canvas shows is now identical to the latest version.
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id)
+    await salesFlowService.unlockFlow(flow.id, "Just checking something", mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
+
+    expect(await screen.findByText("Note (optional)")).toBeInTheDocument()
+    expect(await screen.findByText(/nothing to publish/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled()
+  })
+
+  it("shows a change summary and enables Publish once the draft differs, and the note survives to history", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id)
+    await salesFlowService.unlockFlow(flow.id, "One more pass", mockUser.current.id)
+    await salesFlowService.renameStage(awarded.id, "Won", mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await waitFor(() => expect(screen.getAllByText("Won").length).toBeGreaterThan(0))
+
+    await user.click(await screen.findByRole("button", { name: /Publish v1\.1/ }))
+    await screen.findByText("Changes since the latest version")
+    expect(await screen.findByText(/Changed: Awarded/)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Publish" })).not.toBeDisabled()
+
+    await user.type(screen.getByPlaceholderText(/Why this version exists/), "Renamed for clarity.")
+    await user.click(screen.getByRole("button", { name: "Publish" }))
+
+    await waitFor(async () => {
+      const history = await salesFlowService.listSnapshots(flow.id)
+      expect(history[0].note).toBe("Renamed for clarity.")
+    })
+  })
+
   it("hides every edit control once the flow is locked", async () => {
     const { flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
