@@ -1,11 +1,9 @@
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
-import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Spinner from "@/components/ui/Spinner";
 import { employeeService } from "@/services/employeeService";
 import { diffFlowSnapshots, countFlowSnapshotChanges } from "@/constants/salesFlow";
@@ -27,15 +25,14 @@ export default function FlowVersionRail({
   edges,
   saleTypeName,
   salesFlowService,
-  user,
   versionPreview,
   stageNameFor,
+  onViewVersion,
+  viewingSnapshotId,
 }) {
-  const queryClient = useQueryClient();
   const [open, setOpen] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
   const [compareTargetId, setCompareTargetId] = useState(null);
-  const [restoreTarget, setRestoreTarget] = useState(null);
 
   const isLocked = flow?.state === "locked";
   const stageIds = useMemo(() => stages.map((s) => s.id), [stages]);
@@ -72,18 +69,6 @@ export default function FlowVersionRail({
     queryKey: ["flowDraftSnapshotData", flow?.id, stageKey, edges.length, flow?.won_stage_id],
     queryFn: () => salesFlowService.buildSnapshotData(flow, stages, edges),
     enabled: Boolean(flow?.id) && Boolean(compareTargetId),
-  });
-
-  const restoreMutation = useMutation({
-    mutationFn: (snapshotId) => salesFlowService.restoreSnapshot(flow.id, snapshotId, user?.id),
-    onSuccess: () => {
-      toast.success("Flow Snapshot restored into the draft.");
-      queryClient.invalidateQueries({ queryKey: ["salesFlow"] });
-      queryClient.invalidateQueries({ queryKey: ["flowSnapshots", flow?.id] });
-      queryClient.invalidateQueries({ queryKey: ["flowSnapshotUsage", flow?.id] });
-      setRestoreTarget(null);
-    },
-    onError: (err) => toast.error(err.message),
   });
 
   // Ascending, so "changes since previous" reads forward through time — v1.0
@@ -201,27 +186,19 @@ export default function FlowVersionRail({
                 onToggleExpand={() =>
                   setExpandedId((id) => (id === entry.snapshot.id ? null : entry.snapshot.id))
                 }
+                onSelect={onViewVersion ? () => onViewVersion(entry.snapshot) : undefined}
+                selected={viewingSnapshotId === entry.snapshot.id}
                 actions={
-                  <>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() =>
-                        setCompareTargetId((id) => (id === entry.snapshot.id ? null : entry.snapshot.id))
-                      }
-                    >
-                      Compare with draft
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setRestoreTarget(entry.snapshot)}
-                    >
-                      Restore
-                    </Button>
-                  </>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setCompareTargetId((id) => (id === entry.snapshot.id ? null : entry.snapshot.id))
+                    }
+                  >
+                    Compare with draft
+                  </Button>
                 }
               >
                 <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
@@ -254,42 +231,57 @@ export default function FlowVersionRail({
           )}
         </div>
       </div>
-
-      <ConfirmDialog
-        open={Boolean(restoreTarget)}
-        onOpenChange={(next) => !next && setRestoreTarget(null)}
-        title={`Restore ${restoreTarget ? formatSnapshotVersion(restoreTarget) : ""}?`}
-        description="This discards whatever unlocked draft state this flow currently has and rebuilds it as this Snapshot's shape. Nothing in the Snapshot history is changed or deleted — the restored shape only becomes its own new Snapshot the next time this flow is locked."
-        confirmLabel="Restore"
-        tone="destructive"
-        onConfirm={() => restoreMutation.mutate(restoreTarget.id)}
-      />
     </>
   );
 }
 
-function VersionRow({ label, subtitle, note, expanded, onToggleExpand, actions, children }) {
+/**
+ * `onSelect` is only ever handed to a real Snapshot row (issue #193) — the
+ * Draft row has nothing frozen to view read-only, so it stays a plain
+ * expand/collapse toggle. Selecting and expanding are independent actions:
+ * the chevron only ever expands the diff, the label only ever asks the
+ * canvas to switch to viewing that version, so a viewer who wants to read
+ * "what changed" without leaving the draft can still do that.
+ */
+function VersionRow({ label, subtitle, note, expanded, onToggleExpand, onSelect, selected, actions, children }) {
   return (
-    <div className="rounded-xl border border-border">
-      <button
-        type="button"
-        onClick={onToggleExpand}
-        className="flex w-full items-start gap-2 px-2.5 py-2 text-left"
-      >
-        {expanded ? (
-          <ChevronUp size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+    <div className={cn("rounded-xl border border-border", selected && "border-primary ring-1 ring-primary")}>
+      <div className="flex w-full items-start gap-2 px-2.5 py-2 text-left">
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
+          className="mt-0.5 shrink-0"
+        >
+          {expanded ? (
+            <ChevronUp size={14} className="text-muted-foreground" />
+          ) : (
+            <ChevronDown size={14} className="text-muted-foreground" />
+          )}
+        </button>
+        {onSelect ? (
+          <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left">
+            <RowLabel label={label} subtitle={subtitle} note={note} />
+          </button>
         ) : (
-          <ChevronDown size={14} className="mt-0.5 shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <RowLabel label={label} subtitle={subtitle} note={note} />
+          </div>
         )}
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-bold text-foreground">{label}</p>
-          <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
-          {note && <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground">“{note}”</p>}
-        </div>
-      </button>
+      </div>
       {actions && <div className="flex items-center gap-1 px-2.5 pb-2">{actions}</div>}
       {expanded && <div className="border-t border-border px-2.5 py-2">{children}</div>}
     </div>
+  );
+}
+
+function RowLabel({ label, subtitle, note }) {
+  return (
+    <>
+      <p className="text-sm font-bold text-foreground">{label}</p>
+      <p className="truncate text-[11px] text-muted-foreground">{subtitle}</p>
+      {note && <p className="mt-0.5 truncate text-[11px] italic text-muted-foreground">“{note}”</p>}
+    </>
   );
 }
 

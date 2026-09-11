@@ -978,7 +978,6 @@ export const salesFlowService = {
     const { data, error } = await supabase.rpc("restore_flow_snapshot", {
       p_flow_id: flowId,
       p_snapshot_id: snapshotId,
-      p_actor_id: actorId,
     });
     if (error) throw error;
 

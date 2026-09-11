@@ -9,7 +9,6 @@ import { waitForNetworkIdle } from "@/test/network"
 import { makeOpportunity, makeSuperAdmin } from "@/test/factories"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
 import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
-import toast from "react-hot-toast"
 
 const mockUser = vi.hoisted(() => ({ current: null }))
 
@@ -94,13 +93,13 @@ describe("FlowVersionRail", () => {
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
-    await user.click(screen.getByText("v1.1"))
+    await user.click(screen.getByLabelText("Expand v1.1"))
     expect(await screen.findByText(/Added: Negotiation/)).toBeInTheDocument()
 
     // v1.0 has no previous version, so it diffs against an empty shape — its
     // whole first shape reads as added rather than the row having nothing to
     // expand.
-    await user.click(screen.getByText("v1.0"))
+    await user.click(screen.getByLabelText("Expand v1.0"))
     expect(await screen.findByText("Added: Lead")).toBeInTheDocument()
     expect(screen.getByText("Added: Awarded")).toBeInTheDocument()
   })
@@ -113,60 +112,31 @@ describe("FlowVersionRail", () => {
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
-    await user.click(screen.getByText("v1.0"))
+    await user.click(screen.getByLabelText("Expand v1.0"))
     const compareButtons = screen.getAllByRole("button", { name: "Compare with draft" })
     await user.click(compareButtons[compareButtons.length - 1])
 
     expect(await screen.findByText(/Added: Onboarding/)).toBeInTheDocument()
   })
 
-  it("restores an earlier version into the draft after confirming", async () => {
-    const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
-    await salesFlowService.unlockFlow(flow.id, "About to restore v1", admin.id)
+  it("calls onViewVersion when a row's label is clicked, and highlights the viewed row", async () => {
+    const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
+    const onViewVersion = vi.fn()
     const user = userEvent.setup()
-    renderWithProviders(<Rail saleTypeId={saleType.id} />)
-    await screen.findByText("v1.1")
+    renderWithProviders(<Rail saleTypeId={saleType.id} onViewVersion={onViewVersion} />)
+    await screen.findByText("v1.0")
 
     await user.click(screen.getByText("v1.0"))
-    const restoreButtons = screen.getAllByRole("button", { name: "Restore" })
-    await user.click(restoreButtons[restoreButtons.length - 1]) // v1.0 is the last (oldest) row
-    await screen.findByText("Restore v1.0?")
-    const confirmButtons = screen.getAllByRole("button", { name: "Restore" })
-    await user.click(confirmButtons[confirmButtons.length - 1])
-
-    await waitFor(async () => {
-      const stages = (await salesFlowService.getFlow(saleType.id)).stages
-      expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
-    })
+    expect(onViewVersion).toHaveBeenCalledTimes(1)
+    expect(onViewVersion.mock.calls[0][0]).toMatchObject({ version: 1, version_minor: 0 })
   })
 
-  it("shows the refusal message when a dropped Stage still has an SOR on it", async () => {
-    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => "id")
-    const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
-    await salesFlowService.unlockFlow(flow.id, "About to restore v1", admin.id)
-    const negotiation = (await salesFlowService.getFlow(saleType.id)).stages.find(
-      (s) => s.name === "Negotiation",
-    )
-    makeOpportunity({ sale_type_id: saleType.id, flow_stage_id: negotiation.id })
-
-    const user = userEvent.setup()
+  it("no longer offers a per-row Restore action (issue #193 moved it to the canvas banner)", async () => {
+    const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
-    await screen.findByText("v1.1")
+    await screen.findByText("v1.0")
 
-    await user.click(screen.getByText("v1.0"))
-    const restoreButtons = screen.getAllByRole("button", { name: "Restore" })
-    await user.click(restoreButtons[restoreButtons.length - 1]) // v1.0 is the last (oldest) row
-    await screen.findByText("Restore v1.0?")
-    const confirmButtons = screen.getAllByRole("button", { name: "Restore" })
-    await user.click(confirmButtons[confirmButtons.length - 1])
-
-    await waitFor(() => {
-      expect(errorToast).toHaveBeenCalledWith(
-        expect.stringMatching(/"Negotiation" is referenced by 1 SOR\b/),
-      )
-    })
-    const stages = (await salesFlowService.getFlow(saleType.id)).stages
-    expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Negotiation"])
+    expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument()
   })
 
   it("shows who published each version and slots reopen events in between", async () => {

@@ -39,7 +39,7 @@ import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { supabase } from "../../lib/supabase";
 import { opportunityService } from "../../services/opportunityService";
-import { formatVersionNumber } from "../../constants/flowVersion";
+import { formatVersionNumber, formatSnapshotVersion } from "../../constants/flowVersion";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
@@ -52,6 +52,7 @@ import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
 import DiffSummary from "./FlowSnapshotDiffSummary";
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
+import FlowVersionViewer from "../sor/FlowVersionViewer";
 import {
   GATE,
   RUN,
@@ -146,6 +147,11 @@ function FlowCanvasInner() {
   const [moveResult, setMoveResult] = useState(null);
   const [toolbarMode, setToolbarMode] = useState("select");
   const [inlineValue, setInlineValue] = useState("");
+  // The Flow Snapshot currently drawn read-only on the canvas (issue #193),
+  // or null while the draft is shown. Cleared whenever the Sale Type changes
+  // so switching flows never leaves one flow's version pinned over another's.
+  const [viewingSnapshot, setViewingSnapshot] = useState(null);
+  const [restoreConfirmOpen, setRestoreConfirmOpen] = useState(false);
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ["saleTypes", "all"],
@@ -318,6 +324,23 @@ function FlowCanvasInner() {
       }
     },
     onError: (err) => toast.error(err.message),
+  });
+
+  // Restore into draft (issue #187's all-or-nothing, id-keeping RPC), fired
+  // from the read-only version banner (issue #193) — the one place restore
+  // lives now that the rail's per-row Restore is gone.
+  const restoreMutation = useMutation({
+    mutationFn: (snapshotId) => salesFlowService.restoreSnapshot(flow.id, snapshotId, user?.id),
+    onSuccess: () => {
+      refresh();
+      toast.success("Flow Snapshot restored into the draft.");
+      setRestoreConfirmOpen(false);
+      setViewingSnapshot(null);
+    },
+    onError: (err) => {
+      setRestoreConfirmOpen(false);
+      toast.error(err.message);
+    },
   });
 
   const acceptMoveOffer = useMutation({
@@ -684,90 +707,126 @@ function FlowCanvasInner() {
       className="relative flex h-full min-h-[34rem] w-full flex-col overflow-hidden bg-mauve-3"
       onPointerMove={handlePointerMove}
     >
-      <ReactFlow
-        nodes={rfNodes}
-        edges={rfEdges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDrag={onNodeDrag}
-        onNodeDragStop={onNodeDragStop}
-        onConnect={onConnect}
-        onEdgesDelete={onEdgesDelete}
-        onReconnect={onReconnect}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        defaultEdgeOptions={defaultEdgeOptions}
-        connectionRadius={28}
-        edgesReconnectable={true}
-        nodesConnectable={true}
-        nodesDraggable={true}
-        elementsSelectable={true}
-        fitView
-        fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
-        minZoom={0.15}
-        maxZoom={1.75}
-        panOnScroll
-        selectionOnDrag={false}
-        proOptions={{ hideAttribution: false }}
-        attributionPosition="bottom-left"
-        deleteKeyCode={["Backspace", "Delete"]}
-        className="flow-canvas"
-      >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={20}
-          size={1.4}
-          color="var(--mauve-7)"
-        />
-        <Controls
-          showInteractive={false}
-          position="bottom-right"
-          className="!bottom-4 !right-4 !shadow-none"
-        />
-        
-        {/* Render peer cursors */}
-      {peers.map((peer) => {
-        const cursor = cursors[peer.userId];
-        if (!cursor) return null;
-        const screenPos = flowToScreenPosition(cursor);
-        return (
-          <div
-            key={peer.userId}
-            className="pointer-events-none fixed z-[9999] flex items-center gap-1 transition-all duration-75 ease-linear"
-            style={{
-              left: screenPos.x,
-              top: screenPos.y,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill={peer.color} stroke="white" strokeWidth="2" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 4l7.07 17 2.51-7.39L21 11.07z" />
-            </svg>
-            <span 
-              className="rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-sm"
-              style={{ backgroundColor: peer.color }}
-            >
-              {peer.name}
-            </span>
-          </div>
-        );
-      })}
-        {stages.length > 1 && (
-          <MiniMap
-            pannable
-            zoomable
-            position="top-right"
-            className="!top-20 !right-4 !mb-0 !h-24 !w-40 !rounded-xl !bg-card"
-            maskColor="var(--mauve-a4)"
-            nodeColor={(node) =>
-              node.type === "stage" ? "var(--mauve-9)" : "var(--mauve-6)"
-            }
-            nodeStrokeWidth={0}
-            nodeBorderRadius={4}
+      {viewingSnapshot ? (
+        // A Flow Snapshot, drawn read-only (issue #193) — reusing the #191
+        // viewer rather than toggling this editor's ReactFlow into some
+        // read-only mode. See FlowVersionViewer's own note on why: this
+        // canvas reads/writes through FlowDataContext and a mutable service
+        // surface a frozen document has nothing to call.
+        <FlowVersionViewer snapshotData={viewingSnapshot.snapshot_data} />
+      ) : (
+        <ReactFlow
+          nodes={rfNodes}
+          edges={rfEdges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDrag={onNodeDrag}
+          onNodeDragStop={onNodeDragStop}
+          onConnect={onConnect}
+          onEdgesDelete={onEdgesDelete}
+          onReconnect={onReconnect}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          connectionRadius={28}
+          edgesReconnectable={true}
+          nodesConnectable={true}
+          nodesDraggable={true}
+          elementsSelectable={true}
+          fitView
+          fitViewOptions={{ padding: 0.24, maxZoom: 1 }}
+          minZoom={0.15}
+          maxZoom={1.75}
+          panOnScroll
+          selectionOnDrag={false}
+          proOptions={{ hideAttribution: false }}
+          attributionPosition="bottom-left"
+          deleteKeyCode={["Backspace", "Delete"]}
+          className="flow-canvas"
+        >
+          <Background
+            variant={BackgroundVariant.Dots}
+            gap={20}
+            size={1.4}
+            color="var(--mauve-7)"
           />
-        )}
-      </ReactFlow>
+          <Controls
+            showInteractive={false}
+            position="bottom-right"
+            className="!bottom-4 !right-4 !shadow-none"
+          />
+
+          {/* Render peer cursors */}
+        {peers.map((peer) => {
+          const cursor = cursors[peer.userId];
+          if (!cursor) return null;
+          const screenPos = flowToScreenPosition(cursor);
+          return (
+            <div
+              key={peer.userId}
+              className="pointer-events-none fixed z-[9999] flex items-center gap-1 transition-all duration-75 ease-linear"
+              style={{
+                left: screenPos.x,
+                top: screenPos.y,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill={peer.color} stroke="white" strokeWidth="2" xmlns="http://www.w3.org/2000/svg">
+                <path d="M4 4l7.07 17 2.51-7.39L21 11.07z" />
+              </svg>
+              <span
+                className="rounded-full px-2 py-0.5 text-xs font-bold text-white shadow-sm"
+                style={{ backgroundColor: peer.color }}
+              >
+                {peer.name}
+              </span>
+            </div>
+          );
+        })}
+          {stages.length > 1 && (
+            <MiniMap
+              pannable
+              zoomable
+              position="top-right"
+              className="!top-20 !right-4 !mb-0 !h-24 !w-40 !rounded-xl !bg-card"
+              maskColor="var(--mauve-a4)"
+              nodeColor={(node) =>
+                node.type === "stage" ? "var(--mauve-9)" : "var(--mauve-6)"
+              }
+              nodeStrokeWidth={0}
+              nodeBorderRadius={4}
+            />
+          )}
+        </ReactFlow>
+      )}
+
+      {/* ── Version-viewing banner (issue #193) ────────────────────────── */}
+      {flow && viewingSnapshot && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center p-3">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-2xl bg-card/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
+            <p className="text-sm font-bold text-foreground">
+              Viewing {formatSnapshotVersion(viewingSnapshot)} — read-only
+            </p>
+            <div className="mx-1 h-4 w-px bg-border" />
+            <Button variant="ghost" size="sm" onClick={() => setViewingSnapshot(null)}>
+              Back to draft
+            </Button>
+            <Tooltip content={isLocked ? "Edit draft first to restore into it." : ""}>
+              <span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={isLocked}
+                  onClick={() => setRestoreConfirmOpen(true)}
+                >
+                  Restore into draft
+                </Button>
+              </span>
+            </Tooltip>
+          </div>
+        </div>
+      )}
 
       {/* ── Version rail (issue #192) ───────────────────────────────────── */}
       {flow && (
@@ -777,9 +836,10 @@ function FlowCanvasInner() {
           edges={edges}
           saleTypeName={selectedSaleType?.name}
           salesFlowService={salesFlowService}
-          user={user}
           versionPreview={versionPreview}
           stageNameFor={stageNameFor}
+          onViewVersion={setViewingSnapshot}
+          viewingSnapshotId={viewingSnapshot?.id}
         />
       )}
 
@@ -845,6 +905,7 @@ function FlowCanvasInner() {
                           onClick={() => {
                             setSelectedSaleTypeId(saleType.id);
                             setSelection(null);
+                            setViewingSnapshot(null);
                             close();
                           }}
                           className={cn(
@@ -1020,54 +1081,58 @@ function FlowCanvasInner() {
               stageNameFor={stageNameFor}
             />
 
-            <div className="mx-1 h-4 w-px bg-border" />
+            {!viewingSnapshot && (
+              <>
+                <div className="mx-1 h-4 w-px bg-border" />
 
-            <Button
-              variant="ghost"
-              size="lg"
-              onClick={handleAutoLayout}
-              disabled={stages.length === 0}
-            >
-              <Sparkles /> Tidy layout
-            </Button>
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  onClick={handleAutoLayout}
+                  disabled={stages.length === 0}
+                >
+                  <Sparkles /> Tidy layout
+                </Button>
 
-            <div className="mx-1 h-4 w-px bg-border" />
+                <div className="mx-1 h-4 w-px bg-border" />
 
-            {isLocked ? (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() =>
-                  ask({
-                    title: "Edit draft?",
-                    description:
-                      "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing.",
-                    confirmLabel: "Edit draft",
-                    required: true,
-                    field: { label: "Reason", placeholder: "Why is this flow being reopened?" },
-                    onConfirm: (reason) =>
-                      run(() => salesFlowService.reopenFlow(flow.id, reason, user?.id), "Draft reopened."),
-                  })
-                }
-              >
-                <LockOpen /> Edit draft
-              </Button>
-            ) : (
-              <Button
-                variant="outline"
-                size="lg"
-                disabled={lockBlockers.length > 0}
-                onClick={() => setPublishOpen(true)}
-              >
-                <Lock /> {publishLabel}
-              </Button>
+                {isLocked ? (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    onClick={() =>
+                      ask({
+                        title: "Edit draft?",
+                        description:
+                          "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing.",
+                        confirmLabel: "Edit draft",
+                        required: true,
+                        field: { label: "Reason", placeholder: "Why is this flow being reopened?" },
+                        onConfirm: (reason) =>
+                          run(() => salesFlowService.reopenFlow(flow.id, reason, user?.id), "Draft reopened."),
+                      })
+                    }
+                  >
+                    <LockOpen /> Edit draft
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="lg"
+                    disabled={lockBlockers.length > 0}
+                    onClick={() => setPublishOpen(true)}
+                  >
+                    <Lock /> {publishLabel}
+                  </Button>
+                )}
+              </>
             )}
           </div>
         )}
       </div>
 
       {/* ── Lock blockers ───────────────────────────────────────────────── */}
-      {flow && !isLocked && lockBlockers.length > 0 && (
+      {flow && !isLocked && !viewingSnapshot && lockBlockers.length > 0 && (
         <div className="pointer-events-none absolute left-1/2 top-16 z-20 -translate-x-1/2">
           <ul className="pointer-events-auto space-y-0.5 rounded-2xl bg-card/90 px-3.5 py-2.5 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
             {lockBlockers.map((blocker) => (
@@ -1099,7 +1164,7 @@ function FlowCanvasInner() {
       )}
 
       {/* ── Add-Stage dock ──────────────────────────────────────────────── */}
-      {flow && !isLocked && (
+      {flow && !isLocked && !viewingSnapshot && (
         <form
           onSubmit={handleAddStage}
           className="absolute bottom-4 left-4 z-20 flex items-center gap-2 rounded-2xl bg-card/85 p-1.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md"
@@ -1116,8 +1181,9 @@ function FlowCanvasInner() {
         </form>
       )}
 
-      {/* ── Stage panel ─────────────────────────────────────────────────── */}
-      {selectedStage && flow && (
+      {/* ── Stage panel (hidden while viewing a version — FlowVersionViewer
+           opens its own read-only Stage panel) ────────────────────────── */}
+      {selectedStage && flow && !viewingSnapshot && (
         <StageSettingsPanel
           stage={selectedStage}
           isEntry={entry?.id === selectedStage.id}
@@ -1209,6 +1275,17 @@ function FlowCanvasInner() {
           </div>
         </div>
       </ConfirmDialog>
+
+      {/* ── Restore into draft, from the version banner (issue #193) ─────── */}
+      <ConfirmDialog
+        open={restoreConfirmOpen}
+        onOpenChange={setRestoreConfirmOpen}
+        title={`Restore ${viewingSnapshot ? formatSnapshotVersion(viewingSnapshot) : ""}?`}
+        description="This replaces whatever the current draft has with this Snapshot's shape. No published version changes — the restored shape only becomes its own new Snapshot the next time this flow is locked."
+        confirmLabel="Restore"
+        tone="destructive"
+        onConfirm={() => restoreMutation.mutate(viewingSnapshot.id)}
+      />
 
       {/* ── Move-deals-up offer, after a minor publish (issue #190) ──────── */}
       <ConfirmDialog

@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react"
+import { fireEvent, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import FlowCanvas from "./FlowCanvas"
@@ -15,6 +15,8 @@ import {
 
 import { supabase } from "@/lib/supabase"
 import { stubLockSalesFlowRpc } from "@/test/stubs/lockFlowRpc"
+import { stubRestoreFlowSnapshotRpc } from "@/test/stubs/restoreFlowSnapshotRpc"
+import toast from "react-hot-toast"
 
 // Mock ResizeObserver for React Flow
 global.ResizeObserver = class ResizeObserver {
@@ -45,6 +47,7 @@ const channelMock = {
 beforeEach(() => {
   vi.spyOn(supabase, "channel").mockReturnValue(channelMock)
   stubLockSalesFlowRpc()
+  stubRestoreFlowSnapshotRpc()
 })
 
 function seedFlow() {
@@ -266,5 +269,135 @@ describe("FlowCanvas", () => {
       const { stages } = await salesFlowService.getFlow(saleType.id)
       expect(stages.map((s) => s.name)).toContain("Post-Qualification")
     })
+  })
+
+  // ── Version viewing and restore (issue #193) ─────────────────────────────
+
+  it("draws a clicked version read-only under a banner, with no editing controls, and returns to the draft", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    await salesFlowService.unlockFlow(flow.id, "Back to editing", mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByText("v1.0"))
+
+    expect(await screen.findByText("Viewing v1.0 — read-only")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Add Stage/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Publish/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Tidy layout/ })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole("button", { name: "Back to draft" }))
+    expect(screen.queryByText("Viewing v1.0 — read-only")).not.toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: /Add Stage/ })).toBeInTheDocument()
+  })
+
+  it("opens a version's Stage read-only when a Stage is clicked while viewing", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    await salesFlowService.unlockFlow(flow.id, "Back to editing", mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByText("v1.0"))
+    await screen.findByText("Viewing v1.0 — read-only")
+
+    // A plain `fireEvent.click` here, not `userEvent.click`: React Flow's pane
+    // binds its own d3-zoom mousedown listener, and userEvent's pointerdown/
+    // mousedown/mouseup sequence bubbles into it — d3-zoom then reaches for
+    // `event.view.document`, which jsdom's synthesized MouseEvent doesn't
+    // carry, throwing outside any try/catch this test controls. A bare click
+    // event still fires React Flow's own onNodeClick without going through
+    // that pointer sequence.
+    const leadNodes = screen.getAllByText("Lead")
+    fireEvent.click(leadNodes[leadNodes.length - 1].closest(".react-flow__node"))
+
+    expect(await screen.findByText("Stage · this version")).toBeInTheDocument()
+  })
+
+  it("disables Restore on a published Sales Flow, hinting to edit the draft first", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0, stays locked/published
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByText("v1.0"))
+
+    const restoreButton = await screen.findByRole("button", { name: "Restore into draft" })
+    expect(restoreButton).toBeDisabled()
+  })
+
+  it("restores a version into the draft after confirming, from the banner", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    await salesFlowService.unlockFlow(flow.id, "Adding a stage", mockUser.current.id)
+    const negotiation = await salesFlowService.addStage(flow.id, "Negotiation", mockUser.current.id)
+    await salesFlowService.addEdge(flow.id, lead.id, negotiation.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.1
+    await salesFlowService.unlockFlow(flow.id, "About to restore v1.0", mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await screen.findByText("v1.1")
+    await user.click(screen.getByText("v1.0"))
+    await screen.findByText("Viewing v1.0 — read-only")
+
+    await user.click(screen.getByRole("button", { name: "Restore into draft" }))
+    await screen.findByText("Restore v1.0?")
+    await user.click(screen.getByRole("button", { name: "Restore" }))
+
+    await waitFor(async () => {
+      const stages = (await salesFlowService.getFlow(saleType.id)).stages
+      expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead"])
+    })
+    // Back on the (now restored) draft, not still pinned to the viewed version.
+    expect(screen.queryByText("Viewing v1.0 — read-only")).not.toBeInTheDocument()
+  })
+
+  it("shows the refusal naming the Stage and SOR count when restore is blocked", async () => {
+    const errorToast = vi.spyOn(toast, "error").mockImplementation(() => "id")
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+    await salesFlowService.unlockFlow(flow.id, "Adding a stage", mockUser.current.id)
+    const negotiation = await salesFlowService.addStage(flow.id, "Negotiation", mockUser.current.id)
+    await salesFlowService.addEdge(flow.id, lead.id, negotiation.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.1
+    await salesFlowService.unlockFlow(flow.id, "About to restore v1.0", mockUser.current.id)
+    makeOpportunity({ sale_type_id: saleType.id, flow_stage_id: negotiation.id })
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await screen.findByText("v1.1")
+    await user.click(screen.getByText("v1.0"))
+    await screen.findByText("Viewing v1.0 — read-only")
+
+    await user.click(screen.getByRole("button", { name: "Restore into draft" }))
+    await screen.findByText("Restore v1.0?")
+    await user.click(screen.getByRole("button", { name: "Restore" }))
+
+    await waitFor(() => {
+      expect(errorToast).toHaveBeenCalledWith(
+        expect.stringMatching(/"Negotiation" is referenced by 1 SOR\b/),
+      )
+    })
+    // The refusal changed nothing — still viewing v1.0, draft untouched.
+    expect(await screen.findByText("Viewing v1.0 — read-only")).toBeInTheDocument()
+    const stages = (await salesFlowService.getFlow(saleType.id)).stages
+    expect(stages.map((s) => s.name).sort()).toEqual(["Awarded", "Lead", "Negotiation"])
   })
 })
