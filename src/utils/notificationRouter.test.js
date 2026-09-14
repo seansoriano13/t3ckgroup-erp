@@ -156,6 +156,50 @@ describe("handleNotificationRoute", () => {
     })
   })
 
+  describe("mention notifications", () => {
+    it("opens the group task's chat for a group-task mention, not the personal task list", () => {
+      // Without an explicit branch, GROUP_TASK_MENTION matches
+      // `includes("TASK")` and navigates to /tasks with a reference_id from
+      // the committee_tasks table — nothing there matches, so the click does
+      // nothing. This is the bug being fixed.
+      handleNotificationRoute(
+        { type: "GROUP_TASK_MENTION", reference_id: "ct-9" },
+        employee,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/group-tasks")
+      expect(dispatched).toEqual([
+        {
+          type: "OPEN_CHAT_MODAL",
+          detail: { entityId: "ct-9", entityType: "GROUP_TASK" },
+        },
+      ])
+    })
+
+    it("opens the task's chat for a task mention, regardless of the reader's role", () => {
+      // A mention can land on anyone named in the comment, not just the task
+      // owner or their head — routing by role (like the generic TASK branch
+      // does) can drop a head or HR mention onto an approvals queue that
+      // doesn't contain this task at all.
+      handleNotificationRoute(
+        { type: "TASK_MENTION", reference_id: "task-42" },
+        head,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/tasks")
+      expect(dispatched).toEqual([
+        {
+          type: "OPEN_CHAT_MODAL",
+          detail: { entityId: "task-42", entityType: "TASK" },
+        },
+      ])
+    })
+  })
+
   describe("opportunity notifications", () => {
     it("opens the opportunity on the pipeline page", () => {
       handleNotificationRoute(
