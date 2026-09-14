@@ -405,6 +405,79 @@ describe("offsetService", () => {
       expect(balanceOf(employee.id)).toBe(8)
     })
 
+    it("defaults approved hours to the requested figure and debits that", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "APPROVED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(8)
+      expect(balanceOf(employee.id)).toBe(8)
+    })
+
+    it("debits the approved hours rather than the requested hours when HR approves fewer", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "APPROVED",
+        approvedHours: 4,
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(4)
+      expect(balanceOf(employee.id)).toBe(12)
+    })
+
+    it("refuses a non-positive approved-hours override", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      for (const badValue of [0, -1]) {
+        await expect(
+          offsetService.handleOffsetLeaveDecision({
+            leaveId: leave.id,
+            status: "APPROVED",
+            approvedHours: badValue,
+            hrId: hr.id,
+          }),
+        ).rejects.toThrow("Approved hours must be greater than zero.")
+      }
+
+      expect(balanceOf(employee.id)).toBe(16)
+      expect((await offsetService.getMyOffsetLeaves(employee.id))[0].status).toBe("PENDING")
+    })
+
+    it("refuses an approved-hours override greater than what was requested", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' }) // 8 hrs
+
+      await expect(
+        offsetService.handleOffsetLeaveDecision({
+          leaveId: leave.id,
+          status: "APPROVED",
+          approvedHours: 8.5,
+          hrId: hr.id,
+        }),
+      ).rejects.toThrow("Approved hours cannot exceed the requested hours.")
+
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("records no approved hours on rejection", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "REJECTED",
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBeNull()
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
     it("refuses to approve a leave the balance can no longer cover", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, hours: 16 })
       await setOffsetBalance(employee.id, 4)
@@ -420,6 +493,22 @@ describe("offsetService", () => {
       expect((await offsetService.getMyOffsetLeaves(employee.id))[0].status).toBe("PENDING")
     })
 
+    it("checks the balance against the approved hours, not the requested hours", async () => {
+      // Requested 16, HR only approves 4 — the balance only needs to cover 4.
+      const leave = makeOffsetLeave({ employee_id: employee.id, hours: 16 })
+      await setOffsetBalance(employee.id, 4)
+
+      const updated = await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "APPROVED",
+        approvedHours: 4,
+        hrId: hr.id,
+      })
+
+      expect(updated.approved_hours).toBe(4)
+      expect(balanceOf(employee.id)).toBe(0)
+    })
+
     it("returns the hours when an approval is undone", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
       await offsetService.handleOffsetLeaveDecision({
@@ -427,6 +516,21 @@ describe("offsetService", () => {
         status: "APPROVED",
         hrId: hr.id,
       })
+
+      await offsetService.undoOffsetLeaveDecision({ leaveId: leave.id, hrId: hr.id })
+
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
+    it("returns the approved hours, not the requested hours, when they were overridden", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' }) // 8 hrs
+      await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "APPROVED",
+        approvedHours: 4,
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(12)
 
       await offsetService.undoOffsetLeaveDecision({ leaveId: leave.id, hrId: hr.id })
 
@@ -490,6 +594,21 @@ describe("offsetService", () => {
 
       expect(balanceOf(employee.id)).toBe(16)
       expect((await offsetService.getMyOffsetLeaves(employee.id))[0].status).toBe("CANCELLED")
+    })
+
+    it("returns the approved hours, not the requested hours, when a partially-approved leave is withdrawn", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' }) // 8 hrs
+      await offsetService.handleOffsetLeaveDecision({
+        leaveId: leave.id,
+        status: "APPROVED",
+        approvedHours: 4,
+        hrId: hr.id,
+      })
+      expect(balanceOf(employee.id)).toBe(12)
+
+      await offsetService.withdrawOffsetLeave({ leaveId: leave.id, employeeId: employee.id })
+
+      expect(balanceOf(employee.id)).toBe(16)
     })
 
     it("warns HR when an already-approved leave is withdrawn", async () => {
