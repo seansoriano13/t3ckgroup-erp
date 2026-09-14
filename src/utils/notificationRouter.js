@@ -50,6 +50,28 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
       }),
     );
   } else if (
+    notif.type === "TASK_MENTION" ||
+    notif.type === "GROUP_TASK_MENTION"
+  ) {
+    // A mention happens inside a Chat thread, not the task/group-task detail
+    // view. Without this branch these fall through to the generic
+    // `includes("TASK")` handler below, which sends TASK_MENTION to the task
+    // list (or an approvals queue the recipient may not even have access to)
+    // and sends GROUP_TASK_MENTION's committee-task reference_id to the
+    // personal /tasks page, which can't find it in the "tasks" table at all —
+    // the click silently does nothing.
+    const entityType =
+      notif.type === "GROUP_TASK_MENTION" ? "GROUP_TASK" : "TASK";
+    navigate(entityType === "GROUP_TASK" ? "/group-tasks" : "/tasks");
+    window.dispatchEvent(
+      new CustomEvent("OPEN_CHAT_MODAL", {
+        detail: {
+          entityId: notif.reference_id,
+          entityType,
+        },
+      }),
+    );
+  } else if (
     notif.type === "GROUP_ASSIGNED" ||
     notif.type === "GROUP_TASK_READY_FOR_HR" ||
     notif.type === "GROUP_MEMBER_DONE"
