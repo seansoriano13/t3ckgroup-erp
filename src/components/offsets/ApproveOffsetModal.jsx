@@ -1,0 +1,109 @@
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
+import { X, CheckCircle2 } from 'lucide-react';
+import { Button } from '../ui/button';
+import { offsetService } from '../../services/offsetService';
+
+/**
+ * HR approves an offset leave request, editing the hours actually debited
+ * before the employee's balance is spent — mirrors ApproveOvertimeModal, but
+ * capped at the requested hours since this spends a banked balance rather
+ * than crediting one.
+ */
+export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onSuccess }) {
+  const [approvedHours, setApprovedHours] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && request) setApprovedHours(String(request.hours));
+  }, [isOpen, request]);
+
+  if (!isOpen || !request) return null;
+
+  const parsedHours = parseFloat(approvedHours);
+  const isValid = Number.isFinite(parsedHours) && parsedHours > 0 && parsedHours <= request.hours;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!isValid) {
+      toast.error(`Enter a number of hours greater than zero and no more than ${request.hours}.`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      await offsetService.handleOffsetLeaveDecision({
+        leaveId: request.id,
+        status: 'APPROVED',
+        approvedHours: parsedHours,
+        hrId,
+      });
+      toast.success('Offset leave approved.');
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      toast.error(err.message || 'Failed to approve offset leave request.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+          <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
+            Approve Offset Leave
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+          >
+            <X size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <p className="text-xs font-semibold text-muted-foreground">
+            {request.employee?.name || 'This employee'} requested {request.hours} hrs on{' '}
+            {new Date(request.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
+          </p>
+
+          <div>
+            <label
+              htmlFor="approved-offset-hours"
+              className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
+            >
+              Approved Hours
+            </label>
+            <input
+              id="approved-offset-hours"
+              type="number"
+              step="0.5"
+              min="0"
+              max={request.hours}
+              value={approvedHours}
+              onChange={(e) => setApprovedHours(e.target.value)}
+              className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              required
+            />
+            <p className="text-[11px] font-semibold text-muted-foreground mt-1.5">
+              This many hours will be deducted from the employee's offset balance. Cannot exceed the {request.hours} hrs requested.
+            </p>
+          </div>
+
+          <Button
+            type="submit"
+            disabled={submitting || !isValid}
+            className="w-full h-11 rounded-xl font-bold shadow-md cursor-pointer"
+          >
+            <CheckCircle2 size={16} className="mr-1.5" />
+            {submitting ? 'Approving...' : 'Confirm Approval'}
+          </Button>
+        </form>
+      </div>
+    </div>,
+    document.body,
+  );
+}

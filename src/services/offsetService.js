@@ -464,8 +464,11 @@ export const offsetService = {
 
   /**
    * HR Decision on Offset Leave Request ('APPROVED', 'REJECTED')
+   * `approvedHours` defaults to the requested hours and is what gets debited;
+   * it may not exceed the requested hours (unlike overtime's approved_hours,
+   * which has no such ceiling).
    */
-  async handleOffsetLeaveDecision({ leaveId, status, hrNotes, hrId }) {
+  async handleOffsetLeaveDecision({ leaveId, status, approvedHours, hrNotes, hrId }) {
     const { data: leave, error: leaveErr } = await supabase
       .from('offset_leaves')
       .select('*')
@@ -474,6 +477,19 @@ export const offsetService = {
 
     if (leaveErr) throw new Error(leaveErr.message);
     if (!leave) throw new Error('Offset leave request not found.');
+
+    const resolvedApprovedHours = status === 'APPROVED'
+      ? parseFloat(approvedHours ?? leave.hours)
+      : null;
+
+    if (status === 'APPROVED') {
+      if (!(resolvedApprovedHours > 0)) {
+        throw new Error('Approved hours must be greater than zero.');
+      }
+      if (resolvedApprovedHours > parseFloat(leave.hours)) {
+        throw new Error('Approved hours cannot exceed the requested hours.');
+      }
+    }
 
     // If approving, deduct balance first (or re-verify balance)
     if (status === 'APPROVED') {
@@ -486,9 +502,8 @@ export const offsetService = {
       if (empErr) throw new Error(empErr.message);
       if (!emp) throw new Error('Employee record not found.');
       const currentBal = parseFloat(emp.offset_hours_balance || 0);
-      const leaveHrs = parseFloat(leave.hours || 0);
 
-      if (currentBal < leaveHrs) {
+      if (currentBal < resolvedApprovedHours) {
         throw new Error(`Cannot approve leave. Employee currently only has ${currentBal} hrs balance.`);
       }
 
@@ -496,7 +511,7 @@ export const offsetService = {
       await supabase
         .from('employees')
         .update({
-          offset_hours_balance: currentBal - leaveHrs,
+          offset_hours_balance: currentBal - resolvedApprovedHours,
           updated_at: new Date().toISOString(),
         })
         .eq('id', leave.employee_id);
@@ -507,6 +522,7 @@ export const offsetService = {
       .from('offset_leaves')
       .update({
         status,
+        approved_hours: resolvedApprovedHours,
         hr_notes: hrNotes || null,
         updated_at: new Date().toISOString(),
       })
@@ -514,7 +530,7 @@ export const offsetService = {
       .select();
 
     if (updateErr) throw new Error(updateErr.message);
-    const updatedLeave = updatedLeaves?.[0] || { ...leave, status, hr_notes: hrNotes || null };
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status, approved_hours: resolvedApprovedHours, hr_notes: hrNotes || null };
 
     // Send Notification to Employee
     notificationService.createNotification({
@@ -553,8 +569,9 @@ export const offsetService = {
     if (!leave) throw new Error('Offset leave request not found.');
     if (leave.status === 'PENDING') throw new Error('Leave is already pending.');
 
-    // If it was APPROVED, refund the balance
+    // If it was APPROVED, refund what was actually debited
     if (leave.status === 'APPROVED') {
+      const refundedHours = parseFloat(leave.approved_hours ?? leave.hours ?? 0);
       const { data: emp, error: empErr } = await supabase
         .from('employees')
         .select('offset_hours_balance')
@@ -562,7 +579,7 @@ export const offsetService = {
         .maybeSingle();
 
       if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(leave.hours || 0);
+        const newBalance = parseFloat(emp.offset_hours_balance || 0) + refundedHours;
         await supabase
           .from('employees')
           .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
@@ -575,6 +592,7 @@ export const offsetService = {
       .from('offset_leaves')
       .update({
         status: 'PENDING',
+        approved_hours: null,
         hr_notes: null,
         updated_at: new Date().toISOString(),
       })
@@ -582,7 +600,7 @@ export const offsetService = {
       .select();
 
     if (updateErr) throw new Error(updateErr.message);
-    const updatedLeave = updatedLeaves?.[0] || { ...leave, status: 'PENDING', hr_notes: null };
+    const updatedLeave = updatedLeaves?.[0] || { ...leave, status: 'PENDING', approved_hours: null, hr_notes: null };
 
     // Notify employee
     notificationService.createNotification({
@@ -662,8 +680,9 @@ export const offsetService = {
       throw new Error('Cannot withdraw this request.');
     }
 
-    // If it was APPROVED, we must refund the hours back to the employee automatically
+    // If it was APPROVED, we must refund what was actually debited back to the employee
     if (leave.status === 'APPROVED') {
+      const refundedHours = parseFloat(leave.approved_hours ?? leave.hours ?? 0);
       const { data: emp, error: empErr } = await supabase
         .from('employees')
         .select('offset_hours_balance')
@@ -671,7 +690,7 @@ export const offsetService = {
         .maybeSingle();
 
       if (!empErr && emp) {
-        const newBalance = parseFloat(emp.offset_hours_balance || 0) + parseFloat(leave.hours || 0);
+        const newBalance = parseFloat(emp.offset_hours_balance || 0) + refundedHours;
         await supabase
           .from('employees')
           .update({ offset_hours_balance: newBalance, updated_at: new Date().toISOString() })
