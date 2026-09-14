@@ -32,6 +32,10 @@ _Avoid_: Opportunity, Lead, Deal
 The centralized index and management table of all registered Sales Opportunity Records.
 _Avoid_: Opportunities Page, Opportunity Registration
 
+**CRM**:
+Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; CRM is the process it enters.
+_Avoid_: SOR / CRM, SOR system
+
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
 _Avoid_: Client, Client Name, Customer, Account
@@ -48,6 +52,10 @@ _Avoid_: Leave credit, OT slip
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Tag**:
+A label from one managed list, put on a Group Task by hand or by the Stage Action that created it, saying what kind of work it is. Individual tasks say that with their Category instead. Where a task came from — an SOR — is its source, not a Tag.
+_Avoid_: Label, Category (when meaning a Group Task's kind)
+
 **Employee Directory**:
 The workforce register and profile repository for company personnel.
 _Avoid_: HR Management, User List
@@ -57,7 +65,7 @@ _Avoid_: HR Management, User List
 Terms introduced by the Commission Pool feature (issue #10 and its tickets #11–#17). Commission Department/Position/Split are a standalone vocabulary scoped to this feature — deliberately not linked to an employee's Department or Role fields, which stay freeform text used throughout the rest of the app.
 
 **Commission Rate**:
-One of three dated percentages — VAT, Withholding (ITR), or the Pool rate itself. Takes effect from a stated date; an Opportunity uses whichever Commission Rate was in force on its Contract Date, so a later change never moves an already-priced Opportunity's figures.
+One of three dated percentages — VAT, Withholding, or the Pool rate itself. Takes effect from a stated date; an Opportunity uses whichever Commission Rate was in force on its Contract Date, so a later change never moves an already-priced Opportunity's figures.
 _Avoid_: Tax Rate
 
 **Commissionable Revenue**:
@@ -137,6 +145,76 @@ Grouping SORs across Sale Types by Stage therefore requires an explicit
 mapping; same-named Stages are genuinely two different things.
 _Avoid_: Status, Step
 
+**Terminal Stage**:
+A Stage no SOR can leave — where a Sales Flow ends (Closed Won, Closed Lost).
+Not the Won Stage, which usually sits mid-flow with PO, delivery and collection
+still ahead of it. SORs on a Terminal Stage sink to the bottom of the register's
+default order.
+_Avoid_: Last Stage, Final Stage, Closed
+
+**Stage Visit**:
+One stay of an SOR on a Stage — from the move that lands it there to the move
+that takes it away. Because flows loop, one SOR can visit the same Stage more
+than once, and each stay is its own Stage Visit. Access to a Stage's trail is
+granted per Stage Visit, never per Stage.
+_Avoid_: Stage Period, Stage Instance
+
+**Deal Team**:
+The people holding an SOR's own roles — registrar, Deal Owner, Closing
+Salesperson, Support Sales 1 and 2, Sales Director. They see the SOR across its
+Stage Visits, except on a Stage its Sales Flow closes to them. Anyone else sees
+only what they were called into, unless the Sales Flow names them as always
+seeing it.
+_Avoid_: Participants, Members (when meaning these roles)
+
+**Stage Participant**:
+Someone outside the Deal Team called into an SOR — by a task a Stage Action
+creates, by an Assignment condition, or as a purchasing member of a Purchase
+Request opened there. Sees every Stage Visit inside their access window, which
+opens when they are called and closes when the calling Stage is left, when a
+chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
+set it; a Terminal Stage always closes it. An Assignment on the entry Stage makes
+someone a participant from the SOR's first day. Afterwards they get a locked
+view plus a read-only look at the visits they worked on. A Mention never makes
+someone a Stage Participant.
+_Avoid_: Collaborator, Guest, Member
+
+**Restricted Stage**:
+A Stage its Sales Flow closes to part of the Deal Team — by role, by an
+excluded Employee Group, or both. Anyone shut out sees only that the SOR is
+there and for how long; they cannot move it on, are not notified from it, and
+stay shut out of that visit after the SOR leaves. Super Admins are never shut
+out. The Stage's configuration stays readable on the Flow Canvas; only the
+SOR's data on it is withheld.
+_Avoid_: Hidden Stage, Private Stage
+
+**Journey**:
+One SOR's whole story as a single list — every Stage Visit, with the
+conditions, tasks, and Requested Items on each, their status and owner. A
+Restricted Stage appears as one line with no contents to anyone shut out of it.
+Who may open an SOR's Journey is set by its Sales Flow.
+_Avoid_: Overview, Iceberg, Timeline
+
+**Stage Field**:
+An input a Sales Flow defines on a Stage, filled in on the SOR under that
+Stage. Either an **SOR field** — one of the SOR's own fields, written to the SOR
+itself — or a **custom field** (text, number, date, or a choice) kept once per
+Stage Visit. Not a Stage Condition, though a required one also blocks the way
+out.
+_Avoid_: Custom Condition, Field on record, Metadata
+
+**Team**:
+The unit an employee actually works in — Purchasing, Logistics, IT, and so on —
+below the four broad Departments. What "a whole department" means wherever the
+system picks people.
+_Avoid_: Sub-department
+
+**Employee Group**:
+A named set of employees — hand-picked, or a whole Team — kept in one place and
+pointed at by any "who" setting in a Sales Flow. Always means its current
+members, so editing a group changes every flow that uses it.
+_Avoid_: Distribution List, Roster
+
 **Stage Action**:
 Something that happens when an SOR *enters* a Stage — create a Group Task,
 notify, stamp a date, start a countdown, raise a purchase request, or a note.
@@ -145,10 +223,20 @@ new. Distinct from a Stage Condition by what it does — an Action *happens*, a
 Condition *blocks*.
 _Avoid_: Trigger, Automation, Hook
 
+**Optional Action**:
+A Stage Action that waits for its Decider — the Deal Owner unless the Sales
+Flow names someone else — to create it or skip it after the SOR enters the
+Stage. Never blocks leaving; leaving undecided counts as a skip, and a skip is
+final for that Stage.
+_Avoid_: Manual Action, Conditional Action
+
 **Stage Condition**:
-Something that must be true before an SOR may *leave* a Stage. Five verifiable
-kinds — attachment, field, tickbox, assignment, deadline — plus Note
-Conditions. A deadline never blocks; it warns on approach and marks the deal
+Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
+— attachment, tickbox, assignment, deadline, and purchasing settled (every
+Requested Item closed) — plus Note Conditions. Something a
+deal must fill in is a Stage Field, never a condition. An attachment condition
+is met only by a file given through that condition, not by any matching file on
+the SOR. A deadline never blocks; it warns on approach and marks the deal
 overdue on breach.
 _Avoid_: Gate, Requirement, Rule
 
@@ -159,6 +247,14 @@ blocks; a blocking note behaves as a tickbox — a human certifies it and the
 system verifies nothing. Notes are the record of what was asked for and not yet
 built, and they export as the implementation list.
 _Avoid_: Comment, TODO, Placeholder
+
+**Follow-up Cadence**:
+A Stage setting — neither a Condition nor an Action — that reminds chosen
+people, the Deal Owner by default, every N days while an SOR sits on that
+Stage. A **Logged Follow-up**, a note with proof attached, restarts the count,
+so reminders chase silence rather than the calendar. Every reminder and every
+Logged Follow-up lands on the SOR's timeline.
+_Avoid_: Reminder (unqualified), Recurring Notification
 
 **Won Stage**:
 The one Stage per Sales Flow that means the deal has been won. Reaching it
@@ -171,8 +267,13 @@ _Avoid_: Anchor, Anchor Stage, Award Stage
 An SOR counts as booked money once it **has a Contract Date** — no longer a
 comparison of its position against an anchor's. Position ceased to mean
 anything when a Sales Flow became a graph, and the positional rule already
-misfired when a deal moved backwards.
+misfired when a deal moved backwards. Its value is labelled **Won** on screen.
 _Avoid_: Booked, Closed (when meaning the money pool)
+
+**Open Pipeline**:
+The value of SORs that are neither Realized nor on a Terminal Stage — what is
+still being worked. Shown beside Won; a lost SOR counts toward neither.
+_Avoid_: Closed Pipeline, Total Pipeline
 
 **Flow Canvas**:
 The module in which the developer and Operations build Sales Flows together,
@@ -229,20 +330,32 @@ notes all read `vX.Y` (issue #188, ADR 0020) rather than naming the entity;
 appears on screen.
 _Avoid_: Backup, Export
 
-### Project Evaluation
+### Purchasing
 
-Terms introduced by the Project Evaluation feature (issue #38 and its tickets #39–#50). The feature exists because four jobs are currently done in a Google Sheet that the rest of the business cannot see: checking a bundled Odoo order against the client's spec, totalling the many purchase orders one project spawns, evidencing the three-supplier comparison, and deciding go/no-go on the resulting margin.
+Terms for purchasing's work against SORs (issue #38 and its tickets #39–#50). The go/no-go Project Evaluation that issue also introduced is retired: the business keeps that judgment in its own linked sheet.
 
 **Purchasing**:
-The Module carrying purchasing's own work — the Procurement Queue, and the Canvasses raised from it. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
-_Avoid_: Procurement (when meaning the Module), PMS
+The Module carrying purchasing's own work — Purchase Requests and the Procurement Queue that lists them. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
+_Avoid_: Procurement, PMS (when meaning the Module)
+
+**Purchase Request**:
+Where Sales and Purchasing coordinate buying for one SOR — one per SOR, opened by a Stage Action, holding Requested Items, its own members, and its own Chat, so each project's buying talk stays apart from every other's. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
+_Avoid_: Procurement Request, Requisition, PR Batch
+
+**Buyer**:
+The one purchaser who owns a Purchase Request — named by the Stage Action that opens it, or taken from the Procurement Queue by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the requester.
+_Avoid_: Assignee, Purchaser (when meaning this role)
+
+**Requested Item**:
+One product a Purchase Request asks for — copied from an SOR line at the moment it was picked, or described as a new product. Later SOR edits never rewrite it. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+_Avoid_: Line Item, Procurement Request
 
 **Procurement Queue**:
-The cross-SOR list of every Procurement Request still awaiting an answer. Open means unresolved in the domain's sense — a request purchasing has started canvassing is still on the queue.
+The cross-SOR list of every Purchase Request with a Requested Item still open.
 _Avoid_: Purchasing Dashboard, Sourcing List
 
 **Inclusion**:
-One item on the client's specification, entered against an SOR. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Deliberately not a sale opportunity line item — those are destroyed and re-created on every SOR save, so nothing durable can hang off one.
+One item on the client's specification, entered against an SOR. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Deliberately not a sale opportunity line item — those are destroyed and re-created on every SOR save, so nothing durable can hang off one. An Inclusion of something bought as a whole carries no price of its own; it is listed so it can be checked as actually included.
 _Avoid_: Line item, Product, BOM entry
 
 **Completeness**:
@@ -253,6 +366,10 @@ _Avoid_: Status, Progress
 How an Inclusion would be obtained — In stock, Stocked but needs ordering, or Source out. Three values rather than a boolean: a stockable item with none on hand still needs ordering and is explicitly not source-out, and that middle case is most of purchasing's work. Null until somebody assesses it.
 _Avoid_: Source out (as a boolean), Availability
 
+**Stock Availability**:
+Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. A fact read from Odoo, where Sourcing is purchasing's own judgment.
+_Avoid_: Inventory (unqualified), Live Stock
+
 **Canvass**:
 The three-or-more supplier comparison, recorded as structured Offers against exactly one Procurement Request or Inclusion — never both, never neither. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
@@ -260,10 +377,6 @@ _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 **Offer**:
 One supplier's answer within a Canvass — brand, description, source link, brochure, remarks, unit price, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before.
 _Avoid_: Quote, Bid, Supplier Response
-
-**Project Evaluation**:
-The go/no-go: one record per SOR holding a candidate sales price, an estimated operating expense figure, and a government-client toggle, weighed against the base cost rolled up live from the SOR's Inclusions. May exist before the SOR has a Sales Reference — an evaluation with none is visibly marked an estimate. Markup and final pricing stay in Odoo; this record never writes a price back, and where its candidate price differs from Odoo's own order price, both are shown with the delta.
-_Avoid_: Quotation, Pricing Sheet, Deal Sizing
 
 ### Philippine Government Procurement
 
@@ -304,28 +417,76 @@ A per-day deduction for late delivery, needing no proof of actual loss. At 10%
 of the total contract price the client may rescind the contract.
 _Avoid_: Penalty, Late Fee
 
-**ILPAS (Importation, Local Purchase And Shipping information form)**:
-Purchasing's per-shipment record for an imported or externally sourced item —
-supplier, currency, payment terms and forex, freight, duties, the shipping
-document checklist, and the shipping status run of Ordered → Boarded → Arrived
-→ Delivered. What the Sales Offer Matrix's `IPAS` column marks as Applicable or
-Not Applicable is **whether an item needs one**; house-brand stock does not.
-_Avoid_: IPAS (a transcription of the same word), Import Form
+**IPAS (Integrated Purchasing and Shipping Form)**:
+The company's record of one Odoo purchase order end to end — supplier and
+payment details, sales operations, documentation, logistics, finance, and final
+filing — so the purchase is recorded, monitored, and approved in one place.
+Every split payment and shipment of that order sits inside its one IPAS, and an
+order has at most one. Purchasing raises one when a purchase needs it, not for
+every order, and never without an order, though the order may still be an
+unconfirmed RFQ. A Project purchase names the SOR or SORs it buys for and
+appears in each one's PMS; an Inventory, Supplies or Events purchase names none.
+Numbered in one series across all four entities, carrying on from the sheet's.
+Its fields are defined by the company's own IPAS sheet, not by this glossary.
+_Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
+
+**Charge**:
+An amount an IPAS pays to bring the goods in, apart from the goods themselves —
+an importation charge such as brokerage, destination charges or duties, or the
+bank's charge fee on a payment. Its kinds come from a list the business edits.
+Every charge counts toward Landed Cost, spread over the purchase's lines; a
+charge that covers several purchases is recorded as each one's share. Shipping
+fees paid to the supplier are payments, not charges, but count the same way.
+_Avoid_: Fee (unqualified), Expense, Importation (as a noun)
 
 **Landed Cost**:
-An imported item's true unit cost once everything is apportioned onto it —
-`unit price + duties/item + freight/item + other charges/item`, computed on the
-ILPAS sheet. The basis every markup and income figure is taken from.
-_Avoid_: Cost, Unit Cost, Acquire Cost
+An item's true unit cost once everything is apportioned onto it —
+`unit price + duties/item + freight/item + other charges/item` — worked out the
+same way for Local and Import purchases. The unit price is the purchase order's,
+before VAT and withholding, turned into PHP at the rate actually paid so far;
+Charges and shipping fees are spread over the order's lines. Provisional until
+Purchasing marks the purchase's costs complete, final after. The basis every
+markup and income figure is taken from.
+_Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
+
+**PMS (Purchasing Monitoring System)**:
+One SOR's whole purchasing file — Sales asking Purchasing about products, the
+Costing Matrix, the Purchase Request, each purchase's IPAS, and the Transmittals
+and quality reports that follow the goods until they are handed over. What
+people mean by "PMS" whether they are asking about a product, costing a bid, or
+buying after award. Purchasing is the Module that works every SOR's PMS.
+_Avoid_: Purchasing (when meaning one SOR's file), Sales Offer Matrix
+
+**Costing Matrix**:
+The part of PMS in which Sales, Purchasing and Management cost one SOR's offer
+item by item — what the client asked for and its ABC, how each item is sourced
+and what it costs, the markup, and the Final Offer — closing on a summary of
+tax, retention, collected amount and revenue. The company's "PMS sheet".
+_Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
+
+**Evaluation of Specification**:
+The item-by-item comparison of what the client's specification requires with
+what is offered, deciding whether each offered item complies. Part of PMS. Not
+the retired Project Evaluation, which judged whether a deal was worth pursuing
+at all.
+_Avoid_: Project Evaluation, Spec Check, Compliance Matrix
+
+**ITR**:
+The income tax the Costing Matrix deducts from an offer — 8% of the Final Offer above
+₱250,000, as the company's sheets compute it. A different figure from the
+Commission Rate called Withholding, even though that rate is labelled
+"Withholding (ITR)" on screen.
+_Avoid_: Withholding, Income Tax (unqualified)
 
 ### Chat & Mentions
 
 One vocabulary for a thing the code currently spells four ways. A Chat is the
-same concept whether it hangs off a Task, a Group Task, or an SOR, even though
-each stores its Messages in its own table.
+same concept whether it hangs off a Task, a Group Task, an SOR, or a Purchase
+Request, even though each stores its Messages in its own table.
 
 **Chat**:
-A single conversation bound to exactly one Task, Group Task, or SOR. There is
+A single conversation bound to exactly one Task, Group Task, SOR, or Purchase
+Request. There is
 no standalone Chat and no Chat between people — a Chat always belongs to the
 record it discusses, and is reached either from that record or from the chat
 list, which is the set of Chats an employee is currently party to.
