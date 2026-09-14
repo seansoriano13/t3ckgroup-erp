@@ -355,8 +355,8 @@ The cross-SOR list of every Purchase Request with a Requested Item still open.
 _Avoid_: Purchasing Dashboard, Sourcing List
 
 **Inclusion**:
-One item on the client's specification, entered against an SOR. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Deliberately not a sale opportunity line item — those are destroyed and re-created on every SOR save, so nothing durable can hang off one. An Inclusion of something bought as a whole carries no price of its own; it is listed so it can be checked as actually included.
-_Avoid_: Line item, Product, BOM entry
+One item that comes with a bundle Component in the Costing Matrix — the cabinet or beacon lights that come with a vehicle, the registration that comes with it. Carries no price of its own; it is listed so it can be checked as actually included. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Anything bought or taken from stock on its own is a Component, not an Inclusion, however a sheet lists it.
+_Avoid_: Line item, Product, BOM entry, Accessory
 
 **Completeness**:
 Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%.
@@ -430,6 +430,21 @@ Numbered in one series across all four entities, carrying on from the sheet's.
 Its fields are defined by the company's own IPAS sheet, not by this glossary.
 _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 
+**Filing**:
+The last sign-off on an IPAS — section 7's Approved, given once Finance has
+received the IPAS and it has been noted and checked, and only after sections 1
+and 3 are approved. A filed IPAS is frozen: its copy of the Odoo purchase order,
+its payments and charges, its Purpose and its SORs no longer change. Earlier
+approvals block nothing; filing is the one point that locks.
+_Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
+
+**Finance access**:
+Who counts as Finance — granted per employee by its own access flag, the way
+Purchasing access is, and never inferred from the freeform department or
+sub-department text. Finance receives an IPAS for Filing, records its payments
+and charges, and sees supplier bank details.
+_Avoid_: Accounting (as a role), Finance department (when meaning who has access)
+
 **Charge**:
 An amount an IPAS pays to bring the goods in, apart from the goods themselves —
 an importation charge such as brokerage, destination charges or duties, or the
@@ -463,6 +478,27 @@ item by item — what the client asked for and its ABC, how each item is sourced
 and what it costs, the markup, and the Final Offer — closing on a summary of
 tax, retention, collected amount and revenue. The company's "PMS sheet".
 _Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
+
+**Tender Line**:
+One thing the client asked for in the Costing Matrix — its specification,
+quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,
+or picked from an SOR line whose name, quantity and unit it then keeps.
+_Avoid_: Line item, Item, SOR line (a different thing)
+
+**Component**:
+One thing T3CK supplies toward a Tender Line, with its own brand, sourcing,
+costs and markup. Cost is tracked per component, so a tender line's margin is
+its Final Offer against its components. A component priced as a whole is a
+bundle, and lists its Inclusions.
+_Avoid_: Offer component, Part, Sub-item, Child row
+
+**Markup**:
+A factor on a Component's Acquire cost that suggests its Markup Price. The
+Costing Matrix has one default factor, typed or picked from presets the business
+edits, which any component or cost-only row can override; cost-only rows start
+at ×1.00. Only ever a suggestion: Sales sets the Final Offer, and each tender
+line shows the markup it actually achieves beside the target.
+_Avoid_: Margin, Auto Pricing, Mark-up percentage (as the stored form)
 
 **Evaluation of Specification**:
 The item-by-item comparison of what the client's specification requires with
