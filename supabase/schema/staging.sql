@@ -15,8 +15,6 @@
 -- Extensions
 -- ============================================================
 
-create extension if not exists "pg_graphql" with schema "graphql";
-create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
 create extension if not exists "pgcrypto" with schema "extensions";
 create extension if not exists "supabase_vault" with schema "vault";
@@ -377,13 +375,13 @@ create table if not exists public."offset_leaves" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false,
-  "company_id" uuid
+  "hr_override" boolean not null default false
 );
 
 create table if not exists public."overtime_requests" (
@@ -412,13 +410,13 @@ create table if not exists public."overtime_requests" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false,
-  "company_id" uuid
+  "hr_override" boolean not null default false
 );
 
 create table if not exists public."push_subscriptions" (
@@ -563,13 +561,13 @@ create table if not exists public."sil_leaves" (
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
+  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false,
-  "company_id" uuid
+  "hr_override" boolean not null default false
 );
 
 create table if not exists public."sor_canvass_offers" (
@@ -2953,8 +2951,6 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  -- Nobody edits their own hidden-navigation override — server-side, not by
-  -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
     IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
