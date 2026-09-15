@@ -232,8 +232,9 @@ _Avoid_: Manual Action, Conditional Action
 
 **Stage Condition**:
 Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
-— attachment, tickbox, assignment, deadline, and purchasing settled (every
-Requested Item closed) — plus Note Conditions. Something a
+— attachment, tickbox, assignment, deadline, purchasing settled (every
+Requested Item closed), and costing settled (every Tender Line priced, no blank
+cost, the evaluation approved, and the offer within ABC) — plus Note Conditions. Something a
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
@@ -347,7 +348,11 @@ The one purchaser who owns a Purchase Request — named by the Stage Action that
 _Avoid_: Assignee, Purchaser (when meaning this role)
 
 **Requested Item**:
-One product a Purchase Request asks for — copied from an SOR line at the moment it was picked, or described as a new product. Later SOR edits never rewrite it. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+One product a Purchase Request asks for — copied from an SOR line or a Costing
+Matrix Component at the moment it was picked, or described as a new product.
+Later edits to the source never rewrite it. It keeps the link to the Component it
+buys for, and once Ordered it records the Odoo purchase order line as well as its
+number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
 _Avoid_: Line Item, Procurement Request
 
 **Procurement Queue**:
@@ -476,7 +481,12 @@ _Avoid_: Purchasing (when meaning one SOR's file), Sales Offer Matrix
 The part of PMS in which Sales, Purchasing and Management cost one SOR's offer
 item by item — what the client asked for and its ABC, how each item is sourced
 and what it costs, the markup, and the Final Offer — closing on a summary of
-tax, retention, collected amount and revenue. The company's "PMS sheet".
+tax, retention, collected amount and revenue. The company's "PMS sheet". Every
+column belongs to one side — Sales meaning the Deal Team, Purchasing,
+Management, or Technical for the compliance verdict — and only that side writes
+it. Its costs, offer and summary are
+seen by whoever sees the whole SOR, and by Purchasing, Finance and Management on
+every SOR; anyone else called into the SOR sees the matrix without money.
 _Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
 
 **Tender Line**:
@@ -489,8 +499,24 @@ _Avoid_: Line item, Item, SOR line (a different thing)
 One thing T3CK supplies toward a Tender Line, with its own brand, sourcing,
 costs and markup. Cost is tracked per component, so a tender line's margin is
 its Final Offer against its components. A component priced as a whole is a
-bundle, and lists its Inclusions.
+bundle, and lists its Inclusions. What gets bought: a Requested Item names the
+component it buys for, and the Landed Cost of the purchase arrives beside the
+component's estimates without replacing any of them.
 _Avoid_: Offer component, Part, Sub-item, Child row
+
+**Final Acquire**:
+The cost Management sets on a Component — the figure the Costing Matrix summary
+reads as Operational Expenses and takes Revenue from. Written only by the people
+on the list Super Admins keep for it, never by a whole role. Neither Acquire,
+which is Purchasing's proposed cost and the one markup is taken from, nor Landed
+Cost, which is what the item turned out to cost once bought.
+_Avoid_: Final Cost, Approved Cost, Management Price
+
+**Incharge**:
+The salesperson and the purchaser who answer for a Costing Matrix row — set once
+for the matrix, and overridable row by row. Names only: being Incharge grants no
+access and sends no notifications.
+_Avoid_: Assignee, Owner, Buyer (a Purchase Request's role)
 
 **Markup**:
 A factor on a Component's Acquire cost that suggests its Markup Price. The
@@ -502,10 +528,20 @@ _Avoid_: Margin, Auto Pricing, Mark-up percentage (as the stored form)
 
 **Evaluation of Specification**:
 The item-by-item comparison of what the client's specification requires with
-what is offered, deciding whether each offered item complies. Part of PMS. Not
-the retired Project Evaluation, which judged whether a deal was worth pursuing
-at all.
+what is offered, deciding whether each offered item complies. Not a document of
+its own: it is the Costing Matrix row read across, the Tender Line's ask against
+its Components' offer, approved once for the whole matrix. Not the retired
+Project Evaluation, which judged whether a deal was worth pursuing at all.
 _Avoid_: Project Evaluation, Spec Check, Compliance Matrix
+
+**Compliance**:
+Whether a Component answers the Tender Line it sits under — Complies, Deviates,
+or unjudged. A deviation is always written down, and may name the compliant
+alternative recommended instead; it records the gap and blocks nothing. Judged
+by Technical, meaning the people an SOR's evaluation group task calls in, who
+see the Costing Matrix without its money. Distinct from Completeness, which asks
+the same question of one Inclusion inside a bundle.
+_Avoid_: Compliant (as a status name), Conformity, Spec match
 
 **ITR**:
 The income tax the Costing Matrix deducts from an offer — 8% of the Final Offer above

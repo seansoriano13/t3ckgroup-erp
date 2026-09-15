@@ -78,3 +78,26 @@ policy, not hidden by the screen.
   real Postgres, not the in-memory fake.
 - **Reversing it is expensive.** Collapsing back to role-based reads means
   choosing who loses isolation, after the business has come to rely on it.
+
+## Amendments
+
+### 2026-09-15 — the Costing Matrix shows its offer outside the Deal Team
+
+From [Costing Matrix column ownership and who sees the numbers](https://github.com/seansoriano13/t3ckgroup-erp/issues/225).
+
+"Expected Value and commission stay Deal Team only" holds for the SOR itself.
+It does not hold for one SOR's Costing Matrix: **Purchasing access, Finance
+access and the Final Acquire list read the whole matrix on every SOR** — costs,
+markups, Final Offer, the achieved markup, the quotation price shown beside
+Final Offer, and the summary — whether or not they are Stage Participants there.
+Final Offer's total is the bid, so this does reveal what the SOR is worth.
+
+Why the exception is deliberate: the Costing Matrix is one grid that Sales,
+Purchasing and Management write to in different columns, Markup Price is a
+suggested selling price in Purchasing's own band, and Finance's OPEX sheet takes
+its Revenue from the matrix. Commission is unaffected and stays hidden from all
+three.
+
+Everyone else called into an SOR — Technical evaluating specifications, the
+Warehouse, Logistics — sees the Costing Matrix **without money**, inside their
+window, which is the rule this ADR already sets for line-item prices.
