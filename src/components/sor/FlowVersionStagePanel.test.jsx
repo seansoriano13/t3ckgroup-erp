@@ -1,8 +1,9 @@
 import { useState } from "react"
 import { describe, it, expect, vi } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
+import { renderWithProviders } from "@/test/support"
 import FlowVersionStagePanel from "./FlowVersionStagePanel"
 
 const STAGE = { id: "stage-1", name: "Bidding", is_terminal: false, bracket_label: "Pre-Award" }
@@ -25,7 +26,7 @@ function Harness({ initialTab = "conditions", ...props }) {
 }
 
 function renderPanel(props) {
-    return render(<Harness {...props} />)
+    return renderWithProviders(<Harness {...props} />)
 }
 
 describe("FlowVersionStagePanel", () => {
@@ -88,6 +89,30 @@ describe("FlowVersionStagePanel", () => {
         await userEvent.click(screen.getByRole("button", { name: /Actions/ }))
 
         expect(screen.getByText("Prepare bid docs")).toBeInTheDocument()
+    })
+
+    it("expands a Group Task action's assignees and checklist, matching the editor's own detail view", async () => {
+        renderPanel({
+            actions: [
+                {
+                    id: "a1",
+                    stage_id: "stage-1",
+                    kind: "create_group_task",
+                    config: {
+                        title: "Evaluation of Specification",
+                        members: [{ employeeId: "emp-1", role: "Reviewer", taskDescription: "Check the spec." }],
+                    },
+                },
+            ],
+        })
+
+        await userEvent.click(screen.getByRole("button", { name: /Actions/ }))
+        expect(screen.queryByText("Check the spec.")).not.toBeInTheDocument()
+
+        await userEvent.click(screen.getByRole("button", { name: /Evaluation of Specification/ }))
+
+        expect(screen.getByText("Check the spec.")).toBeInTheDocument()
+        expect(screen.getByText("Reviewer")).toBeInTheDocument()
     })
 
     it("says plainly when this Stage has no conditions saved", async () => {

@@ -438,13 +438,17 @@ describe("FlowCanvas", () => {
     await screen.findByText("Viewing v1.0 — read-only")
 
     const satellite = await screen.findByText("Confirm receipt")
-    fireEvent.click(satellite.closest(".react-flow__node"))
+    const satelliteNode = satellite.closest(".react-flow__node")
+    fireEvent.click(satelliteNode)
 
     expect(await screen.findByText("Stage · this version")).toBeInTheDocument()
     // The panel opened on Conditions, not Actions or General — the condition
     // row it lists repeats the satellite's own label.
     expect(screen.getAllByText("Confirm receipt")).toHaveLength(2)
     expect(screen.queryByText("This version saved no Stage Conditions on this Stage.")).not.toBeInTheDocument()
+    // The clicked satellite itself carries React Flow's own selected class —
+    // it isn't left looking like every other unclicked card.
+    expect(satelliteNode).toHaveClass("selected")
   })
 
   it("disables Restore on a published Sales Flow, hinting to edit the draft first", async () => {

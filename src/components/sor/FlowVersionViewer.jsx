@@ -82,20 +82,26 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     // only frames the deal's Stage — the reader may want to inspect any Stage.
     const [selectedStageId, setSelectedStageId] = useState(null)
     const [panelTab, setPanelTab] = useState("conditions")
+    const [selectedSatelliteId, setSelectedSatelliteId] = useState(null)
 
     const onNodeClick = useCallback((_event, node) => {
         if (node.type === "stage") {
             setSelectedStageId(node.id)
+            setSelectedSatelliteId(null)
             return
         }
         if (node.type === "satellite") {
             setSelectedStageId(node.data.stageId)
             setPanelTab(node.data.column === GATE ? "conditions" : "actions")
+            setSelectedSatelliteId(node.id)
             return
         }
         // Bracket braces are synthetic labels with nothing behind them.
     }, [])
-    const onPaneClick = useCallback(() => setSelectedStageId(null), [])
+    const onPaneClick = useCallback(() => {
+        setSelectedStageId(null)
+        setSelectedSatelliteId(null)
+    }, [])
 
     const selectedStage = useMemo(
         () => stages.find((s) => s.id === selectedStageId) ?? null,
@@ -213,8 +219,22 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
         // Parents first: React Flow reads `parentId` against nodes already in
         // the array, so a satellite listed before its Stage would render at
         // the origin.
-        return [...bracketNodes, ...stageNodes, ...satelliteNodes]
-    }, [stages, conditions, actions, entry, wonStageId, currentStageId, selectedStageId, satelliteNodes])
+        const selectedSatelliteNodes = satelliteNodes.map((node) => ({
+            ...node,
+            selected: node.id === selectedSatelliteId,
+        }))
+        return [...bracketNodes, ...stageNodes, ...selectedSatelliteNodes]
+    }, [
+        stages,
+        conditions,
+        actions,
+        entry,
+        wonStageId,
+        currentStageId,
+        selectedStageId,
+        satelliteNodes,
+        selectedSatelliteId,
+    ])
 
     const flowEdges = useMemo(
         () => [

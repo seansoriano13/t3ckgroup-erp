@@ -1,8 +1,12 @@
-import { ArrowUpCircle, Flag, ListTodo, Octagon, Settings2, Tag, Wand2, X } from "lucide-react"
+import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { ArrowUpCircle, ChevronRight, Flag, ListTodo, Octagon, Settings2, Tag, Wand2, X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import TabGroup from "@/components/ui/TabGroup"
+import { employeeService } from "@/services/employeeService"
+import StageActionDetail from "@/components/settings/StageActionDetail"
 import {
   ACTION_KIND_META,
   CONDITION_KIND_META,
@@ -40,6 +44,12 @@ export default function FlowVersionStagePanel({
   onTabChange,
   onClose,
 }) {
+  const [expandedActionId, setExpandedActionId] = useState(null)
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  })
+
   if (!stage) return null
 
   // `activeTab` / `onTabChange` are driven by the viewer, which is what knows
@@ -150,6 +160,7 @@ export default function FlowVersionStagePanel({
                 <RuleRow
                   key={row.id ?? `${row.kind}-${row.label}`}
                   Icon={Icon}
+                  tone="gate"
                   title={row.label}
                   tag={row.is_required === false ? "Optional" : null}
                   subtitle={
@@ -170,14 +181,41 @@ export default function FlowVersionStagePanel({
             versionHasNoRules={versionHasNoRules}
             emptyStage="This version saved no Stage Actions on this Stage."
             renderRow={(row) => {
+              const key = row.id ?? `${row.kind}-${actionTitle(row)}`
               const Icon = ACTION_KIND_META[row.kind]?.icon ?? Wand2
+              const isExpanded = expandedActionId === key
               return (
-                <RuleRow
-                  key={row.id ?? `${row.kind}-${actionTitle(row)}`}
-                  Icon={Icon}
-                  title={actionTitle(row)}
-                  subtitle={actionSummary(row)}
-                />
+                <div
+                  key={key}
+                  className="rounded-xl bg-card outline outline-1 -outline-offset-1 outline-mauve-6"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setExpandedActionId(isExpanded ? null : key)}
+                    aria-expanded={isExpanded}
+                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none"
+                  >
+                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
+                      <Icon size={15} strokeWidth={2.5} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-foreground">
+                        {actionTitle(row)}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                        {actionSummary(row)}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={15}
+                      className={cn(
+                        "shrink-0 text-muted-foreground transition-transform duration-200",
+                        isExpanded && "rotate-90",
+                      )}
+                    />
+                  </button>
+                  {isExpanded && <StageActionDetail action={row} employees={employees} />}
+                </div>
               )
             }}
           />
@@ -210,10 +248,18 @@ function RuleList({ rows, renderRow, emptyStage, versionHasNoRules }) {
   return <div className="space-y-2 p-5">{rows.map(renderRow)}</div>
 }
 
-function RuleRow({ Icon, title, subtitle, tag }) {
+// Matches the canvas satellites' own gate=amber/run=violet convention
+// (FlowSatelliteNode's TONE) so a Stage's rules read the same color whether
+// they're seen as cards on the canvas or rows in this panel.
+const ROW_TONE = {
+  gate: "bg-amber-a3 text-amber-11",
+  run: "bg-violet-a3 text-violet-11",
+}
+
+function RuleRow({ Icon, title, subtitle, tag, tone = "gate" }) {
   return (
     <div className="flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6">
-      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
+      <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-lg", ROW_TONE[tone])}>
         <Icon size={15} strokeWidth={2.5} />
       </span>
       <div className="min-w-0 flex-1">
