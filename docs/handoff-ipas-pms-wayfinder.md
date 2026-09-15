@@ -4,13 +4,9 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 
 ## Resume
 
-**Every ticket on the map is closed.** The frontier is empty, so there is no ticket to continue — the next work is writing the specs, in the build order below.
+**The map is closed (2026-09-15).** Every spec is written and sliced into `ready-for-agent` tickets. The closing comment on the map lists them against the build order. Nothing is left to extract, so the next work is building. Pick up the tickets from the specs in [State at close](#state-at-close).
 
-1. Open a Claude Code session in this repo on `staging`, after pulling.
-2. Work through **[Extracting the specs](#extracting-the-specs)** below — one session per spec, each running `/to-spec` then `/to-tickets` in one window, then `/clear`. Start with session 1, the IPAS.
-3. Four patches of fog remain on the map — option lists, switch-over, estimate vs actual, and inquiries that buy nothing. None blocks a spec; graduate them with `/wayfinder 210` when they sharpen.
-
-`to-spec` is not installed: it is a zip at `~/.claude/skills/to-spec.zip`.
+Four patches of fog stay unresolved and in scope: option lists, switch-over, estimate vs actual, and inquiries that buy nothing. None blocks a build. **Each comes back as a new effort once it's clear enough to act on.** Don't reopen map #210 or run `/wayfinder 210` for them.
 
 ## Where things are
 
@@ -111,7 +107,7 @@ Not a spec: an edit pass, because #209 is already `ready-for-agent` and three de
 ### Two side quests, neither blocking
 
 - **Switch-over access.** Nobody on staging holds Purchasing access, not even the Purchasing Manager, and Finance access and the Final Acquire list are empty. That is `/wizard` territory, not a spec.
-- **The fog.** Run `/wayfinder 210` again when switch-over or estimate-vs-actual sharpens enough to ticket.
+- **The fog.** When switch-over, estimate vs actual, option lists or inquiries that buy nothing is clear enough to act on, start a new effort for it. The map stays closed.
 
 ## State on 2026-09-14
 
@@ -184,7 +180,18 @@ Not a spec: an edit pass, because #209 is already `ready-for-agent` and three de
 
 **Prototype branches:** `prototype/printed-costing-matrix`, `prototype/order-monitoring`, and `prototype/printed-forms` (canvass, transmittal and TSR, IPAS). Each ticket's resolution comment links its artifact.
 
-Always check the frontier live, since another session may have moved it.
+## State at close
+
+**All eight extraction sessions are done, and the map was closed on 2026-09-15.** Specs by build step:
+1. [IPAS v1](https://github.com/seansoriano13/t3ckgroup-erp/issues/241): tickets #242–#250
+2. [Transmittals, TSRs and Packing Lists](https://github.com/seansoriano13/t3ckgroup-erp/issues/251): tickets #252–#260
+3. [Order Monitoring](https://github.com/seansoriano13/t3ckgroup-erp/issues/261): tickets #262–#265
+4. [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209): no new spec. The map's changes are folded into its body.
+5. a. [Costing Matrix, with its Evaluation of Specification](https://github.com/seansoriano13/t3ckgroup-erp/issues/266): tickets #267–#274
+   b. [Canvass and Offers](https://github.com/seansoriano13/t3ckgroup-erp/issues/275): tickets #276–#282
+6. [Landed cost flows back](https://github.com/seansoriano13/t3ckgroup-erp/issues/283)
+
+**Fog left unresolved, still in scope:** option lists, switch-over, estimate vs actual, and inquiries that buy nothing. Each comes back as a new effort once it's clear enough to act on.
 
 ## How the sessions have been run
 
