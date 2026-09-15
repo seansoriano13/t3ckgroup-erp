@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Printed Costing Matrix</title>
 <!--
   PROTOTYPE — throwaway. Ticket: Printed Costing Matrix (#229) on the IPAS/PMS map (#210).
@@ -11,43 +16,47 @@
 <style>
   /* ── tokens ─────────────────────────────────────────────────────────────
      The desk (screen chrome) is theme-aware. The sheet is always white with
-     dark ink, because it is paper. */
+     dark ink, because it is paper. High-contrast ink tokens ensure effortless
+     legibility and prevent washed-out text on screens and printed paper. */
   :root {
     --desk: #e7e3dc;
-    --desk-ink: #2c2a26;
-    --desk-soft: #6d685f;
+    --desk-ink: #1f2328;
+    --desk-soft: #57606a;
     --desk-edge: #cdc7bd;
-    --shadow: 0 1px 2px rgba(24, 22, 18, .16), 0 12px 28px rgba(24, 22, 18, .13);
+    --shadow: 0 1px 3px rgba(24, 22, 18, .12), 0 16px 36px rgba(24, 22, 18, .14);
 
     --paper: #ffffff;
-    --ink: #16181c;
-    --ink-soft: #55606c;
-    --ink-faint: #8b95a1;
-    --rule: #c4c9d0;
-    --hair: #e4e7eb;
-    --wash: #f4f6f8;
+    --ink: #0f1419;             /* Sharp deep black ink for maximum clarity */
+    --ink-mid: #272f3a;         /* High-contrast secondary */
+    --ink-soft: #3f4753;        /* Subtitles & table heads - was too gray at #55606c, now 8.0:1 */
+    --ink-faint: #545f6e;       /* Meta labels, stamps & footers - was unreadable #8b95a1 (2.8:1), now 5.8:1 */
+    --rule: #cbd5e1;            /* Clean crisp border */
+    --hair: #e2e8f0;            /* Row hairline */
+    --wash: #f8fafc;            /* Clean light panel background */
     --accent: #0d4f3c;          /* T3CK green — used for the money spine only */
-    --flag: #9d3218;            /* over ABC, deviates, missing */
-    --ok: #1f5c46;
+    --flag: #b91c1c;            /* Deviates, missing alert */
+    --flag-bg: #fef2f2;
+    --ok: #15803d;              /* Complies / checkmark */
+    --ok-bg: #f0fdf4;
 
-    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
-    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
-    --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
+    --sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+    --serif: "Spectral", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --desk: #1a1c20;
-      --desk-ink: #e8e6e1;
-      --desk-soft: #9aa0a8;
-      --desk-edge: #2f3339;
+      --desk: #14171a;
+      --desk-ink: #f0f2f5;
+      --desk-soft: #9aa4ae;
+      --desk-edge: #272c33;
       --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 14px 34px rgba(0, 0, 0, .45);
     }
   }
   :root[data-theme="dark"] {
-    --desk: #1a1c20;
-    --desk-ink: #e8e6e1;
-    --desk-soft: #9aa0a8;
-    --desk-edge: #2f3339;
+    --desk: #14171a;
+    --desk-ink: #f0f2f5;
+    --desk-soft: #9aa4ae;
+    --desk-edge: #272c33;
     --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 14px 34px rgba(0, 0, 0, .45);
   }
 
@@ -58,6 +67,7 @@
     color: var(--desk-ink);
     font-family: var(--sans);
     font-size: 14px;
+    -webkit-font-smoothing: antialiased;
   }
 
   /* ── desk ── */
@@ -69,115 +79,156 @@
 
   /* ── paper ── */
   .sheet {
-    width: 297mm; min-height: 210mm; padding: 11mm 12mm 10mm;
+    width: 297mm; min-height: 210mm; padding: 10mm 12mm 9mm;
     background: var(--paper); color: var(--ink);
     box-shadow: var(--shadow);
-    display: flex; flex-direction: column; gap: 6mm;
+    display: flex; flex-direction: column; gap: 4.5mm;
     font-size: 8.6pt; line-height: 1.32;
   }
   .sheet.portrait { width: 210mm; min-height: 297mm; }
   @media (max-width: 1240px) { .desk { align-items: flex-start; } .sheet { transform-origin: top left; } }
 
+  /* Ensure explicit text color on tables so elements never inherit washed-out gray */
+  table, th, td {
+    color: var(--ink);
+    font-family: inherit;
+  }
+
   /* ── sheet furniture ── */
-  .rail { display: flex; align-items: flex-end; gap: 10px; border-bottom: 1.4px solid var(--ink); padding-bottom: 5px; }
+  .rail { display: flex; align-items: flex-end; gap: 10px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
   .rail .mark { width: 22px; height: 22px; color: var(--accent); flex: none; }
   .rail .mark svg { width: 100%; height: 100%; display: block; }
-  .rail .org { font-size: 7.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
-  .rail .org b { display: block; font-size: 10pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .org { font-size: 7.4pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; font-weight: 500; }
+  .rail .org b { display: block; font-size: 10pt; letter-spacing: .03em; color: var(--ink); font-weight: 700; }
   .rail .doc { margin-left: auto; text-align: right; }
-  .rail .doc .t { font-family: var(--serif); font-size: 15pt; font-weight: 600; line-height: 1; }
+  .rail .doc .t { font-family: var(--serif); font-size: 15pt; font-weight: 600; line-height: 1; color: var(--ink); }
   .rail .doc .s { font-family: var(--mono); font-size: 7.4pt; color: var(--ink-soft); letter-spacing: .04em; }
 
-  .facts { display: flex; flex-wrap: wrap; gap: 3px 22px; }
-  .fact { display: flex; flex-direction: column; gap: 1px; }
-  .fact .k { font-size: 6.6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
-  .fact .v { font-size: 9pt; font-weight: 500; }
-  .fact .v.m { font-family: var(--mono); font-weight: 400; }
+  .facts { display: flex; flex-wrap: wrap; gap: 3px 26px; padding-bottom: 2px; }
+  .fact { display: flex; flex-direction: column; gap: 2px; }
+  .fact .k { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; }
+  .fact .v { font-size: 9.2pt; font-weight: 600; color: var(--ink); }
+  .fact .v.m { font-family: var(--mono); font-weight: 500; }
 
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; vertical-align: top; padding: 3.2px 5px; }
-  thead th { font-size: 6.5pt; letter-spacing: .085em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+  th, td { text-align: left; vertical-align: top; padding: 7px 8px; }
+  thead th { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; border-bottom: 1.4px solid var(--ink); white-space: nowrap; padding: 5px 8px 5px; }
   thead th.num, td.num { text-align: right; font-family: var(--mono); }
-  thead tr.band th { font-size: 6pt; color: var(--ink-faint); letter-spacing: .12em; border-bottom: 0; padding-bottom: 0; font-weight: 500; }
+  thead tr.band th { font-size: 6.4pt; color: var(--ink-faint); letter-spacing: .1em; border-bottom: 0; padding: 4px 8px 2px; font-weight: 600; text-transform: uppercase; }
   tbody tr { border-bottom: 1px solid var(--hair); }
-  tbody tr.line { border-bottom: 1px solid var(--rule); }
-  tbody tr.line td { padding-top: 6px; font-weight: 600; }
-  tbody tr.line td.no { font-family: var(--mono); font-weight: 500; }
-  td.num { font-size: 8.4pt; }
-  td.spec { max-width: 62mm; }
-  .sub { color: var(--ink-soft); font-size: 7.2pt; }
+  tbody tr.line { border-bottom: 1.2px solid var(--rule); }
+  tbody tr.line td { padding-top: 9px; padding-bottom: 9px; font-weight: 600; }
+  tbody tr.line td.no { font-family: var(--mono); font-weight: 600; }
+  td.no { font-family: var(--mono); font-size: 8.5pt; font-weight: 600; color: var(--ink); }
+  td.num { font-size: 8.5pt; font-weight: 500; color: var(--ink); white-space: nowrap; }
+  td.num .sub { white-space: nowrap; margin-top: 2.5px; }
+  td.spec { max-width: 84mm; }
+  .sub { color: var(--ink-soft); font-size: 7.2pt; line-height: 1.4; margin-top: 2px; }
   .m { font-family: var(--mono); }
-  .cont { color: var(--ink-faint); font-size: 6.8pt; font-style: italic; }
+  .cont { color: var(--ink-faint); font-size: 7pt; font-style: italic; margin-top: 2.5px; }
 
-  .chip { display: inline-block; font-size: 6.4pt; letter-spacing: .07em; text-transform: uppercase; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-soft); }
-  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--rule)); }
-  .chip.flag { color: var(--flag); border-color: color-mix(in srgb, var(--flag) 40%, var(--rule)); }
-  .chip.prov { color: var(--ink-faint); border-style: dashed; }
+  /* ── Ledger table specific alignments ── */
+  table.ledger-table { table-layout: fixed; width: 100%; }
+  table.ledger-table th.num, table.ledger-table td.num { text-align: right; padding-right: 8px; }
+  table.ledger-table tr.row-inclusions td { padding: 5px 0 7px; border-bottom: 1px solid var(--hair); }
+  table.ledger-table tr.row-cost td { padding-top: 8px; padding-bottom: 8px; }
 
-  .incl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px 12px; padding: 4px 5px 7px 22px; }
-  .incl .i { font-size: 7.2pt; display: flex; gap: 5px; align-items: baseline; }
-  .incl .i i { font-style: normal; width: 7px; color: var(--ink-faint); }
-  .incl .i.missing { color: var(--flag); }
-  .incl .i.missing i { color: var(--flag); }
-  .incl-h { font-size: 6.6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); padding: 5px 5px 0 22px; }
+  .chip { display: inline-flex; align-items: center; font-size: 6.6pt; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; padding: 1.5px 5px; border: 1px solid var(--rule); border-radius: 2.5px; color: var(--ink-soft); line-height: 1.2; }
+  .chip.ok { color: var(--ok); background: var(--ok-bg); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+  .chip.flag { color: var(--flag); background: var(--flag-bg); border-color: color-mix(in srgb, var(--flag) 35%, transparent); }
+  .chip.prov { color: var(--ink-faint); border: 1px dashed var(--rule); background: var(--wash); white-space: nowrap; font-size: 6.2pt; padding: 2px 5px; }
+
+  .incl-wrap { border: 1px solid var(--hair); background: var(--wash); padding: 7px 10px 8px; border-radius: 2px; }
+  .incl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 14px; }
+  .incl .i { font-size: 7.2pt; display: flex; gap: 5px; align-items: baseline; color: var(--ink); line-height: 1.25; }
+  .incl .i i { font-style: normal; width: 8px; color: var(--ok); font-weight: 700; flex: none; font-size: 7.5pt; }
+  .incl .i.missing { color: var(--flag); font-weight: 500; }
+  .incl .i.missing i { color: var(--flag); font-weight: 700; }
+  .incl-h { font-size: 6.8pt; letter-spacing: .08em; font-weight: 600; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 5px; }
 
   /* summary */
-  .close { display: grid; grid-template-columns: 1fr 78mm; gap: 8mm; align-items: start; margin-top: auto; }
-  .totals { border-top: 1.4px solid var(--ink); padding-top: 5px; }
-  .totrow { display: flex; justify-content: space-between; gap: 12px; padding: 2.4px 0; border-bottom: 1px solid var(--hair); font-size: 8.4pt; }
-  .totrow .k { color: var(--ink-soft); }
-  .totrow .v { font-family: var(--mono); }
-  .totrow.strong { border-bottom: 0; border-top: 1px solid var(--ink); margin-top: 3px; padding-top: 5px; font-weight: 600; font-size: 9.6pt; }
-  .totrow.strong .k { color: var(--ink); }
-  .note { font-size: 7pt; color: var(--ink-faint); margin-top: 5px; }
+  .close { display: grid; grid-template-columns: 1fr 82mm; gap: 8mm; align-items: start; margin-top: auto; padding-top: 6mm; }
+  .totals { border-top: 1.4px solid var(--ink); padding-top: 4px; }
+  .totrow { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px solid var(--hair); font-size: 8.4pt; }
+  .totrow .k { color: var(--ink-soft); font-size: 8pt; }
+  .totrow .v { font-family: var(--mono); color: var(--ink); font-weight: 500; text-align: right; min-width: 28mm; }
+  .totrow.strong { border-bottom: 0; border-top: 1.4px solid var(--ink); margin-top: 4px; padding-top: 5px; font-weight: 700; font-size: 9.6pt; }
+  .totrow.strong .k { color: var(--ink); font-weight: 700; }
+  .totrow.strong .v { color: var(--ink); font-weight: 700; }
+  .note { font-size: 7pt; color: var(--ink-faint); margin-top: 5px; line-height: 1.35; }
 
-  .spine { border-left: 2px solid var(--accent); padding-left: 8px; display: flex; flex-direction: column; gap: 7px; }
-  .spine .big { font-family: var(--mono); font-size: 17pt; line-height: 1; letter-spacing: -.02em; }
-  .spine .big em { font-style: normal; font-size: 8pt; color: var(--ink-soft); display: block; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; }
-  .gauge { display: flex; gap: 10px; }
-  .gauge .g { flex: 1; }
-  .gauge .g .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
-  .gauge .g .v { font-family: var(--mono); font-size: 10pt; }
-  .bar { height: 5px; background: var(--wash); border: 1px solid var(--hair); position: relative; margin-top: 3px; }
-  .bar span { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+  .spine { border-left: 2px solid var(--accent); padding-left: 9px; display: flex; flex-direction: column; gap: 6px; }
+  .spine .big { font-family: var(--mono); font-size: 16.5pt; line-height: 1; letter-spacing: -.02em; color: var(--ink); font-weight: 700; }
+  .spine .big em { font-style: normal; font-size: 7.5pt; color: var(--ink-soft); display: block; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; font-weight: 600; }
+  .gauge { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 7.5pt; }
+  .gauge .g .k { color: var(--ink-soft); font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 1px; font-weight: 600; }
+  .gauge .g .v { font-family: var(--mono); font-size: 10pt; font-weight: 600; color: var(--ink); }
+  .bar { height: 5px; background: var(--hair); border-radius: 1px; position: relative; margin-top: 3px; }
+  .bar span { position: absolute; inset: 0 auto 0 0; background: var(--accent); border-radius: 1px; }
   .bar b { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--flag); }
 
   /* signatures — ADR 0014: the name prints where there is no stored signature */
-  .sigs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7mm; padding-top: 3mm; }
-  .sig .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
-  .sig .plate { height: 13mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
-  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; }
-  .sig .who { font-size: 8pt; font-weight: 500; margin-top: 3px; }
-  .sig .role { font-size: 6.8pt; color: var(--ink-soft); }
-  .sig .stamp { font-family: var(--mono); font-size: 6.4pt; color: var(--ink-faint); margin-top: 2px; }
+  .sigs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6mm; }
+  .sig { display: flex; flex-direction: column; }
+  .sig .k {
+    font-size: 6.8pt;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    height: 24px;
+    display: flex;
+    align-items: flex-end;
+    margin-bottom: 4px;
+    line-height: 1.25;
+  }
+  .sig .plate {
+    height: 12mm;
+    border-bottom: 1.2px solid var(--ink);
+    display: flex;
+    align-items: flex-end;
+    padding-bottom: 2px;
+  }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; color: var(--ink); }
+  .sig .who { font-size: 8.4pt; font-weight: 600; margin-top: 4px; color: var(--ink); line-height: 1.2; }
+  .sig .role { font-size: 7.1pt; color: var(--ink-soft); line-height: 1.25; margin-top: 1.5px; }
+  .sig .stamp { font-family: var(--mono); font-size: 6.5pt; color: var(--ink-faint); margin-top: 3px; line-height: 1.25; }
   .sig.awaiting .plate { border-bottom-style: dashed; }
-  .sig.awaiting .stamp { color: var(--flag); }
+  .sig.awaiting .stamp { color: var(--flag); font-weight: 600; }
 
-  .foot { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.6pt; color: var(--ink-faint); font-family: var(--mono); }
+  .foot { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.8pt; color: var(--ink-faint); font-family: var(--mono); }
 
   /* ── B: tender-line blocks ── */
-  .block { border: 1px solid var(--rule); display: grid; grid-template-columns: 82mm 1fr 52mm; }
-  .block + .block { margin-top: 5mm; }
-  .ask { padding: 6px 8px; border-right: 1px solid var(--rule); background: var(--wash); }
-  .ask .no { font-family: var(--mono); font-size: 7.4pt; color: var(--ink-soft); }
-  .ask h3 { font-family: var(--serif); font-size: 12pt; margin: 1px 0 4px; font-weight: 600; }
-  .ask .specbody { font-size: 7.3pt; line-height: 1.45; column-count: 1; }
-  .ask .specbody li { margin-bottom: 1px; }
-  .ask ul { margin: 0; padding-left: 12px; }
-  .supply { padding: 4px 0; }
-  .margin-strip { border-left: 1px solid var(--rule); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
-  .margin-strip .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
-  .margin-strip .v { font-family: var(--mono); font-size: 11pt; }
-  .margin-strip .v small { font-size: 7pt; color: var(--ink-soft); }
+  .block { border: 1px solid var(--rule); display: grid; grid-template-columns: 72mm 1fr 44mm; background: var(--paper); border-radius: 2px; }
+  .block + .block { margin-top: 4mm; }
+  .ask { padding: 8px 10px; border-right: 1px solid var(--rule); background: var(--wash); }
+  .ask .no { font-family: var(--mono); font-size: 7.2pt; font-weight: 500; color: var(--ink-soft); margin-bottom: 2px; }
+  .ask h3 { font-family: var(--serif); font-size: 11.5pt; margin: 2px 0 6px; font-weight: 600; color: var(--ink); line-height: 1.2; }
+  .ask .specbody { font-size: 7.2pt; line-height: 1.42; color: var(--ink); }
+  .ask .specbody li { margin-bottom: 2px; }
+  .ask ul { margin: 0; padding-left: 13px; }
+  .supply { padding: 0; display: flex; flex-direction: column; }
+  .supply table { width: 100%; border-collapse: collapse; }
+  .supply th, .supply td { padding: 4px 6px; vertical-align: top; }
+  .supply th { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 700; border-bottom: 1.2px solid var(--ink); white-space: nowrap; padding-bottom: 4px; }
+  .supply td.no { width: 8mm; font-size: 8pt; font-weight: 600; color: var(--ink); }
+  .supply td.spec { min-width: 50mm; }
+  .supply td.spec b { font-size: 8.6pt; font-weight: 600; color: var(--ink); }
+  .supply td.brand { width: 32mm; font-size: 8pt; color: var(--ink); }
+  .supply td.num { width: 23mm; font-size: 8.4pt; font-weight: 500; color: var(--ink); }
+  .margin-strip { border-left: 1px solid var(--rule); padding: 8px 10px; display: flex; flex-direction: column; gap: 7px; background: var(--paper); }
+  .margin-strip .k { font-size: 6.8pt; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 1px; }
+  .margin-strip .v { font-family: var(--mono); font-size: 11pt; font-weight: 600; color: var(--ink); }
+  .margin-strip .v small { font-size: 7.2pt; font-weight: 400; color: var(--ink-soft); }
 
   /* ── C: two-part ── */
-  .mgmt { display: grid; grid-template-columns: 1fr; gap: 5mm; }
+  .mgmt { display: grid; grid-template-columns: 1fr; gap: 4mm; }
   .mgmt table td.num { font-size: 9pt; }
   .appendix h3 { font-family: var(--serif); font-size: 11pt; margin: 0 0 2px; }
   .appendix .entry { border-top: 1px solid var(--rule); padding: 4px 0 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .appendix .entry .col .h { font-size: 6.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 2px; }
-  .appendix .entry .col ul { margin: 0; padding-left: 12px; font-size: 7.4pt; line-height: 1.45; }
-  .verdict { font-size: 7.6pt; margin-top: 4px; padding: 4px 6px; background: var(--wash); border-left: 2px solid var(--flag); }
+  .appendix .entry .col .h { font-size: 6.8pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; margin-bottom: 2px; }
+  .appendix .entry .col ul { margin: 0; padding-left: 12px; font-size: 7.4pt; line-height: 1.42; }
+  .verdict { font-size: 7.6pt; margin-top: 4px; padding: 5px 7px; background: var(--wash); border-left: 2.5px solid var(--flag); line-height: 1.38; }
 
   /* ── switcher ── */
   .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; align-items: stretch; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); font-family: var(--sans); overflow: hidden; }
@@ -207,6 +258,8 @@
     table { font-size: 10px; }
   }
 </style>
+</head>
+<body>
 
 <div class="desk">
   <div class="desk-head">
@@ -321,7 +374,7 @@ const sigs = () => `<div class="sigs">${D.sigs.map(s => `
     <div class="plate">${s.awaiting ? '' : (s.printed ? `<span class="printed">${s.who}</span>` : '')}</div>
     <div class="who">${s.who}</div>
     <div class="role">${s.role}</div>
-    <div class="stamp">${s.awaiting ? 'Signature required' : (s.printed ? s.stamp : 'name printed · no stored signature · ' + s.stamp)}</div>
+    <div class="stamp">${s.awaiting ? 'Signature required' : (s.printed ? s.stamp : 'name printed · ' + s.stamp)}</div>
   </div>`).join('')}</div>`;
 
 const foot = page => `<div class="foot"><span>${D.ref} · Costing Matrix ${D.version} · printed ${D.printed}</span><span>Landed Cost provisional until purchasing marks costs complete</span><span>${page}</span></div>`;
@@ -364,48 +417,83 @@ function variantA() {
     <tr>
       <td class="no m">${c.no}</td>
       <td class="spec"><b>${c.name}</b><div class="sub">${c.offerSpec}</div>
-        <div class="sub">${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : '<span class="chip flag">deviates</span> ' + c.note}</div></td>
-      <td>${c.brand}<div class="sub">${c.status} · ${c.avail} · ${c.source}</div></td>
+        <div style="margin-top: 4px;">${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : `<span class="chip flag">deviates</span> <span class="sub" style="margin-left: 4px;">${c.note}</span>`}</div></td>
+      <td><b>${c.brand}</b><div class="sub">${c.status} · ${c.avail} · ${c.source}</div></td>
       <td class="m">${c.po}</td>
       <td class="num">${peso(c.acquire)}</td>
       <td class="num">${c.odoo ? peso(c.odoo) : '—'}</td>
       <td class="num">×${c.factor.toFixed(2)}<div class="sub m">${pesoK(markupPrice(c))}</div></td>
-      <td class="num">${peso(c.finalAcquire)}</td>
+      <td class="num"><b>${peso(c.finalAcquire)}</b></td>
       <td class="num"><span class="chip prov">awaiting purchase</span></td>
     </tr>`;
 
   return `<div class="sheet">
     ${rail('ledger')}
     ${facts()}
-    <table>
+    <table class="ledger-table">
+      <colgroup>
+        <col style="width: 10mm;">
+        <col style="width: 82mm;">
+        <col style="width: 33mm;">
+        <col style="width: 18mm;">
+        <col style="width: 27mm;">
+        <col style="width: 22mm;">
+        <col style="width: 24mm;">
+        <col style="width: 27mm;">
+        <col style="width: 30mm;">
+      </colgroup>
       <thead>
-        <tr class="band"><th colspan="3">Client / Sales</th><th>Purchasing</th><th colspan="2">Purchasing</th><th>Automatic</th><th>Management</th><th>After purchase</th></tr>
-        <tr><th>No.</th><th>Specification</th><th>Brand &amp; sourcing</th><th>P.O. / RFQ</th><th class="num">Acquire</th><th class="num">Odoo</th><th class="num">Markup</th><th class="num">Final acquire</th><th class="num">Landed cost</th></tr>
+        <tr class="band">
+          <th colspan="2">Client / Sales</th>
+          <th colspan="4">Purchasing</th>
+          <th class="num">Automatic</th>
+          <th class="num">Management</th>
+          <th class="num">After purchase</th>
+        </tr>
+        <tr>
+          <th>No.</th>
+          <th>Specification</th>
+          <th>Brand &amp; sourcing</th>
+          <th>P.O. / RFQ</th>
+          <th class="num">Acquire</th>
+          <th class="num">Odoo</th>
+          <th class="num">Markup</th>
+          <th class="num">Final acquire</th>
+          <th class="num">Landed cost</th>
+        </tr>
       </thead>
       <tbody>
         <tr class="line">
-          <td class="no">${D.tender.no}</td>
+          <td class="no m">${D.tender.no}</td>
           <td class="spec"><b>${D.tender.name}</b> · ${D.tender.qty} ${D.tender.unit}
             <div class="sub">${D.tender.spec.slice(0, 3).join(' · ')}</div>
             <div class="cont">+ ${D.tender.spec.length - 3} more specification lines, in full on the appendix</div></td>
           <td colspan="2"><span class="chip">ABC ${pesoK(D.tender.abc)}</span></td>
-          <td class="num">${peso(acquireTotal)}</td>
+          <td class="num"><b>${peso(acquireTotal)}</b></td>
           <td class="num">—</td>
-          <td class="num">×${F.achievedLine.toFixed(2)} <span class="sub">achieved</span></td>
-          <td class="num">${peso(faComponents)}</td>
+          <td class="num"><b>×${F.achievedLine.toFixed(2)}</b><div class="sub">achieved</div></td>
+          <td class="num"><b>${peso(faComponents)}</b></td>
           <td class="num"><b>${pesoK(offer)}</b><div class="sub">final offer</div></td>
         </tr>
         ${D.components.map(compRow).join('')}
-      </tbody>
-    </table>
-    <div>
-      <div class="incl-h">Included with 1.1 · checked at bid time · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
-      <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
-    </div>
-    <table>
-      <tbody>
-        ${D.costOnly.map(r => `<tr><td class="no m">${r.no}</td><td class="spec"><b>${r.name}</b><div class="sub">cost only — no specification, no offer line</div></td>
-        <td colspan="2"></td><td class="num">${peso(r.acquire)}</td><td class="num">—</td><td class="num">×${r.factor.toFixed(2)}</td><td class="num">${peso(r.finalAcquire)}</td><td class="num">—</td></tr>`).join('')}
+        <tr class="row-inclusions">
+          <td colspan="9">
+            <div class="incl-wrap">
+              <div class="incl-h">Included with 1.1 · checked at bid time · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
+              <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+            </div>
+          </td>
+        </tr>
+        ${D.costOnly.map(r => `<tr class="row-cost">
+          <td class="no m">${r.no}</td>
+          <td class="spec"><b>${r.name}</b><div class="sub">Cost only — no specification, no offer line</div></td>
+          <td colspan="2"><span class="sub">—</span></td>
+          <td class="num">${peso(r.acquire)}</td>
+          <td class="num">—</td>
+          <td class="num">×${r.factor.toFixed(2)}</td>
+          <td class="num"><b>${peso(r.finalAcquire)}</b></td>
+          <td class="num">—</td>
+        </tr>`).join('')}
       </tbody>
     </table>
     <div class="close">
@@ -434,15 +522,17 @@ function variantB() {
             ${D.components.map(c => `<tr>
               <td class="no m">${c.no}</td>
               <td class="spec"><b>${c.name}</b><div class="sub">${c.offerSpec}</div>
-                ${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : `<span class="chip flag">deviates</span> <span class="sub">${c.note}</span>`}</td>
-              <td>${c.brand}<div class="sub">${c.status} · ${c.source} · PO ${c.po}</div></td>
+                <div style="margin-top:3px">${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : `<span class="chip flag">deviates</span> <span class="sub" style="margin-left:4px;color:var(--flag)">${c.note}</span>`}</div></td>
+              <td class="brand"><b>${c.brand}</b><div class="sub">${c.status} · ${c.source}<br>PO ${c.po}</div></td>
               <td class="num">${peso(c.acquire)}</td>
               <td class="num">×${c.factor.toFixed(2)}<div class="sub m">${pesoK(markupPrice(c))}</div></td>
-              <td class="num">${peso(c.finalAcquire)}</td></tr>`).join('')}
+              <td class="num"><b>${peso(c.finalAcquire)}</b></td></tr>`).join('')}
           </tbody>
         </table>
-        <div class="incl-h">Included with 1.1 · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
-        <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+        <div class="incl-wrap">
+          <div class="incl-h">Included with 1.1 · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
+          <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+        </div>
       </div>
       <div class="margin-strip">
         <div><div class="k">Final offer</div><div class="v">${pesoK(offer)}</div></div>
@@ -453,10 +543,17 @@ function variantB() {
       </div>
     </div>
     <div class="block">
-      <div class="ask"><div class="no">Cost only</div><h3>Charges outside the tender lines</h3>
-        <div class="specbody">Carried in the totals and the summary, and in no single line's margin.</div></div>
+      <div class="ask"><div class="no">Cost only</div><h3>Charges outside tender lines</h3>
+        <div class="specbody">Carried in totals and summary, and in no single line's margin.</div></div>
       <div class="supply"><table><tbody>
-        ${D.costOnly.map(r => `<tr><td class="no m">${r.no}</td><td class="spec"><b>${r.name}</b></td><td class="num">${peso(r.acquire)}</td><td class="num">×${r.factor.toFixed(2)}</td><td class="num">${peso(r.finalAcquire)}</td></tr>`).join('')}
+        ${D.costOnly.map(r => `<tr>
+          <td class="no m">${r.no}</td>
+          <td class="spec"><b>${r.name}</b><div class="sub">Cost only — no tender line specification</div></td>
+          <td class="brand"><span class="sub">—</span></td>
+          <td class="num">${peso(r.acquire)}</td>
+          <td class="num">×${r.factor.toFixed(2)}</td>
+          <td class="num"><b>${peso(r.finalAcquire)}</b></td>
+        </tr>`).join('')}
       </tbody></table></div>
       <div class="margin-strip"><div><div class="k">Cost-only total</div><div class="v">${pesoK(faCostOnly)}</div></div></div>
     </div>
@@ -511,7 +608,7 @@ function variantC() {
             : `<div class="verdict"><span class="chip flag">deviates</span> ${c.note}</div>`}
         </div>
       </div>`).join('')}
-    <div>
+    <div class="incl-wrap" style="background:transparent;padding:6px 0 0;">
       <div class="incl-h" style="padding-left:0">Inclusions checked against the ask · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
       <div class="incl" style="padding-left:0">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
     </div>
@@ -559,3 +656,5 @@ document.addEventListener('keydown', e => {
 
 show(currentKey());
 </script>
+</body>
+</html>
