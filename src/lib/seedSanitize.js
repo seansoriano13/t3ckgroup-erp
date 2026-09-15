@@ -13,8 +13,6 @@
  * local account with VITE_TEST_PASSWORD (see docs/adr/0011 and AGENTS.md).
  */
 
-const CLIENT_EMAIL = (id) => `client_${id}@staging.example.com`
-const SCRUBBED_CONTACT_NUMBER = "555-0000"
 const SCRUBBED_REASON = "Sanitized for local development — see the staging record for the original."
 
 // Employee emails are kept as-is (not client-facing PII in the sales tables'
@@ -27,15 +25,6 @@ export function sanitizeAuthUser(row) {
 
 export function sanitizeEmployee(row) {
   return { ...row }
-}
-
-export function sanitizeSalesActivity(row) {
-  return {
-    ...row,
-    email_address: row.email_address == null ? row.email_address : CLIENT_EMAIL(row.id),
-    contact_number: row.contact_number == null ? row.contact_number : SCRUBBED_CONTACT_NUMBER,
-    contact_person: row.contact_person == null ? row.contact_person : "Sanitized Contact",
-  }
 }
 
 /**
@@ -55,7 +44,21 @@ export function sanitizeSalesOpportunity(row) {
 }
 
 /**
- * Shared shape of `offset_leaves`, `sil_leaves` and `overtime_requests`
+ * `odoo_retail_queue` names the client-side individual twice: the Odoo
+ * order's person (`odoo_person_name`) and the Contact Person the queue
+ * proposes for the SOR. Both get what `sales_opportunities.contact_person`
+ * gets; the partner (company) name is an organization and stays.
+ */
+export function sanitizeRetailQueueRow(row) {
+  return {
+    ...row,
+    odoo_person_name: row.odoo_person_name == null ? row.odoo_person_name : "Sanitized Contact",
+    contact_person: row.contact_person == null ? row.contact_person : "Sanitized Contact",
+  }
+}
+
+/**
+ * Shared shape of `offset_leaves`, `sil_leaves`, `overtime_requests` and `undertime_requests`
  * (issue #87, resolved in the HR Document Center comment): the leave/overtime
  * record itself is what gets rendered to PDF at print time, so it — not a
  * separate documents table — is what carries the sensitive content.
@@ -89,9 +92,10 @@ export function sanitizeLeaveRecord(row, { reasonRequired = false } = {}) {
 export const SANITIZERS = {
   "auth.users": sanitizeAuthUser,
   employees: sanitizeEmployee,
-  sales_activities: sanitizeSalesActivity,
   sales_opportunities: sanitizeSalesOpportunity,
   offset_leaves: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
   sil_leaves: (row) => sanitizeLeaveRecord(row, { reasonRequired: true }),
   overtime_requests: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
+  undertime_requests: (row) => sanitizeLeaveRecord(row, { reasonRequired: false }),
+  odoo_retail_queue: sanitizeRetailQueueRow,
 }

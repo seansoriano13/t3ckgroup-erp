@@ -26,7 +26,6 @@ const LIMITS = {
   task_activity: 1000,
   notifications: 1000,
   chat_read_receipts: 1000,
-  sales_activity_logs: 1000,
   system_audit_logs: 1000,
   committee_task_activity: 1000
 }

@@ -5,7 +5,12 @@ import { join } from "path"
 
 // Topological order: a table only follows the tables its foreign keys point
 // at, so seed-restore.mjs can insert straight down this list without
-// deferring constraints.
+// deferring constraints. (Self-references and the sales_flows <-> flow_stages
+// pair are cycles; the restore runs with replication role `replica`.)
+//
+// Issue #199 — this list plus SEED_EXCLUDED_TABLES must cover exactly the
+// public tables the migrations build. src/lib/seedCoverage.test.js fails when
+// a migration adds a table that is in neither.
 export const SEED_TABLES = [
   "app_settings",
   "faq_data",
@@ -16,28 +21,35 @@ export const SEED_TABLES = [
   "commission_positions",
   "commission_rates",
   "commission_splits",
+  "companies",
+  "hr_leave_categories",
+  "hr_day_shift_config",
   "employees",
   "categories",
   "group_task_templates",
   "group_task_template_members",
-  "sales_quotas",
-  "sales_weekly_plans",
   "system_updates",
   "chat_read_receipts",
   "sales_custom_templates",
   "chat_user_archives",
   "overtime_requests",
+  "undertime_requests",
   "offset_leaves",
   "sil_leaves",
   "system_audit_logs",
+  "sale_types",
+  "sales_flows",
+  "flow_stages",
+  "flow_edges",
+  "stage_conditions",
+  "flow_stage_actions",
+  "flow_snapshots",
   "sales_opportunities",
   "sales_opportunity_logs",
   "sales_opportunity_items",
-  "sales_activities",
-  "sales_activity_logs",
-  "sales_revenue_logs",
+  "sales_opportunity_members",
+  "sor_condition_status",
   "revenue_activity_logs",
-  "sales_quota_logs",
   "tasks",
   "task_activity",
   "committee_tasks",
@@ -45,13 +57,22 @@ export const SEED_TABLES = [
   "committee_task_activity",
   "committee_task_logs",
   "notifications",
+  "sor_inclusions",
   "sor_procurement_requests",
-  "sale_types",
-  "sales_flows",
-  "flow_stages",
-  "flow_edges",
-  "flow_snapshots",
+  "sor_canvasses",
+  "sor_canvass_offers",
+  "sor_project_evaluations",
+  "sor_purchase_order_links",
+  "odoo_retail_queue",
 ]
+
+/** Tables the migrations build that the seed deliberately leaves out, each with why. */
+export const SEED_EXCLUDED_TABLES = {
+  push_subscriptions:
+    "Real browser push endpoints and keys. A local stack must never push to a colleague's real device.",
+  verification_rate_limits:
+    "IP addresses and throttle state for public document verification. Personal data, and meaningless off the server.",
+}
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 

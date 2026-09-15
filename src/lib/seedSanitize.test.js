@@ -3,8 +3,9 @@ import {
   sanitizeAuthUser,
   sanitizeEmployee,
   sanitizeLeaveRecord,
-  sanitizeSalesActivity,
+  sanitizeRetailQueueRow,
   sanitizeSalesOpportunity,
+  SANITIZERS,
 } from "./seedSanitize"
 
 describe("sanitizeAuthUser", () => {
@@ -30,30 +31,6 @@ describe("sanitizeEmployee", () => {
       email: "real@t3ckgroup.com",
       name: "Real Person",
     })
-  })
-})
-
-describe("sanitizeSalesActivity", () => {
-  it("scrubs client contact fields that are present", () => {
-    const row = {
-      id: "sa1",
-      email_address: "client@example.com",
-      contact_number: "0917-555-1234",
-      contact_person: "Jane Client",
-    }
-
-    expect(sanitizeSalesActivity(row)).toEqual({
-      id: "sa1",
-      email_address: "client_sa1@staging.example.com",
-      contact_number: "555-0000",
-      contact_person: "Sanitized Contact",
-    })
-  })
-
-  it("leaves already-null contact fields null rather than inventing a value", () => {
-    const row = { id: "sa2", email_address: null, contact_number: null, contact_person: null }
-
-    expect(sanitizeSalesActivity(row)).toEqual(row)
   })
 })
 
@@ -125,5 +102,38 @@ describe("sanitizeLeaveRecord", () => {
     const out = sanitizeLeaveRecord({ id: "l5", start_date: "2026-01-01", days: 3 })
 
     expect(out).toMatchObject({ start_date: "2026-01-01", days: 3 })
+  })
+})
+
+// Issue #199 — tables newly added to the seed get the same treatment as their
+// existing counterparts.
+describe("sanitizeRetailQueueRow", () => {
+  it("scrubs the Odoo person name and the Contact Person, keeping the company", () => {
+    const row = { id: "q1", odoo_partner_name: "Makati City Government", odoo_person_name: "Juan Dela Cruz", contact_person: "Juan Dela Cruz" }
+
+    expect(sanitizeRetailQueueRow(row)).toEqual({
+      id: "q1",
+      odoo_partner_name: "Makati City Government",
+      odoo_person_name: "Sanitized Contact",
+      contact_person: "Sanitized Contact",
+    })
+  })
+
+  it("leaves already-null names null", () => {
+    const row = { id: "q2", odoo_person_name: null, contact_person: null }
+
+    expect(sanitizeRetailQueueRow(row)).toEqual(row)
+  })
+})
+
+describe("SANITIZERS for undertime requests", () => {
+  it("scrubs an undertime request like an overtime request", () => {
+    const row = { id: "u1", reason: "Doctor's appointment", hr_notes: "ok", attachments: ["x"], verification_token: "t" }
+
+    const out = SANITIZERS.undertime_requests(row)
+
+    expect(out).toEqual(SANITIZERS.overtime_requests(row))
+    expect(out.reason).not.toBe("Doctor's appointment")
+    expect(out).not.toHaveProperty("verification_token")
   })
 })
