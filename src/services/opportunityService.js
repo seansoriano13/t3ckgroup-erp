@@ -371,16 +371,6 @@ async function hasPurchasingFor(opportunityId) {
   return Boolean(data);
 }
 
-/**
- * Issue #203: project_evaluation is a removed kind — the evaluator reports
- * it not_applicable regardless, so no gate check needs its existence any
- * more. Kept as a no-op so call sites built for it don't need to change
- * shape.
- */
-async function resolveHasProjectEvaluation() {
-  return false;
-}
-
 async function resolveHasInclusions(conditions, opportunityId) {
   const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.INCLUSIONS);
   return needsIt ? hasInclusionsFor(opportunityId) : false;
@@ -416,9 +406,7 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
   );
   if (Object.keys(conditionsByStage).length === 0) return;
 
-  // No hasProjectEvaluation here, unlike moveAlongFlow below: this is the
   const conditions = Object.values(conditionsByStage).flat();
-  const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, opportunityId);
   const hasInclusions = await resolveHasInclusions(conditions, opportunityId);
   const hasPurchasing = await resolveHasPurchasing(conditions, opportunityId);
 
@@ -431,7 +419,6 @@ async function assertStageGateSatisfied(opportunityId, fromCode, toCode, opportu
     attachments,
     members,
     statusRowsByCondition,
-    hasProjectEvaluation,
     hasInclusions,
     hasPurchasing,
   });
@@ -633,7 +620,6 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
 
   const missing = [];
   const conditions = blockingConditions(conditionsForFrom);
-  const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, existing.id);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
 
@@ -643,7 +629,6 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
       attachments,
       members,
       statusRow: statusRowsByCondition[condition.id] ?? null,
-      hasProjectEvaluation,
       hasInclusions,
       hasPurchasing,
     });
@@ -2219,7 +2204,6 @@ export const opportunityService = {
 
     conditions.sort((a, b) => a.sort_order - b.sort_order);
 
-    const hasProjectEvaluation = await resolveHasProjectEvaluation(conditions, target.id);
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
 
@@ -2231,7 +2215,6 @@ export const opportunityService = {
           attachments,
           members,
           statusRow: statusRowsByCondition[condition.id] ?? null,
-          hasProjectEvaluation,
           hasInclusions,
           hasPurchasing,
         }),
@@ -2345,8 +2328,7 @@ export const opportunityService = {
 
       if (stageConditions.length === 0) continue;
 
-      const [hasProjectEvaluation, hasInclusions, hasPurchasing] = await Promise.all([
-        resolveHasProjectEvaluation(stageConditions, opportunity.id),
+      const [hasInclusions, hasPurchasing] = await Promise.all([
         resolveHasInclusions(stageConditions, opportunity.id),
         resolveHasPurchasing(stageConditions, opportunity.id),
       ]);
@@ -2358,7 +2340,6 @@ export const opportunityService = {
             attachments: attachmentsByOpportunity[opportunity.id] || [],
             members: membersByOpportunity[opportunity.id] || [],
             statusRow: (statusByOpportunity[opportunity.id] || {})[condition.id] ?? null,
-            hasProjectEvaluation,
             hasInclusions,
             hasPurchasing,
           }).status === CONDITION_STATUS.UNSATISFIED,
