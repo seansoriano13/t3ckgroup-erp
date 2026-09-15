@@ -1364,6 +1364,26 @@ describe("opportunityService", () => {
         expect(result[created.id]).toBeUndefined()
       })
 
+      it("does not error, and blocks nothing, for a legacy deal running the global pipeline alongside a flow deal", async () => {
+        // stage_conditions.stage_id is a uuid FK into flow_stages — a legacy
+        // deal's currentStageId is a pipeline code like "LEAD", which can
+        // never be a real Stage Condition's key. Passing it through used to
+        // throw (22P02, invalid input syntax for type uuid) the moment any
+        // legacy deal was in the register alongside a flow-built one.
+        makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Bid documents transmitted" })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const flowDeal = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+        const legacyDeal = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(flowDeal.id),
+          await opportunityService.getOpportunityById(legacyDeal.id),
+        ])
+
+        expect(result[flowDeal.id].map((r) => r.label)).toEqual(["Bid documents transmitted"])
+        expect(result[legacyDeal.id]).toBeUndefined()
+      })
+
       it("returns nothing for an empty register", async () => {
         expect(await opportunityService.getBlockedDeals([])).toEqual({})
       })
@@ -1794,6 +1814,34 @@ describe("opportunityService", () => {
         expect(task).toBeTruthy()
 
         expect(task.project_title).toBe("[No Sales Reference] [Fire truck supply]")
+      })
+
+      it("assigns an individual-task automation to the person picked in the Flow Canvas, not whoever triggers the move", async () => {
+        const pickedAssignee = makeEmployee({ name: "Picked Assignee" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          // LogTaskAssignmentBar's Assign To picker saves formData.loggedById
+          // straight through — see opportunityService.js's own comment on
+          // the same key.
+          config: { loggedById: pickedAssignee.id },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(task.logged_by).toBe(pickedAssignee.id)
+      })
+
+      it("falls back to whoever triggers the move when no assignee was ever picked", async () => {
+        makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: {} })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(task.logged_by).toBe(registrar.id)
       })
 
       it("lets an explicitly configured individual-task title win", async () => {

@@ -830,7 +830,12 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
             // config.projectTitle, not config.title — that field belongs
             // to the group-task kind (see flowStageKinds.actionTitle).
             projectTitle: config.projectTitle || dealTitle,
-            loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
+            // config.loggedById is what LogTaskAssignmentBar's Assign To
+            // picker actually saves (formData.loggedById, passed straight
+            // through by StageActionManager's handleAdd) — assigneeId was
+            // never a real field, so a chosen assignee was always silently
+            // ignored in favor of the fallback below.
+            loggedById: config.loggedById || actorId, // fallback to actor if never picked
             submittedById: actorId,
             opportunityId: existing.id,
           };
@@ -2294,14 +2299,13 @@ export const opportunityService = {
   async getBlockedDeals(opportunities = []) {
     if (opportunities.length === 0) return {};
 
-    const legacy = opportunities.filter((o) => !o.flow_snapshot_id);
+    // Stage Conditions only ever exist on a Sales Flow Stage (stage_conditions.
+    // stage_id is a uuid FK into flow_stages, never a legacy pipeline code) —
+    // a legacy deal running the global pipeline, no Sale Type, has no Stage
+    // Conditions to be blocked by, full stop. Querying stage_conditions with
+    // legacy stage codes like "LEAD" instead of a uuid used to throw outright
+    // (22P02, invalid uuid syntax) the moment any legacy deal was in view.
     const flowBuilt = opportunities.filter((o) => o.flow_snapshot_id);
-
-    const legacyStageCodes = [...new Set(legacy.map(currentStageId))];
-    const { conditions: liveConditions, conditionsByStage: liveConditionsByStage } =
-      await conditionsByStageFor(legacyStageCodes, (query) =>
-        query.eq("is_required", true).neq("kind", CONDITION_KINDS.DEADLINE),
-      );
 
     const snapshotIds = [...new Set(flowBuilt.map((o) => o.flow_snapshot_id))];
     let snapshotConditions = [];
@@ -2321,10 +2325,9 @@ export const opportunityService = {
       }
     }
 
-    const allConditions = [...liveConditions, ...snapshotConditions];
     // Deduplicate conditions by id, since multiple deals on the same snapshot
     // might have added the same condition objects to the list.
-    const uniqueConditions = Array.from(new Map(allConditions.map((c) => [c.id, c])).values());
+    const uniqueConditions = Array.from(new Map(snapshotConditions.map((c) => [c.id, c])).values());
 
     if (uniqueConditions.length === 0) return {};
 
@@ -2385,9 +2388,9 @@ export const opportunityService = {
           snap?.snapshot_data?.conditions || [],
           currentStageId(opportunity),
         ).filter((c) => c.is_required && c.kind !== CONDITION_KINDS.DEADLINE);
-      } else {
-        stageConditions = liveConditionsByStage[currentStageId(opportunity)] || [];
       }
+      // A legacy deal (no flow_snapshot_id) has no Stage Conditions —
+      // stageConditions stays [] and it's skipped below.
 
       if (stageConditions.length === 0) continue;
 
