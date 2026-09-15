@@ -9,11 +9,9 @@
 
 import {
   Paperclip,
-  TextCursorInput,
   CheckSquare,
   UserCheck,
   Timer,
-  Calculator,
   Users,
   User,
   ListChecks,
@@ -21,17 +19,29 @@ import {
 } from "lucide-react"
 
 import { CONDITION_KINDS } from "../../constants/stageGate"
+import { acceptsLabel } from "../../utils/attachments"
+
+/**
+ * "Purchasing (group)" / "Ana Reyes" for an assignment condition's `who`
+ * (issue #203) — null when there's nothing to summarize (no who and no
+ * legacy department), so callers fall back to "Anyone".
+ */
+function whoLabel(who) {
+  if (!Array.isArray(who) || who.length === 0) return null
+  return who
+    .map((selector) => {
+      if (selector.type === "group") return `${selector.label || selector.id} (group)`
+      if (selector.type === "team") return `${selector.label || selector.id} (team)`
+      return selector.label || selector.id
+    })
+    .join(", ")
+}
 
 export const CONDITION_KIND_META = {
   [CONDITION_KINDS.ATTACHMENT]: {
     label: "Attachment",
     icon: Paperclip,
     hint: "A document has to be on the record.",
-  },
-  [CONDITION_KINDS.FIELD]: {
-    label: "Field on record",
-    icon: TextCursorInput,
-    hint: "A column on the deal has to be filled in.",
   },
   [CONDITION_KINDS.TICKBOX]: {
     label: "Self-certified",
@@ -47,11 +57,6 @@ export const CONDITION_KIND_META = {
     label: "Deadline",
     icon: Timer,
     hint: "Counts days from Stage entry. Warns and breaches — never blocks.",
-  },
-  [CONDITION_KINDS.PROJECT_EVALUATION]: {
-    label: "Project Evaluation",
-    icon: Calculator,
-    hint: "A Project Evaluation has to exist for the deal. Sign-off is not required.",
   },
   [CONDITION_KINDS.INCLUSIONS]: {
     label: "Inclusions",
@@ -86,18 +91,14 @@ export const ACTION_KIND_META = {
 export function conditionDetail(condition) {
   const config = condition?.config ?? {}
   switch (condition?.kind) {
-    case CONDITION_KINDS.FIELD:
-      return config.column || null
     case CONDITION_KINDS.ATTACHMENT:
-      return config.documentType || "Any document"
+      return config.documentType || acceptsLabel(config.accepts)
     case CONDITION_KINDS.ASSIGNMENT:
-      return config.department || "Anyone"
+      return config.department || whoLabel(config.who) || "Anyone"
     case CONDITION_KINDS.DEADLINE:
       return Number.isFinite(Number(config.days)) && Number(config.days) > 0
         ? `${config.days} day${Number(config.days) === 1 ? "" : "s"}`
         : null
-    case CONDITION_KINDS.PROJECT_EVALUATION:
-      return config.referenceLink || null
     default:
       return null
   }

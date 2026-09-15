@@ -1,8 +1,14 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
-import { CONDITION_KINDS } from "../constants/stageGate";
+import { CONDITION_KINDS, NEW_CONDITION_KINDS } from "../constants/stageGate";
 
-const VALID_KINDS = Object.values(CONDITION_KINDS);
+// Issue #203: the picker only offers these four kinds for a *new* condition.
+// `field` and `project_evaluation` are removed (Stage Fields replace the
+// first, nobody used the second); `inclusions` and the old `purchasing` kind
+// are hidden pending the Purchase Requests spec, but every stored kind still
+// evaluates and can still be `update`d, so an SOR built against an older
+// flow version is never stranded.
+const VALID_KINDS = NEW_CONDITION_KINDS;
 
 /**
  * Access control check for Stage Conditions modifications.
@@ -172,6 +178,88 @@ export const stageConditionService = {
     ).catch(console.error);
 
     await noteAdditionOnDealsAtStage(data, actorId);
+
+    return data;
+  },
+
+  /**
+   * Edits a saved condition's label, required flag and config — never its
+   * kind (issue #203, story 5: an SOR's existing evidence should never be
+   * judged under a different kind; changing kind means archive-and-add).
+   * Refuses once the owning flow has been published — a published flow's
+   * conditions are read-only everywhere (story 6); "Edit draft" is the only
+   * door back in.
+   */
+  async update(id, { label, isRequired, config, kind } = {}, actorId) {
+    await requireSuperAdmin(actorId);
+
+    const { data: existing, error: fetchError } = await supabase
+      .from("stage_conditions")
+      .select("*")
+      .eq("id", id)
+      .single();
+    if (fetchError) throw fetchError;
+
+    const { data: stage, error: stageError } = await supabase
+      .from("flow_stages")
+      .select("flow_id")
+      .eq("id", existing.stage_id)
+      .single();
+    if (stageError) throw stageError;
+
+    if (stage?.flow_id) {
+      const { data: flow, error: flowError } = await supabase
+        .from("sales_flows")
+        .select("state")
+        .eq("id", stage.flow_id)
+        .single();
+      if (flowError) throw flowError;
+      if (flow?.state && flow.state !== "draft") {
+        throw new Error("A published flow's conditions are read-only. Edit the draft instead.");
+      }
+    }
+
+    if (kind !== undefined && kind !== existing.kind) {
+      throw new Error("A condition's kind is fixed once saved. Archive it and add a new one instead.");
+    }
+
+    const patch = {};
+    if (label !== undefined) {
+      const trimmedLabel = (label || "").trim();
+      if (!trimmedLabel) throw new Error("A condition needs a label.");
+      patch.label = trimmedLabel;
+    }
+    if (isRequired !== undefined) patch.is_required = Boolean(isRequired);
+    if (config !== undefined) {
+      const kind = existing.kind;
+      if (kind === CONDITION_KINDS.DEADLINE && !(Number(config?.days) > 0)) {
+        throw new Error("A deadline condition needs a positive number of days.");
+      }
+      patch.config = config || {};
+    }
+
+    if (Object.keys(patch).length === 0) return existing;
+
+    const { data, error } = await supabase
+      .from("stage_conditions")
+      .update(patch)
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "STAGE_CONDITION",
+      id,
+      `Condition updated: "${data.label}".`,
+      { event: "STAGE_CONDITION_UPDATED", stageId: data.stage_id, label: data.label, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    await noteConditionEventOnDealsAtStage(data, actorId, {
+      event: "STAGE_CONDITION_UPDATED",
+      content: `Condition updated: "${data.label}".`,
+    });
 
     return data;
   },

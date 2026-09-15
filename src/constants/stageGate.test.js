@@ -5,6 +5,7 @@ import {
   deadlineStatus,
   evaluateCrossing,
   evaluateCondition,
+  missingStageFields,
   CONDITION_STATUS,
   stagesCrossed,
 } from "./stageGate"
@@ -115,37 +116,79 @@ describe("evaluateCondition — attachment kind", () => {
     expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
   })
 
-  it("accepts any attachment when no document type is configured", () => {
+  it("with no legacy documentType or accepts configured, still requires the file tagged to this condition (issue #203)", () => {
     const req = makeCondition({ kind: "attachment", config: {} })
-    const result = evaluateCondition(req, { attachments: [{ documentType: "ANYTHING" }] })
+    const untagged = evaluateCondition(req, { attachments: [{ documentType: "ANYTHING" }] })
+    const tagged = evaluateCondition(req, { attachments: [{ conditionId: "req-1", type: "pdf" }] })
+    expect(untagged.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    expect(tagged.status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+})
+
+describe("evaluateCondition — attachment kind, accepts (issue #203)", () => {
+  it("is satisfied by a file tagged to this condition whose type is accepted", () => {
+    const req = makeCondition({ kind: "attachment", config: { accepts: ["pdf"] } })
+    const result = evaluateCondition(req, {
+      attachments: [{ conditionId: "req-1", type: "pdf", uploadedBy: "emp-1" }],
+    })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
+    expect(result.satisfiedBy).toBe("emp-1")
+  })
+
+  it("is not satisfied by a file tagged to a different condition", () => {
+    const req = makeCondition({ kind: "attachment", config: { accepts: ["pdf"] } })
+    const result = evaluateCondition(req, {
+      attachments: [{ conditionId: "other-condition", type: "pdf" }],
+    })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("is not satisfied by a file of the wrong type even when tagged to this condition", () => {
+    const req = makeCondition({ kind: "attachment", config: { accepts: ["pdf"] } })
+    const result = evaluateCondition(req, {
+      attachments: [{ conditionId: "req-1", type: "image" }],
+    })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("accepts any type when accepts is empty (Any, the default)", () => {
+    const req = makeCondition({ kind: "attachment", config: { accepts: [] } })
+    const result = evaluateCondition(req, {
+      attachments: [{ conditionId: "req-1", type: "archive" }],
+    })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("a file from a previous visit does not count when it is not in the passed-in attachments", () => {
+    // The caller is responsible for scoping `attachments` to the current
+    // visit before calling in — this only proves an attachment absent from
+    // that list can't satisfy the condition.
+    const req = makeCondition({ kind: "attachment", config: { accepts: ["pdf"] } })
+    const result = evaluateCondition(req, { attachments: [] })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("still matches the legacy documentType shape without conditionId tagging", () => {
+    const req = makeCondition({ kind: "attachment", config: { documentType: "NOTICE_OF_AWARD" } })
+    const result = evaluateCondition(req, {
+      attachments: [{ documentType: "NOTICE_OF_AWARD" }],
+    })
     expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
   })
 })
 
-describe("evaluateCondition — field kind", () => {
-  it("is satisfied when the named column is non-empty", () => {
-    const req = makeCondition({ kind: "field", config: { column: "po_date" } })
-    const result = evaluateCondition(req, { opportunity: { po_date: "2026-04-01" } })
-    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
-  })
-
-  it("is unsatisfied when the named column is empty", () => {
-    const req = makeCondition({ kind: "field", config: { column: "po_date" } })
-    const result = evaluateCondition(req, { opportunity: { po_date: null } })
-    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
-  })
-
-  it("un-satisfies again once a filled field is cleared — the record is the evidence, not a cached answer", () => {
+describe("evaluateCondition — field kind is removed (issue #203)", () => {
+  it("is not_applicable regardless of the record", () => {
     const req = makeCondition({ kind: "field", config: { column: "po_date" } })
     const filled = evaluateCondition(req, { opportunity: { po_date: "2026-04-01" } })
-    const cleared = evaluateCondition(req, { opportunity: { po_date: "" } })
-    expect(filled.status).toBe(CONDITION_STATUS.SATISFIED)
-    expect(cleared.status).toBe(CONDITION_STATUS.UNSATISFIED)
+    const empty = evaluateCondition(req, { opportunity: { po_date: null } })
+    expect(filled.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
+    expect(empty.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 })
 
 describe("evaluateCondition — assignment kind", () => {
-  it("is satisfied when a member from the named department is on the SOR", () => {
+  it("is satisfied when a member from the named department is on the SOR (legacy)", () => {
     const req = makeCondition({ kind: "assignment", config: { department: "Purchasing" } })
     const result = evaluateCondition(req, {
       members: [{ employeeId: "emp-2", department: "Purchasing" }],
@@ -154,10 +197,78 @@ describe("evaluateCondition — assignment kind", () => {
     expect(result.satisfiedBy).toBe("emp-2")
   })
 
-  it("is unsatisfied when nobody from the named department is a member", () => {
+  it("is unsatisfied when nobody from the named department is a member (legacy)", () => {
     const req = makeCondition({ kind: "assignment", config: { department: "Purchasing" } })
     const result = evaluateCondition(req, { members: [{ employeeId: "emp-3", department: "Sales" }] })
     expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+
+  it("is satisfied by a specific employee in who (issue #203)", () => {
+    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "employee", id: "emp-9" }] } })
+    const result = evaluateCondition(req, { members: [{ employeeId: "emp-9" }] })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is satisfied by any member of a named Employee Group in who", () => {
+    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "group", id: "grp-purchasing" }] } })
+    const result = evaluateCondition(req, {
+      members: [{ employeeId: "emp-5", groupIds: ["grp-purchasing"] }],
+    })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is satisfied by any member of a named Team in who", () => {
+    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "team", id: "team-1" }] } })
+    const result = evaluateCondition(req, { members: [{ employeeId: "emp-6", teamId: "team-1" }] })
+    expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
+  })
+
+  it("is unsatisfied when nobody on the SOR resolves into who", () => {
+    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "employee", id: "emp-9" }] } })
+    const result = evaluateCondition(req, { members: [{ employeeId: "emp-1" }] })
+    expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
+  })
+})
+
+describe("missingStageFields", () => {
+  const makeField = (overrides = {}) => ({
+    id: "field-1",
+    source: "custom",
+    sor_field: null,
+    is_required: true,
+    archived_at: null,
+    ...overrides,
+  })
+
+  it("returns a required custom field with no value in the current visit", () => {
+    const field = makeField({ id: "f-1" })
+    const missing = missingStageFields([field], { visitValues: {} })
+    expect(missing).toEqual([field])
+  })
+
+  it("drops a required custom field once the current visit has a value", () => {
+    const field = makeField({ id: "f-1" })
+    const missing = missingStageFields([field], { visitValues: { "f-1": "yes" } })
+    expect(missing).toEqual([])
+  })
+
+  it("reads an sor-source field straight from the opportunity, not visitValues", () => {
+    const field = makeField({ id: "f-2", source: "sor", sor_field: "expected_award_date" })
+    const missing = missingStageFields([field], {
+      opportunity: { expected_award_date: "2026-10-01" },
+      visitValues: {},
+    })
+    expect(missing).toEqual([])
+  })
+
+  it("drops an optional field regardless of value", () => {
+    const field = makeField({ id: "f-3", is_required: false })
+    expect(missingStageFields([field], { visitValues: {} })).toEqual([])
+  })
+
+  it("drops an archived field", () => {
+    const field = makeField({ id: "f-4", archived_at: "2026-01-01T00:00:00.000Z" })
+    expect(missingStageFields([field], { visitValues: {} })).toEqual([])
   })
 })
 
@@ -175,43 +286,25 @@ describe("evaluateCondition — tickbox kind", () => {
   })
 })
 
-// Issue #50.
-describe("evaluateCondition — project_evaluation kind", () => {
-  it("is satisfied by existence alone, whether or not it was signed off", () => {
+// Issue #203: project_evaluation is a removed kind, same as field.
+describe("evaluateCondition — project_evaluation kind is removed (issue #203)", () => {
+  it("is not_applicable regardless of the caller's facts", () => {
     const req = makeCondition({ kind: "project_evaluation", config: {} })
-
-    const missing = evaluateCondition(req, { hasProjectEvaluation: false })
-    const unsigned = evaluateCondition(req, { hasProjectEvaluation: true })
-
-    expect(missing.status).toBe(CONDITION_STATUS.UNSATISFIED)
-    expect(unsigned.status).toBe(CONDITION_STATUS.SATISFIED)
-  })
-
-  it("defaults to unsatisfied when the caller says nothing about it", () => {
-    const req = makeCondition({ kind: "project_evaluation", config: {} })
-    expect(evaluateCondition(req).status).toBe(CONDITION_STATUS.UNSATISFIED)
-  })
-
-  it("evaluates only the Stage being left — no positional comparison enters into it", () => {
-    // hasProjectEvaluation is a fact about the deal, not about any Stage, so
-    // nothing here reads stage_code, sort_order, or any other Stage besides
-    // the one the condition itself lives on.
-    const req = makeCondition({ kind: "project_evaluation", stage_code: "PROPOSAL" })
     expect(evaluateCondition(req, { hasProjectEvaluation: true }).status).toBe(
-      CONDITION_STATUS.SATISFIED,
+      CONDITION_STATUS.NOT_APPLICABLE,
     )
+    expect(evaluateCondition(req).status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 })
 
 describe("evaluateCondition — never applied vs unsatisfied", () => {
   it("is not_applicable when the condition was created after the crossing being evaluated", () => {
     const req = makeCondition({
-      kind: "field",
-      config: { column: "po_date" },
+      kind: "tickbox",
       created_at: "2026-06-01T00:00:00.000Z",
     })
     const result = evaluateCondition(req, {
-      opportunity: { po_date: null },
+      statusRow: null,
       asOf: "2026-05-01T00:00:00.000Z", // the deal crossed before this condition existed
     })
     expect(result.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
@@ -219,12 +312,11 @@ describe("evaluateCondition — never applied vs unsatisfied", () => {
 
   it("is evaluated normally when the condition predates the crossing", () => {
     const req = makeCondition({
-      kind: "field",
-      config: { column: "po_date" },
+      kind: "tickbox",
       created_at: "2026-01-01T00:00:00.000Z",
     })
     const result = evaluateCondition(req, {
-      opportunity: { po_date: null },
+      statusRow: null,
       asOf: "2026-05-01T00:00:00.000Z",
     })
     expect(result.status).toBe(CONDITION_STATUS.UNSATISFIED)
@@ -236,10 +328,8 @@ describe("evaluateCondition — never applied vs unsatisfied", () => {
     expect(result.status).toBe(CONDITION_STATUS.NOT_APPLICABLE)
   })
 
-  // Issue #50's own acceptance criterion: a deal that already crossed the
-  // Stage before a Project Evaluation condition existed reads as
-  // not_applicable, never as blocked after the fact.
-  it("is not_applicable for a project_evaluation condition added after the deal already crossed", () => {
+  // Issue #203: a removed kind is not_applicable regardless of asOf.
+  it("is not_applicable for a project_evaluation condition regardless of timing", () => {
     const req = makeCondition({
       kind: "project_evaluation",
       config: {},
@@ -329,7 +419,7 @@ describe("evaluateCrossing", () => {
   const conditionsByStage = {
     LEAD: [makeCondition({ id: "r-lead", stage_code: "LEAD", kind: "tickbox", label: "Lead checklist" })],
     QUALIFIED: [
-      makeCondition({ id: "r-qual", stage_code: "QUALIFIED", kind: "field", config: { column: "budget_confirmed" }, label: "Budget confirmed" }),
+      makeCondition({ id: "r-qual", stage_code: "QUALIFIED", kind: "tickbox", label: "Budget confirmed" }),
     ],
   }
 
@@ -339,7 +429,7 @@ describe("evaluateCrossing", () => {
       toCode: "AWARDED",
       stages: PIPELINE_STAGE_SEED,
       conditionsByStage,
-      opportunity: { budget_confirmed: null },
+      opportunity: {},
       statusRowsByCondition: {},
       asOf: "2026-07-01T00:00:00.000Z",
     })
@@ -354,8 +444,11 @@ describe("evaluateCrossing", () => {
       toCode: "AWARDED",
       stages: PIPELINE_STAGE_SEED,
       conditionsByStage,
-      opportunity: { budget_confirmed: "Yes" },
-      statusRowsByCondition: { "r-lead": { satisfied_by: "emp-1", satisfied_at: "2026-07-01" } },
+      opportunity: {},
+      statusRowsByCondition: {
+        "r-lead": { satisfied_by: "emp-1", satisfied_at: "2026-07-01" },
+        "r-qual": { satisfied_by: "emp-1", satisfied_at: "2026-07-01" },
+      },
       asOf: "2026-07-01T00:00:00.000Z",
     })
     expect(result.blocked).toBe(false)

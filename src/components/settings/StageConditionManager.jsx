@@ -11,22 +11,19 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 import { useFlowData } from "./FlowDataContext";
-import { CONDITION_KINDS } from "../../constants/stageGate";
+import { CONDITION_KINDS, NEW_CONDITION_KINDS } from "../../constants/stageGate";
+import { ATTACHMENT_ACCEPT_GROUPS } from "../../utils/attachments";
 import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
     case CONDITION_KINDS.ATTACHMENT:
-      return { documentType: "" };
-    case CONDITION_KINDS.FIELD:
-      return { column: "" };
+      return { accepts: [] };
     case CONDITION_KINDS.ASSIGNMENT:
       return { department: "" };
     case CONDITION_KINDS.DEADLINE:
       return { days: "" };
-    case CONDITION_KINDS.PROJECT_EVALUATION:
-      return { referenceLink: "" };
     default:
       return {};
   }
@@ -36,15 +33,11 @@ const emptyConfigFor = (kind) => {
 function configFor(kind, config) {
   switch (kind) {
     case CONDITION_KINDS.ATTACHMENT:
-      return config.documentType?.trim() ? { documentType: config.documentType.trim() } : {};
-    case CONDITION_KINDS.FIELD:
-      return { column: config.column?.trim() || "" };
+      return { accepts: Array.isArray(config.accepts) ? config.accepts : [] };
     case CONDITION_KINDS.ASSIGNMENT:
       return { department: config.department?.trim() || "" };
     case CONDITION_KINDS.DEADLINE:
       return { days: Number(config.days) || 0 };
-    case CONDITION_KINDS.PROJECT_EVALUATION:
-      return config.referenceLink?.trim() ? { referenceLink: config.referenceLink.trim() } : {};
     default:
       return {};
   }
@@ -63,10 +56,10 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   const { stageCondition: stageConditionService } = useFlowData();
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
-  const [kind, setKind] = useState(CONDITION_KINDS.FIELD);
+  const [kind, setKind] = useState(CONDITION_KINDS.ATTACHMENT);
   const [label, setLabel] = useState("");
   const [isRequired, setIsRequired] = useState(true);
-  const [config, setConfig] = useState(emptyConfigFor(CONDITION_KINDS.FIELD));
+  const [config, setConfig] = useState(emptyConfigFor(CONDITION_KINDS.ATTACHMENT));
   const [pendingArchive, setPendingArchive] = useState(null);
 
   const { data: conditions, isLoading } = useQuery({
@@ -83,8 +76,8 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   const resetForm = () => {
     setLabel("");
     setIsRequired(true);
-    setKind(CONDITION_KINDS.FIELD);
-    setConfig(emptyConfigFor(CONDITION_KINDS.FIELD));
+    setKind(CONDITION_KINDS.ATTACHMENT);
+    setConfig(emptyConfigFor(CONDITION_KINDS.ATTACHMENT));
     setIsAdding(false);
   };
 
@@ -206,7 +199,9 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               >
                 {({ close }) => (
                   <div className="flex flex-col">
-                    {Object.entries(CONDITION_KIND_META).map(([value, meta]) => (
+                    {NEW_CONDITION_KINDS.map((value) => {
+                      const meta = CONDITION_KIND_META[value]
+                      return (
                       <button
                         key={value}
                         type="button"
@@ -231,31 +226,44 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                           </span>
                         </span>
                       </button>
-                    ))}
+                    )})}
                   </div>
                 )}
               </Dropdown>
             </div>
 
             {kind === CONDITION_KINDS.ATTACHMENT && (
-              <Input
-                label="Document type"
-                value={config.documentType || ""}
-                onChange={(e) => setConfig({ documentType: e.target.value })}
-                placeholder="Any document, if left blank"
-              />
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Accepts — Any, if none chosen
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(ATTACHMENT_ACCEPT_GROUPS).map(([key, group]) => {
+                    const accepts = config.accepts || [];
+                    const active = accepts.includes(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() =>
+                          setConfig({
+                            accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
+                          })
+                        }
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                          active
+                            ? "bg-mauve-12 text-mauve-1"
+                            : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4",
+                        )}
+                      >
+                        {group.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             )}
-
-            {kind === CONDITION_KINDS.FIELD && (
-              <Input
-                label="Column"
-                value={config.column || ""}
-                onChange={(e) => setConfig({ column: e.target.value })}
-                placeholder="po_date"
-                required
-              />
-            )}
-
 
 
             {kind === CONDITION_KINDS.ASSIGNMENT && (
@@ -277,15 +285,6 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 onChange={(e) => setConfig({ days: e.target.value })}
                 placeholder="10"
                 required
-              />
-            )}
-
-            {kind === CONDITION_KINDS.PROJECT_EVALUATION && (
-              <Input
-                label="Reference link (optional)"
-                value={config.referenceLink || ""}
-                onChange={(e) => setConfig({ referenceLink: e.target.value })}
-                placeholder="Link to the source sheet or template this Stage expects"
               />
             )}
 

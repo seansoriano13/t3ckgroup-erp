@@ -65,8 +65,10 @@ describe("FlowVersionStagePanel", () => {
 
         await userEvent.click(screen.getByRole("button", { name: /Conditions/ }))
 
+        // Issue #203: field is a removed kind — its label still shows (an
+        // archived-history row on an old version), but conditionDetail no
+        // longer surfaces the column it used to watch.
         expect(screen.getByText("PO date filled in")).toBeInTheDocument()
-        expect(screen.getByText(/po_date/)).toBeInTheDocument()
         expect(screen.getByText("Notice of Award")).toBeInTheDocument()
         expect(screen.getByText("Optional")).toBeInTheDocument()
     })

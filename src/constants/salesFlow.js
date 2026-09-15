@@ -248,12 +248,20 @@ export function stageActionTaskTitle({ salesReference, projectTitle } = {}) {
  * `diffFlowSnapshots` (which reads this same shape from an already-published
  * Snapshot) can never disagree about what a "changed" flow looks like.
  */
-export function buildDraftSnapshotData({ flow, stages = [], edges = [], actions = [], conditions = [] } = {}) {
+export function buildDraftSnapshotData({
+  flow,
+  stages = [],
+  edges = [],
+  actions = [],
+  conditions = [],
+  stageFields = [],
+} = {}) {
   return {
     stages,
     edges,
     actions,
     conditions,
+    stageFields,
     wonStageId: flow?.won_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
   }

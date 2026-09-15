@@ -116,6 +116,56 @@ export const TRIGGERS = {
         row.updated_at = new Date().toISOString()
       },
     ],
+    // 20260915030000_stage_fields_and_visits.sql — record_stage_visit(),
+    // fired on insert and on update of flow_stage_id. Opens a Stage Visit
+    // for a flow-built deal on insert; on a stage change, closes whatever
+    // visit was open and opens a new one. Legacy-pipeline deals
+    // (flow_stage_id null) get no visit, matching the real trigger's guard.
+    afterWrite: [
+      function recordStageVisit(row, old, context) {
+        if (old === null) {
+          if (row.flow_stage_id == null) return
+          context.rowsOf("sor_stage_visits").push({
+            id: crypto.randomUUID(),
+            opportunity_id: row.id,
+            flow_stage_id: row.flow_stage_id,
+            flow_snapshot_id: row.flow_snapshot_id ?? null,
+            sequence: 1,
+            entered_at: row.created_at ?? new Date().toISOString(),
+            entered_by: row.registered_by ?? null,
+            left_at: null,
+            left_by: null,
+          })
+          return
+        }
+
+        if (row.flow_stage_id === old.flow_stage_id) return
+
+        const visits = context.rowsOf("sor_stage_visits")
+        const now = new Date().toISOString()
+        for (const visit of visits) {
+          if (visit.opportunity_id === row.id && visit.left_at == null) {
+            visit.left_at = now
+          }
+        }
+
+        if (row.flow_stage_id != null) {
+          const nextSequence =
+            Math.max(0, ...visits.filter((v) => v.opportunity_id === row.id).map((v) => v.sequence)) + 1
+          visits.push({
+            id: crypto.randomUUID(),
+            opportunity_id: row.id,
+            flow_stage_id: row.flow_stage_id,
+            flow_snapshot_id: row.flow_snapshot_id ?? null,
+            sequence: nextSequence,
+            entered_at: now,
+            entered_by: null,
+            left_at: null,
+            left_by: null,
+          })
+        }
+      },
+    ],
   },
 
   sales_opportunity_items: {

@@ -64,7 +64,10 @@ describe("StageConditionManager", () => {
     expect(screen.getByPlaceholderText(/Notice of Award attached/i)).toBeInTheDocument();
   });
 
-  it("adds a condition with the trimmed label and entered column", async () => {
+  // Issue #203: the default new-condition kind is Attachment (Field on
+  // record is removed), configured through the Accepts picker rather than a
+  // typed document type.
+  it("adds an attachment condition with the trimmed label and a chosen Accepts group", async () => {
     const stage = makeFlowStage();
 
     renderWithProviders(
@@ -78,9 +81,7 @@ describe("StageConditionManager", () => {
     fireEvent.change(screen.getByPlaceholderText(/Notice of Award attached/i), {
       target: { value: "  Must be signed  " },
     });
-    fireEvent.change(screen.getByPlaceholderText("po_date"), {
-      target: { value: "po_date" },
-    });
+    fireEvent.click(screen.getByRole("button", { name: "PDF" }));
 
     fireEvent.click(screen.getByRole("button", { name: /Save condition/i }));
 

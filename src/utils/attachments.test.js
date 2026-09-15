@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
+  acceptsLabel,
+  attachmentAcceptType,
   formatBytes,
   isAllowedAttachment,
   isImageAttachment,
@@ -7,6 +9,32 @@ import {
   MAX_ATTACHMENT_BYTES,
   toDescriptor,
 } from "./attachments"
+
+// Issue #203 — the Accepts picker's group-to-extension/MIME mapping.
+describe("attachmentAcceptType", () => {
+  it("resolves a group from the MIME type", () => {
+    expect(attachmentAcceptType({ type: "application/pdf", name: "notice.pdf" })).toBe("pdf")
+  })
+
+  it("falls back to the extension when the MIME type is missing", () => {
+    expect(attachmentAcceptType({ type: "", name: "photo.PNG" })).toBe("image")
+  })
+
+  it("returns null for a file matching no known group", () => {
+    expect(attachmentAcceptType({ type: "application/x-weird", name: "thing.xyz" })).toBeNull()
+  })
+})
+
+describe("acceptsLabel", () => {
+  it("reads as Any when the list is empty", () => {
+    expect(acceptsLabel([])).toBe("Any")
+    expect(acceptsLabel()).toBe("Any")
+  })
+
+  it("joins group labels in order", () => {
+    expect(acceptsLabel(["pdf", "image"])).toBe("PDF, Images")
+  })
+})
 
 /**
  * Attachments are stored two ways depending on their age: task comments kept a

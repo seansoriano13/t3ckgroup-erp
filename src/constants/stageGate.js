@@ -32,6 +32,21 @@ export const CONDITION_KINDS = {
   PURCHASING: "purchasing",
 }
 
+/**
+ * The kinds offered when adding a *new* condition (issue #203): Field on
+ * record and Project Evaluation are gone outright; Inclusions and the old
+ * Purchasing kind are hidden pending the Purchase Requests spec, though a
+ * condition already using one keeps evaluating. Shared by
+ * `stageConditionService`'s own validation and the picker's dropdown, so the
+ * two lists can't quietly drift apart.
+ */
+export const NEW_CONDITION_KINDS = [
+  CONDITION_KINDS.ATTACHMENT,
+  CONDITION_KINDS.TICKBOX,
+  CONDITION_KINDS.ASSIGNMENT,
+  CONDITION_KINDS.DEADLINE,
+]
+
 export const CONDITION_STATUS = {
   SATISFIED: "satisfied",
   UNSATISFIED: "unsatisfied",
@@ -110,18 +125,36 @@ const satisfied = (satisfiedBy = null, satisfiedAt = null) => ({
  *   evidence, so the row IS the certification.
  * - **deadline** is always reported satisfied here because it never gates;
  *   call `deadlineStatus` for its actual display/notify state.
- * - **project_evaluation** is satisfied iff `hasProjectEvaluation` is true —
- *   evaluated live against whether a Project Evaluation row exists for the
- *   deal (issue #48), the same way `field` is evaluated live against the
- *   record rather than a status row.
+ * - **project_evaluation** and **field** are removed kinds (issue #203):
+ *   evaluated as not_applicable regardless of record state, so an SOR still
+ *   carrying one from an older flow version is never stranded by a kind that
+ *   no longer exists. `field`'s old evidence (a hidden SOR column or
+ *   metadata key) is not read here any more — see Stage Fields
+ *   (`missingStageFields`, below) for the kind that replaces it.
+ *
+ * Assignment resolves against `who` (issue #203): a list of
+ * `{ type: "employee"|"group"|"team", id }` selectors, met when any SOR
+ * member resolves into one of them. `member.groupIds`/`member.teamId` carry
+ * that resolution — this module doesn't itself know what a group or team
+ * contains. The legacy `config.department` match stays for conditions saved
+ * before #203 that never got a `who`.
+ *
+ * Attachment resolves against `config.accepts` (issue #203): a list of file
+ * type keys (see `src/utils/attachments.js`), met only by an attachment
+ * tagged with this condition's own id (`attachment.conditionId`) whose type
+ * is in the list — or any type when the list is empty ("Any", the default).
+ * The legacy `config.documentType` match stays for conditions saved before
+ * #203, and does not require `conditionId` tagging.
  */
 export function evaluateCondition(condition, {
-  opportunity = {},
+  // Issue #203 removed the last case (`field`) that read the record
+  // directly — kept in the signature so every existing caller's argument
+  // object shape stays valid unchanged.
+  opportunity: _opportunity = {},
   attachments = [],
   members = [],
   statusRow = null,
   asOf = null,
-  hasProjectEvaluation = false,
   hasInclusions = false,
   hasPurchasing = false,
 } = {}) {
@@ -131,18 +164,40 @@ export function evaluateCondition(condition, {
   switch (condition.kind) {
     case CONDITION_KINDS.ATTACHMENT: {
       const documentType = condition.config?.documentType ?? null
-      const match = attachments.find((a) => !documentType || a.documentType === documentType)
+      if (documentType) {
+        const match = attachments.find((a) => a.documentType === documentType)
+        return match ? satisfied(match.uploadedBy ?? null, match.uploadedAt ?? null) : unsatisfied()
+      }
+      const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : []
+      const match = attachments.find(
+        (a) => a.conditionId === condition.id && (accepts.length === 0 || accepts.includes(a.type)),
+      )
       return match ? satisfied(match.uploadedBy ?? null, match.uploadedAt ?? null) : unsatisfied()
     }
     case CONDITION_KINDS.FIELD: {
-      const column = condition.config?.column
-      const value = column ? (opportunity[column] ?? opportunity.metadata?.[column]) : undefined
-      return isNonEmpty(value) ? satisfied() : unsatisfied()
+      return notApplicable()
     }
     case CONDITION_KINDS.ASSIGNMENT: {
       const department = condition.config?.department ?? null
-      const match = members.find((m) => !department || m.department === department)
-      return match ? satisfied(match.employeeId ?? match.employee_id ?? null, match.assignedAt ?? null) : unsatisfied()
+      if (department) {
+        const match = members.find((m) => m.department === department)
+        return match
+          ? satisfied(match.employeeId ?? match.employee_id ?? null, match.assignedAt ?? null)
+          : unsatisfied()
+      }
+      const who = Array.isArray(condition.config?.who) ? condition.config.who : []
+      if (who.length === 0) return unsatisfied()
+      const match = members.find((m) =>
+        who.some((selector) => {
+          if (selector.type === "employee") return (m.employeeId ?? m.employee_id) === selector.id
+          if (selector.type === "group") return (m.groupIds ?? []).includes(selector.id)
+          if (selector.type === "team") return m.teamId === selector.id
+          return false
+        }),
+      )
+      return match
+        ? satisfied(match.employeeId ?? match.employee_id ?? null, match.assignedAt ?? null)
+        : unsatisfied()
     }
     case CONDITION_KINDS.TICKBOX: {
       return statusRow ? satisfied(statusRow.satisfied_by ?? null, statusRow.satisfied_at ?? null) : unsatisfied()
@@ -151,7 +206,7 @@ export function evaluateCondition(condition, {
       return satisfied()
     }
     case CONDITION_KINDS.PROJECT_EVALUATION: {
-      return hasProjectEvaluation ? satisfied() : unsatisfied()
+      return notApplicable()
     }
     case CONDITION_KINDS.INCLUSIONS: {
       return hasInclusions ? satisfied() : unsatisfied()
@@ -162,6 +217,25 @@ export function evaluateCondition(condition, {
     default:
       return unsatisfied()
   }
+}
+
+/**
+ * Stage Fields (issue #203) that block leaving: required fields with no
+ * value, in `flow_stage_fields` sort order. `visitValues` maps a custom
+ * field's id to the current visit's saved value; an `sor`-source field reads
+ * `opportunity[sorField]` directly, since it writes straight through
+ * (#199's single-field write) rather than through a visit row. Pure and
+ * synchronous, same shape as `blockingConditions` — the caller decides what
+ * to do with a non-empty result (`moveAlongFlow`'s "Fill in: …").
+ */
+export function missingStageFields(stageFields = [], { opportunity = {}, visitValues = {} } = {}) {
+  return (stageFields || []).filter((field) => {
+    if (field.archived_at) return false
+    if (!field.is_required) return false
+    const value =
+      field.source === "sor" ? opportunity[field.sor_field] : visitValues[field.id]
+    return !isNonEmpty(value)
+  })
 }
 
 /**
@@ -215,7 +289,6 @@ export function evaluateCrossing({
   members = [],
   statusRowsByCondition = {},
   asOf = null,
-  hasProjectEvaluation = false,
   hasInclusions = false,
   hasPurchasing = false,
 }) {
@@ -231,7 +304,6 @@ export function evaluateCrossing({
         members,
         statusRow: statusRowsByCondition[condition.id] ?? null,
         asOf,
-        hasProjectEvaluation,
         hasInclusions,
         hasPurchasing,
       })

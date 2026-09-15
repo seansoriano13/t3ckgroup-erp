@@ -1,10 +1,8 @@
 import { supabase } from "../lib/supabase";
-import { commissionService } from "./commissionService";
 import {
   COMPLETENESS,
   COST_SOURCE,
   applyWinner,
-  calculateProjectMargin,
   canSetSourcing,
   isCompleteness,
   isSourcing,
@@ -91,35 +89,6 @@ const CANVASS_SELECT = `
   signer:employees!sor_canvasses_signed_off_by_fkey(id, name, avatar_path),
   offers:sor_canvass_offers(*)
 `;
-
-/** Every column a caller reads for a Project Evaluation. */
-const EVALUATION_SELECT = `
-  *,
-  signer:employees!sor_project_evaluations_signed_off_by_fkey(id, name, avatar_path)
-`;
-
-/** Normalises and checks what a caller wants written for a Project Evaluation. */
-function cleanEvaluationInput(input = {}) {
-  const row = {};
-
-  const setAmount = (key, column, label) => {
-    if (input[key] === undefined) return;
-    const value = input[key] === null || input[key] === "" ? null : Number(input[key]);
-    if (value !== null && !Number.isFinite(value)) {
-      throw new Error(`${label} has to be a number.`);
-    }
-    row[column] = value;
-  };
-
-  setAmount("candidateSalesPrice", "candidate_sales_price", "Candidate sales price");
-  setAmount("estimatedOpex", "estimated_opex", "Estimated operating expense");
-
-  if (input.isGovernmentClient !== undefined) {
-    row.is_government_client = Boolean(input.isGovernmentClient);
-  }
-
-  return row;
-}
 
 /**
  * Resolves the exactly-one-subject columns for a Canvass from a caller's
@@ -637,87 +606,6 @@ export const projectEvaluationService = {
     return this.stampInclusionCost(inclusionId, { amount, source });
   },
 
-  // ── Project Evaluation (issue #48) ───────────────────────────────────────
-
-  /** The SOR's Project Evaluation, or null when nobody has started one yet. */
-  async getEvaluation(opportunityId) {
-    if (!opportunityId) return null;
-
-    const { data, error } = await supabase
-      .from("sor_project_evaluations")
-      .select(EVALUATION_SELECT)
-      .eq("opportunity_id", opportunityId)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data;
-  },
-
-  /** The SOR's Project Evaluation, creating an empty one on first touch. */
-  async getOrCreateEvaluation(opportunityId, actorId) {
-    if (!opportunityId) throw new Error("An SOR is required.");
-
-    const existing = await this.getEvaluation(opportunityId);
-    if (existing) return existing;
-
-    const { data, error } = await supabase
-      .from("sor_project_evaluations")
-      .insert({ opportunity_id: opportunityId, created_by: actorId || null })
-      .select(EVALUATION_SELECT)
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  /** Edits a Project Evaluation. Only the fields named in `patch` are touched. */
-  async updateEvaluation(evaluationId, patch = {}) {
-    if (!evaluationId) throw new Error("A Project Evaluation id is required.");
-
-    const row = cleanEvaluationInput(patch);
-    if (Object.keys(row).length === 0) return null;
-
-    const { data, error } = await supabase
-      .from("sor_project_evaluations")
-      .update(row)
-      .eq("id", evaluationId)
-      .select(EVALUATION_SELECT)
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  /** Records sign-off on a Project Evaluation — who decided, and when. */
-  async signOffEvaluation(evaluationId, actorId) {
-    if (!evaluationId) throw new Error("A Project Evaluation id is required.");
-    if (!actorId) throw new Error("An actor is required to sign off a Project Evaluation.");
-
-    const { data, error } = await supabase
-      .from("sor_project_evaluations")
-      .update({ signed_off_by: actorId, signed_off_at: new Date().toISOString() })
-      .eq("id", evaluationId)
-      .select(EVALUATION_SELECT)
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
-  /**
-   * VAT, Withholding and Retention as of today — what a Project Evaluation's
-   * government-deduction math needs. Extends commissionService rather than
-   * re-querying commission_rates a second way; retentionPercent is null when
-   * nobody has ever configured one, matching getEffectiveRetentionPercent.
-   */
-  async getDeductionRates() {
-    const [rates, retentionPercent] = await Promise.all([
-      commissionService.getEffectiveRates(),
-      commissionService.getEffectiveRetentionPercent(),
-    ]);
-    return { ...rates, retentionPercent };
-  },
-
   // ── Actual cost (issue #49) ───────────────────────────────────────────────
 
   /** Every local override recorded for an SOR's purchase-order rollup. */
@@ -848,17 +736,21 @@ export const projectEvaluationService = {
    * is bound to a live Odoo order (and if so, how its price and its actual
    * spend compare), and the resulting margin.
    *
-   * Deduction rates are only fetched when the evaluation is flagged as a
-   * government client — a private-sector evaluation needs no rate at all,
-   * and skipping the query is one fewer round trip on the common case. The
+   * Deduction rates are only fetched when the caller is flagged as a
+   * government client — a private-sector read needs no rate at all, and
+   * skipping the query is one fewer round trip on the common case. The
    * actual-cost rollup is likewise skipped entirely when unbound: with no
    * Sales Reference there is no Odoo sale order for a purchase order to name.
+   *
+   * Issue #203 removed Project Evaluation (the go/no-go itself, and its
+   * `sor_project_evaluations` table) — this summary now reports base cost
+   * and actual cost only; margin, since it needed a candidate price nothing
+   * else on the SOR carries, went with it.
    */
-  async getEvaluationSummary(opportunityId) {
+  async getCostSummary(opportunityId) {
     if (!opportunityId) throw new Error("An SOR is required.");
 
-    const [evaluation, inclusions, { data: opportunity, error: oppError }] = await Promise.all([
-      this.getEvaluation(opportunityId),
+    const [inclusions, { data: opportunity, error: oppError }] = await Promise.all([
       this.listInclusions(opportunityId),
       supabase
         .from("sales_opportunities")
@@ -870,33 +762,14 @@ export const projectEvaluationService = {
 
     const baseCost = rollUpBaseCost(inclusions);
     const isBound = Boolean(opportunity.sales_reference);
-    const odooOrderPrice = isBound && opportunity.expected_value != null
-      ? Number(opportunity.expected_value)
-      : null;
-
-    const rates = evaluation?.is_government_client
-      ? await this.getDeductionRates()
-      : { vatPercent: 0, withholdingPercent: 0, retentionPercent: null };
-
-    const margin = calculateProjectMargin({
-      candidateSalesPrice: evaluation?.candidate_sales_price ?? null,
-      baseCost: baseCost.amount,
-      estimatedOpex: evaluation?.estimated_opex ?? null,
-      isGovernmentClient: evaluation?.is_government_client ?? false,
-      ...rates,
-    });
 
     const actualCost = isBound
       ? await this.getActualCostRollup(opportunityId, opportunity.sales_reference)
       : { status: "ok", orders: [], total: { amount: null, orderCount: 0 }, links: [] };
 
     return {
-      evaluation,
       baseCost,
       isBound,
-      odooOrderPrice,
-      delta: priceDelta(evaluation?.candidate_sales_price ?? null, odooOrderPrice),
-      margin,
       actualCost: {
         ...actualCost,
         // The estimate is never overwritten by this — it is only ever the

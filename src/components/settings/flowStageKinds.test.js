@@ -10,8 +10,17 @@ import {
 } from "./flowStageKinds"
 
 describe("flowStageKinds", () => {
-  it("names every kind the database will accept", () => {
+  // Issue #203: field and project_evaluation are removed kinds — the
+  // database's check constraint still accepts them (so old rows stay
+  // valid), but the picker's meta no longer names them.
+  const REMOVED_KINDS = [CONDITION_KINDS.FIELD, CONDITION_KINDS.PROJECT_EVALUATION]
+
+  it("names every kind still offered from the picker", () => {
     for (const kind of Object.values(CONDITION_KINDS)) {
+      if (REMOVED_KINDS.includes(kind)) {
+        expect(CONDITION_KIND_META[kind]).toBeUndefined()
+        continue
+      }
       expect(CONDITION_KIND_META[kind]?.label).toBeTruthy()
     }
     // Mirrors flow_stage_actions_kind_chk (migration 0053).
@@ -70,17 +79,30 @@ describe("flowStageKinds", () => {
   })
 
   describe("conditionDetail", () => {
-    it("surfaces the column a field condition watches", () => {
+    it("has nothing to add for a removed field condition", () => {
       expect(
         conditionDetail({ kind: CONDITION_KINDS.FIELD, config: { column: "po_date" } }),
-      ).toBe("po_date")
+      ).toBeNull()
     })
 
     it("says what an unconfigured attachment or assignment actually accepts", () => {
-      expect(conditionDetail({ kind: CONDITION_KINDS.ATTACHMENT, config: {} })).toBe(
-        "Any document",
-      )
+      expect(conditionDetail({ kind: CONDITION_KINDS.ATTACHMENT, config: {} })).toBe("Any")
       expect(conditionDetail({ kind: CONDITION_KINDS.ASSIGNMENT, config: {} })).toBe("Anyone")
+    })
+
+    it("names the Accepts groups for an attachment condition (issue #203)", () => {
+      expect(
+        conditionDetail({ kind: CONDITION_KINDS.ATTACHMENT, config: { accepts: ["pdf", "image"] } }),
+      ).toBe("PDF, Images")
+    })
+
+    it("names an Employee Group or Team in an assignment condition's who", () => {
+      expect(
+        conditionDetail({
+          kind: CONDITION_KINDS.ASSIGNMENT,
+          config: { who: [{ type: "group", id: "grp-1", label: "Purchasing" }] },
+        }),
+      ).toBe("Purchasing (group)")
     })
 
     it("pluralises a deadline and refuses a nonsensical one", () => {
@@ -97,14 +119,8 @@ describe("flowStageKinds", () => {
       expect(conditionDetail({ kind: CONDITION_KINDS.TICKBOX, config: {} })).toBeNull()
     })
 
-    // Issue #50.
-    it("surfaces a Project Evaluation condition's optional reference link", () => {
-      expect(
-        conditionDetail({
-          kind: CONDITION_KINDS.PROJECT_EVALUATION,
-          config: { referenceLink: "https://example.com/template" },
-        }),
-      ).toBe("https://example.com/template")
+    // Issue #203: Project Evaluation is a removed kind — no meta, no detail.
+    it("has nothing to add for a removed kind", () => {
       expect(
         conditionDetail({ kind: CONDITION_KINDS.PROJECT_EVALUATION, config: {} }),
       ).toBeNull()

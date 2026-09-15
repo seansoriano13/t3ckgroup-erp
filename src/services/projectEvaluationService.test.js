@@ -718,7 +718,12 @@ describe("projectEvaluationService — inclusion canvass and cost basis", () => 
  * evaluation has a base cost yet, what the margin comes to, and whether the
  * evaluation is still just an estimate — never how the service got there.
  */
-describe("projectEvaluationService — project evaluation", () => {
+// Issue #203: Project Evaluation (the go/no-go itself, sor_project_evaluations,
+// and this service's evaluation CRUD/summary-margin methods) is removed —
+// the company keeps that judgment in a Google Sheet. What's left of the old
+// "full summary" — base cost and actual cost, no margin — is covered under
+// "actual cost > in the full cost summary" below, against getCostSummary.
+describe("projectEvaluationService — cost summary (base cost only)", () => {
   let salesperson
   let opportunity
 
@@ -727,181 +732,39 @@ describe("projectEvaluationService — project evaluation", () => {
     opportunity = makeOpportunity({ registered_by: salesperson.id, client_name: "Brgy. Wack-Wack" })
   })
 
-  describe("starting an evaluation", () => {
-    it("has no evaluation until somebody starts one", async () => {
-      expect(await projectEvaluationService.getEvaluation(opportunity.id)).toBeNull()
-    })
-
-    it("does not require a Sales Reference to exist", async () => {
-      expect(opportunity.sales_reference).toBeFalsy()
-
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(
-        opportunity.id,
-        salesperson.id,
-      )
-      expect(evaluation.opportunity_id).toBe(opportunity.id)
-    })
-
-    it("reuses the existing evaluation rather than creating a second one", async () => {
-      const first = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      const second = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-
-      expect(second.id).toBe(first.id)
-      expect(db.rows("sor_project_evaluations")).toHaveLength(1)
-    })
+  it("reads as no base cost, not zero, on an SOR with no Inclusions", async () => {
+    const summary = await projectEvaluationService.getCostSummary(opportunity.id)
+    expect(summary.baseCost.amount).toBeNull()
   })
 
-  describe("entering the numbers", () => {
-    it("records the candidate price, opex and government toggle", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-
-      const updated = await projectEvaluationService.updateEvaluation(evaluation.id, {
-        candidateSalesPrice: 1_000_000,
-        estimatedOpex: 50_000,
-        isGovernmentClient: true,
-      })
-
-      expect(updated.candidate_sales_price).toBe(1_000_000)
-      expect(updated.estimated_opex).toBe(50_000)
-      expect(updated.is_government_client).toBe(true)
+  it("rolls up base cost automatically from the SOR's costed Inclusions", async () => {
+    const inclusion = await projectEvaluationService.addInclusion(
+      { opportunityId: opportunity.id, description: "Boom Lift", quantity: 2 },
+      salesperson.id,
+    )
+    await projectEvaluationService.stampInclusionCost(inclusion.id, {
+      amount: 100_000,
+      source: COST_SOURCE.MANUAL,
     })
 
-    it("refuses a candidate price that isn't a number", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-
-      await expect(
-        projectEvaluationService.updateEvaluation(evaluation.id, { candidateSalesPrice: "a lot" }),
-      ).rejects.toThrow(/has to be a number/i)
-    })
-
-    it("touches only the fields it was given", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, { candidateSalesPrice: 1_000_000 })
-
-      const reread = await projectEvaluationService.updateEvaluation(evaluation.id, { estimatedOpex: 50_000 })
-      expect(reread.candidate_sales_price).toBe(1_000_000)
-      expect(reread.estimated_opex).toBe(50_000)
-    })
+    const summary = await projectEvaluationService.getCostSummary(opportunity.id)
+    expect(summary.baseCost.amount).toBe(200_000)
   })
 
-  describe("signing off", () => {
-    it("records who signed off and when", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      const signed = await projectEvaluationService.signOffEvaluation(evaluation.id, salesperson.id)
-
-      expect(signed.signed_off_by).toBe(salesperson.id)
-      expect(signed.signed_off_at).toBeTruthy()
-    })
+  it("is unbound with no Sales Reference", async () => {
+    const summary = await projectEvaluationService.getCostSummary(opportunity.id)
+    expect(summary.isBound).toBe(false)
   })
 
-  describe("the full summary a screen reads", () => {
-    it("reads as no base cost, not zero, on an SOR with no Inclusions", async () => {
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.baseCost.amount).toBeNull()
-      expect(summary.evaluation).toBeNull()
+  it("is bound once a Sales Reference is recorded", async () => {
+    const bound = makeOpportunity({
+      registered_by: salesperson.id,
+      sales_reference: "S04602",
+      expected_value: 950_000,
     })
 
-    it("rolls up base cost automatically from the SOR's costed Inclusions", async () => {
-      const inclusion = await projectEvaluationService.addInclusion(
-        { opportunityId: opportunity.id, description: "Boom Lift", quantity: 2 },
-        salesperson.id,
-      )
-      await projectEvaluationService.stampInclusionCost(inclusion.id, {
-        amount: 100_000,
-        source: COST_SOURCE.MANUAL,
-      })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.baseCost.amount).toBe(200_000)
-    })
-
-    it("is marked an estimate — unbound, no Odoo price, no delta — with no Sales Reference", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, { candidateSalesPrice: 900_000 })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.isBound).toBe(false)
-      expect(summary.odooOrderPrice).toBeNull()
-      expect(summary.delta).toBeNull()
-    })
-
-    it("binds to the Odoo order once a Sales Reference is recorded, and shows the delta", async () => {
-      const bound = makeOpportunity({
-        registered_by: salesperson.id,
-        sales_reference: "S04602",
-        expected_value: 950_000,
-      })
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(bound.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, { candidateSalesPrice: 900_000 })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(bound.id)
-      expect(summary.isBound).toBe(true)
-      expect(summary.odooOrderPrice).toBe(950_000)
-      expect(summary.delta).toBe(50_000)
-    })
-
-    it("computes margin on the candidate price as-is for a private client", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, {
-        candidateSalesPrice: 1_000_000,
-        estimatedOpex: 50_000,
-        isGovernmentClient: false,
-      })
-      const inclusion = await projectEvaluationService.addInclusion(
-        { opportunityId: opportunity.id, description: "Ambulance" },
-        salesperson.id,
-      )
-      await projectEvaluationService.stampInclusionCost(inclusion.id, {
-        amount: 500_000,
-        source: COST_SOURCE.MANUAL,
-      })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.margin.netRevenue).toBe(1_000_000)
-      expect(summary.margin.marginAmount).toBe(450_000)
-      expect(summary.margin.marginPercent).toBe(45)
-    })
-
-    it("nets government deductions out before margin, using the same dated rates the Commission Pool uses", async () => {
-      makeCommissionRate({ rate_type: "VAT", percent: 12, effective_from: "2000-01-01" })
-      makeCommissionRate({ rate_type: "WITHHOLDING", percent: 8, effective_from: "2000-01-01" })
-      makeCommissionRate({ rate_type: "POOL", percent: 1, effective_from: "2000-01-01" })
-      makeCommissionRate({ rate_type: "RETENTION", percent: 1, effective_from: "2000-01-01" })
-
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, {
-        candidateSalesPrice: 1_000_000,
-        estimatedOpex: 50_000,
-        isGovernmentClient: true,
-      })
-      const inclusion = await projectEvaluationService.addInclusion(
-        { opportunityId: opportunity.id, description: "Ambulance" },
-        salesperson.id,
-      )
-      await projectEvaluationService.stampInclusionCost(inclusion.id, {
-        amount: 500_000,
-        source: COST_SOURCE.MANUAL,
-      })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.margin.netRevenue).toBeCloseTo(813_214.29, 2)
-      expect(summary.margin.marginAmount).toBeCloseTo(263_214.29, 2)
-    })
-
-    it("never requires a Retention rate — a government evaluation still resolves with none configured", async () => {
-      makeCommissionRate({ rate_type: "VAT", percent: 12, effective_from: "2000-01-01" })
-      makeCommissionRate({ rate_type: "WITHHOLDING", percent: 8, effective_from: "2000-01-01" })
-      makeCommissionRate({ rate_type: "POOL", percent: 1, effective_from: "2000-01-01" })
-
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, salesperson.id)
-      await projectEvaluationService.updateEvaluation(evaluation.id, {
-        candidateSalesPrice: 1_000_000,
-        isGovernmentClient: true,
-      })
-
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
-      expect(summary.margin.netRevenue).not.toBeNaN()
-    })
+    const summary = await projectEvaluationService.getCostSummary(bound.id)
+    expect(summary.isBound).toBe(true)
   })
 })
 
@@ -1033,9 +896,8 @@ describe("projectEvaluationService — actual cost", () => {
     })
   })
 
-  describe("in the full evaluation summary", () => {
+  describe("in the full cost summary", () => {
     it("shows actual cost beside the estimate, with the variance, once bound", async () => {
-      const evaluation = await projectEvaluationService.getOrCreateEvaluation(opportunity.id, accountant.id)
       const inclusion = await projectEvaluationService.addInclusion(
         { opportunityId: opportunity.id, description: "Ambulance" },
         accountant.id,
@@ -1044,14 +906,13 @@ describe("projectEvaluationService — actual cost", () => {
         amount: 500_000,
         source: COST_SOURCE.MANUAL,
       })
-      await projectEvaluationService.updateEvaluation(evaluation.id, { candidateSalesPrice: 1_000_000 })
 
       stubEdgeFunction("odoo-po-rollup", {
         success: true,
         orders: [{ name: "P02560", amount_untaxed: 520_000 }],
       })
 
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
+      const summary = await projectEvaluationService.getCostSummary(opportunity.id)
       expect(summary.actualCost.status).toBe("ok")
       expect(summary.actualCost.total.amount).toBe(520_000)
       // The estimate (500,000) is untouched; variance is actual minus estimate.
@@ -1062,7 +923,7 @@ describe("projectEvaluationService — actual cost", () => {
     it("has no actual cost to roll up at all on an unbound SOR", async () => {
       const unbound = makeOpportunity({ registered_by: accountant.id })
 
-      const summary = await projectEvaluationService.getEvaluationSummary(unbound.id)
+      const summary = await projectEvaluationService.getCostSummary(unbound.id)
       expect(summary.actualCost.status).toBe("ok")
       expect(summary.actualCost.total.amount).toBeNull()
     })
@@ -1070,7 +931,7 @@ describe("projectEvaluationService — actual cost", () => {
     it("tells the accountant Odoo could not be reached, distinct from a real empty answer", async () => {
       stubEdgeFunction("odoo-po-rollup", { success: false, message: "timed out" })
 
-      const summary = await projectEvaluationService.getEvaluationSummary(opportunity.id)
+      const summary = await projectEvaluationService.getCostSummary(opportunity.id)
       expect(summary.actualCost.status).toBe("unreachable")
     })
   })

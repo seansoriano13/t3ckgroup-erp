@@ -310,22 +310,6 @@ async function gateContext(opportunityId, stageIds) {
   return { conditionsByStage, ...evidence };
 }
 
-/**
- * Whether a deal has a Project Evaluation on record at all (issue #48) — what
- * a `project_evaluation` Stage condition (issue #50) gates on. Existence
- * only; sign-off is recorded but never checked here, matching that ticket's
- * own decision that the gate needs an owner, not a second approval step.
- */
-async function hasProjectEvaluationFor(opportunityId) {
-  const { data, error } = await supabase
-    .from("sor_project_evaluations")
-    .select("id")
-    .eq("opportunity_id", opportunityId)
-    .maybeSingle();
-  if (error) throw error;
-  return Boolean(data);
-}
-
 async function hasInclusionsFor(opportunityId) {
   const { data, error } = await supabase
     .from("sor_inclusions")
@@ -349,13 +333,13 @@ async function hasPurchasingFor(opportunityId) {
 }
 
 /**
- * Fetches Project Evaluation existence only when a set of conditions
- * actually asks about it — shared by both gate check call sites so the
- * "does anything here need this" guard is written once.
+ * Issue #203: project_evaluation is a removed kind — the evaluator reports
+ * it not_applicable regardless, so no gate check needs its existence any
+ * more. Kept as a no-op so call sites built for it don't need to change
+ * shape.
  */
-async function resolveHasProjectEvaluation(conditions, opportunityId) {
-  const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PROJECT_EVALUATION);
-  return needsIt ? hasProjectEvaluationFor(opportunityId) : false;
+async function resolveHasProjectEvaluation() {
+  return false;
 }
 
 async function resolveHasInclusions(conditions, opportunityId) {
@@ -2143,18 +2127,23 @@ export const opportunityService = {
     const hasInclusions = await resolveHasInclusions(conditions, target.id);
     const hasPurchasing = await resolveHasPurchasing(conditions, target.id);
 
-    return conditions.map((condition) => ({
-      condition,
-      ...evaluateCondition(condition, {
-        opportunity: target,
-        attachments,
-        members,
-        statusRow: statusRowsByCondition[condition.id] ?? null,
-        hasProjectEvaluation,
-        hasInclusions,
-        hasPurchasing,
-      }),
-    }));
+    return conditions
+      .map((condition) => ({
+        condition,
+        ...evaluateCondition(condition, {
+          opportunity: target,
+          attachments,
+          members,
+          statusRow: statusRowsByCondition[condition.id] ?? null,
+          hasProjectEvaluation,
+          hasInclusions,
+          hasPurchasing,
+        }),
+      }))
+      // Issue #203: a removed kind (field, project_evaluation) always reads
+      // not_applicable — leave it off the checklist entirely rather than
+      // show a row nothing can ever satisfy.
+      .filter((row) => row.status !== CONDITION_STATUS.NOT_APPLICABLE);
   },
 
   /**

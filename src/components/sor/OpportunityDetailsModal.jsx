@@ -46,7 +46,6 @@ import OpportunityItemsEditor from "./OpportunityItemsEditor";
 import MentionTextarea, { NoteText } from "../ui/MentionTextarea";
 import PurchasingPanel from "./PurchasingPanel";
 import InclusionsPanel from "./InclusionsPanel";
-import ProjectEvaluationPanel from "./ProjectEvaluationPanel";
 import StageChecklist from "./StageChecklist";
 import OpportunityCommissionFooter from "./OpportunityCommissionFooter";
 import { purchasingService } from "../../services/purchasingService";
@@ -706,7 +705,6 @@ export default function OpportunityDetailsModal({
     ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages)
     : "mauve";
 
-  const requiresProjectEvaluation = checklist.some(c => c.condition.kind === "project_evaluation");
   const requiresInclusions = checklist.some(c => c.condition.kind === "inclusions");
   const requiresPurchasing = checklist.some(c => c.condition.kind === "purchasing");
 
@@ -1681,12 +1679,8 @@ export default function OpportunityDetailsModal({
             </div>
           )}
 
-          {/* Issue #48. The go/no-go frames the breakdown below it — base cost
-              in the margin figure here is the same roll-up InclusionsPanel
-              shows per line, just totalled. */}
-          {!isEditing && (
-            <ProjectEvaluationPanel opportunity={opportunity} isRequired={requiresProjectEvaluation} />
-          )}
+          {/* Issue #203: Project Evaluation removed — the company keeps that
+              judgment in a Google Sheet, not here. */}
 
           {/* Issue #43. The spec check comes before sourcing, because "is the
               client's specification answered" is the question that decides

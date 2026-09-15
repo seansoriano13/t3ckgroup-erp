@@ -80,11 +80,11 @@ describe("stageConditionService", () => {
   describe("add", () => {
     it("allows any authenticated employee to add a condition", async () => {
       const created = await stageConditionService.add(
-        { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
+        { stageId: stage.id, kind: "attachment", label: "Notice of Award on file", config: { accepts: ["pdf"] } },
         regular.id,
       )
 
-      expect(created.label).toBe("Contact person on file")
+      expect(created.label).toBe("Notice of Award on file")
       expect(await stageConditionService.getForStage(stage.id)).toHaveLength(1)
     })
 
@@ -92,40 +92,40 @@ describe("stageConditionService", () => {
       const created = await stageConditionService.add(
         {
           stageId: stage.id,
-          kind: "field",
-          label: "Contact person on file",
+          kind: "attachment",
+          label: "Notice of Award on file",
           isRequired: true,
-          config: { column: "contact_person" },
+          config: { accepts: ["pdf"] },
         },
         admin.id,
       )
 
       expect(created).toMatchObject({
         stage_id: stage.id,
-        kind: "field",
-        label: "Contact person on file",
+        kind: "attachment",
+        label: "Notice of Award on file",
         is_required: true,
-        config: { column: "contact_person" },
+        config: { accepts: ["pdf"] },
       })
     })
 
-    // Issue #50: configurable like every other kind, no special validation.
-    it("lets a Super Admin add a project_evaluation condition, with an optional reference link", async () => {
-      const created = await stageConditionService.add(
-        {
-          stageId: stage.id,
-          kind: "project_evaluation",
-          label: "Go/no-go decided",
-          config: { referenceLink: "https://example.com/template" },
-        },
-        admin.id,
-      )
+    // Issue #203: Field on record and Project Evaluation are removed kinds —
+    // no longer offered for a *new* condition, though `update` and the
+    // evaluator still accept them on rows saved before this changed.
+    it("rejects field and project_evaluation for a new condition", async () => {
+      await expect(
+        stageConditionService.add(
+          { stageId: stage.id, kind: "field", label: "Contact person on file", config: { column: "contact_person" } },
+          admin.id,
+        ),
+      ).rejects.toThrow(/Kind must be one of/)
 
-      expect(created).toMatchObject({
-        kind: "project_evaluation",
-        label: "Go/no-go decided",
-        config: { referenceLink: "https://example.com/template" },
-      })
+      await expect(
+        stageConditionService.add(
+          { stageId: stage.id, kind: "project_evaluation", label: "Go/no-go decided" },
+          admin.id,
+        ),
+      ).rejects.toThrow(/Kind must be one of/)
     })
 
     it("defaults a new condition to required", async () => {
@@ -257,6 +257,74 @@ describe("stageConditionService", () => {
           admin.id,
         ),
       ).resolves.toBeTruthy()
+    })
+  })
+
+  describe("update", () => {
+    it("edits label, isRequired and config while the flow is a draft", async () => {
+      const condition = makeStageCondition({
+        stage_id: stage.id,
+        kind: "attachment",
+        label: "Old label",
+        is_required: false,
+        config: { accepts: [] },
+      })
+
+      const updated = await stageConditionService.update(
+        condition.id,
+        { label: "New label", isRequired: true, config: { accepts: ["pdf"] } },
+        admin.id,
+      )
+
+      expect(updated).toMatchObject({
+        label: "New label",
+        is_required: true,
+        config: { accepts: ["pdf"] },
+      })
+    })
+
+    it("refuses once the owning flow is no longer a draft", async () => {
+      const otherSaleType = makeSaleType()
+      const locked = makeSalesFlow({ sale_type_id: otherSaleType.id, state: "locked" })
+      const lockedStage = makeFlowStage({ flow_id: locked.id })
+      const condition = makeStageCondition({ stage_id: lockedStage.id, kind: "tickbox" })
+
+      await expect(
+        stageConditionService.update(condition.id, { label: "New label" }, admin.id),
+      ).rejects.toThrow(/read-only/)
+    })
+
+    it("refuses a kind change", async () => {
+      const condition = makeStageCondition({ stage_id: stage.id, kind: "tickbox" })
+
+      await expect(
+        stageConditionService.update(condition.id, { kind: "attachment" }, admin.id),
+      ).rejects.toThrow(/kind is fixed/)
+    })
+
+    it("notes the change on SORs sitting on that stage, the way add and archive already do", async () => {
+      const condition = makeStageCondition({ stage_id: stage.id, kind: "tickbox", label: "Old" })
+      const onStage = makeOpportunity({
+        registered_by: admin.id,
+        flow_stage_id: stage.id,
+        sale_type_id: saleType.id,
+        sales_reference: "S01001",
+      })
+
+      await stageConditionService.update(condition.id, { label: "New" }, admin.id)
+
+      const notes = db.rows("sales_opportunity_logs").filter((n) => n.opportunity_id === onStage.id)
+      expect(notes.some((n) => n.content.includes("New"))).toBe(true)
+    })
+
+    it("writes the audit log", async () => {
+      const condition = makeStageCondition({ stage_id: stage.id, kind: "tickbox", label: "Old" })
+
+      await stageConditionService.update(condition.id, { label: "New" }, admin.id)
+      await waitForNetworkIdle()
+
+      const entry = db.rows("system_audit_logs").find((e) => e.entity_id === condition.id)
+      expect(entry.metadata.event).toBe("STAGE_CONDITION_UPDATED")
     })
   })
 

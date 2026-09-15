@@ -764,7 +764,10 @@ describe("opportunityService", () => {
     })
 
     const flowPayload = (overrides = {}) => payload({ sale_type_id: saleType.id, ...overrides })
-    it("narrates a field condition the moment the save that satisfies it lands", async () => {
+    // Issue #203: field is a removed kind — it evaluates not_applicable
+    // regardless of the record, so saving the column it used to watch never
+    // narrates a satisfaction any more.
+    it("never narrates a field condition — it's a removed kind", async () => {
       makeStageCondition({
         stage_id: lead.id,
         kind: "field",
@@ -781,7 +784,7 @@ describe("opportunityService", () => {
       )
 
       const notes = await opportunityService.getNotes(created.id)
-      expect(notes.at(-1).content).toBe('Condition satisfied: "PO Date on file".')
+      expect(notes.some((n) => n.content.includes("Condition satisfied"))).toBe(false)
     })
 
     it("does not narrate a save that leaves the field condition unsatisfied", async () => {
@@ -1026,9 +1029,8 @@ describe("opportunityService", () => {
       it("lists the current Stage's live conditions with their status", async () => {
         makeStageCondition({
         stage_id: lead.id,
-          kind: "field",
-          label: "PO Date on file",
-          config: { column: "po_date" },
+          kind: "tickbox",
+          label: "Bid documents checked",
         })
         makeStageCondition({
         stage_id: lead.id,
@@ -1037,16 +1039,31 @@ describe("opportunityService", () => {
           config: { documentType: "NOA" },
         })
         makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        const checklist = await opportunityService.getStageChecklist(created.id)
+
+        const byLabel = Object.fromEntries(checklist.map((c) => [c.condition.label, c.status]))
+        expect(byLabel["Bid documents checked"]).toBe("unsatisfied")
+        expect(byLabel["Notice of Award"]).toBe("unsatisfied")
+      })
+
+      // Issue #203: field is a removed kind — not_applicable, so it never
+      // shows on the checklist at all, regardless of the record.
+      it("leaves out a field condition — it's a removed kind", async () => {
+        makeStageCondition({
+          stage_id: lead.id,
+          kind: "field",
+          label: "PO Date on file",
+          config: { column: "po_date" },
+        })
+        makeFlowSnapshot({ flow_id: flow.id })
         const created = await opportunityService.createOpportunity(
           flowPayload({ po_date: "2026-04-01" }),
           registrar.id,
         )
 
-        const checklist = await opportunityService.getStageChecklist(created.id)
-
-        const byLabel = Object.fromEntries(checklist.map((c) => [c.condition.label, c.status]))
-        expect(byLabel["PO Date on file"]).toBe("satisfied")
-        expect(byLabel["Notice of Award"]).toBe("unsatisfied")
+        expect(await opportunityService.getStageChecklist(created.id)).toHaveLength(0)
       })
 
       it("leaves out a deadline condition — it never blocks and has its own display surface", async () => {
@@ -1084,15 +1101,16 @@ describe("opportunityService", () => {
       it("flags a deal missing a required item, and leaves an unblocked one out of the result", async () => {
         makeStageCondition({
         stage_id: lead.id,
-          kind: "field",
-          label: "PO Date on file",
-          config: { column: "po_date" },
+          kind: "tickbox",
+          label: "Bid documents transmitted",
         })
         makeFlowSnapshot({ flow_id: flow.id })
         const blocked = await opportunityService.createOpportunity(flowPayload(), registrar.id)
         makeFlowSnapshot({ flow_id: flow.id })
-        const clear = await opportunityService.createOpportunity(
-          flowPayload({ po_date: "2026-04-01" }),
+        const clear = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+        await opportunityService.satisfyCondition(
+          clear.id,
+          (await opportunityService.getStageChecklist(clear.id))[0].condition.id,
           registrar.id,
         )
 
@@ -1101,16 +1119,34 @@ describe("opportunityService", () => {
           await opportunityService.getOpportunityById(clear.id),
         ])
 
-        expect(result[blocked.id].map((r) => r.label)).toEqual(["PO Date on file"])
+        expect(result[blocked.id].map((r) => r.label)).toEqual(["Bid documents transmitted"])
         expect(result[clear.id]).toBeUndefined()
       })
 
       it("does not flag a deal on an optional condition", async () => {
         makeStageCondition({
         stage_id: lead.id,
-          kind: "field",
+          kind: "tickbox",
           label: "Nice to have",
           is_required: false,
+        })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const created = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+
+        const result = await opportunityService.getBlockedDeals([
+          await opportunityService.getOpportunityById(created.id),
+        ])
+
+        expect(result[created.id]).toBeUndefined()
+      })
+
+      // Issue #203: field is a removed kind — not_applicable, so it never
+      // blocks regardless of the record.
+      it("does not flag a deal on a field condition — it's a removed kind", async () => {
+        makeStageCondition({
+          stage_id: lead.id,
+          kind: "field",
+          label: "PO Date on file",
           config: { column: "po_date" },
         })
         makeFlowSnapshot({ flow_id: flow.id })
@@ -1628,75 +1664,20 @@ describe("opportunityService", () => {
       })
     })
 
-    // Issue #50.
-    describe("a Stage requiring a Project Evaluation", () => {
-      it("blocks leaving the Stage until a Project Evaluation exists for the deal, naming it in the error", async () => {
+    // Issue #203: project_evaluation is a removed kind — an SOR still
+    // carrying one from before this shipped is never stranded by it, since
+    // it now evaluates not_applicable unconditionally.
+    describe("a Stage carrying a project_evaluation condition (removed kind)", () => {
+      it("never blocks leaving the Stage, with or without a Project Evaluation on record", async () => {
         makeStageCondition({
           stage_id: lead.id,
           kind: "project_evaluation",
           label: "Go/no-go decided",
         })
         const deal = await register()
-
-        let caught
-        try {
-          await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        } catch (err) {
-          caught = err
-        }
-
-        expect(caught?.isGateBlock).toBe(true)
-        expect(caught.missingConditions.map((m) => m.condition.label)).toContain(
-          "Go/no-go decided",
-        )
-        // The toast a blocked user actually sees reads err.message — it has to
-        // name the condition, not just say "required items missing".
-        expect(caught.message).toContain("Go/no-go decided")
-
-        const unchanged = await opportunityService.getOpportunityById(deal.id)
-        expect(unchanged.flow_stage_id).toBe(lead.id)
-      })
-
-      it("includes the condition's reference link in the blocked message, when configured", async () => {
-        makeStageCondition({
-          stage_id: lead.id,
-          kind: "project_evaluation",
-          label: "Go/no-go decided",
-          config: { referenceLink: "https://example.com/template" },
-        })
-        const deal = await register()
-
-        await expect(
-          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
-        ).rejects.toThrow(/https:\/\/example\.com\/template/)
-      })
-
-      it("passes once a Project Evaluation exists, whether or not it has been signed off", async () => {
-        makeStageCondition({
-          stage_id: lead.id,
-          kind: "project_evaluation",
-          label: "Go/no-go decided",
-        })
-        const deal = await register()
-        db.seed("sor_project_evaluations", { opportunity_id: deal.id })
 
         const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         expect(moved.flow_stage_id).toBe(qualified.id)
-      })
-
-      it("never blocks a deal already past the Stage a condition was added to — only the Stage being left is asked about", async () => {
-        const deal = await register()
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-
-        // Added to Lead only after the deal already left it.
-        makeStageCondition({
-          stage_id: lead.id,
-          kind: "project_evaluation",
-          label: "Go/no-go decided",
-        })
-
-        const moved = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        expect(moved.flow_stage_id).toBe(awarded.id)
       })
     })
 
@@ -1713,17 +1694,17 @@ describe("opportunityService", () => {
       })
 
       it("stays blocked by a condition removed from the live Stage after it registered", async () => {
-        makeStageCondition({ stage_id: lead.id, kind: "project_evaluation", label: "Go/no-go decided" })
+        makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Bid documents transmitted" })
         const deal = await register() // snapshot captures this condition
 
         const live = db.internal
           .rowsOf("stage_conditions")
-          .find((c) => c.stage_id === lead.id && c.label === "Go/no-go decided")
+          .find((c) => c.stage_id === lead.id && c.label === "Bid documents transmitted")
         live.archived_at = new Date().toISOString()
 
         await expect(
           opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
-        ).rejects.toThrow(/Go\/no-go decided/)
+        ).rejects.toThrow(/Bid documents transmitted/)
       })
 
       it("refuses to register against a Sale Type whose flow has never been locked", async () => {

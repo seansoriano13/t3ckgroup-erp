@@ -233,22 +233,22 @@ describe("OpportunityDetailsModal — Stage Checklist and moves (#199)", () => {
       owner.id,
     )
 
-  it("saves a Field on record condition without losing the Deal Owner or the Product List", async () => {
+  // Issue #203: Field on record is a removed condition kind — the checklist
+  // no longer renders an editable input for it at all (a `field` condition
+  // now evaluates not_applicable and getStageChecklist leaves it out).
+  // What used to be entered this way now belongs on the Fields tab's Stage
+  // Fields form (Q49's SOR-field write path, reusing #199's single-field
+  // write) — that form is not implemented in this pass (see PR notes); this
+  // test's own claim ("Field on record" renders and saves) is retired
+  // rather than left to assert dead UI.
+  it("no longer renders an input for a field condition — it's a removed kind", async () => {
     makeStageCondition({ stage_id: lead.id, kind: "field", label: "PO Date on file", config: { column: "po_date" } })
     makeFlowSnapshot({ flow_id: lead.flow_id })
     const deal = await register()
 
     renderWithProviders(<LiveModal id={deal.id} />)
-    const input = await screen.findByLabelText("PO Date on file")
-    expect(input).toHaveAttribute("type", "date")
-    fireEvent.change(input, { target: { value: "2026-04-09" } })
-    fireEvent.click(screen.getByRole("button", { name: "Save" }))
-
-    expect(await screen.findByText(/^Satisfied/)).toBeInTheDocument()
-    expect(screen.getByText("Stored Pumper")).toBeInTheDocument()
-    expect(screen.getAllByText("Ben Cruz").length).toBeGreaterThan(0)
-    const saved = await opportunityService.getOpportunityById(deal.id)
-    expect(saved).toMatchObject({ po_date: "2026-04-09", deal_owner_id: owner.id, expected_value: 100 })
+    await screen.findByText("Stored Pumper")
+    expect(screen.queryByLabelText("PO Date on file")).not.toBeInTheDocument()
   })
 
   it("shows the move's new task and the new Stage's checklist without reopening", async () => {
