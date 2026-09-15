@@ -1,0 +1,561 @@
+<title>Printed Costing Matrix</title>
+<!--
+  PROTOTYPE — throwaway. Ticket: Printed Costing Matrix (#229) on the IPAS/PMS map (#210).
+  Three variants of the printed Costing Matrix on one page, switchable with ?variant=A|B|C,
+  the floating bar, or the arrow keys. Sample data is the Emergency Response Vehicle sheet
+  shared 2026-09-14, with Final Acquire filled in so the summary computes.
+  Print idiom follows ADR 0014: composed HTML, Geist / Geist Mono / Spectral, name prints
+  where there is no stored signature.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+  /* ── tokens ─────────────────────────────────────────────────────────────
+     The desk (screen chrome) is theme-aware. The sheet is always white with
+     dark ink, because it is paper. */
+  :root {
+    --desk: #e7e3dc;
+    --desk-ink: #2c2a26;
+    --desk-soft: #6d685f;
+    --desk-edge: #cdc7bd;
+    --shadow: 0 1px 2px rgba(24, 22, 18, .16), 0 12px 28px rgba(24, 22, 18, .13);
+
+    --paper: #ffffff;
+    --ink: #16181c;
+    --ink-soft: #55606c;
+    --ink-faint: #8b95a1;
+    --rule: #c4c9d0;
+    --hair: #e4e7eb;
+    --wash: #f4f6f8;
+    --accent: #0d4f3c;          /* T3CK green — used for the money spine only */
+    --flag: #9d3218;            /* over ABC, deviates, missing */
+    --ok: #1f5c46;
+
+    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --desk: #1a1c20;
+      --desk-ink: #e8e6e1;
+      --desk-soft: #9aa0a8;
+      --desk-edge: #2f3339;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 14px 34px rgba(0, 0, 0, .45);
+    }
+  }
+  :root[data-theme="dark"] {
+    --desk: #1a1c20;
+    --desk-ink: #e8e6e1;
+    --desk-soft: #9aa0a8;
+    --desk-edge: #2f3339;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 14px 34px rgba(0, 0, 0, .45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--desk);
+    color: var(--desk-ink);
+    font-family: var(--sans);
+    font-size: 14px;
+  }
+
+  /* ── desk ── */
+  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 22px; }
+  .desk-head { width: min(1180px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+  .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 62ch; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+
+  /* ── paper ── */
+  .sheet {
+    width: 297mm; min-height: 210mm; padding: 11mm 12mm 10mm;
+    background: var(--paper); color: var(--ink);
+    box-shadow: var(--shadow);
+    display: flex; flex-direction: column; gap: 6mm;
+    font-size: 8.6pt; line-height: 1.32;
+  }
+  .sheet.portrait { width: 210mm; min-height: 297mm; }
+  @media (max-width: 1240px) { .desk { align-items: flex-start; } .sheet { transform-origin: top left; } }
+
+  /* ── sheet furniture ── */
+  .rail { display: flex; align-items: flex-end; gap: 10px; border-bottom: 1.4px solid var(--ink); padding-bottom: 5px; }
+  .rail .mark { width: 22px; height: 22px; color: var(--accent); flex: none; }
+  .rail .mark svg { width: 100%; height: 100%; display: block; }
+  .rail .org { font-size: 7.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
+  .rail .org b { display: block; font-size: 10pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .doc { margin-left: auto; text-align: right; }
+  .rail .doc .t { font-family: var(--serif); font-size: 15pt; font-weight: 600; line-height: 1; }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.4pt; color: var(--ink-soft); letter-spacing: .04em; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 3px 22px; }
+  .fact { display: flex; flex-direction: column; gap: 1px; }
+  .fact .k { font-size: 6.6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+  .fact .v { font-size: 9pt; font-weight: 500; }
+  .fact .v.m { font-family: var(--mono); font-weight: 400; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; vertical-align: top; padding: 3.2px 5px; }
+  thead th { font-size: 6.5pt; letter-spacing: .085em; text-transform: uppercase; color: var(--ink-soft); font-weight: 600; border-bottom: 1px solid var(--ink); white-space: nowrap; }
+  thead th.num, td.num { text-align: right; font-family: var(--mono); }
+  thead tr.band th { font-size: 6pt; color: var(--ink-faint); letter-spacing: .12em; border-bottom: 0; padding-bottom: 0; font-weight: 500; }
+  tbody tr { border-bottom: 1px solid var(--hair); }
+  tbody tr.line { border-bottom: 1px solid var(--rule); }
+  tbody tr.line td { padding-top: 6px; font-weight: 600; }
+  tbody tr.line td.no { font-family: var(--mono); font-weight: 500; }
+  td.num { font-size: 8.4pt; }
+  td.spec { max-width: 62mm; }
+  .sub { color: var(--ink-soft); font-size: 7.2pt; }
+  .m { font-family: var(--mono); }
+  .cont { color: var(--ink-faint); font-size: 6.8pt; font-style: italic; }
+
+  .chip { display: inline-block; font-size: 6.4pt; letter-spacing: .07em; text-transform: uppercase; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-soft); }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, var(--rule)); }
+  .chip.flag { color: var(--flag); border-color: color-mix(in srgb, var(--flag) 40%, var(--rule)); }
+  .chip.prov { color: var(--ink-faint); border-style: dashed; }
+
+  .incl { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px 12px; padding: 4px 5px 7px 22px; }
+  .incl .i { font-size: 7.2pt; display: flex; gap: 5px; align-items: baseline; }
+  .incl .i i { font-style: normal; width: 7px; color: var(--ink-faint); }
+  .incl .i.missing { color: var(--flag); }
+  .incl .i.missing i { color: var(--flag); }
+  .incl-h { font-size: 6.6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); padding: 5px 5px 0 22px; }
+
+  /* summary */
+  .close { display: grid; grid-template-columns: 1fr 78mm; gap: 8mm; align-items: start; margin-top: auto; }
+  .totals { border-top: 1.4px solid var(--ink); padding-top: 5px; }
+  .totrow { display: flex; justify-content: space-between; gap: 12px; padding: 2.4px 0; border-bottom: 1px solid var(--hair); font-size: 8.4pt; }
+  .totrow .k { color: var(--ink-soft); }
+  .totrow .v { font-family: var(--mono); }
+  .totrow.strong { border-bottom: 0; border-top: 1px solid var(--ink); margin-top: 3px; padding-top: 5px; font-weight: 600; font-size: 9.6pt; }
+  .totrow.strong .k { color: var(--ink); }
+  .note { font-size: 7pt; color: var(--ink-faint); margin-top: 5px; }
+
+  .spine { border-left: 2px solid var(--accent); padding-left: 8px; display: flex; flex-direction: column; gap: 7px; }
+  .spine .big { font-family: var(--mono); font-size: 17pt; line-height: 1; letter-spacing: -.02em; }
+  .spine .big em { font-style: normal; font-size: 8pt; color: var(--ink-soft); display: block; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; }
+  .gauge { display: flex; gap: 10px; }
+  .gauge .g { flex: 1; }
+  .gauge .g .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
+  .gauge .g .v { font-family: var(--mono); font-size: 10pt; }
+  .bar { height: 5px; background: var(--wash); border: 1px solid var(--hair); position: relative; margin-top: 3px; }
+  .bar span { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+  .bar b { position: absolute; top: -3px; bottom: -3px; width: 1.5px; background: var(--flag); }
+
+  /* signatures — ADR 0014: the name prints where there is no stored signature */
+  .sigs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7mm; padding-top: 3mm; }
+  .sig .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+  .sig .plate { height: 13mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 11pt; }
+  .sig .who { font-size: 8pt; font-weight: 500; margin-top: 3px; }
+  .sig .role { font-size: 6.8pt; color: var(--ink-soft); }
+  .sig .stamp { font-family: var(--mono); font-size: 6.4pt; color: var(--ink-faint); margin-top: 2px; }
+  .sig.awaiting .plate { border-bottom-style: dashed; }
+  .sig.awaiting .stamp { color: var(--flag); }
+
+  .foot { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.6pt; color: var(--ink-faint); font-family: var(--mono); }
+
+  /* ── B: tender-line blocks ── */
+  .block { border: 1px solid var(--rule); display: grid; grid-template-columns: 82mm 1fr 52mm; }
+  .block + .block { margin-top: 5mm; }
+  .ask { padding: 6px 8px; border-right: 1px solid var(--rule); background: var(--wash); }
+  .ask .no { font-family: var(--mono); font-size: 7.4pt; color: var(--ink-soft); }
+  .ask h3 { font-family: var(--serif); font-size: 12pt; margin: 1px 0 4px; font-weight: 600; }
+  .ask .specbody { font-size: 7.3pt; line-height: 1.45; column-count: 1; }
+  .ask .specbody li { margin-bottom: 1px; }
+  .ask ul { margin: 0; padding-left: 12px; }
+  .supply { padding: 4px 0; }
+  .margin-strip { border-left: 1px solid var(--rule); padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; }
+  .margin-strip .k { font-size: 6.4pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
+  .margin-strip .v { font-family: var(--mono); font-size: 11pt; }
+  .margin-strip .v small { font-size: 7pt; color: var(--ink-soft); }
+
+  /* ── C: two-part ── */
+  .mgmt { display: grid; grid-template-columns: 1fr; gap: 5mm; }
+  .mgmt table td.num { font-size: 9pt; }
+  .appendix h3 { font-family: var(--serif); font-size: 11pt; margin: 0 0 2px; }
+  .appendix .entry { border-top: 1px solid var(--rule); padding: 4px 0 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
+  .appendix .entry .col .h { font-size: 6.5pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 2px; }
+  .appendix .entry .col ul { margin: 0; padding-left: 12px; font-size: 7.4pt; line-height: 1.45; }
+  .verdict { font-size: 7.6pt; margin-top: 4px; padding: 4px 6px; background: var(--wash); border-left: 2px solid var(--flag); }
+
+  /* ── switcher ── */
+  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; align-items: stretch; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); font-family: var(--sans); overflow: hidden; }
+  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .switcher button:hover { background: rgba(255,255,255,.12); }
+  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
+  .switcher .label { padding: 9px 6px; display: flex; flex-direction: column; justify-content: center; min-width: 210px; text-align: center; }
+  .switcher .label b { font-size: 13px; font-weight: 600; }
+  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #9aa4ae; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+  @media print {
+    @page { size: A4 landscape; margin: 0; }
+    body { background: #fff; }
+    .desk { padding: 0; gap: 0; }
+    .desk-head, .switcher { display: none !important; }
+    .sheet { box-shadow: none; page-break-after: always; }
+    .sheet.portrait { width: 297mm; }
+  }
+  @media (max-width: 820px) {
+    .sheet { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
+    .sheet.portrait { width: 100%; }
+    .close, .block, .appendix .entry { grid-template-columns: 1fr; }
+    .sigs { grid-template-columns: repeat(2, 1fr); }
+    .incl { grid-template-columns: repeat(2, 1fr); }
+    .switcher .label { min-width: 120px; }
+    table { font-size: 10px; }
+  }
+</style>
+
+<div class="desk">
+  <div class="desk-head">
+    <h1>Printed Costing Matrix</h1>
+    <span class="tag">prototype · #229</span>
+    <p>Three ways to put one SOR's costing on paper. Sample data is the Emergency Response Vehicle sheet, with Final Acquire filled in so the summary computes. Flip with the bar below, the arrow keys, or <code>?variant=</code>. Ctrl/Cmd&#8209;P prints the variant on screen.</p>
+  </div>
+  <div id="stage"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button type="button" id="prev" aria-label="Previous variant">&#8592;</button>
+  <div class="label"><b id="vname">Ledger</b><span id="vkey">Variant A</span></div>
+  <button type="button" id="next" aria-label="Next variant">&#8594;</button>
+</div>
+
+<script>
+// ── sample data ────────────────────────────────────────────────────────────
+const MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="204 177 650 550" role="img" aria-label="T3CKGROUP"><path d="M492.51 240.23C492.91 240.97 492.53 241.46 493.45 241.96C495.1 242.87 508.27 242.24 511.06 242.25C530.08 242.31 549.09 242.16 568.11 242.18C632.01 242.23 695.92 241.89 759.82 242.13C776.65 242.2 793.48 242.21 810.32 242.1C815 242.06 825.21 243.53 828.76 240.84C827.84 246.58 824.24 252.21 821.99 257.65C818.53 266.04 815.56 274.69 811.94 283.01C810.26 286.89 808.16 290.61 806.56 294.54C803.77 301.39 801.24 311.91 796.63 317.49C783.01 318.59 768.84 317.65 755.14 317.69C723.03 317.81 690.93 317.84 658.82 317.86C646.35 317.87 633.89 317.91 621.41 317.76C616.52 317.7 609.38 316.33 605.07 318.83C604.78 318.34 604.89 317.74 604.27 317.47C601.72 316.35 592.79 317.18 589.62 317.17C573.46 317.1 557.13 316.8 540.99 317.41C536.8 322.42 533.82 334.35 531.05 340.78C523.06 359.37 515.47 378.12 507.47 396.71C481.23 457.69 456.33 519.24 430.24 580.29C421.53 600.69 413.65 621.47 404.6 641.72C402.45 646.53 400.62 651.4 398.71 656.3C397.7 658.9 395.97 661.24 397.25 663.89C393.14 666.46 390.6 676.47 388.83 681.11C385.64 689.5 381.65 697.57 378.03 705.78C375.49 711.54 373.63 717.62 370.79 723.25C365.75 725.3 347.54 723.73 340.87 723.88C315.32 724.44 289.73 723.89 264.18 724.01C255.77 724.05 247.34 724.23 238.93 723.92C235.16 723.79 231.02 724.32 227.71 722.63C230.5 711.05 236.9 699.94 241.56 688.99C249.35 670.7 256.43 652.17 264.02 633.8C266.89 626.84 270.49 620.14 273.23 613.1C284.71 583.5 297.33 554.43 309.77 525.28C312.42 519.08 314.42 512.64 316.93 506.4C327.26 480.73 338.3 455.39 349.01 429.88C359.88 404.01 370.86 378.38 380.76 352.27C383.69 344.54 387.52 337.09 390.69 329.45C392.12 326 394.34 321.91 394.17 318.2C331.83 317.92 269.48 317.63 207.14 317.35C206.03 311.02 212.64 300.35 215.18 294.14C217.67 288.1 219.6 281.8 222.05 275.74C224.43 269.82 227.36 264.17 229.63 258.18C231.65 252.84 233.51 247.21 236.13 242.14C242.42 240.59 251.87 241.78 258.59 241.81C272.61 241.89 286.62 241.7 300.65 241.8C342.69 242.1 384.73 241.45 426.76 241.73C442.69 241.84 458.64 241.36 474.57 241.7C478.85 241.79 489.82 243.24 492.51 240.23Z" fill="currentColor" fill-rule="evenodd"/><path opacity="0.28" d="M828.76 240.84C825.21 243.53 815 242.06 810.32 242.1C793.48 242.21 776.65 242.2 759.82 242.13C695.92 241.89 632.01 242.23 568.11 242.18C549.09 242.16 530.08 242.31 511.06 242.25C508.27 242.24 495.1 242.87 493.45 241.96C492.53 241.46 492.91 240.97 492.51 240.23C500.61 220.47 508.71 200.71 516.81 180.95C524.58 179.21 533.93 180.14 541.93 180.4C556.17 180.85 570.7 180.72 584.94 180.32C614.79 179.48 644.84 180.26 674.72 180.34C695.29 180.4 715.88 179.8 736.44 180.27C752.02 180.63 767.62 180.15 783.2 180.15C793.79 180.14 804.4 180.58 814.99 180.34C822.76 180.17 830.58 180.34 838.37 180.36C842.94 180.36 847.72 179.87 852.12 180.95C844.33 200.92 836.55 220.88 828.76 240.84ZM605.07 318.83C576.23 388.45 547.39 458.07 518.55 527.68C534.13 527.72 549.72 527.76 565.3 527.79C568.37 523.1 569.67 517.56 571.84 512.42C576.39 501.68 580.45 490.7 585.2 480.03C587.65 474.52 594.61 460.14 594.41 454.96C587.82 454.96 581.24 454.96 574.65 454.96C574.58 454.32 574.14 453.75 574.14 453.11C574.13 451.53 575.78 449.23 576.37 447.76C578.65 442.06 581.04 434.46 584.94 429.83C586.97 429.64 588.99 429.45 591.02 429.25C591.18 429.57 591.33 429.89 591.49 430.2C593.36 430.22 595.23 430.23 597.1 430.25C597.26 429.92 597.41 429.58 597.57 429.25C597.88 429.25 598.19 429.25 598.5 429.24C598.66 429.59 598.81 429.94 598.97 430.28C603.96 430.26 608.94 430.23 613.93 430.21C614.09 429.91 614.24 429.62 614.4 429.32C614.71 429.32 615.02 429.32 615.34 429.32C619.05 431.68 633.1 430.27 638.25 430.22C657.88 430.05 677.53 430.23 697.16 430.25C702.49 430.25 717.29 431.76 721.01 429.17C730.59 429.66 740.17 430.15 749.75 430.64C719.13 508.31 688.51 585.97 657.88 663.64C571.01 663.72 484.13 663.8 397.25 663.89C395.97 661.24 397.7 658.9 398.71 656.3C400.62 651.4 402.45 646.53 404.6 641.72C413.65 621.47 421.53 600.69 430.24 580.29C456.33 519.24 481.23 457.69 507.47 396.71C515.47 378.12 523.06 359.37 531.05 340.78C533.82 334.35 536.8 322.42 540.99 317.41C557.13 316.8 573.46 317.1 589.62 317.17C592.79 317.18 601.72 316.35 604.27 317.47C604.89 317.74 604.78 318.34 605.07 318.83Z" fill="currentColor" fill-rule="evenodd"/></svg>';
+
+const peso = n => n == null ? '—' : '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pesoK = n => n == null ? '—' : '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 0 });
+
+const VEHICLE_SPEC = [
+  'Brand new Toyota Hiace Commuter 3.0 diesel, manual transmission',
+  'Wheelbase not less than 3,110 mm; GVW not less than 3,000 kg',
+  'Seating for driver plus two attendants, forward facing',
+  'Patient compartment height not less than 1,300 mm',
+  'Ambulance conversion with insulated, washable interior lining',
+  'Main stretcher with floor-mounted locking system',
+  'Oxygen system with two cylinders, regulators and wall outlets',
+  'Interior LED lighting, 12V, minimum 300 lux over the stretcher',
+  'Roof-mounted beacon with public address and siren, minimum 100 W',
+  '24-hour battery isolation with dual-battery charging',
+  'Complete decals per LGU and MDRRMO standard',
+  'LTO registration in the name of the end user',
+  'One year comprehensive insurance, GSIS accredited'
+];
+
+const INCLUSIONS = [
+  ['Custom Cabinet', 'ok'], ['Rear Seats with Storage', 'ok'], ['Partition', 'ok'], ['Grab Rail', 'ok'],
+  ['Interior Light', 'ok'], ['Fire Extinguisher', 'ok'], ['Aluminum Chequered Plate', 'ok'], ['Rear Bumper Protector', 'ok'],
+  ['Door Trim Cover', 'ok'], ['IV Holder', 'ok'], ['Oxygen Tank Bracket', 'ok'], ['Beacon Lights', 'missing'],
+  ['Assist Grip', 'ok'], ['Compartment Backup Spine Board', 'ok'], ['Siren with PA System', 'ok'], ['Basic Decals', 'ok'],
+  ['Full Set MDRRMO &amp; LGU Sticker Logo', 'ok'], ['LTO Registration', 'ok'], ['GSIS Comprehensive Insurance', 'ok']
+];
+
+const D = {
+  ref: 'S07983', project: 'Supply and Delivery of One (1) Unit Emergency Response Vehicle',
+  client: 'Palmer Asia Inc', entity: 'TG Enterprise', version: 'v4', printed: '15 Sep 2026 14:20',
+  target: 1.47,
+  tender: {
+    no: '1', name: 'Emergency Response Vehicle', unit: 'unit', qty: 1,
+    abcUnit: 3200000, abc: 3200000, offer: 2980000, spec: VEHICLE_SPEC
+  },
+  components: [
+    { no: '1.1', name: 'Ambulance Commuter 3.0', brand: 'Toyota', status: 'Source Out', avail: 'Available', source: 'Local',
+      po: 'P02574', qty: 1, acquire: 2160500, odoo: null, finalAcquire: 2160500, factor: 1.47, compliance: 'Complies',
+      bundle: true, offerSpec: 'Toyota Hiace Commuter 3.0 MT, converted ambulance, 13-point build as listed, delivered registered and insured.' },
+    { no: '1.2', name: 'Ambulance Folding Stretcher', brand: 'Redleaf', status: 'Stockable', avail: 'For Order', source: 'Import',
+      po: 'P02445', qty: 1, acquire: 78000, odoo: 71400, finalAcquire: 78000, factor: 1.35, compliance: 'Deviates',
+      note: 'Offered RL&#8209;FS190 is 1,900 mm; the tender asks for not less than 2,000 mm. Redleaf RL&#8209;FS200 recommended, +₱9,400.',
+      offerSpec: 'Redleaf RL-FS190 aluminium folding stretcher, 1,900 × 550 mm, 159 kg load, with restraint straps.' }
+  ],
+  costOnly: [{ no: 'C1', name: 'Delivery Charge', acquire: 100000, finalAcquire: 100000, factor: 1.00 }],
+  sigs: [
+    { k: 'Prepared by', who: 'R. Mendoza', role: 'Sales · incharge 408', stamp: 'signed 12 Sep 2026', printed: true },
+    { k: 'Costed by', who: 'J. Bautista', role: 'Purchasing · incharge 114', stamp: 'signed 13 Sep 2026', printed: true },
+    { k: 'Evaluation approved', who: 'A. Dela Cruz', role: 'Purchasing Manager · 1001', stamp: 'signed 14 Sep 2026', printed: false },
+    { k: 'Final Acquire &amp; offer approved', who: 'M. Ramos', role: 'General Manager · 101', stamp: 'Signature required', awaiting: true }
+  ]
+};
+
+// ── derived figures, exactly as the summary decision computes them ─────────
+const acquireTotal = D.components.reduce((s, c) => s + c.acquire * c.qty, 0);
+const faComponents = D.components.reduce((s, c) => s + c.finalAcquire * c.qty, 0);
+const faCostOnly = D.costOnly.reduce((s, r) => s + r.finalAcquire, 0);
+const finalAcquireTotal = faComponents + faCostOnly;
+const offer = D.tender.offer;
+const F = {
+  acquireTotal, finalAcquireTotal,
+  vatEx: offer / 1.12, tax: offer * 0.06, retention: offer * 0.01,
+  collected: offer - offer * 0.06 - offer * 0.01,
+  itr: (offer - 250000) * 0.08,
+  get revenue() { return (offer - finalAcquireTotal) - this.itr; },
+  achievedLine: offer / faComponents,
+  achievedAll: offer / finalAcquireTotal,
+  abcUse: offer / D.tender.abc
+};
+const markupPrice = c => c.acquire * c.factor;
+
+// ── shared furniture ──────────────────────────────────────────────────────
+const rail = sub => `
+  <div class="rail">
+    <span class="mark">${MARK}</span>
+    <span class="org"><b>T3CKGROUP</b>${D.entity} · purchasing</span>
+    <span class="doc"><div class="t">Costing Matrix</div><div class="s">${D.ref} · ${D.version} · ${sub}</div></span>
+  </div>`;
+
+const facts = () => `
+  <div class="facts">
+    <div class="fact"><span class="k">Client</span><span class="v">${D.client}</span></div>
+    <div class="fact"><span class="k">Project</span><span class="v">${D.project}</span></div>
+    <div class="fact"><span class="k">ABC</span><span class="v m">${pesoK(D.tender.abc)}</span></div>
+    <div class="fact"><span class="k">Target markup</span><span class="v m">×${D.target.toFixed(2)}</span></div>
+    <div class="fact"><span class="k">Incharge</span><span class="v">408 sales · 114 purchasing</span></div>
+  </div>`;
+
+const sigs = () => `<div class="sigs">${D.sigs.map(s => `
+  <div class="sig${s.awaiting ? ' awaiting' : ''}">
+    <div class="k">${s.k}</div>
+    <div class="plate">${s.awaiting ? '' : (s.printed ? `<span class="printed">${s.who}</span>` : '')}</div>
+    <div class="who">${s.who}</div>
+    <div class="role">${s.role}</div>
+    <div class="stamp">${s.awaiting ? 'Signature required' : (s.printed ? s.stamp : 'name printed · no stored signature · ' + s.stamp)}</div>
+  </div>`).join('')}</div>`;
+
+const foot = page => `<div class="foot"><span>${D.ref} · Costing Matrix ${D.version} · printed ${D.printed}</span><span>Landed Cost provisional until purchasing marks costs complete</span><span>${page}</span></div>`;
+
+const summaryRows = () => `
+  <div class="totals">
+    <div class="totrow"><span class="k">Total offer</span><span class="v">${peso(offer)}</span></div>
+    <div class="totrow"><span class="k">Less VAT 12%</span><span class="v">${peso(F.vatEx)}</span></div>
+    <div class="totrow"><span class="k">Less tax 6%</span><span class="v">${peso(F.tax)}</span></div>
+    <div class="totrow"><span class="k">Retention 1%</span><span class="v">${peso(F.retention)}</span></div>
+    <div class="totrow"><span class="k">Collected amount</span><span class="v">${peso(F.collected)}</span></div>
+    <div class="totrow"><span class="k">Operational expenses <span class="sub">(final acquire)</span></span><span class="v">${peso(F.finalAcquireTotal)}</span></div>
+    <div class="totrow"><span class="k">Marketing</span><span class="v">${peso(0)}</span></div>
+    <div class="totrow"><span class="k">OPEX</span><span class="v">${peso(0)}</span></div>
+    <div class="totrow"><span class="k">ITR <span class="sub">(offer less ₱250,000, at 8%)</span></span><span class="v">${peso(F.itr)}</span></div>
+    <div class="totrow strong"><span class="k">Revenue</span><span class="v">${peso(F.revenue)}</span></div>
+  </div>
+  <div class="note">Every figure on this sheet is the bid estimate. Landed Cost replaces nothing: it prints beside these once the purchases are made.</div>`;
+
+const spine = () => `
+  <div class="spine">
+    <div class="big"><em>Final offer</em>${pesoK(offer)}</div>
+    <div class="gauge">
+      <div class="g"><div class="k">Against ABC</div><div class="v">${(F.abcUse * 100).toFixed(1)}%</div>
+        <div class="bar"><span style="width:${(F.abcUse * 100).toFixed(1)}%"></span><b style="left:100%"></b></div></div>
+    </div>
+    <div class="gauge">
+      <div class="g"><div class="k">Markup target</div><div class="v">×${D.target.toFixed(2)}</div></div>
+      <div class="g"><div class="k">Achieved</div><div class="v">×${F.achievedAll.toFixed(2)}</div></div>
+    </div>
+    <div class="gauge">
+      <div class="g"><div class="k">Final acquire</div><div class="v">${pesoK(F.finalAcquireTotal)}</div></div>
+      <div class="g"><div class="k">Revenue</div><div class="v">${pesoK(F.revenue)}</div></div>
+    </div>
+  </div>`;
+
+// ── Variant A — Ledger: the sheet as it is, one wide grid ──────────────────
+function variantA() {
+  const compRow = c => `
+    <tr>
+      <td class="no m">${c.no}</td>
+      <td class="spec"><b>${c.name}</b><div class="sub">${c.offerSpec}</div>
+        <div class="sub">${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : '<span class="chip flag">deviates</span> ' + c.note}</div></td>
+      <td>${c.brand}<div class="sub">${c.status} · ${c.avail} · ${c.source}</div></td>
+      <td class="m">${c.po}</td>
+      <td class="num">${peso(c.acquire)}</td>
+      <td class="num">${c.odoo ? peso(c.odoo) : '—'}</td>
+      <td class="num">×${c.factor.toFixed(2)}<div class="sub m">${pesoK(markupPrice(c))}</div></td>
+      <td class="num">${peso(c.finalAcquire)}</td>
+      <td class="num"><span class="chip prov">awaiting purchase</span></td>
+    </tr>`;
+
+  return `<div class="sheet">
+    ${rail('ledger')}
+    ${facts()}
+    <table>
+      <thead>
+        <tr class="band"><th colspan="3">Client / Sales</th><th>Purchasing</th><th colspan="2">Purchasing</th><th>Automatic</th><th>Management</th><th>After purchase</th></tr>
+        <tr><th>No.</th><th>Specification</th><th>Brand &amp; sourcing</th><th>P.O. / RFQ</th><th class="num">Acquire</th><th class="num">Odoo</th><th class="num">Markup</th><th class="num">Final acquire</th><th class="num">Landed cost</th></tr>
+      </thead>
+      <tbody>
+        <tr class="line">
+          <td class="no">${D.tender.no}</td>
+          <td class="spec"><b>${D.tender.name}</b> · ${D.tender.qty} ${D.tender.unit}
+            <div class="sub">${D.tender.spec.slice(0, 3).join(' · ')}</div>
+            <div class="cont">+ ${D.tender.spec.length - 3} more specification lines, in full on the appendix</div></td>
+          <td colspan="2"><span class="chip">ABC ${pesoK(D.tender.abc)}</span></td>
+          <td class="num">${peso(acquireTotal)}</td>
+          <td class="num">—</td>
+          <td class="num">×${F.achievedLine.toFixed(2)} <span class="sub">achieved</span></td>
+          <td class="num">${peso(faComponents)}</td>
+          <td class="num"><b>${pesoK(offer)}</b><div class="sub">final offer</div></td>
+        </tr>
+        ${D.components.map(compRow).join('')}
+      </tbody>
+    </table>
+    <div>
+      <div class="incl-h">Included with 1.1 · checked at bid time · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
+      <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+    </div>
+    <table>
+      <tbody>
+        ${D.costOnly.map(r => `<tr><td class="no m">${r.no}</td><td class="spec"><b>${r.name}</b><div class="sub">cost only — no specification, no offer line</div></td>
+        <td colspan="2"></td><td class="num">${peso(r.acquire)}</td><td class="num">—</td><td class="num">×${r.factor.toFixed(2)}</td><td class="num">${peso(r.finalAcquire)}</td><td class="num">—</td></tr>`).join('')}
+      </tbody>
+    </table>
+    <div class="close">
+      <div>${sigs()}</div>
+      <div>${summaryRows()}</div>
+    </div>
+    ${foot('sheet 1 of 1')}
+  </div>`;
+}
+
+// ── Variant B — one block per tender line, spec in full ────────────────────
+function variantB() {
+  return `<div class="sheet">
+    ${rail('by tender line')}
+    ${facts()}
+    <div class="block">
+      <div class="ask">
+        <div class="no">Tender line ${D.tender.no} · ${D.tender.qty} ${D.tender.unit} · ABC ${pesoK(D.tender.abc)}</div>
+        <h3>${D.tender.name}</h3>
+        <div class="specbody"><ul>${D.tender.spec.map(s => `<li>${s}</li>`).join('')}</ul></div>
+      </div>
+      <div class="supply">
+        <table>
+          <thead><tr><th>No.</th><th>What we supply</th><th>Brand &amp; sourcing</th><th class="num">Acquire</th><th class="num">Markup</th><th class="num">Final acquire</th></tr></thead>
+          <tbody>
+            ${D.components.map(c => `<tr>
+              <td class="no m">${c.no}</td>
+              <td class="spec"><b>${c.name}</b><div class="sub">${c.offerSpec}</div>
+                ${c.compliance === 'Complies' ? '<span class="chip ok">complies</span>' : `<span class="chip flag">deviates</span> <span class="sub">${c.note}</span>`}</td>
+              <td>${c.brand}<div class="sub">${c.status} · ${c.source} · PO ${c.po}</div></td>
+              <td class="num">${peso(c.acquire)}</td>
+              <td class="num">×${c.factor.toFixed(2)}<div class="sub m">${pesoK(markupPrice(c))}</div></td>
+              <td class="num">${peso(c.finalAcquire)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="incl-h">Included with 1.1 · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
+        <div class="incl">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+      </div>
+      <div class="margin-strip">
+        <div><div class="k">Final offer</div><div class="v">${pesoK(offer)}</div></div>
+        <div><div class="k">Cost of this line</div><div class="v">${pesoK(faComponents)}</div></div>
+        <div><div class="k">Markup achieved</div><div class="v">×${F.achievedLine.toFixed(2)} <small>vs ×${D.target.toFixed(2)}</small></div></div>
+        <div><div class="k">Against ABC</div><div class="v">${(F.abcUse * 100).toFixed(1)}%<div class="bar"><span style="width:${(F.abcUse * 100).toFixed(1)}%"></span><b style="left:100%"></b></div></div></div>
+        <div><div class="k">Landed cost</div><div class="v"><span class="chip prov">awaiting purchase</span></div></div>
+      </div>
+    </div>
+    <div class="block">
+      <div class="ask"><div class="no">Cost only</div><h3>Charges outside the tender lines</h3>
+        <div class="specbody">Carried in the totals and the summary, and in no single line's margin.</div></div>
+      <div class="supply"><table><tbody>
+        ${D.costOnly.map(r => `<tr><td class="no m">${r.no}</td><td class="spec"><b>${r.name}</b></td><td class="num">${peso(r.acquire)}</td><td class="num">×${r.factor.toFixed(2)}</td><td class="num">${peso(r.finalAcquire)}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="margin-strip"><div><div class="k">Cost-only total</div><div class="v">${pesoK(faCostOnly)}</div></div></div>
+    </div>
+    <div class="close">
+      <div>${sigs()}</div>
+      <div>${summaryRows()}</div>
+    </div>
+    ${foot('sheet 1 of 1')}
+  </div>`;
+}
+
+// ── Variant C — management sheet, then the specification appendix ──────────
+function variantC() {
+  const page1 = `<div class="sheet">
+    ${rail('management sheet')}
+    ${facts()}
+    <div class="close" style="margin-top:0">
+      <div class="mgmt">
+        <table>
+          <thead><tr><th>No.</th><th>Tender line</th><th class="num">ABC</th><th class="num">Acquire</th><th class="num">Final acquire</th><th class="num">Final offer</th><th class="num">Achieved</th></tr></thead>
+          <tbody>
+            <tr class="line"><td class="no">${D.tender.no}</td><td>${D.tender.name} <span class="sub">· ${D.components.length} components, ${INCLUSIONS.length} inclusions</span></td>
+              <td class="num">${peso(D.tender.abcUnit)}</td><td class="num">${peso(acquireTotal)}</td><td class="num">${peso(faComponents)}</td>
+              <td class="num">${peso(offer)}</td><td class="num">×${F.achievedLine.toFixed(2)}</td></tr>
+            ${D.costOnly.map(r => `<tr><td class="no m">${r.no}</td><td>${r.name} <span class="sub">· cost only</span></td><td class="num">—</td><td class="num">${peso(r.acquire)}</td><td class="num">${peso(r.finalAcquire)}</td><td class="num">—</td><td class="num">×${r.factor.toFixed(2)}</td></tr>`).join('')}
+          </tbody>
+        </table>
+        <div class="verdict" style="border-left-color:var(--ok)">
+          <b>One deviation to accept or price out.</b> Component 1.2 offers a 1,900 mm stretcher against a 2,000 mm requirement; the compliant model adds ₱9,400 and would take the achieved markup to ×${(offer / (faComponents + 9400)).toFixed(2)}. One inclusion, the beacon lights, is still missing from the bundle.
+        </div>
+        ${sigs()}
+      </div>
+      <div>${spine()}${summaryRows()}</div>
+    </div>
+    ${foot('sheet 1 of 2 · money')}
+  </div>`;
+
+  const page2 = `<div class="sheet appendix">
+    ${rail('specification appendix')}
+    <h3>Tender line ${D.tender.no} · ${D.tender.name}</h3>
+    ${D.components.map(c => `
+      <div class="entry">
+        <div class="col">
+          <div class="h">What the client asked for</div>
+          <ul>${(c.bundle ? D.tender.spec : ['Folding stretcher, not less than 2,000 mm, aluminium, with restraint straps']).map(s => `<li>${s}</li>`).join('')}</ul>
+        </div>
+        <div class="col">
+          <div class="h">${c.no} · what we offer · ${c.brand}</div>
+          <ul><li>${c.offerSpec}</li><li>${c.status} · ${c.avail} · ${c.source} · PO ${c.po}</li></ul>
+          ${c.compliance === 'Complies'
+            ? '<div class="verdict" style="border-left-color:var(--ok)"><span class="chip ok">complies</span> Judged against the full specification above.</div>'
+            : `<div class="verdict"><span class="chip flag">deviates</span> ${c.note}</div>`}
+        </div>
+      </div>`).join('')}
+    <div>
+      <div class="incl-h" style="padding-left:0">Inclusions checked against the ask · ${INCLUSIONS.filter(i => i[1] === 'ok').length} of ${INCLUSIONS.length} covered</div>
+      <div class="incl" style="padding-left:0">${INCLUSIONS.map(i => `<span class="i ${i[1] === 'missing' ? 'missing' : ''}"><i>${i[1] === 'missing' ? '✗' : '✓'}</i>${i[0]}</span>`).join('')}</div>
+    </div>
+    ${foot('sheet 2 of 2 · specifications')}
+  </div>`;
+
+  return page1 + page2;
+}
+
+// ── switcher ──────────────────────────────────────────────────────────────
+const VARIANTS = [
+  { key: 'A', name: 'Ledger', render: variantA },
+  { key: 'B', name: 'Tender-line blocks', render: variantB },
+  { key: 'C', name: 'Money sheet + appendix', render: variantC }
+];
+
+function currentKey() {
+  const p = new URLSearchParams(location.search).get('variant');
+  return VARIANTS.some(v => v.key === p) ? p : 'A';
+}
+
+function show(key) {
+  const v = VARIANTS.find(x => x.key === key) || VARIANTS[0];
+  document.getElementById('stage').innerHTML = v.render();
+  document.getElementById('vname').textContent = v.name;
+  document.getElementById('vkey').textContent = 'Variant ' + v.key;
+  const url = new URL(location.href);
+  url.searchParams.set('variant', v.key);
+  history.replaceState(null, '', url);
+}
+
+function step(n) {
+  const i = VARIANTS.findIndex(v => v.key === currentKey());
+  show(VARIANTS[(i + n + VARIANTS.length) % VARIANTS.length].key);
+}
+
+document.getElementById('prev').addEventListener('click', () => step(-1));
+document.getElementById('next').addEventListener('click', () => step(1));
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+});
+
+show(currentKey());
+</script>
