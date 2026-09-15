@@ -75,6 +75,8 @@ export const SEED_EXCLUDED_TABLES = {
     "Real browser push endpoints and keys. A local stack must never push to a colleague's real device.",
   verification_rate_limits:
     "IP addresses and throttle state for public document verification. Personal data, and meaningless off the server.",
+  sor_stock_snapshots:
+    "A timestamped Odoo stock reading, not a fact about the deal. A local stack has no Odoo credentials to refresh it against, so a seeded row would go stale the moment it landed.",
 }
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"

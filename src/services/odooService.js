@@ -32,4 +32,17 @@ export const odooService = {
     if (error) throw new Error(error.message || "Could not build the quotation link.");
     return data;
   },
+
+  /**
+   * Re-reads stock for the given Odoo product ids without touching the
+   * Product List (issue #202's Refresh). Same contract as `fetchOrderLines`:
+   * a normal miss comes back as `{ success: false, message }`.
+   */
+  async fetchStock(productIds) {
+    const { data, error } = await supabase.functions.invoke("odoo-product-stock", {
+      body: { productIds },
+    });
+    if (error) throw new Error(error.message || "Odoo stock refresh failed.");
+    return data;
+  },
 };

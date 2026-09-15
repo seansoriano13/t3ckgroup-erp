@@ -205,3 +205,64 @@ export function normalizeReference(salesReference) {
   const ref = (salesReference || "").trim().toUpperCase();
   return SALES_REFERENCE_PATTERN.test(ref) ? ref : null;
 }
+
+/**
+ * Reads free/on-hand/forecast stock for a set of products, both totalled
+ * across every warehouse and broken down per warehouse (issue #202).
+ *
+ * `product.product` already returns `free_qty`/`qty_available`/
+ * `virtual_available` scoped to whatever `warehouse` sits in the read
+ * context, so the per-warehouse breakdown is the same `read` call repeated
+ * once per warehouse rather than a separate `stock.quant` query. Warehouses
+ * are few (single digits for this instance), so the call count stays small.
+ *
+ * Returns `{ warehouses, products }` shaped to drop straight into
+ * `sor_stock_snapshots.data` — see that migration's header comment.
+ */
+export async function fetchProductStock(uid, productIds) {
+  const ids = (productIds || []).filter((id) => Number.isInteger(id));
+  if (!ids.length) return { warehouses: [], products: {} };
+
+  const fields = ["type", "free_qty", "qty_available", "virtual_available"];
+
+  const [warehouses, totals] = await Promise.all([
+    executeKw(uid, "stock.warehouse", "search_read", [[], ["id", "name"]]),
+    executeKw(uid, "product.product", "read", [ids, fields]),
+  ]);
+
+  const products = {};
+  for (const p of totals) {
+    products[p.id] = {
+      type: p.type || "product",
+      free: Number(p.free_qty) || 0,
+      onHand: Number(p.qty_available) || 0,
+      forecast: Number(p.virtual_available) || 0,
+      byWarehouse: {},
+    };
+  }
+
+  const perWarehouse = await Promise.all(
+    warehouses.map((w) =>
+      executeKw(uid, "product.product", "read", [ids, fields], {
+        context: { warehouse: w.id },
+      }),
+    ),
+  );
+
+  perWarehouse.forEach((rows, i) => {
+    const warehouseId = warehouses[i].id;
+    for (const p of rows) {
+      if (!products[p.id]) continue;
+      products[p.id].byWarehouse[warehouseId] = {
+        free: Number(p.free_qty) || 0,
+        onHand: Number(p.qty_available) || 0,
+        forecast: Number(p.virtual_available) || 0,
+      };
+    }
+  });
+
+  return {
+    warehouses: warehouses.map((w) => ({ id: w.id, name: w.name })),
+    products,
+  };
+}

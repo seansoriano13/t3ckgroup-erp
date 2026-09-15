@@ -1757,6 +1757,10 @@ export const opportunityService = {
         quantity: Number(it.quantity) || 0,
         unit_price: Number(it.unit_price) || 0,
         sort_order: idx,
+        // Issue #202 — lines are recreated on every save, so this only
+        // survives because it's written fresh each time, not because rows
+        // persist. Absent on a hand-typed line.
+        odoo_product_id: Number.isInteger(it.odoo_product_id) ? it.odoo_product_id : null,
       }));
 
     if (rows.length > 0) {
@@ -1765,6 +1769,34 @@ export const opportunityService = {
         .insert(rows);
       if (insError) throw insError;
     }
+  },
+
+  // ── Stock availability (issue #202) ─────────────────────────────────────
+
+  /**
+   * Replaces the opportunity's stock snapshot. One row per opportunity — a
+   * fetch or refresh always overwrites the previous reading, since stock is
+   * never presented as live and only the latest figures matter.
+   */
+  async saveStockSnapshot(opportunityId, stock, actorId) {
+    const { error } = await supabase.from("sor_stock_snapshots").upsert({
+      opportunity_id: opportunityId,
+      fetched_at: new Date().toISOString(),
+      fetched_by: actorId || null,
+      data: stock || {},
+    });
+    if (error) throw error;
+  },
+
+  async getStockSnapshot(opportunityId) {
+    if (!opportunityId) return null;
+    const { data, error } = await supabase
+      .from("sor_stock_snapshots")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .maybeSingle();
+    if (error) throw error;
+    return data || null;
   },
 
   // ── Notes / timeline ──────────────────────────────────────────────────────

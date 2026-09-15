@@ -18,6 +18,9 @@ import {
   Copy,
   Check,
   UserPlus,
+  ChevronDown,
+  ChevronRight,
+  RefreshCw,
 } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -50,6 +53,7 @@ import { purchasingService } from "../../services/purchasingService";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone } from "../../constants/salesFlow";
 import { openRequests, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
+import { stockBadge, STOCK_BADGE_THEME } from "../../constants/stock";
 import { formatDueDate } from "../../utils/formatDate";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import FlowStageControl from "./FlowStageControl";
@@ -268,7 +272,66 @@ function AutomationTasksRoster({ opportunityId }) {
  * so it lives in `sor_procurement_requests` and renders in PurchasingPanel.
  * See the "Revision" section of docs/sor-procurement-flow-decisions.md.
  */
-function ItemsList({ items, isSyncing }) {
+/**
+ * One line's stock badge plus, when expanded, its per-warehouse breakdown.
+ * Reads only from the stored `sor_stock_snapshots` row passed in as
+ * `snapshotData` — never a live call — per issue #202.
+ */
+function ItemStockRow({ item, snapshotData }) {
+  const [expanded, setExpanded] = useState(false);
+  const product = snapshotData?.products?.[item.odoo_product_id] || null;
+  const badge = stockBadge({
+    odoo_product_id: item.odoo_product_id,
+    quantity: item.quantity,
+    product,
+  });
+  const warehouses = snapshotData?.warehouses || [];
+  const canExpand = !!product && warehouses.length > 0;
+
+  return (
+    <div className="col-span-12 -mt-1">
+      <button
+        type="button"
+        onClick={() => canExpand && setExpanded((e) => !e)}
+        className={cn(
+          "flex items-center gap-1 text-left",
+          canExpand ? "cursor-pointer" : "cursor-default",
+        )}
+        disabled={!canExpand}
+      >
+        <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} />
+        {canExpand && (
+          expanded ? (
+            <ChevronDown size={12} className="text-muted-foreground" />
+          ) : (
+            <ChevronRight size={12} className="text-muted-foreground" />
+          )
+        )}
+      </button>
+
+      {expanded && canExpand && (
+        <div className="mt-2 grid grid-cols-4 gap-2 rounded-lg bg-muted/30 px-3 py-2 text-[11px]">
+          <span className="col-span-4 font-bold tracking-widest text-muted-foreground uppercase text-[9px]">
+            By warehouse
+          </span>
+          {warehouses.map((w) => {
+            const wh = product.byWarehouse?.[w.id];
+            return (
+              <div key={w.id} className="col-span-4 grid grid-cols-4 gap-2">
+                <span className="col-span-1 font-medium text-foreground truncate">{w.name}</span>
+                <span className="text-right text-muted-foreground">On hand {wh?.onHand ?? 0}</span>
+                <span className="text-right text-muted-foreground">Free {wh?.free ?? 0}</span>
+                <span className="text-right text-muted-foreground">Forecast {wh?.forecast ?? 0}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ItemsList({ items, isSyncing, stockSnapshot, onRefreshStock, refreshingStock }) {
   if (!items.length && !isSyncing) return null;
   const total = items.reduce(
     (sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0),
@@ -283,6 +346,23 @@ function ItemsList({ items, isSyncing }) {
       )}
       <div className="overflow-x-auto">
         <div className="min-w-[560px]">
+          <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-4 py-2 text-[11px]">
+            <span className="text-muted-foreground">
+              {stockSnapshot?.fetched_at
+                ? `Stock as of ${formatWhen(stockSnapshot.fetched_at)}`
+                : "Stock not yet checked"}
+            </span>
+            <button
+              type="button"
+              onClick={onRefreshStock}
+              disabled={refreshingStock}
+              className="flex items-center gap-1 font-bold text-primary hover:text-primary-hover disabled:opacity-50"
+            >
+              {refreshingStock ? <Spinner size="sm" /> : <RefreshCw size={12} />}
+              Refresh
+            </button>
+          </div>
+
           <div className="grid grid-cols-12 gap-3 border-b border-border/60 bg-muted/40 px-4 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
             <span className="col-span-6">Product & Unit</span>
             <span className="col-span-2 text-right">Quantity</span>
@@ -317,6 +397,7 @@ function ItemsList({ items, isSyncing }) {
                 <span className="col-span-2 text-right font-bold text-foreground tabular-nums">
                   {formatPHP(Number(it.quantity) * Number(it.unit_price))}
                 </span>
+                <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />
               </div>
             ))}
           </div>
@@ -372,6 +453,9 @@ const toRow = (item) => ({
   unit: item.unit || "",
   quantity: item.quantity ?? 1,
   unit_price: item.unit_price ?? "",
+  // Issue #202 — carried through saves so stock can be looked up later
+  // without re-reading the quotation. Absent on a hand-typed row.
+  odoo_product_id: item.odoo_product_id ?? null,
 });
 
 /**
@@ -520,6 +604,8 @@ export default function OpportunityDetailsModal({
   const [downloadStep, setDownloadStep] = useState(null);
   const [autoSyncingOdoo, setAutoSyncingOdoo] = useState(false);
   const hasAutoSynced = useRef(new Set());
+  const pendingStockRef = useRef(null);
+  const [refreshingStock, setRefreshingStock] = useState(false);
   const attachments = useFileAttachments();
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
@@ -594,6 +680,14 @@ export default function OpportunityDetailsModal({
     enabled: !!id && isOpen,
   });
 
+  // Issue #202 — stock is stored per SOR with the time it was fetched, and is
+  // never presented as live. This is that stored reading, not a live call.
+  const { data: stockSnapshot } = useQuery({
+    queryKey: ["opportunityStock", id],
+    queryFn: () => opportunityService.getStockSnapshot(id),
+    enabled: !!id && isOpen,
+  });
+
   const { data: checklist = [] } = useQuery({
     queryKey: ["stageChecklist", id, opportunity?.flow_stage_id || opportunity?.status],
     queryFn: () => opportunityService.getStageChecklist(id, opportunity),
@@ -641,6 +735,7 @@ export default function OpportunityDetailsModal({
     queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityItems", id] });
+    queryClient.invalidateQueries({ queryKey: ["opportunityStock", id] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     // Expected Value edits and stage moves (esp. into Awarded, which sets
     // Contract Date) both change what the Commission Pool panel should show.
@@ -694,9 +789,22 @@ export default function OpportunityDetailsModal({
   const updateMutation = useMutation({
     mutationFn: (data) =>
       opportunityService.updateOpportunity(id, data, user?.id),
-    onSuccess: () => {
+    onSuccess: async () => {
       setIsEditing(false);
       setEditForm({});
+      // Issue #202 — a manual "Fetch from Odoo" reads stock alongside the
+      // lines, but the lines only land in the database once this Save runs;
+      // the snapshot rides along with it rather than being written early
+      // against an edit the user might still cancel.
+      if (pendingStockRef.current) {
+        const stock = pendingStockRef.current;
+        pendingStockRef.current = null;
+        try {
+          await opportunityService.saveStockSnapshot(id, stock, user?.id);
+        } catch (err) {
+          console.error("Could not save Odoo stock snapshot", err);
+        }
+      }
       invalidate();
       toast.success("Opportunity updated.");
     },
@@ -807,6 +915,9 @@ export default function OpportunityDetailsModal({
             items: result.items.map(toRow)
           };
           await opportunityService.updateOpportunity(id, payload, user?.id);
+          if (result.stock) {
+            await opportunityService.saveStockSnapshot(id, result.stock, user?.id);
+          }
           invalidate();
         }
       } catch (err) {
@@ -861,11 +972,43 @@ export default function OpportunityDetailsModal({
         return;
       }
       setEditForm(f => ({ ...f, items: result.items.map(toRow) }));
+      pendingStockRef.current = result.stock || null;
       toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {
       setFetchingOdoo(false);
+    }
+  };
+
+  /**
+   * Re-reads stock for the Product List's Odoo-linked lines without touching
+   * the lines themselves. A failed refresh keeps the last figures and their
+   * timestamp — the mutation below simply doesn't run, and stockSnapshot
+   * (still the old data) stays what's shown.
+   */
+  const handleRefreshStock = async () => {
+    const productIds = items
+      .map((it) => it.odoo_product_id)
+      .filter((pid) => Number.isInteger(pid));
+    if (!productIds.length) {
+      toast.error("No Odoo-linked products on this Product List to check.");
+      return;
+    }
+    setRefreshingStock(true);
+    try {
+      const result = await odooService.fetchStock(productIds);
+      if (!result?.success) {
+        toast.error(result?.message || "Could not refresh stock from Odoo.");
+        return;
+      }
+      await opportunityService.saveStockSnapshot(id, result.stock, user?.id);
+      invalidate();
+      toast.success("Stock refreshed.");
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo to refresh stock.");
+    } finally {
+      setRefreshingStock(false);
     }
   };
 
@@ -2298,7 +2441,13 @@ export default function OpportunityDetailsModal({
                       {items.length} item{items.length === 1 ? "" : "s"}
                     </span>
                   </div>
-                  <ItemsList items={items} isSyncing={autoSyncingOdoo || fetchingOdoo} />
+                  <ItemsList
+                    items={items}
+                    isSyncing={autoSyncingOdoo || fetchingOdoo}
+                    stockSnapshot={stockSnapshot}
+                    onRefreshStock={handleRefreshStock}
+                    refreshingStock={refreshingStock}
+                  />
                 </div>
               )}
             </div>
