@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest"
 import { projectEvaluationService } from "./projectEvaluationService"
 import { db } from "@/test/db/store"
 import { stubEdgeFunction } from "@/test/msw/server"
-import { makeCommissionRate, makeEmployee, makeOpportunity } from "@/test/factories"
+import { makeEmployee, makeOpportunity } from "@/test/factories"
 import { COMPLETENESS, COST_SOURCE, SOURCING, summariseCompleteness } from "@/constants/projectEvaluation"
 
 /**
