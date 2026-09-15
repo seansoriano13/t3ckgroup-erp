@@ -4,9 +4,11 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 
 ## Resume
 
+**Every ticket on the map is closed.** The frontier is empty, so there is no ticket to continue — the next work is writing the specs, in the build order below.
+
 1. Open a Claude Code session in this repo on `staging`, after pulling.
-2. Run `/wayfinder 210 continue 220 until <ticket>`.
-3. Start with [IPAS documents, milestones and filing](https://github.com/seansoriano13/t3ckgroup-erp/issues/220). Nobody has claimed it, and no round is open. It's the last grilling ticket before the IPAS spec can be written — only [Printed IPAS](https://github.com/seansoriano13/t3ckgroup-erp/issues/222) stands after it.
+2. Write the **IPAS spec** first, in the format of [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209), then slice it into tickets labelled `ready-for-agent`. The map's Notes carry the format and the two test seams.
+3. Four patches of fog remain on the map — option lists, switch-over, estimate vs actual, and inquiries that buy nothing. None blocks a spec; graduate them with `/wayfinder 210` when they sharpen.
 
 ## Where things are
 
@@ -71,13 +73,29 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 - [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209), still `ready-for-agent` and unbuilt, gains three things, noted in comments there: a Requested Item may name the component it buys for, Ordered records the Odoo PO line, and Canvassing means a Canvass on that component.
 - `CONTEXT.md` adds Final Acquire, Incharge, Compliance, Transmittal and TSR, and extends Costing Matrix, Component, Requested Item, Evaluation of Specification, Stage Condition, Completeness, Canvass and Offer.
 
-**Open and unblocked:**
-- [IPAS documents, milestones and filing](https://github.com/seansoriano13/t3ckgroup-erp/issues/220) — next, and the last grilling ticket the IPAS spec waits on
-- [Printed Canvass](https://github.com/seansoriano13/t3ckgroup-erp/issues/236), a prototype ticket
-- [Printed Transmittal and TSR](https://github.com/seansoriano13/t3ckgroup-erp/issues/238), a prototype ticket
+**Then, in the same session, the rest of the map:**
+- [IPAS documents, milestones and filing](https://github.com/seansoriano13/t3ckgroup-erp/issues/220)
+- [Printed Canvass](https://github.com/seansoriano13/t3ckgroup-erp/issues/236) — prototype
+- [Printed Transmittal and TSR](https://github.com/seansoriano13/t3ckgroup-erp/issues/238) — prototype
 - [What becomes of the Warehouse's receiving form and packing lists](https://github.com/seansoriano13/t3ckgroup-erp/issues/239)
+- [Printed IPAS](https://github.com/seansoriano13/t3ckgroup-erp/issues/222) — prototype
+- [Build order for Transmittals, TSRs, the Canvass and order monitoring](https://github.com/seansoriano13/t3ckgroup-erp/issues/240)
 
-**Blocked:** [Printed IPAS](https://github.com/seansoriano13/t3ckgroup-erp/issues/222) waits on the documents ticket; [the new build-order ticket](https://github.com/seansoriano13/t3ckgroup-erp/issues/240) waits on the Warehouse one.
+**The frontier is empty.** Sixteen tickets closed in all, and the map's remaining content is four patches of fog, none of which blocks a spec.
+
+**Two corrections worth knowing about:**
+- **Packing lists are no longer out of scope.** Odoo has never held a package, so PMS takes a light printed Packing List; the map's Out of scope section and [How much of the process after award PMS covers](https://github.com/seansoriano13/t3ckgroup-erp/issues/231) both say so now.
+- **Operational Expenses is not typed.** It is the Final Acquire total; only Marketing and OPEX are typed.
+
+**The build order the specs follow** ([#240](https://github.com/seansoriano13/t3ckgroup-erp/issues/240)):
+1. IPAS v1, standalone, with its printed form
+2. Transmittals, TSRs and the Packing List, with their printed forms
+3. Order monitoring
+4. The queued CRM specs, up to Purchase Requests
+5. The Costing Matrix, the Evaluation of Specification and the Canvass, with their printed forms
+6. Landed cost back into the Costing Matrix
+
+**Prototype branches:** `prototype/printed-costing-matrix`, `prototype/order-monitoring`, and `prototype/printed-forms` (canvass, transmittal and TSR, IPAS). Each ticket's resolution comment links its artifact.
 
 Always check the frontier live, since another session may have moved it.
 

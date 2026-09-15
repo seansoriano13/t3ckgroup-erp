@@ -376,11 +376,11 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase never appeared on a Costing Matrix — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase never appeared on a Costing Matrix — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Carries the reason its winner was chosen, written by the canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Offer**:
-One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted, how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
+One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
 _Avoid_: Quote, Bid, Supplier Response
 
 ### Philippine Government Procurement
@@ -438,7 +438,8 @@ _Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
 **Filing**:
 The last sign-off on an IPAS — section 7's Approved, given once Finance has
 received the IPAS and it has been noted and checked, and only after sections 1
-and 3 are approved. A filed IPAS is frozen: its copy of the Odoo purchase order,
+and 3 are approved and the purchase's costs are marked complete, since filing
+freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
 its payments and charges, its Purpose and its SORs no longer change. Earlier
 approvals block nothing; filing is the one point that locks.
 _Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
@@ -465,10 +466,21 @@ Logistics to the Warehouse, anyone to Finance — carrying goods, documents, or
 both, with the company's form number TG03. It stands on its own, naming the
 purchase orders and SORs it touches rather than belonging to any of them,
 because one delivery is handed over in several transmittals and one transmittal
-often carries items from several orders. Prepared, approved and then received:
-the receiver answers every line as Received, Short or Damaged, and that closes
-it. Deliveries to the client are not transmittals; they stay in Odoo.
+often carries items from several orders. Raised by anyone with Purchasing access, or by
+whoever currently holds the goods — the party that signed the last receipt —
+since the Warehouse hands on to Logistics without a purchaser present. Prepared,
+approved and then received: the receiver answers every line as Received, Short or
+Damaged, and that closes it. Deliveries to the client are not transmittals; they stay in Odoo.
 _Avoid_: Transmittal Form (when meaning the record), Delivery Receipt, Gate Pass, TG03
+
+**Packing List**:
+What is inside each box the Warehouse packs for an SOR — contents and
+quantities, marks or seal numbers, and the weight where it is known — printed
+and signed by whoever packed it. The one warehouse step PMS keeps, because Odoo
+has never held a package, while its receipts, reservations and deliveries are in
+daily use. It moves no stock and writes nothing to Odoo; a delivery reference
+can be typed on it.
+_Avoid_: Packing Slip, Box List, Delivery Note
 
 **TSR (Technical Service Report)**:
 Technical's record of checking one item that was handed over — one per
