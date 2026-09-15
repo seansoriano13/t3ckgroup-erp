@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ListTodo, ArrowUp, ArrowDown, Archive, ChevronDown, X } from "lucide-react";
+import { Plus, ListTodo, ArrowUp, ArrowDown, Archive, ChevronDown, Pencil, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
@@ -9,19 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import PeoplePicker from "@/components/ui/PeoplePicker";
 
 import { useFlowData } from "./FlowDataContext";
-import { CONDITION_KINDS, NEW_CONDITION_KINDS } from "../../constants/stageGate";
+import { employeeService } from "../../services/employeeService";
+import { CONDITION_KINDS, NEW_CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
+import { SELECTOR_TYPES } from "../../utils/resolvePeople";
 import { ATTACHMENT_ACCEPT_GROUPS } from "../../utils/attachments";
 import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
+import StageChecklistRow from "../sor/StageChecklistRow";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
     case CONDITION_KINDS.ATTACHMENT:
       return { accepts: [] };
     case CONDITION_KINDS.ASSIGNMENT:
-      return { department: "" };
+      return { who: [] };
     case CONDITION_KINDS.DEADLINE:
       return { days: "" };
     default:
@@ -35,7 +39,10 @@ function configFor(kind, config) {
     case CONDITION_KINDS.ATTACHMENT:
       return { accepts: Array.isArray(config.accepts) ? config.accepts : [] };
     case CONDITION_KINDS.ASSIGNMENT:
-      return { department: config.department?.trim() || "" };
+      // Issue #203: `who` is a list of PeoplePicker selectors (issue #201's
+      // shape). Legacy `department` is left alone by this form — it's still
+      // read by the evaluator for a condition that hasn't been touched here.
+      return { who: Array.isArray(config.who) ? config.who : [] };
     case CONDITION_KINDS.DEADLINE:
       return { days: Number(config.days) || 0 };
     default:
@@ -56,6 +63,10 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   const { stageCondition: stageConditionService } = useFlowData();
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
+  // Issue #203, story 4: the same form edits a saved condition — `editingId`
+  // holds which one, null while adding. Kind is fixed once a condition
+  // exists (story 5), so the kind picker below is disabled whenever this is set.
+  const [editingId, setEditingId] = useState(null);
   const [kind, setKind] = useState(CONDITION_KINDS.ATTACHMENT);
   const [label, setLabel] = useState("");
   const [isRequired, setIsRequired] = useState(true);
@@ -66,6 +77,12 @@ export default function StageConditionManager({ stageId, disabled = false }) {
     queryKey: ["stageConditions", stageId],
     queryFn: () => stageConditionService.getForStage(stageId),
     enabled: Boolean(stageId),
+  });
+
+  // For the Assignment who-picker and the live preview's "who satisfied it" name.
+  const { data: employees = [] } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
   });
 
   const invalidate = () => {
@@ -79,6 +96,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
     setKind(CONDITION_KINDS.ATTACHMENT);
     setConfig(emptyConfigFor(CONDITION_KINDS.ATTACHMENT));
     setIsAdding(false);
+    setEditingId(null);
   };
 
   const addMutation = useMutation({
@@ -86,6 +104,16 @@ export default function StageConditionManager({ stageId, disabled = false }) {
     onSuccess: () => {
       invalidate();
       toast.success("Condition added.");
+      resetForm();
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }) => stageConditionService.update(id, payload, user?.id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Condition updated.");
       resetForm();
     },
     onError: (err) => toast.error(err.message),
@@ -110,21 +138,40 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   });
 
   const handleKindChange = (nextKind) => {
+    // Kind is fixed once saved — the picker below is disabled while editing,
+    // but guard here too since it's the single source of truth for the form.
+    if (editingId) return;
     setKind(nextKind);
     setConfig(emptyConfigFor(nextKind));
   };
 
-  const handleAdd = (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (!label.trim() || !stageId) return;
 
-    addMutation.mutate({
-      stageId,
-      kind,
-      label,
-      isRequired,
-      config: configFor(kind, config),
-    });
+    if (editingId) {
+      updateMutation.mutate({
+        id: editingId,
+        payload: { label, isRequired, config: configFor(kind, config) },
+      });
+    } else {
+      addMutation.mutate({
+        stageId,
+        kind,
+        label,
+        isRequired,
+        config: configFor(kind, config),
+      });
+    }
+  };
+
+  const startEdit = (condition) => {
+    setEditingId(condition.id);
+    setKind(condition.kind);
+    setLabel(condition.label);
+    setIsRequired(condition.is_required);
+    setConfig({ ...emptyConfigFor(condition.kind), ...(condition.config || {}) });
+    setIsAdding(false);
   };
 
   const moveCondition = (index, direction) => {
@@ -141,6 +188,20 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   };
 
   const activeKind = CONDITION_KIND_META[kind];
+  const isFormOpen = isAdding || Boolean(editingId);
+  const isSaving = addMutation.isPending || updateMutation.isPending;
+
+  // Issue #203, story 3: the live preview renders the same row component the
+  // SOR's checklist uses, fed a sample condition built from the form's
+  // current draft values — so the preview and the eventual checklist row can
+  // never quietly look different.
+  const previewCondition = {
+    id: "preview",
+    kind,
+    label: label.trim() || activeKind?.label || "Untitled condition",
+    is_required: isRequired,
+    config: configFor(kind, config),
+  };
 
   return (
     <div className="flex flex-col">
@@ -148,7 +209,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
         <p className="text-xs leading-relaxed text-muted-foreground">
           What a deal owes before it may leave this Stage.
         </p>
-        {!isAdding && stageId && !disabled && (
+        {!isFormOpen && stageId && !disabled && (
           <Button size="sm" variant="outline" onClick={() => setIsAdding(true)} className="shrink-0">
             <Plus /> Add
           </Button>
@@ -156,44 +217,39 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       </div>
 
       <div className="space-y-2 p-5">
-        {isAdding && !disabled && (
+        {isFormOpen && !disabled && (
           <form
-            onSubmit={handleAdd}
+            onSubmit={handleSubmit}
             className="mb-4 space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
           >
             <div className="flex items-center justify-between">
               <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                New condition
+                {editingId ? "Edit condition" : "New condition"}
               </h4>
               <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
                 <X />
               </Button>
             </div>
 
-            <Input
-              label="Label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Notice of Award attached"
-              required
-            />
-
+            {/* Story 1: Kind comes first. */}
             <div className="rounded-xl border border-border bg-muted/30 p-3">
               <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 Kind
               </span>
               <Dropdown
                 usePortal
+                disabled={Boolean(editingId)}
                 placement="bottom-start"
                 popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none"
+                    disabled={Boolean(editingId)}
+                    className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
                     <span className="flex-1">{activeKind.label}</span>
-                    <ChevronDown size={15} className="shrink-0 text-muted-foreground" />
+                    {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
                   </button>
                 }
               >
@@ -230,7 +286,20 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                   </div>
                 )}
               </Dropdown>
+              {editingId && (
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Kind is fixed once saved. Archive this condition and add a new one to change it.
+                </p>
+              )}
             </div>
+
+            <Input
+              label="Label"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="e.g. Notice of Award attached"
+              required
+            />
 
             {kind === CONDITION_KINDS.ATTACHMENT && (
               <div className="rounded-xl border border-border bg-muted/30 p-3">
@@ -267,13 +336,17 @@ export default function StageConditionManager({ stageId, disabled = false }) {
 
 
             {kind === CONDITION_KINDS.ASSIGNMENT && (
-              <Input
-                label="Department"
-                value={config.department || ""}
-                onChange={(e) => setConfig({ department: e.target.value })}
-                placeholder="e.g. Purchasing"
-                required
-              />
+              <div className="rounded-xl border border-border bg-muted/30 p-3">
+                <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                  Who — a specific employee, an Employee Group, or a Team
+                </span>
+                <PeoplePicker
+                  value={config.who || []}
+                  onChange={(who) => setConfig({ who })}
+                  types={[SELECTOR_TYPES.EMPLOYEE, SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM]}
+                  placeholder="Add who satisfies this"
+                />
+              </div>
             )}
 
             {kind === CONDITION_KINDS.DEADLINE && (
@@ -302,12 +375,26 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               <Switch checked={isRequired} onCheckedChange={setIsRequired} />
             </label>
 
+            {/* Story 3: a live preview of the exact row the SOR's checklist
+                will show, fed a sample opportunity matching the draft. */}
+            <div className="rounded-xl border border-dashed border-mauve-7 p-3">
+              <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                Preview — how this looks on the SOR
+              </span>
+              <StageChecklistRow
+                condition={previewCondition}
+                status={CONDITION_STATUS.UNSATISFIED}
+                employees={employees}
+                isPreview
+              />
+            </div>
+
             <div className="flex items-center justify-end gap-2">
               <Button type="button" variant="ghost" size="lg" onClick={resetForm}>
                 Cancel
               </Button>
-              <Button type="submit" size="lg" disabled={addMutation.isPending}>
-                {addMutation.isPending ? "Saving…" : "Save condition"}
+              <Button type="submit" size="lg" disabled={isSaving}>
+                {isSaving ? "Saving…" : editingId ? "Save changes" : "Save condition"}
               </Button>
             </div>
           </form>
@@ -317,7 +404,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
           <p className="animate-pulse py-6 text-center text-sm text-muted-foreground">
             Loading conditions…
           </p>
-        ) : conditions?.length === 0 && !isAdding ? (
+        ) : conditions?.length === 0 && !isFormOpen ? (
           <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-8 text-center">
             <ListTodo size={22} className="mx-auto mb-2 text-muted-foreground/60" />
             <p className="text-sm font-semibold text-foreground">Nothing gates this Stage</p>
@@ -379,16 +466,27 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 </div>
 
                 {!disabled && (
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => setPendingArchive(condition)}
-                    disabled={archiveMutation.isPending}
-                    aria-label={`Archive ${condition.label}`}
-                    className="shrink-0 text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
-                  >
-                    <Archive />
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => startEdit(condition)}
+                      aria-label={`Edit ${condition.label}`}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setPendingArchive(condition)}
+                      disabled={archiveMutation.isPending}
+                      aria-label={`Archive ${condition.label}`}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <Archive />
+                    </Button>
+                  </div>
                 )}
               </div>
             );

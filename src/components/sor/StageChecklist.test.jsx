@@ -16,15 +16,31 @@ import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "../../test/support"
 import StageChecklist from "./StageChecklist"
 import { opportunityService } from "../../services/opportunityService"
+import { stageFieldService } from "../../services/stageFieldService"
 import { CONDITION_STATUS } from "../../constants/stageGate"
 
 const OPPORTUNITY = { id: "opp-1", status: "PROPOSAL_SUBMITTED" }
+const FLOW_OPPORTUNITY = { id: "opp-1", status: "LEAD", flow_stage_id: "stage-1" }
 const EMPLOYEES = [{ id: "emp-1", name: "Ana Reyes" }]
 
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: {
     getStageChecklist: vi.fn(async () => []),
     satisfyCondition: vi.fn(async () => ({})),
+    getCurrentStageVisitId: vi.fn(async () => null),
+    getPreviousStageVisitId: vi.fn(async () => null),
+    getNotes: vi.fn(async () => []),
+    addMember: vi.fn(async () => ({})),
+    addNote: vi.fn(async () => ({})),
+    isChecklistWritableField: vi.fn(() => true),
+  },
+}))
+
+vi.mock("../../services/stageFieldService", () => ({
+  stageFieldService: {
+    getForStage: vi.fn(async () => []),
+    getValuesForVisit: vi.fn(async () => ({})),
+    saveValue: vi.fn(async () => ({})),
   },
 }))
 
@@ -152,5 +168,97 @@ describe("tickbox — the one item this list can also act on", () => {
 
     await screen.findByText("Bid documents checked")
     expect(screen.queryByRole("button", { name: /certify/i })).toBeNull()
+  })
+})
+
+describe("Stage Fields — issue #203", () => {
+  it("renders the Stage's fields as a form, never as checklist rows", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    stageFieldService.getForStage.mockResolvedValue([
+      {
+        id: "field-1",
+        stage_id: "stage-1",
+        label: "Award amount",
+        help: "The amount awarded.",
+        source: "custom",
+        field_type: "number",
+        options: [],
+        is_required: true,
+      },
+    ])
+
+    renderWithProviders(
+      <StageChecklist opportunity={FLOW_OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
+    )
+
+    expect(await screen.findByText("Award amount")).toBeInTheDocument()
+    expect(screen.getByText("The amount awarded.")).toBeInTheDocument()
+    expect(screen.getByLabelText("Award amount")).toBeInTheDocument()
+  })
+
+  it("saves a custom field's value scoped to the current Stage Visit", async () => {
+    const user = userEvent.setup()
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    opportunityService.getCurrentStageVisitId.mockResolvedValue("visit-1")
+    stageFieldService.getForStage.mockResolvedValue([
+      {
+        id: "field-1",
+        stage_id: "stage-1",
+        label: "Award amount",
+        source: "custom",
+        field_type: "number",
+        options: [],
+        is_required: true,
+      },
+    ])
+
+    renderWithProviders(
+      <StageChecklist opportunity={FLOW_OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
+    )
+
+    const input = await screen.findByLabelText("Award amount")
+    await user.type(input, "5000")
+    await user.click(screen.getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(stageFieldService.saveValue).toHaveBeenCalledWith(
+        { opportunityId: "opp-1", stageVisitId: "visit-1", fieldId: "field-1", value: "5000" },
+        "emp-1",
+      ),
+    )
+  })
+})
+
+describe("attachment — pick an existing SOR file (issue #203, story 13)", () => {
+  it("offers picking a file already on the SOR, stamped the same as an upload", async () => {
+    const user = userEvent.setup()
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({ condition: { ...item().condition, kind: "attachment", label: "Notice of Award", config: {} } }),
+    ])
+    opportunityService.getNotes.mockResolvedValue([
+      { metadata: { attachments: [{ url: "https://files/x.pdf", name: "Award.pdf", type: "pdf" }] } },
+    ])
+    opportunityService.getCurrentStageVisitId.mockResolvedValue("visit-1")
+
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await screen.findByText("Notice of Award")
+    await user.click(screen.getByRole("button", { name: /Pick existing file/i }))
+    await user.click(await screen.findByRole("button", { name: "Award.pdf" }))
+
+    await waitFor(() =>
+      expect(opportunityService.addNote).toHaveBeenCalledWith(
+        "opp-1",
+        "emp-1",
+        "Attached document: Notice of Award",
+        [
+          expect.objectContaining({
+            url: "https://files/x.pdf",
+            conditionId: "req-1",
+            stageVisitId: "visit-1",
+          }),
+        ],
+      ),
+    )
   })
 })

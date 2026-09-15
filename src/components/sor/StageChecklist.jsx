@@ -1,33 +1,20 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { CheckCircle2, Circle, Paperclip, ListChecks, UserCheck, Square, CheckSquare, UserPlus } from "lucide-react";
-import Avatar from "../Avatar";
+import { ListChecks } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
-import { CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
-import { formatDate } from "../../utils/formatDate";
+import { stageFieldService } from "../../services/stageFieldService";
 import { confirmActionToast } from "../ui/CustomToast";
-import Dropdown from "../ui/Dropdown";
-import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
 import { storageService } from "../../services/storageService";
 import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
-
-/** PO Date and Expected Award Date are dates; every other writable field is text. */
-const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
-
-const KIND_LABELS = {
-  [CONDITION_KINDS.ATTACHMENT]: "Attachment",
-  [CONDITION_KINDS.FIELD]: "Field on record",
-  [CONDITION_KINDS.TICKBOX]: "Self-certified",
-  [CONDITION_KINDS.ASSIGNMENT]: "Assignment",
-};
-
-const KIND_ICONS = {
-  [CONDITION_KINDS.ATTACHMENT]: Paperclip,
-  [CONDITION_KINDS.FIELD]: ListChecks,
-  [CONDITION_KINDS.TICKBOX]: CheckSquare,
-  [CONDITION_KINDS.ASSIGNMENT]: UserCheck,
-};
+import StageChecklistRow from "./StageChecklistRow";
+import StageFieldsForm from "./StageFieldsForm";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "../ui/dialog";
 
 /**
  * Stage Gate Engine, ticket 6 (.scratch/stage-gate-engine/issues/06-deal-
@@ -41,12 +28,17 @@ const KIND_ICONS = {
  *
  * A `tickbox` item has no other way to get satisfied (ticket 5) — it's the
  * one kind this list also acts on, not just reports.
+ *
+ * Issue #203 adds the Stage's own Fields form beneath the checklist — a
+ * Stage's fields are never checklist rows, so `StageFieldsForm` renders
+ * from its own data, not from `checklist`.
  */
 export default function StageChecklist({ opportunity, employees = [], actorId, onChanged, onSaveField }) {
   const [fieldValues, setFieldValues] = useState({});
   const [savingField, setSavingField] = useState(null);
   const [assignmentId, setAssignmentId] = useState({});
   const [uploadingAttachment, setUploadingAttachment] = useState({});
+  const [pickingFor, setPickingFor] = useState(null);
   const queryClient = useQueryClient();
   const opportunityId = opportunity?.id;
   // A flow SOR's `status` never changes (it stays LEAD), so the key follows
@@ -61,6 +53,27 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     enabled: !!opportunityId,
   });
 
+  const { data: stageFields = [] } = useQuery({
+    queryKey: ["stageFields", stageCode],
+    queryFn: () => stageFieldService.getForStage(opportunity.flow_stage_id),
+    enabled: !!opportunity?.flow_stage_id,
+  });
+
+  const { data: currentVisitId = null } = useQuery({
+    queryKey: ["stageVisitId", opportunityId, stageCode],
+    queryFn: () => opportunityService.getCurrentStageVisitId(opportunityId),
+    enabled: !!opportunityId,
+  });
+
+  // Existing SOR files, for the "pick existing file" attachment option
+  // (issue #203, story 13) — flattened from every note's attachments.
+  const { data: notes = [] } = useQuery({
+    queryKey: ["opportunityNotes", opportunityId],
+    queryFn: () => opportunityService.getNotes(opportunityId),
+    enabled: !!opportunityId,
+  });
+  const existingFiles = notes.flatMap((n) => n.metadata?.attachments || []);
+
   const satisfyMutation = useMutation({
     mutationFn: (conditionId) =>
       opportunityService.satisfyCondition(opportunityId, conditionId, actorId),
@@ -73,41 +86,44 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ conditionId, employeeId }) =>
+    mutationFn: ({ employeeId }) =>
       opportunityService.addMember(opportunityId, employeeId, actorId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
-      // We don't necessarily want to immediately nullify assignmentId since it closes on its own
       onChanged?.();
     },
     onError: (err) => toast.error(err.message),
   });
 
+  const stampAndAttach = async (condition, uploaded) => {
+    if (condition.config?.documentType) {
+      uploaded.documentType = condition.config.documentType;
+    }
+    // Issue #203, stories 12/13/15: only a file given through this
+    // condition's own row counts — stamp which condition and which Stage
+    // Visit it was given on, so a later loop back or an unrelated chat
+    // attachment (or a pick from another condition's file) can never
+    // satisfy it.
+    uploaded.conditionId = condition.id;
+    if (currentVisitId) uploaded.stageVisitId = currentVisitId;
+    await opportunityService.addNote(
+      opportunityId,
+      actorId,
+      `Attached document: ${condition.label}`,
+      [uploaded],
+    );
+  };
+
   const uploadMutation = useMutation({
     mutationFn: async ({ condition, file }) => {
-      setUploadingAttachment(p => ({ ...p, [condition.id]: true }));
+      setUploadingAttachment((p) => ({ ...p, [condition.id]: true }));
       try {
         const uploaded = await storageService.uploadFileToCloudinary(file);
-        if (condition.config?.documentType) {
-          uploaded.documentType = condition.config.documentType;
-        }
-        // Issue #203, stories 12/15: only a file given through this
-        // condition's own row counts — stamp which condition and which
-        // Stage Visit it was given on, so a later loop back or an
-        // unrelated chat attachment can never satisfy it.
-        uploaded.conditionId = condition.id;
-        const visitId = await opportunityService.getCurrentStageVisitId(opportunityId);
-        if (visitId) uploaded.stageVisitId = visitId;
         uploaded.type = attachmentAcceptType(file) || uploaded.type;
-        await opportunityService.addNote(
-          opportunityId,
-          actorId,
-          `Attached document: ${condition.label}`,
-          [uploaded]
-        );
+        await stampAndAttach(condition, uploaded);
       } finally {
-        setUploadingAttachment(p => ({ ...p, [condition.id]: false }));
+        setUploadingAttachment((p) => ({ ...p, [condition.id]: false }));
       }
     },
     onSuccess: () => {
@@ -116,12 +132,29 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
       onChanged?.();
       toast.success("Attachment uploaded");
     },
-    onError: (err) => {
-      toast.error(err.message);
-    },
+    onError: (err) => toast.error(err.message),
   });
 
-  const nameFor = (employeeId) => employees.find((e) => e.id === employeeId)?.name || null;
+  const pickExistingMutation = useMutation({
+    mutationFn: async ({ condition, file }) => {
+      // Same refusal the upload path enforces client-side: a file whose type
+      // isn't in `accepts` can't satisfy this condition just by being picked.
+      const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : [];
+      const type = file.type || attachmentAcceptType(file);
+      if (accepts.length > 0 && !accepts.includes(type)) {
+        throw new Error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
+      }
+      await stampAndAttach(condition, { ...file });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
+      queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
+      onChanged?.();
+      toast.success("File attached");
+      setPickingFor(null);
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const handleTick = (condition) => {
     confirmActionToast(
@@ -133,214 +166,111 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     );
   };
 
-  if (checklist.length === 0) return null;
+  const handleUpload = (condition, file) => {
+    const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : [];
+    if (accepts.length > 0 && !accepts.includes(attachmentAcceptType(file))) {
+      toast.error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
+      return;
+    }
+    uploadMutation.mutate({ condition, file });
+  };
+
+  const showChecklist = checklist.length > 0;
+  const showFields = stageFields.length > 0;
+
+  if (!showChecklist && !showFields) return null;
 
   return (
-    <div className="mt-4 rounded-xl border border-border/70 bg-card/50 p-4">
-      <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-        What {opportunity?.status ? "this Stage" : "the Stage"} owes
-      </p>
-      <div className="space-y-2.5">
-        {checklist.map(({ condition, status, satisfiedBy, satisfiedAt }) => {
-          const Icon = KIND_ICONS[condition.kind] || Circle;
-          const isSatisfied = status === CONDITION_STATUS.SATISFIED;
-          const isTickable =
-            !isSatisfied && condition.kind === CONDITION_KINDS.TICKBOX;
-          const who = nameFor(satisfiedBy);
-
-          return (
-            <div
-              key={condition.id}
-              className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-background px-3 py-2.5"
-            >
-              <button
-                type="button"
-                disabled={!isTickable || satisfyMutation.isPending}
-                onClick={() => isTickable && handleTick(condition)}
-                aria-label={isTickable ? `Certify ${condition.label}` : undefined}
-                className={
-                  isSatisfied
-                    ? "mt-0.5 shrink-0 text-green-9"
-                    : isTickable
-                      ? "mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
-                      : "mt-0.5 shrink-0 text-muted-foreground/40"
-                }
-              >
-                {isSatisfied ? (
-                  <CheckCircle2 size={17} />
-                ) : isTickable ? (
-                  <Square size={17} />
-                ) : (
-                  <Circle size={17} />
-                )}
-              </button>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span
-                    className={
-                      isSatisfied
-                        ? "text-sm font-semibold text-foreground line-through decoration-muted-foreground/40"
-                        : "text-sm font-semibold text-foreground"
-                    }
-                  >
-                    {condition.label}
-                  </span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
-                    <Icon size={10} />
-                    {KIND_LABELS[condition.kind] || condition.kind}
-                  </span>
-                  {!condition.is_required && (
-                    <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">
-                      Optional
-                    </span>
-                  )}
-                </div>
-
-                {isSatisfied ? (
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {who || satisfiedAt ? (
-                      <>
-                        Satisfied{who ? ` by ${who}` : ""}
-                        {satisfiedAt ? ` on ${formatDate(satisfiedAt)}` : ""}
-                      </>
-                    ) : (
-                      "Satisfied."
-                    )}
-                  </p>
-                ) : (
-                  <div className="mt-0.5 space-y-2">
-                    <p
-                      className={
-                        condition.is_required
-                          ? "text-[11px] font-semibold text-amber-600 dark:text-amber-400"
-                          : "text-[11px] text-muted-foreground"
+    <div className="mt-4 space-y-4">
+      {showChecklist && (
+        <div className="rounded-xl border border-border/70 bg-card/50 p-4">
+          <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            What {opportunity?.status ? "this Stage" : "the Stage"} owes
+          </p>
+          <div className="space-y-2.5">
+            {checklist.map(({ condition, status, satisfiedBy, satisfiedAt }) => (
+              <StageChecklistRow
+                key={condition.id}
+                condition={condition}
+                status={status}
+                satisfiedBy={satisfiedBy}
+                satisfiedAt={satisfiedAt}
+                employees={employees}
+                onTick={handleTick}
+                tickDisabled={satisfyMutation.isPending}
+                fieldValue={fieldValues[condition.id]}
+                savingField={savingField === condition.id}
+                onFieldChange={(val) => setFieldValues((p) => ({ ...p, [condition.id]: val }))}
+                onSaveField={
+                  onSaveField && opportunityService.isChecklistWritableField(condition.config?.column)
+                    ? async () => {
+                        if (!condition.config?.column) return;
+                        setSavingField(condition.id);
+                        try {
+                          await onSaveField(condition.config.column, fieldValues[condition.id]);
+                          setFieldValues((p) => ({ ...p, [condition.id]: "" }));
+                        } catch (err) {
+                          toast.error(err.message);
+                        } finally {
+                          setSavingField(null);
+                        }
                       }
-                    >
-                      {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
-                    </p>
-                    
-                    {!isSatisfied &&
-                      condition.kind === CONDITION_KINDS.FIELD &&
-                      onSaveField &&
-                      opportunityService.isChecklistWritableField(condition.config?.column) && (
-                      <div className="flex items-center gap-2 max-w-[240px]">
-                        <input
-                          type={DATE_FIELDS.has(condition.config?.column) ? "date" : "text"}
-                          aria-label={condition.label}
-                          value={fieldValues[condition.id] || ""}
-                          onChange={(e) => setFieldValues(p => ({ ...p, [condition.id]: e.target.value }))}
-                          placeholder={`Enter ${condition.config?.column || 'value'}`}
-                          className="flex h-7 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        />
-                        <button
-                          type="button"
-                          disabled={savingField === condition.id || !(fieldValues[condition.id] || "").trim()}
-                          onClick={async () => {
-                            if (!condition.config?.column) return;
-                            setSavingField(condition.id);
-                            try {
-                              await onSaveField(condition.config.column, fieldValues[condition.id]);
-                              setFieldValues((p) => ({ ...p, [condition.id]: "" }));
-                            } catch (err) {
-                              toast.error(err.message);
-                            } finally {
-                              setSavingField(null);
-                            }
-                          }}
-                          className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground shadow hover:bg-primary/90 h-7 px-3"
-                        >
-                          {savingField === condition.id ? "..." : "Save"}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {!isSatisfied && condition.kind === CONDITION_KINDS.ATTACHMENT && (
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <label
-                          className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted ${
-                            uploadMutation.isPending || uploadingAttachment[condition.id] ? "pointer-events-none opacity-50" : ""
-                          }`}
-                        >
-                          <Paperclip size={13} />
-                          {uploadingAttachment[condition.id] ? "Uploading..." : "Attach File"}
-                          <input
-                            type="file"
-                            className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const accepts = Array.isArray(condition.config?.accepts)
-                                ? condition.config.accepts
-                                : [];
-                              if (accepts.length > 0 && !accepts.includes(attachmentAcceptType(file))) {
-                                toast.error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
-                                e.target.value = "";
-                                return;
-                              }
-                              uploadMutation.mutate({ condition, file });
-                            }}
-                          />
-                        </label>
-                      </div>
-                    )}
-                    
-                    {!isSatisfied && condition.kind === CONDITION_KINDS.ASSIGNMENT && (
-                      <div className="flex items-center gap-2 mt-1.5 max-w-sm">
-                        <Dropdown
-                          usePortal
-                          className="flex-1 min-w-0"
-                          trigger={({ isOpen }) => (
-                            <FilterTrigger
-                              label={
-                                assignmentId[condition.id]
-                                  ? employees.find((e) => e.id === assignmentId[condition.id])?.name || "Select..."
-                                  : `Assign ${condition.config?.department || "Member"}...`
-                              }
-                              isActive={!!assignmentId[condition.id]}
-                              isOpen={isOpen}
-                              icon={UserPlus}
-                              className="!h-8"
-                            />
-                          )}
-                        >
-                          {({ close }) => (
-                            <FilterOptionList
-                              showSearch
-                              options={employees.map((e) => ({
-                                value: e.id,
-                                label: e.name,
-                              }))}
-                              value={assignmentId[condition.id]}
-                              onChange={(val) => {
-                                setAssignmentId(p => ({ ...p, [condition.id]: val }));
-                                close();
-                              }}
-                              close={close}
-                            />
-                          )}
-                        </Dropdown>
-                        <button
-                          type="button"
-                          disabled={!assignmentId[condition.id] || addMemberMutation.isPending}
-                          onClick={() => addMemberMutation.mutate({ conditionId: condition.id, employeeId: assignmentId[condition.id] })}
-                          className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
-                        >
-                          Assign
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                    : undefined
+                }
+                uploading={uploadingAttachment[condition.id]}
+                onUpload={(file) => handleUpload(condition, file)}
+                onPickExisting={existingFiles.length > 0 ? () => setPickingFor(condition) : undefined}
+                assignmentValue={assignmentId[condition.id]}
+                onAssignmentChange={(val) => setAssignmentId((p) => ({ ...p, [condition.id]: val }))}
+                onAssign={() =>
+                  assignmentId[condition.id] &&
+                  addMemberMutation.mutate({ employeeId: assignmentId[condition.id] })
+                }
+                assignPending={addMemberMutation.isPending}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
-              {isSatisfied && who && (
-                <Avatar name={who} size="xs" className="mt-0.5 shrink-0" />
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {showFields && (
+        <StageFieldsForm
+          opportunity={opportunity}
+          fields={stageFields}
+          currentVisitId={currentVisitId}
+          actorId={actorId}
+          onSaveField={onSaveField}
+          onChanged={onChanged}
+        />
+      )}
+
+      <Dialog open={!!pickingFor} onOpenChange={(open) => !open && setPickingFor(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              <ListChecks size={14} className="mr-1 inline" /> Pick an existing SOR file
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-72 space-y-0.5 overflow-y-auto">
+            {existingFiles.length === 0 && (
+              <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                No files on this SOR yet.
+              </p>
+            )}
+            {existingFiles.map((file, idx) => (
+              <button
+                key={`${file.url}-${idx}`}
+                type="button"
+                disabled={pickExistingMutation.isPending}
+                onClick={() => pickingFor && pickExistingMutation.mutate({ condition: pickingFor, file })}
+                className="flex w-full items-center gap-2 truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+              >
+                {file.name || "Attachment"}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

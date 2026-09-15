@@ -2157,6 +2157,29 @@ export const opportunityService = {
     return visit?.id ?? null;
   },
 
+  /**
+   * The id of the closed Stage Visit immediately before the SOR's current
+   * one on the same Stage, or null on a first visit. Issue #203, story 26:
+   * a custom Stage Field renders blank on a loop back, with the previous
+   * visit's value shown only for reference — this is how the UI finds that
+   * prior visit's id to read its `sor_stage_field_values` through
+   * `stageFieldService.getValuesForVisit`.
+   */
+  async getPreviousStageVisitId(opportunityId, flowStageId) {
+    if (!opportunityId || !flowStageId) return null;
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("id")
+      .eq("opportunity_id", opportunityId)
+      .eq("flow_stage_id", flowStageId)
+      .not("left_at", "is", null)
+      .order("sequence", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.id ?? null;
+  },
+
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
 
   /**

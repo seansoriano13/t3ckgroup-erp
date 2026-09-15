@@ -3,6 +3,7 @@ import {
   ArrowUpCircle,
   Check,
   Flag,
+  ListChecks,
   ListTodo,
   Octagon,
   Pencil,
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import TabGroup from "@/components/ui/TabGroup";
 import StageConditionManager from "./StageConditionManager";
 import StageActionManager from "./StageActionManager";
+import StageFieldManager from "./StageFieldManager";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -89,6 +91,7 @@ export default function StageSettingsPanel({
 
   const tabs = [
     { value: "settings", label: "General", icon: Settings2 },
+    { value: "fields", label: "Fields", icon: ListChecks },
     { value: "conditions", label: "Conditions", icon: ListTodo },
     { value: "actions", label: "Actions", icon: Wand2 },
   ];
@@ -293,6 +296,10 @@ export default function StageSettingsPanel({
               way out; actions fire on the way in.
             </p>
           </div>
+        )}
+
+        {activeTab === "fields" && (
+          <StageFieldManager stageId={stage.id} disabled={disabled} />
         )}
 
         {activeTab === "conditions" && (
