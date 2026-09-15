@@ -2268,6 +2268,13 @@ describe("opportunityService", () => {
         expect(saved.expected_value).toBe(3000)
       })
 
+      it("offers a Save input for text, date and custom fields, but not people, Estimated Value or the ITB exemption", () => {
+        const writable = ["po_date", "sales_reference", "Warranty", "supplier_id"].filter(opportunityService.isChecklistWritableField)
+        const refused = ["deal_owner_id", "sales_director_id", "expected_value", "itb_exempt"].filter(opportunityService.isChecklistWritableField)
+        expect(writable).toEqual(["po_date", "sales_reference", "Warranty", "supplier_id"])
+        expect(refused).toEqual([])
+      })
+
       it("refuses a malformed Sales Reference with a readable message", async () => {
         const created = await fullRecord()
 

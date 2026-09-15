@@ -87,6 +87,16 @@ const RECORD_FIELD_WRITERS = {
   sales_director_id: (v) => v || null,
 };
 
+/** Real SOR fields the Stage Checklist offers no Save input for: people, and the ITB exemption flag. */
+const CHECKLIST_UNWRITABLE_FIELDS = new Set([
+  "deal_owner_id",
+  "closing_sales_id",
+  "support_sales_1_id",
+  "support_sales_2_id",
+  "sales_director_id",
+  "itb_exempt",
+]);
+
 /**
  * Trims/uppercases a Sales Reference and rejects anything that isn't an Odoo
  * quotation number. Empty is allowed here — the stage gate is what makes it
@@ -1097,7 +1107,7 @@ export const opportunityService = {
     for (const [key, write] of Object.entries(RECORD_FIELD_WRITERS)) {
       if (has(key)) patch[key] = write(payload[key]);
     }
-    if (has("client_name") || has("sales_reference") || has("odoo_partner_id")) {
+    if (has("client_name") || has("sales_reference")) {
       patch.odoo_partner_id = resolveOdooPartner(existing, {
         client_name: existing.client_name,
         ...payload,
@@ -1284,12 +1294,18 @@ export const opportunityService = {
     );
   },
 
-  /** Whether a *Field on record* condition's column can be saved from the Stage Checklist — Estimated Value and people fields cannot (issue #199). */
+  /**
+   * Whether a *Field on record* condition's column can be saved from the
+   * Stage Checklist (issue #199). Estimated Value is set only by the Product
+   * List, people are what Assignment conditions are for, and the ITB
+   * exemption is a yes/no claim a text box can't make. Custom (metadata)
+   * keys are always writable.
+   */
   isChecklistWritableField(column) {
     if (!column || column === "expected_value") return false;
-    if (column.endsWith("_id")) return false;
-    return true;
+    return !CHECKLIST_UNWRITABLE_FIELDS.has(column);
   },
+
 
   /**
    * Moves an opportunity to a new pipeline stage and records the move on its
