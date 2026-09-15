@@ -364,7 +364,7 @@ One item that comes with a bundle Component in the Costing Matrix — the cabine
 _Avoid_: Line item, Product, BOM entry, Accessory
 
 **Completeness**:
-Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%.
+Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%. A bid-time judgement about the offer: whether each inclusion physically arrived is asked again, separately, on the TSR.
 _Avoid_: Status, Progress
 
 **Sourcing**:
@@ -376,11 +376,11 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Procurement Request or Inclusion — never both, never neither. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase never appeared on a Costing Matrix — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Offer**:
-One supplier's answer within a Canvass — brand, description, source link, brochure, remarks, unit price, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before.
+One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted, how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
 _Avoid_: Quote, Bid, Supplier Response
 
 ### Philippine Government Procurement
@@ -458,6 +458,28 @@ Every charge counts toward Landed Cost, spread over the purchase's lines; a
 charge that covers several purchases is recorded as each one's share. Shipping
 fees paid to the supplier are payments, not charges, but count the same way.
 _Avoid_: Fee (unqualified), Expense, Importation (as a noun)
+
+**Transmittal**:
+One numbered hand-off from one party to another — Purchasing to Technical,
+Logistics to the Warehouse, anyone to Finance — carrying goods, documents, or
+both, with the company's form number TG03. It stands on its own, naming the
+purchase orders and SORs it touches rather than belonging to any of them,
+because one delivery is handed over in several transmittals and one transmittal
+often carries items from several orders. Prepared, approved and then received:
+the receiver answers every line as Received, Short or Damaged, and that closes
+it. Deliveries to the client are not transmittals; they stay in Odoo.
+_Avoid_: Transmittal Form (when meaning the record), Delivery Receipt, Gate Pass, TG03
+
+**TSR (Technical Service Report)**:
+Technical's record of checking one item that was handed over — one per
+Transmittal line, a row per unit carrying its serial number and a verdict of
+Pass, Pass with remarks or Fail, with photographs and video. It closes when
+every unit has a verdict, even where units failed: the check is a fact about a
+moment, so a replacement arrives on its own Transmittal and earns its own TSR
+rather than reopening this one. A failure notifies Purchasing and changes
+nothing in Odoo. Where the item is a bundle, this is where its Inclusions are
+confirmed as physically present.
+_Avoid_: QC report, Inspection, Technical Report (unqualified)
 
 **Landed Cost**:
 An item's true unit cost once everything is apportioned onto it —

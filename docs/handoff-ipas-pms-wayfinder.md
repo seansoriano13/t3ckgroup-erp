@@ -5,8 +5,8 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 ## Resume
 
 1. Open a Claude Code session in this repo on `staging`, after pulling.
-2. Run `/wayfinder 210 continue 233 until <ticket>`.
-3. Start with [What a Transmittal is and what it carries](https://github.com/seansoriano13/t3ckgroup-erp/issues/233). Nobody has claimed it, and no round is open. It's the first of the three tickets the IPAS spec still waits on.
+2. Run `/wayfinder 210 continue 220 until <ticket>`.
+3. Start with [IPAS documents, milestones and filing](https://github.com/seansoriano13/t3ckgroup-erp/issues/220). Nobody has claimed it, and no round is open. It's the last grilling ticket before the IPAS spec can be written — only [Printed IPAS](https://github.com/seansoriano13/t3ckgroup-erp/issues/222) stands after it.
 
 ## Where things are
 
@@ -49,25 +49,35 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 
 ## State on 2026-09-15
 
-**Closed in the 2026-09-15 session,** which ran the four Costing Matrix tickets end to end:
+**Closed in the 2026-09-15 session,** nine tickets: the four Costing Matrix ones, then the parts that come in after award.
 - [Costing Matrix column ownership and who sees the numbers](https://github.com/seansoriano13/t3ckgroup-erp/issues/225)
 - [Evaluation of Specification inside the Costing Matrix](https://github.com/seansoriano13/t3ckgroup-erp/issues/226)
 - [When each part of PMS opens and how it gates the Sales Flow](https://github.com/seansoriano13/t3ckgroup-erp/issues/227)
 - [How Costing Matrix rows, Purchase Requests and IPAS connect](https://github.com/seansoriano13/t3ckgroup-erp/issues/228)
-
-**What those four changed outside the map:**
-- `docs/adr/0021-stage-scoped-sor-visibility.md` gains an **Amendments** section: Purchasing, Finance and the Final Acquire list read a Costing Matrix's Final Offer and summary, which the ADR otherwise keeps to the Deal Team.
-- [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209), still `ready-for-agent` and unbuilt, gains two things, noted in a comment there: a Requested Item may name the component it buys for, and Ordered records the Odoo PO line.
-- `CONTEXT.md` adds Final Acquire, Incharge and Compliance, extends Costing Matrix, Component, Requested Item, Evaluation of Specification and Stage Condition.
-
-**The Costing Matrix now has every decision it needs**, so [Printed Costing Matrix](https://github.com/seansoriano13/t3ckgroup-erp/issues/229) is unblocked and can be prototyped.
-
-**Open and unblocked:**
-- [What a Transmittal is and what it carries](https://github.com/seansoriano13/t3ckgroup-erp/issues/233) — next, and the IPAS spec waits on it
+- [Printed Costing Matrix](https://github.com/seansoriano13/t3ckgroup-erp/issues/229) — prototype
+- [What a Transmittal is and what it carries](https://github.com/seansoriano13/t3ckgroup-erp/issues/233)
 - [What a TSR records](https://github.com/seansoriano13/t3ckgroup-erp/issues/234)
 - [Canvass and Offers inside PMS](https://github.com/seansoriano13/t3ckgroup-erp/issues/235)
-- [Printed Costing Matrix](https://github.com/seansoriano13/t3ckgroup-erp/issues/229), a prototype ticket
-- [Order monitoring view](https://github.com/seansoriano13/t3ckgroup-erp/issues/237), a prototype ticket
+- [Order monitoring view](https://github.com/seansoriano13/t3ckgroup-erp/issues/237) — prototype
+
+**Prototypes live on throwaway branches, never on `staging`:**
+- `prototype/printed-costing-matrix` — `src/lib/pdf/printed-costing-matrix.prototype.html`. Note: git attached this branch to the pre-existing worktree at `D:/Sean/t3ckgroup-erp-mention-main`.
+- `prototype/order-monitoring` — `src/pages/purchasing/order-monitoring.prototype.html`.
+
+**Created:** [Build order for Transmittals, TSRs, the Canvass and order monitoring](https://github.com/seansoriano13/t3ckgroup-erp/issues/240), graduated from the map's fog now that what each part is has closed. Blocked by the Warehouse ticket.
+
+**What they changed outside the map:**
+- `docs/adr/0021-stage-scoped-sor-visibility.md` gains an **Amendments** section: Purchasing, Finance and the Final Acquire list read a Costing Matrix's Final Offer and summary, which the ADR otherwise keeps to the Deal Team.
+- [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209), still `ready-for-agent` and unbuilt, gains three things, noted in comments there: a Requested Item may name the component it buys for, Ordered records the Odoo PO line, and Canvassing means a Canvass on that component.
+- `CONTEXT.md` adds Final Acquire, Incharge, Compliance, Transmittal and TSR, and extends Costing Matrix, Component, Requested Item, Evaluation of Specification, Stage Condition, Completeness, Canvass and Offer.
+
+**Open and unblocked:**
+- [IPAS documents, milestones and filing](https://github.com/seansoriano13/t3ckgroup-erp/issues/220) — next, and the last grilling ticket the IPAS spec waits on
+- [Printed Canvass](https://github.com/seansoriano13/t3ckgroup-erp/issues/236), a prototype ticket
+- [Printed Transmittal and TSR](https://github.com/seansoriano13/t3ckgroup-erp/issues/238), a prototype ticket
+- [What becomes of the Warehouse's receiving form and packing lists](https://github.com/seansoriano13/t3ckgroup-erp/issues/239)
+
+**Blocked:** [Printed IPAS](https://github.com/seansoriano13/t3ckgroup-erp/issues/222) waits on the documents ticket; [the new build-order ticket](https://github.com/seansoriano13/t3ckgroup-erp/issues/240) waits on the Warehouse one.
 
 Always check the frontier live, since another session may have moved it.
 
