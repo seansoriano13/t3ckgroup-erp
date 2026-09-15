@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { ListChecks } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
+import { employeeGroupService } from "../../services/employeeGroupService";
 import { confirmActionToast } from "../ui/CustomToast";
 import { storageService } from "../../services/storageService";
 import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
@@ -73,6 +74,15 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     enabled: !!opportunityId,
   });
   const existingFiles = notes.flatMap((n) => n.metadata?.attachments || []);
+
+  // Issue #203, story 17: fetched once here (rather than per row) so an
+  // Assignment condition's `who` group selectors can narrow the dropdown
+  // without every row re-fetching Employee Groups.
+  const { data: groups = [] } = useQuery({
+    queryKey: ["employeeGroups"],
+    queryFn: () => employeeGroupService.list(),
+    enabled: !!opportunityId,
+  });
 
   const satisfyMutation = useMutation({
     mutationFn: (conditionId) =>
@@ -196,6 +206,8 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 satisfiedBy={satisfiedBy}
                 satisfiedAt={satisfiedAt}
                 employees={employees}
+                groups={groups}
+                opportunity={opportunity}
                 onTick={handleTick}
                 tickDisabled={satisfyMutation.isPending}
                 fieldValue={fieldValues[condition.id]}

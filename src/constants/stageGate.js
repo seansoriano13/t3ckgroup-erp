@@ -191,7 +191,7 @@ export function evaluateCondition(condition, {
         who.some((selector) => {
           if (selector.type === "employee") return (m.employeeId ?? m.employee_id) === selector.id
           if (selector.type === "group") return (m.groupIds ?? []).includes(selector.id)
-          if (selector.type === "team") return m.teamId === selector.id
+          if (selector.type === "team") return m.teamId === selector.team
           return false
         }),
       )

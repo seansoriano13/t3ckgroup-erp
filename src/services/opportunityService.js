@@ -27,6 +27,8 @@ import {
   blockingConditions,
   missingStageFields,
 } from "../constants/stageGate";
+import { normaliseTeam } from "../utils/resolvePeople";
+import { employeeGroupService } from "./employeeGroupService";
 import {
   entryStage,
   isLegalMove,
@@ -129,24 +131,54 @@ async function noteConditionSatisfied(opportunityId, condition, actorId) {
 }
 
 /**
- * Turns `sales_opportunity_members` rows into the `{ employeeId, department,
- * assignedAt }` shape `evaluateCondition`'s `assignment` kind expects
- * (constants/stageGate.js). An `assignment` condition's config names one
- * department string (e.g. "Purchasing" or "OPERATIONS") without saying which
- * level of `employees.department`/`sub_department` it means, so each member
- * contributes one entry per level they actually have — a lookup against
- * either matches.
+ * The Employee Groups a member's id belongs to, keyed by employee id — built
+ * once per gate read from `employeeGroupService.list()` (issue #201's own
+ * authority for "who's in a group") so `membersForGate` stays a pure
+ * function instead of each call site re-deriving membership.
  */
-function membersForGate(rows = []) {
+function groupIdsByEmployee(groups = []) {
+  const byEmployee = new Map();
+  for (const group of groups) {
+    for (const employeeId of group.memberIds || []) {
+      const key = String(employeeId);
+      if (!byEmployee.has(key)) byEmployee.set(key, []);
+      byEmployee.get(key).push(group.id);
+    }
+  }
+  return byEmployee;
+}
+
+/**
+ * Turns `sales_opportunity_members` rows into the `{ employeeId, department,
+ * teamId, groupIds, assignedAt }` shape `evaluateCondition`'s `assignment`
+ * kind expects (constants/stageGate.js). An `assignment` condition's config
+ * names one department string (e.g. "Purchasing" or "OPERATIONS") without
+ * saying which level of `employees.department`/`sub_department` it means, so
+ * each member contributes one entry per level they actually have — a lookup
+ * against either matches. `groupsByEmployee` (from `groupIdsByEmployee`) and
+ * `teamId` (the member's normalised Sub-department, issue #201's Team unit)
+ * are attached so a `who` selector of kind "group" or "team" can resolve
+ * against a real SOR, not just "employee" and legacy department-string
+ * selectors.
+ */
+function membersForGate(rows = [], groupsByEmployee = new Map()) {
   const entries = [];
   for (const row of rows) {
     const department = row.employee?.department;
     const subDepartment = row.employee?.sub_department;
+    const teamId = normaliseTeam(subDepartment) || null;
+    const groupIds = groupsByEmployee.get(String(row.employee_id)) || [];
     if (department) {
-      entries.push({ employeeId: row.employee_id, department, assignedAt: row.added_at });
+      entries.push({ employeeId: row.employee_id, department, teamId, groupIds, assignedAt: row.added_at });
     }
     if (subDepartment) {
-      entries.push({ employeeId: row.employee_id, department: subDepartment, assignedAt: row.added_at });
+      entries.push({
+        employeeId: row.employee_id,
+        department: subDepartment,
+        teamId,
+        groupIds,
+        assignedAt: row.added_at,
+      });
     }
   }
   return entries;
@@ -313,7 +345,7 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {})
   // pre-#203 opportunity-wide read.
   if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
 
-  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows] =
+  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows, groups] =
     await Promise.all([
       statusQuery,
       supabase
@@ -321,6 +353,7 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {})
         .select("author_id, created_at, metadata")
         .eq("opportunity_id", opportunityId),
       opportunityService.getMembers(opportunityId),
+      employeeGroupService.list(),
     ]);
   if (statusError) throw statusError;
   if (logsError) throw logsError;
@@ -339,7 +372,7 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {})
     statusRowsByCondition[row.condition_id] = row;
   }
 
-  return { attachments, members: membersForGate(memberRows), statusRowsByCondition };
+  return { attachments, members: membersForGate(memberRows, groupIdsByEmployee(groups)), statusRowsByCondition };
 }
 
 async function gateContext(opportunityId, stageIds) {
@@ -2054,12 +2087,13 @@ export const opportunityService = {
       actorId,
     );
 
+    const groupsByEmployee = groupIdsByEmployee(await employeeGroupService.list());
     await narrateNewlySatisfied(
       opportunityId,
       opportunity.flow_stage_id || opportunity.status,
       opportunity.flow_snapshot_id,
-      { members: membersForGate(existingMembers) },
-      { members: membersForGate([...existingMembers, data]) },
+      { members: membersForGate(existingMembers, groupsByEmployee) },
+      { members: membersForGate([...existingMembers, data], groupsByEmployee) },
       actorId,
     );
 
@@ -2297,24 +2331,29 @@ export const opportunityService = {
     const opportunityIds = opportunities.map((o) => o.id);
     const conditionIds = uniqueConditions.map((r) => r.id);
 
-    const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, { data: memberRows, error: memberError }] =
-      await Promise.all([
-        supabase
-          .from("sor_condition_status")
-          .select("*")
-          .in("opportunity_id", opportunityIds)
-          .in("condition_id", conditionIds),
-        supabase
-          .from("sales_opportunity_logs")
-          .select("opportunity_id, author_id, created_at, metadata")
-          .in("opportunity_id", opportunityIds),
-        supabase
-          .from("sales_opportunity_members")
-          .select(
-            "opportunity_id, employee_id, added_at, employee:employees!sales_opportunity_members_employee_id_fkey(department, sub_department)",
-          )
-          .in("opportunity_id", opportunityIds),
-      ]);
+    const [
+      { data: statusRows, error: statusError },
+      { data: logs, error: logsError },
+      { data: memberRows, error: memberError },
+      groups,
+    ] = await Promise.all([
+      supabase
+        .from("sor_condition_status")
+        .select("*")
+        .in("opportunity_id", opportunityIds)
+        .in("condition_id", conditionIds),
+      supabase
+        .from("sales_opportunity_logs")
+        .select("opportunity_id, author_id, created_at, metadata")
+        .in("opportunity_id", opportunityIds),
+      supabase
+        .from("sales_opportunity_members")
+        .select(
+          "opportunity_id, employee_id, added_at, employee:employees!sales_opportunity_members_employee_id_fkey(department, sub_department)",
+        )
+        .in("opportunity_id", opportunityIds),
+      employeeGroupService.list(),
+    ]);
     if (statusError) throw statusError;
     if (logsError) throw logsError;
     if (memberError) throw memberError;
@@ -2326,9 +2365,10 @@ export const opportunityService = {
       (attachmentsByOpportunity[log.opportunity_id] ??= []).push(...attachments);
     }
 
+    const groupsByEmployee = groupIdsByEmployee(groups);
     const membersByOpportunity = groupBy(memberRows, "opportunity_id");
     for (const opportunityId of Object.keys(membersByOpportunity)) {
-      membersByOpportunity[opportunityId] = membersForGate(membersByOpportunity[opportunityId]);
+      membersByOpportunity[opportunityId] = membersForGate(membersByOpportunity[opportunityId], groupsByEmployee);
     }
 
     const statusByOpportunity = {};

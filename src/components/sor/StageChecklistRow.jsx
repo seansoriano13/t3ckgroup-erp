@@ -5,6 +5,7 @@ import { formatDate } from "../../utils/formatDate";
 import Dropdown from "../ui/Dropdown";
 import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
 import { acceptsLabel } from "../../utils/attachments";
+import { resolvePeople } from "../../utils/resolvePeople";
 
 /** PO Date and Expected Award Date are dates; every other writable field is text. */
 const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
@@ -39,6 +40,8 @@ export default function StageChecklistRow({
   satisfiedBy,
   satisfiedAt,
   employees = [],
+  groups = [],
+  opportunity = null,
   isPreview = false,
   // Field on record
   fieldValue = "",
@@ -62,6 +65,24 @@ export default function StageChecklistRow({
   const isSatisfied = status === CONDITION_STATUS.SATISFIED;
   const isTickable = !isSatisfied && condition.kind === CONDITION_KINDS.TICKBOX;
   const who = employees.find((e) => e.id === satisfiedBy)?.name || null;
+
+  // Issue #203, story 17: a condition with a `who` narrows the dropdown to
+  // only the people who'd actually satisfy it — a legacy `department`-only
+  // condition (no `who` configured) keeps the full-list behaviour it always
+  // had. `resolvePeople` (issue #201) is the one place selectors resolve to
+  // employee ids, kept in sync with `groups` (fetched once by the parent)
+  // instead of refetching Employee Groups per row.
+  const whoSelectors = Array.isArray(condition.config?.who) ? condition.config.who : [];
+  const groupMembersById = whoSelectors.length
+    ? Object.fromEntries(groups.map((g) => [g.id, { employeeIds: g.memberIds || [], teams: [] }]))
+    : undefined;
+  const assignableEmployees =
+    whoSelectors.length > 0
+      ? (() => {
+          const ids = new Set(resolvePeople(whoSelectors, { employees, groupMembersById, opportunity }));
+          return employees.filter((e) => ids.has(e.id));
+        })()
+      : employees;
 
   return (
     <div className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-background px-3 py-2.5">
@@ -200,8 +221,10 @@ export default function StageChecklistRow({
                     <FilterTrigger
                       label={
                         assignmentValue
-                          ? employees.find((e) => e.id === assignmentValue)?.name || "Select..."
-                          : `Assign ${condition.config?.department || "Member"}...`
+                          ? assignableEmployees.find((e) => e.id === assignmentValue)?.name || "Select..."
+                          : whoSelectors.length > 0
+                            ? "Assign..."
+                            : `Assign ${condition.config?.department || "Member"}...`
                       }
                       isActive={!!assignmentValue}
                       isOpen={isOpen}
@@ -213,7 +236,7 @@ export default function StageChecklistRow({
                   {({ close }) => (
                     <FilterOptionList
                       showSearch
-                      options={employees.map((e) => ({
+                      options={assignableEmployees.map((e) => ({
                         value: e.id,
                         label: e.name,
                       }))}

@@ -15,8 +15,10 @@ import {
   makeStageAction,
   makeStageCondition,
   makeStageField,
+  makeSuperAdmin,
   seedPipeline,
 } from "@/test/factories"
+import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction } from "@/test/msw/server"
 
@@ -943,6 +945,68 @@ describe("opportunityService", () => {
           n.content.includes("added as a member"),
         )
         expect(addedNotes).toHaveLength(1)
+      })
+
+      // Code review of #203 (0eceec9): a "who" selector of kind "group" or
+      // "team" could never be satisfied because the members evaluateCondition
+      // saw carried no groupIds/teamId at all — only employeeId/department.
+      it("is satisfied by a group selector when a deal-team member belongs to that group", async () => {
+        const admin = makeSuperAdmin()
+        const buyer = makeEmployee({ name: "Rey Santos" })
+        const group = await employeeGroupService.create(
+          { name: "Purchasing Group", employeeIds: [buyer.id] },
+          admin.id,
+        )
+        makeStageCondition({
+          stage_id: lead.id,
+          kind: "assignment",
+          label: "Someone from the Purchasing Group",
+          config: { who: [{ type: "group", id: group.id }] },
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await expect(
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
+        ).rejects.toThrow(/Purchasing Group/)
+
+        await opportunityService.addMember(deal.id, buyer.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("is satisfied by a team selector when a deal-team member's sub-department matches", async () => {
+        makeStageCondition({
+          stage_id: lead.id,
+          kind: "assignment",
+          label: "Someone from Purchasing team",
+          config: { who: [{ type: "team", team: "PURCHASING" }] },
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+        const buyer = makeEmployee({ name: "Rey Santos", sub_department: "Purchasing" })
+
+        await expect(
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
+        ).rejects.toThrow(/Purchasing team/)
+
+        await opportunityService.addMember(deal.id, buyer.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
       })
     })
 

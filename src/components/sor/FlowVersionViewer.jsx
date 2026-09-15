@@ -12,7 +12,17 @@ import "@xyflow/react/dist/style.css"
 
 import FlowCanvasNode from "../settings/FlowCanvasNode"
 import FlowBracketNode from "../settings/FlowBracketNode"
-import { bracketNode, bracketRuns, STAGE_W, STAGE_H } from "../settings/flowCanvasLayout"
+import FlowSatelliteNode from "../settings/FlowSatelliteNode"
+import {
+    bracketNode,
+    bracketRuns,
+    columnSlots,
+    satellitePosition,
+    GATE,
+    RUN,
+    STAGE_W,
+    STAGE_H,
+} from "../settings/flowCanvasLayout"
 import {
     actionsForSnapshotStage,
     conditionsForSnapshotStage,
@@ -20,6 +30,8 @@ import {
     snapshotRows,
 } from "../../constants/salesFlow"
 import FlowVersionStagePanel from "./FlowVersionStagePanel"
+
+const SATELLITE_COLOR = { [GATE]: "var(--amber-a8)", [RUN]: "var(--violet-a8)" }
 
 /**
  * Far below React Flow's default floor of 0.5. A Sales Flow is a long chain
@@ -72,9 +84,16 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     const [panelTab, setPanelTab] = useState("conditions")
 
     const onNodeClick = useCallback((_event, node) => {
+        if (node.type === "stage") {
+            setSelectedStageId(node.id)
+            return
+        }
+        if (node.type === "satellite") {
+            setSelectedStageId(node.data.stageId)
+            setPanelTab(node.data.column === GATE ? "conditions" : "actions")
+            return
+        }
         // Bracket braces are synthetic labels with nothing behind them.
-        if (node.type !== "stage") return
-        setSelectedStageId(node.id)
     }, [])
     const onPaneClick = useCallback(() => setSelectedStageId(null), [])
 
@@ -88,6 +107,72 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
     // won. Derived once here so the nodes below and the panel agree.
     const entry = useMemo(() => entryStage(stages), [stages])
     const wonStageId = snapshotData?.wonStageId ?? null
+
+    // Satellite cards, and the dashed edges that hang them off their Stage —
+    // the same shapes the live editor's FlowCanvas builds (its own
+    // `addSatellite`), just fed from the snapshot's `conditions`/`actions`
+    // instead of the live tables, with no "add" slot: this view has nothing
+    // to add to. Kept in its own memo so the click-only satellite edges don't
+    // recompute every time only `selectedStageId` changes.
+    const { satelliteNodes, satelliteEdges } = useMemo(() => {
+        const nodes = []
+        const flowEdges = []
+
+        const addSatellite = (stage, column, index, id, data) => {
+            nodes.push({
+                id,
+                type: "satellite",
+                parentId: stage.id,
+                position: satellitePosition(column, index),
+                draggable: false,
+                selectable: true,
+                connectable: false,
+                deletable: false,
+                data: { ...data, column, stageId: stage.id },
+            })
+            flowEdges.push({
+                id: `satedge:${id}`,
+                source: stage.id,
+                sourceHandle: column,
+                target: id,
+                type: "smoothstep",
+                pathOptions: { borderRadius: 14 },
+                deletable: false,
+                selectable: false,
+                focusable: false,
+                reconnectable: false,
+                style: { stroke: SATELLITE_COLOR[column], strokeWidth: 1.5, strokeDasharray: "4 5" },
+                markerEnd: undefined,
+            })
+        }
+
+        stages.forEach((stage) => {
+            const columns = [
+                { column: GATE, items: conditionsForSnapshotStage(conditions, stage.id), variant: "condition" },
+                { column: RUN, items: actionsForSnapshotStage(actions, stage.id), variant: "action" },
+            ]
+
+            columns.forEach(({ column, items, variant }) => {
+                const { shown, overflow } = columnSlots(items.length)
+
+                items.slice(0, shown).forEach((item, i) => {
+                    addSatellite(stage, column, i, `sat:${stage.id}:${column}:${item.id}`, {
+                        variant,
+                        [variant]: item,
+                    })
+                })
+
+                if (overflow > 0) {
+                    addSatellite(stage, column, shown, `sat:${stage.id}:${column}:more`, {
+                        variant: "overflow",
+                        overflow,
+                    })
+                }
+            })
+        })
+
+        return { satelliteNodes: nodes, satelliteEdges: flowEdges }
+    }, [stages, conditions, actions])
 
     const nodes = useMemo(() => {
         if (stages.length === 0) return []
@@ -125,12 +210,16 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
             },
         }))
 
-        return [...bracketNodes, ...stageNodes]
-    }, [stages, conditions, actions, entry, wonStageId, currentStageId, selectedStageId])
+        // Parents first: React Flow reads `parentId` against nodes already in
+        // the array, so a satellite listed before its Stage would render at
+        // the origin.
+        return [...bracketNodes, ...stageNodes, ...satelliteNodes]
+    }, [stages, conditions, actions, entry, wonStageId, currentStageId, selectedStageId, satelliteNodes])
 
     const flowEdges = useMemo(
-        () =>
-            edges.map((edge) => ({
+        () => [
+            ...satelliteEdges,
+            ...edges.map((edge) => ({
                 id: edge.id,
                 source: edge.from_stage_id,
                 target: edge.to_stage_id,
@@ -140,10 +229,14 @@ function FlowVersionCanvas({ snapshotData, currentStageId = null }) {
                 focusable: false,
                 markerEnd: { type: MarkerType.ArrowClosed },
             })),
-        [edges],
+        ],
+        [edges, satelliteEdges],
     )
 
-    const nodeTypes = useMemo(() => ({ stage: FlowCanvasNode, bracket: FlowBracketNode }), [])
+    const nodeTypes = useMemo(
+        () => ({ stage: FlowCanvasNode, bracket: FlowBracketNode, satellite: FlowSatelliteNode }),
+        [],
+    )
 
     // Framing, and why it is not simply "fit everything".
     //

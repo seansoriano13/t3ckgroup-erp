@@ -115,8 +115,9 @@ describe("FlowVersionPage", () => {
     expect(await screen.findByText("Stage · this version")).toBeInTheDocument()
     expect(screen.getAllByText("Pre-Award").length).toBe(2) // bracket node + panel header
 
-    // Verifies snapshot condition is displayed
-    expect(screen.getByText("PO date filled in")).toBeInTheDocument()
+    // Verifies snapshot condition is displayed — once as its satellite card
+    // on the canvas (issue #203, story 33) and once as the panel's own row.
+    expect(screen.getAllByText("PO date filled in").length).toBe(2)
 
     // No editing controls
     expect(screen.queryByLabelText("Stage name")).not.toBeInTheDocument()
@@ -125,7 +126,7 @@ describe("FlowVersionPage", () => {
 
     // Switch to Actions tab
     fireEvent.click(screen.getByRole("button", { name: /Actions/ }))
-    expect(await screen.findByText("Send Notification")).toBeInTheDocument()
+    expect((await screen.findAllByText("Send Notification")).length).toBe(2)
   })
 
   it("handles older snapshots with conditions/actions grouped per stage", async () => {
@@ -163,7 +164,8 @@ describe("FlowVersionPage", () => {
     const stageElements = screen.getAllByText("Legacy Stage")
     fireEvent.click(stageElements[stageElements.length - 1].closest(".react-flow__node"))
 
-    expect(await screen.findByText("Checked legacy box")).toBeInTheDocument()
+    // Once as the satellite card, once as the panel's own row.
+    expect((await screen.findAllByText("Checked legacy box")).length).toBe(2)
   })
 
   it("states plainly when a version saved no rules at all", async () => {

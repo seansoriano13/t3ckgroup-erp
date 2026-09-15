@@ -10,6 +10,7 @@ import {
   makeOpportunity,
   makeSaleType,
   makeSalesFlow,
+  makeStageCondition,
   makeSuperAdmin,
 } from "@/test/factories"
 
@@ -413,6 +414,37 @@ describe("FlowCanvas", () => {
     fireEvent.click(leadNodes[leadNodes.length - 1].closest(".react-flow__node"))
 
     expect(await screen.findByText("Stage · this version")).toBeInTheDocument()
+  })
+
+  // Code review of #203 (0eceec9): the version viewer only showed
+  // "Gate · N"/"On entry · N" counts, not the condition/action satellite
+  // cards the live canvas draws — story 33 asks to "read its rules at a
+  // glance", which a bare count doesn't give.
+  it("draws a version's conditions as satellite cards, and clicking one opens the panel on that tab", async () => {
+    const user = userEvent.setup()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    makeStageCondition({
+      stage_id: lead.id,
+      kind: "tickbox",
+      label: "Confirm receipt",
+    })
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+    await salesFlowService.lockFlow(flow.id, mockUser.current.id) // v1.0
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+    await user.click(await screen.findByText("v1.0"))
+    await screen.findByText("Viewing v1.0 — read-only")
+
+    const satellite = await screen.findByText("Confirm receipt")
+    fireEvent.click(satellite.closest(".react-flow__node"))
+
+    expect(await screen.findByText("Stage · this version")).toBeInTheDocument()
+    // The panel opened on Conditions, not Actions or General — the condition
+    // row it lists repeats the satellite's own label.
+    expect(screen.getAllByText("Confirm receipt")).toHaveLength(2)
+    expect(screen.queryByText("This version saved no Stage Conditions on this Stage.")).not.toBeInTheDocument()
   })
 
   it("disables Restore on a published Sales Flow, hinting to edit the draft first", async () => {

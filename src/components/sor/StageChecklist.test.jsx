@@ -17,6 +17,7 @@ import { renderWithProviders } from "../../test/support"
 import StageChecklist from "./StageChecklist"
 import { opportunityService } from "../../services/opportunityService"
 import { stageFieldService } from "../../services/stageFieldService"
+import { employeeGroupService } from "../../services/employeeGroupService"
 import { CONDITION_STATUS } from "../../constants/stageGate"
 
 const OPPORTUNITY = { id: "opp-1", status: "PROPOSAL_SUBMITTED" }
@@ -41,6 +42,12 @@ vi.mock("../../services/stageFieldService", () => ({
     getForStage: vi.fn(async () => []),
     getValuesForVisit: vi.fn(async () => ({})),
     saveValue: vi.fn(async () => ({})),
+  },
+}))
+
+vi.mock("../../services/employeeGroupService", () => ({
+  employeeGroupService: {
+    list: vi.fn(async () => []),
   },
 }))
 
@@ -260,5 +267,59 @@ describe("attachment — pick an existing SOR file (issue #203, story 13)", () =
         ],
       ),
     )
+  })
+})
+
+describe("assignment — who narrows the dropdown (issue #203, story 17)", () => {
+  const TEAM_EMPLOYEES = [
+    { id: "emp-1", name: "Ana Reyes" },
+    { id: "emp-2", name: "Rey Santos" },
+  ]
+
+  it("offers only people who resolve into the condition's who", async () => {
+    const user = userEvent.setup()
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({
+        condition: {
+          ...item().condition,
+          kind: "assignment",
+          label: "Purchasing officer assigned",
+          config: { who: [{ type: "group", id: "grp-1" }] },
+        },
+      }),
+    ])
+    employeeGroupService.list.mockResolvedValue([{ id: "grp-1", memberIds: ["emp-2"] }])
+
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={TEAM_EMPLOYEES} actorId="emp-1" />,
+    )
+
+    await user.click(await screen.findByText("Assign..."))
+
+    expect(await screen.findByRole("button", { name: "Rey Santos" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Ana Reyes" })).toBeNull()
+  })
+
+  it("keeps the full list for a legacy department-only condition (no who configured)", async () => {
+    const user = userEvent.setup()
+    opportunityService.getStageChecklist.mockResolvedValue([
+      item({
+        condition: {
+          ...item().condition,
+          kind: "assignment",
+          label: "Someone from Purchasing",
+          config: { department: "Purchasing" },
+        },
+      }),
+    ])
+
+    renderWithProviders(
+      <StageChecklist opportunity={OPPORTUNITY} employees={TEAM_EMPLOYEES} actorId="emp-1" />,
+    )
+
+    await user.click(await screen.findByText(/Assign Purchasing\.\.\./i))
+
+    expect(await screen.findByRole("button", { name: "Ana Reyes" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Rey Santos" })).toBeInTheDocument()
   })
 })

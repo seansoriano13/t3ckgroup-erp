@@ -218,8 +218,8 @@ describe("evaluateCondition — assignment kind", () => {
   })
 
   it("is satisfied by any member of a named Team in who", () => {
-    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "team", id: "team-1" }] } })
-    const result = evaluateCondition(req, { members: [{ employeeId: "emp-6", teamId: "team-1" }] })
+    const req = makeCondition({ kind: "assignment", config: { who: [{ type: "team", team: "TEAM-1" }] } })
+    const result = evaluateCondition(req, { members: [{ employeeId: "emp-6", teamId: "TEAM-1" }] })
     expect(result.status).toBe(CONDITION_STATUS.SATISFIED)
   })
 
