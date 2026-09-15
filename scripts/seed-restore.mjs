@@ -64,6 +64,9 @@ async function main() {
     await client.query("update auth.users set encrypted_password = crypt($1, gen_salt('bf'))", [testPassword])
   }
 
+  console.log("Resyncing identity sequences...")
+  await resyncSequences(client, tableNames)
+
   await client.query("SET session_replication_role = 'origin';")
   await client.end()
   console.log("\nDone. Log in locally with any restored account's email and VITE_TEST_PASSWORD.")
@@ -71,6 +74,29 @@ async function main() {
 
 function quoteIdent(name) {
   return `"${name.replace(/"/g, '""')}"`
+}
+
+// `overriding system value` above inserts the dump's own serial_no/id-style
+// identity values, but never advances the identity sequence behind them —
+// Postgres only auto-advances a sequence when it generates the value itself.
+// Left alone, the next INSERT to rely on the default (e.g. registering a new
+// SOR) collides with a seeded row's serial_no (23505 unique_violation).
+// Every identity column gets resynced to its restored table's current max.
+async function resyncSequences(client, tableNames) {
+  for (const table of tableNames) {
+    const { rows: identityColumns } = await client.query(
+      `select column_name from information_schema.columns
+       where table_schema = 'public' and table_name = $1 and is_identity = 'YES'`,
+      [table],
+    )
+    for (const { column_name: column } of identityColumns) {
+      await client.query(
+        `select setval(pg_get_serial_sequence('public.${quoteIdent(table)}', $1),
+           coalesce((select max(${quoteIdent(column)}) from public.${quoteIdent(table)}), 1))`,
+        [column],
+      )
+    }
+  }
 }
 
 // pg deserializes both a jsonb array and a native Postgres array column into
