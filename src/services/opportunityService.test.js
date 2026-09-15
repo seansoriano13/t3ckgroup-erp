@@ -1483,10 +1483,9 @@ describe("opportunityService", () => {
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        await vi.waitFor(() => {
-          const tasks = db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)
-          expect(tasks).toHaveLength(1)
-        })
+        // Issue #199 — the move resolves after its Stage Actions, so the task
+        // is already there without polling.
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
 
         // Simulate a missing/deleted fired-log row.
         const firedLog = db.internal
@@ -1499,12 +1498,38 @@ describe("opportunityService", () => {
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        await waitForNetworkIdle()
 
         const tasksAfterLoopBack = db.internal
           .rowsOf("tasks")
           .filter((t) => t.opportunity_id === deal.id)
         expect(tasksAfterLoopBack).toHaveLength(1)
+      })
+    })
+
+    describe("a Stage Action that fails", () => {
+      it("keeps the move, still runs the other actions, and names the failed one", async () => {
+        const { taskService } = await import("./taskService")
+        makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: { projectTitle: "Broken action" }, sort_order: 1 })
+        makeStageAction({ stage_id: qualified.id, kind: "create_group_task", config: { title: "Working action" }, sort_order: 2 })
+        const spy = vi.spyOn(taskService, "createTask").mockRejectedValueOnce(new Error("category missing"))
+
+        const deal = await register()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        spy.mockRestore()
+
+        expect(moved.flow_stage_id).toBe(qualified.id)
+        expect(moved.failedStageActions).toEqual(["Broken action"])
+        expect(db.internal.rowsOf("committee_tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
+        expect((await opportunityService.getOpportunityById(deal.id)).flow_stage_id).toBe(qualified.id)
+      })
+
+      it("reports no failures when every action runs", async () => {
+        makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: {} })
+
+        const deal = await register()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(moved.failedStageActions).toEqual([])
       })
     })
 
@@ -1520,13 +1545,10 @@ describe("opportunityService", () => {
         const deal = await register({ sales_reference: "S04521" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const task = await vi.waitFor(() => {
-          const found = db.internal
+        const task = db.internal
             .rowsOf("tasks")
             .find((t) => t.opportunity_id === deal.id)
-          expect(found).toBeTruthy()
-          return found
-        })
+        expect(task).toBeTruthy()
 
         expect(task.project_title).toBe("[S04521] [Fire truck supply]")
         expect(task.task_description).toContain("entering stage: Qualified")
@@ -1542,13 +1564,10 @@ describe("opportunityService", () => {
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const task = await vi.waitFor(() => {
-          const found = db.internal
+        const task = db.internal
             .rowsOf("tasks")
             .find((t) => t.opportunity_id === deal.id)
-          expect(found).toBeTruthy()
-          return found
-        })
+        expect(task).toBeTruthy()
 
         expect(task.project_title).toBe("[No Sales Reference] [Fire truck supply]")
       })
@@ -1563,13 +1582,10 @@ describe("opportunityService", () => {
         const deal = await register({ sales_reference: "S04521" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const task = await vi.waitFor(() => {
-          const found = db.internal
+        const task = db.internal
             .rowsOf("tasks")
             .find((t) => t.opportunity_id === deal.id)
-          expect(found).toBeTruthy()
-          return found
-        })
+        expect(task).toBeTruthy()
 
         expect(task.project_title).toBe("Custom automation title")
       })
@@ -1584,13 +1600,10 @@ describe("opportunityService", () => {
         const deal = await register({ sales_reference: "S04521" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const groupTask = await vi.waitFor(() => {
-          const found = db.internal
+        const groupTask = db.internal
             .rowsOf("committee_tasks")
             .find((t) => t.opportunity_id === deal.id)
-          expect(found).toBeTruthy()
-          return found
-        })
+        expect(groupTask).toBeTruthy()
 
         expect(groupTask.title).toBe("[S04521] [Fire truck supply]")
         expect(groupTask.description).toContain("entering stage: Qualified")
@@ -1606,13 +1619,10 @@ describe("opportunityService", () => {
         const deal = await register({ sales_reference: "S04521" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const groupTask = await vi.waitFor(() => {
-          const found = db.internal
+        const groupTask = db.internal
             .rowsOf("committee_tasks")
             .find((t) => t.opportunity_id === deal.id)
-          expect(found).toBeTruthy()
-          return found
-        })
+        expect(groupTask).toBeTruthy()
 
         expect(groupTask.title).toBe("Custom group automation title")
       })
@@ -2139,6 +2149,132 @@ describe("opportunityService", () => {
       await opportunityService.updateOpportunity(created.id, payload(), registrar.id)
 
       expect(await opportunityService.getNotes(created.id)).toHaveLength(before.length)
+    })
+
+    // Issue #199 — a Stage Checklist Save sends one field. Every other part of
+    // the SOR has to come back exactly as it was.
+    describe("saving one field", () => {
+      let closer, support1, support2, director
+
+      const fullRecord = () => {
+        closer = makeEmployee({ name: "Cara Lim" })
+        support1 = makeEmployee({ name: "Dan Tan" })
+        support2 = makeEmployee({ name: "Eve Go" })
+        director = makeEmployee({ name: "Fe Uy" })
+        return opportunityService.createOpportunity(
+          payload({
+            project_type: "STRATEGIC",
+            sales_reference: "S04521",
+            contact_person: "Engr. Santos",
+            po_date: "2026-04-01",
+            expected_award_date: "2026-05-01",
+            itb_number: "ITB-77",
+            lead_source_detail: "Mayor's office",
+            closing_sales_id: closer.id,
+            support_sales_1_id: support1.id,
+            support_sales_2_id: support2.id,
+            sales_director_id: director.id,
+          }),
+          registrar.id,
+        )
+      }
+
+      const keptIntact = (found) => {
+        expect(found).toMatchObject({
+          deal_owner_id: owner.id,
+          closing_sales_id: closer.id,
+          support_sales_1_id: support1.id,
+          support_sales_2_id: support2.id,
+          sales_director_id: director.id,
+          sales_reference: "S04521",
+          contact_person: "Engr. Santos",
+          expected_award_date: "2026-05-01",
+          itb_number: "ITB-77",
+          lead_source_detail: "Mayor's office",
+          project_type: "STRATEGIC",
+          client_name: "Quezon City Hall",
+          expected_value: 3000,
+        })
+      }
+
+      it("leaves the rest of the SOR intact when one real field is saved", async () => {
+        const created = await fullRecord()
+
+        await opportunityService.updateOpportunity(created.id, { po_date: "2026-04-09" }, registrar.id)
+
+        const found = await opportunityService.getOpportunityById(created.id)
+        keptIntact(found)
+        expect(found.po_date).toBe("2026-04-09")
+        const items = await opportunityService.getItems(created.id)
+        expect(items.map((i) => i.product_name)).toEqual(["Pumper"])
+      })
+
+      it("keeps an outright marking when an unrelated field is saved", async () => {
+        const created = await opportunityService.createOpportunity(payload(), registrar.id)
+        await opportunityService.updateOpportunity(created.id, { itb_exempt: true }, registrar.id)
+
+        await opportunityService.updateOpportunity(created.id, { contact_person: "Engr. Cruz" }, registrar.id)
+
+        expect((await opportunityService.getOpportunityById(created.id)).itb_exempt).toBe(true)
+      })
+
+      it("records only the field that changed on the timeline", async () => {
+        const created = await fullRecord()
+
+        await opportunityService.updateOpportunity(created.id, { contact_person: "Engr. Cruz" }, registrar.id)
+
+        const note = (await opportunityService.getNotes(created.id)).at(-1)
+        expect(note.metadata.changes).toEqual([
+          'Contact Person changed from "Engr. Santos" to "Engr. Cruz"',
+        ])
+      })
+
+      it("still clears a field sent explicitly empty, and empties the Product List when sent empty", async () => {
+        const created = await fullRecord()
+
+        await opportunityService.updateOpportunity(
+          created.id,
+          { contact_person: "", closing_sales_id: null, items: [] },
+          registrar.id,
+        )
+
+        const found = await opportunityService.getOpportunityById(created.id)
+        expect(found.contact_person).toBeNull()
+        expect(found.closing_sales_id).toBeNull()
+        expect(found.expected_value).toBe(0)
+        expect(await opportunityService.getItems(created.id)).toEqual([])
+      })
+
+      it("writes a real SOR field to its column through the single-field write", async () => {
+        const created = await fullRecord()
+
+        const saved = await opportunityService.saveRecordField(created.id, "po_date", "2026-04-20", registrar.id)
+
+        expect(saved.po_date).toBe("2026-04-20")
+        expect(saved.metadata?.po_date).toBeUndefined()
+        keptIntact(saved)
+      })
+
+      it("merges a custom field into the stored metadata, keeping the others", async () => {
+        const created = await opportunityService.createOpportunity(
+          payload({ metadata: { "Bid bond": "BB-1" } }),
+          registrar.id,
+        )
+
+        const saved = await opportunityService.saveRecordField(created.id, "Warranty", "2 years", registrar.id)
+
+        expect(saved.metadata).toEqual({ "Bid bond": "BB-1", Warranty: "2 years" })
+        expect(saved.deal_owner_id).toBe(owner.id)
+        expect(saved.expected_value).toBe(3000)
+      })
+
+      it("refuses a malformed Sales Reference with a readable message", async () => {
+        const created = await fullRecord()
+
+        await expect(
+          opportunityService.saveRecordField(created.id, "sales_reference", "nope", registrar.id),
+        ).rejects.toThrow(/Odoo quotation number/)
+      })
     })
   })
 

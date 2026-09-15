@@ -645,6 +645,10 @@ export default function OpportunityDetailsModal({
     // Expected Value edits and stage moves (esp. into Awarded, which sets
     // Contract Date) both change what the Commission Pool panel should show.
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
+    // Issue #199 — a move creates tasks (Stage Actions) and lands on a new
+    // Stage's checklist; a field Save satisfies checklist items.
+    queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
+    queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
@@ -718,6 +722,12 @@ export default function OpportunityDetailsModal({
 
       invalidate();
       toast.success("Stage updated.");
+      if (data?.failedStageActions?.length > 0) {
+        toast(
+          `Moved, but these automations failed — create them by hand: ${data.failedStageActions.join(", ")}.`,
+          { icon: "⚠️", duration: 8000 },
+        );
+      }
 
       const isLeavingLead = opportunity?.status === "LEAD" && variables?.next !== "LEAD";
       if (isLeavingLead) {
@@ -1040,11 +1050,8 @@ export default function OpportunityDetailsModal({
   const itbNumberValid = !!itbNumber.trim();
 
   const handleSaveField = async (column, value) => {
-    const isTopLevel = ["client_name", "project_title", "sales_reference", "expected_value", "contact_person"].includes(column);
-    const payload = isTopLevel ? { [column]: value } : { metadata: { ...opportunity.metadata, [column]: value } };
-    return opportunityService.updateOpportunity(id, payload, user?.id).then(() => {
-      invalidate();
-    });
+    await opportunityService.saveRecordField(id, column, value, user?.id);
+    invalidate();
   };
 
   const handleStageChange = (next) => {

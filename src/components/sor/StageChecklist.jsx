@@ -10,6 +10,10 @@ import { confirmActionToast } from "../ui/CustomToast";
 import Dropdown from "../ui/Dropdown";
 import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
 import { storageService } from "../../services/storageService";
+
+/** PO Date and Expected Award Date are dates; every other writable field is text. */
+const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
+
 const KIND_LABELS = {
   [CONDITION_KINDS.ATTACHMENT]: "Attachment",
   [CONDITION_KINDS.FIELD]: "Field on record",
@@ -44,11 +48,15 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   const [uploadingAttachment, setUploadingAttachment] = useState({});
   const queryClient = useQueryClient();
   const opportunityId = opportunity?.id;
-  const stageCode = opportunity?.status;
+  // A flow SOR's `status` never changes (it stays LEAD), so the key follows
+  // its flow Stage — otherwise a move keeps showing the old Stage's list.
+  const stageCode = opportunity?.flow_stage_id || opportunity?.status;
 
   const { data: checklist = [] } = useQuery({
     queryKey: ["stageChecklist", opportunityId, stageCode],
-    queryFn: () => opportunityService.getStageChecklist(opportunityId, opportunity),
+    // Read fresh, not from the prop: right after a Save or a move the prop can
+    // still be the copy from before it.
+    queryFn: () => opportunityService.getStageChecklist(opportunityId),
     enabled: !!opportunityId,
   });
 
@@ -203,10 +211,14 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                       {isTickable ? "Not yet certified — tap to certify." : "Not yet satisfied."}
                     </p>
                     
-                    {!isSatisfied && condition.kind === CONDITION_KINDS.FIELD && onSaveField && (
+                    {!isSatisfied &&
+                      condition.kind === CONDITION_KINDS.FIELD &&
+                      onSaveField &&
+                      opportunityService.isChecklistWritableField(condition.config?.column) && (
                       <div className="flex items-center gap-2 max-w-[240px]">
                         <input
-                          type="text"
+                          type={DATE_FIELDS.has(condition.config?.column) ? "date" : "text"}
+                          aria-label={condition.label}
                           value={fieldValues[condition.id] || ""}
                           onChange={(e) => setFieldValues(p => ({ ...p, [condition.id]: e.target.value }))}
                           placeholder={`Enter ${condition.config?.column || 'value'}`}
@@ -220,9 +232,10 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                             setSavingField(condition.id);
                             try {
                               await onSaveField(condition.config.column, fieldValues[condition.id]);
-                              // Wait a moment before clearing to let the UI catch up
-                              setTimeout(() => setSavingField(null), 500);
+                              setFieldValues((p) => ({ ...p, [condition.id]: "" }));
                             } catch (err) {
+                              toast.error(err.message);
+                            } finally {
                               setSavingField(null);
                             }
                           }}

@@ -63,6 +63,31 @@ const PARTICIPANT_SELECT = `
 `;
 
 /**
+ * The SOR's real, directly writable fields and how each is written. This is
+ * the one list of "which keys are columns": `updateOpportunity` writes only
+ * the keys here that a payload carries, and `saveRecordField` routes anything
+ * not here into metadata. Derived fields (Project Type, the Odoo partner,
+ * Estimated Value) are not listed — they follow their inputs.
+ */
+const RECORD_FIELD_WRITERS = {
+  lead_source: (v) => v,
+  lead_source_detail: (v) => v || null,
+  client_name: (v) => v,
+  contact_person: (v) => v || null,
+  project_title: (v) => v,
+  sales_reference: (v) => cleanSalesReference(v),
+  itb_number: (v) => (v || "").trim() || null,
+  itb_exempt: (v) => Boolean(v),
+  expected_award_date: (v) => v || null,
+  po_date: (v) => v || null,
+  deal_owner_id: (v) => v || null,
+  closing_sales_id: (v) => v || null,
+  support_sales_1_id: (v) => v || null,
+  support_sales_2_id: (v) => v || null,
+  sales_director_id: (v) => v || null,
+};
+
+/**
  * Trims/uppercases a Sales Reference and rejects anything that isn't an Odoo
  * quotation number. Empty is allowed here — the stage gate is what makes it
  * mandatory, not the field itself.
@@ -623,126 +648,153 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // 3. Execute Stage Actions (Automations) for the new stage — read from the
   // SOR's own snapshot (issue #83), not the live table, so entering a Stage
   // fires the automations agreed at registration time and not ones added
-  // since. We fire these asynchronously so they don't block the move itself,
-  // but we catch errors so they don't crash the user.
-  (async () => {
-    try {
-      const actions = actionsForSnapshotStage(snapshotActions, to.id);
-      if (actions.length > 0) {
-        // Guard: fire once per (deal, stage). The log check is the primary
-        // signal; the task-existence check is a fallback for a missing or
-        // deleted log entry, since both individual and group tasks created
-        // by these automations embed the same "entering stage: <name>"
-        // marker in their description (see the payloads built below).
-        const { data: existingLogs } = await supabase
-          .from("sales_opportunity_logs")
+  // since.
+  //
+  // Issue #199 — awaited, not detached: the move resolves once its actions
+  // have run, so the caller's refresh already sees the tasks. The move is
+  // committed above and a failing action never undoes it; each action is
+  // tried on its own and failures come back named on the result.
+  const failedStageActions = [];
+  let actionsAttempted = false;
+  try {
+    const actions = actionsForSnapshotStage(snapshotActions, to.id);
+    if (actions.length > 0) {
+      // Guard: fire once per (deal, stage). The log check is the primary
+      // signal; the task-existence check is a fallback for a missing or
+      // deleted log entry, since both individual and group tasks created
+      // by these automations embed the same "entering stage: <name>"
+      // marker in their description (see the payloads built below).
+      const { data: existingLogs } = await supabase
+        .from("sales_opportunity_logs")
+        .select("id")
+        .eq("opportunity_id", existing.id)
+        .contains("metadata", { event: "STAGE_ACTIONS_FIRED", to: to.id })
+        .limit(1);
+
+      const stageMarker = `entering stage: ${to.name}`;
+      const [{ data: existingTasks }, { data: existingGroupTasks }] = await Promise.all([
+        supabase
+          .from("tasks")
           .select("id")
           .eq("opportunity_id", existing.id)
-          .contains("metadata", { event: "STAGE_ACTIONS_FIRED", to: to.id })
-          .limit(1);
+          .ilike("task_description", `%${stageMarker}%`)
+          .limit(1),
+        supabase
+          .from("committee_tasks")
+          .select("id")
+          .eq("opportunity_id", existing.id)
+          .ilike("description", `%${stageMarker}%`)
+          .limit(1),
+      ]);
 
-        const stageMarker = `entering stage: ${to.name}`;
-        const [{ data: existingTasks }, { data: existingGroupTasks }] = await Promise.all([
-          supabase
-            .from("tasks")
-            .select("id")
-            .eq("opportunity_id", existing.id)
-            .ilike("task_description", `%${stageMarker}%`)
-            .limit(1),
-          supabase
-            .from("committee_tasks")
-            .select("id")
-            .eq("opportunity_id", existing.id)
-            .ilike("description", `%${stageMarker}%`)
-            .limit(1),
-        ]);
+      if (existingLogs?.length > 0 || existingTasks?.length > 0 || existingGroupTasks?.length > 0) {
+        systemAuditLogService.addSystemEvent(
+          "OPPORTUNITY", existing.id,
+          `Stage actions skipped: already fired for ${to.name}`,
+          { event: "STAGE_ACTIONS_SKIPPED", to: to.id }, actorId
+        ).catch(() => {});
+        return { ...data, failedStageActions };
+      }
 
-        if (existingLogs?.length > 0 || existingTasks?.length > 0 || existingGroupTasks?.length > 0) {
-          systemAuditLogService.addSystemEvent(
-            "OPPORTUNITY", existing.id,
-            `Stage actions skipped: already fired for ${to.name}`,
-            { event: "STAGE_ACTIONS_SKIPPED", to: to.id }, actorId
-          ).catch(() => {});
-          return;
-        }
+      const { groupTaskService } = await import("./groupTaskService");
+      const { taskService } = await import("./taskService");
 
-        const { groupTaskService } = await import("./groupTaskService");
-        const { taskService } = await import("./taskService");
+      actionsAttempted = true;
+      for (const action of actions) {
+        const config = action.config;
+        const oppName = existing.sales_reference ? `${existing.sales_reference} - ${existing.client_name}` : existing.client_name;
+        // Issue #178 — both automation kinds name their task after the
+        // deal, not the Stage, via this one shared builder.
+        const dealTitle = stageActionTaskTitle({
+          salesReference: existing.sales_reference,
+          projectTitle: existing.project_title,
+        });
 
-        for (const action of actions) {
-          const config = action.config;
-          const oppName = existing.sales_reference ? `${existing.sales_reference} - ${existing.client_name}` : existing.client_name;
-          // Issue #178 — both automation kinds name their task after the
-          // deal, not the Stage, via this one shared builder.
-          const dealTitle = stageActionTaskTitle({
-            salesReference: existing.sales_reference,
-            projectTitle: existing.project_title,
+        if (action.kind === "create_group_task") {
+          // Group Task Automation
+          const payload = {
+            title: config.title || dealTitle,
+            description: config.description
+              ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
+              : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
+            createdBy: actorId,
+            templateId: config.templateId || null,
+            members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
+            opportunityId: existing.id,
+          };
+
+          if (config.dueDateOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
+            payload.dueDate = due.toISOString();
+          }
+
+          await groupTaskService.createGroupTask(payload).catch((err) => {
+            console.error("Stage Action failed:", err);
+            failedStageActions.push(stageActionName(action));
           });
 
-          if (action.kind === "create_group_task") {
-            // Group Task Automation
-            const payload = {
-              title: config.title || dealTitle,
-              description: config.description
-                ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
-                : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
-              createdBy: actorId,
-              templateId: config.templateId || null,
-              members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
-              opportunityId: existing.id,
-            };
+        } else if (action.kind === "create_individual_task") {
+          // Individual Task Automation
+          const payload = {
+            taskDescription: config.title
+              ? `${config.title}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
+              : `Auto-created on entering stage: ${to.name}`,
+            categoryId: config.categoryId,
+            priority: config.priority || "MEDIUM",
+            checklist: config.checklist || null,
+            // An individual-task automation's explicit title lives in
+            // config.projectTitle, not config.title — that field belongs
+            // to the group-task kind (see flowStageKinds.actionTitle).
+            projectTitle: config.projectTitle || dealTitle,
+            loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
+            submittedById: actorId,
+            opportunityId: existing.id,
+          };
 
-            if (config.dueDateOffsetDays) {
-              const due = new Date();
-              due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
-              payload.dueDate = due.toISOString();
-            }
-
-            await groupTaskService.createGroupTask(payload).catch(console.error);
-
-          } else if (action.kind === "create_individual_task") {
-            // Individual Task Automation
-            const payload = {
-              taskDescription: config.title
-                ? `${config.title}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
-                : `Auto-created on entering stage: ${to.name}`,
-              categoryId: config.categoryId,
-              priority: config.priority || "MEDIUM",
-              checklist: config.checklist || null,
-              // An individual-task automation's explicit title lives in
-              // config.projectTitle, not config.title — that field belongs
-              // to the group-task kind (see flowStageKinds.actionTitle).
-              projectTitle: config.projectTitle || dealTitle,
-              loggedById: config.assigneeId || actorId, // fallback to actor if dynamic
-              submittedById: actorId,
-              opportunityId: existing.id,
-            };
-
-            if (config.dueOffsetDays) {
-              const due = new Date();
-              due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
-              payload.endAt = due.toISOString();
-            }
-
-            await taskService.createTask(payload).catch(console.error);
+          if (config.dueOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
+            payload.endAt = due.toISOString();
           }
+
+          await taskService.createTask(payload).catch((err) => {
+            console.error("Stage Action failed:", err);
+            failedStageActions.push(stageActionName(action));
+          });
         }
-
-        // Mark as fired so they don't fire again on loop-back
-        await supabase.from("sales_opportunity_logs").insert({
-          opportunity_id: existing.id,
-          author_id: actorId,
-          type: "SYSTEM",
-          content: `Stage actions fired for ${to.name}.`,
-          metadata: { event: "STAGE_ACTIONS_FIRED", to: to.id }
-        });
       }
-    } catch (err) {
-      console.error("Failed to execute stage actions:", err);
-    }
-  })().catch(console.error);
 
-  return data;
+      // Mark as fired so they don't fire again on loop-back
+      await supabase.from("sales_opportunity_logs").insert({
+        opportunity_id: existing.id,
+        author_id: actorId,
+        type: "SYSTEM",
+        content: `Stage actions fired for ${to.name}.`,
+        metadata: { event: "STAGE_ACTIONS_FIRED", to: to.id }
+      });
+    }
+  } catch (err) {
+    // Reading the guard or loading a service failed before any action ran:
+    // every action on this Stage is then unaccounted for.
+    console.error("Failed to execute stage actions:", err);
+    if (!actionsAttempted) {
+      for (const action of actionsForSnapshotStage(snapshotActions, to.id)) {
+        const name = stageActionName(action);
+        if (!failedStageActions.includes(name)) failedStageActions.push(name);
+      }
+    }
+  }
+
+  return { ...data, failedStageActions };
+}
+
+/** How a failed Stage Action is named to the person who moved the SOR. */
+function stageActionName(action) {
+  const config = action?.config ?? {};
+  const named = config.title || config.projectTitle;
+  if (typeof named === "string" && named.trim()) return named.trim();
+  return action?.kind === "create_group_task" ? "Group task" : "Individual task";
 }
 
 function currentStageId(opportunity) {
@@ -1019,44 +1071,54 @@ export const opportunityService = {
     const existing = await opportunityService.getOpportunityById(id);
     const existingItems = await opportunityService.getItems(id);
 
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .update({
-        lead_source: payload.lead_source,
-        lead_source_detail: payload.lead_source_detail || null,
-        client_name: payload.client_name,
-        odoo_partner_id: resolveOdooPartner(existing, payload),
-        contact_person: payload.contact_person || null,
-        project_title: payload.project_title,
-        project_type: deriveProjectType({
-          supportSales1Id: payload.support_sales_1_id,
-          supportSales2Id: payload.support_sales_2_id,
-          currentProjectType: payload.project_type,
-        }),
-        sales_reference: cleanSalesReference(payload.sales_reference),
-        metadata: payload.metadata !== undefined ? payload.metadata : existing.metadata,
-        itb_number: (payload.itb_number || "").trim() || null,
-        itb_exempt: Boolean(payload.itb_exempt),
-        expected_award_date: payload.expected_award_date || null,
-        po_date: payload.po_date || null,
-        deal_owner_id: payload.deal_owner_id || null,
-        closing_sales_id: payload.closing_sales_id || null,
-        support_sales_1_id: payload.support_sales_1_id || null,
-        support_sales_2_id: payload.support_sales_2_id || null,
-        sales_director_id: payload.sales_director_id || null,
-      })
-      .eq("id", id)
-      .select(PARTICIPANT_SELECT)
-      .single();
+    // Issue #199 — a patch, not a replacement. A field left out of `payload`
+    // is left alone; a field sent empty is cleared. The full-replace contract
+    // was invisible at the call site, and a one-field Stage Checklist Save
+    // wiped the Deal Team, the Product List and every date with it.
+    // `undefined` reads as absent — JSON drops it on the wire anyway.
+    const has = (key) => payload[key] !== undefined;
+    const patch = {};
+    for (const [key, write] of Object.entries(RECORD_FIELD_WRITERS)) {
+      if (has(key)) patch[key] = write(payload[key]);
+    }
+    if (has("client_name") || has("sales_reference") || has("odoo_partner_id")) {
+      patch.odoo_partner_id = resolveOdooPartner(existing, {
+        client_name: existing.client_name,
+        ...payload,
+      });
+    }
+    if (has("project_type") || has("support_sales_1_id") || has("support_sales_2_id")) {
+      const pick = (key) => (has(key) ? payload[key] : existing[key]);
+      patch.project_type = deriveProjectType({
+        supportSales1Id: pick("support_sales_1_id"),
+        supportSales2Id: pick("support_sales_2_id"),
+        currentProjectType: pick("project_type"),
+      });
+    }
+    if (has("metadata")) patch.metadata = payload.metadata;
 
-    if (error) throw error;
+    let data = existing;
+    if (Object.keys(patch).length > 0) {
+      const result = await supabase
+        .from("sales_opportunities")
+        .update(patch)
+        .eq("id", id)
+        .select(PARTICIPANT_SELECT)
+        .single();
+      if (result.error) throw result.error;
+      data = result.data;
+    }
 
-    await opportunityService.replaceItems(id, payload.items);
+    const replacesItems = has("items");
+    if (replacesItems) await opportunityService.replaceItems(id, payload.items);
     const final = await opportunityService.getOpportunityById(id);
 
+    // Change notes compare only what the payload carried, plus the derived
+    // fields that follow it.
+    const touched = new Set(Object.keys(patch));
     const changes = [];
     const checkField = (field, label) => {
-      if (existing[field] !== final[field]) {
+      if (touched.has(field) && existing[field] !== final[field]) {
         changes.push(`${label} changed from "${existing[field] || 'None'}" to "${final[field] || 'None'}"`);
       }
     };
@@ -1070,8 +1132,8 @@ export const opportunityService = {
     checkField('sales_reference', 'Sales Reference');
     
     // Check metadata fields dynamically
-    const oldMeta = existing.metadata || {};
-    const newMeta = final.metadata || {};
+    const oldMeta = touched.has("metadata") ? existing.metadata || {} : {};
+    const newMeta = touched.has("metadata") ? final.metadata || {} : {};
     const allMetaKeys = new Set([...Object.keys(oldMeta), ...Object.keys(newMeta)]);
     for (const key of allMetaKeys) {
       if (oldMeta[key] !== newMeta[key]) {
@@ -1084,7 +1146,7 @@ export const opportunityService = {
     checkField('itb_number', 'ITB Number');
     // Booleans read as "changed from false to true" through checkField, which
     // says nothing to whoever reads the log line. Named as the claim it is.
-    if (Boolean(existing.itb_exempt) !== Boolean(final.itb_exempt)) {
+    if (touched.has("itb_exempt") && Boolean(existing.itb_exempt) !== Boolean(final.itb_exempt)) {
       changes.push(
         final.itb_exempt
           ? 'Marked outright — no bidding required, so no ITB Number applies'
@@ -1095,7 +1157,7 @@ export const opportunityService = {
     checkField('po_date', 'PO Date');
 
     const checkEmployee = (idField, objField, label) => {
-      if (existing[idField] !== final[idField]) {
+      if (touched.has(idField) && existing[idField] !== final[idField]) {
         const oldName = existing[objField]?.name || 'None';
         const newName = final[objField]?.name || 'None';
         changes.push(`${label} changed from "${oldName}" to "${newName}"`);
@@ -1108,7 +1170,7 @@ export const opportunityService = {
     checkEmployee('support_sales_1_id', 'support_1', 'Support Sales 1');
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
 
-    const newItems = payload.items || [];
+    const newItems = replacesItems ? payload.items || [] : existingItems;
     const oldProducts = existingItems.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
@@ -1180,6 +1242,37 @@ export const opportunityService = {
     );
 
     return final;
+  },
+
+  /**
+   * The Save on a *Field on record* Stage Condition (issue #199). A real SOR
+   * field is written to its column; any other key is merged into metadata
+   * read fresh here, so a stale modal copy can't overwrite custom fields
+   * saved elsewhere. Goes through `updateOpportunity`'s patch path, so
+   * validation, derived fields and change notes match an edit-form change.
+   */
+  async saveRecordField(id, column, value, actorId) {
+    if (Object.prototype.hasOwnProperty.call(RECORD_FIELD_WRITERS, column)) {
+      return opportunityService.updateOpportunity(id, { [column]: value }, actorId);
+    }
+    const { data: fresh, error } = await supabase
+      .from("sales_opportunities")
+      .select("metadata")
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    return opportunityService.updateOpportunity(
+      id,
+      { metadata: { ...(fresh?.metadata || {}), [column]: value } },
+      actorId,
+    );
+  },
+
+  /** Whether a *Field on record* condition's column can be saved from the Stage Checklist — Estimated Value and people fields cannot (issue #199). */
+  isChecklistWritableField(column) {
+    if (!column || column === "expected_value") return false;
+    if (column.endsWith("_id")) return false;
+    return true;
   },
 
   /**

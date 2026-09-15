@@ -16,7 +16,20 @@ import { fireEvent, screen, waitFor } from "@testing-library/react"
 import { renderWithProviders } from "../../test/support"
 import { stubEdgeFunction } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
-import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../test/factories"
+import { useQuery } from "@tanstack/react-query"
+import {
+  makeEmployee,
+  makeFlowEdge,
+  makeFlowSnapshot,
+  makeFlowStage,
+  makeOpportunity,
+  makeOpportunityItem,
+  makeSaleType,
+  makeSalesFlow,
+  makeStageAction,
+  makeStageCondition,
+  seedPipeline,
+} from "../../test/factories"
 import { opportunityService } from "../../services/opportunityService"
 import OpportunityDetailsModal from "./OpportunityDetailsModal"
 
@@ -173,5 +186,81 @@ describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
 
     const items = await opportunityService.getItems(opportunity.id)
     expect(items.map((i) => i.product_name)).toEqual(["Existing Pumper"])
+  })
+})
+
+/**
+ * Issue #199 — the modal reads its SOR the way GlobalDetailManager hands it
+ * over: through the ["globalOpportunity", id] query, so an invalidation is
+ * what refreshes it, never a remount.
+ */
+function LiveModal({ id }) {
+  const { data } = useQuery({
+    queryKey: ["globalOpportunity", id],
+    queryFn: () => opportunityService.getOpportunityById(id),
+  })
+  if (!data) return null
+  return <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={data} />
+}
+
+describe("OpportunityDetailsModal — Stage Checklist and moves (#199)", () => {
+  let owner, lead, qualified, saleType
+
+  beforeEach(() => {
+    stubEdgeFunction("odoo-sor-lookup", found([]))
+    seedPipeline()
+    owner = makeEmployee({ name: "Ben Cruz" })
+    authUser = { id: owner.id, isSuperAdmin: true }
+    saleType = makeSaleType({ name: "Flow" })
+    const flow = makeSalesFlow({ sale_type_id: saleType.id })
+    lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+    qualified = makeFlowStage({ flow_id: flow.id, name: "Qualified", sort_order: 1 })
+    makeFlowEdge(lead, qualified)
+  })
+
+  const register = () =>
+    opportunityService.createOpportunity(
+      {
+        registration_date: "2026-03-01",
+        lead_source: "LGU",
+        client_name: "Quezon City Hall",
+        project_title: "Fire truck supply",
+        project_type: "SSP",
+        sale_type_id: saleType.id,
+        deal_owner_id: owner.id,
+        items: [{ product_name: "Stored Pumper", quantity: 1, unit_price: 100 }],
+      },
+      owner.id,
+    )
+
+  it("saves a Field on record condition without losing the Deal Owner or the Product List", async () => {
+    makeStageCondition({ stage_id: lead.id, kind: "field", label: "PO Date on file", config: { column: "po_date" } })
+    makeFlowSnapshot({ flow_id: lead.flow_id })
+    const deal = await register()
+
+    renderWithProviders(<LiveModal id={deal.id} />)
+    const input = await screen.findByLabelText("PO Date on file")
+    expect(input).toHaveAttribute("type", "date")
+    fireEvent.change(input, { target: { value: "2026-04-09" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save" }))
+
+    expect(await screen.findByText(/^Satisfied/)).toBeInTheDocument()
+    expect(screen.getByText("Stored Pumper")).toBeInTheDocument()
+    expect(screen.getAllByText("Ben Cruz").length).toBeGreaterThan(0)
+    const saved = await opportunityService.getOpportunityById(deal.id)
+    expect(saved).toMatchObject({ po_date: "2026-04-09", deal_owner_id: owner.id, expected_value: 100 })
+  })
+
+  it("shows the move's new task and the new Stage's checklist without reopening", async () => {
+    makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: { title: "Confirm requirements" } })
+    makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Signed proposal" })
+    makeFlowSnapshot({ flow_id: lead.flow_id })
+    const deal = await register()
+
+    renderWithProviders(<LiveModal id={deal.id} />)
+    fireEvent.click(await screen.findByText("Qualified"))
+
+    expect(await screen.findByText("Confirm requirements")).toBeInTheDocument()
+    expect(await screen.findByText("Signed proposal")).toBeInTheDocument()
   })
 })
