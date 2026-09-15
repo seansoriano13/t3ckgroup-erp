@@ -153,6 +153,47 @@ export const isRealizedOpportunity = (opportunity, stages = PIPELINE_STAGE_SEED)
   return !isLostCode(opportunity.status, stages);
 };
 
+/**
+ * The SOR's current Stage, as far as "has it stopped moving" goes — or null
+ * when it cannot be resolved. A flow SOR is resolved against its OWN Flow
+ * Snapshot (issue #83): `snapshotsById[flow_snapshot_id]`, else an embedded
+ * `flow_snapshot`. A legacy SOR is resolved by its pipeline stage code.
+ */
+const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = {}) => {
+  if (!opportunity) return null;
+  if (opportunity.sale_type_id) {
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
+    const flowStage = (snapshotData?.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    return flowStage ? { isTerminal: Boolean(flowStage.is_terminal) } : null;
+  }
+  const stage = stages.find((s) => s.code === opportunity.status);
+  return stage ? { isTerminal: isTerminalStage(stage) } : null;
+};
+
+/**
+ * Open Pipeline (CONTEXT.md, issue #199): no Contract Date, and the current
+ * Stage is not a Terminal Stage. Drives the register's Open pipeline value
+ * and its Open filter, so the two always agree. An SOR whose Stage can't be
+ * resolved is not counted — the same under-reporting direction Realized
+ * fails in.
+ */
+export const isOpenPipelineOpportunity = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage) && !opportunity.contract_date && !stage.isTerminal;
+};
+
+/**
+ * Still moving: the current Stage is not a Terminal Stage, won or not. Scopes
+ * the Blocked filter and deadlines, so a won SOR on a post-award Stage (PO,
+ * delivery, collection) still shows what those Stages owe.
+ */
+export const isStillMovingOpportunity = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage) && !stage.isTerminal;
+};
+
 /** Won or lost — an opportunity here has stopped moving. */
 export const isTerminalStage = (s) => Boolean(s?.is_won || s?.is_lost);
 

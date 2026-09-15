@@ -952,6 +952,22 @@ export const salesFlowService = {
     return data || null;
   },
 
+  /**
+   * Several Flow Snapshots in one read, keyed by id — for a list of SORs
+   * that each need judging against their own snapshot (issue #199's Open
+   * Pipeline rule on the register) without a read per row.
+   */
+  async getSnapshotsByIds(snapshotIds = []) {
+    const ids = [...new Set(snapshotIds.filter(Boolean))];
+    if (ids.length === 0) return {};
+    const { data, error } = await supabase
+      .from("flow_snapshots")
+      .select("id, flow_id, snapshot_data")
+      .in("id", ids);
+    if (error) throw error;
+    return Object.fromEntries((data || []).map((s) => [s.id, s]));
+  },
+
   async listSnapshots(flowId) {
     const { data, error } = await supabase
       .from("flow_snapshots")

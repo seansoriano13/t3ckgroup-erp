@@ -8,6 +8,8 @@ import {
   isLostCode,
   isOpenRegionStage,
   isRealizedOpportunity,
+  isOpenPipelineOpportunity,
+  isStillMovingOpportunity,
   isTerminalStage,
   isWonCode,
   renderableStages,
@@ -574,5 +576,72 @@ describe("classifying stages for the register and the admin screen", () => {
     expect(isOpenRegionStage(at("AWARDED"), PIPELINE_STAGE_SEED)).toBe(false)
     expect(isOpenRegionStage(at("RETENTION"), PIPELINE_STAGE_SEED)).toBe(false)
     expect(isOpenRegionStage(at("CLOSED_LOST"), PIPELINE_STAGE_SEED)).toBe(false)
+  })
+})
+
+// Issue #199 — Open Pipeline and "still moving" are two named rules.
+describe("open pipeline and still moving", () => {
+  const snapshot = {
+    id: "snap-1",
+    snapshot_data: {
+      wonStageId: "won",
+      stages: [
+        { id: "lead", is_terminal: false },
+        { id: "won", is_terminal: false },
+        { id: "delivery", is_terminal: false },
+        { id: "closed", is_terminal: true },
+        { id: "lost", is_terminal: true },
+      ],
+    },
+  }
+  const snapshotsById = { "snap-1": snapshot }
+  const flowDeal = (overrides) => ({
+    sale_type_id: "st-1",
+    flow_snapshot_id: "snap-1",
+    status: "LEAD",
+    contract_date: null,
+    ...overrides,
+  })
+
+  it("counts a flow SOR with no Contract Date on a non-terminal Stage as open", () => {
+    expect(isOpenPipelineOpportunity(flowDeal({ flow_stage_id: "lead" }), { snapshotsById })).toBe(true)
+  })
+
+  it("leaves a won flow SOR out of the open pipeline but keeps it moving on a post-award Stage", () => {
+    const won = flowDeal({ flow_stage_id: "delivery", contract_date: "2026-03-04" })
+    expect(isOpenPipelineOpportunity(won, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(won, { snapshotsById })).toBe(true)
+  })
+
+  it("leaves a lost flow SOR out of both, whatever its stale status says", () => {
+    const lost = flowDeal({ flow_stage_id: "lost" })
+    expect(isOpenPipelineOpportunity(lost, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(lost, { snapshotsById })).toBe(false)
+  })
+
+  it("judges a flow SOR against its own snapshot, not an embed from a different flow", () => {
+    const other = { "snap-1": { snapshot_data: { stages: [{ id: "lead", is_terminal: true }] } } }
+    expect(isOpenPipelineOpportunity(flowDeal({ flow_stage_id: "lead" }), { snapshotsById: other })).toBe(false)
+  })
+
+  it("counts an SOR whose snapshot is missing under neither rule", () => {
+    const deal = flowDeal({ flow_stage_id: "lead" })
+    expect(isOpenPipelineOpportunity(deal, { snapshotsById: {} })).toBe(false)
+    expect(isStillMovingOpportunity(deal, { snapshotsById: {} })).toBe(false)
+  })
+
+  it("counts an SOR whose Stage is not in its snapshot under neither rule", () => {
+    const deal = flowDeal({ flow_stage_id: "gone" })
+    expect(isOpenPipelineOpportunity(deal, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(deal, { snapshotsById })).toBe(false)
+  })
+
+  it("judges a legacy SOR by its pipeline stage code and its Contract Date", () => {
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: null })).toBe(true)
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(false)
+    expect(isStillMovingOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
+    expect(isStillMovingOpportunity({ status: "CLOSED_WON" })).toBe(false)
+    expect(isOpenPipelineOpportunity({ status: "CLOSED_LOST" })).toBe(false)
+    expect(isStillMovingOpportunity({ status: "NOT_A_STAGE" })).toBe(false)
   })
 })

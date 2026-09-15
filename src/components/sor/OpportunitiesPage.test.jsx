@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../../test/support";
 import OpportunitiesPage from "../../pages/opportunities/index";
 import { opportunityService } from "../../services/opportunityService";
+import { makeFlowSnapshot } from "../../test/factories";
 
 const MOCK_OPP_1 = {
   id: "opp-uuid-1",
@@ -226,3 +227,78 @@ describe("Deadline kind — countdown + notifications (ticket 7)", () => {
     expect(checked.map((o) => o.id).sort()).toEqual(["opp-uuid-1", "opp-uuid-2"]);
   });
 });
+
+// Issue #199 — Open pipeline value follows the glossary: no Contract Date and
+// not on a Terminal Stage, each flow SOR judged against its own snapshot.
+describe("Open Pipeline value", () => {
+  const snapshotData = {
+    wonStageId: "stage-won",
+    stages: [
+      { id: "stage-lead", name: "Lead", is_terminal: false },
+      { id: "stage-won", name: "Won", is_terminal: false },
+      { id: "stage-delivery", name: "Delivery", is_terminal: false },
+      { id: "stage-lost", name: "Lost", is_terminal: true },
+    ],
+  }
+  const row = (id, title, value, extra) => ({
+    ...MOCK_OPP_1,
+    id,
+    serial_no: value,
+    project_title: title,
+    expected_value: value,
+    contract_date: null,
+    ...extra,
+  })
+  let openFlow, wonFlow, lostFlow, openLegacy, wonLegacy
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    const snapshot = makeFlowSnapshot({ snapshot_data: snapshotData })
+    const flow = { sale_type_id: "st-1", flow_snapshot_id: snapshot.id, status: "LEAD" }
+    openFlow = row("o-open-flow", "Open flow deal", 1000, { ...flow, flow_stage_id: "stage-lead" })
+    wonFlow = row("o-won-flow", "Won flow deal", 20000, { ...flow, flow_stage_id: "stage-delivery", contract_date: "2026-08-10" })
+    lostFlow = row("o-lost-flow", "Lost flow deal", 300000, { ...flow, flow_stage_id: "stage-lost" })
+    openLegacy = row("o-open-legacy", "Open legacy deal", 4000, { status: "NEGOTIATION" })
+    wonLegacy = row("o-won-legacy", "Won legacy deal", 50000, { status: "NEGOTIATION", contract_date: "2026-08-11" })
+    opportunityService.getOpportunities.mockResolvedValue([openFlow, wonFlow, lostFlow, openLegacy, wonLegacy])
+  })
+
+  const renderPage = (state) =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={[{ pathname: "/opportunities", state }]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+  it("adds up only SORs with no Contract Date on a non-terminal Stage", async () => {
+    renderPage()
+
+    expect(await screen.findByText("₱5,000.00")).toBeInTheDocument()
+  })
+
+  it("lists exactly those SORs under the Open filter", async () => {
+    renderPage({ filterStatus: "OPEN" })
+
+    expect(await screen.findByText("Open flow deal")).toBeInTheDocument()
+    expect(await screen.findByText("Open legacy deal")).toBeInTheDocument()
+    expect(screen.queryByText("Won flow deal")).toBeNull()
+    expect(screen.queryByText("Lost flow deal")).toBeNull()
+    expect(screen.queryByText("Won legacy deal")).toBeNull()
+    expect(screen.getByText("₱5,000.00")).toBeInTheDocument()
+  })
+
+  it("still flags a won SOR working through a post-award Stage as Blocked, and leaves the lost one out", async () => {
+    opportunityService.getBlockedDeals.mockResolvedValue({
+      "o-won-flow": [{ id: "req-1", label: "Delivery receipt" }],
+    })
+
+    renderPage()
+
+    expect(await screen.findByTitle(/Blocked on: Delivery receipt/i)).toBeInTheDocument()
+    await waitFor(() => {
+      const scoped = opportunityService.getBlockedDeals.mock.calls.at(-1)[0].map((o) => o.id)
+      expect(scoped).toEqual(expect.arrayContaining(["o-won-flow", "o-open-flow", "o-won-legacy"]))
+      expect(scoped).not.toContain("o-lost-flow")
+    })
+  })
+})

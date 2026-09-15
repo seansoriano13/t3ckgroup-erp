@@ -38,7 +38,8 @@ import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
 import {
-  isTerminalStage,
+  isOpenPipelineOpportunity,
+  isStillMovingOpportunity,
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
@@ -251,46 +252,57 @@ export default function OpportunitiesPage() {
     return { label: pipelineStage?.label || o.status, tone: null, code: o.status };
   };
 
-  // "Open" here means not yet terminal — it deliberately includes the whole
-  // post-award run, which is still work in progress for the sales team.
-  const openStageCodes = useMemo(
-    () => pipelineStages.filter((s) => !isTerminalStage(s)).map((s) => s.code),
-    [pipelineStages],
+  // Issue #199 — each flow SOR is judged against its OWN Flow Snapshot, so
+  // the register reads every distinct snapshot among its SORs once, in bulk,
+  // like the Stage index above.
+  const snapshotIds = useMemo(
+    () => [...new Set(opportunities.map((o) => o.flow_snapshot_id).filter(Boolean))].sort(),
+    [opportunities],
+  );
+  const { data: snapshotsById = {} } = useQuery({
+    queryKey: ["flowSnapshotsById", snapshotIds.join(",")],
+    queryFn: () => salesFlowService.getSnapshotsByIds(snapshotIds),
+    enabled: snapshotIds.length > 0,
+  });
+  const stageContext = useMemo(
+    () => ({ snapshotsById, stages: pipelineStages }),
+    [snapshotsById, pipelineStages],
   );
 
-  // Stage Gate Engine, tickets 6 & 7 — open deals only. Story 25 (blocked)
-  // is about unblocking the pipeline, and story 26 (deadlines) is scoped the
-  // same way; a Won/Lost deal isn't part of either even if a condition
-  // were ever attached to a terminal Stage. Keyed by id+status so a stage
-  // move (not just a new/removed deal) refetches both; content-level changes
-  // (e.g. an attachment satisfying a condition) freshen the next time this
-  // key changes or the page is revisited, which is enough for a
-  // register-level indicator.
-  const openOpportunities = useMemo(
-    () => opportunities.filter((o) => openStageCodes.includes(o.status)),
-    [opportunities, openStageCodes],
+  // Stage Gate Engine, tickets 6 & 7 — deals still moving only: not on a
+  // Terminal Stage. A won SOR on a post-award Stage (PO, delivery,
+  // collection) is still in scope, since conditions and deadlines on those
+  // Stages still need to show. This is deliberately wider than Open
+  // Pipeline, which also leaves out anything with a Contract Date. Keyed by
+  // id + Stage so a move (not just a new/removed deal) refetches both;
+  // content-level changes (e.g. an attachment satisfying a condition)
+  // freshen the next time this key changes or the page is revisited, which
+  // is enough for a register-level indicator.
+  const movingOpportunities = useMemo(
+    () => opportunities.filter((o) => isStillMovingOpportunity(o, stageContext)),
+    [opportunities, stageContext],
   );
-  const openOpportunitiesKey = useMemo(
-    () => openOpportunities.map((o) => `${o.id}:${o.status}`).join(","),
-    [openOpportunities],
+  const movingOpportunitiesKey = useMemo(
+    () => movingOpportunities.map((o) => `${o.id}:${o.flow_stage_id || o.status}`).join(","),
+    [movingOpportunities],
   );
 
-  // Ticket 6 (Sales Director visibility, story 25) — every open deal blocked
+  // Ticket 6 (Sales Director visibility, story 25) — every still-moving deal blocked
   // on its own current Stage, and what it's missing. One bulk read for the
   // whole register rather than a checklist call per row.
   const { data: blockedDeals = {} } = useQuery({
-    queryKey: ["blockedDeals", openOpportunitiesKey],
-    queryFn: () => opportunityService.getBlockedDeals(openOpportunities),
-    enabled: openOpportunities.length > 0,
+    queryKey: ["blockedDeals", movingOpportunitiesKey],
+    queryFn: () => opportunityService.getBlockedDeals(movingOpportunities),
+    enabled: movingOpportunities.length > 0,
   });
 
   // Ticket 7 (deadline countdown, story 16/26) — the same bulk shape as
   // blockedDeals, for the board card countdown and the register's "past a
   // deadline" read.
   const { data: deadlineStatuses = {} } = useQuery({
-    queryKey: ["deadlineStatuses", openOpportunitiesKey],
-    queryFn: () => opportunityService.getDeadlineStatuses(openOpportunities),
-    enabled: openOpportunities.length > 0,
+    queryKey: ["deadlineStatuses", movingOpportunitiesKey],
+    queryFn: () => opportunityService.getDeadlineStatuses(movingOpportunities),
+    enabled: movingOpportunities.length > 0,
   });
 
   // There's no server-side cron in this app (see opportunityService's own
@@ -301,10 +313,10 @@ export default function OpportunitiesPage() {
   // — is always safe, just a no-op for whatever already fired.
   const hasCheckedDeadlines = useRef(false);
   useEffect(() => {
-    if (hasCheckedDeadlines.current || openOpportunities.length === 0) return;
+    if (hasCheckedDeadlines.current || movingOpportunities.length === 0) return;
     hasCheckedDeadlines.current = true;
-    opportunityService.checkDeadlineNotifications(openOpportunities).catch(console.error);
-  }, [openOpportunities]);
+    opportunityService.checkDeadlineNotifications(movingOpportunities).catch(console.error);
+  }, [movingOpportunities]);
 
   const employeeFilterName = useMemo(
     () => opportunities.find((o) => o.deal_owner_id === employeeFilter)?.deal_owner?.name,
@@ -314,7 +326,9 @@ export default function OpportunitiesPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
-      if (stageFilter === "OPEN" && !openStageCodes.includes(o.status)) return false;
+      // Open Pipeline (CONTEXT.md): the same rule the Open pipeline value
+      // adds up, so the filter lists exactly the rows behind the figure.
+      if (stageFilter === "OPEN" && !isOpenPipelineOpportunity(o, stageContext)) return false;
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
@@ -372,7 +386,7 @@ export default function OpportunitiesPage() {
     blockedDeals,
     employeeFilter,
     user?.id,
-    openStageCodes,
+    stageContext,
   ]);
 
   // ── Register sorting ────────────────────────────────────────────────────
@@ -446,12 +460,12 @@ export default function OpportunitiesPage() {
   }, [filtered, sortField, sortOrder, stageRank, activeLeadSources]);
 
   const totals = useMemo(() => {
-    const open = filtered.filter((o) => openStageCodes.includes(o.status));
+    const open = filtered.filter((o) => isOpenPipelineOpportunity(o, stageContext));
     return {
       count: filtered.length,
       openValue: open.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
     };
-  }, [filtered, openStageCodes]);
+  }, [filtered, stageContext]);
 
   const { data: directOpportunity } = useQuery({
     queryKey: ["opportunity", selectedId],
