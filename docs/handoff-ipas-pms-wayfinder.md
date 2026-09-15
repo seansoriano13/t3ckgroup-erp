@@ -7,8 +7,10 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
 **Every ticket on the map is closed.** The frontier is empty, so there is no ticket to continue — the next work is writing the specs, in the build order below.
 
 1. Open a Claude Code session in this repo on `staging`, after pulling.
-2. Write the **IPAS spec** first, in the format of [Purchase Requests](https://github.com/seansoriano13/t3ckgroup-erp/issues/209), then slice it into tickets labelled `ready-for-agent`. The map's Notes carry the format and the two test seams.
+2. Work through **[Extracting the specs](#extracting-the-specs)** below — one session per spec, each running `/to-spec` then `/to-tickets` in one window, then `/clear`. Start with session 1, the IPAS.
 3. Four patches of fog remain on the map — option lists, switch-over, estimate vs actual, and inquiries that buy nothing. None blocks a spec; graduate them with `/wayfinder 210` when they sharpen.
+
+`to-spec` is not installed: it is a zip at `~/.claude/skills/to-spec.zip`.
 
 ## Where things are
 
@@ -22,9 +24,94 @@ Written 2026-09-14, so that work on [IPAS and PMS move into the ERP](https://git
   - PMS, Costing Matrix and Evaluation of Specification
   - IPAS, Filing and Finance access
   - Charge and Landed Cost
-  - Tender Line, Component, Inclusion and Markup
+  - Tender Line, Component, Inclusion, Markup and Final Acquire
+  - Incharge and Compliance
+  - Transmittal, TSR and Packing List
+- **Prototype branches,** each linked from its ticket's resolution comment:
+  - `prototype/printed-costing-matrix` — the printed Costing Matrix (#229)
+  - `prototype/order-monitoring` — the order monitoring view (#237)
+  - `prototype/printed-forms` — the printed Canvass (#236), Transmittal and TSR (#238), and IPAS (#222)
 - **Bugs found while grilling:** comments on [SOR fixes before release](https://github.com/seansoriano13/t3ckgroup-erp/issues/199).
 - **Odoo field research:** `docs/research/odoo-17-purchase-order-fields-for-ipas.md` on the `research/odoo-po-fields-for-ipas` branch.
+
+## Extracting the specs
+
+Eight sessions turn the closed map into specs and `ready-for-agent` tickets. **One spec per session**, each running `/to-spec` then `/to-tickets` in one unbroken window, then `/clear` — everything a session needs is on the tracker, so they are independent and you can stop after any of them.
+
+Each prompt below is meant to be pasted as-is.
+
+### 1. IPAS v1 — build step 1
+
+> `/to-spec` — Write the **IPAS v1** spec, step 1 of the build order on [the IPAS and PMS map](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the map for Destination and Notes, then the **resolution comment** on each of #217, #218, #219, #220, #221, #212 and #222 — the decisions live in those comments, not in the map's one-line gists. Odoo facts are in #215 (research file on branch `research/odoo-po-fields-for-ipas`) and #216. Vocabulary is in `CONTEXT.md`, Purchasing and Philippine Government Procurement.
+>
+> Format follows [Purchase Requests #209](https://github.com/seansoriano13/t3ckgroup-erp/issues/209). The map's Notes carry the two test seams: the IPAS service against the fake PostgREST with Odoo stubbed, and the database rules on the local policy stack.
+>
+> **Referenced, not specced:** #233 Transmittals and #234 TSRs arrive in build step 2. Section 5 and the Actual Checking status read them — say how, and mark them as arriving next, so nobody builds a stub.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`, with blocking edges.
+
+### 2. Transmittals, TSRs and the Packing List — build step 2
+
+> `/to-spec` — Write the **Transmittals, TSRs and Packing List** spec, step 2 of the build order on [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the resolution comments on #233, #234, #239 and #238. Context: #231 (what stays in Odoo), #232 (progress lives on records, never on checklists), #216 (the live Odoo warehouse facts), and #220 for the two hooks back into the IPAS — section 5 lists the Transmittals naming it, and Actual Checking is stamped from closed TSRs.
+>
+> The **printed Packing List** has no ticket of its own; #239 says to specify it alongside the printed Transmittal, which #238 settled.
+>
+> Format follows #209. Prototype for the printed forms: branch `prototype/printed-forms`, linked from #238.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`.
+
+### 3. Order monitoring — build step 3
+
+> `/to-spec` — Write the **order monitoring** spec, step 3 of the build order on [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the resolution comment on #237, plus #220 (the status tracks it draws), #233 and #234 (the hand-off and check states), #232 (why every state comes from a record) and #225 (who may see it: Purchasing access, Finance access and Super Admins across every SOR; an SOR's own people see only theirs).
+>
+> The per-step ageing thresholds are settings the business edits, not code.
+>
+> Format follows #209. Prototype: branch `prototype/order-monitoring`, linked from #237.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`.
+
+### 4. Fold the map's amendments into Purchase Requests — any time before step 4 is built
+
+Not a spec: an edit pass, because #209 is already `ready-for-agent` and three decisions changed it.
+
+> Open [Purchase Requests #209](https://github.com/seansoriano13/t3ckgroup-erp/issues/209). Three comments from the IPAS and PMS map amend it — from #228 (a Requested Item may name the Costing Matrix component it buys for; Ordered records the Odoo PO line, not just the number) and #235 (Canvassing means a Canvass on that component, or on the Requested Item where no matrix row exists; never on an Inclusion). Fold all three into the spec body so nobody building from it has to read the comments, and leave a note saying they came from the map.
+
+### 5. Costing Matrix and Evaluation of Specification — build step 5a
+
+> `/to-spec` — Write the **Costing Matrix** spec, including the Evaluation of Specification, step 5 of the build order on [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the resolution comments on #223, #214, #213, #224, #225, #226, #227, #229 and #230. It depends on #202 Stock Availability, #207 the SOR modal, #208 stage-scoped visibility and #209 Purchase Requests.
+>
+> Two things that reach outside the matrix: **#227 adds a new verifiable Stage Condition kind, "costing settled"**, which touches the Flow Canvas and stage rules (#203, #204); and **ADR 0021 carries an amendment** letting Purchasing, Finance and the Final Acquire list read a matrix's Final Offer and summary.
+>
+> The tax and ITR maths copies the sheet on purpose (#213) — the worked examples there are the tests. Prototype: branch `prototype/printed-costing-matrix`, linked from #229.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`.
+
+### 6. Canvass and Offers — build step 5b
+
+> `/to-spec` — Write the **Canvass and Offers** spec, the second half of step 5 on [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the resolution comments on #235 and #236. It re-points the half-built `sor_canvasses` and `sor_canvass_offers` tables — both empty in staging — at Costing Matrix components, and brings back the Canvass and Inclusion panels that #209 hides.
+>
+> Note the fields added since the tables were built: supplier, currency, quote validity, the comparison rate for a foreign quote, and the Canvass's typed reason.
+>
+> Prototype: branch `prototype/printed-forms`, linked from #236.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`.
+
+### 7. Landed cost back into the Costing Matrix — build step 6
+
+> `/to-spec` — Write the **landed cost flows back** spec, step 6 and last on [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210). Read the resolution comment on #228, with #218 (how Landed Cost is computed and spread), #220 (costs complete is what makes it final) and #225 (who may see costs).
+>
+> The join is the Odoo PO line picked when a Requested Item is marked Ordered. Landed Cost sits beside Acquire, Odoo and Final Acquire and replaces none of them, feeds neither markup nor the summary, and carries its provisional or final mark wherever it's read.
+>
+> Then `/to-tickets`, labelled `ready-for-agent`.
+
+### 8. Close the map
+
+> Every spec from [map #210](https://github.com/seansoriano13/t3ckgroup-erp/issues/210) is written and sliced into `ready-for-agent` tickets. Post a closing comment on the map listing each spec issue against its build step, then close it. Four patches of fog stay unresolved and in scope — option lists, switch-over, estimate vs actual, and inquiries that buy nothing. Say in the comment that they return as a fresh effort when they sharpen, and update `docs/handoff-ipas-pms-wayfinder.md` to match.
+
+### Two side quests, neither blocking
+
+- **Switch-over access.** Nobody on staging holds Purchasing access, not even the Purchasing Manager, and Finance access and the Final Acquire list are empty. That is `/wizard` territory, not a spec.
+- **The fog.** Run `/wayfinder 210` again when switch-over or estimate-vs-actual sharpens enough to ticket.
 
 ## State on 2026-09-14
 
