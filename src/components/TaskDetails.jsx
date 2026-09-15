@@ -601,6 +601,7 @@ export default function TaskDetails({
                   executeUpdate={executeUpdate}
                   task={activeTask}
                   user={user}
+                  onClose={onClose}
                 />
 
                 {/* Renders nothing unless this task carries procurement

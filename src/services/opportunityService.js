@@ -991,6 +991,22 @@ export const opportunityService = {
   },
 
   /**
+   * How a task names the SOR it was created for: the Sales Reference, else the
+   * Company (issue #199). Null when the SOR can't be read. Kept narrow so a
+   * task modal can resolve it without depending on how the task was loaded.
+   */
+  async getOpportunityLinkLabel(id) {
+    if (!id) return null;
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .select("sales_reference, client_name")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw error;
+    return data ? data.sales_reference || data.client_name || null : null;
+  },
+
+  /**
    * Registers a new opportunity. `opportunity_no` is deliberately NOT sent —
    * a BEFORE INSERT trigger assigns it from a Postgres sequence so concurrent
    * registrations cannot collide.

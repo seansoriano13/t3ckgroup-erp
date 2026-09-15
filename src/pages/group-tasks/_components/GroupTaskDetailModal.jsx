@@ -23,7 +23,6 @@ import {
   Paperclip,
   ImageIcon,
   Zap,
-  Briefcase,
   BookmarkPlus,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
@@ -65,6 +64,7 @@ import { buildReplySnapshot } from "@/utils/chatReply";
 import MentionTextarea from "@/components/ui/MentionTextarea";
 import { supabase } from "@/lib/supabase";
 import { useFileAttachments } from "@/hooks/useFileAttachments";
+import SorLink from "@/components/sor/SorLink";
 import { AttachmentPreviews, AttachmentList } from "@/components/ui/Attachments";
 import {
   ALLOWED_MIME_TYPES,
@@ -733,20 +733,7 @@ export default function GroupTaskDetailModal({
                       {formatDueDate(task.due_date)}
                     </div>
                   )}
-                  {task.opportunity && (
-                    <div
-                      className="flex items-center gap-1.5 cursor-pointer hover:text-primary transition-colors ml-2"
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: task.opportunity_id, type: "OPPORTUNITY" } }));
-                        if (onClose) onClose();
-                      }}
-                    >
-                      <Briefcase size={14} className="text-primary/70" />
-                      <span className="truncate max-w-[200px]" title={task.opportunity.client_name}>
-                        Deal: {task.opportunity.sales_reference || task.opportunity.client_name}
-                      </span>
-                    </div>
-                  )}
+                  <SorLink opportunityId={task.opportunity_id} onClose={onClose} variant="inline" />
                 </div>
               </>
             )}
