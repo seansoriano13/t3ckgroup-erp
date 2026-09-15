@@ -34,9 +34,9 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       <button
         type="button"
         onClick={open}
-        className="ml-2 flex items-center gap-1.5 transition-colors hover:text-primary"
+        className="ml-2 flex items-center gap-1.5 transition-colors hover:text-foreground"
       >
-        <Briefcase size={14} className="text-primary/70" />
+        <Briefcase size={14} className="text-muted-foreground" />
         <span className="max-w-[200px] truncate" title={label}>
           Deal: {label}
         </span>
@@ -52,7 +52,7 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       <button
         type="button"
         onClick={open}
-        className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-4 py-3 text-left text-sm font-bold text-primary shadow-sm transition-colors hover:bg-primary/20"
+        className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
       >
         <Briefcase size={14} />
         {label}

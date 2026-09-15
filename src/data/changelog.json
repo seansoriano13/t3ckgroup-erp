@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-15",
+        "title": "Safer Stage Checklist & Accurate Pipeline",
+        "version": "1.7.16",
+        "changes": [
+            "Saving a field from a Stage Checklist now changes only that field. The rest of the SOR, including the Deal Team, dates and Product List, stays as it was.",
+            "After you move an SOR, the tasks the move created and the new Stage's checklist show right away, without reopening the SOR. If an automation fails, you're told which one so you can create it by hand.",
+            "Tasks created for an SOR now link back to it from both the task and Group Task windows.",
+            "Open pipeline value now leaves out won and lost SORs, and the Open filter lists exactly the SORs it adds up."
+        ]
+    },
+    {
         "date": "2026-09-11",
         "title": "Clearer Flow Modes & Accurate Draft Diffing",
         "version": "1.7.15",
