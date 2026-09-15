@@ -9,6 +9,12 @@
 -- Idempotent: skips an opportunity that already has a visit (the trigger
 -- will have created exactly one, from this migration's own insert firing
 -- nothing further, or from a row inserted between the two migrations).
+--
+-- A flow-built deal's own STAGE_CHANGED history can still carry legacy
+-- global-pipeline codes ("PROPOSAL_SUBMITTED", not a uuid) from before it
+-- was ever assigned a Sale Type — those aren't Stage Visits at all, since
+-- the deal wasn't on a flow yet, so the loop below only ever looks at
+-- entries whose `to` is actually a uuid.
 
 do $$
 declare
@@ -35,7 +41,7 @@ begin
       from public.sales_opportunity_logs
       where opportunity_id = v_deal.id
         and metadata->>'event' = 'STAGE_CHANGED'
-        and metadata->>'to' is not null
+        and metadata->>'to' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
       order by created_at asc
     loop
       if v_open_visit_id is not null then
