@@ -60,6 +60,10 @@ _Avoid_: Label, Category (when meaning a Group Task's kind)
 The workforce register and profile repository for company personnel.
 _Avoid_: HR Management, User List
 
+**Call Sign**:
+The short number each person goes by inside the company — 101 for Boss Lito, 1001 for Ma'am Raquel, 102 for Ma'am Grace — kept on their employee record. Paper forms name signers by it ("Check by … 1001"), so printed forms print it under a signature, and signer lists are seeded by it. An identifier people say aloud, not a login or payroll number.
+_Avoid_: Employee code, Employee ID
+
 ### Commission
 
 Terms introduced by the Commission Pool feature (issue #10 and its tickets #11–#17). Commission Department/Position/Split are a standalone vocabulary scoped to this feature — deliberately not linked to an employee's Department or Role fields, which stay freeform text used throughout the rest of the app.
@@ -364,7 +368,7 @@ One item that comes with a bundle Component in the Costing Matrix — the cabine
 _Avoid_: Line item, Product, BOM entry, Accessory
 
 **Completeness**:
-Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%. A bid-time judgement about the offer: whether each inclusion physically arrived is asked again, separately, on the TSR.
+Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%. A bid-time judgement about the offer: whether each inclusion physically arrived is asked again, separately, in the Technical inspection of the Transmittal that brings it.
 _Avoid_: Status, Progress
 
 **Sourcing**:
@@ -461,37 +465,41 @@ fees paid to the supplier are payments, not charges, but count the same way.
 _Avoid_: Fee (unqualified), Expense, Importation (as a noun)
 
 **Transmittal**:
-One numbered hand-off from one party to another — Purchasing to Technical,
-Logistics to the Warehouse, anyone to Finance — carrying goods, documents, or
-both, with the company's form number TG03. It stands on its own, naming the
-purchase orders and SORs it touches rather than belonging to any of them,
-because one delivery is handed over in several transmittals and one transmittal
-often carries items from several orders. Raised by anyone with Purchasing access, or by
-whoever currently holds the goods — the party that signed the last receipt —
-since the Warehouse hands on to Logistics without a purchaser present. Prepared,
-approved and then received: the receiver answers every line as Received, Short or
-Damaged, and that closes it. Deliveries to the client are not transmittals; they stay in Odoo.
-_Avoid_: Transmittal Form (when meaning the record), Delivery Receipt, Gate Pass, TG03
+The numbered slip goods travel on after they are bought — the company's
+Transmittal Form, numbered TG03-525, TG03-526 and on — from where they came
+(Purchasing, Logistics, the Warehouse) through the checks they need. Its Checking
+boxes decide those: Warehouse checking, Warehouse releasing when the goods leave
+for Technical, and Technical inspection. At each check the in-charge rates every
+line GC or NA, and the stage is signed by two people with its remarks and
+pictures. Received in Odoo by and two Check by signatures close it. It stands on its own, each line
+naming the purchase order line and the SOR (Project Name) it is for, because one
+delivery is often split across slips and one slip often carries several orders. A
+line rated NA still lets the slip close — the check happened — and a replacement
+comes on a new Transmittal. It carries goods, not papers; documents for Finance
+travel on the IPAS document list. Deliveries to the client are not transmittals;
+they stay in Odoo.
+_Avoid_: Transmittal Form (when meaning the record), Delivery Receipt, Gate Pass,
+TSR or Technical Service Report (Technical's check is the Transmittal's Technical
+inspection, not a record of its own), hand-off (when meaning the whole slip)
+
+**GC / NA**:
+The rating the Warehouse and Technical give each line of a Transmittal at their
+check — GC, Good Condition, or NA, Need Attention, which always carries a remark.
+Given once per check by that check's in-charge, so a line can be GC at the
+Warehouse and NA at Technical. Not a pass/fail on the supplier: an NA says
+someone has to act, and a later GC on a replacement settles it.
+_Avoid_: Pass / Fail, Received / Short / Damaged, Condition (unqualified)
 
 **Packing List**:
 What is inside each box the Warehouse packs for an SOR — contents and
 quantities, marks or seal numbers, and the weight where it is known — printed
-and signed by whoever packed it. The one warehouse step PMS keeps, because Odoo
-has never held a package, while its receipts, reservations and deliveries are in
-daily use. It moves no stock and writes nothing to Odoo; a delivery reference
-can be typed on it.
+and signed by whoever packed it. Made by Purchasing or the Warehouse. The one
+warehouse step PMS keeps, because Odoo has never held a package, while its
+receipts, reservations and deliveries are in daily use. It moves no stock and
+writes nothing to Odoo; a delivery reference can be typed on it. Not the
+"Packing List / Picking List" ticked on a Transmittal's Reference Checklist,
+which is the paper that came with the goods.
 _Avoid_: Packing Slip, Box List, Delivery Note
-
-**TSR (Technical Service Report)**:
-Technical's record of checking one item that was handed over — one per
-Transmittal line, a row per unit carrying its serial number and a verdict of
-Pass, Pass with remarks or Fail, with photographs and video. It closes when
-every unit has a verdict, even where units failed: the check is a fact about a
-moment, so a replacement arrives on its own Transmittal and earns its own TSR
-rather than reopening this one. A failure notifies Purchasing and changes
-nothing in Odoo. Where the item is a bundle, this is where its Inclusions are
-confirmed as physically present.
-_Avoid_: QC report, Inspection, Technical Report (unqualified)
 
 **Landed Cost**:
 An item's true unit cost once everything is apportioned onto it —
@@ -505,8 +513,9 @@ _Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
 
 **PMS (Purchasing Monitoring System)**:
 One SOR's whole purchasing file — Sales asking Purchasing about products, the
-Costing Matrix, the Purchase Request, each purchase's IPAS, and the Transmittals
-and quality reports that follow the goods until they are handed over. What
+Costing Matrix, the Purchase Request, each purchase's IPAS, the Transmittals
+whose Warehouse and Technical checks follow the goods, and the Packing Lists they
+leave in. What
 people mean by "PMS" whether they are asking about a product, costing a bid, or
 buying after award. Purchasing is the Module that works every SOR's PMS.
 _Avoid_: Purchasing (when meaning one SOR's file), Sales Offer Matrix

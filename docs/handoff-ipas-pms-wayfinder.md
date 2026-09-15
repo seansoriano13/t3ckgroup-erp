@@ -191,6 +191,13 @@ Not a spec: an edit pass, because #209 is already `ready-for-agent` and three de
    b. [Canvass and Offers](https://github.com/seansoriano13/t3ckgroup-erp/issues/275): tickets #276–#282
 6. [Landed cost flows back](https://github.com/seansoriano13/t3ckgroup-erp/issues/283)
 
+**Revised after close, 2026-09-15:** [Reconcile the Transmittal with the real TG03 form](https://github.com/seansoriano13/t3ckgroup-erp/issues/284). Once the paper TG03 form was shared, step 2 was rewritten to match it:
+- one `TG03-NNN` slip moves through Warehouse checking, releasing and Technical inspection, rated GC/NA per line
+- two Check by signers close it
+- the TSR record, approval, tear-off receipt and document lines are gone
+
+The spec is now [Transmittals (TG03) and Packing Lists](https://github.com/seansoriano13/t3ckgroup-erp/issues/251). Printed TSR (#259) is closed as not planned. The IPAS v1 and Order Monitoring specs were updated to read stages instead of TSRs, and `employees.call_sign` joins IPAS v1 (#247).
+
 **Fog left unresolved, still in scope:** option lists, switch-over, estimate vs actual, and inquiries that buy nothing. Each comes back as a new effort once it's clear enough to act on.
 
 ## How the sessions have been run
