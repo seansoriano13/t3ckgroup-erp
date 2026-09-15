@@ -119,14 +119,35 @@ export function actionTitle(action) {
 }
 
 /** The one line worth reading under an action's title. */
+/** Issue #204 Part 2 — how a "When confirmed" action's Decider reads on the canvas card. */
+function deciderSummary(decider) {
+  const selectors = decider || []
+  if (selectors.length === 0) return "someone"
+  if (selectors.length === 1) {
+    const s = selectors[0]
+    if (s.type === "role") return String(s.role || "").replace(/_/g, " ") || "someone"
+    if (s.type === "team") return `${s.team} Team`
+    if (s.type === "group") return "the group"
+    return "the assignee"
+  }
+  return `${selectors.length} people`
+}
+
 export function actionSummary(action) {
   const config = action?.config ?? {}
   const label = ACTION_KIND_META[action?.kind]?.label ?? action?.kind ?? ""
 
+  let summary = label
   if (action?.kind === "create_group_task") {
     const count = config.members?.length ?? 0
-    return count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
+    summary = count > 0 ? `${label} · ${count} assignee${count === 1 ? "" : "s"}` : label
+  } else if (config.priority) {
+    summary = `${label} · ${String(config.priority).toLowerCase()} priority`
   }
-  if (config.priority) return `${label} · ${String(config.priority).toLowerCase()} priority`
-  return label
+
+  if (config.confirmMode === "confirm") {
+    summary = `${summary} · When confirmed · ${deciderSummary(config.decider)} decides`
+  }
+
+  return summary
 }

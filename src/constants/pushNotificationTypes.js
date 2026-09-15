@@ -44,6 +44,11 @@ export const PUSH_NOTIFICATION_TYPES = new Set([
   "OFFSET_LEAVE_REQUEST",
   "OVERTIME_REQUEST",
   "UNDERTIME_REQUEST",
+
+  // A Follow-up Cadence reminder (issue #204 Part 3) — chasing someone who
+  // may not have the portal open, the same reason a request-awaiting-your-
+  // approval type pushes.
+  "OPPORTUNITY_FOLLOW_UP_DUE",
 ]);
 
 export function isPushNotificationType(type) {

@@ -10,6 +10,8 @@ import {
   makeOpportunity,
   makeOpportunityItem,
   makeConditionStatus,
+  makeEmployeeGroup,
+  makeFollowUpCadence,
   makeSaleType,
   makeSalesFlow,
   makeStageAction,
@@ -21,6 +23,7 @@ import {
 import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
 import { stubEdgeFunction } from "@/test/msw/server"
+import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
 
 /**
  * Sales Opportunity Registration, exercised end to end through the service's
@@ -35,6 +38,7 @@ describe("opportunityService", () => {
 
   beforeEach(() => {
     seedPipeline()
+    stubActionRunRpcs()
     registrar = makeEmployee({ name: "Ana Reyes" })
     owner = makeEmployee({ name: "Ben Cruz" })
   })
@@ -1712,13 +1716,13 @@ describe("opportunityService", () => {
       expect(lost.id).toBeTruthy()
     })
 
-    describe("Stage Actions fire once per (deal, stage)", () => {
-      it("does not refire an action on loop-back, even with the fired-log row missing", async () => {
-        // The primary guard is a STAGE_ACTIONS_FIRED log row, but a deleted or
-        // missing log must not reopen the gate — the fallback checks for the
-        // task itself, which is what actually matters (see 06 in
-        // .scratch/code-review-fixes/issues/).
-        makeStageAction({
+    describe("Stage Actions fire once per (deal, stage, action)", () => {
+      it("does not refire an action on loop-back — sor_action_runs is the gate, not a log marker", async () => {
+        // Issue #204 Part 2 — fire-once is now a real per-(opportunity,
+        // stage, action) row in sor_action_runs via sor_begin_action_run's
+        // upsert-if-absent, replacing the old STAGE_ACTIONS_FIRED log
+        // marker + ILIKE-on-description fallback entirely.
+        const action = makeStageAction({
           stage_id: qualified.id,
           kind: "create_individual_task",
           config: { title: "Confirm requirements" },
@@ -1731,14 +1735,11 @@ describe("opportunityService", () => {
         // is already there without polling.
         expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(1)
 
-        // Simulate a missing/deleted fired-log row.
-        const firedLog = db.internal
-          .rowsOf("sales_opportunity_logs")
-          .find((l) => l.metadata?.event === "STAGE_ACTIONS_FIRED" && l.opportunity_id === deal.id)
-        db.internal.rowsOf("sales_opportunity_logs").splice(
-          db.internal.rowsOf("sales_opportunity_logs").indexOf(firedLog),
-          1,
-        )
+        const run = db.internal
+          .rowsOf("sor_action_runs")
+          .find((r) => r.opportunity_id === deal.id && r.action_id === action.id)
+        expect(run).toBeTruthy()
+        expect(run.outcome).toBe("created")
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
@@ -1747,6 +1748,179 @@ describe("opportunityService", () => {
           .rowsOf("tasks")
           .filter((t) => t.opportunity_id === deal.id)
         expect(tasksAfterLoopBack).toHaveLength(1)
+
+        // Still exactly one run for this (opportunity, stage, action).
+        const runsAfterLoopBack = db.internal
+          .rowsOf("sor_action_runs")
+          .filter((r) => r.opportunity_id === deal.id && r.action_id === action.id)
+        expect(runsAfterLoopBack).toHaveLength(1)
+      })
+
+      it("fires independently for two stages sharing a name prefix (per-action-id gate, not string matching)", async () => {
+        const otherStage = makeFlowStage({ flow_id: qualified.flow_id, name: "Qualified Extra" })
+        makeFlowEdge(qualified, otherStage)
+        const action1 = makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: {} })
+        const action2 = makeStageAction({ stage_id: otherStage.id, kind: "create_individual_task", config: {} })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, otherStage.id, registrar.id)
+
+        const tasks = db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)
+        expect(tasks).toHaveLength(2)
+        expect(tasks.map((t) => t.stage_action_id).sort()).toEqual([action1.id, action2.id].sort())
+      })
+    })
+
+    describe("Optional Actions — When confirmed (issue #204 Part 2)", () => {
+      it("creates nothing until decided, and notifies the Decider", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+        const spy = vi.spyOn(notificationService, "createNotification")
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
+        const run = db.internal
+          .rowsOf("sor_action_runs")
+          .find((r) => r.opportunity_id === deal.id)
+        expect(run).toBeTruthy()
+        expect(run.outcome).toBe("pending")
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({ recipient_id: decider.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
+        )
+        spy.mockRestore()
+      })
+
+      it("Create produces the same task an automatic run would", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ sales_reference: "S09911" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        const result = await opportunityService.decideAction(run.id, "create", decider.id)
+        expect(result.outcome).toBe("created")
+
+        const task = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(task).toBeTruthy()
+        expect(task.project_title).toBe("[S09911] [Fire truck supply]")
+        expect(task.stage_action_id).toBe(run.action_id)
+
+        const decided = db.internal.rowsOf("sor_action_runs").find((r) => r.id === run.id)
+        expect(decided.outcome).toBe("created")
+        expect(decided.task_id).toBe(task.id)
+      })
+
+      it("Skip creates nothing and logs the skip", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+
+        const result = await opportunityService.decideAction(run.id, "skip", decider.id)
+        expect(result.outcome).toBe("skipped")
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
+
+        const notes = await opportunityService.getNotes(deal.id)
+        expect(notes.some((n) => n.metadata?.event === "ACTION_RUN_SKIPPED")).toBe(true)
+      })
+
+      it("refuses a non-Decider calling decideAction", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        const stranger = makeEmployee({ name: "Stranger Steve" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+
+        await expect(opportunityService.decideAction(run.id, "create", stranger.id)).rejects.toThrow()
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
+      })
+
+      it("marks a pending run skipped with a timeline entry when the deal leaves the Stage undecided, and does not re-offer it on re-entry", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
+
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        expect(run.outcome).toBe("skipped")
+
+        const notes = await opportunityService.getNotes(deal.id)
+        expect(notes.some((n) => n.metadata?.event === "ACTION_RUN_SKIPPED" && n.content.includes("Qualified"))).toBe(true)
+
+        // Re-entering Qualified must not re-offer the same action.
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const runsAfter = db.internal.rowsOf("sor_action_runs").filter((r) => r.opportunity_id === deal.id)
+        expect(runsAfter).toHaveLength(1)
+        expect(runsAfter[0].outcome).toBe("skipped")
+        expect(db.internal.rowsOf("tasks").filter((t) => t.opportunity_id === deal.id)).toHaveLength(0)
+      })
+
+      it("resolves a group Decider via Employee Groups", async () => {
+        const member = makeEmployee({ name: "Group Member Gary" })
+        const group = makeEmployeeGroup({ employeeIds: [member.id] })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "group", id: group.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+
+        const result = await opportunityService.decideAction(run.id, "skip", member.id)
+        expect(result.outcome).toBe("skipped")
+      })
+
+      it("defaults an unconfigured Decider to the Deal Owner", async () => {
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm" },
+        })
+        const spy = vi.spyOn(notificationService, "createNotification")
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({ recipient_id: owner.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
+        )
+        spy.mockRestore()
+
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        const result = await opportunityService.decideAction(run.id, "create", owner.id)
+        expect(result.outcome).toBe("created")
       })
     })
 
@@ -1777,10 +1951,83 @@ describe("opportunityService", () => {
       })
     })
 
+    describe("Follow-up Cadence (issue #204 Part 3)", () => {
+      it("refuses when the current Stage carries no cadence at all", async () => {
+        const deal = await register()
+
+        await expect(opportunityService.logFollowUp(deal.id, {}, owner.id)).rejects.toThrow(
+          /no active Follow-up Cadence/,
+        )
+      })
+
+      it("refuses to log without proof when the cadence requires it", async () => {
+        makeFollowUpCadence({ stage_id: qualified.id, proof_required: true })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        await expect(
+          opportunityService.logFollowUp(deal.id, { note: "Called the client" }, owner.id),
+        ).rejects.toThrow(/proof/i)
+      })
+
+      it("logs a follow-up with its files on the timeline when proof is attached", async () => {
+        makeFollowUpCadence({ stage_id: qualified.id, proof_required: true })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const file = { url: "https://res.cloudinary.com/demo/proof.pdf", name: "proof.pdf", type: "application/pdf" }
+        await opportunityService.logFollowUp(deal.id, { note: "Called the client", attachments: [file] }, owner.id)
+
+        const notes = await opportunityService.getNotes(deal.id)
+        const entry = notes.find((n) => n.metadata?.event === "FOLLOW_UP_LOGGED")
+        expect(entry).toBeTruthy()
+        expect(entry.content).toMatch(/Called the client/)
+        expect(entry.metadata.attachments).toEqual([expect.objectContaining({ url: file.url })])
+      })
+
+      it("refuses a non-recipient, non-Deal-Team actor", async () => {
+        makeFollowUpCadence({ stage_id: qualified.id, proof_required: false })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const stranger = makeEmployee({ name: "Stranger Steve" })
+        await expect(opportunityService.logFollowUp(deal.id, {}, stranger.id)).rejects.toThrow()
+      })
+
+      it("refuses when the Stage's cadence is disabled", async () => {
+        makeFollowUpCadence({ stage_id: qualified.id, enabled: false, every_days: null })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        await expect(opportunityService.logFollowUp(deal.id, {}, owner.id)).rejects.toThrow()
+      })
+
+      it("lets a resolved recipient (not on the Deal Team) log a follow-up when proof isn't required", async () => {
+        const helper = makeEmployee({ name: "Helper Hannah" })
+        makeFollowUpCadence({
+          stage_id: qualified.id,
+          proof_required: false,
+          recipients: [{ type: "employee", id: helper.id }],
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        await opportunityService.logFollowUp(deal.id, { note: "Checked in" }, helper.id)
+
+        const notes = await opportunityService.getNotes(deal.id)
+        expect(notes.some((n) => n.metadata?.event === "FOLLOW_UP_LOGGED")).toBe(true)
+      })
+    })
+
     // Issue #178 — an automated task is named after the deal, not the Stage.
     describe("Stage Actions name the task after the deal", () => {
-      it("titles an individual-task automation with the Sales Reference and project name, and keeps the stage marker in the description", async () => {
-        makeStageAction({
+      it("titles an individual-task automation with the Sales Reference and project name, and links it to the Stage Action that created it", async () => {
+        const action = makeStageAction({
           stage_id: qualified.id,
           kind: "create_individual_task",
           config: {},
@@ -1795,7 +2042,11 @@ describe("opportunityService", () => {
         expect(task).toBeTruthy()
 
         expect(task.project_title).toBe("[S04521] [Fire truck supply]")
-        expect(task.task_description).toContain("entering stage: Qualified")
+        // Issue #204 Part 2 — the old "(Auto-created on entering stage...)"
+        // marker is gone; attribution now lives on stage_action_id/
+        // stage_visit_id plus the STAGE_ACTION_TASK_CREATED system note.
+        expect(task.task_description).not.toContain("Auto-created")
+        expect(task.stage_action_id).toBe(action.id)
       })
 
       it("names a deal with no Sales Reference yet with a stated placeholder", async () => {
@@ -1862,8 +2113,8 @@ describe("opportunityService", () => {
         expect(task.project_title).toBe("Custom automation title")
       })
 
-      it("titles a group-task automation the same way, keeping the stage marker in the description", async () => {
-        makeStageAction({
+      it("titles a group-task automation the same way, and links it to the Stage Action that created it", async () => {
+        const action = makeStageAction({
           stage_id: qualified.id,
           kind: "create_group_task",
           config: {},
@@ -1878,7 +2129,8 @@ describe("opportunityService", () => {
         expect(groupTask).toBeTruthy()
 
         expect(groupTask.title).toBe("[S04521] [Fire truck supply]")
-        expect(groupTask.description).toContain("entering stage: Qualified")
+        expect(groupTask.description || "").not.toContain("Auto-created")
+        expect(groupTask.stage_action_id).toBe(action.id)
       })
 
       it("lets an explicitly configured group-task title win", async () => {

@@ -104,6 +104,8 @@ enabled = true
 
 [functions.send-push]
 
+[functions.sor-follow-up-reminders]
+
 [functions.odoo-document-admin]
 [functions.odoo-po-rollup]
 [functions.odoo-po-verify]

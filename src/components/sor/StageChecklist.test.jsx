@@ -34,6 +34,8 @@ vi.mock("../../services/opportunityService", () => ({
     addMember: vi.fn(async () => ({})),
     addNote: vi.fn(async () => ({})),
     isChecklistWritableField: vi.fn(() => true),
+    getFollowUpStatus: vi.fn(async () => null),
+    logFollowUp: vi.fn(async () => true),
   },
 }))
 

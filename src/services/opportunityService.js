@@ -27,7 +27,7 @@ import {
   blockingConditions,
   missingStageFields,
 } from "../constants/stageGate";
-import { normaliseTeam } from "../utils/resolvePeople";
+import { normaliseTeam, resolvePeople, DEAL_TEAM_ROLES } from "../utils/resolvePeople";
 import { employeeGroupService } from "./employeeGroupService";
 import {
   entryStage,
@@ -37,6 +37,8 @@ import {
   stageActionTaskTitle,
 } from "../constants/salesFlow";
 import { formatSnapshotVersion } from "../constants/flowVersion";
+import { renderTemplate } from "../constants/taskTemplates";
+import { nextFollowUpDue } from "../constants/followUp";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -728,6 +730,40 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     actorId,
   ).catch(console.error);
 
+  // 2b. Issue #204 Part 2 — leaving a Stage skips any of its still-`pending`
+  // "When confirmed" runs: they were never decided while the deal sat here,
+  // and re-entering later must not re-offer them (the unique constraint on
+  // sor_action_runs is per (opportunity, stage, action), not per-visit, so
+  // this also guarantees story 19 — a skipped action isn't re-offered on
+  // loop-back).
+  if (currentVisit) {
+    const { data: pendingRuns, error: pendingRunsError } = await supabase
+      .from("sor_action_runs")
+      .select("id, action_id")
+      .eq("stage_visit_id", currentVisit.id)
+      .eq("outcome", "pending");
+    if (pendingRunsError) {
+      console.error("Failed to load pending action runs:", pendingRunsError);
+    } else {
+      for (const pendingRun of pendingRuns || []) {
+        const { error: skipError } = await supabase.rpc("sor_finish_action_run", {
+          p_run_id: pendingRun.id,
+          p_outcome: "skipped",
+        });
+        if (skipError) {
+          console.error("sor_finish_action_run (auto-skip) failed:", skipError);
+          continue;
+        }
+        await opportunityService.addSystemNote(
+          existing.id,
+          `Not created: left ${fromName} undecided.`,
+          { event: "ACTION_RUN_SKIPPED", stageId: from.id, actionId: pendingRun.action_id, runId: pendingRun.id },
+          actorId,
+        ).catch(() => {});
+      }
+    }
+  }
+
   // 3. Execute Stage Actions (Automations) for the new stage — read from the
   // SOR's own snapshot (issue #83), not the live table, so entering a Stage
   // fires the automations agreed at registration time and not ones added
@@ -742,50 +778,27 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   try {
     const actions = actionsForSnapshotStage(snapshotActions, to.id);
     if (actions.length > 0) {
-      // Guard: fire once per (deal, stage). The log check is the primary
-      // signal; the task-existence check is a fallback for a missing or
-      // deleted log entry, since both individual and group tasks created
-      // by these automations embed the same "entering stage: <name>"
-      // marker in their description (see the payloads built below).
-      const { data: existingLogs } = await supabase
-        .from("sales_opportunity_logs")
-        .select("id")
-        .eq("opportunity_id", existing.id)
-        .contains("metadata", { event: "STAGE_ACTIONS_FIRED", to: to.id })
-        .limit(1);
-
-      const stageMarker = `entering stage: ${to.name}`;
-      const [{ data: existingTasks }, { data: existingGroupTasks }] = await Promise.all([
-        supabase
-          .from("tasks")
-          .select("id")
-          .eq("opportunity_id", existing.id)
-          .ilike("task_description", `%${stageMarker}%`)
-          .limit(1),
-        supabase
-          .from("committee_tasks")
-          .select("id")
-          .eq("opportunity_id", existing.id)
-          .ilike("description", `%${stageMarker}%`)
-          .limit(1),
-      ]);
-
-      if (existingLogs?.length > 0 || existingTasks?.length > 0 || existingGroupTasks?.length > 0) {
-        systemAuditLogService.addSystemEvent(
-          "OPPORTUNITY", existing.id,
-          `Stage actions skipped: already fired for ${to.name}`,
-          { event: "STAGE_ACTIONS_SKIPPED", to: to.id }, actorId
-        ).catch(() => {});
-        return { ...data, failedStageActions };
-      }
-
-      const { groupTaskService } = await import("./groupTaskService");
-      const { taskService } = await import("./taskService");
+      // Issue #204 Part 2 — fire-once per (deal, stage, action) now lives in
+      // sor_action_runs, gated by sor_begin_action_run's upsert-if-absent.
+      // This replaces both the old STAGE_ACTIONS_FIRED log marker and the
+      // ILIKE-on-description fallback.
+      const newVisit = await currentVisitFor(existing.id).catch(() => null);
 
       actionsAttempted = true;
+      // Issue #204 — template context shared by title/description rendering
+      // for every action on this Stage entry. Kept in sync with
+      // TEMPLATE_VARIABLES in src/constants/taskTemplates.js.
+      const templateContext = {
+        salesReference: existing.sales_reference,
+        projectTitle: existing.project_title,
+        company: existing.client_name,
+        stageName: to.name,
+        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+        saleType: existing.sale_type || null,
+      };
+
       for (const action of actions) {
-        const config = action.config;
-        const oppName = existing.sales_reference ? `${existing.sales_reference} - ${existing.client_name}` : existing.client_name;
+        const config = action.config || {};
         // Issue #178 — both automation kinds name their task after the
         // deal, not the Stage, via this one shared builder.
         const dealTitle = stageActionTaskTitle({
@@ -793,74 +806,47 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
           projectTitle: existing.project_title,
         });
 
-        if (action.kind === "create_group_task") {
-          // Group Task Automation
-          const payload = {
-            title: config.title || dealTitle,
-            description: config.description
-              ? `${config.description}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
-              : `Auto-created on entering stage: ${to.name} for deal: ${oppName}`,
-            createdBy: actorId,
-            templateId: config.templateId || null,
-            members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
-            opportunityId: existing.id,
-          };
-
-          if (config.dueDateOffsetDays) {
-            const due = new Date();
-            due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
-            payload.dueDate = due.toISOString();
-          }
-
-          await groupTaskService.createGroupTask(payload).catch((err) => {
-            console.error("Stage Action failed:", err);
-            failedStageActions.push(stageActionName(action));
-          });
-
-        } else if (action.kind === "create_individual_task") {
-          // Individual Task Automation
-          const payload = {
-            taskDescription: config.title
-              ? `${config.title}\n\n(Auto-created on entering stage: ${to.name} for deal: ${oppName})`
-              : `Auto-created on entering stage: ${to.name}`,
-            categoryId: config.categoryId,
-            priority: config.priority || "MEDIUM",
-            checklist: config.checklist || null,
-            // An individual-task automation's explicit title lives in
-            // config.projectTitle, not config.title — that field belongs
-            // to the group-task kind (see flowStageKinds.actionTitle).
-            projectTitle: config.projectTitle || dealTitle,
-            // config.loggedById is what LogTaskAssignmentBar's Assign To
-            // picker actually saves (formData.loggedById, passed straight
-            // through by StageActionManager's handleAdd) — assigneeId was
-            // never a real field, so a chosen assignee was always silently
-            // ignored in favor of the fallback below.
-            loggedById: config.loggedById || actorId, // fallback to actor if never picked
-            submittedById: actorId,
-            opportunityId: existing.id,
-          };
-
-          if (config.dueOffsetDays) {
-            const due = new Date();
-            due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
-            payload.endAt = due.toISOString();
-          }
-
-          await taskService.createTask(payload).catch((err) => {
-            console.error("Stage Action failed:", err);
-            failedStageActions.push(stageActionName(action));
-          });
+        // Issue #204 Part 2 — fire-once gate. sor_begin_action_run upserts
+        // if absent and always returns the row for (opportunity, stage,
+        // action); if it already existed (any outcome), this action has
+        // already been handled for this deal+stage and is skipped. A
+        // "When confirmed" action's decider selectors are stored on the run
+        // right away so sor_decide_action_run can validate against them.
+        // Spec: "the Deal Owner by default" — an unset decider is not "no
+        // one may decide", it's the default selector.
+        const deciderSelectors = config.decider?.length
+          ? config.decider
+          : [{ type: "role", role: "deal_owner" }];
+        const { data: run, error: runError } = await supabase.rpc("sor_begin_action_run", {
+          p_opportunity_id: existing.id,
+          p_stage_id: to.id,
+          p_action_id: action.id,
+          p_stage_visit_id: newVisit?.id ?? null,
+          p_decider: config.confirmMode === "confirm" ? deciderSelectors : null,
+        });
+        if (runError) {
+          console.error("sor_begin_action_run failed:", runError);
+          failedStageActions.push(stageActionName(action));
+          continue;
         }
-      }
+        const runRow = Array.isArray(run) ? run[0] : run;
+        if (!runRow || runRow.outcome !== "pending") {
+          // Already begun previously (created/skipped/failed) — fire-once.
+          continue;
+        }
 
-      // Mark as fired so they don't fire again on loop-back
-      await supabase.from("sales_opportunity_logs").insert({
-        opportunity_id: existing.id,
-        author_id: actorId,
-        type: "SYSTEM",
-        content: `Stage actions fired for ${to.name}.`,
-        metadata: { event: "STAGE_ACTIONS_FIRED", to: to.id }
-      });
+        if (config.confirmMode === "confirm") {
+          // Issue #204 Part 2 — "When confirmed": no task yet. Notify the
+          // Deciders and leave the run pending; PendingActionDecisions.jsx
+          // (or decideAction) resolves it later.
+          await notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors).catch((err) =>
+            console.error("notifyDeciders failed:", err),
+          );
+          continue;
+        }
+
+        await buildAndCreateActionTask(action, existing, to, actorId, runRow, templateContext, failedStageActions);
+      }
     }
   } catch (err) {
     // Reading the guard or loading a service failed before any action ran:
@@ -875,6 +861,200 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }
 
   return { ...data, failedStageActions };
+}
+
+/**
+ * Issue #204 Part 2 — resolves a "When confirmed" action's `config.decider`
+ * selectors (resolvePeople.js's shape: {type:'employee'|'group', id}) to
+ * live employee ids, for both the notify-on-pending step and the client-side
+ * refusal in `decideAction` (defense in depth — `sor_decide_action_run`'s
+ * own check is the real gate).
+ */
+async function resolveDeciderIds(deciderSelectors, opportunity) {
+  if (!deciderSelectors || deciderSelectors.length === 0) return [];
+  const [{ data: employees, error: employeesError }, groups] = await Promise.all([
+    supabase.from("employees").select("id, sub_department, is_deleted"),
+    employeeGroupService.list(),
+  ]);
+  if (employeesError) throw employeesError;
+  const groupMembersById = {};
+  for (const group of groups) {
+    groupMembersById[group.id] = { employeeIds: group.employeeIds, teams: group.teams };
+  }
+  return resolvePeople(deciderSelectors, {
+    employees: employees || [],
+    groupMembersById,
+    opportunity,
+  });
+}
+
+/**
+ * Issue #204 Part 3 — resolves a Follow-up Cadence's `recipients` selectors
+ * to live employee ids, the same shape `resolveDeciderIds` resolves a
+ * "When confirmed" action's Decider — kept separate rather than shared so a
+ * change to one selector list's resolution never silently changes the
+ * other's.
+ */
+async function resolveSelectorIds(selectors, opportunity) {
+  if (!selectors || selectors.length === 0) return [];
+  const [{ data: employees, error: employeesError }, groups] = await Promise.all([
+    supabase.from("employees").select("id, sub_department, is_deleted"),
+    employeeGroupService.list(),
+  ]);
+  if (employeesError) throw employeesError;
+  const groupMembersById = {};
+  for (const group of groups) {
+    groupMembersById[group.id] = { employeeIds: group.employeeIds, teams: group.teams };
+  }
+  return resolvePeople(selectors, {
+    employees: employees || [],
+    groupMembersById,
+    opportunity,
+  });
+}
+
+/** Every employee id on `opportunity`'s Deal Team (resolvePeople.js's DEAL_TEAM_ROLES columns), deduplicated. */
+function dealTeamIds(opportunity) {
+  const ids = new Set();
+  for (const { columns } of Object.values(DEAL_TEAM_ROLES)) {
+    for (const column of columns) {
+      if (opportunity[column] != null) ids.add(String(opportunity[column]));
+    }
+  }
+  return [...ids];
+}
+
+/**
+ * Issue #204 Part 2 — notifies every Decider of a newly-pending "When
+ * confirmed" action, once, when `sor_begin_action_run` first creates the
+ * run (never on a subsequent gate-hit, since the run is no longer pending).
+ */
+async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors) {
+  const deciderIds = await resolveDeciderIds(deciderSelectors, existing);
+  for (const recipientId of deciderIds) {
+    await notificationService
+      .createNotification({
+        recipient_id: recipientId,
+        sender_id: actorId,
+        type: "OPPORTUNITY_ACTION_DECISION_DUE",
+        title: stageActionName(action) || dealTitle,
+        message: `A Stage Action on "${existing.project_title || dealTitle}" (${to.name}) needs your decision: Create or Skip.`,
+        reference_id: existing.id,
+      })
+      .catch((err) => console.error("notifyDeciders failed:", err));
+  }
+}
+
+/**
+ * Issue #204 Part 2 — the ONE builder both the automatic path (moveAlongFlow's
+ * action loop) and the "create" half of `decideAction` call, so a decided
+ * Create produces exactly what an automatic run would have. Performs the
+ * side effects (task creation, sor_finish_action_run, system note) and
+ * pushes onto `failedStageActions` on failure.
+ */
+async function buildAndCreateActionTask(action, existing, to, actorId, runRow, templateContext, failedStageActions) {
+  const config = action.config || {};
+  const dealTitle = stageActionTaskTitle({
+    salesReference: existing.sales_reference,
+    projectTitle: existing.project_title,
+  });
+
+  if (action.kind === "create_group_task") {
+    const { groupTaskService } = await import("./groupTaskService");
+    const payload = {
+      title: config.titleTemplate || config.title ? renderTemplate(config.titleTemplate || config.title, templateContext) : dealTitle,
+      description: config.descriptionTemplate || config.description
+        ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+        : "",
+      createdBy: actorId,
+      templateId: config.templateId || null,
+      members: config.members?.length > 0 ? config.members : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }],
+      opportunityId: existing.id,
+      stageActionId: action.id,
+      stageVisitId: runRow?.stage_visit_id ?? null,
+    };
+    if (config.dueDateOffsetDays) {
+      const due = new Date();
+      due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
+      payload.dueDate = due.toISOString();
+    }
+
+    const groupTask = await groupTaskService.createGroupTask(payload).catch((err) => {
+      console.error("Stage Action failed:", err);
+      failedStageActions?.push(stageActionName(action));
+      return null;
+    });
+
+    const groupTaskId = groupTask ? (groupTask.id ?? groupTask.data?.id ?? null) : null;
+    const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
+      p_run_id: runRow.id,
+      p_outcome: groupTask ? "created" : "failed",
+      p_group_task_id: groupTaskId,
+    });
+    if (finishError) console.error("sor_finish_action_run failed:", finishError);
+
+    if (groupTask) {
+      await opportunityService.addSystemNote(
+        existing.id,
+        `Group Task "${payload.title}" created on entering Stage: ${to.name}.`,
+        { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, groupTaskId },
+        actorId
+      ).catch(() => {});
+    }
+  } else if (action.kind === "create_individual_task") {
+    const { taskService } = await import("./taskService");
+    const title = config.titleTemplate || config.projectTitle ? renderTemplate(config.titleTemplate || config.projectTitle, templateContext) : dealTitle;
+    // Back-compat: an individual-task automation's config.title never named
+    // the task's title (that's config.projectTitle/titleTemplate — see the
+    // comment on projectTitle below) but it did name the task's
+    // description in the pre-#204 builder. Kept so an existing automation's
+    // saved config.title still shows up somewhere on the created task.
+    const description = config.descriptionTemplate || config.description
+      ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+      : config.title
+        ? renderTemplate(config.title, templateContext)
+        : "";
+    const payload = {
+      taskDescription: description || title,
+      categoryId: config.categoryId,
+      priority: config.priority || "MEDIUM",
+      checklist: config.checklist || null,
+      projectTitle: title,
+      loggedById: config.loggedById || actorId,
+      submittedById: actorId,
+      opportunityId: existing.id,
+      stageActionId: action.id,
+      stageVisitId: runRow?.stage_visit_id ?? null,
+    };
+    if (config.dueOffsetDays) {
+      const due = new Date();
+      due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
+      payload.endAt = due.toISOString();
+    }
+
+    const task = await taskService.createTask(payload).catch((err) => {
+      console.error("Stage Action failed:", err);
+      failedStageActions?.push(stageActionName(action));
+      return null;
+    });
+
+    const taskId = task ? (task.id ?? task.data?.id ?? null) : null;
+    const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
+      p_run_id: runRow.id,
+      p_outcome: task ? "created" : "failed",
+      p_task_id: taskId,
+    });
+    if (finishError) console.error("sor_finish_action_run failed:", finishError);
+
+    if (task) {
+      await opportunityService.addSystemNote(
+        existing.id,
+        `Task "${title}" created on entering Stage: ${to.name}.`,
+        { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, taskId },
+        actorId
+      ).catch(() => {});
+    }
+  }
 }
 
 /** How a failed Stage Action is named to the person who moved the SOR. */
@@ -2029,6 +2209,150 @@ export const opportunityService = {
     if (error) console.error("Failed to write opportunity system note:", error);
   },
 
+  /**
+   * Issue #204 Part 3 — Follow-up Cadence, "Log follow-up" (story 27/28).
+   * Refuses when the SOR's current Stage carries no enabled cadence (its own
+   * published Flow Snapshot's `snapshot_data.followUps`, never the live
+   * `flow_stage_follow_ups` table — same "pinned to what was true at
+   * registration" rule every other Flow Canvas setting follows), when the
+   * actor is neither on the Deal Team nor resolves into the cadence's
+   * recipients, or when proof is required and no attachment is given.
+   *
+   * A successful log writes a `FOLLOW_UP_LOGGED` timeline entry carrying the
+   * open Stage Visit's id and the files, which both `nextFollowUpDue` (via
+   * the SOR's own logs) and the server-side `sor_due_follow_ups` (via
+   * `sales_opportunity_logs`) read as "the count restarted" (story 28).
+   */
+  async logFollowUp(opportunityId, { note, attachments = [] } = {}, actorId) {
+    const opportunity = await opportunityService.getOpportunityById(opportunityId);
+    if (!opportunity) throw new Error("That deal could not be found.");
+
+    const stageId = currentStageId(opportunity);
+    const currentVisit = await currentVisitFor(opportunityId);
+
+    let followUps = [];
+    if (opportunity.flow_snapshot_id) {
+      const { data: snapshot, error } = await supabase
+        .from("flow_snapshots")
+        .select("snapshot_data")
+        .eq("id", opportunity.flow_snapshot_id)
+        .single();
+      if (error) throw error;
+      followUps = snapshot?.snapshot_data?.followUps || [];
+    }
+
+    const cadence = followUps.find((f) => f.id === stageId);
+    if (!cadence || !cadence.enabled) {
+      throw new Error("This Stage has no active Follow-up Cadence, so there is nothing to log against.");
+    }
+
+    const isDealTeam = dealTeamIds(opportunity).includes(String(actorId));
+    if (!isDealTeam) {
+      const recipientIds = await resolveSelectorIds(cadence.recipients, opportunity);
+      if (!recipientIds.includes(String(actorId))) {
+        throw new Error("Only the Deal Team or this cadence's recipients can log a follow-up.");
+      }
+    }
+
+    const files = (attachments || []).filter((a) => a?.url);
+    if (cadence.proofRequired !== false && files.length === 0) {
+      throw new Error("This Follow-up Cadence requires at least one attachment as proof.");
+    }
+
+    await opportunityService.addSystemNote(
+      opportunityId,
+      note?.trim() ? `Follow-up logged: ${note.trim()}` : "Follow-up logged",
+      {
+        event: "FOLLOW_UP_LOGGED",
+        stageVisitId: currentVisit?.id ?? null,
+        stageId,
+        attachments: files,
+        employeeId: actorId,
+      },
+      actorId,
+    );
+
+    return true;
+  },
+
+  /**
+   * Issue #204 Part 2 — resolves a pending "When confirmed" Stage Action
+   * run: `"create"` builds exactly what the automatic path would have (via
+   * the same `buildAndCreateActionTask` helper), `"skip"` creates nothing.
+   * Refuses client-side too when `actorId` doesn't resolve into the run's
+   * stored decider selectors — defense in depth; `sor_decide_action_run`'s
+   * own check is the real gate.
+   */
+  async decideAction(runId, decision, actorId) {
+    if (!["create", "skip"].includes(decision)) {
+      throw new Error(`decideAction: invalid decision "${decision}".`);
+    }
+
+    const { data: run, error: runError } = await supabase
+      .from("sor_action_runs")
+      .select("*")
+      .eq("id", runId)
+      .single();
+    if (runError) throw runError;
+    if (run.outcome !== "pending") {
+      throw new Error("This action has already been decided.");
+    }
+
+    const { data: existing, error: existingError } = await supabase
+      .from("sales_opportunities")
+      .select(PARTICIPANT_SELECT)
+      .eq("id", run.opportunity_id)
+      .single();
+    if (existingError) throw existingError;
+
+    const deciderIds = await resolveDeciderIds(run.decider || [], existing);
+    if (!deciderIds.map(String).includes(String(actorId))) {
+      throw new Error("You are not a Decider for this action.");
+    }
+
+    const { data: action, error: actionError } = await supabase
+      .from("flow_stage_actions")
+      .select("*")
+      .eq("id", run.action_id)
+      .single();
+    if (actionError) throw actionError;
+
+    const { data: stage, error: stageError } = await supabase
+      .from("flow_stages")
+      .select("*")
+      .eq("id", run.stage_id)
+      .single();
+    if (stageError) throw stageError;
+
+    const { error: decideError } = await supabase.rpc("sor_decide_action_run", {
+      p_run_id: runId,
+      p_decision: decision,
+      p_actor_id: actorId,
+    });
+    if (decideError) throw decideError;
+
+    if (decision === "skip") {
+      await opportunityService.addSystemNote(
+        existing.id,
+        `Skipped: ${stageActionName(action)} (${stage.name}).`,
+        { event: "ACTION_RUN_SKIPPED", stageId: stage.id, actionId: action.id, runId },
+        actorId,
+      ).catch(() => {});
+      return { outcome: "skipped" };
+    }
+
+    const templateContext = {
+      salesReference: existing.sales_reference,
+      projectTitle: existing.project_title,
+      company: existing.client_name,
+      stageName: stage.name,
+      dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+      saleType: existing.sale_type || null,
+    };
+    await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
+    return { outcome: "created" };
+  },
+
   // ── SOR Members ────────────────────────────────────────────────────────────
 
   /** Everyone added to this deal (docs/crm-pipeline-redesign.md's SOR Member), oldest first. */
@@ -2194,6 +2518,56 @@ export const opportunityService = {
   async getCurrentStageVisitId(opportunityId) {
     const visit = await currentVisitFor(opportunityId);
     return visit?.id ?? null;
+  },
+
+  /**
+   * Issue #204 Part 3 — the SOR view's "Next reminder …" line: the current
+   * Stage's cadence (from the SOR's own Flow Snapshot, never the live
+   * `flow_stage_follow_ups` table), plus when the next reminder is due per
+   * `nextFollowUpDue`, computed from the same timeline entries
+   * `sor_due_follow_ups` reads server-side. Null when the Stage carries no
+   * enabled cadence.
+   */
+  async getFollowUpStatus(opportunityId) {
+    const opportunity = await opportunityService.getOpportunityById(opportunityId);
+    if (!opportunity?.flow_snapshot_id) return null;
+
+    const stageId = currentStageId(opportunity);
+    const { data: snapshot, error } = await supabase
+      .from("flow_snapshots")
+      .select("snapshot_data")
+      .eq("id", opportunity.flow_snapshot_id)
+      .single();
+    if (error) throw error;
+
+    const cadence = (snapshot?.snapshot_data?.followUps || []).find((f) => f.id === stageId);
+    if (!cadence || !cadence.enabled) return null;
+
+    const [visit, logs] = await Promise.all([
+      currentVisitFor(opportunityId),
+      supabase
+        .from("sales_opportunity_logs")
+        .select("created_at, metadata")
+        .eq("opportunity_id", opportunityId),
+    ]);
+    if (logs.error) throw logs.error;
+
+    const forThisVisit = (event) =>
+      (logs.data || [])
+        .filter((l) => l.metadata?.event === event && l.metadata?.stageVisitId === visit?.id)
+        .map((l) => l.created_at)
+        .sort()
+        .pop() || null;
+
+    const nextDue = nextFollowUpDue({
+      enteredAt: visit?.entered_at,
+      lastLoggedAt: forThisVisit("FOLLOW_UP_LOGGED"),
+      lastReminderAt: forThisVisit("FOLLOW_UP_REMINDER"),
+      everyDays: cadence.everyDays,
+      leftAt: visit?.left_at,
+    });
+
+    return { cadence, nextDue, stageVisitId: visit?.id ?? null };
   },
 
   /**

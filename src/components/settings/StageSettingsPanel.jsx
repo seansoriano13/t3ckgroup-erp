@@ -21,6 +21,7 @@ import TabGroup from "@/components/ui/TabGroup";
 import StageConditionManager from "./StageConditionManager";
 import StageActionManager from "./StageActionManager";
 import StageFieldManager from "./StageFieldManager";
+import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -295,6 +296,8 @@ export default function StageSettingsPanel({
               A Stage moves a deal on only along the edges drawn from it. Conditions block the
               way out; actions fire on the way in.
             </p>
+
+            <FollowUpCadenceEditor stageId={stage.id} disabled={disabled} />
           </div>
         )}
 

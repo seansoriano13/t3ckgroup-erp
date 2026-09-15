@@ -10,6 +10,7 @@ import { storageService } from "../../services/storageService";
 import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
 import StageFieldsForm from "./StageFieldsForm";
+import FollowUpPanel from "./FollowUpPanel";
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,12 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   const { data: currentVisitId = null } = useQuery({
     queryKey: ["stageVisitId", opportunityId, stageCode],
     queryFn: () => opportunityService.getCurrentStageVisitId(opportunityId),
+    enabled: !!opportunityId,
+  });
+
+  const { data: followUpStatus = null } = useQuery({
+    queryKey: ["followUpStatus", opportunityId, stageCode],
+    queryFn: () => opportunityService.getFollowUpStatus(opportunityId),
     enabled: !!opportunityId,
   });
 
@@ -187,11 +194,21 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
 
   const showChecklist = checklist.length > 0;
   const showFields = stageFields.length > 0;
+  const showFollowUp = !!followUpStatus?.cadence;
 
-  if (!showChecklist && !showFields) return null;
+  if (!showChecklist && !showFields && !showFollowUp) return null;
 
   return (
     <div className="mt-4 space-y-4">
+      {showFollowUp && (
+        <FollowUpPanel
+          opportunity={opportunity}
+          actorId={actorId}
+          onChanged={onChanged}
+          status={followUpStatus}
+        />
+      )}
+
       {showChecklist && (
         <div className="rounded-xl border border-border/70 bg-card/50 p-4">
           <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">

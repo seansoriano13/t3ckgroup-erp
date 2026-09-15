@@ -262,6 +262,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       actions,
       conditions,
       stageFields: [],
+      followUps: [],
       wonStageId: "s-won",
       saleTypeId: "st-1",
     })
@@ -274,6 +275,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       actions: [],
       conditions: [],
       stageFields: [],
+      followUps: [],
       wonStageId: null,
       saleTypeId: null,
     })

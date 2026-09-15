@@ -47,6 +47,7 @@ export const SEED_TABLES = [
   "stage_conditions",
   "flow_stage_actions",
   "flow_stage_fields",
+  "flow_stage_follow_ups",
   "flow_snapshots",
   "sales_opportunities",
   "sor_stage_visits",
@@ -79,6 +80,8 @@ export const SEED_EXCLUDED_TABLES = {
     "IP addresses and throttle state for public document verification. Personal data, and meaningless off the server.",
   sor_stock_snapshots:
     "A timestamped Odoo stock reading, not a fact about the deal. A local stack has no Odoo credentials to refresh it against, so a seeded row would go stale the moment it landed.",
+  sor_action_runs:
+    "A fire-once ledger derived from Stage Actions actually firing (issue #204), not a fact to seed — a local stack regenerates it the first time a seeded deal moves through a Flow Stage.",
 }
 
 export const DEFAULT_LOCAL_DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"

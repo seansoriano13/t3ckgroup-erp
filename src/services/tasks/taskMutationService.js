@@ -58,6 +58,10 @@ export const taskMutationService = {
       attachment_urls: payload.attachments || [],
       reported_to: payload.reportedTo || null,
       opportunity_id: payload.opportunityId || null,
+      // Issue #204 Part 2 — direct linkage to the Stage Action/Stage Visit
+      // that created this task, replacing the old description-marker guard.
+      stage_action_id: payload.stageActionId || null,
+      stage_visit_id: payload.stageVisitId || null,
     };
 
     let { data, error } = await supabase.from("tasks").insert([dbPayload]).select();

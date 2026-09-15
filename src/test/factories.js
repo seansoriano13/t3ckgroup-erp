@@ -166,6 +166,23 @@ export function makeStageField(overrides = {}) {
   })
 }
 
+/**
+ * A Stage's Follow-up Cadence (issue #204 Part 3) — enabled every 7 days by
+ * default, so a bare call is ready to be picked up by `makeFlowSnapshot`'s
+ * own `followUps` group without a test having to spell out every field.
+ */
+export function makeFollowUpCadence(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  return db.seed("flow_stage_follow_ups", {
+    enabled: true,
+    every_days: 7,
+    recipients: [{ type: "role", role: "deal_owner" }],
+    proof_required: true,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
 /** A Stage Visit (issue #203) — the record of one stay on a Stage. Open (no `left_at`) by default. */
 export function makeStageVisit(overrides = {}) {
   const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
@@ -198,6 +215,29 @@ export function makeStageAction(overrides = {}) {
     ...overrides,
     stage_id: stageId,
   })
+}
+
+/**
+ * An Employee Group (issue #201) with the given members/teams already
+ * seeded into `employee_group_members`/`employee_group_teams`, so a Decider
+ * selector `{type:"group", id}` resolves the way `employeeGroupService.list()`
+ * would.
+ */
+export function makeEmployeeGroup({ employeeIds = [], teams = [], ...overrides } = {}) {
+  const n = next()
+  const group = db.seed("employee_groups", {
+    name: `Group ${n}`,
+    description: null,
+    archived_at: null,
+    ...overrides,
+  })
+  for (const employeeId of employeeIds) {
+    db.seed("employee_group_members", { group_id: group.id, employee_id: employeeId })
+  }
+  for (const team of teams) {
+    db.seed("employee_group_teams", { group_id: group.id, team })
+  }
+  return group
 }
 
 /** Satisfies a condition for an opportunity — the row IS the satisfaction. */
@@ -475,6 +515,16 @@ export function makeFlowSnapshot(overrides = {}) {
   const stageFields = db.internal
     .rowsOf("flow_stage_fields")
     .filter((f) => stageIds.includes(f.stage_id) && !f.archived_at)
+  const followUps = db.internal
+    .rowsOf("flow_stage_follow_ups")
+    .filter((f) => stageIds.includes(f.stage_id))
+    .map((f) => ({
+      id: f.stage_id,
+      enabled: f.enabled,
+      everyDays: f.every_days,
+      recipients: f.recipients,
+      proofRequired: f.proof_required,
+    }))
 
   const existingVersions = db.internal
     .rowsOf("flow_snapshots")
@@ -494,6 +544,7 @@ export function makeFlowSnapshot(overrides = {}) {
         actions,
         conditions,
         stageFields,
+        followUps,
         wonStageId: flow?.won_stage_id ?? null,
         saleTypeId: flow?.sale_type_id ?? null,
       })

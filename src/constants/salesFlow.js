@@ -255,6 +255,7 @@ export function buildDraftSnapshotData({
   actions = [],
   conditions = [],
   stageFields = [],
+  followUps = [],
 } = {}) {
   return {
     stages,
@@ -262,6 +263,7 @@ export function buildDraftSnapshotData({
     actions,
     conditions,
     stageFields,
+    followUps,
     wonStageId: flow?.won_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
   }
@@ -333,15 +335,16 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const actions = diffById(snapshotDataA.actions, snapshotDataB.actions)
   const conditions = diffById(snapshotDataA.conditions, snapshotDataB.conditions)
   const stageFields = diffById(snapshotDataA.stageFields, snapshotDataB.stageFields)
+  const followUps = diffById(snapshotDataA.followUps, snapshotDataB.followUps)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
-    [stages, edges, actions, conditions, stageFields].some(
+    [stages, edges, actions, conditions, stageFields, followUps].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
 
-  return { stages, edges, actions, conditions, stageFields, wonStageChanged, hasChanges }
+  return { stages, edges, actions, conditions, stageFields, followUps, wonStageChanged, hasChanges }
 }
 
 /**
@@ -361,6 +364,7 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.actions) +
     byGroup(diffResult.conditions) +
     byGroup(diffResult.stageFields) +
+    byGroup(diffResult.followUps) +
     (diffResult.wonStageChanged ? 1 : 0)
   )
 }

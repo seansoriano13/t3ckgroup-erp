@@ -2,6 +2,15 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import StageSettingsPanel from "./StageSettingsPanel";
 
+// FollowUpCadenceEditor (issue #204 Part 3) reads the signed-in user via
+// useAuth and the Follow-up service via useFlowData — neither provider is
+// relevant to what these tests exercise (rename, delete, bracket, entry/won
+// toggles), so it's stubbed out here rather than wrapping every render in
+// both providers just to satisfy a section this file doesn't assert on.
+vi.mock("./FollowUpCadenceEditor", () => ({
+  default: () => null,
+}));
+
 describe("StageSettingsPanel", () => {
   const defaultStage = {
     id: "stage-1",

@@ -3,6 +3,7 @@ import { systemAuditLogService } from "./systemAuditLogService";
 import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots } from "../constants/salesFlow";
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
+import { followUpService } from "./followUpService";
 import { formatSnapshotVersion, formatVersionNumber } from "../constants/flowVersion";
 
 /**
@@ -150,10 +151,20 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
  */
 async function buildSnapshotData(flow, stages, edges) {
   const stageIds = stages.map((s) => s.id);
-  const [actionsObj, conditionsObj] = await Promise.all([
+  const [actionsObj, conditionsObj, followUpsObj] = await Promise.all([
     stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
     stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
+    stageIds.length > 0 ? followUpService.getForStages(stageIds) : {},
   ]);
+
+  // Follow-up Cadence is one row per Stage in the database (keyed by
+  // stage_id), but the snapshot shape diffs everything by `id` like the
+  // other groups — so a saved cadence is carried into the snapshot keyed by
+  // its own Stage id.
+  const followUps = Object.entries(followUpsObj || {}).map(([stageId, cadence]) => ({
+    id: stageId,
+    ...cadence,
+  }));
 
   return buildDraftSnapshotData({
     flow,
@@ -161,6 +172,7 @@ async function buildSnapshotData(flow, stages, edges) {
     edges,
     actions: Object.values(actionsObj || {}).flat(),
     conditions: Object.values(conditionsObj || {}).flat(),
+    followUps,
   });
 }
 
