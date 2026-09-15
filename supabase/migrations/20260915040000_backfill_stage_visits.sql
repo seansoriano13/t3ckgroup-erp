@@ -12,9 +12,12 @@
 --
 -- A flow-built deal's own STAGE_CHANGED history can still carry legacy
 -- global-pipeline codes ("PROPOSAL_SUBMITTED", not a uuid) from before it
--- was ever assigned a Sale Type — those aren't Stage Visits at all, since
--- the deal wasn't on a flow yet, so the loop below only ever looks at
--- entries whose `to` is actually a uuid.
+-- was ever assigned a Sale Type, or a Stage that has since been deleted —
+-- neither is a Stage Visit (the deal wasn't on a flow yet, or the Stage no
+-- longer exists to visit), so the loop below only looks at entries whose
+-- `to` names a Stage that is still actually there. Compared as text
+-- throughout, never cast, so a legacy code can never reach a uuid cast and
+-- fail — it just never matches.
 
 do $$
 declare
@@ -41,7 +44,7 @@ begin
       from public.sales_opportunity_logs
       where opportunity_id = v_deal.id
         and metadata->>'event' = 'STAGE_CHANGED'
-        and metadata->>'to' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+        and metadata->>'to' in (select id::text from public.flow_stages)
       order by created_at asc
     loop
       if v_open_visit_id is not null then
