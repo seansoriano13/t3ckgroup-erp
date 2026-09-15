@@ -332,15 +332,16 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const edges = { added: edgesDiff.added, removed: edgesDiff.removed }
   const actions = diffById(snapshotDataA.actions, snapshotDataB.actions)
   const conditions = diffById(snapshotDataA.conditions, snapshotDataB.conditions)
+  const stageFields = diffById(snapshotDataA.stageFields, snapshotDataB.stageFields)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
-    [stages, edges, actions, conditions].some(
+    [stages, edges, actions, conditions, stageFields].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
 
-  return { stages, edges, actions, conditions, wonStageChanged, hasChanges }
+  return { stages, edges, actions, conditions, stageFields, wonStageChanged, hasChanges }
 }
 
 /**
@@ -359,6 +360,7 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.edges) +
     byGroup(diffResult.actions) +
     byGroup(diffResult.conditions) +
+    byGroup(diffResult.stageFields) +
     (diffResult.wonStageChanged ? 1 : 0)
   )
 }

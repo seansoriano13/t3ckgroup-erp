@@ -8,11 +8,13 @@ import {
   makeFlowSnapshot,
   makeFlowStage,
   makeOpportunity,
+  makeOpportunityItem,
   makeConditionStatus,
   makeSaleType,
   makeSalesFlow,
   makeStageAction,
   makeStageCondition,
+  makeStageField,
   seedPipeline,
 } from "@/test/factories"
 import { waitForNetworkIdle } from "@/test/network"
@@ -1010,6 +1012,128 @@ describe("opportunityService", () => {
         await expect(
           opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
         ).rejects.toThrow(/archived/)
+      })
+    })
+
+    // Issue #203 — Stage Fields: a required field with no value blocks
+    // leaving the Stage, named in the refusal; saving it (whether through the
+    // SOR's own column or, for a custom field, its visit row) unblocks.
+    describe("Stage Fields", () => {
+      it("refuses to leave a stage with a required sor-source field left blank", async () => {
+        makeStageField({
+          stage_id: lead.id,
+          label: "Expected Award Date",
+          source: "sor",
+          sor_field: "expected_award_date",
+          is_required: true,
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await expect(
+          opportunityService.updateStatus(deal.id, qualified.id, registrar.id),
+        ).rejects.toThrow(/Fill in: Expected Award Date/)
+      })
+
+      it("passes once the sor-source field is saved through the SOR's own column", async () => {
+        makeStageField({
+          stage_id: lead.id,
+          label: "Expected Award Date",
+          source: "sor",
+          sor_field: "expected_award_date",
+          is_required: true,
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await opportunityService.updateOpportunity(
+          deal.id,
+          { expected_award_date: "2026-10-01" },
+          registrar.id,
+        )
+
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("saving an sor-source Stage Field leaves the Deal Team and Product List untouched", async () => {
+        makeStageField({
+          stage_id: lead.id,
+          label: "Sales Reference",
+          source: "sor",
+          sor_field: "sales_reference",
+          is_required: false,
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+        const member = makeEmployee({ name: "Team Member" })
+        await opportunityService.addMember(deal.id, member.id, registrar.id)
+        const item = makeOpportunityItem(deal.id, { product_name: "Widget" })
+
+        await opportunityService.updateOpportunity(
+          deal.id,
+          { sales_reference: "S01234" },
+          registrar.id,
+        )
+
+        const members = await opportunityService.getMembers(deal.id)
+        expect(members.map((m) => m.employee_id)).toEqual([member.id])
+        const items = db.rows("sales_opportunity_items").filter((i) => i.opportunity_id === deal.id)
+        expect(items.map((i) => i.id)).toEqual([item.id])
+      })
+    })
+
+    // Issue #203, stories 28/32 — Stage Visits: a loop back opens a new
+    // visit, and evidence given on a visit that has since closed no longer
+    // satisfies a return trip to the same Stage.
+    describe("Stage Visits", () => {
+      it("records two visits for a loop out and back, and does not carry a tickbox certification across them", async () => {
+        makeFlowEdge(qualified, lead)
+        const condition = makeStageCondition({
+          stage_id: lead.id,
+          kind: "tickbox",
+          label: "Re-verified on return",
+        })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await opportunityService.satisfyCondition(deal.id, condition.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        expect(backOnLead.flow_stage_id).toBe(lead.id)
+
+        const visits = db
+          .rows("sor_stage_visits")
+          .filter((v) => v.opportunity_id === deal.id && v.flow_stage_id === lead.id)
+        expect(visits).toHaveLength(2)
+
+        const checklist = await opportunityService.getStageChecklist(deal.id, backOnLead)
+        const row = checklist.find((c) => c.condition.id === condition.id)
+        expect(row.status).toBe("unsatisfied")
       })
     })
   })

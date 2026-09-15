@@ -25,6 +25,7 @@ import {
   CONDITION_STATUS,
   stagesCrossed,
   blockingConditions,
+  missingStageFields,
 } from "../constants/stageGate";
 import {
   entryStage,
@@ -255,6 +256,29 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
 }
 
 /**
+ * The SOR's currently-open Stage Visit (issue #203) — null for a legacy
+ * pipeline deal (no `flow_stage_id`, so the trigger never opens one for it)
+ * or for a flow deal caught between the move that closed one visit and the
+ * insert that opens the next (never true within a single request, since the
+ * trigger runs inside the same UPDATE). Callers use this to scope
+ * visit-owned evidence (`sor_condition_status`, condition attachments,
+ * `sor_stage_field_values`) so a loop back re-asks instead of reusing a
+ * closed visit's evidence (story 28).
+ */
+async function currentVisitFor(opportunityId) {
+  const { data, error } = await supabase
+    .from("sor_stage_visits")
+    .select("*")
+    .eq("opportunity_id", opportunityId)
+    .is("left_at", null)
+    .order("sequence", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+/**
  * Everything `evaluateCondition`/`evaluateCrossing` need to judge the
  * conditions configured on `stageCodes`, for one opportunity: the
  * conditions themselves (grouped by Stage), the attachment evidence, the
@@ -272,19 +296,26 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
  * this one evidence read with the legacy pipeline's gate and the read-only
  * checklist.
  */
-async function gateEvidenceFor(opportunityId, conditions) {
+async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {}) {
   if (conditions.length === 0) {
     return { attachments: [], members: [], statusRowsByCondition: {} };
   }
 
   const conditionIds = conditions.map((r) => r.id);
+  let statusQuery = supabase
+    .from("sor_condition_status")
+    .select("*")
+    .eq("opportunity_id", opportunityId)
+    .in("condition_id", conditionIds);
+  // Issue #203, story 28: a tickbox certified on a visit that has since
+  // closed must ask again. Scoped only when a visit is known — a legacy
+  // pipeline deal (no flow Stage, so no visit ever opens for it) keeps the
+  // pre-#203 opportunity-wide read.
+  if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
+
   const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows] =
     await Promise.all([
-      supabase
-        .from("sor_condition_status")
-        .select("*")
-        .eq("opportunity_id", opportunityId)
-        .in("condition_id", conditionIds),
+      statusQuery,
       supabase
         .from("sales_opportunity_logs")
         .select("author_id, created_at, metadata")
@@ -294,7 +325,14 @@ async function gateEvidenceFor(opportunityId, conditions) {
   if (statusError) throw statusError;
   if (logsError) throw logsError;
 
-  const attachments = (logs || []).flatMap(attachmentsFromLog);
+  let attachments = (logs || []).flatMap(attachmentsFromLog);
+  // Same visit-scoping for attachment evidence (story 12-15/28): a file
+  // stamped to a previous visit doesn't count toward this one. An
+  // attachment with no `stageVisitId` at all predates the stamping this
+  // issue adds, or a visit is unknown — it keeps counting either way.
+  if (stageVisitId) {
+    attachments = attachments.filter((a) => !a.stageVisitId || a.stageVisitId === stageVisitId);
+  }
 
   const statusRowsByCondition = {};
   for (const row of statusRows || []) {
@@ -306,7 +344,8 @@ async function gateEvidenceFor(opportunityId, conditions) {
 
 async function gateContext(opportunityId, stageIds) {
   const { conditions, conditionsByStage } = await conditionsByStageFor(stageIds);
-  const evidence = await gateEvidenceFor(opportunityId, conditions);
+  const visit = await currentVisitFor(opportunityId);
+  const evidence = await gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit?.id });
   return { conditionsByStage, ...evidence };
 }
 
@@ -474,6 +513,7 @@ async function snapshotContextFor(opportunity) {
     edges: d.edges || [],
     actions: d.actions || [],
     conditions: d.conditions || [],
+    stageFields: d.stageFields || [],
     wonStageId: d.wonStageId ?? null,
   };
 }
@@ -527,8 +567,14 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
   // flow. Editing the live flow after this deal registered must not change
   // what it is held to mid-run.
-  const { stages, edges, wonStageId, conditions: snapshotConditions, actions: snapshotActions } =
-    await snapshotContextFor(existing);
+  const {
+    stages,
+    edges,
+    wonStageId,
+    conditions: snapshotConditions,
+    actions: snapshotActions,
+    stageFields: snapshotStageFields,
+  } = await snapshotContextFor(existing);
 
   const from = stages.find((s) => s.id === existing.flow_stage_id) || null;
   const to = stages.find((s) => s.id === nextStageId) || null;
@@ -555,10 +601,35 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // own snapshot; only the per-deal evidence (attachments, members, status
   // rows) is read live, since that's evidence about the deal, not the flow.
   const conditionsForFrom = conditionsForSnapshotStage(snapshotConditions, from.id);
+  const currentVisit = await currentVisitFor(existing.id);
   const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
     existing.id,
     conditionsForFrom,
+    { stageVisitId: currentVisit?.id },
   );
+
+  // 0. Stage Fields (issue #203, story 21/24): a required field left blank
+  // refuses the move before conditions are even checked, naming what's
+  // empty — "Fill in: …". Custom fields are read from this visit's saved
+  // values; an `sor`-source field reads the SOR itself (it writes straight
+  // through the single-field save, never through a visit row).
+  const fieldsForFrom = (snapshotStageFields || []).filter((f) => f.stage_id === from.id);
+  let visitValues = {};
+  if (fieldsForFrom.some((f) => f.source === "custom") && currentVisit) {
+    const { data: valueRows, error: valuesError } = await supabase
+      .from("sor_stage_field_values")
+      .select("field_id, value")
+      .eq("stage_visit_id", currentVisit.id);
+    if (valuesError) throw valuesError;
+    for (const row of valueRows || []) visitValues[row.field_id] = row.value;
+  }
+  const missingFields = missingStageFields(fieldsForFrom, { opportunity: existing, visitValues });
+  if (missingFields.length > 0) {
+    const error = new Error(`Fill in: ${missingFields.map((f) => f.label).join(", ")}.`);
+    error.isGateBlock = true;
+    error.missingStageFields = missingFields;
+    throw error;
+  }
 
   const missing = [];
   const conditions = blockingConditions(conditionsForFrom);
@@ -2057,18 +2128,29 @@ export const opportunityService = {
       throw new Error("Only a tickbox condition can be satisfied this way.");
     }
 
-    const { data: satisfied, error: satisfiedError } = await supabase
-    .from("sor_condition_status")
-    .select("*")
-    .eq("opportunity_id", opportunityId)
-    .eq("condition_id", conditionId)
-    .maybeSingle();
+    // Issue #203, story 28: certification is scoped to the currently-open
+    // visit, so a tick from a visit that has since closed (a loop back) no
+    // longer counts and this insert is not blocked by it either.
+    const currentVisit = await currentVisitFor(opportunityId);
+
+    let satisfiedQuery = supabase
+      .from("sor_condition_status")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .eq("condition_id", conditionId);
+    if (currentVisit?.id) satisfiedQuery = satisfiedQuery.eq("stage_visit_id", currentVisit.id);
+    const { data: satisfied, error: satisfiedError } = await satisfiedQuery.maybeSingle();
     if (satisfiedError) throw satisfiedError;
     if (satisfied) return satisfied;
 
     const { data, error } = await supabase
       .from("sor_condition_status")
-      .insert({ opportunity_id: opportunityId, condition_id: conditionId, satisfied_by: actorId })
+      .insert({
+        opportunity_id: opportunityId,
+        condition_id: conditionId,
+        satisfied_by: actorId,
+        stage_visit_id: currentVisit?.id ?? null,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -2076,6 +2158,18 @@ export const opportunityService = {
     await noteConditionSatisfied(opportunityId, condition, actorId);
 
     return data;
+  },
+
+  /**
+   * The id of the SOR's currently-open Stage Visit, or null for a legacy
+   * pipeline deal. Exposed for the UI (issue #203, stories 12/28): a
+   * condition-row attachment upload stamps this into the file's metadata
+   * alongside `conditionId`, so evidence given now is never read back as
+   * satisfying a future loop back to the same Stage.
+   */
+  async getCurrentStageVisitId(opportunityId) {
+    const visit = await currentVisitFor(opportunityId);
+    return visit?.id ?? null;
   },
 
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
@@ -2116,9 +2210,11 @@ export const opportunityService = {
       conditions = liveConditions || [];
     }
 
+    const currentVisit = await currentVisitFor(opportunityId);
     const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
       opportunityId,
       conditions,
+      { stageVisitId: currentVisit?.id },
     );
 
     conditions.sort((a, b) => a.sort_order - b.sort_order);

@@ -417,6 +417,26 @@ describe("comparing two Flow Snapshots", () => {
     expect(diff.conditions.changed).toEqual([])
   })
 
+  it("reports a Stage Field added and one changed", () => {
+    const withField = {
+      ...base,
+      stageFields: [{ id: "f-1", stage_id: "s-lead", label: "Award amount", source: "custom" }],
+    }
+    const next = {
+      ...withField,
+      stageFields: [{ id: "f-1", stage_id: "s-lead", label: "Award amount (PHP)", source: "custom" }],
+    }
+
+    const added = diffFlowSnapshots(base, withField)
+    expect(added.stageFields.added).toEqual(withField.stageFields)
+    expect(added.hasChanges).toBe(true)
+
+    const changed = diffFlowSnapshots(withField, next)
+    expect(changed.stageFields.changed).toEqual([
+      { id: "f-1", before: withField.stageFields[0], after: next.stageFields[0] },
+    ])
+  })
+
   it("reports the Won Stage changing", () => {
     const next = { ...base, wonStageId: "s-lead" }
 

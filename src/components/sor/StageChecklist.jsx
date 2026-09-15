@@ -10,6 +10,7 @@ import { confirmActionToast } from "../ui/CustomToast";
 import Dropdown from "../ui/Dropdown";
 import { FilterOptionList, FilterTrigger } from "../ui/FilterDropdown";
 import { storageService } from "../../services/storageService";
+import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
 
 /** PO Date and Expected Award Date are dates; every other writable field is text. */
 const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
@@ -91,6 +92,14 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
         if (condition.config?.documentType) {
           uploaded.documentType = condition.config.documentType;
         }
+        // Issue #203, stories 12/15: only a file given through this
+        // condition's own row counts — stamp which condition and which
+        // Stage Visit it was given on, so a later loop back or an
+        // unrelated chat attachment can never satisfy it.
+        uploaded.conditionId = condition.id;
+        const visitId = await opportunityService.getCurrentStageVisitId(opportunityId);
+        if (visitId) uploaded.stageVisitId = visitId;
+        uploaded.type = attachmentAcceptType(file) || uploaded.type;
         await opportunityService.addNote(
           opportunityId,
           actorId,
@@ -261,6 +270,14 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
+                              const accepts = Array.isArray(condition.config?.accepts)
+                                ? condition.config.accepts
+                                : [];
+                              if (accepts.length > 0 && !accepts.includes(attachmentAcceptType(file))) {
+                                toast.error(`This condition only accepts: ${acceptsLabel(accepts)}.`);
+                                e.target.value = "";
+                                return;
+                              }
                               uploadMutation.mutate({ condition, file });
                             }}
                           />

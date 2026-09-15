@@ -145,6 +145,45 @@ export function makeStageCondition(overrides = {}) {
 }
 
 /**
+ * A Stage Field (issue #203) — a custom text field by default, required,
+ * kept per Stage Visit.
+ */
+export function makeStageField(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  const n = next()
+  return db.seed("flow_stage_fields", {
+    label: `Field ${n}`,
+    help: null,
+    source: "custom",
+    sor_field: null,
+    field_type: "text",
+    options: [],
+    is_required: true,
+    sort_order: n,
+    archived_at: null,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
+/** A Stage Visit (issue #203) — the record of one stay on a Stage. Open (no `left_at`) by default. */
+export function makeStageVisit(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const stageId = overrides.flow_stage_id ?? makeFlowStage().id
+  return db.seed("sor_stage_visits", {
+    flow_snapshot_id: null,
+    sequence: 1,
+    entered_at: new Date().toISOString(),
+    entered_by: null,
+    left_at: null,
+    left_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    flow_stage_id: stageId,
+  })
+}
+
+/**
  * A Stage's action (automation) — fires when a deal arrives at the stage.
  * An individual task by default, titled so `actionTitle()` has something to show.
  */
@@ -433,6 +472,9 @@ export function makeFlowSnapshot(overrides = {}) {
   const conditions = db.internal
     .rowsOf("stage_conditions")
     .filter((c) => stageIds.includes(c.stage_id) && !c.archived_at)
+  const stageFields = db.internal
+    .rowsOf("flow_stage_fields")
+    .filter((f) => stageIds.includes(f.stage_id) && !f.archived_at)
 
   const existingVersions = db.internal
     .rowsOf("flow_snapshots")
@@ -451,6 +493,7 @@ export function makeFlowSnapshot(overrides = {}) {
         edges,
         actions,
         conditions,
+        stageFields,
         wonStageId: flow?.won_stage_id ?? null,
         saleTypeId: flow?.sale_type_id ?? null,
       })
