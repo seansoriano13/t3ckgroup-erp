@@ -67,17 +67,28 @@ end $$;
 -- Attach every existing sor_condition_status row to the visit that was open
 -- when it was written — the latest visit on that condition's Stage whose
 -- entered_at is on or before the row's satisfied_at.
-update public.sor_condition_status scs
-set stage_visit_id = v.id
-from public.stage_conditions sc
-join lateral (
-  select ssv.id
-  from public.sor_stage_visits ssv
-  where ssv.opportunity_id = scs.opportunity_id
-    and ssv.flow_stage_id = sc.stage_id
-    and ssv.entered_at <= scs.satisfied_at
-  order by ssv.entered_at desc
-  limit 1
-) v on true
-where scs.condition_id = sc.id
-  and scs.stage_visit_id is null;
+--
+-- Resolved in a CTE rather than a plain UPDATE ... FROM ... LATERAL: Postgres
+-- won't let a LATERAL subquery in an UPDATE's FROM clause reference the
+-- UPDATE's own target table, only other FROM-clause entries, so `scs` has to
+-- be a regular FROM item here (inside the CTE) and the outer UPDATE just
+-- joins the result back by primary key.
+with target as (
+  select scs.id as condition_status_id, v.id as visit_id
+  from public.sor_condition_status scs
+  join public.stage_conditions sc on sc.id = scs.condition_id
+  join lateral (
+    select ssv.id
+    from public.sor_stage_visits ssv
+    where ssv.opportunity_id = scs.opportunity_id
+      and ssv.flow_stage_id = sc.stage_id
+      and ssv.entered_at <= scs.satisfied_at
+    order by ssv.entered_at desc
+    limit 1
+  ) v on true
+  where scs.stage_visit_id is null
+)
+update public.sor_condition_status
+set stage_visit_id = target.visit_id
+from target
+where sor_condition_status.id = target.condition_status_id;
