@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-09-15",
+        "title": "Reusable Employee Groups",
+        "version": "1.7.17",
+        "changes": [
+            "Super Admins can now set up Employee Groups in Settings: named sets of people made of hand-picked employees and whole teams, so later Sales Flow settings can say who they are about once and reuse it.",
+            "A group always means its current members. When someone joins or leaves a team, every group that includes that team follows automatically."
+        ]
+    },
+    {
+        "date": "2026-09-15",
         "title": "Safer Stage Checklist & Accurate Pipeline",
         "version": "1.7.16",
         "changes": [

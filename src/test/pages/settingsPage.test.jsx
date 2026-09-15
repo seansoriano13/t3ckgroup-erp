@@ -37,6 +37,7 @@ describe("SettingsPage", () => {
 
     expect(screen.queryByText("Customization")).not.toBeInTheDocument();
     expect(screen.queryByText("Lead Sources")).not.toBeInTheDocument();
+    expect(screen.queryByText("Employee Groups")).not.toBeInTheDocument();
     expect(screen.queryByText("System Announcements")).not.toBeInTheDocument();
     expect(screen.queryByText("Content")).not.toBeInTheDocument();
     expect(screen.queryByText("FAQ Editor")).not.toBeInTheDocument();
@@ -53,6 +54,7 @@ describe("SettingsPage", () => {
 
     expect(await screen.findByText("Customization")).toBeInTheDocument();
     expect(screen.getByText("Lead Sources")).toBeInTheDocument();
+    expect(screen.getByText("Employee Groups")).toBeInTheDocument();
     expect(screen.getByText("System Announcements")).toBeInTheDocument();
 
     await waitFor(() => {

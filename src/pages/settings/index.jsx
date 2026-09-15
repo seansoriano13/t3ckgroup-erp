@@ -1,4 +1,4 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import FAQModal from "./FAQModal";
@@ -17,6 +17,7 @@ import PageContainer from "../../components/ui/PageContainer";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
+import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
 import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
@@ -301,6 +302,21 @@ export default function SettingsPage() {
               </h2>
             </div>
             <LeadSourceManager />
+          </div>
+        )}
+
+        {/* EMPLOYEE GROUPS — #201: Super Admin only, because a group decides who sees SOR data (ADR 0021) */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
+                <Users size={14} className="text-muted-foreground" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Employee Groups
+              </h2>
+            </div>
+            <EmployeeGroupManager />
           </div>
         )}
 
