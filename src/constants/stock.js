@@ -3,9 +3,10 @@
  * modal and the Purchase Request view can never disagree about "available".
  *
  * `product` is the entry stored per-product in a sor_stock_snapshots row
- * (see that migration): `{ type, free, onHand, forecast, byWarehouse }`.
- * A line with no `odoo_product_id` was typed by hand and never had a product
- * to look up, so it gets its own kind rather than reading as a failure.
+ * (see that migration): `{ type, free, onHand, forecast, byWarehouse }`, or
+ * `null`/`undefined` for a line with no Odoo product — typed by hand, so it
+ * never had one to look up — which gets its own kind rather than reading as
+ * a failure.
  */
 
 import { STATUS_THEME } from "./statusTheme";
@@ -32,8 +33,8 @@ export const STOCK_BADGE_THEME = {
  * Judged on free stock (on hand minus reserved), not on-hand — units already
  * promised to another order must not read as available (Q38).
  */
-export function stockBadge({ odoo_product_id, quantity, product } = {}) {
-  if (!odoo_product_id || !product) {
+export function stockBadge({ quantity, product } = {}) {
+  if (!product) {
     return { kind: STOCK_BADGE.NOT_LINKED, label: "Not linked to Odoo", free: null };
   }
   if (product.type !== "product") {

@@ -279,12 +279,10 @@ function AutomationTasksRoster({ opportunityId }) {
  */
 function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
-  const product = snapshotData?.products?.[item.odoo_product_id] || null;
-  const badge = stockBadge({
-    odoo_product_id: item.odoo_product_id,
-    quantity: item.quantity,
-    product,
-  });
+  const product = item.odoo_product_id
+    ? snapshotData?.products?.[item.odoo_product_id] || null
+    : null;
+  const badge = stockBadge({ quantity: item.quantity, product });
   const warehouses = snapshotData?.warehouses || [];
   const canExpand = !!product && warehouses.length > 0;
 
