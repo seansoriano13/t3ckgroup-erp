@@ -40,6 +40,7 @@ const data = {
   },
   roadmap: {
     openCount: 74,
+    openTicketCount: 3,
     epicCount: 2,
     ticketCount: 7,
     unassigned: [],
@@ -163,10 +164,10 @@ describe("PresentationDeck", () => {
 
   it("mounts the demo a row names, and only that row", () => {
     render(<PresentationDeck data={data} />)
-    expect(screen.queryByText(/Drag an SOR between columns/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Drag an SOR between Stages/i)).not.toBeInTheDocument()
     press("ArrowRight")
-    expect(screen.getByText(/Drag an SOR between columns/i)).toBeInTheDocument()
-    expect(screen.getByText("Before · 9 Sep")).toBeInTheDocument()
+    expect(screen.getByText(/Drag an SOR between Stages/i)).toBeInTheDocument()
+    expect(screen.getByText("Before · Sep 9")).toBeInTheDocument()
     expect(screen.getByText("Now · on staging")).toBeInTheDocument()
   })
 
@@ -193,6 +194,13 @@ describe("PresentationDeck", () => {
       press("ArrowDown")
       fireEvent.click(screen.getByRole("button", { name: /CRM register/ }))
       expect(screen.getByText(/shipped · ticket still open/)).toBeInTheDocument()
+    })
+
+    it("counts open tickets, not the epics that parent them", () => {
+      render(<PresentationDeck data={data} />)
+      press("ArrowDown")
+      press("ArrowDown")
+      expect(screen.getByText(/3 of 7 tickets still open/)).toBeInTheDocument()
     })
 
     it("puts no dates on the screen", () => {
@@ -255,6 +263,15 @@ describe("PresentationDeck", () => {
       press("Escape")
       expect(
         screen.getByRole("heading", { name: /a board you drag SORs across/i }),
+      ).toBeInTheDocument()
+    })
+
+    it("opens on Escape from a slide, so Escape always means back", () => {
+      render(<PresentationDeck data={data} />)
+      press("Escape")
+      const main = screen.getByRole("main")
+      expect(
+        within(main).getByRole("button", { name: "Printed IPAS" }),
       ).toBeInTheDocument()
     })
 

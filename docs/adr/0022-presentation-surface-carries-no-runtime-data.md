@@ -50,8 +50,13 @@ file. The page makes no network call of its own.**
   published copy breaks the glossary — v1.7.15 and #190 say "deals", which
   CONTEXT.md forbids for an SOR — the generator corrects it in its output
   and leaves the source alone.
-- Numbers are not rendered at all. The surface says what was done, not how
-  much of it.
+- **No measured impact.** Nothing on the surface claims a percentage, a time
+  saved, a rate, or any figure drawn from business data: the impact of a
+  change is stated as who it helps and what it replaces. Counts of the deck's
+  own contents are not impact claims and are allowed — the fixes card says how
+  many fixes it lists, and an epic shows its own `done / total` — because a
+  fraction the audience can falsify in thirty seconds is what makes the
+  roadmap honest.
 - The prototype HTML is served as static files and framed. The
   `.prototype.html` files are cherry-picked from the prototype branches, not
   merged, and depend on nothing in the app.

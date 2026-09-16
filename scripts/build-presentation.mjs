@@ -67,8 +67,6 @@ function main() {
     issues,
     generatedAt: new Date().toISOString(),
   })
-  built.title = supplement.title
-
   if (built.roadmap.unassigned.length > 0) {
     console.warn(
       `! ${built.roadmap.unassigned.length} open issue(s) belong to no epic and are absent from the roadmap: ` +

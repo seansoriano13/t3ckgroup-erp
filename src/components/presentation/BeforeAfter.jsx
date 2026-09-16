@@ -6,7 +6,7 @@
  * across a room. It is desaturated and dimmed; the "after" panel is in full
  * colour and carries the link to the real screen on staging.
  */
-export function Panel({ side, label, children }) {
+function Panel({ side, label, children }) {
   const isBefore = side === "before"
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -38,7 +38,7 @@ export default function BeforeAfter({ before, after, liveHref, note }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-stretch">
-        <Panel side="before" label="Before · 9 Sep">
+        <Panel side="before" label="Before · Sep 9">
           {before}
         </Panel>
         <Panel side="after" label="Now · on staging">

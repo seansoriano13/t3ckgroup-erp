@@ -109,8 +109,8 @@ function UnderTheHoodSlide({ data }) {
                 className="rounded-xl border border-border bg-card px-4 py-3 text-[15px] leading-relaxed text-foreground"
               >
                 {item.title}
-                <span className="mt-1 block text-[13px] font-medium text-muted-foreground">
-                  {item.issues.map((n) => `#${n}`).join(" · ")}
+                <span className="mt-1 block">
+                  <IssueRefs issues={item.issues} />
                 </span>
               </li>
             ))}
@@ -195,8 +195,8 @@ function RoadmapSlide({ phase, index, total, roadmap }) {
           {phase.name}
         </h2>
         <p className="text-lg text-muted-foreground">
-          {roadmap.openCount} tickets open across the whole roadmap, in {roadmap.epicCount}{" "}
-          epics. No dates on this screen on purpose.
+          {roadmap.openTicketCount} of {roadmap.ticketCount} tickets still open, across{" "}
+          {roadmap.epicCount} epics. No dates on this screen on purpose.
         </p>
       </div>
       <ul className="grid max-w-6xl gap-3">
@@ -326,7 +326,8 @@ export default function PresentationDeck({ data }) {
         return
       }
       if (event.key === "Escape") {
-        setOverview(false)
+        event.preventDefault()
+        setOverview((v) => !v)
         return
       }
       if (overview) return

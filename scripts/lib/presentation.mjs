@@ -12,8 +12,17 @@
 // pattern and are matched first — a protected phrase wins over the bare noun,
 // and the replacer hands it back untouched. Matching in one pass avoids
 // substituting sentinels into the text and having to substitute them out.
-const VOCABULARY =
-  /\bDeal Team\b|\bdeal owner\b|\b(a|A)\s+deal\b|\bdeals\b|\bdeal\b/gi
+//
+// The article alternative carries a lookahead because it starts matching one
+// character earlier than the protected phrases do: at "a Deal Team" the
+// engine reaches the article rule while still left of "Deal Team", and
+// without the guard rewrites the whole thing to "an SOR Team" — destroying
+// the term the earlier alternatives exist to protect.
+const PROTECTED_TAIL = String.raw`(?!\s+(?:team|owner)\b)`
+const VOCABULARY = new RegExp(
+  String.raw`\bDeal Team\b|\bdeal owner\b|\b(a|A)\s+deal\b${PROTECTED_TAIL}|\bdeals\b|\bdeal\b`,
+  "gi",
+)
 
 /**
  * Rewrites "deal" to "SOR" in copy we render but do not own.
@@ -70,14 +79,16 @@ export function buildRoadmap(openIssues, epics) {
 
     const built = {
       number: epic.number,
-      title: epic.title,
-      unlocks: epic.unlocks,
+      title: enforceSorVocabulary(epic.title),
+      unlocks: enforceSorVocabulary(epic.unlocks),
       total: epic.tickets.length,
       done: epic.tickets.length - outstanding.length,
       open: outstanding,
       tickets: epic.tickets.map((number) => ({
         number,
-        title: titles.get(number) ?? null,
+        // GitHub's own issue titles are copy we render but do not own, so
+        // they go through the same correction as everything else.
+        title: enforceSorVocabulary(titles.get(number) ?? null),
         open: openNumbers.has(number),
         shipped: shipped.has(number) && openNumbers.has(number),
       })),
@@ -97,8 +108,14 @@ export function buildRoadmap(openIssues, epics) {
     epicCount: epics.length,
     ticketCount: epics.reduce((sum, epic) => sum + epic.tickets.length, 0),
     // Only issues the roadmap actually accounts for, so an unrelated open
-    // ticket cannot quietly inflate the figure on the screen.
+    // ticket cannot quietly inflate the figure on the screen. This includes
+    // the epic parents; `openTicketCount` is the tickets alone, which is what
+    // a "N tickets open" figure must use or it exceeds `ticketCount`.
     openCount: openIssues.filter((issue) => known.has(issue.number)).length,
+    openTicketCount: phases.reduce(
+      (sum, phase) => sum + phase.epics.reduce((n, epic) => n + epic.open.length, 0),
+      0,
+    ),
     unassigned: openIssues
       .filter((issue) => !known.has(issue.number))
       .map((issue) => issue.number),
@@ -149,9 +166,17 @@ export function buildPresentation({ changelog, supplement, issues, generatedAt }
   return {
     generatedAt,
     since,
+    // The builder returns a complete object: the title used to be assigned by
+    // the caller after the fact, which made `--check`'s comparison depend on
+    // that assignment happening first.
+    title: enforceSorVocabulary(supplement.title ?? "What shipped"),
     headline,
     underTheHood,
     roadmap: buildRoadmap(issues, supplement.epics),
-    prototypes: supplement.prototypes ?? [],
+    prototypes: (supplement.prototypes ?? []).map((p) => ({
+      ...p,
+      title: enforceSorVocabulary(p.title),
+      note: enforceSorVocabulary(p.note),
+    })),
   }
 }

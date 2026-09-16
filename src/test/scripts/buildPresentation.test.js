@@ -37,6 +37,17 @@ describe("enforceSorVocabulary", () => {
     )
   })
 
+  // The article rule starts matching one character before the protected
+  // phrase does, so without a guard "a Deal Team" is rewritten to
+  // "an SOR Team" — the substitution destroys the very term it protects.
+  it("does not let the article rule eat a protected term that follows it", () => {
+    expect(enforceSorVocabulary("a Deal Team")).toBe("a Deal Team")
+    expect(enforceSorVocabulary("Assign a Deal Owner to the SOR")).toBe(
+      "Assign a Deal Owner to the SOR",
+    )
+    expect(enforceSorVocabulary("A Deal Team owns it")).toBe("A Deal Team owns it")
+  })
+
   it("capitalises the role when the source lower-cased it", () => {
     expect(
       enforceSorVocabulary("edit the details (client name, buyer, amount, deal owner)"),
@@ -133,6 +144,43 @@ describe("buildRoadmap", () => {
     expect(ticketCount).toBe(7)
     // 288, 289 and 242, plus the two epic parents themselves
     expect(openCount).toBe(5)
+  })
+
+  // `openCount` includes the epic parents, so a screen that calls it a ticket
+  // count claims more open tickets than the roadmap has tickets. The count of
+  // tickets alone is reported separately rather than being recomputed by
+  // whatever renders it.
+  it("counts open tickets apart from the epics that parent them", () => {
+    const { openTicketCount, ticketCount } = buildRoadmap(issues, epics)
+    expect(openTicketCount).toBe(3) // 288, 289, 242 — not #206 or #241
+    expect(openTicketCount).toBeLessThanOrEqual(ticketCount)
+  })
+
+  it("does not count a declared-shipped ticket as still open", () => {
+    const { openTicketCount } = buildRoadmap(issues, [
+      { ...epics[0], shipped: [288] },
+      epics[1],
+    ])
+    expect(openTicketCount).toBe(2) // 289 and 242
+  })
+
+  it("corrects the glossary in epic copy and in GitHub's own issue titles", () => {
+    const { phases } = buildRoadmap(
+      [{ number: 288, title: "Board redesign: drag a deal between columns" }],
+      [
+        {
+          phase: "Finish CRM",
+          number: 206,
+          title: "The deal register",
+          unlocks: "Every deal in one place.",
+          tickets: [288],
+        },
+      ],
+    )
+    const epic = phases[0].epics[0]
+    expect(epic.title).toBe("The SOR register")
+    expect(epic.unlocks).toBe("Every SOR in one place.")
+    expect(epic.tickets[0].title).toBe("Board redesign: drag an SOR between columns")
   })
 
   it("reports a barely-started epic honestly", () => {

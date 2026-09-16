@@ -51,10 +51,11 @@
       "id": "crm-board",
       "block": "CRM",
       "title": "CRM, and a board you drag SORs across",
-      "impact": "Dragging a card was not a styling decision - it was impossible. The rule that Closed Lost needs a reason lived inside the details modal, so a drag could not enforce it and drag-and-drop was deliberately switched off. Moving the guard into the move itself is what made the board draggable. The register is also full width now, and columns are per Sale Type rather than per Stage.",
+      "impact": "Dragging a card was not a styling decision - it was impossible. The rule that Closed Lost needs a reason lived inside the details modal, so a drag could not enforce it and drag-and-drop was deliberately switched off. Moving the guard into the move itself is what made the board draggable. The board also shows one Sale Type at a time, because Stages of different flows have no shared order and showing them together mixed unrelated Stages into one row.",
       "changes": [
         "Opportunities is now CRM, and the register runs the full width of the screen instead of sitting in a narrow column.",
-        "The board shows one column per Sale Type, and an SOR moves by dragging it.",
+        "The board shows one Sale Type at a time, with one column per Stage of that flow in the same bracket order the Flow Canvas already uses.",
+        "An SOR moves between Stages by dragging it.",
         "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked."
       ],
       "issues": [
@@ -288,7 +289,7 @@
       "phase": "Finish CRM",
       "number": 206,
       "title": "CRM register",
-      "unlocks": "The register stops being a list and becomes the place the commercial process is run from. Four of its five tickets shipped this week; the Deleted bin is what is left.",
+      "unlocks": "The register stops being a list and becomes the place the commercial process is run from.",
       "tickets": [
         286,
         287,

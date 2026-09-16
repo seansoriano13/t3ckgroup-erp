@@ -125,24 +125,31 @@ export function FlowVersioningDemo() {
 
 /* ── 2. CRM board (#206, #286, #288) ────────────────────────────────────── */
 
+// The shipped board (constants/board.js `flowBoardColumns`) shows ONE Sale
+// Type at a time, one column per Stage of that flow in bracket order, and a
+// drag moves an SOR between Stages. Showing Sale Types as the columns would
+// teach the wrong model of the product.
+const FLOWS = {
+  Government: ["Registered", "Bidding", "Awarded"],
+  Private: ["Registered", "Quoted", "Won"],
+}
+
 const BOARD_SORS = [
-  { id: "S07971", name: "DOH — stretchers", type: "Government" },
-  { id: "S07983", name: "Ateneo — lab fit-out", type: "Government" },
-  { id: "S07990", name: "Sysmex — reagents", type: "Private" },
-  { id: "S08001", name: "Walk-in — spare parts", type: "Retail" },
+  { id: "S07971", flow: "Government", stage: "Registered" },
+  { id: "S07983", flow: "Government", stage: "Registered" },
+  { id: "S07990", flow: "Government", stage: "Bidding" },
+  { id: "S08001", flow: "Private", stage: "Quoted" },
 ]
 
 export function CrmBoardDemo() {
   const [placed, setPlaced] = useState(BOARD_SORS)
+  const [flow, setFlow] = useState("Government")
   const [dragging, setDragging] = useState(null)
   const [refused, setRefused] = useState(false)
 
-  const saleTypes = ["Government", "Private", "Retail"]
-  const oldStages = ["Registered", "Bidding", "Awarded"]
-
-  function drop(type) {
+  function drop(stage) {
     if (!dragging) return
-    setPlaced((prev) => prev.map((s) => (s.id === dragging ? { ...s, type } : s)))
+    setPlaced((prev) => prev.map((s) => (s.id === dragging ? { ...s, stage } : s)))
     setDragging(null)
   }
 
@@ -152,15 +159,18 @@ export function CrmBoardDemo() {
       note="Dragging was switched off on purpose: the Closed Lost reason was enforced inside the modal, so a drag could not ask for it. Moving the guard into the move is what made the board draggable."
       before={
         <Chrome title="Opportunities · Board">
+          <p className="mb-2 text-[12px] font-semibold text-muted-foreground">
+            Every Sale Type at once — Stages from different flows in one row.
+          </p>
           <div className="grid grid-cols-3 gap-2">
-            {oldStages.map((stage) => (
+            {["Registered", "Bidding", "Quoted"].map((stage) => (
               <div key={stage} className="space-y-1.5">
                 <p className="text-[12px] font-bold uppercase tracking-wide text-muted-foreground">
                   {stage}
                 </p>
-                {BOARD_SORS.slice(0, stage === "Registered" ? 2 : 1).map((s) => (
+                {BOARD_SORS.filter((s) => s.stage === stage).map((s) => (
                   <button
-                    key={`${stage}-${s.id}`}
+                    key={s.id}
                     type="button"
                     onClick={() => setRefused(true)}
                     className={`${cardClass} block w-full cursor-not-allowed text-left`}
@@ -180,19 +190,35 @@ export function CrmBoardDemo() {
       }
       after={
         <Chrome title="CRM · Board">
+          <div className="mb-2 flex items-center gap-1.5">
+            {Object.keys(FLOWS).map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setFlow(name)}
+                className={`rounded-lg px-2.5 py-1 text-[12px] font-bold transition-colors ${
+                  flow === name
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:bg-muted/60"
+                }`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
           <div className="grid grid-cols-3 gap-2">
-            {saleTypes.map((type) => (
+            {FLOWS[flow].map((stage) => (
               <div
-                key={type}
+                key={stage}
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={() => drop(type)}
+                onDrop={() => drop(stage)}
                 className="min-h-[104px] space-y-1.5 rounded-lg border border-dashed border-border p-1.5"
               >
                 <p className="text-[12px] font-bold uppercase tracking-wide text-muted-foreground">
-                  {type}
+                  {stage}
                 </p>
                 {placed
-                  .filter((s) => s.type === type)
+                  .filter((s) => s.flow === flow && s.stage === stage)
                   .map((s) => (
                     <div
                       key={s.id}
@@ -208,7 +234,7 @@ export function CrmBoardDemo() {
             ))}
           </div>
           <p className="mt-3 text-[13px] text-muted-foreground">
-            Drag an SOR between columns.
+            One Sale Type at a time. Drag an SOR between Stages.
           </p>
         </Chrome>
       }
