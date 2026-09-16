@@ -45,6 +45,12 @@ function renderModal(opportunity) {
   return owner
 }
 
+// The Product List now lives behind its own tab (#301) rather than the
+// modal's default view, so a test after its items must open Items first.
+async function openItemsTab() {
+  fireEvent.click(await screen.findByRole("button", { name: "Items" }))
+}
+
 const found = (items, extra = {}) => ({
   success: true,
   found: true,
@@ -72,6 +78,7 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
     )
 
     renderModal(opportunity)
+    await openItemsTab()
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
@@ -93,6 +100,7 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
     })
 
     renderModal(opportunity)
+    await openItemsTab()
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
@@ -126,6 +134,7 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
     makeOpportunityItem(opportunity.id, { product_name: "Existing Pumper" })
 
     renderModal(opportunity)
+    await openItemsTab()
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
@@ -173,11 +182,14 @@ describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
     )
 
     renderModal(opportunity)
+    await openItemsTab()
     await screen.findByText("Existing Pumper")
     await waitForNetworkIdle()
 
-    const editButtons = screen.getAllByRole("button", { name: /^edit$/i })
-    fireEvent.click(editButtons[0])
+    // "Fetch Items" (#53's manual edit-form fetch) lives on Details, not
+    // Items — Items' own empty-state fetch (#301) is a separate action.
+    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }))
 
     const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
     fireEvent.click(fetchButton)
@@ -247,6 +259,7 @@ describe("OpportunityDetailsModal — Stage Checklist and moves (#199)", () => {
     const deal = await register()
 
     renderWithProviders(<LiveModal id={deal.id} />)
+    await openItemsTab()
     await screen.findByText("Stored Pumper")
     expect(screen.queryByLabelText("PO Date on file")).not.toBeInTheDocument()
   })
@@ -258,9 +271,15 @@ describe("OpportunityDetailsModal — Stage Checklist and moves (#199)", () => {
     const deal = await register()
 
     renderWithProviders(<LiveModal id={deal.id} />)
-    fireEvent.click(await screen.findByText("Qualified"))
+    await screen.findByText("What blocks this stage")
+    const destinationTile = (await screen.findAllByText("Qualified")).map((el) => el.closest("li")).find(Boolean)
+    fireEvent.click(destinationTile)
+    await waitForNetworkIdle()
 
-    expect(await screen.findByText("Confirm requirements")).toBeInTheDocument()
+    // Issue #178: a Stage Action's task is always titled `[ref] [project]`,
+    // not the action's own config.title — that stays identifiable from a
+    // task list without opening it, whatever the automation was called.
+    expect(await screen.findByText("[No Sales Reference] [Fire truck supply]")).toBeInTheDocument()
     expect(await screen.findByText("Signed proposal")).toBeInTheDocument()
   })
 })

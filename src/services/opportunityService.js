@@ -33,10 +33,12 @@ import {
   conditionsForSnapshotStage,
   actionsForSnapshotStage,
   stageActionTaskTitle,
+  snapshotRows,
 } from "../constants/salesFlow";
 import { formatSnapshotVersion } from "../constants/flowVersion";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
+import { visitOwnsTask } from "../constants/journey";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -3104,5 +3106,182 @@ export const opportunityService = {
       individualTasks: tasksRes.data || [],
       groupTasks: committeeTasksRes.data || [],
     };
+  },
+
+  /**
+   * The Journey tab's whole read (#300, stories 10-13): every Stage Visit
+   * this SOR has made, latest first, each carrying what stood on it — the
+   * Stage's name and bracket, who moved the SOR in and out, that visit's own
+   * condition evidence, the tasks raised while it was open, and the items
+   * requested on it.
+   *
+   * Everything per-visit is scoped to the visit, not to the SOR, because
+   * that scoping is the tab's entire point: a Stage the SOR looped through
+   * twice gets two rows, and a tickbox certified on the first does not make
+   * the second read as done (issue #203, story 28). Evidence therefore goes
+   * through the same `gateEvidenceFor`/`evaluateCondition` pair the live
+   * checklist uses, once per visit, rather than a second opinion about what
+   * "satisfied" means.
+   */
+  async getJourney(opportunityId) {
+    if (!opportunityId) return [];
+
+    const [{ data: opportunity, error: opportunityError }, { data: visitRows, error: visitsError }] =
+      await Promise.all([
+        // Only the Snapshot pointer is wanted, and only as a fallback for a
+        // visit that carries none — `getOpportunityById` would drag five
+        // employee joins along for one column.
+        supabase.from("sales_opportunities").select("id, flow_snapshot_id").eq("id", opportunityId).maybeSingle(),
+        supabase
+          .from("sor_stage_visits")
+          .select(`
+            *,
+            enteredBy:employees!sor_stage_visits_entered_by_fkey(id, name, avatar_path),
+            leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path)
+          `)
+          .eq("opportunity_id", opportunityId)
+          .order("sequence", { ascending: false }),
+      ]);
+    if (opportunityError) throw opportunityError;
+    if (visitsError) throw visitsError;
+
+    const visits = visitRows || [];
+    if (visits.length === 0) return [];
+
+    const snapshotIdFor = (visit) => visit.flow_snapshot_id || opportunity?.flow_snapshot_id || null;
+    const snapshotIds = [...new Set(visits.map(snapshotIdFor).filter(Boolean))];
+    const stageIds = [...new Set(visits.map((v) => v.flow_stage_id).filter(Boolean))];
+
+    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes] = await Promise.all([
+      snapshotIds.length > 0
+        ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
+        : Promise.resolve({ data: [] }),
+      stageIds.length > 0
+        ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("tasks")
+        .select(
+          "id, project_title, task_description, status, created_at, end_at, stage_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)",
+        )
+        .eq("opportunity_id", opportunityId),
+      supabase
+        .from("committee_tasks")
+        .select(`
+          id, title, description, status, created_at, due_date, stage_visit_id,
+          members:committee_task_members(
+            id, role, custom_role, task_description, status,
+            employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
+          )
+        `)
+        .eq("opportunity_id", opportunityId),
+    ]);
+    if (snapshotsRes.error) throw snapshotsRes.error;
+    if (stagesRes.error) throw stagesRes.error;
+    if (tasksRes.error) throw tasksRes.error;
+    if (groupTasksRes.error) throw groupTasksRes.error;
+
+    const snapshotsById = Object.fromEntries((snapshotsRes.data || []).map((s) => [s.id, s]));
+    const liveStagesById = Object.fromEntries((stagesRes.data || []).map((s) => [s.id, s]));
+
+    // The SOR's own Snapshot names the Stage, never the live row (issue #83):
+    // a Stage renamed or moved to another bracket since must not rewrite what
+    // a closed visit was. The live row is the fallback for a visit backfilled
+    // from before Snapshots, which points at no snapshot of its own.
+    const stageFor = (visit) => {
+      const frozen = snapshotRows(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.stages).find(
+        (s) => s.id === visit.flow_stage_id,
+      );
+      const stage = frozen || liveStagesById[visit.flow_stage_id] || null;
+      return {
+        id: visit.flow_stage_id,
+        name: stage?.name || "Unknown stage",
+        bracket: stage?.bracket_label || null,
+      };
+    };
+
+    const tasks = tasksRes.data || [];
+    const groupTasks = groupTasksRes.data || [];
+
+    const shaped = visits.map((visit) => ({
+      id: visit.id,
+      sequence: visit.sequence,
+      stage: stageFor(visit),
+      flowSnapshotId: snapshotIdFor(visit),
+      enteredAt: visit.entered_at,
+      enteredBy: visit.enteredBy || null,
+      leftAt: visit.left_at,
+      leftBy: visit.leftBy || null,
+      tasks: tasks.filter((task) => visitOwnsTask(task, { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at })),
+      groupTasks: groupTasks.filter((task) =>
+        visitOwnsTask(task, { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at }),
+      ),
+      // #209 fills this in with the visit's Purchase Requests; until it does,
+      // the slot exists so the tab renders the same shape either way.
+      requestedItems: [],
+    }));
+
+    const withConditions = await Promise.all(
+      shaped.map(async (visit) => {
+        const conditions = conditionsForSnapshotStage(
+          snapshotsById[visit.flowSnapshotId]?.snapshot_data?.conditions || [],
+          visit.stage.id,
+        )
+          // Same exclusion as `getStageChecklist`: a Deadline is tracked
+          // through its own milestone events, never as a checklist row, so
+          // it is not a visit's condition list either.
+          .filter((c) => c.kind !== CONDITION_KINDS.DEADLINE)
+          .sort((a, b) => a.sort_order - b.sort_order);
+        if (conditions.length === 0) return { ...visit, conditions: [] };
+
+        const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
+          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id }),
+          resolveHasInclusions(conditions, opportunityId),
+          resolveHasPurchasing(conditions, opportunityId),
+        ]);
+
+        return {
+          ...visit,
+          conditions: conditions
+            .map((condition) => ({
+              condition,
+              ...evaluateCondition(condition, {
+                opportunity,
+                attachments,
+                members,
+                statusRow: statusRowsByCondition[condition.id] ?? null,
+                hasInclusions,
+                hasPurchasing,
+              }),
+            }))
+            // Same rule as `getStageChecklist`: a removed kind can never be
+            // satisfied, so it is not a row anyone can act on or read.
+            .filter((row) => row.status !== CONDITION_STATUS.NOT_APPLICABLE),
+        };
+      }),
+    );
+
+    // Evidence names its actor by id; the tab shows a face beside "met by",
+    // so they are resolved once here rather than a lookup per rendered row.
+    const satisfierIds = [
+      ...new Set(withConditions.flatMap((v) => v.conditions.map((c) => c.satisfiedBy)).filter(Boolean)),
+    ];
+    let peopleById = {};
+    if (satisfierIds.length > 0) {
+      const { data: people, error } = await supabase
+        .from("employees")
+        .select("id, name, avatar_path")
+        .in("id", satisfierIds);
+      if (error) throw error;
+      peopleById = Object.fromEntries((people || []).map((p) => [p.id, p]));
+    }
+
+    return withConditions.map((visit) => ({
+      ...visit,
+      conditions: visit.conditions.map((row) => ({
+        ...row,
+        satisfiedBy: row.satisfiedBy ? (peopleById[row.satisfiedBy] ?? null) : null,
+      })),
+    }));
   },
 };

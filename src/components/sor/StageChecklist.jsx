@@ -5,15 +5,11 @@ import { CheckCircle2, ListChecks } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { CONDITION_STATUS } from "../../constants/stageGate";
 import { opportunityService } from "../../services/opportunityService";
-import { stageFieldService } from "../../services/stageFieldService";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { confirmActionToast } from "../ui/CustomToast";
 import { storageService } from "../../services/storageService";
 import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
-import StageFieldsForm from "./StageFieldsForm";
-import FollowUpPanel from "./FollowUpPanel";
-import PendingActionDecisions from "./PendingActionDecisions";
 import {
   Dialog,
   DialogContent,
@@ -34,9 +30,11 @@ import {
  * A `tickbox` item has no other way to get satisfied (ticket 5) — it's the
  * one kind this list also acts on, not just reports.
  *
- * Issue #203 adds the Stage's own Fields form beneath the checklist — a
- * Stage's fields are never checklist rows, so `StageFieldsForm` renders
- * from its own data, not from `checklist`.
+ * Issue #299 narrowed this to the conditions alone. The Stage Fields form,
+ * the Optional Action cards and the follow-up panel used to hang off the
+ * bottom of this component; the Now tab now orders all four itself
+ * (conditions, fields, actions, tasks, follow-up), and a component that
+ * decided its own neighbours' order could not be put in that order.
  */
 export default function StageChecklist({ opportunity, employees = [], actorId, onChanged, onSaveField }) {
   const [fieldValues, setFieldValues] = useState({});
@@ -58,31 +56,10 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     enabled: !!opportunityId,
   });
 
-  const { data: stageFields = [] } = useQuery({
-    queryKey: ["stageFields", stageCode],
-    queryFn: () => stageFieldService.getForStage(opportunity.flow_stage_id),
-    enabled: !!opportunity?.flow_stage_id,
-  });
-
   const { data: currentVisitId = null } = useQuery({
     queryKey: ["stageVisitId", opportunityId, stageCode],
     queryFn: () => opportunityService.getCurrentStageVisitId(opportunityId),
     enabled: !!opportunityId,
-  });
-
-  const { data: followUpStatus = null } = useQuery({
-    queryKey: ["followUpStatus", opportunityId, stageCode],
-    queryFn: () => opportunityService.getFollowUpStatus(opportunityId),
-    enabled: !!opportunityId,
-  });
-
-  // Shares its query key/fn with PendingActionDecisions so react-query
-  // dedupes the fetch; only used here to decide whether this whole block
-  // has anything to show.
-  const { data: pendingActions = [] } = useQuery({
-    queryKey: ["pendingActionDecisions", opportunityId, actorId],
-    queryFn: () => opportunityService.getPendingActionsForActor(opportunityId, actorId),
-    enabled: !!opportunityId && !!actorId,
   });
 
   // Existing SOR files, for the "pick existing file" attachment option
@@ -216,25 +193,13 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   const allSatisfied = applicable.length > 0 && satisfiedCount === applicable.length;
 
   const showChecklist = checklist.length > 0;
-  const showFields = stageFields.length > 0;
-  const showFollowUp = !!followUpStatus?.cadence;
-  const showPendingActions = pendingActions.length > 0;
-
-  if (!showChecklist && !showFields && !showFollowUp && !showPendingActions) return null;
 
   return (
-    <div className="mt-4 space-y-4">
-      {showPendingActions && (
-        <PendingActionDecisions opportunity={opportunity} actorId={actorId} onChanged={onChanged} />
-      )}
-
-      {showFollowUp && (
-        <FollowUpPanel
-          opportunity={opportunity}
-          actorId={actorId}
-          onChanged={onChanged}
-          status={followUpStatus}
-        />
+    <div className="space-y-4">
+      {!showChecklist && (
+        <p className="rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
+          Nothing blocks this stage.
+        </p>
       )}
 
       {showChecklist && (
@@ -314,17 +279,6 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
             ))}
           </div>
         </div>
-      )}
-
-      {showFields && (
-        <StageFieldsForm
-          opportunity={opportunity}
-          fields={stageFields}
-          currentVisitId={currentVisitId}
-          actorId={actorId}
-          onSaveField={onSaveField}
-          onChanged={onChanged}
-        />
       )}
 
       <Dialog open={!!pickingFor} onOpenChange={(open) => !open && setPickingFor(null)}>

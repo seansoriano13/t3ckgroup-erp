@@ -85,8 +85,9 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
     stubEdgeFunction("odoo-sor-lookup", found([], { message: "no lines" }))
 
     renderModal(opportunity)
-    const editButtons0 = await screen.findAllByRole("button", { name: /^edit$/i })
-    fireEvent.click(editButtons0[0])
+    // "Fetch Items" (#53's manual edit-form fetch) lives on Details (#302).
+    fireEvent.click(await screen.findByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }))
     await waitForNetworkIdle()
 
     stubEdgeFunction(
@@ -99,6 +100,10 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
 
     const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
     fireEvent.click(fetchButton)
+
+    // The fetched line lands in the shared edit form; its editor renders on
+    // Items, not Details.
+    fireEvent.click(screen.getByRole("button", { name: "Items" }))
     await screen.findByDisplayValue("Fresh Ambulance")
 
     const saveButton = screen.getByRole("button", { name: /^save$/i })
@@ -131,6 +136,7 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
     })
 
     renderModal(opportunity)
+    fireEvent.click(await screen.findByRole("button", { name: "Items" }))
     await screen.findByText("Fresh Ambulance")
     await waitForNetworkIdle()
 
@@ -166,6 +172,7 @@ describe("OpportunityDetailsModal — Product List stock badges (#202)", () => {
     await opportunityService.saveStockSnapshot(opportunity.id, snapshot, owner.id)
 
     renderModal(opportunity)
+    fireEvent.click(await screen.findByRole("button", { name: "Items" }))
     await screen.findByText("Ample Item")
 
     expect(screen.getByText("Available")).toBeInTheDocument()

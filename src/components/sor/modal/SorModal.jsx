@@ -157,12 +157,6 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     enabled: !!id && isOpen,
   });
 
-  const { data: stockSnapshot } = useQuery({
-    queryKey: ["opportunityStock", id],
-    queryFn: () => opportunityService.getStockSnapshot(id),
-    enabled: !!id && isOpen,
-  });
-
   const { data: checklist = [] } = useQuery({
     queryKey: ["stageChecklist", id, opportunity?.flow_stage_id || opportunity?.status],
     queryFn: () => opportunityService.getStageChecklist(id, opportunity),
@@ -209,7 +203,10 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityItems", id] });
-    queryClient.invalidateQueries({ queryKey: ["opportunityStock", id] });
+    // Every opened tab's own query lives under this prefix (useSorModalData).
+    // A tab never opened stays `enabled: false`, so this can't wake a fetch
+    // the reader hasn't asked for.
+    queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
@@ -416,6 +413,41 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     }
   };
 
+  /**
+   * The Items tab's empty-state fetch (#301). `handleFetchFromOdoo` below
+   * fills the *edit form* and waits for a Save; this one is the read-only
+   * tab's action, so it writes the pulled lines straight to the SOR — there
+   * is no form open to hold them.
+   */
+  const handleFetchItemsFromOdoo = async () => {
+    const ref = normalizeSalesReference(opportunity.sales_reference);
+    if (!isValidSalesReference(ref)) {
+      toast.error(SALES_REFERENCE_HINT);
+      return;
+    }
+    setFetchingOdoo(true);
+    try {
+      const result = await odooService.fetchOrderLines(ref);
+      if (!result?.success) {
+        toast.error(result?.message || "Could not fetch items from Odoo — enter them manually.");
+        return;
+      }
+      const quotation = result.order?.name || ref;
+      if (!result.items.length) {
+        toast.error(result.message || `${quotation} has no product lines yet — enter them manually.`);
+        return;
+      }
+      await opportunityService.updateOpportunity(id, { ...opportunity, items: result.items.map(toRow) }, user?.id);
+      if (result.stock) await opportunityService.saveStockSnapshot(id, result.stock, user?.id);
+      invalidate();
+      toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
+    } catch (err) {
+      toast.error(err.message || "Could not reach Odoo — enter items manually.");
+    } finally {
+      setFetchingOdoo(false);
+    }
+  };
+
   const handleFetchFromOdoo = () => {
     const ref = normalizeSalesReference(editForm.sales_reference);
     if (!isValidSalesReference(ref)) {
@@ -596,7 +628,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   const goPrev = () => hasPrev && onNavigate(siblingIds[siblingIndex - 1]);
   const goNext = () => hasNext && onNavigate(siblingIds[siblingIndex + 1]);
 
-  const nowCtx = {
+  const tabCtx = {
     opportunity,
     id,
     user,
@@ -631,10 +663,10 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     handleDownloadQuotation,
     fetchingOdoo,
     handleFetchFromOdoo,
+    handleFetchItemsFromOdoo,
     items,
     isExpanded,
     autoSyncingOdoo,
-    stockSnapshot,
     handleRefreshStock,
     refreshingStock,
     onClose,
@@ -701,23 +733,30 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
             <div className="shrink-0 border-b border-border/60 px-6 pt-3">
               <TabGroup tabs={tabsWithChat} activeTab={activeTab} onChange={handleTabChange} variant="underline" />
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <div className={activeTab === "now" ? "" : "hidden"}>
-                <NowTab ctx={nowCtx} />
+            {/*
+              Each opened tab stays mounted and is hidden rather than
+              unmounted, so a half-typed Stage Field survives a look at the
+              Journey (#207's default decision). Items scrolls inside itself
+              — its sticky header has to outlive a 157-line list — so the
+              panel area clips and each tab owns its own scroll.
+            */}
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <div className={activeTab === "now" ? "h-full overflow-y-auto" : "hidden"}>
+                <NowTab ctx={tabCtx} />
               </div>
               {hasOpened("journey") && (
-                <div className={activeTab === "journey" ? "" : "hidden"}>
-                  <JourneyTab opportunityId={id} hasOpened={hasOpened} />
+                <div className={activeTab === "journey" ? "h-full overflow-y-auto" : "hidden"}>
+                  <JourneyTab opportunityId={id} hasOpened={hasOpened} onGoToNow={() => handleTabChange("now")} />
                 </div>
               )}
               {hasOpened("items") && (
-                <div className={activeTab === "items" ? "" : "hidden"}>
-                  <ItemsTab opportunityId={id} hasOpened={hasOpened} />
+                <div className={activeTab === "items" ? "h-full" : "hidden"}>
+                  <ItemsTab ctx={tabCtx} hasOpened={hasOpened} />
                 </div>
               )}
               {hasOpened("details") && (
-                <div className={activeTab === "details" ? "" : "hidden"}>
-                  <DetailsTab opportunityId={id} hasOpened={hasOpened} />
+                <div className={activeTab === "details" ? "h-full overflow-y-auto" : "hidden"}>
+                  <DetailsTab ctx={tabCtx} />
                 </div>
               )}
               {!isWide && activeTab === "chat" && <div className="h-full">{chatColumn}</div>}

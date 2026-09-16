@@ -1,23 +1,237 @@
-import { useSorModalData } from "./useSorModalData";
+import { useMemo, useState } from "react";
+import { cn } from "@/lib/utils";
+import { ChevronDown, ChevronRight, Download, PackageSearch, RefreshCw, Search } from "lucide-react";
+import Spinner from "../../ui/Spinner";
+import StatusBadge from "../../StatusBadge";
+import OpportunityItemsEditor from "../OpportunityItemsEditor";
 import TabSkeleton from "./TabSkeleton";
+import { useSorModalData } from "./useSorModalData";
+import { opportunityService } from "../../../services/opportunityService";
+import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
+import { formatPHP } from "../../../constants/sor";
+
+function ItemStockRow({ item, snapshotData }) {
+  const [expanded, setExpanded] = useState(false);
+  const product = item.odoo_product_id ? snapshotData?.products?.[item.odoo_product_id] || null : null;
+  const badge = stockBadge({ quantity: item.quantity, product });
+  const warehouses = snapshotData?.warehouses || [];
+  const canExpand = !!product && warehouses.length > 0;
+
+  return (
+    <div className="col-span-12 -mt-1">
+      <button
+        type="button"
+        onClick={() => canExpand && setExpanded((e) => !e)}
+        className={cn("flex items-center gap-1 text-left", canExpand ? "cursor-pointer" : "cursor-default")}
+        disabled={!canExpand}
+      >
+        <StatusBadge label={badge.label} theme={STOCK_BADGE_THEME[badge.kind]} />
+        {canExpand && (expanded ? <ChevronDown size={12} className="text-muted-foreground" /> : <ChevronRight size={12} className="text-muted-foreground" />)}
+      </button>
+
+      {expanded && canExpand && (
+        <div className="mt-2 grid grid-cols-4 gap-2 rounded-lg bg-muted/30 px-3 py-2 text-[11px]">
+          <span className="col-span-4 font-bold tracking-widest text-muted-foreground uppercase text-[9px]">By warehouse</span>
+          {warehouses.map((w) => {
+            const wh = product.byWarehouse?.[w.id];
+            return (
+              <div key={w.id} className="col-span-4 grid grid-cols-4 gap-2">
+                <span className="col-span-1 font-medium text-foreground truncate">{w.name}</span>
+                <span className="text-right text-muted-foreground">On hand {wh?.onHand ?? 0}</span>
+                <span className="text-right text-muted-foreground">Free {wh?.free ?? 0}</span>
+                <span className="text-right text-muted-foreground">Forecast {wh?.forecast ?? 0}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatWhen(iso) {
+  if (!iso) return "";
+  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
 
 /**
- * Stub for #301 — real content moves the Product List (sticky header,
- * search, stock badges) into its own tab. This ticket (#298) only needs the
- * tab to exist and fetch lazily once opened.
+ * The two ways a Product List can be empty are different problems with
+ * different next steps (#301): with a Sales Reference there is a quotation
+ * in Odoo to pull from, without one there is nothing to pull yet.
  */
-export default function ItemsTab({ opportunityId, hasOpened }) {
-  const { isLoading } = useSorModalData({
+function EmptyItems({ opportunity, onFetch, fetching }) {
+  const hasSalesReference = !!opportunity?.sales_reference;
+
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <PackageSearch size={28} className="text-muted-foreground/50" />
+      {hasSalesReference ? (
+        <>
+          <p className="text-sm font-semibold text-foreground">No products on this SOR yet</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            Pull the lines from <span className="font-mono font-semibold text-primary">{opportunity.sales_reference}</span> in Odoo.
+          </p>
+          <button
+            type="button"
+            onClick={onFetch}
+            disabled={fetching}
+            className="mt-1 flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50"
+          >
+            {fetching ? <Spinner size="sm" /> : <Download size={14} />}
+            Fetch from Odoo
+          </button>
+        </>
+      ) : (
+        <>
+          <p className="text-sm font-semibold text-foreground">Add a Sales Reference first</p>
+          <p className="max-w-xs text-xs text-muted-foreground">
+            The Product List comes from the Odoo quotation. Add this SOR&apos;s Sales Reference in Details to pull it.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Items (#301) — the Product List in its own tab, so a 157-line list (the
+ * worst case on staging) scrolls against its own header instead of pushing
+ * the rest of the modal down the page. Search is client-side: the whole list
+ * is already in memory, and a round trip per keystroke would be slower than
+ * filtering it.
+ *
+ * The stock snapshot is this tab's own fetch and follows #298's
+ * lazy-fetch-once pattern. The items themselves stay on the shell's eager
+ * query: entering edit mode seeds `editForm.items` from them synchronously,
+ * so a save before an unopened tab had fetched would write an empty Product
+ * List over a real one.
+ */
+export default function ItemsTab({ ctx, hasOpened }) {
+  const {
+    opportunity,
+    id,
+    items,
+    isEditing,
+    editForm,
+    setEditForm,
+    autoSyncingOdoo,
+    fetchingOdoo,
+    handleFetchItemsFromOdoo,
+    handleRefreshStock,
+    refreshingStock,
+  } = ctx;
+
+  const [search, setSearch] = useState("");
+
+  const { data: stockSnapshot, isLoading } = useSorModalData({
     tab: "items",
-    opportunityId,
-    queryFn: () => Promise.resolve(null),
+    opportunityId: id,
+    queryFn: () => opportunityService.getStockSnapshot(id),
     hasOpened,
   });
 
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return items;
+    return items.filter(
+      (it) => (it.product_name || "").toLowerCase().includes(term) || (it.unit || "").toLowerCase().includes(term),
+    );
+  }, [items, search]);
+
+  const total = visible.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
+  const isSyncing = autoSyncingOdoo || fetchingOdoo;
+
+  if (isEditing) {
+    return (
+      <div className="p-6">
+        <OpportunityItemsEditor items={editForm.items || []} onChange={(newItems) => setEditForm((f) => ({ ...f, items: newItems }))} />
+      </div>
+    );
+  }
+
   if (isLoading) return <TabSkeleton />;
+
+  if (!items.length && !isSyncing) {
+    return <EmptyItems opportunity={opportunity} onFetch={handleFetchItemsFromOdoo} fetching={fetchingOdoo} />;
+  }
+
   return (
-    <div className="p-6 text-sm text-muted-foreground">
-      The Product List, with search and a sticky header, is coming in #301.
+    <div className="relative flex h-full min-h-0 flex-col">
+      {isSyncing && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-sm">
+          <Spinner size="md" className="text-primary" />
+        </div>
+      )}
+
+      <div className="shrink-0 border-b border-border/60 bg-card">
+        <div className="flex flex-wrap items-center gap-2 px-6 py-3">
+          <div className="relative min-w-[180px] flex-1">
+            <Search size={13} className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search products…"
+              aria-label="Search products"
+              className="h-9 w-full rounded-lg border border-border bg-muted/30 pr-3 pl-8 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-mauve-7"
+            />
+          </div>
+          <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
+            {search.trim() ? `${visible.length} of ${items.length}` : `${items.length} item${items.length === 1 ? "" : "s"}`}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            {stockSnapshot?.fetched_at ? `Stock as of ${formatWhen(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
+          </span>
+          <button
+            type="button"
+            onClick={handleRefreshStock}
+            disabled={refreshingStock}
+            className="flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary-hover disabled:opacity-50"
+          >
+            {refreshingStock ? <Spinner size="sm" /> : <RefreshCw size={12} />}
+            Refresh
+          </button>
+        </div>
+
+        <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          <span className="col-span-6">Product &amp; Unit</span>
+          <span className="col-span-2 text-right">Quantity</span>
+          <span className="col-span-2 text-right">Unit Price</span>
+          <span className="col-span-2 text-right">Line Total</span>
+        </div>
+      </div>
+
+      <div className="custom-scrollbar min-h-0 flex-1 divide-y divide-border/50 overflow-y-auto">
+        {visible.length === 0 ? (
+          <p className="px-6 py-12 text-center text-sm text-muted-foreground">No product matches that search.</p>
+        ) : (
+          visible.map((it) => (
+            <div key={it.id} className="grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25">
+              <div className="col-span-6 min-w-0 pr-2">
+                <span className="block truncate font-semibold text-foreground">{it.product_name}</span>
+                {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
+              </div>
+              <div className="col-span-2 text-right">
+                <span className="inline-block rounded-md bg-mauve-3 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-foreground">
+                  {it.quantity} {it.unit ? "" : "qty"}
+                </span>
+              </div>
+              <span className="col-span-2 text-right font-medium tabular-nums text-muted-foreground">{formatPHP(it.unit_price)}</span>
+              <span className="col-span-2 text-right font-bold tabular-nums text-foreground">
+                {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+              </span>
+              <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />
+            </div>
+          ))
+        )}
+      </div>
+
+      <div className="grid shrink-0 grid-cols-12 items-center gap-3 border-t border-border/80 bg-muted/30 px-6 py-3 text-sm">
+        <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+          {search.trim() ? "Filtered Line Total" : "Product Line Total"}
+        </span>
+        <span className="col-span-4 text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
+      </div>
     </div>
   );
 }

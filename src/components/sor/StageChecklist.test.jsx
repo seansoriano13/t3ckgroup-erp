@@ -16,12 +16,10 @@ import userEvent from "@testing-library/user-event"
 import { renderWithProviders } from "../../test/support"
 import StageChecklist from "./StageChecklist"
 import { opportunityService } from "../../services/opportunityService"
-import { stageFieldService } from "../../services/stageFieldService"
 import { employeeGroupService } from "../../services/employeeGroupService"
 import { CONDITION_STATUS } from "../../constants/stageGate"
 
 const OPPORTUNITY = { id: "opp-1", status: "PROPOSAL_SUBMITTED" }
-const FLOW_OPPORTUNITY = { id: "opp-1", status: "LEAD", flow_stage_id: "stage-1" }
 const EMPLOYEES = [{ id: "emp-1", name: "Ana Reyes" }]
 
 vi.mock("../../services/opportunityService", () => ({
@@ -34,18 +32,6 @@ vi.mock("../../services/opportunityService", () => ({
     addMember: vi.fn(async () => ({})),
     addNote: vi.fn(async () => ({})),
     isChecklistWritableField: vi.fn(() => true),
-    getFollowUpStatus: vi.fn(async () => null),
-    logFollowUp: vi.fn(async () => true),
-    getPendingActionsForActor: vi.fn(async () => []),
-    decideAction: vi.fn(async () => ({ outcome: "created" })),
-  },
-}))
-
-vi.mock("../../services/stageFieldService", () => ({
-  stageFieldService: {
-    getForStage: vi.fn(async () => []),
-    getValuesForVisit: vi.fn(async () => ({})),
-    saveValue: vi.fn(async () => ({})),
   },
 }))
 
@@ -88,14 +74,11 @@ beforeEach(() => {
 })
 
 describe("nothing configured", () => {
-  it("renders nothing when the current Stage has no conditions", async () => {
+  it("says nothing blocks the stage when the current Stage has no conditions", async () => {
     opportunityService.getStageChecklist.mockResolvedValue([])
-    const { container } = renderWithProviders(
-      <StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
-    )
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
 
-    await waitFor(() => expect(opportunityService.getStageChecklist).toHaveBeenCalled())
-    expect(container).toBeEmptyDOMElement()
+    expect(await screen.findByText("Nothing blocks this stage.")).toBeInTheDocument()
   })
 })
 
@@ -182,92 +165,10 @@ describe("tickbox — the one item this list can also act on", () => {
   })
 })
 
-describe("Optional Action decisions (issue #204 Part 2)", () => {
-  it("shows a pending Decider card even with no checklist, fields or cadence", async () => {
-    opportunityService.getStageChecklist.mockResolvedValue([])
-    opportunityService.getPendingActionsForActor.mockResolvedValue([
-      { runId: "run-1", stageName: "Qualified", title: "Approve pricing", target: { kind: "individual", assignee: null } },
-    ])
-    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
-
-    expect(await screen.findByText("Approve pricing")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
-  })
-
-  it("decides via opportunityService.decideAction with the actor's id", async () => {
-    const user = userEvent.setup()
-    opportunityService.getStageChecklist.mockResolvedValue([])
-    opportunityService.getPendingActionsForActor.mockResolvedValue([
-      { runId: "run-1", stageName: "Qualified", title: "Approve pricing", target: { kind: "individual", assignee: null } },
-    ])
-    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
-
-    await user.click(await screen.findByRole("button", { name: "Skip" }))
-
-    await waitFor(() =>
-      expect(opportunityService.decideAction).toHaveBeenCalledWith("run-1", "skip", "emp-1"),
-    )
-  })
-})
-
-describe("Stage Fields — issue #203", () => {
-  it("renders the Stage's fields as a form, never as checklist rows", async () => {
-    opportunityService.getStageChecklist.mockResolvedValue([])
-    stageFieldService.getForStage.mockResolvedValue([
-      {
-        id: "field-1",
-        stage_id: "stage-1",
-        label: "Award amount",
-        help: "The amount awarded.",
-        source: "custom",
-        field_type: "number",
-        options: [],
-        is_required: true,
-      },
-    ])
-
-    renderWithProviders(
-      <StageChecklist opportunity={FLOW_OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
-    )
-
-    expect(await screen.findByText("Award amount")).toBeInTheDocument()
-    expect(screen.getByText("The amount awarded.")).toBeInTheDocument()
-    expect(screen.getByLabelText("Award amount")).toBeInTheDocument()
-  })
-
-  it("saves a custom field's value scoped to the current Stage Visit", async () => {
-    const user = userEvent.setup()
-    opportunityService.getStageChecklist.mockResolvedValue([])
-    opportunityService.getCurrentStageVisitId.mockResolvedValue("visit-1")
-    stageFieldService.getForStage.mockResolvedValue([
-      {
-        id: "field-1",
-        stage_id: "stage-1",
-        label: "Award amount",
-        source: "custom",
-        field_type: "number",
-        options: [],
-        is_required: true,
-      },
-    ])
-
-    renderWithProviders(
-      <StageChecklist opportunity={FLOW_OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />,
-    )
-
-    const input = await screen.findByLabelText("Award amount")
-    await user.type(input, "5000")
-    await user.click(screen.getByRole("button", { name: "Save" }))
-
-    await waitFor(() =>
-      expect(stageFieldService.saveValue).toHaveBeenCalledWith(
-        { opportunityId: "opp-1", stageVisitId: "visit-1", fieldId: "field-1", value: "5000" },
-        "emp-1",
-      ),
-    )
-  })
-})
+// Optional Action decisions (issue #204 Part 2) and Stage Fields (issue
+// #203) used to render at the bottom of this list; issue #299 moved both
+// out to the Now tab, which now orders every Stage-Visit panel itself. Their
+// coverage belongs with NowTab, not here.
 
 describe("attachment — pick an existing SOR file (issue #203, story 13)", () => {
   it("offers picking a file already on the SOR, stamped the same as an upload", async () => {

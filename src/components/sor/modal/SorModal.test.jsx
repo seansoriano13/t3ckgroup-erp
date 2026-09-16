@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
 import { fireEvent, screen } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
-import { makeEmployee, makeOpportunity } from "../../../test/factories"
+import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../../test/factories"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
 
 let authUser
@@ -22,31 +22,31 @@ function renderModal(opportunity, extraProps = {}) {
 }
 
 describe("SorModal — tabs", () => {
-  it("opens on Now, with Journey/Items/Details not fetched yet", async () => {
+  it("opens on Now, with the other tabs' content not rendered yet", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
 
-    expect(await screen.findByText("Deal Details")).toBeInTheDocument()
-    expect(screen.queryByText(/coming in #300/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/coming in #301/)).not.toBeInTheDocument()
-    expect(screen.queryByText(/coming in #302/)).not.toBeInTheDocument()
+    expect(await screen.findByText("What blocks this stage")).toBeInTheDocument()
+    // "Deal Details" is Details' own heading (#302) — absent until opened.
+    expect(screen.queryByText("Deal Details")).not.toBeInTheDocument()
   })
 
   it("fetches a tab only once it's first opened, and not again on revisit", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
+    makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
     renderModal(deal)
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
 
-    fireEvent.click(screen.getByRole("button", { name: "Journey" }))
-    expect(await screen.findByText(/coming in #300/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Items" }))
+    expect(await screen.findByText("Rack Unit")).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole("button", { name: "Now" }))
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
 
-    fireEvent.click(screen.getByRole("button", { name: "Journey" }))
-    // Still there immediately — no skeleton/refetch flash on revisit, the
+    fireEvent.click(screen.getByRole("button", { name: "Items" }))
+    // Still there synchronously — no skeleton/refetch flash on revisit, the
     // query stayed cached under the "opened" tab's enabled flag.
-    expect(screen.getByText(/coming in #300/)).toBeInTheDocument()
+    expect(screen.getByText("Rack Unit")).toBeInTheDocument()
   })
 })
 
@@ -54,7 +54,7 @@ describe("SorModal — previous/next", () => {
   it("renders no arrows without siblingIds", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
     expect(screen.queryByTitle("Previous")).not.toBeInTheDocument()
     expect(screen.queryByTitle("Next")).not.toBeInTheDocument()
   })
@@ -63,7 +63,7 @@ describe("SorModal — previous/next", () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     const onNavigate = vi.fn()
     renderModal(deal, { siblingIds: [deal.id, "next-id"], onNavigate })
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
 
     fireEvent.click(screen.getByTitle("Next"))
     expect(onNavigate).toHaveBeenCalledWith("next-id")
@@ -72,7 +72,7 @@ describe("SorModal — previous/next", () => {
   it("disables Previous at the start of the list", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal, { siblingIds: [deal.id, "next-id"], onNavigate: vi.fn() })
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
     expect(screen.getByTitle("Previous")).toBeDisabled()
   })
 })
@@ -92,7 +92,7 @@ describe("SorModal — narrow layout", () => {
     window.matchMedia = (query) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} })
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
 
     expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument()
     expect(screen.getByText("Activity & Log Notes")).toBeInTheDocument()
@@ -102,7 +102,7 @@ describe("SorModal — narrow layout", () => {
     window.matchMedia = (query) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} })
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
-    await screen.findByText("Deal Details")
+    await screen.findByText("What blocks this stage")
 
     expect(screen.queryByText("Activity & Log Notes")).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "Chat" }))
