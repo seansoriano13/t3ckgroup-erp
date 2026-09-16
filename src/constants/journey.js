@@ -1,5 +1,5 @@
 import { CONDITION_STATUS } from "./stageGate"
-import { TASK_STATUS } from "./status"
+import { GROUP_TASK_STATUS, TASK_STATUS } from "./status"
 
 /**
  * A task that no longer owes the Stage anything. A Group Task past its
@@ -8,10 +8,33 @@ import { TASK_STATUS } from "./status"
  * that raised it is concerned — counting those as open would leave a closed
  * visit reading as unfinished forever.
  */
-const SETTLED_TASK_STATUSES = new Set([TASK_STATUS.COMPLETE, TASK_STATUS.DELETED, "HR_PENDING", "HR_VERIFIED"])
+const SETTLED_TASK_STATUSES = new Set([
+  TASK_STATUS.COMPLETE,
+  TASK_STATUS.DELETED,
+  GROUP_TASK_STATUS.HR_PENDING,
+  GROUP_TASK_STATUS.HR_VERIFIED,
+])
 
 export function isTaskOpen(task) {
   return !SETTLED_TASK_STATUSES.has(task?.status)
+}
+
+/**
+ * A deleted task never blocked or reported on anything, so neither the Now
+ * tab nor a Journey visit lists it — one rule for both, not two filters that
+ * can drift apart.
+ */
+export function isTaskDeleted(task) {
+  return task?.status === TASK_STATUS.DELETED
+}
+
+/**
+ * A condition still owed. Not-applicable is not owed: it never applied to
+ * this SOR, and counting it would leave a finished Stage reading as
+ * unfinished forever.
+ */
+export function isConditionOutstanding(row) {
+  return row?.status === CONDITION_STATUS.UNSATISFIED
 }
 
 /**
@@ -45,7 +68,7 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`
  * the Journey would otherwise repeat the whole tab beside it.
  */
 export function visitSummary(visit) {
-  const outstanding = (visit?.conditions || []).filter((c) => c.status === CONDITION_STATUS.UNSATISFIED).length
+  const outstanding = (visit?.conditions || []).filter(isConditionOutstanding).length
   const openTasks = [...(visit?.tasks || []), ...(visit?.groupTasks || [])].filter(isTaskOpen).length
 
   const parts = []

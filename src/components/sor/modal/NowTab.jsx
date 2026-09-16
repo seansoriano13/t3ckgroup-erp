@@ -6,7 +6,7 @@ import StageFieldsForm from "../StageFieldsForm";
 import FollowUpPanel from "../FollowUpPanel";
 import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
-import { taskRows } from "../../../constants/sorTasks";
+import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
@@ -74,9 +74,9 @@ export default function NowTab({ ctx }) {
     enabled: !!opportunity?.flow_stage_id,
   });
 
-  const { data: currentVisitId = null } = useQuery({
-    queryKey: ["stageVisitId", id, stageCode],
-    queryFn: () => opportunityService.getCurrentStageVisitId(id),
+  const { data: currentVisit = null, isPending: visitPending } = useQuery({
+    queryKey: ["currentStageVisit", id, stageCode],
+    queryFn: () => opportunityService.getCurrentStageVisit(id),
     enabled: !!id,
   });
 
@@ -86,7 +86,9 @@ export default function NowTab({ ctx }) {
     enabled: !!id,
   });
 
-  const rows = taskRows(automationTasks);
+  // Held back until the visit is known: rendering every task first and
+  // then narrowing to this visit's would flash the older visits' rows.
+  const rows = visitPending ? [] : currentVisitTaskRows(automationTasks, currentVisit);
 
   return (
     <div className="space-y-7 p-6">
@@ -176,7 +178,7 @@ export default function NowTab({ ctx }) {
           <StageFieldsForm
             opportunity={opportunity}
             fields={stageFields}
-            currentVisitId={currentVisitId}
+            currentVisitId={currentVisit?.id ?? null}
             actorId={user?.id}
             onSaveField={handleSaveField}
             onChanged={invalidate}
@@ -192,10 +194,10 @@ export default function NowTab({ ctx }) {
       <PendingActionDecisions opportunity={opportunity} actorId={user?.id} onChanged={invalidate} />
 
       <Section title="Tasks" count={rows.length > 0 ? rows.length : null}>
-        {rows.length === 0 ? (
+        {visitPending ? null : rows.length === 0 ? (
           <p className="flex items-center gap-2 rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-sm text-muted-foreground">
             <ListTodo size={14} className="shrink-0" />
-            No tasks on this SOR yet.
+            No tasks on this stage yet.
           </p>
         ) : (
           <div className="space-y-2">

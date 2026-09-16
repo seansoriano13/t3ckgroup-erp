@@ -309,6 +309,20 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
  * `sor_stage_field_values`) so a loop back re-asks instead of reusing a
  * closed visit's evidence (story 28).
  */
+// What the SOR modal reads for an SOR's tasks — the Now tab's rows and each
+// Journey visit's list — in one place, so the two can't drift apart on which
+// columns decide a row's due date, parts done, owner, or Stage Visit.
+const SOR_TASK_COLUMNS =
+  "id, project_title, task_description, status, created_at, end_at, stage_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
+const SOR_GROUP_TASK_COLUMNS = `
+  id, title, description, status, created_at, due_date, stage_visit_id,
+  creator:employees!committee_tasks_created_by_fkey(id, name, avatar_path),
+  members:committee_task_members(
+    id, role, custom_role, task_description, status,
+    employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
+  )
+`;
+
 async function currentVisitFor(opportunityId) {
   const { data, error } = await supabase
     .from("sor_stage_visits")
@@ -340,7 +354,7 @@ async function currentVisitFor(opportunityId) {
  * this one evidence read with the legacy pipeline's gate and the read-only
  * checklist.
  */
-async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {}) {
+async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf } = {}) {
   if (conditions.length === 0) {
     return { attachments: [], members: [], statusRowsByCondition: {} };
   }
@@ -384,7 +398,13 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId } = {})
     statusRowsByCondition[row.condition_id] = row;
   }
 
-  return { attachments, members: membersForGate(memberRows, groupIdsByEmployee(groups)), statusRowsByCondition };
+  // A closed visit is judged on the Deal Team it had when it closed (#300):
+  // SOR Members are additive and permanent, so filtering on `added_at` is
+  // that team exactly, and someone added since can't make a finished visit
+  // read as having met a condition it never met.
+  const membersThen = asOf ? memberRows.filter((m) => !m.added_at || m.added_at <= asOf) : memberRows;
+
+  return { attachments, members: membersForGate(membersThen, groupIdsByEmployee(groups)), statusRowsByCondition };
 }
 
 async function gateContext(opportunityId, stageIds) {
@@ -394,36 +414,35 @@ async function gateContext(opportunityId, stageIds) {
   return { conditionsByStage, ...evidence };
 }
 
-async function hasInclusionsFor(opportunityId) {
-  const { data, error } = await supabase
-    .from("sor_inclusions")
-    .select("id")
-    .eq("opportunity_id", opportunityId)
-    .limit(1)
-    .maybeSingle();
+async function hasInclusionsFor(opportunityId, { asOf } = {}) {
+  let query = supabase.from("sor_inclusions").select("id").eq("opportunity_id", opportunityId);
+  if (asOf) query = query.lte("created_at", asOf);
+  const { data, error } = await query.limit(1).maybeSingle();
   if (error) throw error;
   return Boolean(data);
 }
 
-async function hasPurchasingFor(opportunityId) {
-  const { data, error } = await supabase
-    .from("sor_procurement_requests")
-    .select("id")
-    .eq("opportunity_id", opportunityId)
-    .limit(1)
-    .maybeSingle();
+async function hasPurchasingFor(opportunityId, { asOf } = {}) {
+  let query = supabase.from("sor_procurement_requests").select("id").eq("opportunity_id", opportunityId);
+  if (asOf) query = query.lte("created_at", asOf);
+  const { data, error } = await query.limit(1).maybeSingle();
   if (error) throw error;
   return Boolean(data);
 }
 
-async function resolveHasInclusions(conditions, opportunityId) {
+/**
+ * `asOf` (a closed visit's `left_at`) counts only rows that existed by then.
+ * It sees a row added since, not one deleted since — Inclusions and
+ * Procurement Requests keep no deletion record to read that back from.
+ */
+async function resolveHasInclusions(conditions, opportunityId, { asOf } = {}) {
   const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.INCLUSIONS);
-  return needsIt ? hasInclusionsFor(opportunityId) : false;
+  return needsIt ? hasInclusionsFor(opportunityId, { asOf }) : false;
 }
 
-async function resolveHasPurchasing(conditions, opportunityId) {
+async function resolveHasPurchasing(conditions, opportunityId, { asOf } = {}) {
   const needsIt = conditions.some((r) => r.kind === CONDITION_KINDS.PURCHASING);
-  return needsIt ? hasPurchasingFor(opportunityId) : false;
+  return needsIt ? hasPurchasingFor(opportunityId, { asOf }) : false;
 }
 
 /**
@@ -2721,6 +2740,17 @@ export const opportunityService = {
   },
 
   /**
+   * The current Stage Visit's window, shaped the way `visitOwnsTask` reads a
+   * visit — the Now tab scopes its task rows with it (#299), by the same rule
+   * the Journey uses. Null for a pipeline deal, which never opens one.
+   */
+  async getCurrentStageVisit(opportunityId) {
+    const visit = await currentVisitFor(opportunityId);
+    if (!visit) return null;
+    return { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
+  },
+
+  /**
    * Issue #204 Part 3 — the SOR view's "Next reminder …" line: the current
    * Stage's cadence (from the SOR's own Flow Snapshot, never the live
    * `flow_stage_follow_ups` table), plus when the next reminder is due per
@@ -3083,20 +3113,8 @@ export const opportunityService = {
 
   async getAutomationTasks(opportunityId) {
     const [tasksRes, committeeTasksRes] = await Promise.all([
-      supabase
-        .from("tasks")
-        .select("id, project_title, task_description, status, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)")
-        .eq("opportunity_id", opportunityId),
-      supabase
-        .from("committee_tasks")
-        .select(`
-          id, title, description, status,
-          members:committee_task_members(
-            id, role, custom_role, task_description,
-            employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
-          )
-        `)
-        .eq("opportunity_id", opportunityId),
+      supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+      supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
     ]);
 
     if (tasksRes.error) throw tasksRes.error;
@@ -3159,22 +3177,8 @@ export const opportunityService = {
       stageIds.length > 0
         ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
         : Promise.resolve({ data: [] }),
-      supabase
-        .from("tasks")
-        .select(
-          "id, project_title, task_description, status, created_at, end_at, stage_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)",
-        )
-        .eq("opportunity_id", opportunityId),
-      supabase
-        .from("committee_tasks")
-        .select(`
-          id, title, description, status, created_at, due_date, stage_visit_id,
-          members:committee_task_members(
-            id, role, custom_role, task_description, status,
-            employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
-          )
-        `)
-        .eq("opportunity_id", opportunityId),
+      supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+      supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
     ]);
     if (snapshotsRes.error) throw snapshotsRes.error;
     if (stagesRes.error) throw stagesRes.error;
@@ -3203,23 +3207,22 @@ export const opportunityService = {
     const tasks = tasksRes.data || [];
     const groupTasks = groupTasksRes.data || [];
 
-    const shaped = visits.map((visit) => ({
-      id: visit.id,
-      sequence: visit.sequence,
-      stage: stageFor(visit),
-      flowSnapshotId: snapshotIdFor(visit),
-      enteredAt: visit.entered_at,
-      enteredBy: visit.enteredBy || null,
-      leftAt: visit.left_at,
-      leftBy: visit.leftBy || null,
-      tasks: tasks.filter((task) => visitOwnsTask(task, { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at })),
-      groupTasks: groupTasks.filter((task) =>
-        visitOwnsTask(task, { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at }),
-      ),
-      // #209 fills this in with the visit's Purchase Requests; until it does,
-      // the slot exists so the tab renders the same shape either way.
-      requestedItems: [],
-    }));
+    const shaped = visits.map((visit) => {
+      const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
+      return {
+        ...visitWindow,
+        sequence: visit.sequence,
+        stage: stageFor(visit),
+        flowSnapshotId: snapshotIdFor(visit),
+        enteredBy: visit.enteredBy || null,
+        leftBy: visit.leftBy || null,
+        tasks: tasks.filter((task) => visitOwnsTask(task, visitWindow)),
+        groupTasks: groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
+        // #209 fills this in with the visit's Purchase Requests; until it does,
+        // the slot exists so the tab renders the same shape either way.
+        requestedItems: [],
+      };
+    });
 
     const withConditions = await Promise.all(
       shaped.map(async (visit) => {
@@ -3235,9 +3238,9 @@ export const opportunityService = {
         if (conditions.length === 0) return { ...visit, conditions: [] };
 
         const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
-          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id }),
-          resolveHasInclusions(conditions, opportunityId),
-          resolveHasPurchasing(conditions, opportunityId),
+          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt }),
+          resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
+          resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
         ]);
 
         return {

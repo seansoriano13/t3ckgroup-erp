@@ -17,6 +17,21 @@ export const TASK_STATUS = {
   DELETED: "DELETED",
 };
 
+// A Group Task's own lifecycle (`committee_tasks.status`) and each member's
+// part of it (`committee_task_members.status`), as `groupTaskService` writes
+// them — kept apart from TASK_STATUS because an individual task never passes
+// through the HR hand-off.
+export const GROUP_TASK_STATUS = {
+  ACTIVE: "ACTIVE",
+  HR_PENDING: "HR_PENDING",
+  HR_VERIFIED: "HR_VERIFIED",
+};
+
+export const GROUP_MEMBER_STATUS = {
+  PENDING: "PENDING",
+  DONE: "DONE",
+};
+
 export { STATUS_THEME } from "./statusTheme";
 
 // Map each task status to a consistent color theme

@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-09-16",
+        "title": "A Tidier SOR Window",
+        "version": "1.7.18",
+        "changes": [
+            "The SOR window now has tabs. It opens on Now, which shows what the current Stage needs today: what's blocking it first, then the Stage's fields, any decisions waiting on you, the tasks, and the next follow-up.",
+            "Each task is now one line with its people, how many parts are done and its due date. Click the arrow on a group task to see each person's part, or click the title to open the task.",
+            "Journey lists every Stage the SOR has been through, newest first, with what was done on each.",
+            "Items holds the Product List with search and stock levels. Its header stays in place as you scroll long lists. If the list is empty, it tells you to fetch from Odoo or to add a Sales Reference first.",
+            "Details holds the SOR's fields, the Deal Team, Estimated Value, the quotation buttons, commission, and Inclusions and Purchasing."
+        ]
+    },
+    {
         "date": "2026-09-15",
         "title": "Reusable Employee Groups",
         "version": "1.7.17",

@@ -4,11 +4,14 @@
  * chat-as-tab switch.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
-import { fireEvent, screen } from "@testing-library/react"
+import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../../test/factories"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
+import { opportunityService } from "../../../services/opportunityService"
+import { leadSourceService } from "../../../services/leadSourceService"
+import { waitForNetworkIdle } from "../../../test/network"
 
 let authUser
 vi.mock("../../../context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
@@ -31,22 +34,65 @@ describe("SorModal — tabs", () => {
     expect(screen.queryByText("Deal Details")).not.toBeInTheDocument()
   })
 
-  it("fetches a tab only once it's first opened, and not again on revisit", async () => {
-    const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
+})
+
+// Each lazy tab's own read, spied rather than mocked so the real service still
+// answers: not called while the modal sits on Now, called once when the tab
+// first opens, and not again when the reader leaves and comes back.
+describe("SorModal — each tab fetches once, when first opened", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  async function expectFetchedOnlyOnOpen(tab, spy, shown) {
+    const deal = makeOpportunity({ status: "LEAD", sales_reference: null })
+    makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
+    renderModal(deal)
+    await screen.findByText("What blocks this stage")
+    await waitForNetworkIdle()
+    expect(spy).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: tab }))
+    expect(await screen.findByText(shown)).toBeInTheDocument()
+    await waitForNetworkIdle()
+    expect(spy).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole("button", { name: "Now" }))
+    fireEvent.click(screen.getByRole("button", { name: tab }))
+    // Still there synchronously, with no skeleton flash and no second read.
+    expect(screen.getByText(shown)).toBeInTheDocument()
+    await waitForNetworkIdle()
+    expect(spy).toHaveBeenCalledTimes(1)
+  }
+
+  it("Journey", async () => {
+    await expectFetchedOnlyOnOpen("Journey", vi.spyOn(opportunityService, "getJourney"), "No Stage Visits yet")
+  })
+
+  it("Items", async () => {
+    await expectFetchedOnlyOnOpen("Items", vi.spyOn(opportunityService, "getItems"), "Rack Unit")
+  })
+
+  it("Details", async () => {
+    await expectFetchedOnlyOnOpen("Details", vi.spyOn(leadSourceService, "getActiveLeadSources"), "Deal Details")
+  })
+
+  // Items loads only once its tab opens, but Edit can be pressed from Now.
+  // The edit form carries the whole Product List into Save, so a list that
+  // was never fetched must not be saved over the stored one as empty.
+  it("keeps the stored Product List through an Edit and Save made before Items was ever opened", async () => {
+    const deal = makeOpportunity({ status: "LEAD", sales_reference: null })
     makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
     renderModal(deal)
     await screen.findByText("What blocks this stage")
 
-    fireEvent.click(screen.getByRole("button", { name: "Items" }))
-    expect(await screen.findByText("Rack Unit")).toBeInTheDocument()
+    fireEvent.click(screen.getByTitle("Edit"))
+    fireEvent.click(await screen.findByRole("button", { name: "Save" }))
 
-    fireEvent.click(screen.getByRole("button", { name: "Now" }))
-    await screen.findByText("What blocks this stage")
-
-    fireEvent.click(screen.getByRole("button", { name: "Items" }))
-    // Still there synchronously — no skeleton/refetch flash on revisit, the
-    // query stayed cached under the "opened" tab's enabled flag.
-    expect(screen.getByText("Rack Unit")).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByTitle("Edit")).toBeInTheDocument())
+    await waitForNetworkIdle()
+    const items = await opportunityService.getItems(deal.id)
+    expect(items.map((i) => i.product_name)).toEqual(["Rack Unit"])
   })
 })
 

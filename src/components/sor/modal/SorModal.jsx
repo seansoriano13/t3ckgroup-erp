@@ -34,14 +34,7 @@ import JourneyTab from "./JourneyTab";
 import ItemsTab from "./ItemsTab";
 import DetailsTab from "./DetailsTab";
 import SorChatColumn from "./SorChatColumn";
-
-const toRow = (item) => ({
-  product_name: item.product_name || "",
-  unit: item.unit || "",
-  quantity: item.quantity ?? 1,
-  unit_price: item.unit_price ?? "",
-  odoo_product_id: item.odoo_product_id ?? null,
-});
+import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
 
 function estimatedValueSizeClass(displayText) {
   const len = (displayText || "").length;
@@ -151,10 +144,13 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     }
   }, [notes.length, loadingNotes, isOpen]);
 
-  const { data: items = [] } = useQuery({
+  // The Product List is Items' to load (#301), and edit mode's — the form
+  // carries the whole list into Save. `handleEditToggle` fetches it before
+  // the form opens, so this staying idle until then can't empty the list.
+  const { data: items = [], isLoading: itemsLoading } = useQuery({
     queryKey: ["opportunityItems", id],
     queryFn: () => opportunityService.getItems(id),
-    enabled: !!id && isOpen,
+    enabled: !!id && isOpen && (hasOpened("items") || isEditing),
   });
 
   const { data: checklist = [] } = useQuery({
@@ -186,10 +182,11 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     enabled: isOpen,
   });
 
+  // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
     queryKey: ["leadSources", "active"],
     queryFn: () => leadSourceService.getActiveLeadSources(),
-    enabled: isOpen,
+    enabled: isOpen && hasOpened("details"),
   });
 
   const { data: automationTasks = { individualTasks: [], groupTasks: [] } } = useQuery({
@@ -316,11 +313,9 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
       hasAutoSynced.current.add(ref);
       setAutoSyncingOdoo(true);
       try {
-        const result = await odooService.fetchOrderLines(ref);
-        if (result?.success && result.items.length && isMounted) {
-          const payload = { ...opportunity, items: result.items.map(toRow) };
-          await opportunityService.updateOpportunity(id, payload, user?.id);
-          if (result.stock) await opportunityService.saveStockSnapshot(id, result.stock, user?.id);
+        const { problem, rows, stock } = await pullOdooLines(ref);
+        if (!problem && isMounted) {
+          await saveOdooLines({ opportunity, rows, stock, actorId: user?.id });
           invalidate();
         }
       } catch (err) {
@@ -370,19 +365,14 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   const executeOdooFetch = async (ref) => {
     setFetchingOdoo(true);
     try {
-      const result = await odooService.fetchOrderLines(ref);
-      if (!result?.success) {
-        toast.error(result?.message || "Could not fetch items from Odoo — enter them manually.");
+      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
+      if (problem) {
+        toast.error(problem);
         return;
       }
-      const quotation = result.order?.name || ref;
-      if (!result.items.length) {
-        toast.error(result.message || `${quotation} has no product lines yet — enter them manually.`);
-        return;
-      }
-      setEditForm((f) => ({ ...f, items: result.items.map(toRow) }));
-      pendingStockRef.current = result.stock || null;
-      toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
+      setEditForm((f) => ({ ...f, items: rows }));
+      pendingStockRef.current = stock;
+      toast.success(`Pulled ${rows.length} item(s) from ${quotation}.`);
     } catch (err) {
       toast.error(err.message || "Could not reach Odoo — enter items manually.");
     } finally {
@@ -410,41 +400,6 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
       toast.error(err.message || "Could not reach Odoo to refresh stock.");
     } finally {
       setRefreshingStock(false);
-    }
-  };
-
-  /**
-   * The Items tab's empty-state fetch (#301). `handleFetchFromOdoo` below
-   * fills the *edit form* and waits for a Save; this one is the read-only
-   * tab's action, so it writes the pulled lines straight to the SOR — there
-   * is no form open to hold them.
-   */
-  const handleFetchItemsFromOdoo = async () => {
-    const ref = normalizeSalesReference(opportunity.sales_reference);
-    if (!isValidSalesReference(ref)) {
-      toast.error(SALES_REFERENCE_HINT);
-      return;
-    }
-    setFetchingOdoo(true);
-    try {
-      const result = await odooService.fetchOrderLines(ref);
-      if (!result?.success) {
-        toast.error(result?.message || "Could not fetch items from Odoo — enter them manually.");
-        return;
-      }
-      const quotation = result.order?.name || ref;
-      if (!result.items.length) {
-        toast.error(result.message || `${quotation} has no product lines yet — enter them manually.`);
-        return;
-      }
-      await opportunityService.updateOpportunity(id, { ...opportunity, items: result.items.map(toRow) }, user?.id);
-      if (result.stock) await opportunityService.saveStockSnapshot(id, result.stock, user?.id);
-      invalidate();
-      toast.success(`Pulled ${result.items.length} item(s) from ${quotation}.`);
-    } catch (err) {
-      toast.error(err.message || "Could not reach Odoo — enter items manually.");
-    } finally {
-      setFetchingOdoo(false);
     }
   };
 
@@ -549,31 +504,45 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     }
   };
 
-  const handleEditToggle = () => {
+  const handleEditToggle = async () => {
     if (isEditing) {
       setIsEditing(false);
       setEditForm({});
-    } else {
-      setIsEditing(true);
-      setEditForm({
-        project_title: opportunity.project_title || "",
-        client_name: opportunity.client_name || "",
-        lead_source: opportunity.lead_source || "",
-        lead_source_detail: opportunity.lead_source_detail || "",
-        project_type: opportunity.project_type || "SSP",
-        registration_date: opportunity.registration_date || "",
-        expected_award_date: opportunity.expected_award_date || "",
-        po_date: opportunity.po_date || "",
-        contact_person: opportunity.contact_person || "",
-        sales_reference: opportunity.sales_reference || "",
-        deal_owner_id: opportunity.deal_owner_id || "",
-        closing_sales_id: opportunity.closing_sales_id || "",
-        sales_director_id: opportunity.sales_director_id || "",
-        support_sales_1_id: opportunity.support_sales_1_id || "",
-        support_sales_2_id: opportunity.support_sales_2_id || "",
-        items: items.map(toRow),
-      });
+      return;
     }
+    // Fresh, not whatever is cached: Save writes this list back whole, and the
+    // Items tab may never have been opened — or Odoo's auto-sync may have
+    // replaced the list since it was. Opening the form before this resolves
+    // is what used to let an early Save store an empty Product List.
+    let current;
+    try {
+      current = await queryClient.fetchQuery({
+        queryKey: ["opportunityItems", id],
+        queryFn: () => opportunityService.getItems(id),
+      });
+    } catch (err) {
+      toast.error(err.message || "Could not load the Product List to edit.");
+      return;
+    }
+    setIsEditing(true);
+    setEditForm({
+      project_title: opportunity.project_title || "",
+      client_name: opportunity.client_name || "",
+      lead_source: opportunity.lead_source || "",
+      lead_source_detail: opportunity.lead_source_detail || "",
+      project_type: opportunity.project_type || "SSP",
+      registration_date: opportunity.registration_date || "",
+      expected_award_date: opportunity.expected_award_date || "",
+      po_date: opportunity.po_date || "",
+      contact_person: opportunity.contact_person || "",
+      sales_reference: opportunity.sales_reference || "",
+      deal_owner_id: opportunity.deal_owner_id || "",
+      closing_sales_id: opportunity.closing_sales_id || "",
+      sales_director_id: opportunity.sales_director_id || "",
+      support_sales_1_id: opportunity.support_sales_1_id || "",
+      support_sales_2_id: opportunity.support_sales_2_id || "",
+      items: current.map(toRow),
+    });
   };
 
   if (!opportunity) return null;
@@ -663,8 +632,8 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     handleDownloadQuotation,
     fetchingOdoo,
     handleFetchFromOdoo,
-    handleFetchItemsFromOdoo,
     items,
+    itemsLoading,
     isExpanded,
     autoSyncingOdoo,
     handleRefreshStock,

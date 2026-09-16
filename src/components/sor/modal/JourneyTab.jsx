@@ -6,18 +6,12 @@ import StatusBadge from "../../StatusBadge";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
 import { opportunityService } from "../../../services/opportunityService";
-import { journeyRows } from "../../../constants/journey";
+import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../constants/journey";
+import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
-import { TASK_STATUS } from "../../../constants/status";
+import { formatDueDate as formatWhen } from "../../../utils/formatDate";
 
-const notDeleted = (task) => task.status !== TASK_STATUS.DELETED;
-
-function formatWhen(iso) {
-  if (!iso) return null;
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
+const notDeleted = (task) => !isTaskDeleted(task);
 
 function Person({ person }) {
   if (!person) return <span className="text-muted-foreground/60">someone</span>;
@@ -97,7 +91,7 @@ function PastVisit({ row, onToggle }) {
   const { visit, isExpanded } = row;
   const entered = formatWhen(visit.enteredAt);
   const left = formatWhen(visit.leftAt);
-  const unmet = visit.conditions.filter((c) => c.status !== CONDITION_STATUS.SATISFIED).length;
+  const unmet = visit.conditions.filter(isConditionOutstanding).length;
   // A deleted task is noise, not history — it never blocked or reported on
   // this visit, so it doesn't belong in a list of what stood on it.
   const tasks = visit.tasks.filter(notDeleted);
@@ -164,16 +158,18 @@ function PastVisit({ row, onToggle }) {
             {groupTasks.map((t) => (
               <TaskLine
                 key={t.id}
-                title={t.title}
+                title={groupTaskRow(t).title}
                 status={t.status}
-                owner={t.members?.[0]?.employee || null}
+                // A group task's owner is whoever set it up, not whichever
+                // member happens to be listed first.
+                owner={t.creator || null}
                 date={t.due_date || t.created_at}
               />
             ))}
             {tasks.map((t) => (
               <TaskLine
                 key={t.id}
-                title={t.project_title || t.task_description?.split("\n")[0] || "Task"}
+                title={individualTaskRow(t).title}
                 status={t.status}
                 owner={t.assignee || null}
                 date={t.end_at || t.created_at}

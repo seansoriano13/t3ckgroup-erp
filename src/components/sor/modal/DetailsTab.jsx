@@ -101,11 +101,6 @@ function formatLongDate(dateString) {
 }
 
 /**
- * Now — lifted from the old flat modal body as-is (stage checklist through
- * commission footer). Structural move only, per #298; the redesign into
- * blocking conditions / Stage Fields / task rows / follow-up is #299.
-
-/**
  * Details (#302) — the SOR's own reference material, moved out of the old
  * flat layout's 4/8 grid and its footer: fields, the Deal Team, Estimated
  * Value with the quotation actions, and the commission footer. None of it
@@ -117,9 +112,9 @@ function formatLongDate(dateString) {
  * full-width panels above the grid, until #209 replaces them with the
  * Purchase Request card.
  *
- * This tab reads only what the shell already holds, so it has no fetch of
- * its own — #298's lazy-fetch pattern has nothing to defer here and nothing
- * to refetch when the tab is left and reopened.
+ * Its one read of its own, the active Lead Sources, waits for this tab to
+ * open (#298's lazy-fetch-once pattern) — see `activeLeadSources` in the
+ * shell. The panels inside fetch their own data, only once rendered here.
  */
 export default function DetailsTab({ ctx }) {
   const {

@@ -1,4 +1,5 @@
-import { TASK_STATUS } from "./status";
+import { GROUP_MEMBER_STATUS, TASK_STATUS } from "./status";
+import { isTaskDeleted, visitOwnsTask } from "./journey";
 
 /** Faces on a `TaskRow` before the rest collapse into a "+N" chip (#299). */
 export const MAX_AVATARS = 4;
@@ -17,7 +18,7 @@ export function groupTaskRow(task) {
     avatarPath: m.employee?.avatar_path || null,
     role: m.role || m.custom_role || "Assignee",
     part: m.task_description || "",
-    done: m.status === "DONE",
+    done: m.status === GROUP_MEMBER_STATUS.DONE,
   }));
 
   return {
@@ -59,4 +60,19 @@ export function individualTaskRow(task) {
 
 export function taskRows({ individualTasks = [], groupTasks = [] } = {}) {
   return [...groupTasks.map(groupTaskRow), ...individualTasks.map(individualTaskRow)];
+}
+
+/**
+ * The Now tab's rows (#299): what the SOR's current Stage Visit is carrying,
+ * not every task it has ever had — #207's Now "shows only the current Stage
+ * Visit", and the earlier visits' tasks are the Journey's to list. Ownership
+ * is `visitOwnsTask`, the same rule the Journey uses, so a task never shows
+ * in Now and under a past visit at once.
+ *
+ * `visit` is null for a pipeline deal, which never opens a Stage Visit; there
+ * is nothing to scope by, so it keeps every task the way the old modal did.
+ */
+export function currentVisitTaskRows({ individualTasks = [], groupTasks = [] } = {}, visit) {
+  const belongs = (task) => !isTaskDeleted(task) && (!visit || visitOwnsTask(task, visit));
+  return taskRows({ individualTasks: individualTasks.filter(belongs), groupTasks: groupTasks.filter(belongs) });
 }

@@ -167,8 +167,10 @@ describe("tickbox — the one item this list can also act on", () => {
 
 // Optional Action decisions (issue #204 Part 2) and Stage Fields (issue
 // #203) used to render at the bottom of this list; issue #299 moved both
-// out to the Now tab, which now orders every Stage-Visit panel itself. Their
-// coverage belongs with NowTab, not here.
+// out to the Now tab, which now orders every Stage-Visit panel itself. The
+// Decider card is covered in PendingActionDecisions.test.jsx, and the Stage
+// Fields form (rendering, and saving to the current visit) in
+// modal/NowTab.test.jsx.
 
 describe("attachment — pick an existing SOR file (issue #203, story 13)", () => {
   it("offers picking a file already on the SOR, stamped the same as an upload", async () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { journeyRows, visitSummary, visitOwnsTask, isTaskOpen } from "./journey"
+import { journeyRows, visitSummary, visitOwnsTask, isTaskOpen, isTaskDeleted, isConditionOutstanding } from "./journey"
 import { CONDITION_STATUS } from "./stageGate"
 import { TASK_STATUS } from "./status"
 
@@ -81,12 +81,14 @@ describe("journeyRows", () => {
   })
 
   it("handles a visit with no tasks", () => {
-    const visit = makeVisit({ id: "v1", tasks: [], groupTasks: [], conditions: [] })
+    const past = makeVisit({ id: "past", sequence: 1, leftAt: "2026-01-02T00:00:00Z", tasks: [], groupTasks: [] })
+    const current = makeVisit({ id: "current", sequence: 2, enteredAt: "2026-01-02T00:00:00Z", tasks: [], groupTasks: [] })
 
-    const rows = journeyRows([visit], {})
+    const [currentRow, pastRow] = journeyRows([past, current], {})
 
-    expect(rows[0].visit.tasks).toEqual([])
-    expect(rows[0].visit.groupTasks).toEqual([])
+    expect(currentRow.summary.openTasks).toBe(0)
+    expect(currentRow.summary.line).toBe("Nothing outstanding")
+    expect(pastRow).toMatchObject({ isCurrent: false, isExpanded: false, summary: null })
   })
 })
 
@@ -112,6 +114,22 @@ describe("visitSummary", () => {
     })
 
     expect(visitSummary(visit).line).toBe("Nothing outstanding")
+  })
+})
+
+describe("isTaskDeleted", () => {
+  it("is true only for a deleted task", () => {
+    expect(isTaskDeleted({ status: TASK_STATUS.DELETED })).toBe(true)
+    expect(isTaskDeleted({ status: TASK_STATUS.COMPLETE })).toBe(false)
+    expect(isTaskDeleted({ status: "ACTIVE" })).toBe(false)
+  })
+})
+
+describe("isConditionOutstanding", () => {
+  it("counts an unsatisfied condition, never a satisfied or not-applicable one", () => {
+    expect(isConditionOutstanding({ status: CONDITION_STATUS.UNSATISFIED })).toBe(true)
+    expect(isConditionOutstanding({ status: CONDITION_STATUS.SATISFIED })).toBe(false)
+    expect(isConditionOutstanding({ status: CONDITION_STATUS.NOT_APPLICABLE })).toBe(false)
   })
 })
 

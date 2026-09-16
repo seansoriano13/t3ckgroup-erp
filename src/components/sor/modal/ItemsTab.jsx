@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, Download, PackageSearch, RefreshCw, Search } from "lucide-react";
 import Spinner from "../../ui/Spinner";
@@ -8,7 +10,9 @@ import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
 import { opportunityService } from "../../../services/opportunityService";
 import { stockBadge, STOCK_BADGE_THEME } from "../../../constants/stock";
-import { formatPHP } from "../../../constants/sor";
+import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
+import { formatDate } from "../../../utils/formatDate";
+import { pullOdooLines, saveOdooLines } from "./odooLines";
 
 function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
@@ -47,11 +51,6 @@ function ItemStockRow({ item, snapshotData }) {
       )}
     </div>
   );
-}
-
-function formatWhen(iso) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /**
@@ -100,23 +99,22 @@ function EmptyItems({ opportunity, onFetch, fetching }) {
  * is already in memory, and a round trip per keystroke would be slower than
  * filtering it.
  *
- * The stock snapshot is this tab's own fetch and follows #298's
- * lazy-fetch-once pattern. The items themselves stay on the shell's eager
- * query: entering edit mode seeds `editForm.items` from them synchronously,
- * so a save before an unopened tab had fetched would write an empty Product
- * List over a real one.
+ * The Product List and its stock snapshot both wait for this tab to open
+ * (#298's lazy-fetch-once pattern). The list's query lives on the shell
+ * because edit mode needs it too — see `handleEditToggle`.
  */
 export default function ItemsTab({ ctx, hasOpened }) {
   const {
     opportunity,
     id,
     items,
+    itemsLoading,
     isEditing,
     editForm,
     setEditForm,
+    user,
+    invalidate,
     autoSyncingOdoo,
-    fetchingOdoo,
-    handleFetchItemsFromOdoo,
     handleRefreshStock,
     refreshingStock,
   } = ctx;
@@ -130,6 +128,25 @@ export default function ItemsTab({ ctx, hasOpened }) {
     hasOpened,
   });
 
+  // The empty state's Fetch from Odoo (#301). Unlike the edit form's Fetch
+  // Items, there is no form open to hold the lines until a Save, so they go
+  // straight to the SOR — and with nothing on the list, nothing is replaced.
+  const pullMutation = useMutation({
+    mutationFn: async () => {
+      const ref = normalizeSalesReference(opportunity.sales_reference);
+      if (!isValidSalesReference(ref)) throw new Error(SALES_REFERENCE_HINT);
+      const { problem, rows, stock, quotation } = await pullOdooLines(ref);
+      if (problem) throw new Error(problem);
+      await saveOdooLines({ opportunity, rows, stock, actorId: user?.id });
+      return { count: rows.length, quotation };
+    },
+    onSuccess: ({ count, quotation }) => {
+      invalidate();
+      toast.success(`Pulled ${count} item(s) from ${quotation}.`);
+    },
+    onError: (err) => toast.error(err.message || "Could not reach Odoo — enter items manually."),
+  });
+
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     if (!term) return items;
@@ -139,7 +156,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
   }, [items, search]);
 
   const total = visible.reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
-  const isSyncing = autoSyncingOdoo || fetchingOdoo;
+  const isSyncing = autoSyncingOdoo || pullMutation.isPending;
 
   if (isEditing) {
     return (
@@ -149,10 +166,10 @@ export default function ItemsTab({ ctx, hasOpened }) {
     );
   }
 
-  if (isLoading) return <TabSkeleton />;
+  if (isLoading || itemsLoading) return <TabSkeleton />;
 
   if (!items.length && !isSyncing) {
-    return <EmptyItems opportunity={opportunity} onFetch={handleFetchItemsFromOdoo} fetching={fetchingOdoo} />;
+    return <EmptyItems opportunity={opportunity} onFetch={() => pullMutation.mutate()} fetching={pullMutation.isPending} />;
   }
 
   return (
@@ -180,7 +197,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
             {search.trim() ? `${visible.length} of ${items.length}` : `${items.length} item${items.length === 1 ? "" : "s"}`}
           </span>
           <span className="text-[11px] text-muted-foreground">
-            {stockSnapshot?.fetched_at ? `Stock as of ${formatWhen(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
+            {stockSnapshot?.fetched_at ? `Stock as of ${formatDate(stockSnapshot.fetched_at)}` : "Stock not yet checked"}
           </span>
           <button
             type="button"

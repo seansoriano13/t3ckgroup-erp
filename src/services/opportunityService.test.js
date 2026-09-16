@@ -12,12 +12,16 @@ import {
   makeConditionStatus,
   makeEmployeeGroup,
   makeFollowUpCadence,
+  makeGroupTask,
+  makeOpportunityMember,
   makeSaleType,
   makeSalesFlow,
   makeStageAction,
   makeStageCondition,
   makeStageField,
+  makeStageVisit,
   makeSuperAdmin,
+  makeTask,
   seedPipeline,
 } from "@/test/factories"
 import { employeeGroupService } from "./employeeGroupService"
@@ -2743,6 +2747,134 @@ describe("opportunityService", () => {
 
     it("returns an empty list for an opportunity with no id", async () => {
       expect(await opportunityService.getItems(null)).toEqual([])
+    })
+  })
+
+  describe("the SOR's tasks (#299)", () => {
+    // The Now tab's one-line rows show parts done and a due date. Both come
+    // from columns this query has to ask for: a row built from a select that
+    // omits them still renders, just as "0/N" with no date, forever.
+    it("carries each group member's status and the group task's due date", async () => {
+      const deal = makeOpportunity()
+      const [done, pending] = [makeEmployee(), makeEmployee()]
+      const group = makeGroupTask({ opportunity_id: deal.id, due_date: "2026-09-30T00:00:00.000Z" })
+      db.seed("committee_task_members", { committee_task_id: group.id, employee_id: done.id, task_description: "Site survey", status: "DONE" })
+      db.seed("committee_task_members", { committee_task_id: group.id, employee_id: pending.id, task_description: "BOQ", status: "PENDING" })
+
+      const { groupTasks } = await opportunityService.getAutomationTasks(deal.id)
+
+      expect(groupTasks).toHaveLength(1)
+      expect(groupTasks[0].due_date).toBe("2026-09-30T00:00:00.000Z")
+      expect(groupTasks[0].members.map((m) => m.status).sort()).toEqual(["DONE", "PENDING"])
+    })
+
+    it("carries an individual task's due date", async () => {
+      const deal = makeOpportunity()
+      makeTask({ opportunity_id: deal.id, end_at: "2026-10-02T09:00:00.000Z" })
+
+      const { individualTasks } = await opportunityService.getAutomationTasks(deal.id)
+
+      expect(individualTasks).toHaveLength(1)
+      expect(individualTasks[0].end_at).toBe("2026-10-02T09:00:00.000Z")
+    })
+
+    // Now shows only the current Stage Visit's tasks, decided by the same
+    // stamp-or-window rule as the Journey — which needs both columns.
+    it("carries what decides which Stage Visit a task belongs to", async () => {
+      const deal = makeOpportunity()
+      const visit = makeStageVisit({ opportunity_id: deal.id })
+      makeTask({ opportunity_id: deal.id, stage_visit_id: visit.id })
+      makeGroupTask({ opportunity_id: deal.id, stage_visit_id: visit.id })
+
+      const { individualTasks, groupTasks } = await opportunityService.getAutomationTasks(deal.id)
+
+      for (const task of [...individualTasks, ...groupTasks]) {
+        expect(task.stage_visit_id).toBe(visit.id)
+        expect(task.created_at).toEqual(expect.any(String))
+      }
+    })
+
+    it("returns the current Stage Visit's window, or null for a deal with none", async () => {
+      const deal = makeOpportunity()
+      makeStageVisit({ opportunity_id: deal.id, sequence: 1, entered_at: "2026-01-01T00:00:00.000Z", left_at: "2026-01-10T00:00:00.000Z" })
+      const open = makeStageVisit({ opportunity_id: deal.id, sequence: 2, entered_at: "2026-01-10T00:00:00.000Z" })
+
+      expect(await opportunityService.getCurrentStageVisit(deal.id)).toEqual({
+        id: open.id,
+        enteredAt: "2026-01-10T00:00:00.000Z",
+        leftAt: null,
+      })
+      expect(await opportunityService.getCurrentStageVisit(makeOpportunity().id)).toBeNull()
+    })
+  })
+
+  describe("the Journey (#300)", () => {
+    // Three visits with fixed windows: Lead, then Qualified, then back to
+    // Lead — the loop is what makes per-visit evidence observable.
+    let deal, lead, qualified, v1, v2, v3, estimator, creator
+
+    beforeEach(() => {
+      const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
+      lead = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      qualified = makeFlowStage({ flow_id: flow.id, name: "Qualified", sort_order: 1 })
+      estimator = makeEmployee({ name: "Estimator" })
+      creator = makeEmployee({ name: "Group Creator" })
+      makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Signed NDA" })
+      makeStageCondition({
+        stage_id: qualified.id,
+        kind: "assignment",
+        label: "Estimator assigned",
+        config: { who: [{ type: "employee", id: estimator.id }] },
+      })
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+      // No flow_stage_id: the visit trigger would open a sequence-1 visit of
+      // its own on insert, and these windows need to be stated exactly.
+      deal = makeOpportunity({ flow_snapshot_id: snapshot.id })
+
+      v1 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id, sequence: 1, entered_at: "2026-01-01T00:00:00.000Z", left_at: "2026-01-10T00:00:00.000Z" })
+      v2 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: qualified.id, flow_snapshot_id: snapshot.id, sequence: 2, entered_at: "2026-01-10T00:00:00.000Z", left_at: "2026-01-20T00:00:00.000Z" })
+      v3 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id, sequence: 3, entered_at: "2026-01-20T00:00:00.000Z" })
+    })
+
+    it("lists every visit latest first, named from the SOR's own snapshot", async () => {
+      const journey = await opportunityService.getJourney(deal.id)
+
+      expect(journey.map((v) => v.id)).toEqual([v3.id, v2.id, v1.id])
+      expect(journey.map((v) => v.stage.name)).toEqual(["Lead", "Qualified", "Lead"])
+      expect(journey[0]).toMatchObject({ leftAt: null, requestedItems: [] })
+    })
+
+    it("judges a tickbox per visit, so a loop back asks again", async () => {
+      const [nda] = (await opportunityService.getJourney(deal.id))[2].conditions
+      makeConditionStatus({ opportunity_id: deal.id, condition_id: nda.condition.id, stage_visit_id: v1.id })
+
+      const [current, , first] = await opportunityService.getJourney(deal.id)
+
+      expect(first.conditions[0].status).toBe("satisfied")
+      expect(current.conditions[0].status).toBe("unsatisfied")
+    })
+
+    it("judges a closed visit on what existed when it closed, not on what was added since", async () => {
+      makeOpportunityMember({ opportunity_id: deal.id, employee_id: estimator.id, added_at: "2026-01-25T00:00:00.000Z" })
+
+      const qualifiedVisit = (await opportunityService.getJourney(deal.id))[1]
+
+      expect(qualifiedVisit.conditions[0].condition.label).toBe("Estimator assigned")
+      expect(qualifiedVisit.conditions[0].status).toBe("unsatisfied")
+    })
+
+    it("scopes tasks by their visit stamp, falling back to when an unstamped task was created", async () => {
+      const stamped = makeTask({ opportunity_id: deal.id, stage_visit_id: v2.id, created_at: "2026-01-05T00:00:00.000Z" })
+      const unstampedInV2 = makeTask({ opportunity_id: deal.id, created_at: "2026-01-12T00:00:00.000Z" })
+      const unstampedInV3 = makeTask({ opportunity_id: deal.id, created_at: "2026-01-22T00:00:00.000Z" })
+      makeGroupTask({ opportunity_id: deal.id, stage_visit_id: v3.id, created_by: creator.id })
+
+      const [current, qualifiedVisit, first] = await opportunityService.getJourney(deal.id)
+
+      expect(qualifiedVisit.tasks.map((t) => t.id).sort()).toEqual([stamped.id, unstampedInV2.id].sort())
+      expect(current.tasks.map((t) => t.id)).toEqual([unstampedInV3.id])
+      expect(first.tasks).toEqual([])
+      expect(current.groupTasks[0].creator).toMatchObject({ id: creator.id, name: "Group Creator" })
     })
   })
 
