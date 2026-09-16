@@ -398,6 +398,11 @@ export function useLogTaskHandlers({
 
     const payload = {
       ...formData,
+      // buildAndCreateActionTask reads config.description (or
+      // config.descriptionTemplate), never config.taskDescription — the
+      // form's own field name — so an automation's description would
+      // silently never render without this alias.
+      ...(mode === "automation" ? { description: formData.taskDescription } : {}),
       endAt: mode === "automation" ? null : formData.endAt,
       isAutoVerified: false,
       remarks: mergedRemarks,

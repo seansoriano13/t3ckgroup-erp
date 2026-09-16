@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import TemplateTokenText from "@/components/ui/TemplateTokenText";
 
 import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
@@ -47,6 +48,11 @@ export default function StageActionManager({ stageId, disabled = false }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["stageActions", stageId] });
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
+    // Same reason as StageConditionManager: an action is in the snapshot, and
+    // nothing threads a canvas refresh into this manager, so the publish diff
+    // has to be invalidated from here or it goes stale until a reload.
+    queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
+    queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
   };
 
   const addMutation = useMutation({
@@ -161,7 +167,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
 
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-bold text-foreground">
-                      {title}
+                      <TemplateTokenText text={title} />
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
                       {actionSummary(action)}

@@ -281,9 +281,22 @@ function groupBy(rows, key) {
  * own filter (e.g. `getBlockedDeals`' is_required/kind) on top of the
  * archived_at check every caller needs regardless.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function conditionsByStageFor(stageIds, narrow = (query) => query) {
+  // `stage_conditions.stage_id` is a uuid FK into `flow_stages`. A legacy
+  // pipeline deal is identified by a code ("LEAD"), which is not a Stage id
+  // and can never match a row here — but passing one through made Postgres
+  // reject the whole IN-list with 22P02 rather than return nothing, taking
+  // out every caller that happened to batch a legacy deal alongside a flow
+  // one. Callers should already be passing Stage ids only (see
+  // `deadlineEvaluations`); this is the backstop that keeps a stray code from
+  // failing the read for everyone else.
+  const ids = [...new Set((stageIds || []).filter((id) => UUID_RE.test(String(id))))];
+  if (ids.length === 0) return { conditions: [], conditionsByStage: {} };
+
   const { data: conditions, error } = await narrow(
-    supabase.from("stage_conditions").select("*").in("stage_id", stageIds).is("archived_at", null),
+    supabase.from("stage_conditions").select("*").in("stage_id", ids).is("archived_at", null),
   );
   if (error) throw error;
   return { conditions: conditions || [], conditionsByStage: groupBy(conditions, "stage_id") };
@@ -946,6 +959,25 @@ async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderS
 }
 
 /**
+ * Issue #204 Part 2 — the one place either action kind's title is derived
+ * from its config, shared by `buildAndCreateActionTask` (what Create
+ * actually builds) and `getPendingActionsForActor` (the Decider card's
+ * preview of what Create will build) so the two can never drift apart —
+ * spec: "Create makes exactly what the automatic action would."
+ */
+function renderActionTitle(action, templateContext) {
+  const config = action.config || {};
+  const dealTitle = stageActionTaskTitle({
+    salesReference: templateContext.salesReference,
+    projectTitle: templateContext.projectTitle,
+  });
+  if (action.kind === "create_group_task") {
+    return config.titleTemplate || config.title ? renderTemplate(config.titleTemplate || config.title, templateContext) : dealTitle;
+  }
+  return config.titleTemplate || config.projectTitle ? renderTemplate(config.titleTemplate || config.projectTitle, templateContext) : dealTitle;
+}
+
+/**
  * Issue #204 Part 2 — the ONE builder both the automatic path (moveAlongFlow's
  * action loop) and the "create" half of `decideAction` call, so a decided
  * Create produces exactly what an automatic run would have. Performs the
@@ -954,15 +986,11 @@ async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderS
  */
 async function buildAndCreateActionTask(action, existing, to, actorId, runRow, templateContext, failedStageActions) {
   const config = action.config || {};
-  const dealTitle = stageActionTaskTitle({
-    salesReference: existing.sales_reference,
-    projectTitle: existing.project_title,
-  });
 
   if (action.kind === "create_group_task") {
     const { groupTaskService } = await import("./groupTaskService");
     const payload = {
-      title: config.titleTemplate || config.title ? renderTemplate(config.titleTemplate || config.title, templateContext) : dealTitle,
+      title: renderActionTitle(action, templateContext),
       description: config.descriptionTemplate || config.description
         ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
         : "",
@@ -1004,7 +1032,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     }
   } else if (action.kind === "create_individual_task") {
     const { taskService } = await import("./taskService");
-    const title = config.titleTemplate || config.projectTitle ? renderTemplate(config.titleTemplate || config.projectTitle, templateContext) : dealTitle;
+    const title = renderActionTitle(action, templateContext);
     // Back-compat: an individual-task automation's config.title never named
     // the task's title (that's config.projectTitle/titleTemplate — see the
     // comment on projectTitle below) but it did name the task's
@@ -1055,6 +1083,20 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         actorId
       ).catch(() => {});
     }
+  } else {
+    // No branch matched this action's kind. Before this existed the run row
+    // stayed `pending` forever: nothing was created, nothing was named to
+    // the person who moved the SOR, and the fire-once gate meant re-entering
+    // the Stage would not retry it either. A kind this builder does not
+    // implement is a defect, so it fails loudly and lands in the same "create
+    // them by hand" toast a failed create already uses.
+    console.error("Stage Action has no builder for kind:", action.kind);
+    failedStageActions?.push(stageActionName(action));
+    const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
+      p_run_id: runRow.id,
+      p_outcome: "failed",
+    });
+    if (finishError) console.error("sor_finish_action_run failed:", finishError);
   }
 }
 
@@ -1103,9 +1145,16 @@ function stageEnteredAt(opportunity, logs) {
  */
 async function deadlineEvaluations(opportunities) {
   if (opportunities.length === 0) return {};
-  const stageCodes = [...new Set(opportunities.map(currentStageId))];
+  // Stage Conditions only ever hang off Sales Flow Stages, so only a deal
+  // carrying a `flow_stage_id` can have one. A legacy pipeline deal's
+  // `status` is a code ("LEAD"), never a `flow_stages.id`, and feeding it
+  // into this uuid IN-list is what made the board's first read 22P02 —
+  // same reasoning as `getBlockedDeals`. Legacy deals fall through with no
+  // deadline entry, which is what "no Stage Conditions" already means.
+  const stageIds = [...new Set(opportunities.map((o) => o.flow_stage_id).filter(Boolean))];
+  if (stageIds.length === 0) return {};
 
-  const { conditions, conditionsByStage } = await conditionsByStageFor(stageCodes, (query) =>
+  const { conditions, conditionsByStage } = await conditionsByStageFor(stageIds, (query) =>
     query.eq("kind", CONDITION_KINDS.DEADLINE),
   );
   if (conditions.length === 0) return {};
@@ -1332,6 +1381,18 @@ export const opportunityService = {
     // items first, then re-read the row to pick up the computed total before
     // it's quoted in the notes below.
     await opportunityService.replaceItems(data.id, payload.items);
+
+    // The flow's custom registration fields, answered on the form that this
+    // Sale Type's Flow Snapshot defines. Written separately for the same
+    // reason `items` is: the insert above is an explicit column whitelist, so
+    // anything not a column on sales_opportunities has to be persisted on its
+    // own or it is silently dropped. A default-source field is NOT written
+    // here — it already went in above, as the column it is.
+    if (payload.formValues && Object.keys(payload.formValues).length > 0) {
+      const { formFieldService } = await import("./formFieldService");
+      await formFieldService.saveValues(data.id, payload.formValues, actorId);
+    }
+
     const final = await opportunityService.getOpportunityById(data.id);
 
     await opportunityService.addSystemNote(
@@ -2352,6 +2413,102 @@ export const opportunityService = {
     };
     await buildAndCreateActionTask(action, existing, stage, actorId, run, templateContext, null);
     return { outcome: "created" };
+  },
+
+  /**
+   * Issue #204 Part 2 — the pending "When confirmed" runs on this SOR that
+   * `actorId` may decide, with enough rendered detail for the Decider card
+   * (title, what it would create, for whom). Never returns a run the actor
+   * doesn't resolve into — `decideAction`/`sor_decide_action_run` refuse it
+   * anyway, but a non-Decider should never see Create/Skip in the first
+   * place (spec story 20).
+   */
+  async getPendingActionsForActor(opportunityId, actorId) {
+    if (!opportunityId || !actorId) return [];
+
+    const { data: runs, error: runsError } = await supabase
+      .from("sor_action_runs")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .eq("outcome", "pending");
+    if (runsError) throw runsError;
+    if (!runs?.length) return [];
+
+    const { data: existing, error: existingError } = await supabase
+      .from("sales_opportunities")
+      .select(PARTICIPANT_SELECT)
+      .eq("id", opportunityId)
+      .single();
+    if (existingError) throw existingError;
+
+    const actionIds = [...new Set(runs.map((r) => r.action_id))];
+    const stageIds = [...new Set(runs.map((r) => r.stage_id))];
+    const [{ data: actions, error: actionsError }, { data: stages, error: stagesError }, { data: employees, error: employeesError }] =
+      await Promise.all([
+        supabase.from("flow_stage_actions").select("*").in("id", actionIds),
+        supabase.from("flow_stages").select("*").in("id", stageIds),
+        supabase.from("employees").select("id, name"),
+      ]);
+    if (actionsError) throw actionsError;
+    if (stagesError) throw stagesError;
+    if (employeesError) throw employeesError;
+    const actionById = new Map((actions || []).map((a) => [a.id, a]));
+    const stageById = new Map((stages || []).map((s) => [s.id, s]));
+    const employeeNameById = new Map((employees || []).map((e) => [String(e.id), e.name]));
+
+    const results = [];
+    for (const run of runs) {
+      const action = actionById.get(run.action_id);
+      const stage = stageById.get(run.stage_id);
+      if (!action || !stage) continue;
+
+      const deciderIds = await resolveDeciderIds(run.decider || [], existing);
+      if (!deciderIds.map(String).includes(String(actorId))) continue;
+
+      const config = action.config || {};
+      const templateContext = {
+        salesReference: existing.sales_reference,
+        projectTitle: existing.project_title,
+        company: existing.client_name,
+        stageName: stage.name,
+        dealOwnerName: existing.deal_owner_name || existing.owner_name || null,
+        saleType: existing.sale_type || null,
+      };
+
+      // Structured, not a pre-built sentence — spec: the card shows "what it
+      // would create and for whom" (story 14), so the actual assignee(s) the
+      // real builder would use, not a placeholder or a bare count.
+      // `PendingActionDecisions.jsx` turns this into a sentence.
+      const target =
+        action.kind === "create_group_task"
+          ? {
+              kind: "group",
+              members: (config.members || []).map((m) => ({
+                id: m.employeeId,
+                name: employeeNameById.get(String(m.employeeId)) || "Former employee",
+              })),
+            }
+          : {
+              kind: "individual",
+              // No configured assignee means the builder falls back to
+              // whichever Decider clicks Create (`loggedById: config.loggedById
+              // || actorId` in buildAndCreateActionTask) — genuinely "you",
+              // not a stand-in for missing data.
+              assignee: config.loggedById
+                ? { id: config.loggedById, name: employeeNameById.get(String(config.loggedById)) || "Former employee" }
+                : null,
+            };
+
+      results.push({
+        runId: run.id,
+        actionId: action.id,
+        stageName: stage.name,
+        title: renderActionTitle(action, templateContext),
+        target,
+      });
+    }
+
+    return results;
   },
 
   // ── SOR Members ────────────────────────────────────────────────────────────

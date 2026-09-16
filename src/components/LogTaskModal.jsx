@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 
 // Hooks
@@ -12,12 +12,25 @@ import LogTaskPropertyBar from "./log-task/LogTaskPropertyBar";
 import LogTaskAssignmentBar from "./log-task/LogTaskAssignmentBar";
 import LogTaskFooter from "./log-task/LogTaskFooter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import PeoplePicker from "@/components/ui/PeoplePicker";
+import { Switch } from "@/components/ui/switch";
 
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
 export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmitOverride, initialData }) {
   const { user } = useAuth();
+
+  // Issue #204 Part 2 — held here rather than in useLogTaskHandlers' formData
+  // since it's specific to the automation path, and merged into the payload
+  // only at submit rather than threaded through every non-automation caller.
+  const [confirmMode, setConfirmMode] = useState(initialData?.confirmMode);
+  const [decider, setDecider] = useState(initialData?.decider || []);
+  useEffect(() => {
+    if (!isOpen) return;
+    setConfirmMode(initialData?.confirmMode);
+    setDecider(initialData?.decider || []);
+  }, [isOpen, initialData]);
 
   const titleRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -66,7 +79,14 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
     availableHeads,
     roles,
     mode,
-    onSubmitOverride,
+    onSubmitOverride: onSubmitOverride
+      ? (payload) =>
+          onSubmitOverride({
+            ...payload,
+            confirmMode,
+            decider: confirmMode === "confirm" ? decider : undefined,
+          })
+      : onSubmitOverride,
     initialData,
   });
 
@@ -234,7 +254,30 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
             onAttachmentsChange={(urls) =>
               setFormData((prev) => ({ ...prev, attachments: urls }))
             }
+            mode={mode}
           />
+
+          {mode === "automation" && (
+            <div className="mt-2 mb-1 rounded-lg border border-dashed border-mauve-7 px-3 py-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-muted-foreground">
+                  Require confirmation before running
+                </span>
+                <Switch
+                  checked={confirmMode === "confirm"}
+                  onCheckedChange={(next) => setConfirmMode(next ? "confirm" : undefined)}
+                />
+              </div>
+              {confirmMode === "confirm" && (
+                <div className="mt-2 space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Decider (defaults to the Deal Owner)
+                  </span>
+                  <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />
+                </div>
+              )}
+            </div>
+          )}
 
           <LogTaskPropertyBar
             formData={formData}

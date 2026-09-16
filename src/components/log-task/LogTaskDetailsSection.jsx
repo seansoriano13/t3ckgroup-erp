@@ -7,6 +7,8 @@ import Spinner from "@/components/ui/Spinner"
 import { storageService } from "../../services/storageService"
 import toast from "react-hot-toast"
 import { useProjectTitles } from "../../hooks/useProjectTitles"
+import TemplateVariableChips from "@/components/ui/TemplateVariableChips"
+import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
 
 export default function LogTaskDetailsSection({
   formData,
@@ -18,7 +20,9 @@ export default function LogTaskDetailsSection({
   onChecklistChange,
   isExpanded,
   onAttachmentsChange,
+  mode = "normal",
 }) {
+  const descriptionRef = useRef(null)
   const dictationEmployeeId = formData?.loggedById || selectedEmployeeInfo?.id
   const projectTitles = useProjectTitles(dictationEmployeeId, true)
   const [isUploading, setIsUploading] = useState(false)
@@ -91,22 +95,44 @@ export default function LogTaskDetailsSection({
     <>
       {/* 1. PROJECT / CAMPAIGN TITLE */}
       <div className="animate-content-in stagger-1 relative">
-        <input
-          ref={titleRef}
-          type="text"
-          name="projectTitle"
-          value={formData.projectTitle}
-          onChange={handleChange}
-          placeholder="Project / Campaign Title"
-          className="w-full text-lg font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-1"
-          autoComplete="on"
-          list="project-titles-list"
-        />
+        {mode === "automation" ? (
+          <HighlightedTemplateField
+            ref={titleRef}
+            as="input"
+            type="text"
+            name="projectTitle"
+            value={formData.projectTitle}
+            onChange={handleChange}
+            placeholder="Project / Campaign Title"
+            className="text-lg font-semibold placeholder:text-mauve-6 pb-1"
+            wrapperClassName="mb-1"
+            autoComplete="off"
+          />
+        ) : (
+          <input
+            ref={titleRef}
+            type="text"
+            name="projectTitle"
+            value={formData.projectTitle}
+            onChange={handleChange}
+            placeholder="Project / Campaign Title"
+            className="w-full text-lg font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-1"
+            autoComplete="on"
+            list="project-titles-list"
+          />
+        )}
         <datalist id="project-titles-list">
           {projectTitles.map((title) => (
             <option key={title} value={title} />
           ))}
         </datalist>
+        {mode === "automation" && (
+          <TemplateVariableChips
+            value={formData.projectTitle}
+            onInsert={(token) => titleRef.current?.insertToken(token)}
+            className="mb-1"
+          />
+        )}
       </div>
 
       {/* Payment Voucher (ADMIN dept) */}
@@ -128,15 +154,34 @@ export default function LogTaskDetailsSection({
       {/* 2. DESCRIPTION & CHECKLIST (both visible) */}
       <div className="mb-4 animate-content-in stagger-2">
         {/* Description textarea — always visible */}
-        <textarea
-          name="taskDescription"
-          value={formData.taskDescription || ""}
-          onChange={handleChange}
-          placeholder="Add description…"
-          className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
-            isExpanded ? "h-48" : "h-24"
-          }`}
-        />
+        {mode === "automation" ? (
+          <HighlightedTemplateField
+            ref={descriptionRef}
+            as="textarea"
+            name="taskDescription"
+            value={formData.taskDescription || ""}
+            onChange={handleChange}
+            placeholder="Add description…"
+            className={`text-sm placeholder:text-mauve-6 ${isExpanded ? "h-48" : "h-24"}`}
+          />
+        ) : (
+          <textarea
+            ref={descriptionRef}
+            name="taskDescription"
+            value={formData.taskDescription || ""}
+            onChange={handleChange}
+            placeholder="Add description…"
+            className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
+              isExpanded ? "h-48" : "h-24"
+            }`}
+          />
+        )}
+        {mode === "automation" && (
+          <TemplateVariableChips
+            value={formData.taskDescription}
+            onInsert={(token) => descriptionRef.current?.insertToken(token)}
+          />
+        )}
 
         {/* Dictation + checklist affordances share one row under the description */}
         <div className="flex flex-wrap items-center gap-2">

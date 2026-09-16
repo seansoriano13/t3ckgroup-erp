@@ -46,6 +46,14 @@ const Checklist = ({ value }) => {
   );
 };
 
+const deciderLabel = (selector, nameOf) => {
+  if (selector.type === "employee") return nameOf(selector.id);
+  if (selector.type === "team") return `Everyone in ${selector.team}`;
+  if (selector.type === "role") return String(selector.role || "").replace(/_/g, " ");
+  if (selector.type === "group") return "an Employee Group";
+  return "someone";
+};
+
 export default function StageActionDetail({ action, employees = [] }) {
   const config = action?.config ?? {};
   const nameOf = (id) =>
@@ -64,6 +72,23 @@ export default function StageActionDetail({ action, employees = [] }) {
 
   return (
     <div className="space-y-3 border-t border-mauve-5 px-3 py-3">
+      {/* Issue #204 Part 2 — the same confirmMode/decider config the modal
+          writes, read back here so it's verifiable without re-opening the
+          modal (see the file doc comment on why this panel exists at all). */}
+      <Field label="Trigger">
+        {config.confirmMode === "confirm" ? (
+          <>
+            Waits for confirmation ·{" "}
+            {(config.decider?.length ? config.decider : [{ type: "role", role: "deal_owner" }])
+              .map((s) => deciderLabel(s, nameOf))
+              .join(", ")}{" "}
+            decides
+          </>
+        ) : (
+          "Runs automatically when the deal arrives"
+        )}
+      </Field>
+
       {action.kind === "create_group_task" ? (
         <>
           {config.description?.trim() && (

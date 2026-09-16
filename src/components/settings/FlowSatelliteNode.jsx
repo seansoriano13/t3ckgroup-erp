@@ -8,8 +8,10 @@ import {
   ACTION_KIND_META,
   CONDITION_KIND_META,
   actionTitle,
+  actionSummary,
   conditionDetail,
 } from "./flowStageKinds";
+import TemplateTokenText from "@/components/ui/TemplateTokenText";
 
 /**
  * The small nodes that hang off a Stage: one per condition on the gate side,
@@ -60,11 +62,8 @@ function SatelliteBody({ column, icon: Icon, title, detail, badge, selected }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5">
-          <span
-            className="truncate text-[12px] font-bold leading-tight text-foreground"
-            title={title}
-          >
-            {title}
+          <span className="truncate text-[12px] font-bold leading-tight text-foreground" title={title}>
+            <TemplateTokenText text={title} />
           </span>
           {badge}
         </div>
@@ -107,13 +106,23 @@ function FlowSatelliteNode({ data, selected }) {
 
     if (variant === "action") {
       const meta = ACTION_KIND_META[data.action.kind];
+      // Issue #204 Part 2 — actionSummary appends "When confirmed · X
+      // decides" when the action waits for a Decider, so that's readable
+      // on the canvas itself, not only after opening the Stage's settings.
       return (
         <SatelliteBody
           column={column}
           selected={selected}
           icon={meta?.icon ?? MoreHorizontal}
           title={actionTitle(data.action)}
-          detail={meta?.label ?? data.action.kind}
+          detail={actionSummary(data.action)}
+          badge={
+            data.action.config?.confirmMode === "confirm" && (
+              <span className="shrink-0 rounded bg-violet-a4 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-violet-11">
+                Confirm
+              </span>
+            )
+          }
         />
       );
     }

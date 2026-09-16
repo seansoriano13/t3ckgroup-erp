@@ -4,16 +4,16 @@ import toast from "react-hot-toast";
 
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import PeoplePicker from "@/components/ui/PeoplePicker";
 
 import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 
 /**
- * A Stage's Follow-up Cadence (issue #204 Part 3), kept deliberately simple:
- * on/off, every N days, and "Proof required". Recipients default to the
- * Deal Owner — a fuller people-picker (matching the Decider picker built for
- * Part 2's Optional Actions) is left for follow-up work; this keeps the
- * cadence usable without building a second selector UI.
+ * A Stage's Follow-up Cadence (issue #204 Part 3): on/off, every N days,
+ * who gets reminded, and "Proof required". Recipients default to the Deal
+ * Owner and use the same PeoplePicker as the Decider field on Optional
+ * Actions.
  */
 export default function FollowUpCadenceEditor({ stageId, disabled = false }) {
   const { user } = useAuth();
@@ -43,9 +43,18 @@ function FollowUpCadenceForm({ cadence, stageId, disabled, followUpService, acto
   const [enabled, setEnabled] = useState(Boolean(cadence?.enabled));
   const [everyDays, setEveryDays] = useState(String(cadence?.everyDays ?? 7));
   const [proofRequired, setProofRequired] = useState(cadence?.proofRequired !== false);
+  const [recipients, setRecipients] = useState(
+    cadence?.recipients?.length ? cadence.recipients : [{ type: "role", role: "deal_owner" }],
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["followUpCadence", stageId] });
+    // The worst case of the three: Follow-up Cadence is carried in the
+    // snapshot but invalidated nothing shared, and no realtime subscription
+    // watches its table either — so a cadence edit could never reach the
+    // publish diff without a reload, rather than only sometimes.
+    queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
+    queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
   };
 
   const saveMutation = useMutation({
@@ -61,7 +70,7 @@ function FollowUpCadenceForm({ cadence, stageId, disabled, followUpService, acto
     const next = {
       enabled,
       everyDays: Number(everyDays) || null,
-      recipients: cadence?.recipients?.length ? cadence.recipients : [{ type: "role", role: "deal_owner" }],
+      recipients: recipients.length ? recipients : [{ type: "role", role: "deal_owner" }],
       proofRequired,
       ...patch,
     };
@@ -107,6 +116,20 @@ function FollowUpCadenceForm({ cadence, stageId, disabled, followUpService, acto
                 setProofRequired(next);
                 save({ proofRequired: next });
               }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <span className="text-xs text-muted-foreground">Recipients</span>
+            <PeoplePicker
+              value={recipients}
+              onChange={(next) => {
+                setRecipients(next);
+                save({ recipients: next.length ? next : [{ type: "role", role: "deal_owner" }] });
+              }}
+              allowRoles
+              disabled={disabled}
+              placeholder="Add recipient"
             />
           </div>
         </>

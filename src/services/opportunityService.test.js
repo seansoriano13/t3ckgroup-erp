@@ -1391,6 +1391,25 @@ describe("opportunityService", () => {
       it("returns nothing for an empty register", async () => {
         expect(await opportunityService.getBlockedDeals([])).toEqual({})
       })
+
+      it("does not error on the deadline read either, for a legacy deal beside a flow deal", async () => {
+        // Same defect as the test above, in the other batch reader:
+        // `deadlineEvaluations` derived its Stage list from
+        // `flow_stage_id || status`, so a legacy deal put "LEAD" into a uuid
+        // IN-list and 22P02'd the Opportunities tab on first load — for every
+        // deal, not just the legacy one.
+        makeStageCondition({ stage_id: lead.id, kind: "deadline", config: { days: 5 } })
+        makeFlowSnapshot({ flow_id: flow.id })
+        const flowDeal = await opportunityService.createOpportunity(flowPayload(), registrar.id)
+        const legacyDeal = await opportunityService.createOpportunity(payload(), registrar.id)
+
+        const result = await opportunityService.getDeadlineStatuses([
+          await opportunityService.getOpportunityById(flowDeal.id),
+          await opportunityService.getOpportunityById(legacyDeal.id),
+        ])
+
+        expect(result[legacyDeal.id]).toBeUndefined()
+      })
     })
   })
 
@@ -1921,6 +1940,106 @@ describe("opportunityService", () => {
         const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
         const result = await opportunityService.decideAction(run.id, "create", owner.id)
         expect(result.outcome).toBe("created")
+      })
+    })
+
+    describe("getPendingActionsForActor (issue #204 Part 2, the Decider card)", () => {
+      it("returns a rendered title and target for the resolved Decider", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { titleTemplate: "Approve {{project_title}}", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register({ project_title: "Fire truck supply" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending).toHaveLength(1)
+        expect(pending[0].title).toBe("Approve Fire truck supply")
+        expect(pending[0].target).toEqual({ kind: "individual", assignee: null })
+        expect(pending[0].stageName).toBe("Qualified")
+      })
+
+      it("names the configured assignee rather than defaulting to the decider", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        const assignee = makeEmployee({ name: "Assignee Andy" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", loggedById: assignee.id, decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending[0].target).toEqual({ kind: "individual", assignee: { id: assignee.id, name: "Assignee Andy" } })
+      })
+
+      it("returns nothing for someone who isn't a Decider on any pending run", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        const stranger = makeEmployee({ name: "Stranger Steve" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, stranger.id)
+        expect(pending).toHaveLength(0)
+      })
+
+      it("omits a run once it has been decided", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        await opportunityService.decideAction(run.id, "skip", decider.id)
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending).toHaveLength(0)
+      })
+
+      it("names a group task's actual assignees, not just a count", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        const a1 = makeEmployee({ name: "Assignee A" })
+        const a2 = makeEmployee({ name: "Assignee B" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_group_task",
+          config: {
+            confirmMode: "confirm",
+            decider: [{ type: "employee", id: decider.id }],
+            members: [
+              { employeeId: a1.id, role: "Assignee", taskDescription: "Do it" },
+              { employeeId: a2.id, role: "Assignee", taskDescription: "Do it too" },
+            ],
+          },
+        })
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const pending = await opportunityService.getPendingActionsForActor(deal.id, decider.id)
+        expect(pending).toHaveLength(1)
+        expect(pending[0].target).toEqual({
+          kind: "group",
+          members: [
+            { id: a1.id, name: "Assignee A" },
+            { id: a2.id, name: "Assignee B" },
+          ],
+        })
       })
     })
 

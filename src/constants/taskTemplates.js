@@ -52,6 +52,16 @@ export const TEMPLATE_VARIABLES = [
 
 const TEMPLATE_VARIABLES_BY_KEY = new Map(TEMPLATE_VARIABLES.map((v) => [v.key, v]))
 
+/** A sample SOR to render the live preview against, in the action form. */
+export const SAMPLE_TEMPLATE_CONTEXT = {
+  salesReference: "S01234",
+  projectTitle: "Sample Project",
+  company: "Sample Client Co.",
+  stageName: "Qualified",
+  dealOwnerName: "Dela Cruz, Juan",
+  saleType: "Government",
+}
+
 /** Today's default title, unchanged from `stageActionTaskTitle`'s shape. */
 export const DEFAULT_TITLE_TEMPLATE = "[{{so_number}}] [{{project_title}}]"
 
@@ -71,4 +81,51 @@ export function renderTemplate(template, context = {}) {
     const value = variable.resolve(context)
     return value === null || value === undefined ? "" : String(value)
   })
+}
+
+/**
+ * `renderTemplate`'s replacement, but as `{ text, isToken }` segments rather
+ * than one flat string — so a preview can color exactly the substituted
+ * parts, the same violet the source `{{key}}` token wears in the field
+ * being typed in, and visually tie the two together.
+ */
+export function renderTemplateSegments(template, context = {}) {
+  const source = template && String(template).trim() ? template : DEFAULT_TITLE_TEMPLATE
+  const segments = []
+  let lastIndex = 0
+  let match
+  const re = new RegExp(TOKEN_PATTERN)
+  while ((match = re.exec(source))) {
+    if (match.index > lastIndex) segments.push({ text: source.slice(lastIndex, match.index), isToken: false })
+    const variable = TEMPLATE_VARIABLES_BY_KEY.get(match[1])
+    const value = variable ? variable.resolve(context) : match[0]
+    segments.push({ text: value === null || value === undefined ? "" : String(value), isToken: Boolean(variable) })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < source.length) segments.push({ text: source.slice(lastIndex), isToken: false })
+  return segments
+}
+
+/**
+ * Splits a raw, unrendered `{{key}}`-bearing string (an action's saved
+ * title/description, as seen on the canvas or in a list, never sample-data
+ * output) into `{ text, isToken }` segments where a token's `text` is its
+ * human label ("SO Number") rather than the literal `{{so_number}}` — same
+ * masking `HighlightedTemplateField` shows while typing it, for anywhere
+ * else that string is displayed read-only.
+ */
+export function renderTemplateLabelSegments(text) {
+  const source = text || ""
+  const segments = []
+  let lastIndex = 0
+  let match
+  const re = new RegExp(TOKEN_PATTERN)
+  while ((match = re.exec(source))) {
+    if (match.index > lastIndex) segments.push({ text: source.slice(lastIndex, match.index), isToken: false })
+    const variable = TEMPLATE_VARIABLES_BY_KEY.get(match[1])
+    segments.push({ text: variable?.label || match[1], isToken: Boolean(variable) })
+    lastIndex = match.index + match[0].length
+  }
+  if (lastIndex < source.length) segments.push({ text: source.slice(lastIndex), isToken: false })
+  return segments
 }

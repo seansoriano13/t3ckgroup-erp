@@ -19,12 +19,19 @@ import Dropdown from "@/components/ui/Dropdown";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupRoleService } from "../../../services/groupRoleService";
 import { groupTaskTemplateService } from "../../../services/groupTaskTemplateService";
+import { taskTagService } from "../../../services/taskTagService";
+import { taskTagClasses } from "../../../constants/taskTagColors";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import GroupRoleManagerModal from "./GroupRoleManagerModal";
 import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
+import TemplateVariableChips from "@/components/ui/TemplateVariableChips";
+import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField";
+import { cn } from "@/lib/utils";
+import PeoplePicker from "@/components/ui/PeoplePicker";
+import { Switch } from "@/components/ui/switch";
 import {
   hasChecklistContent,
   cleanChecklistForSave,
@@ -82,8 +89,18 @@ export default function CreateGroupTaskModal({
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [appliedTemplateId, setAppliedTemplateId] = useState(null);
   const [isSaveTemplateModalOpen, setIsSaveTemplateModalOpen] = useState(false);
+  const [confirmMode, setConfirmMode] = useState(undefined);
+  const [decider, setDecider] = useState([]);
+  const [tagIds, setTagIds] = useState([]);
+
+  const { data: allTags = [] } = useQuery({
+    queryKey: ["taskTags"],
+    queryFn: () => taskTagService.list(),
+    enabled: isOpen,
+  });
 
   const titleRef = useRef(null);
+  const descriptionRef = useRef(null);
   const avatarMap = useEmployeeAvatarMap();
   const queryClient = useQueryClient();
 
@@ -100,6 +117,9 @@ export default function CreateGroupTaskModal({
         setSelectedMemberId(nextMembers[0]?.id ?? null);
         setAppliedTemplateId(null);
         setIsSaveTemplateModalOpen(false);
+        setConfirmMode(initialData.confirmMode);
+        setDecider(initialData.decider || []);
+        setTagIds(initialData.tagIds || []);
       } else {
         const first = makeMember();
         // Resetting on open is the point: the modal keeps its fields mounted
@@ -113,6 +133,9 @@ export default function CreateGroupTaskModal({
         setSelectedMemberId(first.id);
         setAppliedTemplateId(null);
         setIsSaveTemplateModalOpen(false);
+        setConfirmMode(undefined);
+        setDecider([]);
+        setTagIds([]);
       }
       setTimeout(() => titleRef.current?.focus(), 150);
     }
@@ -258,8 +281,11 @@ export default function CreateGroupTaskModal({
       description,
       dueDate: mode === "automation" ? null : dueDate,
       dueDateOffsetDays: mode === "automation" ? dueOffsetDays : undefined,
+      confirmMode: mode === "automation" ? confirmMode : undefined,
+      decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
+      tagIds,
       members: validMembers.map((m) => {
         return {
           employeeId: m.employeeId,
@@ -369,25 +395,95 @@ export default function CreateGroupTaskModal({
           >
             {/* TASK-LEVEL FIELDS */}
             <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border/60">
-              <input
-                ref={titleRef}
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Group Task Title"
-                className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
-                autoComplete="off"
-              />
+              {mode === "automation" ? (
+                <HighlightedTemplateField
+                  ref={titleRef}
+                  as="input"
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Group Task Title"
+                  className="text-xl font-semibold placeholder:text-mauve-6 pb-1"
+                  wrapperClassName="mb-2"
+                  autoComplete="off"
+                />
+              ) : (
+                <input
+                  ref={titleRef}
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Group Task Title"
+                  className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
+                  autoComplete="off"
+                />
+              )}
+
+              {mode === "automation" && (
+                <TemplateVariableChips
+                  value={title}
+                  onInsert={(token) => titleRef.current?.insertToken(token)}
+                  className="mb-2"
+                />
+              )}
 
               <div className="flex items-start gap-6 flex-wrap">
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Provide an overview of the group task objective…"
-                  className={`flex-1 min-w-[260px] bg-transparent border-none outline-none transition-all resize-y text-[13px] text-foreground placeholder:text-mauve-6 ${
-                    isExpanded ? "h-20" : "h-14"
-                  }`}
-                />
+                <div className="flex-1 min-w-[260px]">
+                  {mode === "automation" ? (
+                    <HighlightedTemplateField
+                      ref={descriptionRef}
+                      as="textarea"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide an overview of the group task objective…"
+                      className={cn("text-[13px] placeholder:text-mauve-6", isExpanded ? "h-20" : "h-14")}
+                    />
+                  ) : (
+                    <textarea
+                      ref={descriptionRef}
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      placeholder="Provide an overview of the group task objective…"
+                      className={`w-full bg-transparent border-none outline-none transition-all resize-y text-[13px] text-foreground placeholder:text-mauve-6 ${
+                        isExpanded ? "h-20" : "h-14"
+                      }`}
+                    />
+                  )}
+                  {mode === "automation" && (
+                    <TemplateVariableChips
+                      value={description}
+                      onInsert={(token) => descriptionRef.current?.insertToken(token)}
+                    />
+                  )}
+                </div>
+
+                <div className="flex flex-col shrink-0 max-w-[260px]">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Tags
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allTags.length === 0 && (
+                      <span className="text-[11px] text-muted-foreground">No tags yet</span>
+                    )}
+                    {allTags.map((tag) => {
+                      const active = tagIds.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          type="button"
+                          onClick={() =>
+                            setTagIds((prev) =>
+                              active ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
+                            )
+                          }
+                          className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-bold transition-opacity ${taskTagClasses(tag.color)} ${active ? "" : "opacity-40 hover:opacity-70"}`}
+                        >
+                          {tag.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div className="flex flex-col shrink-0">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
@@ -429,6 +525,26 @@ export default function CreateGroupTaskModal({
                   </div>
                 </div>
               </div>
+
+              {mode === "automation" && (
+                <div className="mt-3 flex items-center justify-between rounded-lg border border-dashed border-mauve-7 px-3 py-2">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    Require confirmation before running
+                  </span>
+                  <Switch
+                    checked={confirmMode === "confirm"}
+                    onCheckedChange={(next) => setConfirmMode(next ? "confirm" : undefined)}
+                  />
+                </div>
+              )}
+              {mode === "automation" && confirmMode === "confirm" && (
+                <div className="mt-2 space-y-1">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                    Decider (defaults to the Deal Owner)
+                  </span>
+                  <PeoplePicker value={decider} onChange={setDecider} allowRoles placeholder="Add Decider" />
+                </div>
+              )}
             </div>
 
             {/* MASTER / DETAIL */}
