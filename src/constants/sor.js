@@ -100,16 +100,6 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_default) ?? null;
 
 /**
- * The single stage an ITB Number (Invitation to Bid) must be on record to
- * reach, or null if a list has none. Resolved by flag and compared by
- * position, the same way the Anchor Stage is — never by a literal sort_order
- * or code, which would silently detach from the gate the moment that stage is
- * renamed or reordered.
- */
-export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
-  stages.find((s) => s.is_itb_gate) ?? null;
-
-/**
  * Whether an opportunity counts toward the Realized Commission Pool rather
  * than the Projected one.
  *
@@ -182,6 +172,17 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 export const isOpenPipelineOpportunity = (opportunity, context) => {
   const stage = currentStageTerminality(opportunity, context);
   return Boolean(stage) && !opportunity.contract_date && !stage.isTerminal;
+};
+
+/**
+ * Whether the SOR's current Stage is a Terminal Stage (won or lost) — issue
+ * #206's default sort sinks these to the bottom of the register. An SOR whose
+ * Stage can't be resolved sorts as not-terminal, the same under-reporting
+ * direction the rest of this file takes.
+ */
+export const isOnTerminalStage = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage?.isTerminal);
 };
 
 /**
@@ -321,52 +322,10 @@ export const requiresSalesReference = (
   !isLostCode(toStatus, stages);
 
 /**
- * Whether a stage move requires an ITB Number (Invitation to Bid) to be on
- * record. Required when moving from before the gate stage (For Bidding) to it
- * or beyond; rows already at or past it keep advancing without a second ask.
- *
- * Compared against the gate stage's own sort_order, not a literal — reordering
- * or renaming For Bidding must move the gate with it. A stage list with no
- * gate stage requires nothing, the same fail-safe direction
- * isRealizedOpportunity takes for a deal with no Contract Date.
- *
- * This answers only "does the gate stand in the way of this move" — never
- * "has this opportunity already satisfied it". Ask itbGateSatisfiedBy() for
- * that; the two are separate because the gate is crossed by a move and
- * satisfied by a record, and conflating them is how the exemption gets
- * forgotten at one call site out of three.
- */
-export const requiresItbNumber = (
-  fromStatus,
-  toStatus,
-  stages = PIPELINE_STAGE_SEED,
-) => {
-  const gate = itbGateStage(stages);
-  const fromStage = stageByCode(fromStatus, stages);
-  const toStage = stageByCode(toStatus, stages);
-  if (!gate || !fromStage || !toStage) return false;
-
-  return (
-    fromStage.sort_order < gate.sort_order &&
-    toStage.sort_order >= gate.sort_order &&
-    !isLostCode(toStatus, stages)
-  );
-};
-
-/**
- * Whether an opportunity already has what the ITB gate asks for.
- *
- * Two things satisfy it, and the second is the whole reason the gate is
- * survivable: an ITB Number on record, or the deal being marked outright —
- * an award with no bidding involved, government direct contracts among them,
- * where no Invitation to Bid was ever issued and so no number exists to give.
- * Without that second answer the gate could only block those deals or be
- * switched off for everybody, which is exactly what happened between
- * migrations 0035 and 0038.
- *
- * Every gate check goes through here rather than spelling out the pair
- * inline, so a caller cannot honour the number and forget the exemption.
- * Mirrored by the trigger — see migration 0038.
+ * Whether an opportunity carries what the old ITB gate used to ask for — an
+ * ITB Number on record, or the deal marked outright (no bidding involved).
+ * The gate itself was removed (issue #206, ADR 0004 D12); this only decides
+ * whether the details view has anything read-only to show.
  */
 export const itbGateSatisfiedBy = (opportunity) =>
   Boolean(opportunity?.itb_number || opportunity?.itb_exempt);

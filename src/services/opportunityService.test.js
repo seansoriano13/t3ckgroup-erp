@@ -288,145 +288,30 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
     })
 
-    it("refuses to reach For Bidding without an ITB Number on record", async () => {
+    // The ITB gate at For Bidding was removed (issue #206, ADR 0004 D12) —
+    // Sales Flows replaced it. These replace the old gate tests to assert it
+    // no longer blocks, while the Sales Reference rule keeps working.
+    it("reaches For Bidding and beyond with no ITB Number on record", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      await expect(
-        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
-      ).rejects.toThrow(/ITB Number/i)
+      const moved = await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
 
-      const unchanged = await opportunityService.getOpportunityById(lead.id)
-      expect(unchanged.status).toBe("LEAD")
-    })
-
-    it("raises a clean error for a missing ITB Number without a round trip to the database", async () => {
-      // Mirrors the Sales Reference gate: the service checks before writing,
-      // rather than relying on the trigger's raw constraint-violation message
-      // to reach the caller. Matters for anything that calls updateStatus
-      // other than the details modal, which already gates client-side.
-      //
-      // A trigger-surfaced rejection carries `.pgrst` (see pgrstError in the
-      // fake database); a plain `throw new Error(...)` from the service does
-      // not. That is the only reliable way to tell "the service refused" from
-      // "the database refused" apart, since the messages are deliberately the
-      // same wording either way.
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      let caught = null
-      try {
-        await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
-      } catch (error) {
-        caught = error
-      }
-
-      expect(caught?.message).toMatch(/ITB Number/i)
-      expect(caught?.pgrst).toBeUndefined()
-    })
-
-    it("tells the caller an outright deal is the way past the gate", async () => {
-      // The refusal has to name the second answer, or the only ways out a
-      // salesperson can see are inventing a number or giving up — and one of
-      // those two leaves fabricated ITB Numbers in the register.
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      await expect(
-        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
-      ).rejects.toThrow(/outright/i)
-    })
-
-    it("advances an outright deal with no ITB Number when the move declares it", async () => {
-      // Government direct contracts and the like: won with no Invitation to
-      // Bid ever issued, so there is no number that could be supplied. This
-      // is the move that was impossible between migrations 0035 and 0038.
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "CLOSED_WON",
-        registrar.id,
-        null,
-        null,
-        null,
-        true,
-      )
-
-      expect(moved.status).toBe("CLOSED_WON")
-      expect(moved.itb_exempt).toBe(true)
+      expect(moved.status).toBe("FOR_BIDDING")
       expect(moved.itb_number).toBeNull()
+      expect(moved.itb_exempt).toBe(false)
     })
 
-    it("writes the outright claim to the log notes under the actor's name", async () => {
-      // A silent boolean on the row would leave no answer to "why did this one
-      // get through without a number", which is the question an audit asks.
+    it("no longer writes itb_number/itb_exempt from a stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      await opportunityService.updateStatus(
-        lead.id,
-        "CLOSED_WON",
-        registrar.id,
-        null,
-        null,
-        null,
-        true,
-      )
-
-      const notes = await opportunityService.getNotes(lead.id)
-      const claim = notes.find((n) => n.metadata?.event === "ITB_EXEMPT_DECLARED")
-
-      expect(claim).toBeTruthy()
-      expect(claim.content).toMatch(/outright/i)
-      expect(claim.author_id).toBe(registrar.id)
-      // The move itself is still recorded separately — the claim explains the
-      // move, it does not replace it.
-      expect(notes.some((n) => n.metadata?.event === "STAGE_CHANGED")).toBe(true)
-    })
-
-    it("does not re-log the outright claim on a later move", async () => {
-      // Already declared. Repeating the note on every subsequent stage change
-      // would bury the timeline in a claim nobody made twice.
-      const lead = makeOpportunity({
-        registered_by: registrar.id,
-        sales_reference: "S00999",
-        status: "FOR_BIDDING",
-        itb_exempt: true,
-      })
-
-      await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id, null, null, null, true)
-
-      const notes = await opportunityService.getNotes(lead.id)
-      const claims = notes.filter((n) => n.metadata?.event === "ITB_EXEMPT_DECLARED")
-      expect(claims).toHaveLength(0)
-    })
-
-    it("keeps letting an already-outright deal advance without re-declaring", async () => {
-      const lead = makeOpportunity({
-        registered_by: registrar.id,
-        sales_reference: "S00999",
-        itb_exempt: true,
-      })
 
       const moved = await opportunityService.updateStatus(lead.id, "CLOSED_WON", registrar.id)
 
       expect(moved.status).toBe("CLOSED_WON")
+      expect(moved.itb_number).toBeNull()
+      expect(moved.itb_exempt).toBe(false)
     })
 
-    it("advances to For Bidding when the ITB Number is supplied with the move", async () => {
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "FOR_BIDDING",
-        registrar.id,
-        null,
-        null,
-        "ITB-2026-001",
-      )
-
-      expect(moved.status).toBe("FOR_BIDDING")
-      expect(moved.itb_number).toBe("ITB-2026-001")
-    })
-
-    it("does not re-ask for an ITB Number moving between stages already past the gate", async () => {
+    it("keeps an existing ITB Number untouched across further moves", async () => {
       const lead = makeOpportunity({
         registered_by: registrar.id,
         sales_reference: "S00999",
@@ -437,6 +322,7 @@ describe("opportunityService", () => {
       const moved = await opportunityService.updateStatus(lead.id, "BID_SUBMITTED", registrar.id)
 
       expect(moved.status).toBe("BID_SUBMITTED")
+      expect(moved.itb_number).toBe("ITB-2026-001")
     })
 
     it("lets a lead be closed as lost before it was ever put out to bid", async () => {
@@ -536,14 +422,7 @@ describe("opportunityService", () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
       expect(lead.contract_date).toBeFalsy()
 
-      const awarded = await opportunityService.updateStatus(
-        lead.id,
-        "AWARDED",
-        registrar.id,
-        null,
-        null,
-        "ITB-2026-001",
-      )
+      const awarded = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
 
       expect(awarded.contract_date).toBeTruthy()
     })
@@ -564,14 +443,7 @@ describe("opportunityService", () => {
 
     it("keeps the original Contract Date if the opportunity leaves and re-enters Awarded", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-      const firstAward = await opportunityService.updateStatus(
-        lead.id,
-        "AWARDED",
-        registrar.id,
-        null,
-        null,
-        "ITB-2026-001",
-      )
+      const firstAward = await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
       const firstDate = firstAward.contract_date
 
       await opportunityService.updateStatus(lead.id, "NEGOTIATION", registrar.id)
@@ -676,14 +548,7 @@ describe("opportunityService", () => {
         config: { column: "contact_person" },
       })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "FOR_BIDDING",
-        registrar.id,
-        null,
-        null,
-        "ITB-2026-001",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id)
       expect(moved.status).toBe("FOR_BIDDING")
     })
 
@@ -735,30 +600,6 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
     })
 
-    it("coexists with the ITB gate — either can block the same move, independently", async () => {
-      // On Qualified — crossed on the way to For Bidding, so it's still in
-      // play the first time this deal tries to reach the gate stage.
-      makeStageCondition({
-        stage_code: "QUALIFIED",
-        kind: "field",
-        label: "Contact person on file",
-        config: { column: "contact_person" },
-      })
-      const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-
-      // The ITB gate blocks first — the engine's own check is never reached.
-      await expect(
-        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id),
-      ).rejects.toThrow(/ITB Number/i)
-
-      // Satisfying the ITB gate surfaces the engine's block underneath it.
-      await expect(
-        opportunityService.updateStatus(lead.id, "FOR_BIDDING", registrar.id, null, null, "ITB-2026-001"),
-      ).rejects.toThrow(/Contact person on file/)
-
-      const unchanged = await opportunityService.getOpportunityById(lead.id)
-      expect(unchanged.status).toBe("LEAD")
-    })
   })
 
   describe("per-kind satisfaction (ticket 5)", () => {
@@ -2756,7 +2597,6 @@ describe("opportunityService", () => {
             contact_person: "Engr. Santos",
             po_date: "2026-04-01",
             expected_award_date: "2026-05-01",
-            itb_number: "ITB-77",
             lead_source_detail: "Mayor's office",
             closing_sales_id: closer.id,
             support_sales_1_id: support1.id,
@@ -2777,7 +2617,6 @@ describe("opportunityService", () => {
           sales_reference: "S04521",
           contact_person: "Engr. Santos",
           expected_award_date: "2026-05-01",
-          itb_number: "ITB-77",
           lead_source_detail: "Mayor's office",
           project_type: "STRATEGIC",
           client_name: "Quezon City Hall",
@@ -2795,15 +2634,6 @@ describe("opportunityService", () => {
         expect(found.po_date).toBe("2026-04-09")
         const items = await opportunityService.getItems(created.id)
         expect(items.map((i) => i.product_name)).toEqual(["Pumper"])
-      })
-
-      it("keeps an outright marking when an unrelated field is saved", async () => {
-        const created = await opportunityService.createOpportunity(payload(), registrar.id)
-        await opportunityService.updateOpportunity(created.id, { itb_exempt: true }, registrar.id)
-
-        await opportunityService.updateOpportunity(created.id, { contact_person: "Engr. Cruz" }, registrar.id)
-
-        expect((await opportunityService.getOpportunityById(created.id)).itb_exempt).toBe(true)
       })
 
       it("records only the field that changed on the timeline", async () => {
@@ -2856,9 +2686,9 @@ describe("opportunityService", () => {
         expect(saved.expected_value).toBe(3000)
       })
 
-      it("offers a Save input for text, date and custom fields, but not people, Estimated Value or the ITB exemption", () => {
+      it("offers a Save input for text, date and custom fields, but not people or Estimated Value", () => {
         const writable = ["po_date", "sales_reference", "Warranty", "supplier_id"].filter(opportunityService.isChecklistWritableField)
-        const refused = ["deal_owner_id", "sales_director_id", "expected_value", "itb_exempt"].filter(opportunityService.isChecklistWritableField)
+        const refused = ["deal_owner_id", "sales_director_id", "expected_value"].filter(opportunityService.isChecklistWritableField)
         expect(writable).toEqual(["po_date", "sales_reference", "Warranty", "supplier_id"])
         expect(refused).toEqual([])
       })
@@ -3072,14 +2902,7 @@ describe("opportunityService", () => {
     it("records a stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      await opportunityService.updateStatus(
-        lead.id,
-        "AWARDED",
-        registrar.id,
-        null,
-        null,
-        "ITB-2026-001",
-      )
+      await opportunityService.updateStatus(lead.id, "AWARDED", registrar.id)
       await waitForNetworkIdle()
 
       expect(

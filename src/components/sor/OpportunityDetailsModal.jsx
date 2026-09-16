@@ -66,7 +66,6 @@ import {
   isValidSalesReference,
   normalizeSalesReference,
   requiresSalesReference,
-  requiresItbNumber,
   itbGateSatisfiedBy,
   ITB_EXEMPT_LABEL,
   SALES_REFERENCE_HINT,
@@ -590,7 +589,6 @@ export default function OpportunityDetailsModal({
   const [pendingStage, setPendingStage] = useState("");
   const [lostReason, setLostReason] = useState("");
   const [salesRef, setSalesRef] = useState("");
-  const [itbNumber, setItbNumber] = useState("");
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -624,7 +622,6 @@ export default function OpportunityDetailsModal({
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
-    setItbNumber("");
 
     setIsExpanded(false);
     setIsEditing(false);
@@ -808,21 +805,12 @@ export default function OpportunityDetailsModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference, itbNumber, itbExempt }) =>
-      opportunityService.updateStatus(
-        id,
-        next,
-        user?.id,
-        reason,
-        salesReference,
-        itbNumber,
-        itbExempt,
-      ),
+    mutationFn: ({ next, reason, salesReference }) =>
+      opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
       setSalesRef("");
-      setItbNumber("");
 
       invalidate();
       toast.success("Stage updated.");
@@ -1155,8 +1143,6 @@ export default function OpportunityDetailsModal({
         po_date: opportunity.po_date || "",
         contact_person: opportunity.contact_person || "",
         sales_reference: opportunity.sales_reference || "",
-        itb_number: opportunity.itb_number || "",
-        itb_exempt: !!opportunity.itb_exempt,
         deal_owner_id: opportunity.deal_owner_id || "",
         closing_sales_id: opportunity.closing_sales_id || "",
         sales_director_id: opportunity.sales_director_id || "",
@@ -1182,12 +1168,6 @@ export default function OpportunityDetailsModal({
     !opportunity.sales_reference;
   const salesRefValid = isValidSalesReference(salesRef);
 
-  const needsItbNumber =
-    !!pendingStage &&
-    requiresItbNumber(opportunity.status, pendingStage) &&
-    !itbGateSatisfiedBy(opportunity);
-  const itbNumberValid = !!itbNumber.trim();
-
   const handleSaveField = async (column, value) => {
     await opportunityService.saveRecordField(id, column, value, user?.id);
     invalidate();
@@ -1199,8 +1179,7 @@ export default function OpportunityDetailsModal({
     // they park the choice in `pendingStage` and prompt for it inline.
     if (
       isLostCode(next) ||
-      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference) ||
-      (requiresItbNumber(opportunity.status, next) && !itbGateSatisfiedBy(opportunity))
+      (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)
     ) {
       setPendingStage(next);
       return;
@@ -1218,19 +1197,18 @@ export default function OpportunityDetailsModal({
         } means quoting ${stillOpen.length === 1 ? "it" : "them"} before anyone has confirmed ${stillOpen.length === 1 ? "it" : "they"} can be sourced.`,
         "Move anyway",
         "warning",
-        () => stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null }),
+        () => stageMutation.mutate({ next, reason: null, salesReference: null }),
       );
       return;
     }
 
-    stageMutation.mutate({ next, reason: null, salesReference: null, itbNumber: null });
+    stageMutation.mutate({ next, reason: null, salesReference: null });
   };
 
   const cancelPendingStage = () => {
     setPendingStage("");
     setLostReason("");
     setSalesRef("");
-    setItbNumber("");
   };
 
   const isPosting = isUploading || addNoteMutation.isPending;
@@ -1554,7 +1532,7 @@ export default function OpportunityDetailsModal({
               </div>
             )}
 
-            {(needsSalesRef || needsItbNumber) && (
+            {needsSalesRef && (
               <div className="mt-3 rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
                 <div className="flex flex-col gap-3">
                   {needsSalesRef && (
@@ -1585,65 +1563,6 @@ export default function OpportunityDetailsModal({
                     </div>
                   )}
 
-                  {needsItbNumber && (
-                    <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-                      <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-                        ITB Number (Invitation to Bid)
-                        <span className="ml-0.5 text-red-500">*</span>
-                      </label>
-                      <input
-                        autoFocus={!needsSalesRef}
-                        value={itbNumber}
-                        onChange={(e) => setItbNumber(e.target.value)}
-                        placeholder="e.g. ITB-2026-001 or URL link"
-                        className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
-                      />
-                      <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
-                        Enter the ITB Number (Invitation to Bid).
-                      </p>
-
-                      {/* Not every deal was bid for. An outright award — a government
-                          direct contract, say — has no ITB Number to give, and with
-                          no way to say so the only options left were inventing a
-                          number or having the gate switched off for everyone (which
-                          is what migrations 0035–0038 went through). Saying it is a
-                          claim about how the deal was won, so it is confirmed and
-                          then written to the log notes, never applied silently. */}
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2 border-t border-border/60 pt-2.5">
-                        <p className="text-[11px] font-medium text-muted-foreground">
-                          No Invitation to Bid was issued for this deal?
-                        </p>
-                        <button
-                          disabled={
-                            stageMutation.isPending ||
-                            (needsSalesRef && !salesRefValid)
-                          }
-                          onClick={() =>
-                            confirmActionToast(
-                              "Mark this deal outright?",
-                              `${ITB_EXEMPT_LABEL} — it moves to ${stageLabel(pendingStage) || pendingStage
-                              } with no ITB Number, and this is recorded on the log notes under your name.`,
-                              "Mark outright",
-                              "warning",
-                              () =>
-                                stageMutation.mutate({
-                                  next: pendingStage,
-                                  reason: null,
-                                  salesReference: needsSalesRef
-                                    ? normalizeSalesReference(salesRef)
-                                    : null,
-                                  itbNumber: null,
-                                  itbExempt: true,
-                                }),
-                            )
-                          }
-                          className="rounded-lg border border-amber-400/50 bg-amber-500/10 px-2.5 py-1.5 text-[11px] font-bold text-amber-11 transition-all hover:bg-amber-500/20 disabled:opacity-50"
-                        >
-                          Outright — no bidding required
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 <div className="mt-3 flex items-center justify-end gap-2">
@@ -1656,7 +1575,6 @@ export default function OpportunityDetailsModal({
                   <button
                     disabled={
                       (needsSalesRef && !salesRefValid) ||
-                      (needsItbNumber && !itbNumberValid) ||
                       stageMutation.isPending
                     }
                     onClick={() =>
@@ -1666,7 +1584,6 @@ export default function OpportunityDetailsModal({
                         salesReference: needsSalesRef
                           ? normalizeSalesReference(salesRef)
                           : null,
-                        itbNumber: needsItbNumber ? itbNumber.trim() : null,
                       })
                     }
                     className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
@@ -2189,41 +2106,16 @@ export default function OpportunityDetailsModal({
                     </Detail>
                   )}
 
-                  <Detail
-                    label="ITB Number (Invitation to Bid)"
-                    isEditing={isEditing}
-                    control={
-                      <div className="flex flex-col gap-1.5">
-                        <input
-                          type="text"
-                          value={editForm.itb_number}
-                          onChange={(e) => setEditForm((f) => ({ ...f, itb_number: e.target.value }))}
-                          disabled={editForm.itb_exempt}
-                          className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium disabled:opacity-40"
-                          placeholder="e.g. ITB-2026-001 or URL link"
-                        />
-                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-                          <input
-                            type="checkbox"
-                            checked={!!editForm.itb_exempt}
-                            onChange={(e) =>
-                              setEditForm((f) => ({ ...f, itb_exempt: e.target.checked }))
-                            }
-                            className="accent-amber-9"
-                          />
-                          {ITB_EXEMPT_LABEL}
-                        </label>
-                      </div>
-                    }
-                  >
-                    {opportunity.itb_number || (
-                      opportunity.itb_exempt ? (
+                  {/* Retired with the ITB gate (issue #206) — shown read-only only
+                      when an SOR already has one on record; nothing writes it any
+                      more. */}
+                  {itbGateSatisfiedBy(opportunity) && (
+                    <Detail label="ITB Number (Invitation to Bid)">
+                      {opportunity.itb_number || (
                         <span className="text-xs font-bold text-amber-11">{ITB_EXEMPT_LABEL}</span>
-                      ) : (
-                        <span className="text-muted-foreground/50 text-xs font-medium italic">N/A</span>
-                      )
-                    )}
-                  </Detail>
+                      )}
+                    </Detail>
+                  )}
                 </div>
               </div>
 

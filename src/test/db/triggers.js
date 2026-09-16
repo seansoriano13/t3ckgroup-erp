@@ -28,12 +28,10 @@ export const TRIGGERS = {
       // S0#### format with Odoo's sales references while identifying an
       // unrelated record, so it is no longer minted. New rows leave it null.
       // 0011 — sales_opportunities_require_sales_ref(), INSERT branch.
-      // Rewritten in 0034 to read flags from crm_pipeline_stages, and in 0036
-      // to gate the ITB Number the same way — by the is_itb_gate flag's own
-      // sort_order, never a literal, so reordering the gate stage moves the
-      // gate with it instead of leaving a stale threshold behind. 0038 added
-      // the outright exemption: an award won with no bidding has no ITB
-      // Number to give, so itb_exempt satisfies the gate in its place.
+      // Rewritten in 0034 to read flags from crm_pipeline_stages, in 0036 to
+      // add the ITB gate, and in the #206 migration to drop that gate again —
+      // Sales Flows replaced it (ADR 0004 D12). itb_number/itb_exempt stay on
+      // the row, still trimmed, just no longer enforced.
       function requireSalesReferenceOnInsert(row, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
@@ -42,7 +40,6 @@ export const TRIGGERS = {
 
         const stages = context.rowsOf("crm_pipeline_stages")
         const stage = stages.find((s) => s.code === row.status)
-        const gate = stages.find((s) => s.is_itb_gate)
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
 
@@ -51,22 +48,12 @@ export const TRIGGERS = {
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required to register an opportunity beyond Lead.",
           )
         }
-        if (
-          gate &&
-          stage?.sort_order >= gate.sort_order &&
-          !isLost &&
-          row.itb_number == null &&
-          !row.itb_exempt
-        ) {
-          raise(
-            "An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond, unless it is marked outright (no bidding required).",
-          )
-        }
       },
     ],
     beforeUpdate: [
       // 0011 — sales_opportunities_require_sales_ref(), UPDATE branch.
-      // Rewritten in 0034/0036 — see the INSERT branch above.
+      // Rewritten in 0034/0036, then again by the #206 migration — see the
+      // INSERT branch above.
       function requireSalesReferenceOnStageMove(row, old, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
@@ -76,7 +63,6 @@ export const TRIGGERS = {
         const stages = context.rowsOf("crm_pipeline_stages")
         const stage = stages.find((s) => s.code === row.status)
         const oldStage = stages.find((s) => s.code === old.status)
-        const gate = stages.find((s) => s.is_itb_gate)
 
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
@@ -87,19 +73,6 @@ export const TRIGGERS = {
         if (oldIsLead && !isLead && !isLost && row.sales_reference == null) {
           raise(
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required before this opportunity can leave Lead.",
-          )
-        }
-
-        if (
-          gate &&
-          oldStage?.sort_order < gate.sort_order &&
-          stage?.sort_order >= gate.sort_order &&
-          !isLost &&
-          row.itb_number == null &&
-          !row.itb_exempt
-        ) {
-          raise(
-            "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond, unless it is marked outright (no bidding required).",
           )
         }
       },

@@ -40,6 +40,8 @@ import { useAuth } from "../../context/AuthContext";
 import {
   isOpenPipelineOpportunity,
   isStillMovingOpportunity,
+  isOnTerminalStage,
+  isRealizedOpportunity,
   PROJECT_TYPE_SHORT,
   formatLeadSource,
   formatPHP,
@@ -395,8 +397,13 @@ export default function OpportunitiesPage() {
   // reorder everyone's list on first load.
   const [sortField, setSortField] = useState("serial_no");
   const [sortOrder, setSortOrder] = useState("desc"); // 'asc' | 'desc'
+  // Issue #206: distinguishes the untouched default order (which sinks
+  // Terminal Stage SORs to the bottom) from a column sort the user actually
+  // chose (which overrides that, even a click back onto "No.").
+  const [hasExplicitSort, setHasExplicitSort] = useState(false);
 
   const handleSort = (field) => {
+    setHasExplicitSort(true);
     if (sortField === field) {
       setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
     } else {
@@ -450,6 +457,15 @@ export default function OpportunitiesPage() {
     // Sort a copy: `filtered` is a memo other consumers read, and Array.sort
     // mutates in place.
     return [...filtered].sort((a, b) => {
+      // Issue #206: in the default order (no explicit column sort chosen),
+      // a Terminal Stage SOR sinks below everything still moving. Choosing a
+      // column sort overrides this — it applies only to the untouched default.
+      if (!hasExplicitSort) {
+        const aTerminal = isOnTerminalStage(a, stageContext);
+        const bTerminal = isOnTerminalStage(b, stageContext);
+        if (aTerminal !== bTerminal) return aTerminal ? 1 : -1;
+      }
+
       const av = key(a);
       const bv = key(b);
       if (av < bv) return -1 * dir;
@@ -457,15 +473,17 @@ export default function OpportunitiesPage() {
       // Stable tiebreak so equal keys never shuffle between renders.
       return (Number(b.serial_no) || 0) - (Number(a.serial_no) || 0);
     });
-  }, [filtered, sortField, sortOrder, stageRank, activeLeadSources]);
+  }, [filtered, sortField, sortOrder, stageRank, activeLeadSources, stageContext, hasExplicitSort]);
 
   const totals = useMemo(() => {
     const open = filtered.filter((o) => isOpenPipelineOpportunity(o, stageContext));
+    const won = filtered.filter((o) => isRealizedOpportunity(o, pipelineStages));
     return {
       count: filtered.length,
       openValue: open.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
+      wonValue: won.reduce((sum, o) => sum + Number(o.expected_value || 0), 0),
     };
-  }, [filtered, stageContext]);
+  }, [filtered, stageContext, pipelineStages]);
 
   const { data: directOpportunity } = useQuery({
     queryKey: ["opportunity", selectedId],
@@ -811,9 +829,16 @@ export default function OpportunitiesPage() {
           <span>{totals.count} opportunit{totals.count === 1 ? "y" : "ies"}</span>
           <span className="text-muted-foreground/40">•</span>
           <span>
-            Open pipeline value{" "}
+            Open pipeline{" "}
             <span className="text-foreground font-bold">
               {formatPHP(totals.openValue)}
+            </span>
+          </span>
+          <span className="text-muted-foreground/40">•</span>
+          <span>
+            Won{" "}
+            <span className="text-foreground font-bold">
+              {formatPHP(totals.wonValue)}
             </span>
           </span>
         </div>

@@ -10,6 +10,7 @@ import {
   isRealizedOpportunity,
   isOpenPipelineOpportunity,
   isStillMovingOpportunity,
+  isOnTerminalStage,
   isTerminalStage,
   isWonCode,
   renderableStages,
@@ -22,8 +23,6 @@ import {
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_SHORT,
   itbGateSatisfiedBy,
-  itbGateStage,
-  requiresItbNumber,
   requiresSalesReference,
   STAGE_LABELS,
 } from "./sor"
@@ -404,71 +403,6 @@ describe("stage gating derived from flags rather than codes", () => {
 })
 
 /**
- * The ITB (Invitation to Bid) Number gate was added on top of the flag-driven
- * design: it must key off the same is_itb_gate flag pattern as the anchor,
- * never off a stage's sort_order literal or code — a magic number baked into
- * a threshold comparison is exactly what the flag design exists to prevent,
- * because reordering or renaming the gate stage would silently detach it.
- *
- * The gate asks two separate questions, and they are separate functions here
- * for a reason: requiresItbNumber() is about the *move* (does the gate stand
- * between these two stages), itbGateSatisfiedBy() is about the *record* (does
- * this deal have what the gate asks for). Collapsing them is how the outright
- * exemption ends up honoured at two call sites out of three.
- */
-describe("the ITB Number gate", () => {
-  it("names For Bidding as the single stage requiring an ITB Number", () => {
-    expect(itbGateStage(PIPELINE_STAGE_SEED).code).toBe("FOR_BIDDING")
-  })
-
-  it("requires an ITB Number moving from before the gate to it or beyond", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING")).toBe(true)
-    expect(requiresItbNumber("QUALIFIED", "NEGOTIATION")).toBe(true)
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "AWARDED")).toBe(true)
-  })
-
-  it("gates the jump straight to Closed Won, not only the pre-award stages", () => {
-    // The move sales actually makes on an outright deal. It crosses the gate
-    // like any other, which is why the exemption below has to exist.
-    expect(requiresItbNumber("QUALIFIED", "CLOSED_WON")).toBe(true)
-  })
-
-  it("does not gate a move that stays before the gate stage", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED")).toBe(false)
-  })
-
-  it("does not re-gate a move that stays at or past the gate stage", () => {
-    // Already-quoted opportunities keep advancing without a second ask.
-    expect(requiresItbNumber("FOR_BIDDING", "BID_SUBMITTED")).toBe(false)
-    expect(requiresItbNumber("NEGOTIATION", "AWARDED")).toBe(false)
-  })
-
-  it("lets a deal be closed as lost before it was ever put out to bid", () => {
-    expect(requiresItbNumber("QUALIFIED", "CLOSED_LOST")).toBe(false)
-  })
-
-  it("keeps gating at the position the gate stage actually holds after a reorder", () => {
-    // The whole point of deriving from a flag: moving For Bidding's sort_order
-    // must move the gate with it, not leave a stale threshold behind.
-    const reordered = PIPELINE_STAGE_SEED.map((s) => {
-      if (s.code === "FOR_BIDDING") return { ...s, sort_order: 25 }
-      if (s.code === "QUALIFIED") return { ...s, sort_order: 35 }
-      return s
-    })
-
-    // A move that used to be gated (Qualified was past For Bidding) no longer is.
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED", reordered)).toBe(true)
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING", reordered)).toBe(true)
-  })
-
-  it("never gates anything when no stage carries the flag", () => {
-    const noGate = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_itb_gate: false }))
-    expect(itbGateStage(noGate)).toBeNull()
-    expect(requiresItbNumber("LEAD", "CLOSED_WON", noGate)).toBe(false)
-  })
-})
-
-/**
  * The exemption is what makes the gate survivable. Between 0035 and 0038 there
  * was no way for a deal to say "no Invitation to Bid was ever issued for me",
  * so outright awards — government direct contracts among them — could only be
@@ -643,5 +577,33 @@ describe("open pipeline and still moving", () => {
     expect(isStillMovingOpportunity({ status: "CLOSED_WON" })).toBe(false)
     expect(isOpenPipelineOpportunity({ status: "CLOSED_LOST" })).toBe(false)
     expect(isStillMovingOpportunity({ status: "NOT_A_STAGE" })).toBe(false)
+  })
+
+  // Issue #206 — the register's default sort sinks a Terminal Stage SOR.
+  describe("isOnTerminalStage", () => {
+    it("is true for a legacy SOR on a won or lost stage", () => {
+      expect(isOnTerminalStage({ status: "CLOSED_WON" })).toBe(true)
+      expect(isOnTerminalStage({ status: "CLOSED_LOST" })).toBe(true)
+    })
+
+    it("is false for a legacy SOR still moving, even post-award", () => {
+      expect(isOnTerminalStage({ status: "NEGOTIATION" })).toBe(false)
+      expect(isOnTerminalStage({ status: "RETENTION" })).toBe(false)
+    })
+
+    it("is true for a flow SOR whose own snapshot marks its Stage terminal", () => {
+      const lost = flowDeal({ flow_stage_id: "lost" })
+      expect(isOnTerminalStage(lost, { snapshotsById })).toBe(true)
+    })
+
+    it("is false for a flow SOR on a non-terminal Stage, won or not", () => {
+      const delivery = flowDeal({ flow_stage_id: "delivery", contract_date: "2026-03-04" })
+      expect(isOnTerminalStage(delivery, { snapshotsById })).toBe(false)
+    })
+
+    it("is false, not true, when the Stage can't be resolved", () => {
+      expect(isOnTerminalStage({ status: "NOT_A_STAGE" })).toBe(false)
+      expect(isOnTerminalStage(flowDeal({ flow_stage_id: "gone" }), { snapshotsById })).toBe(false)
+    })
   })
 })
