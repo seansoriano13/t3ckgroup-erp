@@ -101,9 +101,14 @@ export const opportunityService = {
       .from("sales_opportunities")
       .select(PARTICIPANT_SELECT)
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    // Same reason as the refused-save message below: a row that isn't there is
+    // a fact worth stating, not a PGRST116 coercion error to decode.
+    if (!data) {
+      throw new Error("This opportunity could not be found — it may have been deleted.");
+    }
     return data;
   },
 
@@ -200,9 +205,18 @@ export const opportunityService = {
       })
       .eq("id", id)
       .select(PARTICIPANT_SELECT)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    // No row back means the UPDATE matched nothing — a refused write, not a
+    // broken one. `.single()` used to turn that into PGRST116 ("cannot coerce
+    // the result to a single JSON object"), which reads as a bug to whoever is
+    // just trying to save. Say what actually happened instead.
+    if (!data) {
+      throw new Error(
+        "This opportunity could not be saved — it may have been deleted, or your account is not allowed to edit it.",
+      );
+    }
 
     await opportunityService.replaceItems(id, payload.items);
     const final = await opportunityService.getOpportunityById(id);
