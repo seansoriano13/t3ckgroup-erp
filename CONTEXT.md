@@ -52,6 +52,14 @@ _Avoid_: Leave credit, OT slip
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Individual Task**:
+A task with one owner, tracked on that person's own list rather than as
+shared work. The other kind of task a Stage Action can create, alongside a
+Group Task: same trigger, same fire-once rule, but no members and no roles —
+it says what one person must do. Its kind of work is named by its Category,
+not by a Tag.
+_Avoid_: Personal Task, My Task, Solo Task
+
 **Tag**:
 A label from one managed list, put on a Group Task by hand or by the Stage Action that created it, saying what kind of work it is. Individual tasks say that with their Category instead. Where a task came from — an SOR — is its source, not a Tag.
 _Avoid_: Label, Category (when meaning a Group Task's kind)
@@ -280,6 +288,16 @@ The value of SORs that are neither Realized nor on a Terminal Stage — what is
 still being worked. Shown beside Won; a lost SOR counts toward neither.
 _Avoid_: Closed Pipeline, Total Pipeline
 
+**Registration Form**:
+What a salesperson fills in to register an SOR, defined per Sale Type and
+built on the Flow Canvas. Always the SOR's built-in default fields — which can
+be renamed and reordered, and, where they are not required to register at all,
+hidden — plus any **custom fields** that Sale Type adds. Choosing the Sale Type
+at registration is what chooses the form. Frozen into the Flow Snapshot on
+Publish, so an SOR was registered against the form its version defined, and
+**Restore** means going back to the built-in default, not to a previous edit.
+_Avoid_: Intake Form, SOR Form (when meaning the Details card), Form Template
+
 **Flow Canvas**:
 The module in which the developer and Operations build Sales Flows together,
 on staging — a long-lived feature, not a one-time build: the business's CRM
@@ -309,11 +327,12 @@ to `locked`, and Edit draft moves it back. The database column keeps the
 _Avoid_: Unlocked, Editable
 
 **Edit draft**:
-Reopens a published Sales Flow for editing. Requires a reason, which is
+Reopens a published Sales Flow for editing. The reopening itself is always
 recorded, because repeated reopening is a pattern about how the process is
-being agreed and has to stay visible (issue #36). Deals already pinned to an
-earlier Flow Snapshot are unaffected — Edit draft only changes what the *next*
-Publish will produce.
+being agreed and has to stay visible (issue #36) — but it asks for no reason:
+what changed is said on the Publish note instead, at the point where it is
+actually known. Deals already pinned to an earlier Flow Snapshot are
+unaffected — Edit draft only changes what the *next* Publish will produce.
 _Avoid_: Unlock, Reopen (as a button label — used only in prose about what
 Edit draft does)
 
