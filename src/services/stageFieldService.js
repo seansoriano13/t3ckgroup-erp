@@ -188,6 +188,35 @@ export const stageFieldService = {
     return data;
   },
 
+  /**
+   * Un-archives a field, putting it back on the SOR under its Stage — the
+   * reverse of `archive`, mirroring `employeeGroupService.restore` and
+   * `salesFlowService.restore`. Archiving used to be one-way in the UI, which
+   * made removing a field a decision nobody could take back without a direct
+   * database write.
+   */
+  async restore(id, actorId) {
+    await requireSuperAdmin(actorId);
+
+    const { data, error } = await supabase
+      .from("flow_stage_fields")
+      .update({ archived_at: null })
+      .eq("id", id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "STAGE_FIELD",
+      id,
+      `Field restored: "${data.label}" (${data.stage_id}).`,
+      { event: "STAGE_FIELD_RESTORED", stageId: data.stage_id, label: data.label, employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
   /** Reorders fields — `updates` is `[{ id, sortOrder }]`, same batch shape as `stageConditionService.reorder`. */
   async reorder(updates, actorId) {
     await requireSuperAdmin(actorId);

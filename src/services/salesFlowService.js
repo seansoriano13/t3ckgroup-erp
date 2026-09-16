@@ -4,6 +4,8 @@ import { flowLockBlockers, buildDraftSnapshotData, diffFlowSnapshots } from "../
 import { stageActionService } from "./stageActionService";
 import { stageConditionService } from "./stageConditionService";
 import { followUpService } from "./followUpService";
+import { stageFieldService } from "./stageFieldService";
+import { formFieldService } from "./formFieldService";
 import { formatSnapshotVersion, formatVersionNumber } from "../constants/flowVersion";
 
 /**
@@ -151,10 +153,14 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
  */
 async function buildSnapshotData(flow, stages, edges) {
   const stageIds = stages.map((s) => s.id);
-  const [actionsObj, conditionsObj, followUpsObj] = await Promise.all([
+  const [actionsObj, conditionsObj, fieldsObj, followUpsObj, formFields] = await Promise.all([
     stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
     stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
+    stageIds.length > 0 ? stageFieldService.getForStages(stageIds) : {},
     stageIds.length > 0 ? followUpService.getForStages(stageIds) : {},
+    // Flow-scoped, not Stage-scoped — the registration form belongs to the
+    // flow, so this is read even by a flow with no Stages yet.
+    flow?.id ? formFieldService.getForFlow(flow.id) : [],
   ]);
 
   // Follow-up Cadence is one row per Stage in the database (keyed by
@@ -172,6 +178,13 @@ async function buildSnapshotData(flow, stages, edges) {
     edges,
     actions: Object.values(actionsObj || {}).flat(),
     conditions: Object.values(conditionsObj || {}).flat(),
+    // Stage Fields were part of the snapshot *shape* from the start
+    // (`buildDraftSnapshotData`, `diffFlowSnapshots` and
+    // `countFlowSnapshotChanges` all handle them) but were never fetched
+    // here, so adding, editing or archiving one changed nothing the publish
+    // preview could see: no diff entry, no change count, no version bump.
+    stageFields: Object.values(fieldsObj || {}).flat(),
+    formFields: formFields || [],
     followUps,
   });
 }
@@ -1068,18 +1081,17 @@ export const salesFlowService = {
   /**
    * Reopens a locked flow for a genuine correction after the meeting.
    *
-   * The reason is mandatory and recorded. Unlocking is permitted precisely so
-   * that it can be counted: repeated reopening is a pattern about how the
-   * agreement is being reached, and it has to be visible rather than absorbed
-   * silently.
+   * The reopening is always recorded, because repeated reopening is a pattern
+   * about how the agreement is being reached and has to stay visible. The
+   * *reason* is now optional: demanding one at the moment the canvas is
+   * reopened asked for the answer before the work was done, so it was
+   * reliably answered with noise. What changed is instead captured on the
+   * Publish note, at the point where it is actually known.
    */
   async unlockFlow(flowId, reason, actorId) {
     await requireSuperAdmin(actorId);
 
     const trimmedReason = trimName(reason);
-    if (!trimmedReason) {
-      throw new Error("Unlocking a Sales Flow needs a reason.");
-    }
 
     const flow = await loadFlow(flowId);
     if (flow.state !== "locked") {
@@ -1102,8 +1114,8 @@ export const salesFlowService = {
     systemAuditLogService.addSystemEvent(
       "SALES_FLOW",
       flowId,
-      `Sales Flow draft reopened: ${trimmedReason}`,
-      { event: "SALES_FLOW_UNLOCKED", reason: trimmedReason, employeeId: actorId },
+      trimmedReason ? `Sales Flow draft reopened: ${trimmedReason}` : "Sales Flow draft reopened.",
+      { event: "SALES_FLOW_UNLOCKED", reason: trimmedReason || null, employeeId: actorId },
       actorId,
     ).catch(console.error);
 

@@ -53,6 +53,7 @@ import FlowSatelliteNode from "./FlowSatelliteNode";
 import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
+import SorFormBuilder from "./SorFormBuilder";
 import DiffSummary from "./FlowSnapshotDiffSummary";
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import FlowVersionViewer from "../sor/FlowVersionViewer";
@@ -192,9 +193,15 @@ function FlowCanvasInner() {
 
   // The number the next publish would create (ADR 0020), straight from the
   // database rule so the button's caption and the result can't disagree.
-  // Re-asks whenever the draft's shape changes.
+  //
+  // Keyed on the flow alone, and refetched by `refresh()` below. It used to
+  // derive the key from the draft's shape (stage ids, edge count, Won Stage),
+  // which meant a rename, a condition/action/field edit, or a rewire that
+  // kept the same number of edges changed nothing the key could see: the
+  // publish dialog, the version rail and the status chip all kept showing a
+  // stale diff until the canvas was remounted by a reload.
   const { data: versionPreview } = useQuery({
-    queryKey: ["flowVersionPreview", flow?.id, stageKey, edges.length, flow?.won_stage_id],
+    queryKey: ["flowVersionPreview", flow?.id],
     queryFn: () => salesFlowService.previewVersion(flow.id),
     enabled: Boolean(flow?.id) && !isLocked,
   });
@@ -224,6 +231,13 @@ function FlowCanvasInner() {
     queryClient.invalidateQueries({ queryKey: ["salesFlow", effectiveSaleTypeId] });
     queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
     queryClient.invalidateQueries({ queryKey: ["stageActionsByStage"] });
+    queryClient.invalidateQueries({ queryKey: ["stageFields"] });
+    queryClient.invalidateQueries({ queryKey: ["stageFieldsByStage"] });
+    // "What changed since the last version" — every write on this canvas can
+    // move it, so it is refetched on every write rather than inferred from a
+    // query key built out of the draft's shape.
+    queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
+    queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
     // The version rail's own reads (issue #192) — none of the tables the
     // realtime subscription above watches is `flow_snapshots`, so a publish,
     // restore or reopen would otherwise leave the rail showing a stale
@@ -1215,6 +1229,8 @@ function FlowCanvasInner() {
                   <Sparkles /> Tidy layout
                 </Button>
 
+                <SorFormBuilder flow={flow} />
+
                 <div className="mx-1 h-4 w-px bg-border" />
 
                 {isLocked ? (
@@ -1225,12 +1241,10 @@ function FlowCanvasInner() {
                       ask({
                         title: "Edit draft?",
                         description:
-                          "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing.",
+                          "Deals already running an older Flow Snapshot keep using it. This just reopens the canvas for editing. You'll be asked what changed when you publish.",
                         confirmLabel: "Edit draft",
-                        required: true,
-                        field: { label: "Reason", placeholder: "Why is this flow being reopened?" },
-                        onConfirm: (reason) =>
-                          run(() => salesFlowService.reopenFlow(flow.id, reason, user?.id), "Draft reopened."),
+                        onConfirm: () =>
+                          run(() => salesFlowService.reopenFlow(flow.id, null, user?.id), "Draft reopened."),
                       })
                     }
                   >
@@ -1375,7 +1389,7 @@ function FlowCanvasInner() {
         confirmLabel="Publish"
         confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
         onConfirm={() => publishFlow.mutate(publishNote.trim() || null)}
-        className="sm:max-w-2xl max-h-[85vh] flex flex-col p-6 gap-5"
+        className="sm:max-w-3xl max-h-[85vh] flex flex-col p-6 gap-5"
         footerClassName="-mx-6 -mb-6 p-6 sm:px-6 sm:py-4 mt-auto shrink-0"
       >
         <div className="space-y-4 flex-1 min-h-0 flex flex-col">
@@ -1390,7 +1404,12 @@ function FlowCanvasInner() {
             <p className="mb-3 text-xs font-bold uppercase tracking-widest text-muted-foreground shrink-0">
               Changes since the latest version
             </p>
-            <div className="overflow-y-auto max-h-[42vh] pr-2 scrollbar-thin">
+            {/* No max-height of its own: the dialog is already capped at 85vh
+                and lays out as a column with a fixed header and footer, so
+                this is the one part that scrolls. A second, smaller cap here
+                made a long change list overflow the dialog instead of
+                scrolling inside it. */}
+            <div className="flex-1 min-h-0 overflow-y-auto pr-2 scrollbar-thin">
               {versionPreview?.diff ? (
                 <DiffSummary
                   result={versionPreview.diff}

@@ -107,10 +107,13 @@ describe("Flow Canvas versioning journey", () => {
                 flow_stage_id: lead.id,
             })
 
-            // 2. Edit draft, giving a reason.
+            // 2. Edit draft. No reason is asked for — what changed is said on
+            // the Publish note instead. The confirm button carries the same
+            // label as the toolbar button that opened it, so this clicks the
+            // last match: the one inside the dialog.
             await user.click(await screen.findByRole("button", { name: /Edit draft/ }))
-            await user.type(await screen.findByPlaceholderText(/why is this flow being reopened/i), "Adding a missing step")
-            await user.click(screen.getByRole("button", { name: "Edit draft" }))
+            const editDraftButtons = await screen.findAllByRole("button", { name: "Edit draft" })
+            await user.click(editDraftButtons[editDraftButtons.length - 1])
 
             await waitFor(async () => {
                 const { flow: reopened } = await salesFlowService.getFlow(saleType.id)
@@ -164,8 +167,8 @@ describe("Flow Canvas versioning journey", () => {
             // out to the draft, reopen it, then return to the same version.
             await user.click(screen.getByRole("button", { name: "Back to draft" }))
             await user.click(await screen.findByRole("button", { name: /Edit draft/ }))
-            await user.type(await screen.findByPlaceholderText(/why is this flow being reopened/i), "About to restore v1.0")
-            await user.click(screen.getByRole("button", { name: "Edit draft" }))
+            const reopenButtons = await screen.findAllByRole("button", { name: "Edit draft" })
+            await user.click(reopenButtons[reopenButtons.length - 1])
             await waitFor(async () => {
                 const { flow: reopened } = await salesFlowService.getFlow(saleType.id)
                 expect(reopened.state).toBe("draft")

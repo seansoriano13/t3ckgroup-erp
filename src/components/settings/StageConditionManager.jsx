@@ -88,6 +88,13 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["stageConditions", stageId] });
     queryClient.invalidateQueries({ queryKey: ["stageConditionsByStage"] });
+    // A condition is part of the flow's snapshot, so editing one changes what
+    // the next publish would create. This manager is rendered bare by
+    // StageSettingsPanel with no refresh callback threaded in, so it has to
+    // invalidate the canvas-level keys itself — otherwise the node badge
+    // repaints while the publish diff stays stale until a reload.
+    queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
+    queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
   };
 
   const resetForm = () => {

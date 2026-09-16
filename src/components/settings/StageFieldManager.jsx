@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ListChecks, ArrowUp, ArrowDown, Archive, X, Pencil } from "lucide-react";
+import { Plus, ListChecks, ArrowUp, ArrowDown, Archive, ArchiveRestore, X, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { Button } from "@/components/ui/button";
@@ -68,6 +68,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
   const [draft, setDraft] = useState(emptyDraft());
   const [editingField, setEditingField] = useState(null);
   const [pendingArchive, setPendingArchive] = useState(null);
+  const [showArchived, setShowArchived] = useState(false);
 
   const { data: fields, isLoading } = useQuery({
     queryKey: ["stageFields", stageId],
@@ -75,9 +76,24 @@ export default function StageFieldManager({ stageId, disabled = false }) {
     enabled: Boolean(stageId),
   });
 
+  // Fetched separately, and only when asked for, so the ordinary list stays
+  // one small query — archived rows are the exception, not part of the view.
+  const { data: archivedFields = [] } = useQuery({
+    queryKey: ["stageFields", stageId, "archived"],
+    queryFn: async () => {
+      const all = await stageFieldService.getForStage(stageId, { includeArchived: true });
+      return all.filter((f) => f.archived_at);
+    },
+    enabled: Boolean(stageId) && showArchived,
+  });
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["stageFields", stageId] });
     queryClient.invalidateQueries({ queryKey: ["stageFieldsByStage"] });
+    // A field is part of the flow's snapshot shape, so adding, editing,
+    // archiving or restoring one changes what the next publish would create.
+    queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
+    queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
   };
 
   const resetForm = () => {
@@ -124,6 +140,15 @@ export default function StageFieldManager({ stageId, disabled = false }) {
     onSuccess: () => {
       invalidate();
       toast.success("Field archived.");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: (id) => stageFieldService.restore(id, user?.id),
+    onSuccess: () => {
+      invalidate();
+      toast.success("Field restored.");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -387,13 +412,64 @@ export default function StageFieldManager({ stageId, disabled = false }) {
             </div>
           ))
         )}
+
+        {stageId && !disabled && (
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowArchived((v) => !v)}
+              className="text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+            >
+              {showArchived ? "Hide archived fields" : "Show archived fields"}
+            </button>
+
+            {showArchived && (
+              <div className="mt-2 space-y-2">
+                {archivedFields.length === 0 ? (
+                  <p className="px-1 py-2 text-xs text-muted-foreground">
+                    Nothing archived on this Stage.
+                  </p>
+                ) : (
+                  archivedFields.map((field) => (
+                    <div
+                      key={field.id}
+                      className="flex items-center gap-3 rounded-xl bg-muted/40 px-3 py-2.5 outline outline-1 -outline-offset-1 outline-dashed outline-mauve-6"
+                    >
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-mauve-a3 text-muted-foreground">
+                        <Archive size={15} strokeWidth={2.5} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-muted-foreground line-through">
+                          {field.label}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          Archived {new Date(field.archived_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => restoreMutation.mutate(field.id)}
+                        disabled={restoreMutation.isPending}
+                        aria-label={`Restore ${field.label}`}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <ArchiveRestore />
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
         open={Boolean(pendingArchive)}
         onOpenChange={(open) => !open && setPendingArchive(null)}
         title={`Archive “${pendingArchive?.label}”?`}
-        description="Archiving is the only way to remove a field. It stops appearing on the SOR, and every value already saved against it keeps that record."
+        description="It stops appearing on the SOR, and every value already saved against it keeps that record. You can bring it back with “Show archived fields”."
         confirmLabel="Archive"
         tone="destructive"
         onConfirm={() => archiveMutation.mutate(pendingArchive.id)}

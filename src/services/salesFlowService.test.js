@@ -381,10 +381,18 @@ describe("salesFlowService", () => {
       await expect(salesFlowService.addStage(flow.id, "Negotiation", admin.id)).resolves.toBeTruthy()
     })
 
-    it("refuses to unlock without a reason", async () => {
+    it("unlocks without a reason — the reopening is still recorded, the reason is not demanded", async () => {
+      // The reason used to be mandatory here. Asking for it at the moment the
+      // canvas is reopened wanted the answer before the work was done, so it
+      // was reliably answered with noise; what changed is captured on the
+      // Publish note instead. The reopening itself is still recorded, which is
+      // what makes repeated reopening visible.
       await salesFlowService.lockFlow(flow.id, admin.id)
 
-      await expect(salesFlowService.unlockFlow(flow.id, "  ", admin.id)).rejects.toThrow(/reason/)
+      const unlocked = await salesFlowService.unlockFlow(flow.id, "  ", admin.id)
+
+      expect(unlocked.state).toBe("draft")
+      expect(unlocked.locked_at).toBeNull()
     })
 
     it("creates a snapshot of the entire flow configuration on lock", async () => {

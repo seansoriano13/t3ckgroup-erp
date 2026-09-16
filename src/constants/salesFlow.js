@@ -255,6 +255,7 @@ export function buildDraftSnapshotData({
   actions = [],
   conditions = [],
   stageFields = [],
+  formFields = [],
   followUps = [],
 } = {}) {
   return {
@@ -263,6 +264,10 @@ export function buildDraftSnapshotData({
     actions,
     conditions,
     stageFields,
+    // The flow's registration-form customization. Frozen with everything else
+    // so an SOR registered against a version was registered against that
+    // version's form, and so reverting a version reverts its form too.
+    formFields,
     followUps,
     wonStageId: flow?.won_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
@@ -335,16 +340,17 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const actions = diffById(snapshotDataA.actions, snapshotDataB.actions)
   const conditions = diffById(snapshotDataA.conditions, snapshotDataB.conditions)
   const stageFields = diffById(snapshotDataA.stageFields, snapshotDataB.stageFields)
+  const formFields = diffById(snapshotDataA.formFields, snapshotDataB.formFields)
   const followUps = diffById(snapshotDataA.followUps, snapshotDataB.followUps)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
-    [stages, edges, actions, conditions, stageFields, followUps].some(
+    [stages, edges, actions, conditions, stageFields, formFields, followUps].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
 
-  return { stages, edges, actions, conditions, stageFields, followUps, wonStageChanged, hasChanges }
+  return { stages, edges, actions, conditions, stageFields, formFields, followUps, wonStageChanged, hasChanges }
 }
 
 /**
@@ -364,6 +370,7 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.actions) +
     byGroup(diffResult.conditions) +
     byGroup(diffResult.stageFields) +
+    byGroup(diffResult.formFields) +
     byGroup(diffResult.followUps) +
     (diffResult.wonStageChanged ? 1 : 0)
   )

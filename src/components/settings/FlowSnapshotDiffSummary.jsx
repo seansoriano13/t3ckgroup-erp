@@ -30,12 +30,28 @@ export default function DiffSummary({
         group={result.conditions}
         nameOf={(c) => `${c.label || c.kind} on ${stageName(c.stage_id)}`}
       />
+      <DiffGroup
+        label="Stage Fields"
+        group={result.stageFields}
+        nameOf={(f) => `${f.label} on ${stageName(f.stage_id)}`}
+      />
+      <DiffGroup
+        label="Registration Form"
+        group={result.formFields}
+        nameOf={(f) => f.label || f.default_key}
+      />
+      <DiffGroup
+        label="Follow-up Cadence"
+        group={result.followUps}
+        nameOf={(c) => `on ${stageName(c.stage_id || c.id)}`}
+      />
       {result.wonStageChanged && <p>• Won Stage changed.</p>}
     </div>
   );
 }
 
 function DiffGroup({ label, group, nameOf }) {
+  if (!group) return null;
   if (group.added.length === 0 && group.removed.length === 0 && group.changed.length === 0) return null;
   return (
     <div>

@@ -99,19 +99,6 @@ async function resyncSequences(client, tableNames) {
   }
 }
 
-// pg deserializes both a jsonb array and a native Postgres array column into
-// a plain JS array — there is no way to tell them apart from the value
-// alone. Every jsonb column in this schema needs re-stringifying on the way
-// back in; `tasks.attachment_urls`, `employees.hidden_nav_keys` and
-// `app_settings.retail_storefronts` are the genuine `text[]` columns among the
-// seeded tables, and pg already knows how to send a JS array as one natively,
-// so they're excluded from that rule.
-const NATIVE_ARRAY_COLUMNS = new Set([
-  "attachment_urls",
-  "hidden_nav_keys",
-  "retail_storefronts",
-])
-
 async function insertRows(client, schema, table, rows) {
   if (!rows || rows.length === 0) return
   // A generated column (auth.users.confirmed_at, computed from
@@ -119,11 +106,25 @@ async function insertRows(client, schema, table, rows) {
   // explicit value outright — Postgres recomputes it from the columns it
   // depends on, which are themselves being restored in this same insert.
   const { rows: schemaColumns } = await client.query(
-    "select column_name, is_generated from information_schema.columns where table_schema = $1 and table_name = $2",
+    "select column_name, is_generated, data_type from information_schema.columns where table_schema = $1 and table_name = $2",
     [schema, table],
   )
   const generatedColumns = new Set(
     schemaColumns.filter((r) => r.is_generated === "ALWAYS").map((r) => r.column_name),
+  )
+  // pg deserializes a jsonb column straight into the equivalent JS value —
+  // an object, an array, but also a bare string/number/boolean when that's
+  // all the column holds (e.g. a text-type Stage Field's saved value comes
+  // back as the plain JS string "TEst", not {value: "TEst"}). Every jsonb/
+  // json column needs re-stringifying on the way back in regardless of the
+  // value's shape — guessing from `typeof v === "object"` misses that
+  // scalar case and sends an unquoted string where Postgres expects a JSON
+  // literal. Driven by the column's actual type, not the value, so a real
+  // `text[]` column (`tasks.attachment_urls`, `employees.hidden_nav_keys`,
+  // `app_settings.retail_storefronts`) is left alone and pg sends the JS
+  // array natively.
+  const jsonColumns = new Set(
+    schemaColumns.filter((r) => r.data_type === "json" || r.data_type === "jsonb").map((r) => r.column_name),
   )
   // A dump taken from an environment whose schema is ahead of (or behind) the
   // local one can carry columns this table no longer has — e.g. staging still
@@ -152,12 +153,12 @@ async function insertRows(client, schema, table, rows) {
       for (const c of columns) {
         rowPlaceholders.push(`$${paramIndex++}`)
         const v = row[c]
-        if (v === null || typeof v !== "object") {
-          values.push(v)
-        } else if (Array.isArray(v) && NATIVE_ARRAY_COLUMNS.has(c)) {
-          values.push(v)
-        } else {
+        if (v === null) {
+          values.push(null)
+        } else if (jsonColumns.has(c)) {
           values.push(JSON.stringify(v))
+        } else {
+          values.push(v)
         }
       }
       valuePlaceholders.push(`(${rowPlaceholders.join(", ")})`)

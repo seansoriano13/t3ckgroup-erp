@@ -48,6 +48,9 @@ export const SEED_TABLES = [
   "flow_stage_actions",
   "flow_stage_fields",
   "flow_stage_follow_ups",
+  // The flow's registration-form customization. After sales_flows, which it
+  // points at.
+  "flow_form_fields",
   "flow_snapshots",
   "sales_opportunities",
   "sor_stage_visits",
@@ -56,6 +59,9 @@ export const SEED_TABLES = [
   "sales_opportunity_members",
   "sor_condition_status",
   "sor_stage_field_values",
+  // Answers to the flow's custom registration fields. After both tables it
+  // points at: sales_opportunities above, flow_form_fields further up.
+  "sor_form_values",
   "revenue_activity_logs",
   "tasks",
   "task_activity",
