@@ -1954,7 +1954,7 @@ export const opportunityService = {
   async deleteOpportunity(id, actorId) {
     const { data, error } = await supabase
       .from("sales_opportunities")
-      .update({ is_deleted: true })
+      .update({ is_deleted: true, deleted_at: new Date().toISOString(), deleted_by: actorId })
       .eq("id", id)
       .select("id, client_name, sales_reference")
       .single();
@@ -1970,6 +1970,108 @@ export const opportunityService = {
       id,
       `${auditLabel(data)} deleted.`,
       { event: "OPPORTUNITY_DELETED", employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * The Deleted view (issue #206): every deleted, non-scratch SOR a Super
+   * Admin may see, or the subset a Deal Owner or registrar left behind.
+   * `deleted_by`/`deleted_at` are null on a row deleted before this column
+   * existed — the view shows "Deleted before this was recorded" rather than
+   * guessing.
+   */
+  async getDeletedOpportunities(actorId, { isSuperAdmin = false } = {}) {
+    let query = supabase
+      .from("sales_opportunities")
+      .select(`${PARTICIPANT_SELECT}, deleted_by_employee:employees!sales_opportunities_deleted_by_fkey(id, name, avatar_path)`)
+      .eq("is_deleted", true)
+      .eq("is_scratch", false)
+      .order("deleted_at", { ascending: false, nullsFirst: false });
+
+    if (!isSuperAdmin) {
+      if (!actorId) return [];
+      query = query.or(`deal_owner_id.eq.${actorId},registered_by.eq.${actorId}`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Restores a deleted SOR — a Super Admin or its own Deal Owner. Clears the
+   * flag and its deletion stamp, and never touches procurement: those
+   * requests were cancelled on delete (purchasingService.handleOpportunityDeleted)
+   * and restoring doesn't reopen them — whoever restores has to re-raise
+   * what's still needed.
+   */
+  async restoreOpportunity(id, actorId) {
+    const { data: existing, error: readError } = await supabase
+      .from("sales_opportunities")
+      .select("id, client_name, sales_reference, deal_owner_id")
+      .eq("id", id)
+      .single();
+    if (readError) throw readError;
+
+    const { data: actor, error: actorError } = await supabase
+      .from("employees")
+      .select("id, is_super_admin")
+      .eq("id", actorId)
+      .maybeSingle();
+    if (actorError) throw actorError;
+
+    const allowed = actor?.is_super_admin || existing.deal_owner_id === actorId;
+    if (!allowed) {
+      throw new Error("Only a Super Admin or this SOR's Deal Owner can restore it.");
+    }
+
+    const { data, error } = await supabase
+      .from("sales_opportunities")
+      .update({ is_deleted: false, deleted_at: null, deleted_by: null })
+      .eq("id", id)
+      .select(PARTICIPANT_SELECT)
+      .single();
+    if (error) throw error;
+
+    await opportunityService.addSystemNote(
+      id,
+      "SOR restored from Deleted.",
+      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
+      actorId,
+    );
+
+    systemAuditLogService.addSystemEvent(
+      "OPPORTUNITY",
+      id,
+      `${auditLabel(existing)} restored.`,
+      { event: "OPPORTUNITY_RESTORED", employeeId: actorId },
+      actorId,
+    ).catch(console.error);
+
+    return data;
+  },
+
+  /**
+   * Permanently deletes an SOR — Super Admin only, via the security-definer
+   * RPC (`sor_purge_opportunity`), which refuses unless `confirmText` matches
+   * the Sales Reference (or the Company when there's none) and does the
+   * actual authorization/rights check server-side. Nothing here is undoable.
+   */
+  async purgeOpportunity(id, confirmText, actorId) {
+    const { data, error } = await supabase.rpc("sor_purge_opportunity", {
+      p_id: id,
+      p_confirm_text: confirmText,
+    });
+    if (error) throw error;
+
+    systemAuditLogService.addSystemEvent(
+      "OPPORTUNITY",
+      id,
+      `${data.sales_reference || data.client_name} permanently deleted (${data.tasks_unlinked} task(s), ${data.committee_tasks_unlinked} committee task(s) unlinked).`,
+      { event: "OPPORTUNITY_PURGED", employeeId: actorId, ...data },
       actorId,
     ).catch(console.error);
 

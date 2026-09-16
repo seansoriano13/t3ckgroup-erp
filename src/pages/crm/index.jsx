@@ -17,6 +17,7 @@ import {
   Clock,
   ShoppingBag,
   SlidersHorizontal,
+  Trash2,
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Spinner from "../../components/ui/Spinner";
@@ -32,6 +33,7 @@ import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityM
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
 import RetailTab from "../../components/sor/RetailTab";
+import DeletedOpportunitiesView from "../../components/sor/DeletedOpportunitiesView";
 import { opportunityService } from "../../services/opportunityService";
 import { employeeService } from "../../services/employeeService";
 import { useAuth } from "../../context/AuthContext";
@@ -610,6 +612,7 @@ export default function OpportunitiesPage() {
                       { value: "retail", icon: ShoppingBag, label: "Retail" },
                     ]
                   : []),
+                { value: "deleted", icon: Trash2, label: "Deleted" },
               ]}
               activeTab={view}
               onChange={changeView}
@@ -880,6 +883,8 @@ export default function OpportunitiesPage() {
           <RetailOrdersQueue />
         ) : view === "retail" && canHandleRetailQueue ? (
           <RetailTab />
+        ) : view === "deleted" ? (
+          <DeletedOpportunitiesView currentUserId={user?.id} isSuperAdmin={isSuperAdmin} />
         ) : view === "overview" ? (
           <div className="mt-4">
             {isLoading ? (

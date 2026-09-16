@@ -2883,6 +2883,112 @@ describe("opportunityService", () => {
       const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
       expect(stored.is_deleted).toBe(true)
     })
+
+    // Issue #206 — the Deleted view needs who and when, not just the flag.
+    it("stamps who deleted it and when", async () => {
+      const opportunity = makeOpportunity({ registered_by: registrar.id })
+
+      const before = new Date().toISOString()
+      await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+
+      const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+      expect(stored.deleted_by).toBe(registrar.id)
+      expect(stored.deleted_at >= before).toBe(true)
+    })
+  })
+
+  describe("the Deleted view (issue #206)", () => {
+    let superAdmin, otherPerson
+
+    beforeEach(() => {
+      superAdmin = makeSuperAdmin()
+      otherPerson = makeEmployee({ name: "Uninvolved Person" })
+    })
+
+    it("shows a Super Admin every deleted, non-scratch SOR", async () => {
+      const mine = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+      const someoneElses = makeOpportunity({ registered_by: otherPerson.id })
+      await opportunityService.deleteOpportunity(mine.id, registrar.id)
+      await opportunityService.deleteOpportunity(someoneElses.id, otherPerson.id)
+
+      const deleted = await opportunityService.getDeletedOpportunities(superAdmin.id, { isSuperAdmin: true })
+
+      expect(deleted.map((o) => o.id).sort()).toEqual([mine.id, someoneElses.id].sort())
+    })
+
+    it("shows a Deal Owner or registrar only their own deleted SORs", async () => {
+      const mine = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+      const someoneElses = makeOpportunity({ registered_by: otherPerson.id })
+      await opportunityService.deleteOpportunity(mine.id, registrar.id)
+      await opportunityService.deleteOpportunity(someoneElses.id, otherPerson.id)
+
+      const asOwner = await opportunityService.getDeletedOpportunities(owner.id, { isSuperAdmin: false })
+      expect(asOwner.map((o) => o.id)).toEqual([mine.id])
+
+      const asRegistrar = await opportunityService.getDeletedOpportunities(registrar.id, { isSuperAdmin: false })
+      expect(asRegistrar.map((o) => o.id)).toEqual([mine.id])
+
+      const stranger = makeEmployee({ name: "Nobody's SOR" })
+      const asStranger = await opportunityService.getDeletedOpportunities(stranger.id, { isSuperAdmin: false })
+      expect(asStranger).toEqual([])
+    })
+
+    it("never lists a live SOR", async () => {
+      makeOpportunity({ registered_by: registrar.id })
+
+      const deleted = await opportunityService.getDeletedOpportunities(registrar.id, { isSuperAdmin: true })
+
+      expect(deleted).toEqual([])
+    })
+
+    describe("restoring", () => {
+      it("lets a Super Admin restore, clearing the delete stamp", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+
+        const restored = await opportunityService.restoreOpportunity(opportunity.id, superAdmin.id)
+
+        expect(restored.is_deleted).toBe(false)
+        const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+        expect(stored.deleted_at).toBeNull()
+        expect(stored.deleted_by).toBeNull()
+      })
+
+      it("lets the SOR's own Deal Owner restore it", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+
+        const restored = await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+
+        expect(restored.is_deleted).toBe(false)
+      })
+
+      it("refuses everyone else, including the registrar who isn't the Deal Owner", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+
+        await expect(
+          opportunityService.restoreOpportunity(opportunity.id, registrar.id),
+        ).rejects.toThrow(/Super Admin or this SOR's Deal Owner/i)
+
+        const stored = db.rows("sales_opportunities").find((o) => o.id === opportunity.id)
+        expect(stored.is_deleted).toBe(true)
+      })
+
+      it("records the restore on the timeline and audit log", async () => {
+        const opportunity = makeOpportunity({ registered_by: registrar.id, deal_owner_id: owner.id })
+        await opportunityService.deleteOpportunity(opportunity.id, registrar.id)
+
+        await opportunityService.restoreOpportunity(opportunity.id, owner.id)
+        await waitForNetworkIdle()
+
+        const notes = await opportunityService.getNotes(opportunity.id)
+        expect(notes.some((n) => n.metadata?.event === "OPPORTUNITY_RESTORED")).toBe(true)
+        expect(
+          db.rows("system_audit_logs").some((e) => e.content.includes("restored")),
+        ).toBe(true)
+      })
+    })
   })
 
   describe("the audit log", () => {
