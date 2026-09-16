@@ -46,7 +46,7 @@ begin
   end if;
 
   select * into v_row from public.sales_opportunities where id = p_id;
-  if v_row is null then
+  if not found then
     raise exception 'That SOR no longer exists.' using errcode = '22023';
   end if;
 

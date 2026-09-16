@@ -303,4 +303,71 @@ describe("Open Pipeline value", () => {
       expect(scoped).not.toContain("o-lost-flow")
     })
   })
+
+  // Issue #206 — Won sits beside Open pipeline in the toolbar.
+  it("shows the Won total for Realized SORs alongside Open pipeline", async () => {
+    renderPage()
+
+    expect(await screen.findByText("₱5,000.00")).toBeInTheDocument()
+    expect(screen.getByText("₱70,000.00")).toBeInTheDocument()
+  })
+})
+
+// Issue #206 — the register's default order sinks a Terminal Stage SOR to
+// the bottom; an explicit column sort overrides it.
+describe("default sort sinks Terminal Stage SORs", () => {
+  const row = (id, serialNo, extra) => ({
+    ...MOCK_OPP_1,
+    id,
+    serial_no: serialNo,
+    client_name: `Company ${serialNo}`,
+    project_title: `Project ${serialNo}`,
+    ...extra,
+  })
+  let notTerminal, terminal
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // Terminal (CLOSED_WON) has the higher serial_no — under the untouched
+    // "No." sort it would render first, but it must sink below the
+    // still-moving one instead.
+    notTerminal = row("o-open", 1, { status: "NEGOTIATION" })
+    terminal = row("o-terminal", 2, { status: "CLOSED_WON" })
+    opportunityService.getOpportunities.mockResolvedValue([notTerminal, terminal])
+  })
+
+  const renderPage = () =>
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/opportunities"]}>
+        <OpportunitiesPage />
+      </MemoryRouter>,
+    )
+
+  const rowOrder = () =>
+    screen
+      .getAllByText(/^Company \d$/)
+      .map((el) => el.textContent)
+
+  it("sinks the Terminal Stage SOR below the still-moving one by default", async () => {
+    renderPage()
+
+    await screen.findByText("Company 1")
+    expect(rowOrder()).toEqual(["Company 1", "Company 2"])
+  })
+
+  it("lets an explicit column sort override the sink", async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await screen.findByText("Company 1")
+    // Sorting by No. is an explicit choice even though it happens to be the
+    // same field the default order reads — clicking the header is what
+    // flips hasExplicitSort. Ascending first (ties the sink's own order),
+    // then descending — which the sink would never produce, since it always
+    // sinks the terminal SOR regardless of column direction.
+    await user.click(screen.getByText("No."))
+    await user.click(screen.getByText("No."))
+
+    expect(rowOrder()).toEqual(["Company 2", "Company 1"])
+  })
 })
