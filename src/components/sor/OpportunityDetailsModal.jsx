@@ -1488,6 +1488,14 @@ export default function OpportunityDetailsModal({
               <FlowStageControl
                 opportunity={opportunity}
                 isMoving={stageMutation.isPending}
+                // The same required-and-unmet conditions the server would
+                // refuse the move with, so the tiles can say so first.
+                blockedBy={checklist
+                  .filter(
+                    ({ condition, status }) =>
+                      condition?.is_required && status === "unsatisfied",
+                  )
+                  .map(({ condition }) => condition.label)}
                 onMove={(flowStageId) =>
                   stageMutation.mutate({
                     next: flowStageId,
@@ -2122,46 +2130,11 @@ export default function OpportunityDetailsModal({
                     {formatLongDate(opportunity.expected_award_date)}
                   </Detail>
 
-                  <Detail
-                    label="PO Date"
-                    isEditing={isEditing}
-                    control={
-                      <Dropdown
-                        usePortal
-                        placement="bottom-start"
-                        className="w-full"
-                        trigger={() => (
-                          <div className="w-full h-full flex items-center bg-transparent text-sm font-medium outline-none cursor-pointer">
-                            <span className={editForm.po_date ? "text-foreground" : "text-muted-foreground/50"}>
-                              {editForm.po_date || "Select date..."}
-                            </span>
-                          </div>
-                        )}
-                      >
-                        {({ close }) => (
-                          <div className="p-1">
-                            <DatePicker
-                              selected={editForm.po_date ? new Date(editForm.po_date) : null}
-                              onChange={(date) => {
-                                if (!date) {
-                                  setEditForm((f) => ({ ...f, po_date: "" }));
-                                } else {
-                                  const y = date.getFullYear();
-                                  const m = String(date.getMonth() + 1).padStart(2, "0");
-                                  const d = String(date.getDate()).padStart(2, "0");
-                                  setEditForm((f) => ({ ...f, po_date: `${y}-${m}-${d}` }));
-                                }
-                                close();
-                              }}
-                              inline
-                            />
-                          </div>
-                        )}
-                      </Dropdown>
-                    }
-                  >
-                    {formatLongDate(opportunity.po_date)}
-                  </Detail>
+                  {/* PO Date is no longer shown here. `editForm.po_date` is
+                      still seeded and submitted so an edit round-trips the
+                      stored value rather than clearing it; the column, its
+                      writer and the commission logic (which reads
+                      `contract_date`, never this) are unchanged. */}
 
                   <Detail
                     label="Contact Person"

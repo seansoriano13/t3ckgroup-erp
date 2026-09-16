@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { ListChecks } from "lucide-react";
+import { CheckCircle2, ListChecks } from "lucide-react";
+import { cn } from "../../lib/utils";
+import { CONDITION_STATUS } from "../../constants/stageGate";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
 import { employeeGroupService } from "../../services/employeeGroupService";
@@ -11,6 +13,7 @@ import { attachmentAcceptType, acceptsLabel } from "../../utils/attachments";
 import StageChecklistRow from "./StageChecklistRow";
 import StageFieldsForm from "./StageFieldsForm";
 import FollowUpPanel from "./FollowUpPanel";
+import PendingActionDecisions from "./PendingActionDecisions";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +74,15 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     queryKey: ["followUpStatus", opportunityId, stageCode],
     queryFn: () => opportunityService.getFollowUpStatus(opportunityId),
     enabled: !!opportunityId,
+  });
+
+  // Shares its query key/fn with PendingActionDecisions so react-query
+  // dedupes the fetch; only used here to decide whether this whole block
+  // has anything to show.
+  const { data: pendingActions = [] } = useQuery({
+    queryKey: ["pendingActionDecisions", opportunityId, actorId],
+    queryFn: () => opportunityService.getPendingActionsForActor(opportunityId, actorId),
+    enabled: !!opportunityId && !!actorId,
   });
 
   // Existing SOR files, for the "pick existing file" attachment option
@@ -192,14 +204,30 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
     uploadMutation.mutate({ condition, file });
   };
 
+  // A fully-satisfied checklist used to look identical to a half-done one —
+  // just more green circles — so "is this Stage finished?" could only be
+  // answered by reading every row. Not-applicable rows are excluded from
+  // both halves: they never applied to this SOR, so counting them would
+  // make a complete Stage read as incomplete forever.
+  const applicable = checklist.filter(({ status }) => status !== CONDITION_STATUS.NOT_APPLICABLE);
+  const satisfiedCount = applicable.filter(
+    ({ status }) => status === CONDITION_STATUS.SATISFIED,
+  ).length;
+  const allSatisfied = applicable.length > 0 && satisfiedCount === applicable.length;
+
   const showChecklist = checklist.length > 0;
   const showFields = stageFields.length > 0;
   const showFollowUp = !!followUpStatus?.cadence;
+  const showPendingActions = pendingActions.length > 0;
 
-  if (!showChecklist && !showFields && !showFollowUp) return null;
+  if (!showChecklist && !showFields && !showFollowUp && !showPendingActions) return null;
 
   return (
     <div className="mt-4 space-y-4">
+      {showPendingActions && (
+        <PendingActionDecisions opportunity={opportunity} actorId={actorId} onChanged={onChanged} />
+      )}
+
       {showFollowUp && (
         <FollowUpPanel
           opportunity={opportunity}
@@ -210,10 +238,36 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
       )}
 
       {showChecklist && (
-        <div className="rounded-xl border border-border/70 bg-card/50 p-4">
-          <p className="mb-3 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-            What {opportunity?.status ? "this Stage" : "the Stage"} owes
-          </p>
+        <div
+          className={cn(
+            "rounded-xl border p-4",
+            allSatisfied ? "border-green-9/40 bg-green-a2" : "border-border/70 bg-card/50",
+          )}
+        >
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+              What {opportunity?.status ? "this Stage" : "the Stage"} owes
+            </p>
+            {applicable.length > 0 && (
+              <span
+                className={cn(
+                  "shrink-0 rounded-md px-2 py-0.5 text-[10px] font-black uppercase tracking-wider tabular-nums",
+                  allSatisfied
+                    ? "bg-green-9/15 text-green-11"
+                    : "bg-amber-9/15 text-amber-11",
+                )}
+              >
+                {satisfiedCount} of {applicable.length}
+              </span>
+            )}
+          </div>
+
+          {allSatisfied && (
+            <p className="mb-3 flex items-center gap-1.5 text-xs font-bold text-green-11">
+              <CheckCircle2 size={14} className="shrink-0" />
+              Stage requirements met — this Stage no longer blocks the move.
+            </p>
+          )}
           <div className="space-y-2.5">
             {checklist.map(({ condition, status, satisfiedBy, satisfiedAt }) => (
               <StageChecklistRow

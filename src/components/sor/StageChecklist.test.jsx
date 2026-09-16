@@ -36,6 +36,8 @@ vi.mock("../../services/opportunityService", () => ({
     isChecklistWritableField: vi.fn(() => true),
     getFollowUpStatus: vi.fn(async () => null),
     logFollowUp: vi.fn(async () => true),
+    getPendingActionsForActor: vi.fn(async () => []),
+    decideAction: vi.fn(async () => ({ outcome: "created" })),
   },
 }))
 
@@ -177,6 +179,35 @@ describe("tickbox — the one item this list can also act on", () => {
 
     await screen.findByText("Bid documents checked")
     expect(screen.queryByRole("button", { name: /certify/i })).toBeNull()
+  })
+})
+
+describe("Optional Action decisions (issue #204 Part 2)", () => {
+  it("shows a pending Decider card even with no checklist, fields or cadence", async () => {
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    opportunityService.getPendingActionsForActor.mockResolvedValue([
+      { runId: "run-1", stageName: "Qualified", title: "Approve pricing", target: { kind: "individual", assignee: null } },
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    expect(await screen.findByText("Approve pricing")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Create" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Skip" })).toBeInTheDocument()
+  })
+
+  it("decides via opportunityService.decideAction with the actor's id", async () => {
+    const user = userEvent.setup()
+    opportunityService.getStageChecklist.mockResolvedValue([])
+    opportunityService.getPendingActionsForActor.mockResolvedValue([
+      { runId: "run-1", stageName: "Qualified", title: "Approve pricing", target: { kind: "individual", assignee: null } },
+    ])
+    renderWithProviders(<StageChecklist opportunity={OPPORTUNITY} employees={EMPLOYEES} actorId="emp-1" />)
+
+    await user.click(await screen.findByRole("button", { name: "Skip" }))
+
+    await waitFor(() =>
+      expect(opportunityService.decideAction).toHaveBeenCalledWith("run-1", "skip", "emp-1"),
+    )
   })
 })
 

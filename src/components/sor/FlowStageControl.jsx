@@ -20,7 +20,7 @@ import { bracketRuns } from "../settings/flowCanvasLayout";
  * it may move to next. Those are the outgoing edges she drew, and nothing
  * else is offered, because a path that was never drawn never happens.
  */
-export default function FlowStageControl({ opportunity, onMove, isMoving }) {
+export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [] }) {
   const { data: canvas } = useQuery({
     queryKey: ["salesFlow", opportunity.sale_type_id],
     queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
@@ -32,6 +32,14 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
   const { flow, stages, edges } = canvas;
   const current = stages.find((s) => s.id === opportunity.flow_stage_id) || null;
   const destinations = outgoingStages(opportunity.flow_stage_id, stages, edges);
+
+  // Conditions block the way *out* of the current Stage, so an unmet one
+  // blocks every destination equally. Until this existed a blocked tile
+  // looked exactly like an open one: the click went to the server, was
+  // refused by `assertStageGateSatisfied`, and came back as a toast. Now the
+  // refusal is visible before the click, naming what is missing.
+  const isBlocked = blockedBy.length > 0;
+  const blockedTitle = isBlocked ? `Blocked — missing: ${blockedBy.join(", ")}` : undefined;
 
   // Runs of consecutive Stages sharing one bracket label, in canvas order — a
   // brace draws above each labelled run, the same `bracketRuns` grouping the
@@ -96,18 +104,23 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
                     const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
                     const isDestination = destinations.some((d) => d.id === s.id);
+                    const isBlockedDestination = isDestination && isBlocked;
 
                     return (
                       <li
                         key={s.id}
+                        title={isBlockedDestination ? blockedTitle : undefined}
                         onClick={() => {
-                          if (!isMoving && isDestination) {
+                          if (!isMoving && isDestination && !isBlocked) {
                             onMove(s.id);
                           }
                         }}
                         className={cn(
                           "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
-                          isDestination ? "cursor-pointer hover:brightness-110" : "cursor-default",
+                          isDestination && !isBlocked
+                            ? "cursor-pointer hover:brightness-110"
+                            : "cursor-default",
+                          isBlockedDestination && "opacity-40 saturate-50",
                           isCompleted && classes.completed,
                           isCurrent && cn(classes.current, "shadow-inner"),
                           isUpcoming && "bg-muted text-muted-foreground",
@@ -147,6 +160,12 @@ export default function FlowStageControl({ opportunity, onMove, isMoving }) {
       {/* Sale Type name and the Won/terminal indicator moved up to sit next
           to the "Pipeline Stage" label in OpportunityDetailsModal, beside the
           rest of the deal's identity rather than buried under the ribbon. */}
+      {isBlocked && destinations.length > 0 && (
+        <p className="text-[11px] font-semibold text-amber-11">
+          Can't move on yet — missing: {blockedBy.join(", ")}.
+        </p>
+      )}
+
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
