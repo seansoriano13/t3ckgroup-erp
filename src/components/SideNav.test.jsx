@@ -87,7 +87,7 @@ describe("SideNav Component", () => {
     renderSideNav(user);
 
     expect(screen.getByText("Sales")).toBeInTheDocument();
-    expect(screen.getByText("SOR / CRM")).toBeInTheDocument();
+    expect(screen.getByText("CRM")).toBeInTheDocument();
   });
 
   it("renders all ERP modules for Super Admin", () => {
@@ -167,5 +167,30 @@ describe("SideNav Component", () => {
       "erp_sidebar_groups_persisted-user-1",
       expect.stringContaining('"workspace":false')
     );
+  });
+
+  // Issue #206 — the sidebar collapses to an icon rail app-wide, remembered
+  // per person beside the group accordion state above.
+  it("persists the collapse toggle in localStorage, per user", () => {
+    const user = { id: "collapse-user-1", name: "Collapse Test", isSuperAdmin: true };
+
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
+
+    renderSideNav(user);
+
+    const toggle = screen.getByTitle("Collapse sidebar");
+    fireEvent.click(toggle);
+
+    expect(setItemSpy).toHaveBeenCalledWith("erp_sidebar_collapsed_collapse-user-1", "1");
+    expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
+  });
+
+  it("restores a collapsed sidebar from localStorage on load", () => {
+    const user = { id: "collapse-user-2", name: "Collapse Test 2", isSuperAdmin: true };
+    localStorage.setItem("erp_sidebar_collapsed_collapse-user-2", "1");
+
+    renderSideNav(user);
+
+    expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
   });
 });

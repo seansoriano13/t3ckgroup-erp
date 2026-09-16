@@ -154,7 +154,7 @@ describe("navigation registry", () => {
       const salesGroup = groups.find((g) => g.key === "sales");
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
-        "SOR / CRM",
+        "CRM",
         "Commission Dashboard",
         "Commission Formula",
       ]);
@@ -242,7 +242,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(withOverride);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "SOR / CRM",
+          "CRM",
           "Commission Formula",
         ]);
       });
@@ -253,7 +253,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "SOR / CRM",
+          "CRM",
           "Commission Dashboard",
           "Commission Formula",
         ]);
@@ -278,7 +278,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "SOR / CRM",
+          "CRM",
           "Commission Dashboard",
           "Commission Formula",
         ]);

@@ -120,20 +120,31 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * the safe direction to fail, because the alternative silently promotes
  * pipeline deals into booked money.
  */
-export const isRealizedOpportunity = (opportunity, stages = PIPELINE_STAGE_SEED) => {
+export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
   if (!opportunity?.contract_date) return false;
+
+  // Second argument is either a bare stages array (the original, still
+  // supported shape) or `{ snapshotsById, stages }` like isOpenPipelineOpportunity
+  // and isStillMovingOpportunity take — a caller juggling many flow SORs at
+  // once (the register's totals, the Board's per-column totals) can pass a
+  // bulk snapshot index instead of relying on every row embedding its own.
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(stagesOrContext)
+    ? { stages: stagesOrContext }
+    : stagesOrContext || {};
 
   // Issue #36/#83 — a flow-built deal carries a Sale Type and has no
   // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
   // cannot answer "is this lost". `isLostFlowStage` asks the same question
   // of the deal's OWN Flow Snapshot, not the live flow: a later change to
   // the live Won Stage must not retroactively alter which SORs are
-  // Realized. Requires the caller to have embedded `flow_snapshot` and the
-  // scalar `flow_stage_id` — either missing answers false rather than
+  // Realized. Resolved from `snapshotsById[flow_snapshot_id]` first, else an
+  // embedded `flow_snapshot` — either missing answers false rather than
   // trusting an absence, the same under-reporting direction a deal with no
   // Contract Date fails in.
   if (opportunity.sale_type_id) {
-    const snapshotData = opportunity.flow_snapshot?.snapshot_data;
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
     if (!snapshotData) return false;
     const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     if (!flowStage) return false;

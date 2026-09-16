@@ -36,7 +36,7 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
     await renderForm({ initialData: { has_sales_flow: false } })
 
     // Sales flow off: Sales entries aren't offered as things to hide.
-    expect(screen.queryByText("SOR / CRM")).not.toBeInTheDocument()
+    expect(screen.queryByText("CRM")).not.toBeInTheDocument()
     // Dashboard and My Leaves are permitted unconditionally.
     expect(screen.getByText("Dashboard")).toBeInTheDocument()
     expect(screen.getByText("My Requests")).toBeInTheDocument()
@@ -45,11 +45,11 @@ describe("EmployeeForm hidden-from-navigation editor", () => {
   it("adds an entry to the offered list live when a toggle that permits it is turned on", async () => {
     const { user } = await renderForm({ initialData: { has_sales_flow: false } })
 
-    expect(screen.queryByText("SOR / CRM")).not.toBeInTheDocument()
+    expect(screen.queryByText("CRM")).not.toBeInTheDocument()
 
     await user.click(screen.getByText("Sales Opportunities"))
 
-    expect(screen.getByText("SOR / CRM")).toBeInTheDocument()
+    expect(screen.getByText("CRM")).toBeInTheDocument()
   })
 
   it("toggling an entry off includes its key in the saved hiddenNavKeys", async () => {

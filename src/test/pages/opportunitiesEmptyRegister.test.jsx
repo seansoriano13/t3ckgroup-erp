@@ -9,7 +9,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OpportunitiesPage from "@/pages/opportunities/index";
+import OpportunitiesPage from "@/pages/crm/index";
 import { renderWithProviders } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 

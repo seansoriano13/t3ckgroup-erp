@@ -75,8 +75,8 @@ export const NAV_MODULES = {
     links: [
       {
         key: "sales.sorCrm",
-        label: "SOR / CRM",
-        link: "/opportunities",
+        label: "CRM",
+        link: "/crm",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
         exactMatch: true,
@@ -84,7 +84,7 @@ export const NAV_MODULES = {
       {
         key: "sales.commissionDashboard",
         label: "Commission Dashboard",
-        link: "/opportunities/commission",
+        link: "/crm/commission",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
         exactMatch: true,
@@ -92,7 +92,7 @@ export const NAV_MODULES = {
       {
         key: "sales.commissionFormula",
         label: "Commission Formula",
-        link: "/opportunities/commission-formula",
+        link: "/crm/commission-formula",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
       },

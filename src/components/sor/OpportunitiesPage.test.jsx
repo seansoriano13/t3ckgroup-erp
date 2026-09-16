@@ -3,7 +3,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders } from "../../test/support";
-import OpportunitiesPage from "../../pages/opportunities/index";
+import OpportunitiesPage from "../../pages/crm/index";
 import { opportunityService } from "../../services/opportunityService";
 import { makeFlowSnapshot } from "../../test/factories";
 
@@ -167,6 +167,8 @@ describe("Sales Director visibility — blocked deals (ticket 6)", () => {
     );
 
     await screen.findByText("Beta Network Upgrade");
+    // Issue #206 — every filter lives inside the Filters popover now.
+    await user.click(screen.getByText("Filters"));
     await user.click(screen.getByRole("button", { name: /^blocked$/i }));
 
     expect(screen.getByText("Acme CCTV Rollout")).toBeInTheDocument();

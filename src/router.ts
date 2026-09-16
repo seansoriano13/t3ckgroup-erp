@@ -9,6 +9,9 @@ export type Path =
   | `/approvals/hr-verification`
   | `/approvals/leaves`
   | `/approvals/tasks`
+  | `/crm`
+  | `/crm/commission`
+  | `/crm/commission-formula`
   | `/flow-versions/:snapshotId`
   | `/group-tasks`
   | `/group-tasks/templates`

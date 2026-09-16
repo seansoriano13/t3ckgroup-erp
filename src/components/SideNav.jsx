@@ -125,6 +125,41 @@ export default function SideNav() {
     });
   };
 
+  // Issue #206: the sidebar collapses to an icon rail app-wide, remembered
+  // per person beside the group accordion state above. Mobile ignores this —
+  // its drawer is a full overlay, not a rail — so the toggle only renders and
+  // only changes layout at the md breakpoint.
+  const getInitialCollapsed = (userId) => {
+    if (!userId) return false;
+    try {
+      return localStorage.getItem(`erp_sidebar_collapsed_${userId}`) === "1";
+    } catch {
+      return false;
+    }
+  };
+  const [isCollapsed, setIsCollapsed] = useState(() => getInitialCollapsed(user?.id));
+
+  useEffect(() => {
+    if (user?.id) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsCollapsed(getInitialCollapsed(user.id));
+    }
+  }, [user?.id]);
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      if (user?.id) {
+        try {
+          localStorage.setItem(`erp_sidebar_collapsed_${user.id}`, next ? "1" : "0");
+        } catch {
+          // Ignore storage errors
+        }
+      }
+      return next;
+    });
+  };
+
   // Notification State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const { data: notifications = [] } = useQuery({
@@ -212,10 +247,10 @@ export default function SideNav() {
       <aside
         className={`
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-          fixed md:sticky top-0 left-0 h-screen z-50 flex flex-col 
+          fixed md:sticky top-0 left-0 h-screen z-50 flex flex-col
           bg-sidebar   text-sm font-sans
-          transition-transform duration-300 ease-in-out
-          w-[240px] shrink-0 overflow-y-auto scrollbar-hide
+          transition-[transform,width] duration-300 ease-in-out
+          w-[240px] ${isCollapsed ? "md:w-[68px]" : "md:w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
         `}
       >
         {/* Mobile Close Action (PanelLeft) */}
@@ -228,6 +263,16 @@ export default function SideNav() {
           </button>
         </div>
 
+        {/* Desktop collapse toggle — a rail is icons-only, so this is the one
+            control that survives collapsing to it. */}
+        <button
+          onClick={toggleCollapsed}
+          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className="hidden md:flex absolute top-4 -right-3 z-50 items-center justify-center h-6 w-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+        >
+          {isCollapsed ? <PanelRight size={13} strokeWidth={2} /> : <PanelLeft size={13} strokeWidth={2} />}
+        </button>
+
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
           {/* Row 1: Profile Selector */}
@@ -236,7 +281,7 @@ export default function SideNav() {
               className="flex-1 min-w-0"
               trigger={({ isOpen }) => (
                 <div
-                  className={`flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg transition-all ${isOpen ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all ${isCollapsed ? "md:justify-center md:px-0" : "justify-between"} ${isOpen ? "bg-sidebar-accent" : "hover:bg-sidebar-accent/50"
                     }`}
                 >
                   <div className="flex items-center gap-2.5 overflow-hidden w-full group cursor-pointer transition-opacity">
@@ -244,16 +289,15 @@ export default function SideNav() {
                       src={user?.picture}
                       name={user?.name || "U"}
                       size="md"
-                      className="rounded-md shadow-sm"
+                      className="rounded-md shadow-sm shrink-0"
                     />
-                    <span className="font-semibold text-[14px] truncate text-sidebar-foreground tracking-wide mt-[0.5px]">
+                    <span className={`font-semibold text-[14px] truncate text-sidebar-foreground tracking-wide mt-[0.5px] ${isCollapsed ? "md:hidden" : ""}`}>
                       {user?.name || "User"}
                     </span>
                   </div>
                   <ChevronDown
                     size={14}
-                    className={`text-sidebar-foreground/60 transition-transform duration-200 ${isOpen ? "rotate-180" : ""
-                      }`}
+                    className={`text-sidebar-foreground/60 transition-transform duration-200 shrink-0 ${isOpen ? "rotate-180" : ""} ${isCollapsed ? "md:hidden" : ""}`}
                   />
                 </div>
               )}
@@ -277,8 +321,9 @@ export default function SideNav() {
             </Dropdown>
           </div>
 
-          {/* Row 2: Action Buttons */}
-          <div className="flex items-center gap-1.5">
+          {/* Row 2: Action Buttons — stacks vertically on the collapsed rail,
+              where there isn't width for four icons side by side. */}
+          <div className={`flex items-center gap-1.5 ${isCollapsed ? "md:flex-col" : ""}`}>
             {/* Broadcast — super admins only */}
             {user?.isSuperAdmin && (
               <button
@@ -286,7 +331,7 @@ export default function SideNav() {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                className="flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all"
+                className={`flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
@@ -299,7 +344,7 @@ export default function SideNav() {
                 setIsNotifOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Notifications"
             >
               <Bell size={15} strokeWidth={2.2} />
@@ -316,7 +361,7 @@ export default function SideNav() {
                 setIsChatsOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Chats"
             >
               <MessageCircle size={15} strokeWidth={2.2} />
@@ -331,7 +376,7 @@ export default function SideNav() {
             {quickActionGroups.length > 0 && (
               <Dropdown
                 placement="bottom-end"
-                className="flex-1"
+                className={isCollapsed ? "md:w-full" : "flex-1"}
                 usePortal={true}
                 trigger={({ isOpen }) => (
                   <button
@@ -387,6 +432,10 @@ export default function SideNav() {
             {activeGroups.map((group) => {
               const key = group.key;
               const isExpanded = expandedGroups[key] ?? group.defaultExpanded ?? true;
+              // A collapsed rail has no room for a header or an accordion —
+              // every group just shows its icons, ignoring the per-group
+              // expand/collapse state (which resumes as soon as it's expanded).
+              const showLinks = isCollapsed || isExpanded;
               const groupBadgeCount = group.links.reduce((acc, l) => {
                 return acc + (l.badgeKey && badges?.[l.badgeKey] ? badges[l.badgeKey] : 0);
               }, 0);
@@ -395,7 +444,7 @@ export default function SideNav() {
                 <div key={key} className="flex flex-col">
                   <div
                     onClick={() => toggleGroup(key)}
-                    className="px-3 mb-1.5 flex items-center justify-between text-sidebar-foreground/60 group/header cursor-pointer transition-colors hover:text-sidebar-foreground"
+                    className={`px-3 mb-1.5 flex items-center justify-between text-sidebar-foreground/60 group/header cursor-pointer transition-colors hover:text-sidebar-foreground ${isCollapsed ? "md:hidden" : ""}`}
                   >
                     <span className="text-[11px] font-black tracking-widest uppercase">
                       {group.label}
@@ -417,7 +466,7 @@ export default function SideNav() {
                     </div>
                   </div>
                   <div
-                    className={`flex flex-col gap-1 overflow-hidden transition-all duration-300 ${isExpanded ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
+                    className={`flex flex-col gap-1 overflow-hidden transition-all duration-300 ${showLinks ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"
                       }`}
                   >
                     {group.links.map((navLink) => {
@@ -430,8 +479,9 @@ export default function SideNav() {
                           to={navLink.link}
                           end={!!navLink.exactMatch}
                           onClick={() => setIsMobileOpen(false)}
+                          title={isCollapsed ? navLink.label : undefined}
                           className={({ isActive }) =>
-                            `flex gap-3 items-center px-3 py-2 rounded-md transition-colors ${isActive
+                            `flex gap-3 items-center px-3 py-2 rounded-md transition-colors ${isCollapsed ? "md:justify-center md:px-2" : ""} ${isActive
                               ? "bg-sidebar-accent text-sidebar-primary shadow-sm"
                               : "hover:text-sidebar-foreground hover:bg-sidebar-accent/50 text-sidebar-foreground/80"
                             }`
@@ -446,7 +496,7 @@ export default function SideNav() {
                                   }`}
                               />
                               <span
-                                className={`truncate text-[13.5px] mt-[0.5px] transition-all flex-1 ${isActive ? "font-bold text-sidebar-primary" : "font-medium"
+                                className={`truncate text-[13.5px] mt-[0.5px] transition-all flex-1 ${isCollapsed ? "md:hidden" : ""} ${isActive ? "font-bold text-sidebar-primary" : "font-medium"
                                   }`}
                               >
                                 {navLink.label}
@@ -454,7 +504,7 @@ export default function SideNav() {
                               {linkBadge > 0 && (
                                 <span
                                   data-testid={`link-badge-${navLink.label}`}
-                                  className="shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary px-1.5 text-[10px] font-bold"
+                                  className={`shrink-0 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-sidebar-primary/15 text-sidebar-primary px-1.5 text-[10px] font-bold ${isCollapsed ? "md:hidden" : ""}`}
                                 >
                                   {linkBadge}
                                 </span>
@@ -470,7 +520,9 @@ export default function SideNav() {
             })}
           </nav>
 
-          <RoleSwitcher />
+          <div className={isCollapsed ? "md:hidden" : ""}>
+            <RoleSwitcher />
+          </div>
         </div>
       </aside>
 

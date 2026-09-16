@@ -353,6 +353,36 @@ describe("realized is having a contract date", () => {
       }
       expect(isRealizedOpportunity(stillWon)).toBe(true)
     })
+
+    // Issue #206 — a caller judging many flow SORs at once (the register's
+    // Won total, the Board's per-column totals) passes a bulk snapshot index
+    // instead of relying on each row embedding its own.
+    it("resolves the snapshot from a snapshotsById context, even with no embed", () => {
+      const won = { ...wonThenLost, flow_snapshot: undefined, flow_stage_id: "s-won" }
+      const snapshotsById = {
+        [won.flow_snapshot_id]: undefined, // no flow_snapshot_id on this fixture; falls through
+      }
+      expect(isRealizedOpportunity(won, { snapshotsById: {} })).toBe(false)
+
+      const withId = { ...won, flow_snapshot_id: "snap-1" }
+      const context = {
+        snapshotsById: {
+          "snap-1": { snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] } },
+        },
+      }
+      expect(isRealizedOpportunity(withId, context)).toBe(true)
+    })
+
+    it("prefers snapshotsById over an embedded flow_snapshot when both are given", () => {
+      const withId = { ...wonThenLost, flow_snapshot_id: "snap-1", flow_stage_id: "s-won" }
+      const context = {
+        snapshotsById: {
+          "snap-1": { snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] } },
+        },
+      }
+      // The embed still says s-lost/terminal, but the context's snapshot wins.
+      expect(isRealizedOpportunity(withId, context)).toBe(true)
+    })
   })
 })
 

@@ -16,9 +16,15 @@ export default function AppLayout() {
   // floating toolbar already says what a page header would.
   // `/flow-versions/:id` is the same shape: a read-only Flow Snapshot, panned
   // and zoomed, opened from the version badge on an SOR.
+  //
+  // `/crm` joins them (issue #206): the register is something you pan or scan
+  // across (a board, a large list), not a form. Its Commission pages are
+  // ordinary pages and stay centred.
   const isFullBleed =
     location.pathname.startsWith("/super-admin/flow-canvas") ||
-    location.pathname.startsWith("/flow-versions/");
+    location.pathname.startsWith("/flow-versions/") ||
+    (location.pathname.startsWith("/crm") &&
+      !location.pathname.startsWith("/crm/commission"));
 
   if (
     location.pathname === "/login" ||
