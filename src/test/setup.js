@@ -49,6 +49,17 @@ beforeAll(() => {
       disconnect() {}
     }
   }
+  // jsdom has no matchMedia. Defaults every query to non-matching so a
+  // width-gated layout (the SOR modal's chat-as-tab switch) renders its wide
+  // form in tests unless a test stubs window.matchMedia itself.
+  if (!window.matchMedia) {
+    window.matchMedia = (query) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })
+  }
   // Anything not described by a handler is a bug in the test, not something to
   // quietly let through to the real internet.
   server.listen({ onUnhandledRequest: "error" })
