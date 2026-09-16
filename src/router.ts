@@ -34,6 +34,7 @@ export type Path =
   | `/super-admin/commission`
   | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
+  | `/super-admin/release-notes`
   | `/tasks`
   | `/verify/:token`
 

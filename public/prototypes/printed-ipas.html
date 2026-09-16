@@ -1,0 +1,359 @@
+<title>Printed IPAS</title>
+<!--
+  PROTOTYPE — throwaway. Ticket: Printed IPAS (#222) on the IPAS/PMS map (#210).
+  Three treatments, switchable with ?variant=A|B|C, the bar, or the arrow keys.
+  Sections follow the sheet (1, 2, 3, 5, 6, 7 — section 4 removed) and the decisions
+  on payments and charges, Odoo-stamped statuses, documents with two ticks, and filing.
+  Sample is TGIPAS_050, the imported stretcher order on S07983. Print idiom: ADR 0014.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600&display=swap">
+<style>
+  :root {
+    --desk: #e7e3dc; --desk-ink: #2c2a26; --desk-soft: #6d685f; --desk-edge: #cdc7bd;
+    --shadow: 0 1px 2px rgba(24,22,18,.16), 0 12px 28px rgba(24,22,18,.13);
+    --paper: #fff; --ink: #16181c; --ink-soft: #55606c; --ink-faint: #8b95a1;
+    --rule: #c4c9d0; --hair: #e4e7eb; --wash: #f4f6f8; --accent: #0d4f3c; --flag: #9d3218; --ok: #1f5c46;
+    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+  }
+  :root[data-theme="dark"] { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--desk); color: var(--desk-ink); font-family: var(--sans); font-size: 14px; }
+  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .desk-head { width: min(1100px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 66ch; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+
+  .sheet { width: 210mm; min-height: 297mm; padding: 11mm 12mm 9mm; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 3.5mm; font-size: 8.2pt; line-height: 1.3; }
+  .sheet.land { width: 297mm; min-height: 210mm; }
+
+  .rail { display: flex; align-items: flex-end; gap: 9px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
+  .rail .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  .rail .mark svg { width: 100%; height: 100%; display: block; }
+  .rail .org { font-size: 6.8pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
+  .rail .org b { display: block; font-size: 9.5pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .doc { margin-left: auto; text-align: right; }
+  .rail .doc .t { font-family: var(--serif); font-size: 14pt; font-weight: 600; line-height: 1; }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-soft); }
+
+  .hdr { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px 10px; border: 1px solid var(--rule); padding: 4px 6px; }
+  .f .k { font-size: 6pt; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); display: block; }
+  .f .v { font-size: 8.6pt; font-weight: 500; }
+  .f .v.m { font-family: var(--mono); font-weight: 400; }
+  .f .v.big { font-size: 10pt; }
+
+  .sec { border: 1px solid var(--rule); }
+  .sec > h3 { margin: 0; font-size: 6.4pt; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-soft); background: var(--wash); border-bottom: 1px solid var(--rule); padding: 3px 6px; display: flex; justify-content: space-between; }
+  .sec > h3 b { font-family: var(--mono); color: var(--ink-faint); font-weight: 400; letter-spacing: 0; }
+  .sec > .body { padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; }
+  .cols2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+  .cols3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3.5mm; }
+  .fields { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px 10px; }
+  .fields.n2 { grid-template-columns: repeat(2, 1fr); }
+  .fields.n3 { grid-template-columns: repeat(3, 1fr); }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; vertical-align: top; padding: 2.6px 5px; border-bottom: 1px solid var(--hair); }
+  thead th { font-size: 6pt; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1px solid var(--ink); }
+  td.num, th.num { text-align: right; font-family: var(--mono); }
+  tfoot td { font-weight: 600; border-top: 1px solid var(--ink); border-bottom: 0; }
+  .sub { color: var(--ink-soft); font-size: 6.8pt; }
+  .m { font-family: var(--mono); }
+  .tick { font-family: var(--mono); }
+  .miss { color: var(--flag); }
+
+  .stat { display: flex; flex-wrap: wrap; gap: 2px 10px; }
+  .stat .s { font-size: 7.2pt; display: flex; gap: 4px; align-items: baseline; }
+  .stat .s .d { font-family: var(--mono); color: var(--ink-faint); font-size: 6.6pt; }
+  .stat .s.done .t { font-weight: 600; }
+  .stat .s.open { color: var(--ink-faint); }
+  .stat .s.auto .t::after { content: " ●"; color: var(--accent); font-size: 5pt; vertical-align: middle; }
+
+  .sigs { display: grid; gap: 6mm; }
+  .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
+  .sigs.n4 { grid-template-columns: repeat(4, 1fr); }
+  .sig .k { font-size: 6pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+  .sig .plate { height: 10mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 10pt; }
+  .sig .who { font-size: 7.6pt; font-weight: 500; margin-top: 2px; }
+  .sig .role { font-size: 6.4pt; color: var(--ink-soft); }
+  .sig .stamp { font-family: var(--mono); font-size: 6pt; color: var(--ink-faint); }
+  .sig.awaiting .plate { border-bottom-style: dashed; }
+  .sig.awaiting .stamp { color: var(--flag); }
+
+  .foot { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hair); padding-top: 3px; font-size: 6.2pt; color: var(--ink-faint); font-family: var(--mono); margin-top: auto; }
+  .prov { color: var(--flag); }
+
+  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
+  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .switcher button:hover { background: rgba(255,255,255,.12); }
+  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
+  .switcher .label { padding: 9px 6px; min-width: 210px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .switcher .label b { font-size: 13px; }
+  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #9aa4ae; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    .desk { padding: 0; gap: 0; }
+    .desk-head, .switcher { display: none !important; }
+    .sheet { box-shadow: none; page-break-after: always; }
+  }
+  @media (max-width: 860px) {
+    .sheet, .sheet.land { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
+    .hdr, .fields, .fields.n3, .fields.n2 { grid-template-columns: 1fr 1fr; }
+    .cols2, .cols3 { grid-template-columns: 1fr; }
+    .sigs.n4 { grid-template-columns: 1fr 1fr; }
+    .switcher .label { min-width: 120px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="desk">
+  <div class="desk-head">
+    <h1>Printed IPAS</h1>
+    <span class="tag">prototype · #222</span>
+    <p>One imported purchase, printed for Finance to file. Sections 1, 2, 3, 5, 6 and 7 — section 4 is gone. Flip with the bar, the arrow keys, or <code>?variant=</code>.</p>
+  </div>
+  <div id="stage"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button type="button" id="prev" aria-label="Previous variant">&#8592;</button>
+  <div class="label"><b id="vname">The sheet, in order</b><span id="vkey">Variant A</span></div>
+  <button type="button" id="next" aria-label="Next variant">&#8594;</button>
+</div>
+
+<script>
+const MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="204 177 650 550" role="img" aria-label="T3CKGROUP"><path d="M492.51 240.23C492.91 240.97 492.53 241.46 493.45 241.96C495.1 242.87 508.27 242.24 511.06 242.25C530.08 242.31 549.09 242.16 568.11 242.18C632.01 242.23 695.92 241.89 759.82 242.13C776.65 242.2 793.48 242.21 810.32 242.1C815 242.06 825.21 243.53 828.76 240.84C827.84 246.58 824.24 252.21 821.99 257.65C818.53 266.04 815.56 274.69 811.94 283.01C810.26 286.89 808.16 290.61 806.56 294.54C803.77 301.39 801.24 311.91 796.63 317.49C783.01 318.59 768.84 317.65 755.14 317.69C723.03 317.81 690.93 317.84 658.82 317.86C646.35 317.87 633.89 317.91 621.41 317.76C616.52 317.7 609.38 316.33 605.07 318.83C604.78 318.34 604.89 317.74 604.27 317.47C601.72 316.35 592.79 317.18 589.62 317.17C573.46 317.1 557.13 316.8 540.99 317.41C536.8 322.42 533.82 334.35 531.05 340.78C523.06 359.37 515.47 378.12 507.47 396.71C481.23 457.69 456.33 519.24 430.24 580.29C421.53 600.69 413.65 621.47 404.6 641.72C402.45 646.53 400.62 651.4 398.71 656.3C397.7 658.9 395.97 661.24 397.25 663.89C393.14 666.46 390.6 676.47 388.83 681.11C385.64 689.5 381.65 697.57 378.03 705.78C375.49 711.54 373.63 717.62 370.79 723.25C365.75 725.3 347.54 723.73 340.87 723.88C315.32 724.44 289.73 723.89 264.18 724.01C255.77 724.05 247.34 724.23 238.93 723.92C235.16 723.79 231.02 724.32 227.71 722.63C230.5 711.05 236.9 699.94 241.56 688.99C249.35 670.7 256.43 652.17 264.02 633.8C266.89 626.84 270.49 620.14 273.23 613.1C284.71 583.5 297.33 554.43 309.77 525.28C312.42 519.08 314.42 512.64 316.93 506.4C327.26 480.73 338.3 455.39 349.01 429.88C359.88 404.01 370.86 378.38 380.76 352.27C383.69 344.54 387.52 337.09 390.69 329.45C392.12 326 394.34 321.91 394.17 318.2C331.83 317.92 269.48 317.63 207.14 317.35C206.03 311.02 212.64 300.35 215.18 294.14C217.67 288.1 219.6 281.8 222.05 275.74C224.43 269.82 227.36 264.17 229.63 258.18C231.65 252.84 233.51 247.21 236.13 242.14C242.42 240.59 251.87 241.78 258.59 241.81C272.61 241.89 286.62 241.7 300.65 241.8C342.69 242.1 384.73 241.45 426.76 241.73C442.69 241.84 458.64 241.36 474.57 241.7C478.85 241.79 489.82 243.24 492.51 240.23Z" fill="currentColor" fill-rule="evenodd"/></svg>';
+
+const D = {
+  no: 'TGIPAS_050', entity: 'TG Enterprise', priority: 'High', source: 'Import', purpose: 'Project',
+  created: '02 Sep 2026', by: '1004',
+  supplier: 'Redleaf Medical Supplies', contact: 'Ms. K. Tan', currency: 'USD',
+  po: 'P02445', pi: 'PI-RL-2026-118', item: 'Ambulance Folding Stretcher · Redleaf RL-FS190 · 2 units',
+  brand: 'Redleaf', customer: 'Palmer Asia Inc', sors: 'S07983', sourceDoc: 'S07983', analytic: 'S07983 Emergency Response Vehicle',
+  dateReceived: '11 Sep 2026',
+  payments: [
+    { kind: 'Down payment', date: '03 Sep 2026', amt: 'USD 640.00', php: 36160, fee: 350, method: 'Bank TT', pop: true },
+    { kind: 'Full payment', date: '10 Sep 2026', amt: 'USD 640.00', php: 36240, fee: 350, method: 'Bank TT', pop: true },
+    { kind: 'Shipping fee', date: '10 Sep 2026', amt: 'USD 120.00', php: 6800, fee: 0, method: 'Bank TT', pop: false }
+  ],
+  charges: [
+    { kind: 'Brokerage Fee', date: '12 Sep 2026', amt: 4200 },
+    { kind: 'Duties & Taxes', date: '12 Sep 2026', amt: 9870 },
+    { kind: 'Destination Charges', date: '12 Sep 2026', amt: 3150 }
+  ],
+  bank: { name: 'BDO Unibank', acct: 'Redleaf Medical Supplies', no: '•••• 4417', flagged: false },
+  docs: [
+    ['Proforma Invoice', true, true], ['Sales Contract', true, false], ['BL or Waybill', true, true],
+    ['Packing List', true, true], ['Commercial Invoice', true, false], ['Form E / Form K', false, false]
+  ],
+  origin: [['Shipped Out', '05 Sep 2026'], ['Onboard', '06 Sep 2026'], ['Arrived in PH', '09 Sep 2026'], ['Arrived in Whs.', '']],
+  buyer: [['Purchase Order', '02 Sep', 'odoo'], ['With P.O.P', '10 Sep', ''], ['Import Clearance', '', ''], ['Delivered', '14 Sep', ''], ['Received in Odoo', 'partly', 'odoo'], ['Create Bill', '1 draft', 'odoo'], ['Actual Checking', '15 Sep', '']],
+  comp: [['Encoding', '02 Sep'], ['Encoded', '12 Sep'], ['Costs complete', ''], ['Checked by', '']],
+  transmittals: [['TRN_034', '14 Sep 2026', 'Purchasing → Technical RRD', 'Received · 1 line damaged']],
+  location: 'BM Office',
+  filing: [['OR / P.O.P (SS)', true], ['Waybill', true], ['BIR 2307', false], ['Landed / Local Cost (OPC)', false], ['Freight Billing', true], ['Proforma Invoice', true]],
+  landed: { unit: 44370, total: 88740, provisional: true },
+  sig1: [
+    { k: 'Prepared by', who: 'J. Bautista', role: 'Purchasing · 1001', stamp: 'signed 02 Sep', printed: true },
+    { k: 'Approved by', who: 'M. Ramos', role: 'General Manager · 101', stamp: 'signed 03 Sep', printed: true }
+  ],
+  sig3: [
+    { k: 'Prepared by', who: 'J. Bautista', role: 'Purchasing · 1001', stamp: 'signed 12 Sep', printed: true },
+    { k: 'Approved by', who: 'M. Ramos', role: 'General Manager · 101', stamp: 'name printed · no stored signature', printed: false }
+  ],
+  sig7: [
+    { k: 'Received by', who: 'R. Cruz', role: 'Finance · 1203', stamp: 'signed 15 Sep', printed: true },
+    { k: 'Noted by', who: 'E. Flores', role: 'Senior Accounting', stamp: 'Signature required', awaiting: true },
+    { k: 'Checked by', who: 'P. Ledesma', role: 'Accounting', stamp: 'Signature required', awaiting: true },
+    { k: 'Approved by', who: 'M. Ramos', role: 'General Manager · 101', stamp: 'files the IPAS', awaiting: true }
+  ]
+};
+const peso = n => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pesoK = n => '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 0 });
+const paidPhp = D.payments.reduce((s, p) => s + p.php + p.fee, 0);
+const chargeTotal = D.charges.reduce((s, c) => s + c.amt, 0);
+
+const sigBlock = s => `<div class="sig${s.awaiting ? ' awaiting' : ''}">
+  <div class="k">${s.k}</div><div class="plate">${s.printed ? `<span class="printed">${s.who}</span>` : ''}</div>
+  <div class="who">${s.who}</div><div class="role">${s.role}</div><div class="stamp">${s.stamp}</div></div>`;
+
+const rail = sub => `<div class="rail"><span class="mark">${MARK}</span>
+  <span class="org"><b>T3CKGROUP</b>Integrated purchasing and shipping form</span>
+  <span class="doc"><div class="t">IPAS</div><div class="s">${D.no} · ${sub}</div></span></div>`;
+
+const header = () => `<div class="hdr">
+  <div class="f"><span class="k">Entity</span><span class="v big">${D.entity}</span></div>
+  <div class="f"><span class="k">Priority</span><span class="v">${D.priority}</span></div>
+  <div class="f"><span class="k">Source</span><span class="v">${D.source}</span></div>
+  <div class="f"><span class="k">Purpose</span><span class="v">${D.purpose}</span></div>
+  <div class="f"><span class="k">Date created</span><span class="v m">${D.created}</span></div>
+  <div class="f"><span class="k">Created by</span><span class="v m">${D.by}</span></div>
+</div>`;
+
+const sec1 = () => `<div class="sec"><h3>1 · Purchasing <b>${D.po}</b></h3><div class="body">
+  <div class="fields">
+    <div class="f"><span class="k">Supplier</span><span class="v">${D.supplier}</span></div>
+    <div class="f"><span class="k">Contact</span><span class="v">${D.contact}</span></div>
+    <div class="f"><span class="k">Currency</span><span class="v m">${D.currency}</span></div>
+    <div class="f"><span class="k">P.I #</span><span class="v m">${D.pi}</span></div>
+  </div>
+  <div class="f"><span class="k">Item</span><span class="v">${D.item} · brand ${D.brand}</span></div>
+  <table>
+    <thead><tr><th>Payment</th><th>Date</th><th>Amount</th><th class="num">PHP debited</th><th class="num">Charge fee</th><th>Method</th><th>P.O.P</th></tr></thead>
+    <tbody>${D.payments.map(p => `<tr><td>${p.kind}</td><td class="m">${p.date}</td><td class="m">${p.amt}</td>
+      <td class="num">${peso(p.php)}</td><td class="num">${p.fee ? peso(p.fee) : '—'}</td><td>${p.method}</td>
+      <td class="tick">${p.pop ? '✓' : '☐'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td colspan="3">Total debited, including charge fees</td><td class="num">${peso(paidPhp)}</td><td colspan="3"></td></tr></tfoot>
+  </table>
+  <div class="sigs n2">${D.sig1.map(sigBlock).join('')}</div>
+</div></div>`;
+
+const sec2 = () => `<div class="sec"><h3>2 · Sales &amp; Operation</h3><div class="body">
+  <div class="fields">
+    <div class="f"><span class="k">Customer</span><span class="v">${D.customer}</span></div>
+    <div class="f"><span class="k">SOR</span><span class="v m">${D.sors}</span></div>
+    <div class="f"><span class="k">Source Doc. Odoo</span><span class="v m">${D.sourceDoc}</span></div>
+    <div class="f"><span class="k">Date received</span><span class="v m">${D.dateReceived}</span></div>
+  </div>
+  <div class="f"><span class="k">Analytic distribution</span><span class="v">${D.analytic}</span></div>
+</div></div>`;
+
+const sec3 = () => `<div class="sec"><h3>3 · Purchasing &amp; Finance <b>charges ${pesoK(chargeTotal)}</b></h3><div class="body">
+  <div class="cols2">
+    <table>
+      <thead><tr><th>Importation charge</th><th>Date</th><th class="num">Amount</th></tr></thead>
+      <tbody>${D.charges.map(c => `<tr><td>${c.kind}</td><td class="m">${c.date}</td><td class="num">${peso(c.amt)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="2">Total charges</td><td class="num">${peso(chargeTotal)}</td></tr></tfoot>
+    </table>
+    <div>
+      <table>
+        <thead><tr><th>Document</th><th>Purchasing</th><th>Finance</th></tr></thead>
+        <tbody>${D.docs.map(d => `<tr><td class="${d[1] ? '' : 'miss'}">${d[0]}</td><td class="tick">${d[1] ? '✓' : '☐'}</td><td class="tick">${d[2] ? '✓' : '☐'}</td></tr>`).join('')}</tbody>
+      </table>
+      <div class="fields n3" style="margin-top:4px">
+        <div class="f"><span class="k">Bank</span><span class="v">${D.bank.name}</span></div>
+        <div class="f"><span class="k">Account name</span><span class="v">${D.bank.acct}</span></div>
+        <div class="f"><span class="k">Account #</span><span class="v m">${D.bank.no}</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="sigs n2">${D.sig3.map(sigBlock).join('')}</div>
+</div></div>`;
+
+const sec5 = () => `<div class="sec"><h3>5 · Logistics &amp; Warehouse <b>${D.location}</b></h3><div class="body">
+  <table>
+    <thead><tr><th>Transmittal</th><th>Date</th><th>Route</th><th>State</th></tr></thead>
+    <tbody>${D.transmittals.map(t => `<tr><td class="m">${t[0]}</td><td class="m">${t[1]}</td><td>${t[2]}</td><td>${t[3]}</td></tr>`).join('')}</tbody>
+  </table>
+</div></div>`;
+
+const statList = (rows, auto) => `<div class="stat">${rows.map(r => {
+  const done = !!r[1];
+  const isAuto = auto && r[2] === 'odoo';
+  return `<span class="s ${done ? 'done' : 'open'} ${isAuto ? 'auto' : ''}"><span class="t">${done ? '✓' : '☐'} ${r[0]}</span><span class="d">${r[1] || ''}</span></span>`;
+}).join('')}</div>`;
+
+const sec6 = () => `<div class="sec"><h3>6 · Status <b>● stamped from Odoo</b></h3><div class="body">
+  <div class="f"><span class="k">Supplier origin</span></div>${statList(D.origin)}
+  <div class="f"><span class="k">Buyer</span></div>${statList(D.buyer, true)}
+  <div class="f"><span class="k">IPAS computation</span></div>${statList(D.comp)}
+  <div class="f"><span class="k">Landed cost</span><span class="v m">${peso(D.landed.unit)} per unit · ${peso(D.landed.total)} total ${D.landed.provisional ? '<span class="prov">provisional</span>' : 'final'}</span></div>
+</div></div>`;
+
+const sec7 = () => `<div class="sec"><h3>7 · For filing <b>Finance / Accounting</b></h3><div class="body">
+  <div class="stat">${D.filing.map(f => `<span class="s ${f[1] ? 'done' : 'open'}"><span class="t">${f[1] ? '✓' : '☐'} ${f[0]}</span></span>`).join('')}</div>
+  <div class="sub">Filing freezes this IPAS. Costs are not yet complete, so Landed Cost would freeze provisional — <span class="prov">Approve is blocked until costs are marked complete</span>.</div>
+  <div class="sigs n4">${D.sig7.map(sigBlock).join('')}</div>
+</div></div>`;
+
+const foot = (l, r) => `<div class="foot"><span>${l}</span><span>Landed Cost provisional · Odoo copy read 15 Sep 2026 09:12</span><span>${r}</span></div>`;
+
+// A — the sheet, in its own order, two portrait pages
+function variantA() {
+  return `<div class="sheet">
+    ${rail('page 1 of 2')}${header()}${sec1()}${sec2()}${sec3()}
+    ${foot(D.no + ' · ' + D.sors, 'sections 1–3')}
+  </div>
+  <div class="sheet">
+    ${rail('page 2 of 2')}${sec5()}${sec6()}${sec7()}
+    ${foot(D.no + ' · ' + D.sors, 'sections 5–7')}
+  </div>`;
+}
+
+// B — one landscape sheet, three columns
+function variantB() {
+  return `<div class="sheet land">
+    ${rail('one sheet')}${header()}
+    <div class="cols3">
+      <div style="display:flex;flex-direction:column;gap:3.5mm">${sec1()}${sec2()}</div>
+      <div style="display:flex;flex-direction:column;gap:3.5mm">${sec3()}${sec5()}</div>
+      <div style="display:flex;flex-direction:column;gap:3.5mm">${sec6()}${sec7()}</div>
+    </div>
+    ${foot(D.no + ' · ' + D.sors, 'one sheet · A4 landscape')}
+  </div>`;
+}
+
+// C — money first for Finance, the rest as a back sheet
+function variantC() {
+  return `<div class="sheet">
+    ${rail('filing copy')}${header()}
+    <div class="sec"><h3>What was paid, and what it cost <b>${D.po} · ${D.currency}</b></h3><div class="body">
+      <div class="fields">
+        <div class="f"><span class="k">Supplier</span><span class="v big">${D.supplier}</span></div>
+        <div class="f"><span class="k">Total debited</span><span class="v big m">${peso(paidPhp)}</span></div>
+        <div class="f"><span class="k">Charges</span><span class="v big m">${peso(chargeTotal)}</span></div>
+        <div class="f"><span class="k">Landed cost / unit</span><span class="v big m">${peso(D.landed.unit)} <span class="prov">prov.</span></span></div>
+      </div>
+      <table>
+        <thead><tr><th>Payment</th><th>Date</th><th>Amount</th><th class="num">PHP</th><th class="num">Fee</th><th>Method</th><th>P.O.P</th></tr></thead>
+        <tbody>${D.payments.map(p => `<tr><td>${p.kind}</td><td class="m">${p.date}</td><td class="m">${p.amt}</td><td class="num">${peso(p.php)}</td><td class="num">${p.fee ? peso(p.fee) : '—'}</td><td>${p.method}</td><td class="tick">${p.pop ? '✓' : '☐'}</td></tr>`).join('')}
+        ${D.charges.map(c => `<tr><td>${c.kind} <span class="sub">charge</span></td><td class="m">${c.date}</td><td class="m">PHP</td><td class="num">${peso(c.amt)}</td><td class="num">—</td><td>—</td><td class="tick">—</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td colspan="3">Paid and charged</td><td class="num">${peso(paidPhp + chargeTotal)}</td><td colspan="3"></td></tr></tfoot>
+      </table>
+      <div class="fields n3">
+        <div class="f"><span class="k">Bank</span><span class="v">${D.bank.name}</span></div>
+        <div class="f"><span class="k">Account name</span><span class="v">${D.bank.acct}</span></div>
+        <div class="f"><span class="k">Account #</span><span class="v m">${D.bank.no}</span></div>
+      </div>
+    </div></div>
+    ${sec7()}
+    ${foot(D.no + ' · ' + D.sors, 'filing copy · front')}
+  </div>
+  <div class="sheet">
+    ${rail('supporting detail')}
+    ${sec1()}${sec2()}${sec3()}${sec5()}${sec6()}
+    ${foot(D.no + ' · ' + D.sors, 'filing copy · back')}
+  </div>`;
+}
+
+const VARIANTS = [
+  { key: 'A', name: 'The sheet, in order', render: variantA },
+  { key: 'B', name: 'One landscape sheet', render: variantB },
+  { key: 'C', name: 'Money first, detail behind', render: variantC }
+];
+function currentKey() { const p = new URLSearchParams(location.search).get('variant'); return VARIANTS.some(v => v.key === p) ? p : 'A'; }
+function show(key) {
+  const v = VARIANTS.find(x => x.key === key) || VARIANTS[0];
+  document.getElementById('stage').innerHTML = v.render();
+  document.getElementById('vname').textContent = v.name;
+  document.getElementById('vkey').textContent = 'Variant ' + v.key;
+  const url = new URL(location.href); url.searchParams.set('variant', v.key); history.replaceState(null, '', url);
+}
+function step(n) { const i = VARIANTS.findIndex(v => v.key === currentKey()); show(VARIANTS[(i + n + VARIANTS.length) % VARIANTS.length].key); }
+document.getElementById('prev').addEventListener('click', () => step(-1));
+document.getElementById('next').addEventListener('click', () => step(1));
+document.addEventListener('keydown', e => {
+  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1);
+});
+show(currentKey());
+</script>

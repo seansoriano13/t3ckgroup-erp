@@ -1,0 +1,353 @@
+<title>Order Monitoring</title>
+<!--
+  PROTOTYPE — throwaway. Ticket: Order monitoring view (#237) on the IPAS/PMS map (#210).
+  Three views of the same twelve orders, switchable with ?variant=A|B|C, the floating bar,
+  or the arrow keys. Every state comes from a record the map has already decided on:
+  IPAS status tracks, Transmittals, TSRs and Odoo milestones. Sample data is invented but
+  shaped on TGIPAS_048, P02552 / S07983 and the Emergency Response Vehicle sheet.
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --ink: #14171c;
+    --ink-soft: #5b6673;
+    --ink-faint: #8d97a3;
+    --edge: #dfe3e8;
+    --edge-soft: #ecEFF2;
+    --accent: #0d4f3c;
+    --accent-soft: #e6f0ec;
+    --late: #9d3218;
+    --late-soft: #fbeae6;
+    --warn: #8a6100;
+    --warn-soft: #fdf3dd;
+    --done: #2f6b52;
+    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    --radius: 6px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #101317;
+      --panel: #171b20;
+      --ink: #e9ecef;
+      --ink-soft: #a3adb8;
+      --ink-faint: #737e8a;
+      --edge: #272d34;
+      --edge-soft: #1f242a;
+      --accent: #6cc3a1;
+      --accent-soft: #16302a;
+      --late: #e88b74;
+      --late-soft: #33201c;
+      --warn: #e0b45c;
+      --warn-soft: #302711;
+      --done: #6cc3a1;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #101317;
+    --panel: #171b20;
+    --ink: #e9ecef;
+    --ink-soft: #a3adb8;
+    --ink-faint: #737e8a;
+    --edge: #272d34;
+    --edge-soft: #1f242a;
+    --accent: #6cc3a1;
+    --accent-soft: #16302a;
+    --late: #e88b74;
+    --late-soft: #33201c;
+    --warn: #e0b45c;
+    --warn-soft: #302711;
+    --done: #6cc3a1;
+  }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 14px; line-height: 1.45; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-block: 26px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; gap: 18px; }
+
+  header.page { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+  header.page h1 { font-size: 22px; margin: 0; letter-spacing: -.015em; font-weight: 600; }
+  header.page .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-faint); border: 1px solid var(--edge); border-radius: 3px; padding: 2px 7px; }
+  header.page p { margin: 0; color: var(--ink-soft); font-size: 13px; max-width: 66ch; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+  .tile { background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); padding: 11px 13px; }
+  .tile .k { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); }
+  .tile .v { font-family: var(--mono); font-size: 21px; letter-spacing: -.02em; }
+  .tile .s { font-size: 12px; color: var(--ink-soft); }
+  .tile.alert { border-color: color-mix(in srgb, var(--late) 45%, var(--edge)); background: var(--late-soft); }
+  .tile.alert .v, .tile.alert .k { color: var(--late); }
+
+  .panel { background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); overflow: hidden; }
+  .panel > h2 { margin: 0; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); padding: 10px 14px; border-bottom: 1px solid var(--edge); display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+  .panel > h2 span { font-family: var(--mono); color: var(--ink-faint); letter-spacing: 0; text-transform: none; font-size: 12px; }
+
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 9px 14px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--edge-soft); }
+  th { font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); font-weight: 600; white-space: nowrap; }
+  td.num, th.num { text-align: right; font-family: var(--mono); }
+  tr:last-child td { border-bottom: 0; }
+  .ref { font-family: var(--mono); font-size: 12.5px; }
+  .sub { color: var(--ink-soft); font-size: 12px; }
+  .who { color: var(--ink-faint); font-size: 12px; }
+
+  .chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--edge); color: var(--ink-soft); white-space: nowrap; }
+  .chip.late { color: var(--late); border-color: color-mix(in srgb, var(--late) 45%, var(--edge)); background: var(--late-soft); }
+  .chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, var(--edge)); background: var(--warn-soft); }
+  .chip.ok { color: var(--done); border-color: color-mix(in srgb, var(--done) 40%, var(--edge)); background: var(--accent-soft); }
+
+  /* the status track, drawn the way the IPAS records it */
+  .track { display: flex; align-items: center; gap: 0; }
+  .track .step { width: 16px; height: 5px; background: var(--edge); border-radius: 2px; margin-right: 2px; }
+  .track .step.done { background: var(--done); }
+  .track .step.now { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .track .step.late { background: var(--late); }
+  .tracklabel { font-size: 11.5px; color: var(--ink-soft); margin-top: 3px; }
+
+  /* B — board */
+  .board { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(196px, 1fr); gap: 10px; overflow-x: auto; padding-bottom: 6px; align-items: start; }
+  .col { background: var(--panel); border: 1px solid var(--edge); border-radius: var(--radius); min-width: 196px; }
+  .col h3 { margin: 0; font-size: 11px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-soft); padding: 9px 11px; border-bottom: 1px solid var(--edge); display: flex; justify-content: space-between; }
+  .col h3 b { font-family: var(--mono); color: var(--ink-faint); font-weight: 400; }
+  .col .cards { display: flex; flex-direction: column; gap: 8px; padding: 9px; }
+  .card { border: 1px solid var(--edge); border-radius: 5px; padding: 8px 9px; display: flex; flex-direction: column; gap: 4px; }
+  .card.late { border-color: color-mix(in srgb, var(--late) 45%, var(--edge)); }
+  .card .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+  .card .name { font-size: 12.5px; }
+  .card .val { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+  .col .empty { padding: 11px; color: var(--ink-faint); font-size: 12px; }
+
+  /* C — attention */
+  .group + .group { margin-top: 14px; }
+  .grouphead { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 7px; }
+  .grouphead h2 { font-size: 15px; margin: 0; font-weight: 600; }
+  .grouphead .count { font-family: var(--mono); font-size: 12px; color: var(--ink-faint); }
+  .grouphead .why { font-size: 12.5px; color: var(--ink-soft); margin-left: auto; }
+  .item { display: grid; grid-template-columns: 116px 1fr auto; gap: 14px; align-items: start; padding: 11px 14px; border-bottom: 1px solid var(--edge-soft); }
+  .item:last-child { border-bottom: 0; }
+  .item .act { font-size: 13px; }
+  .item .act b { font-weight: 600; }
+  .item .meta { color: var(--ink-soft); font-size: 12px; }
+  .item .right { text-align: right; display: flex; flex-direction: column; gap: 3px; align-items: flex-end; }
+
+  .legend { font-size: 12px; color: var(--ink-faint); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; background: #0d1014; color: #f2f4f6; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
+  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .switcher button:hover { background: rgba(255,255,255,.12); }
+  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
+  .switcher .label { padding: 9px 6px; min-width: 200px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .switcher .label b { font-size: 13px; }
+  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #98a2ac; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 720px) {
+    .item { grid-template-columns: 1fr; gap: 4px; }
+    .item .right { align-items: flex-start; text-align: left; }
+    .switcher .label { min-width: 120px; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="page">
+    <h1>Order monitoring</h1>
+    <span class="tag">prototype · #237</span>
+    <p>Twelve orders after award, across five SORs and three entities. Every state below comes from a record already decided on: the IPAS status tracks, its payments, Transmittals, TSRs and the milestones read from Odoo. Flip the view with the bar, the arrow keys, or <code>?variant=</code>.</p>
+  </header>
+  <div id="stage"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button type="button" id="prev" aria-label="Previous variant">&#8592;</button>
+  <div class="label"><b id="vname">Order register</b><span id="vkey">Variant A</span></div>
+  <button type="button" id="next" aria-label="Next variant">&#8594;</button>
+</div>
+
+<script>
+const peso = n => '₱' + n.toLocaleString('en-PH', { maximumFractionDigits: 0 });
+
+// The IPAS's buyer track, in the sheet's order.
+const TRACK = ['Purchase Order', 'With P.O.P', 'Import Clearance', 'Delivered', 'Received in Odoo', 'Create Bill', 'Actual Checking'];
+
+// step = how far along the track; next = the one thing waiting; owner = who it waits on
+const ORDERS = [
+  { ipas: 'TGIPAS_049', po: 'P02574', sor: 'S07983', entity: 'TG Enterprise', supplier: 'Toyota Otis', what: 'Ambulance Commuter 3.0',
+    value: 2160500, step: 6, source: 'Local', age: 34, next: 'Actual Checking — 1 TSR open', owner: 'Technical', late: false, filed: false, tsr: '1 open', trn: 'TRN_031 received' },
+  { ipas: 'TGIPAS_050', po: 'P02445', sor: 'S07983', entity: 'TG Enterprise', supplier: 'Redleaf Medical', what: 'Ambulance Folding Stretcher',
+    value: 78000, step: 2, source: 'Import', age: 41, next: 'Arrived in PH 6 days ago, no Import Clearance', owner: 'Purchasing', late: true, filed: false, tsr: '—', trn: '—' },
+  { ipas: 'TGIPAS_051', po: 'P02552', sor: 'S07912', entity: 'T3CK Trading', supplier: 'Flywheel Corp.', what: 'Rescue Buoy Life Ring × 40',
+    value: 333000, step: 5, source: 'Local', age: 22, next: 'Bill drafted in Odoo — section 3 unapproved', owner: 'A. Dela Cruz', late: false, filed: false, tsr: 'passed', trn: 'TRN_028 received' },
+  { ipas: 'TGIPAS_052', po: 'P02588', sor: 'S07964', entity: 'TG Global Trade', supplier: 'Shandong Rescue Equip.', what: 'Hydraulic rescue set',
+    value: 1284000, step: 1, source: 'Import', age: 12, next: 'DP paid, awaiting shipment', owner: 'Supplier', late: false, filed: false, tsr: '—', trn: '—' },
+  { ipas: 'TGIPAS_053', po: 'P02590', sor: 'S07964', entity: 'TG Global Trade', supplier: 'Ningbo Safety Co.', what: 'Thermal imaging camera × 4',
+    value: 512400, step: 0, source: 'Import', age: 9, next: 'No payment recorded against an approved section 1', owner: 'Finance', late: true, filed: false, tsr: '—', trn: '—' },
+  { ipas: 'TGIPAS_054', po: 'P02601', sor: 'S08002', entity: 'TCA Concept', supplier: 'Palmer Asia', what: 'Spine board × 12',
+    value: 96000, step: 3, source: 'Local', age: 7, next: 'Delivered — waiting on a Transmittal to Technical', owner: 'Purchasing', late: false, filed: false, tsr: '—', trn: 'none yet' },
+  { ipas: 'TGIPAS_055', po: 'P02604', sor: 'S08002', entity: 'TCA Concept', supplier: 'MedSupply PH', what: 'Oxygen cylinders × 20',
+    value: 148000, step: 4, source: 'Local', age: 5, next: 'Received in Odoo, bill not created', owner: 'Finance', late: false, filed: false, tsr: 'passed', trn: 'TRN_033 received' },
+  { ipas: 'TGIPAS_047', po: 'P02531', sor: 'S07845', entity: 'T3CK Trading', supplier: 'Ahead Logistics', what: 'Freight — consolidated',
+    value: 84300, step: 6, source: 'Import', age: 58, next: 'Costs complete — ready to file', owner: 'Finance', late: false, filed: false, tsr: '—', trn: 'TRN_026 received' },
+  { ipas: 'TGIPAS_046', po: 'P02508', sor: 'S07845', entity: 'T3CK Trading', supplier: 'Wide Range Forwarders', what: 'Marine rescue kit × 3',
+    value: 421000, step: 6, source: 'Import', age: 63, next: 'Filed 08 Sep', owner: '—', late: false, filed: true, tsr: 'passed', trn: 'TRN_024 received' },
+  { ipas: 'TGIPAS_045', po: 'P02499', sor: 'S07799', entity: 'TG Enterprise', supplier: 'Bohol Marine', what: 'Outboard motor 40HP',
+    value: 268000, step: 6, source: 'Local', age: 71, next: 'Filed 02 Sep', owner: '—', late: false, filed: true, tsr: '1 failed · replaced', trn: 'TRN_021 received' },
+  { ipas: 'TGIPAS_056', po: 'P02612', sor: 'S08014', entity: 'TG Enterprise', supplier: 'Fire Solutions Inc.', what: 'Fire extinguishers × 60',
+    value: 174000, step: 0, source: 'Local', age: 3, next: 'RFQ only — no PO confirmed in Odoo', owner: 'Purchasing', late: false, filed: false, tsr: '—', trn: '—' },
+  { ipas: 'TGIPAS_057', po: 'P02615', sor: 'S08014', entity: 'TG Enterprise', supplier: 'Dragon Safety HK', what: 'Rescue rope × 200m',
+    value: 63500, step: 2, source: 'Import', age: 16, next: 'Onboard — ETA 21 Sep', owner: 'Supplier', late: false, filed: false, tsr: '—', trn: '—' }
+];
+
+const open = ORDERS.filter(o => !o.filed);
+const lateOnes = ORDERS.filter(o => o.late);
+const readyToFile = ORDERS.filter(o => !o.filed && o.step >= 6 && o.next.indexOf('ready to file') > -1);
+const value = ORDERS.filter(o => !o.filed).reduce((s, o) => s + o.value, 0);
+
+const track = o => {
+  const steps = TRACK.map((t, i) => {
+    let cls = i < o.step ? 'done' : (i === o.step ? (o.late ? 'late' : 'now') : '');
+    return '<span class="step ' + cls + '" title="' + t + '"></span>';
+  }).join('');
+  return '<div class="track">' + steps + '</div><div class="tracklabel">' + (o.filed ? 'Filed' : TRACK[o.step]) + '</div>';
+};
+
+const flag = o => o.filed ? '<span class="chip ok">filed</span>'
+  : o.late ? '<span class="chip late">needs chasing</span>'
+  : '<span class="chip">on track</span>';
+
+// ── A — one register, every order, sortable-looking ────────────────────────
+function variantA() {
+  return `
+  <div class="tiles">
+    <div class="tile"><div class="k">Open orders</div><div class="v">${open.length}</div><div class="s">of ${ORDERS.length} in the last 90 days</div></div>
+    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">purchase order prices</div></div>
+    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">stuck on a step</div></div>
+    <div class="tile"><div class="k">Ready to file</div><div class="v">${readyToFile.length}</div><div class="s">costs complete, section 7 open</div></div>
+  </div>
+  <div class="panel">
+    <h2>Orders after award <span>IPAS · newest first</span></h2>
+    <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>IPAS / PO</th><th>SOR</th><th>Supplier &amp; item</th><th class="num">Value</th>
+        <th>Buyer track</th><th>Waiting on</th><th>Hand-offs</th><th class="num">Age</th>
+      </tr></thead>
+      <tbody>
+        ${ORDERS.map(o => `<tr>
+          <td><div class="ref">${o.ipas}</div><div class="sub">${o.po} · ${o.source}</div></td>
+          <td><div class="ref">${o.sor}</div><div class="sub">${o.entity}</div></td>
+          <td><div>${o.supplier}</div><div class="sub">${o.what}</div></td>
+          <td class="num">${peso(o.value)}</td>
+          <td>${track(o)}</td>
+          <td><div>${o.next}</div><div class="who">${o.owner}</div></td>
+          <td><div class="sub">TRN ${o.trn}</div><div class="sub">TSR ${o.tsr}</div></td>
+          <td class="num">${o.age}d<div>${flag(o)}</div></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  <div class="legend">${TRACK.map((t, i) => `<span>${i + 1}. ${t}</span>`).join('')}</div>`;
+}
+
+// ── B — board by where the order sits ─────────────────────────────────────
+function variantB() {
+  const cols = TRACK.map((t, i) => ({ name: t, items: ORDERS.filter(o => !o.filed && o.step === i) }));
+  cols.push({ name: 'Filed', items: ORDERS.filter(o => o.filed) });
+  return `
+  <div class="tiles">
+    <div class="tile"><div class="k">Open orders</div><div class="v">${open.length}</div><div class="s">across ${new Set(ORDERS.map(o => o.sor)).size} SORs</div></div>
+    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">red cards below</div></div>
+    <div class="tile"><div class="k">In transit</div><div class="v">${ORDERS.filter(o => !o.filed && o.step <= 2 && o.source === 'Import').length}</div><div class="s">imports before clearance</div></div>
+    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">purchase order prices</div></div>
+  </div>
+  <div class="board">
+    ${cols.map(c => `
+      <div class="col">
+        <h3>${c.name} <b>${c.items.length}</b></h3>
+        <div class="cards">
+          ${c.items.length ? c.items.map(o => `
+            <div class="card ${o.late ? 'late' : ''}">
+              <div class="top"><span class="ref">${o.ipas}</span><span class="val">${peso(o.value)}</span></div>
+              <div class="name">${o.what}</div>
+              <div class="sub">${o.supplier} · ${o.sor}</div>
+              <div class="sub">${o.next}</div>
+              <div class="top"><span class="who">${o.owner}</span><span class="who">${o.age}d</span></div>
+            </div>`).join('') : '<div class="empty">Nothing here</div>'}
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// ── C — what needs doing, grouped by who it waits on ──────────────────────
+function variantC() {
+  const groups = [
+    { name: 'Needs chasing', why: 'sitting on one step longer than the step usually takes',
+      items: ORDERS.filter(o => o.late) },
+    { name: 'Waiting on us', why: 'an approval, a transmittal or a bill somebody here owes',
+      items: ORDERS.filter(o => !o.late && !o.filed && ['Purchasing', 'Finance', 'Technical', 'A. Dela Cruz'].indexOf(o.owner) > -1) },
+    { name: 'Waiting on someone else', why: 'the supplier, the forwarder or the port',
+      items: ORDERS.filter(o => !o.filed && o.owner === 'Supplier') },
+    { name: 'Filed', why: 'closed, kept for reference', items: ORDERS.filter(o => o.filed) }
+  ];
+  return `
+  <div class="tiles">
+    <div class="tile alert"><div class="k">Needs chasing</div><div class="v">${lateOnes.length}</div><div class="s">oldest ${Math.max(...lateOnes.map(o => o.age))} days</div></div>
+    <div class="tile"><div class="k">Waiting on us</div><div class="v">${groups[1].items.length}</div><div class="s">approvals, transmittals, bills</div></div>
+    <div class="tile"><div class="k">Waiting on suppliers</div><div class="v">${groups[2].items.length}</div><div class="s">shipments in progress</div></div>
+    <div class="tile"><div class="k">Value open</div><div class="v">${peso(value)}</div><div class="s">${open.length} orders</div></div>
+  </div>
+  ${groups.map(g => `
+    <div class="group">
+      <div class="grouphead"><h2>${g.name}</h2><span class="count">${g.items.length}</span><span class="why">${g.why}</span></div>
+      <div class="panel">
+        ${g.items.map(o => `
+          <div class="item">
+            <div><div class="ref">${o.ipas}</div><div class="sub">${o.po}</div><div class="who">${o.sor}</div></div>
+            <div>
+              <div class="act"><b>${o.next}</b></div>
+              <div class="meta">${o.what} · ${o.supplier} · ${o.source}</div>
+              <div class="meta">TRN ${o.trn} · TSR ${o.tsr}</div>
+            </div>
+            <div class="right">
+              <span class="ref">${peso(o.value)}</span>
+              ${flag(o)}
+              <span class="who">${o.owner === '—' ? '' : o.owner + ' · '}${o.age}d</span>
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('')}`;
+}
+
+const VARIANTS = [
+  { key: 'A', name: 'Order register', render: variantA },
+  { key: 'B', name: 'Board by step', render: variantB },
+  { key: 'C', name: 'What needs doing', render: variantC }
+];
+
+function currentKey() {
+  const p = new URLSearchParams(location.search).get('variant');
+  return VARIANTS.some(v => v.key === p) ? p : 'A';
+}
+function show(key) {
+  const v = VARIANTS.find(x => x.key === key) || VARIANTS[0];
+  document.getElementById('stage').innerHTML = v.render();
+  document.getElementById('vname').textContent = v.name;
+  document.getElementById('vkey').textContent = 'Variant ' + v.key;
+  const url = new URL(location.href); url.searchParams.set('variant', v.key); history.replaceState(null, '', url);
+}
+function step(n) {
+  const i = VARIANTS.findIndex(v => v.key === currentKey());
+  show(VARIANTS[(i + n + VARIANTS.length) % VARIANTS.length].key);
+}
+document.getElementById('prev').addEventListener('click', () => step(-1));
+document.getElementById('next').addEventListener('click', () => step(1));
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') step(-1);
+  if (e.key === 'ArrowRight') step(1);
+});
+show(currentKey());
+</script>

@@ -185,6 +185,8 @@ describe("navigation registry", () => {
         // System Admin and Lead Sources moved into Settings (#177).
         "Flow Canvas",
         "Commission Pool",
+        // Super-Admin-only deck for presenting what shipped (ADR 0022).
+        "Release Notes",
       ]);
 
       const hrGroup = groups.find((g) => g.key === "human_resources");

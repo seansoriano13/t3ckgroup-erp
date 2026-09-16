@@ -1,0 +1,499 @@
+{
+  "_comment": "Hand-authored input to scripts/build-presentation.mjs. Covers what changelog.json never recorded, the impact line for every row, and the demo each row opens. A row with a `version` takes its detail bullets from that changelog entry; a row without one carries its own. Delete a supplement row if its capability ever gets a real changelog entry (ADR 0022).",
+  "since": "2026-09-09",
+  "title": "What shipped since 9 September",
+  "headline": [
+    {
+      "id": "flow-one-canvas",
+      "block": "Flow Canvas",
+      "title": "Flow Canvas is one canvas",
+      "impact": "There used to be two places to edit a flow and a Sandbox mode to remember which one you were in. There is now one canvas. Nobody has to ask whether what they are looking at is the real flow.",
+      "version": "1.7.10",
+      "issues": [
+        186
+      ]
+    },
+    {
+      "id": "flow-versioning",
+      "block": "Flow Canvas",
+      "title": "Publish a version, and go back safely",
+      "impact": "A published flow could not be undone. Changing your mind meant rebuilding the Stages by hand and hoping the SORs sitting on them survived. A flow now publishes as a numbered version you can read, compare and revert to, and the revert keeps the Stage ids so live SORs stay attached to their history.",
+      "version": "1.7.12",
+      "issues": [
+        187,
+        188,
+        192,
+        193
+      ],
+      "demo": "flow-versioning"
+    },
+    {
+      "id": "flow-building",
+      "block": "Flow Canvas",
+      "title": "Building a flow got faster, and the draft tells the truth",
+      "impact": "Adding a Stage meant a form, a save and a re-drag. The canvas now behaves like the tools people already use, and the draft comparison stopped reporting Stages as changed when nothing about them had changed.",
+      "changes": [
+        "A plus button on the canvas adds a Stage where you point, and a plus on a move line inserts one between two Stages already wired together.",
+        "Archived Sale Types collapse into their own section in the picker instead of crowding the live ones.",
+        "The draft comparison now reads the process itself - name, order, terminal status, brackets, colours - rather than database timestamps and key ordering, so it stops reporting changes nobody made.",
+        "The version rail, the preview banner and the publish window read plainly: a Back to draft action, an explicit close, and a guarded Revert that explains what it will do before it does it."
+      ],
+      "issues": [
+        189,
+        191,
+        194,
+        195,
+        196,
+        197
+      ]
+    },
+    {
+      "id": "crm-board",
+      "block": "CRM",
+      "title": "CRM, and a board you drag SORs across",
+      "impact": "Dragging a card was not a styling decision - it was impossible. The rule that Closed Lost needs a reason lived inside the details modal, so a drag could not enforce it and drag-and-drop was deliberately switched off. Moving the guard into the move itself is what made the board draggable. The register is also full width now, and columns are per Sale Type rather than per Stage.",
+      "changes": [
+        "Opportunities is now CRM, and the register runs the full width of the screen instead of sitting in a narrow column.",
+        "The board shows one column per Sale Type, and an SOR moves by dragging it.",
+        "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked."
+      ],
+      "issues": [
+        206,
+        286,
+        288
+      ],
+      "demo": "crm-board"
+    },
+    {
+      "id": "crm-itb-won",
+      "block": "CRM",
+      "title": "The ITB gate is gone, and Won is on the register",
+      "impact": "Every SOR had to carry an ITB Number to move, including the ones that never had one, so people typed placeholders to get past it. That requirement is now a Stage Field the flow decides, not a rule baked into the system. The register also shows what was won, not only what is open.",
+      "changes": [
+        "The ITB Number requirement is no longer hardwired. A flow that wants it asks for it as a Stage Field; a flow that does not, does not.",
+        "The register shows a Won total beside open pipeline.",
+        "SORs in a Terminal Stage sort to the bottom rather than sitting among live work."
+      ],
+      "issues": [
+        287,
+        290
+      ]
+    },
+    {
+      "id": "stage-fields",
+      "block": "CRM",
+      "title": "Any Stage can require any field",
+      "impact": "Requirements used to be written in code, which meant every new one was a development request. A Stage now carries its own fields, with its own conditions, edited on the canvas by whoever owns the process.",
+      "changes": [
+        "A Stage Fields tab on the canvas defines what that Stage asks for, who it asks, and when it is required.",
+        "Conditions were reworked: a who-picker that resolves to real people, a live preview of what the Stage will look like, and editing a condition without rebuilding it.",
+        "Stage Fields appear in the publish diff, so a change to what a Stage requires is visible before it goes out.",
+        "What a Stage asks is recorded against the Stage Visit, so the answers belong to that pass through the Stage rather than to the SOR as a whole."
+      ],
+      "issues": [
+        203
+      ],
+      "demo": "stage-fields"
+    },
+    {
+      "id": "blocked-move",
+      "block": "CRM",
+      "title": "A blocked move says so before you click",
+      "impact": "You used to click Move, wait, and get an error telling you what you should have done first. The button now carries its own reason, and a finished checklist looks finished.",
+      "changes": [
+        "A Stage move that cannot proceed is disabled and states why, on the button, before the click.",
+        "A checklist with everything answered reads as complete instead of looking half-done.",
+        "After a move, the tasks it created and the new Stage's checklist appear without reopening the SOR."
+      ],
+      "issues": [
+        203,
+        199
+      ],
+      "demo": "blocked-move"
+    },
+    {
+      "id": "stage-automation",
+      "block": "SOR work",
+      "title": "Stage automation people can actually configure",
+      "impact": "Automated tasks were named after the Stage, so a task list read as a column of identical titles and nobody could tell which SOR each belonged to. Task titles now carry the SOR, optional actions are decided on the SOR instead of in advance, and a Stage can chase its own follow-ups.",
+      "changes": [
+        "Task titles are templates with tokens, shown as chips while you write them, so an automated task names the SOR it belongs to.",
+        "Optional Actions are offered on the SOR and taken or skipped there, rather than being fixed when the flow was built.",
+        "A Stage can carry a Follow-up Cadence, so chasing is part of the process rather than something somebody remembers."
+      ],
+      "issues": [
+        204
+      ]
+    },
+    {
+      "id": "stock-badges",
+      "block": "SOR work",
+      "title": "Odoo stock on the SOR line, not in another tab",
+      "impact": "Checking whether something was in stock meant leaving the SOR, opening Odoo, searching the product, and coming back. Free stock now sits on the line item being discussed.",
+      "changes": [
+        "Each SOR line item shows Odoo free stock as a badge on the line.",
+        "The figure is pulled and stamped, so what you are reading has a known age rather than being assumed current."
+      ],
+      "issues": [
+        202
+      ],
+      "demo": "stock-badges"
+    },
+    {
+      "id": "employee-groups",
+      "block": "People",
+      "title": "Employee Groups, named once and reused",
+      "impact": "Every setting that needed a set of people had its own picker, so the same group was rebuilt by hand in each one and drifted the moment somebody changed team. A group is now named once and always means its current members.",
+      "version": "1.7.17",
+      "issues": [
+        201
+      ]
+    },
+    {
+      "id": "login-password",
+      "block": "Access",
+      "title": "A second way into the portal",
+      "impact": "The only way in was a magic link, so a missing or slow email meant nobody could work. Email and password is now a real second route, and the reset links stopped being spent before the person clicked them.",
+      "version": "1.7.7",
+      "issues": [
+        162,
+        163,
+        164,
+        165
+      ],
+      "demo": "login"
+    },
+    {
+      "id": "desktop-notifications",
+      "block": "Access",
+      "title": "Desktop notifications",
+      "impact": "Work that needed someone's attention waited until they happened to open the portal. Four kinds of event now reach the desktop whether or not the tab is in front of them.",
+      "version": "1.7.8",
+      "issues": [
+        166,
+        167,
+        168,
+        169
+      ]
+    }
+  ],
+  "underTheHood": {
+    "summary": "Correctness, safety and housekeeping. None of it changes a screen, all of it changes whether the screens can be trusted.",
+    "items": [
+      {
+        "title": "An employee can no longer approve their own overtime or leave, or credit their own balance - the database refuses it now, not the screen",
+        "issues": [
+          180
+        ]
+      },
+      {
+        "title": "The migration set is append-only, and the rule is enforced rather than remembered",
+        "issues": [
+          184
+        ]
+      },
+      {
+        "title": "A password reset link is no longer spent before the person clicks it",
+        "issues": []
+      },
+      {
+        "title": "Locking a flow is one atomic write instead of two, so a failed lock no longer bricks the flow",
+        "issues": [
+          181
+        ]
+      },
+      {
+        "title": "Saving one field from a Stage Checklist changes only that field - it used to overwrite the rest of the SOR, including the Deal Team, dates and Product List",
+        "issues": [
+          199
+        ]
+      },
+      {
+        "title": "Open pipeline is judged by Contract Date and Terminal Stage, so won and lost SORs no longer inflate it",
+        "issues": [
+          199
+        ]
+      },
+      {
+        "title": "Tasks created for an SOR link back to it from both the task and Group Task windows",
+        "issues": [
+          199
+        ]
+      },
+      {
+        "title": "Retail orders are marked as retail and kept out of the pipeline",
+        "issues": [
+          170,
+          171,
+          172,
+          173,
+          174
+        ]
+      },
+      {
+        "title": "Group Task Tags, and a CRM filter on both Tasks and Group Tasks",
+        "issues": [
+          205
+        ]
+      },
+      {
+        "title": "Scattered configuration was consolidated into Settings, gated the same way",
+        "issues": [
+          177
+        ]
+      },
+      {
+        "title": "Any employee can start a Group Task",
+        "issues": [
+          176
+        ]
+      },
+      {
+        "title": "HR: Undertime on TG-13, Leaves and Overtime merged into one My Requests list, one signature band on every form, and a Super Admin can edit the working week",
+        "issues": [
+          146,
+          152,
+          153,
+          158
+        ]
+      },
+      {
+        "title": "One bracket-grouping rule for every brace, so the canvas and the SOR modal stop disagreeing",
+        "issues": [
+          182
+        ]
+      },
+      {
+        "title": "Mention notifications open the chat the mention was made in, at the message",
+        "issues": [
+          200
+        ]
+      },
+      {
+        "title": "Toasts stay clickable inside the SOR modal",
+        "issues": [
+          175
+        ]
+      },
+      {
+        "title": "Deprecated Quota System tables dropped, and the seed now covers every migrated table or names why not",
+        "issues": [
+          179
+        ]
+      }
+    ]
+  },
+  "epics": [
+    {
+      "phase": "Finish CRM",
+      "number": 206,
+      "title": "CRM register",
+      "unlocks": "The register stops being a list and becomes the place the commercial process is run from. Four of its five tickets shipped this week; the Deleted bin is what is left.",
+      "tickets": [
+        286,
+        287,
+        288,
+        289,
+        290
+      ],
+      "shipped": [
+        286,
+        287,
+        288,
+        290
+      ]
+    },
+    {
+      "phase": "Finish CRM",
+      "number": 207,
+      "title": "SOR modal organised around the Stage Visit",
+      "unlocks": "Opening an SOR shows what this Stage needs now, what already happened, what is being sold, and the conversation, instead of one long form.",
+      "tickets": [
+        297,
+        298,
+        299,
+        300,
+        301,
+        302
+      ]
+    },
+    {
+      "phase": "Finish CRM",
+      "number": 208,
+      "title": "Stage-scoped SOR visibility",
+      "unlocks": "A purchaser or engineer called into one Stage sees that Stage and nothing else, and some Stages can be closed to some of the Deal Team. Enforced by the database (ADR 0021).",
+      "tickets": [
+        291,
+        292,
+        293,
+        294,
+        295,
+        296
+      ]
+    },
+    {
+      "phase": "Purchase Requests",
+      "number": 209,
+      "title": "Sales and Purchasing coordinate buying per SOR",
+      "unlocks": "Sales raises a Purchase Request from the SOR, Purchasing works it in a queue, and the SOR reads back what is being bought. Retires the old purchasing surfaces.",
+      "tickets": [
+        303,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310,
+        311,
+        312,
+        313,
+        314
+      ]
+    },
+    {
+      "phase": "IPAS v1",
+      "number": 241,
+      "title": "Purchasing and Finance record, approve and file each Odoo purchase order",
+      "unlocks": "One Odoo purchase order end to end in one record - supplier, payments, charges, landed cost, documents, sign-offs and filing.",
+      "tickets": [
+        242,
+        243,
+        244,
+        245,
+        246,
+        247,
+        248,
+        249,
+        250
+      ]
+    },
+    {
+      "phase": "PMS",
+      "number": 266,
+      "title": "Costing Matrix",
+      "unlocks": "Sales, Purchasing and Management cost a bid in the ERP instead of in a spreadsheet, with the Evaluation of Specification beside it.",
+      "tickets": [
+        267,
+        268,
+        269,
+        270,
+        271,
+        272,
+        273,
+        274
+      ]
+    },
+    {
+      "phase": "PMS",
+      "number": 275,
+      "title": "Canvass and Offers",
+      "unlocks": "Purchasing compares suppliers per Component, and the winning offer fills the Costing Matrix.",
+      "tickets": [
+        276,
+        277,
+        278,
+        279,
+        280,
+        281,
+        282,
+        283
+      ]
+    },
+    {
+      "phase": "PMS",
+      "number": 251,
+      "title": "Transmittals (TG03) and Packing Lists",
+      "unlocks": "Goods checked by the Warehouse and Technical, and packed boxes on record, following the real TG03 paper form.",
+      "tickets": [
+        252,
+        253,
+        254,
+        255,
+        256,
+        257,
+        258,
+        260
+      ]
+    },
+    {
+      "phase": "PMS",
+      "number": 261,
+      "title": "Order Monitoring",
+      "unlocks": "What needs doing across every IPAS, with the order register behind it and ageing rules Purchasing edits.",
+      "tickets": [
+        262,
+        263,
+        264,
+        265
+      ]
+    }
+  ],
+  "prototypes": [
+    {
+      "id": "printed-ipas",
+      "title": "Printed IPAS",
+      "note": "The IPAS as it would be printed and filed. Sections follow the sheet - 1, 2, 3, 5, 6, 7, with section 4 removed.",
+      "file": "/prototypes/printed-ipas.html",
+      "variants": [
+        "A",
+        "B",
+        "C"
+      ],
+      "epic": 241,
+      "ticket": 250
+    },
+    {
+      "id": "printed-costing-matrix",
+      "title": "Printed Costing Matrix",
+      "note": "The costing sheet on paper - Components, bundles, inclusions, markup and the summary.",
+      "file": "/prototypes/printed-costing-matrix.html",
+      "variants": [
+        "A",
+        "B",
+        "C"
+      ],
+      "epic": 266,
+      "ticket": 274
+    },
+    {
+      "id": "printed-canvass",
+      "title": "Printed Canvass",
+      "note": "Supplier offers compared per Component, as the approver would sign it.",
+      "file": "/prototypes/printed-canvass.html",
+      "variants": [
+        "A",
+        "B",
+        "C"
+      ],
+      "epic": 275,
+      "ticket": 282
+    },
+    {
+      "id": "printed-transmittal-tsr",
+      "title": "Printed Transmittal and TSR",
+      "note": "The TG03 slip and the TSR, following the real paper form.",
+      "file": "/prototypes/printed-transmittal-tsr.html",
+      "variants": [
+        "A",
+        "B",
+        "C"
+      ],
+      "epic": 251,
+      "ticket": 258
+    },
+    {
+      "id": "order-monitoring",
+      "title": "Order Monitoring",
+      "note": "Three ways of showing what needs doing across every order.",
+      "file": "/prototypes/order-monitoring.html",
+      "variants": [
+        "A",
+        "B",
+        "C"
+      ],
+      "epic": 261,
+      "ticket": 263
+    }
+  ]
+}

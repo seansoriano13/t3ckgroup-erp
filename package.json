@@ -20,6 +20,8 @@
         "test:ui": "vitest --ui",
         "test:coverage": "vitest run --coverage",
         "changelog": "node scripts/add-changelog.mjs",
+        "presentation": "node scripts/build-presentation.mjs",
+        "presentation:check": "node scripts/build-presentation.mjs --check",
         "preflight": "node scripts/preflight.mjs",
         "mirror:brochures": "node scripts/mirror-brochures.mjs",
         "db:snapshot:prod": "node scripts/db-snapshot.mjs prod",

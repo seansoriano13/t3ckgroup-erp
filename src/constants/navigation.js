@@ -13,6 +13,7 @@ import {
   Percent,
   Workflow,
   ShoppingCart,
+  Presentation,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -219,6 +220,17 @@ export const NAV_MODULES = {
         label: "Commission Pool",
         link: "/super-admin/commission",
         icon: Percent,
+        isPermitted: (ctx) => ctx.isSuperAdmin,
+      },
+      // The deck for walking someone through what shipped in a date window.
+      // It is a nav entry rather than a remembered URL because it is opened
+      // from whatever screen the conversation is already on; the role gate is
+      // what keeps it out of everyone else's way.
+      {
+        key: "admin.releaseNotes",
+        label: "Release Notes",
+        link: "/super-admin/release-notes",
+        icon: Presentation,
         isPermitted: (ctx) => ctx.isSuperAdmin,
       },
     ],
