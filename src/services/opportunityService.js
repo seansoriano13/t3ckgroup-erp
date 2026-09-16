@@ -972,6 +972,7 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       opportunityId: existing.id,
       stageActionId: action.id,
       stageVisitId: runRow?.stage_visit_id ?? null,
+      tagIds: config.tagIds || [],
     };
     if (config.dueDateOffsetDays) {
       const due = new Date();

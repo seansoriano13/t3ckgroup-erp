@@ -7,6 +7,8 @@ import AvatarGroup from "../../../components/AvatarGroup";
 import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
+import { TagPill } from "../../../components/ui/TagPill";
+import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 
 
 export default function GroupTaskCard({
@@ -70,9 +72,20 @@ export default function GroupTaskCard({
         </div>
       </div>
 
-      <p className="text-[11px] font-bold text-muted-foreground line-clamp-2 break-words mb-4 flex-1 uppercase tracking-wider opacity-60 w-full">
+      <p className="text-[11px] font-bold text-muted-foreground line-clamp-2 break-words mb-2 flex-1 uppercase tracking-wider opacity-60 w-full">
         <HighlightText text={task.description || "No description provided."} search={searchTerm} />
       </p>
+
+      {(task.opportunity || (task.tags && task.tags.length > 0)) && (
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
+          <SorLinkChip opportunityId={task.opportunity_id} opportunity={task.opportunity} />
+          {(task.tags || [])
+            .filter((t) => !t.archived_at)
+            .map((tag) => (
+              <TagPill key={tag.id} tag={tag} />
+            ))}
+        </div>
+      )}
 
       {/* HR Rejected Banner */}
       {task.status === "ACTIVE" && task.hr_remarks && (

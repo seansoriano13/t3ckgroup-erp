@@ -9,11 +9,11 @@ import {
   Eye,
   ChevronLeft,
   ChevronRight,
-  Briefcase,
 } from "lucide-react";
 import Avatar from "./Avatar";
 import StatusBadge from "./StatusBadge";
 import Dot from "./ui/Dot";
+import { SorLinkChip } from "./ui/SorLinkChip";
 import HighlightText from "./HighlightText";
 import { useAuth } from "../context/AuthContext";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
@@ -255,26 +255,11 @@ export default function TaskTableView({
                           <span className="font-semibold text-foreground group-hover:text-primary transition-colors text-[13px] line-clamp-1">
                             <HighlightText text={displayTitle} search={searchTerm} />
                           </span>
-                          {task.opportunity && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                window.dispatchEvent(
-                                  new CustomEvent("OPEN_ENTITY_DETAILS", {
-                                    detail: { id: task.opportunityId, type: "OPPORTUNITY" },
-                                  }),
-                                );
-                              }}
-                              title={`Auto-created for deal: ${task.opportunity.client_name}`}
-                              className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary transition-colors hover:bg-primary/20"
-                            >
-                              <Briefcase size={10} className="shrink-0" />
-                              <span className="max-w-[90px] truncate">
-                                {task.opportunity.sales_reference || task.opportunity.client_name}
-                              </span>
-                            </button>
-                          )}
+                          <SorLinkChip
+                            opportunityId={task.opportunityId}
+                            opportunity={task.opportunity}
+                            className="max-w-[90px]"
+                          />
                         </div>
                         {displaySnippet && (
                           <p className="text-[11px] text-muted-foreground line-clamp-1">

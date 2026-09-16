@@ -63,6 +63,8 @@ export const SEED_TABLES = [
   "committee_task_members",
   "committee_task_activity",
   "committee_task_logs",
+  "committee_task_tags",
+  "task_tags",
   "notifications",
   "sor_inclusions",
   "sor_procurement_requests",

@@ -7,6 +7,7 @@ import {
   Calendar as CalendarIcon,
   SlidersHorizontal,
   ChevronDown,
+  Briefcase,
 } from "lucide-react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
@@ -50,6 +51,8 @@ export default function TaskFilters({
   setSortBy,
   forceAdvancedOpen = false,
   onAdvancedOpenChange,
+  crmOnly = false,
+  setCrmOnly,
   actions,
 }) {
   const [showAdvanced, setShowAdvancedRaw] = useState(
@@ -71,6 +74,7 @@ export default function TaskFilters({
     subDeptFilter !== "ALL" ||
     employeeFilter !== "ALL" ||
     selectedDateFilter !== "" ||
+    crmOnly ||
     searchTerm !== "";
 
   const handleClearAll = () => {
@@ -86,6 +90,7 @@ export default function TaskFilters({
       if (setEmployeeFilter) setEmployeeFilter("ALL");
     }
     if (setReportedToFilter) setReportedToFilter("ALL");
+    if (setCrmOnly) setCrmOnly(false);
   };
 
   // Option Definitions
@@ -345,6 +350,18 @@ export default function TaskFilters({
               <Filter size={16} />
               Add Filter
             </Button>
+
+            {setCrmOnly && (
+              <Button
+                type="button"
+                variant={crmOnly ? "secondary" : "outline"}
+                onClick={() => setCrmOnly(!crmOnly)}
+                className={`flex items-center gap-2 h-[40px] md:h-[46px] text-[13px] shrink-0 font-semibold ${crmOnly ? "ring-1 ring-mauve-4" : ""}`}
+              >
+                <Briefcase size={16} />
+                CRM
+              </Button>
+            )}
           </div>
 
           {actions}

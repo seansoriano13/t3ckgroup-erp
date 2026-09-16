@@ -15,6 +15,7 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
     employeeFilter = "ALL",
     reportedToFilter = "ALL",
     sortBy = "NEWEST",
+    crmOnly = false,
   } = filters;
 
   const { isManagement = false, allEmployees = [] } = options;
@@ -140,6 +141,8 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
         matchesReportedTo = task.reportedTo === reportedToFilter;
       }
 
+      const matchesCrm = !crmOnly || Boolean(task.opportunityId);
+
       return (
         matchesSearch &&
         matchesStatus &&
@@ -149,7 +152,8 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
         matchesDept &&
         matchesSubDept &&
         matchesEmployee &&
-        matchesReportedTo
+        matchesReportedTo &&
+        matchesCrm
       );
     });
 
@@ -198,6 +202,7 @@ export function useTaskFilters(rawTasks = [], filters = {}, options = {}) {
     employeeMap,
     isManagement,
     sortBy,
+    crmOnly,
   ]);
 
   // --- 2. THE EMPLOYEE DEEP-DIVE STATS ---
