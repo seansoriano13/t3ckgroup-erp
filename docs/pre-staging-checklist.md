@@ -14,7 +14,7 @@ failure:
 |---|---|---|
 | `pnpm lint:tests` | always — **fails the run** | `ci.yml` (hard gate) |
 | `pnpm lint` | always — advisory only | `ci.yml` (`continue-on-error`, pre-existing backlog) |
-| `pnpm test` (full Vitest suite) | always | `ci.yml`, `policy-tests.yml` |
+| Vitest — tests this branch can reach (`vitest --changed`) | always; the **full suite** when a migration, shared test infrastructure, a Vitest config, `package.json` or the lockfile changed, with no merge base, or with `--full` | `ci.yml` (always the full suite) |
 | `pnpm build` | always (skip with `--quick`) | Vercel build |
 | Migration schema check vs `supabase/schema/staging.sql` | only if `supabase/migrations/**` changed | `migration-gate.yml` |
 | Changelog entry present | warns if `src/` changed without `src/data/changelog.json` (`--strict` fails) | — |
@@ -23,6 +23,10 @@ The migration check needs the local stack up (`supabase start`). It uses the
 same comparator (`scripts/db-snapshot.mjs`) the PR gate does — a migration that
 won't apply cleanly from empty, or that produces the wrong schema, fails here
 instead of on the push.
+
+The scoped test run is safe because CI runs every test on every push; preflight
+only has to catch what this branch broke. The rule for when it widens to the
+full suite lives in `scripts/lib/testSelection.mjs`, with its tests.
 
 ## 2. Smoke test on seeded data — every time
 

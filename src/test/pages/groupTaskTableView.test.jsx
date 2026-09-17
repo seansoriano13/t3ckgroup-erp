@@ -1,8 +1,7 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import GroupTaskTableView from "@/pages/group-tasks/_components/GroupTaskTableView";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 
 const mockGroupTask = (overrides = {}) => ({
   id: "gt-1",
@@ -48,7 +47,7 @@ describe("GroupTaskTableView", () => {
   });
 
   it("calls onView when a table row is clicked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onView = vi.fn();
     const taskItem = mockGroupTask({ id: "g1", title: "Office Relocation Plan" });
 

@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 
-import { renderWithProviders } from "../test/support"
+import { renderWithProviders, setupUser } from "../test/support"
 import CanvassPanel from "./CanvassPanel"
 import { projectEvaluationService } from "../services/projectEvaluationService"
 import { makeEmployee, makeOpportunity } from "@/test/factories"
@@ -41,7 +40,7 @@ describe("CanvassPanel — winning an offer refreshes the Inclusion's cost", () 
     const invalidateSpy = vi.spyOn(client, "invalidateQueries")
 
     await screen.findByText("Genie")
-    await userEvent.click(screen.getByRole("button", { name: /mark genie the winner/i }))
+    await setupUser().click(screen.getByRole("button", { name: /mark genie the winner/i }))
 
     await waitFor(() =>
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["inclusions"] }),

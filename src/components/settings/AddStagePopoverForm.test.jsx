@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { setupUser } from "@/test/support"
 import { describe, expect, it, vi } from "vitest"
 import AddStagePopoverForm from "./AddStagePopoverForm"
 
 describe("AddStagePopoverForm (issue #195)", () => {
   it("submits the stage name and closes when Enter is pressed", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onSubmit = vi.fn().mockResolvedValue(undefined)
     const close = vi.fn()
 
@@ -19,7 +19,7 @@ describe("AddStagePopoverForm (issue #195)", () => {
   })
 
   it("closes the popover when Esc is pressed", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onSubmit = vi.fn()
     const close = vi.fn()
 
@@ -33,7 +33,7 @@ describe("AddStagePopoverForm (issue #195)", () => {
   })
 
   it("shows an inline error and keeps popover open for a blank name", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onSubmit = vi.fn()
     const close = vi.fn()
 
@@ -47,7 +47,7 @@ describe("AddStagePopoverForm (issue #195)", () => {
   })
 
   it("shows an inline error and keeps popover open when onSubmit rejects (e.g. duplicate name)", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onSubmit = vi.fn().mockRejectedValue(new Error('Stage "Lead" already exists in this flow.'))
     const close = vi.fn()
 
@@ -62,7 +62,7 @@ describe("AddStagePopoverForm (issue #195)", () => {
   })
 
   it("clears the inline error when the user types", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onSubmit = vi.fn()
     const close = vi.fn()
 

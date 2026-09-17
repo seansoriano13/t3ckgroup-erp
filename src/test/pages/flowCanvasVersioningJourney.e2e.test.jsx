@@ -1,9 +1,8 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import FlowCanvas from "@/components/settings/FlowCanvas"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import {
     makeFlowEdge,
@@ -73,7 +72,7 @@ describe("Flow Canvas versioning journey", () => {
         "publishes, adds a Stage, publishes again, accepts the move offer, views v1.0, restores it, and republishing reads v2.0",
         { timeout: 20000 },
         async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
 
             const saleType = makeSaleType({ name: "Government Bidding" })
             const flow = makeSalesFlow({ sale_type_id: saleType.id })

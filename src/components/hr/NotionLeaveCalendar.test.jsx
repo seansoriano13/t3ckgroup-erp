@@ -10,8 +10,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
 import { upcomingWeekdays } from '@/test/dates';
 import NotionLeaveCalendar from './NotionLeaveCalendar';
 
@@ -61,7 +60,7 @@ describe('NotionLeaveCalendar', () => {
   });
 
   it('gives the hidden leaves their windows once the day is opened', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderBoard([
       leave({ id: 'a', hours: 3, start_time: '14:00', end_time: '17:00' }),
       leave({ id: 'b', hours: 2, start_time: '08:00', end_time: '10:00' }),
@@ -92,7 +91,7 @@ describe('NotionLeaveCalendar', () => {
       );
 
     const openCard = async (dayLabel) => {
-      const user = userEvent.setup();
+      const user = setupUser();
       await user.click(screen.getByText(dayLabel));
     };
 

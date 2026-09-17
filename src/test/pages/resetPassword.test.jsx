@@ -1,7 +1,7 @@
 import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/support";
 import { MemoryRouter, Routes, Route } from "react-router";
 import toast from "react-hot-toast";
 import ResetPassword from "../../pages/reset-password/index";
@@ -95,7 +95,7 @@ describe("ResetPassword page", () => {
 
     renderPage();
     await screen.findByLabelText(/new password/i);
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.type(screen.getByLabelText(/new password/i), "a-strong-password");
     await user.type(screen.getByLabelText(/confirm password/i), "different-password");
     await user.click(screen.getByRole("button", { name: /save password/i }));
@@ -329,7 +329,7 @@ describe("ResetPassword page", () => {
 /** Fills a matching password pair and submits, once the form is on screen. */
 async function user_type_and_save() {
   await screen.findByLabelText(/new password/i);
-  const user = userEvent.setup();
+  const user = setupUser();
   await user.type(screen.getByLabelText(/new password/i), "a-strong-password");
   await user.type(screen.getByLabelText(/confirm password/i), "a-strong-password");
   await user.click(screen.getByRole("button", { name: /save password/i }));

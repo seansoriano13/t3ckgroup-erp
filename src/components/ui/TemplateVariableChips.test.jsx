@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { setupUser } from "@/test/support"
 import TemplateVariableChips from "./TemplateVariableChips"
 
 describe("TemplateVariableChips", () => {
   it("calls onInsert with the {{key}} token for the clicked variable", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onInsert = vi.fn()
     render(<TemplateVariableChips value="" onInsert={onInsert} />)
 

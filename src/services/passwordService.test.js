@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { passwordService } from "./passwordService"
 import { stubEdgeFunction } from "@/test/msw/server"
 import { supabase } from "@/lib/supabase"
@@ -54,6 +54,12 @@ describe("passwordService", () => {
   })
 
   describe("requestPasswordReset", () => {
+    // The redirect is built from the page's origin. Service tests run in plain
+    // Node, so the one browser global this entry point reads is supplied here.
+    beforeEach(() => {
+      vi.stubGlobal("window", { location: { origin: "https://erp.t3ckgroup.test" } })
+    })
+
     it("delegates to supabase.auth.resetPasswordForEmail with a redirect", async () => {
       const spy = vi
         .spyOn(supabase.auth, "resetPasswordForEmail")

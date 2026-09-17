@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { setupUser } from "@/test/support"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import { AuthProvider, useAuth } from "./AuthContext"
@@ -239,7 +239,7 @@ describe("AuthContext", () => {
       renderAuth()
       await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("Ana Reyes"))
 
-      await userEvent.click(screen.getByRole("button", { name: "Log out" }))
+      await setupUser().click(screen.getByRole("button", { name: "Log out" }))
 
       await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("anonymous"))
       expect(localStorage.getItem("t3ck_user_profile")).toBeNull()
@@ -252,7 +252,7 @@ describe("AuthContext", () => {
       await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("Ana Reyes"))
       vi.spyOn(supabase.auth, "signOut").mockResolvedValue({ error: new Error("offline") })
 
-      await userEvent.click(screen.getByRole("button", { name: "Log out" }))
+      await setupUser().click(screen.getByRole("button", { name: "Log out" }))
 
       await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("anonymous"))
       expect(navigate).toHaveBeenCalledWith("/login")
@@ -266,7 +266,7 @@ describe("AuthContext", () => {
       renderAuth()
       await waitFor(() => expect(screen.getByTestId("name")).toHaveTextContent("Ana Reyes"))
 
-      await userEvent.click(screen.getByRole("button", { name: "Save preference" }))
+      await setupUser().click(screen.getByRole("button", { name: "Save preference" }))
 
       expect(screen.getByTestId("quote")).toHaveTextContent("New quote")
       expect(JSON.parse(localStorage.getItem("t3ck_user_profile")).dashboardQuote).toBe(
@@ -281,7 +281,7 @@ describe("AuthContext", () => {
       renderAuth()
       await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"))
 
-      await userEvent.click(screen.getByRole("button", { name: "Check login" }))
+      await setupUser().click(screen.getByRole("button", { name: "Check login" }))
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith("Unauthorized: Your email is not registered."),
@@ -294,7 +294,7 @@ describe("AuthContext", () => {
       renderAuth()
       await waitFor(() => expect(screen.getByTestId("loading")).toHaveTextContent("false"))
 
-      await userEvent.click(screen.getByRole("button", { name: "Check login" }))
+      await setupUser().click(screen.getByRole("button", { name: "Check login" }))
 
       await waitFor(() => expect(toast.error).not.toHaveBeenCalled())
     })

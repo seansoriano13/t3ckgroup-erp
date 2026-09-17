@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "../../test/support"
+import { renderWithProviders, setupUser } from "../../test/support"
 import PendingActionDecisions from "./PendingActionDecisions"
 import { opportunityService } from "../../services/opportunityService"
 
@@ -82,7 +81,7 @@ describe("PendingActionDecisions", () => {
   })
 
   it("calls decideAction with the run id, decision and actor id on Create", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     opportunityService.getPendingActionsForActor.mockResolvedValue([
       {
         runId: "run-1",

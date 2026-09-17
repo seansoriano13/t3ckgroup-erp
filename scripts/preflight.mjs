@@ -11,21 +11,24 @@
  * only drives the local stack and has a hand-maintained twin in the staging
  * dashboard.
  *
- *   pnpm preflight            # lint, full test suite, build, + conditional checks
+ *   pnpm preflight            # lint, affected tests, build, + conditional checks
  *
  * Lint is split the way ci.yml splits it: `lint:tests` fails the run, the
  * app-wide lint is reported but advisory.
- *   pnpm preflight --quick    # skip `vite build`; unit + integration tests only
+ *   pnpm preflight --quick    # skip `vite build`
+ *   pnpm preflight --full     # run the whole test suite, whatever changed
  *   pnpm preflight --strict   # missing changelog entry fails instead of warning
  *
  * Nothing here touches a remote database. The migration check runs against the
  * local stack (127.0.0.1:54322) only, and only when migrations changed.
  */
 import { execSync } from "child_process"
+import { chooseTestRun } from "./lib/testSelection.mjs"
 
 const args = process.argv.slice(2)
 const quick = args.includes("--quick")
 const strict = args.includes("--strict")
+const full = args.includes("--full")
 
 const bold = (s) => `\x1b[1m${s}\x1b[0m`
 const results = []
@@ -54,13 +57,17 @@ function git(cmd) {
   }
 }
 
+const mergeBase = git("merge-base HEAD origin/staging")
+
 /** Every file this branch changes relative to what it will merge into. */
 function changedFiles() {
-  const base = git("merge-base HEAD origin/staging") || git("rev-parse HEAD~1")
+  const base = mergeBase || git("rev-parse HEAD~1")
   const sources = [
     base && `diff --name-only ${base}...HEAD`,
     "diff --name-only HEAD", // unstaged
     "diff --name-only --cached", // staged
+    // new, not yet added — a fresh migration must still widen the test run
+    "ls-files --others --exclude-standard",
   ].filter(Boolean)
   const set = new Set()
   for (const s of sources) {
@@ -89,10 +96,16 @@ const touchedAuthConfig =
 // deliberately-tolerated debt is one people learn to ignore.
 step("Lint tests (eslint on test files)", "pnpm lint:tests")
 step("Lint app (eslint .) — advisory, as in ci.yml", "pnpm lint", { soft: true })
-step(
-  quick ? "Tests (unit + integration)" : "Tests (full Vitest suite)",
-  quick ? "pnpm test:unit && pnpm test:integration" : "pnpm test",
-)
+// CI runs the full suite on every push, so locally only the tests this branch
+// can reach are run — unless the change is one the import graph cannot see.
+// The rule lives in scripts/lib/testSelection.mjs, where it is tested.
+const testRun = chooseTestRun({ changedFiles: changed, base: mergeBase, full })
+if (testRun.mode === "full") {
+  step(`Tests (full Vitest suite — ${testRun.reason})`, `pnpm exec ${testRun.command}`)
+} else {
+  step("Tests (affected by this branch — CI runs the full suite)", `pnpm exec ${testRun.command}`)
+  results.push("  ℹ️  Scoped test run. `pnpm preflight --full` runs every test.")
+}
 if (!quick) step("Build (vite build)", "pnpm build")
 
 // --- only if migrations changed -----------------------------------------

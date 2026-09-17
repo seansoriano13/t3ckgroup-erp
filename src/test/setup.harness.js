@@ -1,6 +1,4 @@
-import "@testing-library/jest-dom/vitest"
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest"
-import { cleanup } from "@testing-library/react"
 import { server } from "./msw/server"
 import { resetExternalStubs, resetStorageStubs, resetStubs } from "./msw/server"
 import { db } from "./db/store"
@@ -9,9 +7,18 @@ import { waitForNetworkIdle } from "./network"
 import { stubActionRunRpcs } from "./stubs/actionRunRpc"
 
 /**
+ * The fake Supabase: MSW answering PostgREST, Storage and Edge Functions from
+ * the in-memory database, reset between tests. Used by the services and
+ * screens projects (see vitest.config.js).
+ *
+ * The services project runs in plain Node, so nothing here may assume a DOM.
+ * DOM shims and Testing Library cleanup live in setup.dom.js.
+ */
+
+/**
  * Realtime is a WebSocket, not HTTP, so MSW cannot intercept it. Subscriptions
- * are stubbed to a socket that never opens: components that call
- * `supabase.channel(...).subscribe()` mount cleanly instead of retrying against
+ * are stubbed to a socket that never opens: code that calls
+ * `supabase.channel(...).subscribe()` runs cleanly instead of retrying against
  * a host that does not exist.
  */
 class InertWebSocket {
@@ -34,39 +41,15 @@ class InertWebSocket {
 
 beforeAll(() => {
   vi.stubGlobal("WebSocket", InertWebSocket)
-  // jsdom does not implement scrollIntoView; components that call it to keep
-  // a selected row in view would otherwise crash every test that renders them.
-  if (!Element.prototype.scrollIntoView) {
-    Element.prototype.scrollIntoView = () => {}
-  }
-  // jsdom has no ResizeObserver. React Flow constructs one the moment it
-  // mounts, so every test that renders the Flow Canvas — or any screen that
-  // embeds it — throws before its first assertion without this.
-  if (!globalThis.ResizeObserver) {
-    globalThis.ResizeObserver = class ResizeObserver {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    }
-  }
-  // jsdom has no matchMedia. Defaults every query to non-matching so a
-  // width-gated layout (the SOR modal's chat-as-tab switch) renders its wide
-  // form in tests unless a test stubs window.matchMedia itself.
-  if (!window.matchMedia) {
-    window.matchMedia = (query) => ({
-      matches: false,
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })
-  }
   // Anything not described by a handler is a bug in the test, not something to
   // quietly let through to the real internet.
   server.listen({ onUnhandledRequest: "error" })
 })
 
+// Registered before setup.dom.js's afterEach, so under Vitest's default
+// "stack" hook order it runs after it: the screen is unmounted before the
+// network is drained and the store wiped.
 afterEach(async () => {
-  cleanup()
   // Drain fire-and-forget writes before wiping the store, so a notification
   // dispatched by this test cannot land in the next one's database.
   await waitForNetworkIdle()
@@ -76,7 +59,9 @@ afterEach(async () => {
   resetStubs()
   resetExternalStubs()
   resetStorageStubs()
-  localStorage.clear()
+  // The Supabase session store lives here when the environment provides one
+  // (the jsdom environment does; plain Node does not).
+  globalThis.localStorage?.clear()
 })
 
 // Issue #204 Part 2 — sor_action_runs' RPCs (sor_begin_action_run,

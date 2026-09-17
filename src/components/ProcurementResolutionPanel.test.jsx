@@ -20,8 +20,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "../test/support"
+import { renderWithProviders, setupUser } from "../test/support"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import { purchasingService } from "../services/purchasingService"
 import { PROCUREMENT_OUTCOME } from "../constants/procurement"
@@ -147,7 +146,7 @@ describe("staying out of the way", () => {
 
 describe("the PO number is the evidence", () => {
   it("will not record a purchased outcome without one", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -157,7 +156,7 @@ describe("the PO number is the evidence", () => {
   })
 
   it("allows setting status to in progress instantly on dropdown selection without a PO number or form submit", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "In progress")
@@ -170,7 +169,7 @@ describe("the PO number is the evidence", () => {
   })
 
   it("will not record a substitution without one either", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Substituted")
@@ -180,7 +179,7 @@ describe("the PO number is the evidence", () => {
   })
 
   it("does not demand a PO when nothing was bought", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Already in Odoo")
@@ -191,7 +190,7 @@ describe("the PO number is the evidence", () => {
   })
 
   it("does not demand a PO when the product cannot be sourced", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Cannot source")
@@ -201,7 +200,7 @@ describe("the PO number is the evidence", () => {
   })
 
   it("clears PO number and product name when switching outcome to In Progress in the edit form", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -215,7 +214,7 @@ describe("the PO number is the evidence", () => {
 
 describe("what gets recorded", () => {
   it("sends the outcome, the PO, the ETA and the note for one product", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -245,7 +244,7 @@ describe("what gets recorded", () => {
   })
 
   it("answers each product on its own, so two suppliers means two POs", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({ id: "req-1", requested_name: "Hydraulic hose kit" }),
       request({ id: "req-2", requested_name: "Safety harness" }),
@@ -296,7 +295,7 @@ describe("what gets recorded", () => {
   })
 
   it("allows editing an already-recorded PO number and saving changes", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -320,7 +319,7 @@ describe("what gets recorded", () => {
   })
 
   it("disables the Odoo product name field when the PO is verified in Odoo", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -338,7 +337,7 @@ describe("what gets recorded", () => {
   })
 
   it("provides 1-click quick action to mark a purchased item as delivered", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -357,7 +356,7 @@ describe("what gets recorded", () => {
   })
 
   it("Record PO button opens the resolution form with Purchased preselected", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.IN_PROGRESS,
@@ -380,7 +379,7 @@ describe("what gets recorded", () => {
       opportunity_id: "opp-1",
       taskAutoSubmitted: true,
     })
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel(
       [
         request({
@@ -409,7 +408,7 @@ describe("what gets recorded", () => {
 describe("what the buyer is told about the PO check", () => {
   it("says the number was not found rather than letting it read as confirmed", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
+    const user = setupUser()
     purchasingService.resolveRequest.mockResolvedValue({
       id: "req-1",
       opportunity_id: "opp-1",
@@ -431,7 +430,7 @@ describe("what the buyer is told about the PO check", () => {
 
   it("distinguishes an unreachable Odoo from a rejected number", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
+    const user = setupUser()
     purchasingService.resolveRequest.mockResolvedValue({
       id: "req-1",
       opportunity_id: "opp-1",
@@ -450,7 +449,7 @@ describe("what the buyer is told about the PO check", () => {
 
   it("surfaces a rejected PO format instead of failing silently", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
+    const user = setupUser()
     purchasingService.resolveRequest.mockRejectedValue(
       new Error('PO Number must be the Odoo purchase order number — "P" followed by digits.'),
     )
@@ -465,7 +464,7 @@ describe("what the buyer is told about the PO check", () => {
   })
 
   it("live checks the PO and auto-populates the official Odoo product name", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -532,7 +531,7 @@ describe("the deal behind the requisition", () => {
   it("asks to open the SOR rather than navigating away itself", async () => {
     const opened = vi.fn()
     window.addEventListener("OPEN_ENTITY_DETAILS", opened)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await renderWithSor(SOR, { user: { id: SOR.deal_owner_id } })
     await user.click(await screen.findByRole("button", { name: /view full sor/i }))

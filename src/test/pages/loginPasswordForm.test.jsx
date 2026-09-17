@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/support";
 import { MemoryRouter, Routes, Route } from "react-router";
 import toast from "react-hot-toast";
 import Login from "../../pages/login/index";
@@ -50,7 +50,7 @@ describe("Login password form", () => {
   });
 
   it("submits with signInWithPassword and proceeds on success", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
       data: { user: { email: "a@t3ckgroup.test" } },
       error: null,
@@ -71,7 +71,7 @@ describe("Login password form", () => {
   });
 
   it("shows a useful error and does not navigate when sign-in fails", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const toastSpy = vi.spyOn(toast, "error");
     vi.spyOn(supabase.auth, "signInWithPassword").mockResolvedValue({
       data: null,
@@ -90,7 +90,7 @@ describe("Login password form", () => {
   });
 
   it("sends a reset email through Forgot password? without submitting the form", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const resetSpy = vi.spyOn(passwordService, "requestPasswordReset").mockResolvedValue();
     const signInSpy = vi.spyOn(supabase.auth, "signInWithPassword");
 

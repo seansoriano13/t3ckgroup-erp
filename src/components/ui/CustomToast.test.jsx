@@ -8,10 +8,9 @@
  */
 
 import { screen, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import toast from "react-hot-toast";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { CustomToast, confirmDeleteToast, confirmActionToast, undoableSuccessToast } from "./CustomToast";
 
 describe("undoableSuccessToast", () => {
@@ -37,7 +36,7 @@ describe("undoableSuccessToast", () => {
   });
 
   it("calls the onUndo handler when the Undo button is clicked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onUndo = vi.fn();
 
     act(() => {

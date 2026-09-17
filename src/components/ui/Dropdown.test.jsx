@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/support";
 import Dropdown from "./Dropdown";
 
 describe("Dropdown", () => {
   it("opens on trigger click and closes when clicking outside", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render(
       <div>
         <div data-testid="outside">Outside area</div>
@@ -31,7 +31,7 @@ describe("Dropdown", () => {
   });
 
   it("closes when pressing Escape", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     render(
       <Dropdown trigger={<button>Open Menu</button>}>
         <div>Menu Content</div>

@@ -1,9 +1,8 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApproveUndertimeModal from "./ApproveUndertimeModal"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { stubUndertimeDecisionRpcs } from "@/test/stubs/undertimeRpc"
 import { makeEmployee, makeHrEmployee, makeUndertimeRequest } from "@/test/factories"
@@ -65,7 +64,7 @@ describe("ApproveUndertimeModal", () => {
     const request = makeUndertimeRequest({ employee_id: employee.id, hours: 2 })
     const before = balancesOf(employee.id)
     open(request)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getByRole("button", { name: /confirm approval/i }))
 
@@ -79,7 +78,7 @@ describe("ApproveUndertimeModal", () => {
 
     expect(screen.queryByLabelText(/approved hours/i)).not.toBeInTheDocument()
 
-    const user = userEvent.setup()
+    const user = setupUser()
     await user.click(screen.getByRole("button", { name: /confirm rejection/i }))
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalled())
@@ -89,7 +88,7 @@ describe("ApproveUndertimeModal", () => {
   it("will not submit a zero approved-hours value", async () => {
     const request = makeUndertimeRequest({ employee_id: employee.id, hours: 2 })
     open(request)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)

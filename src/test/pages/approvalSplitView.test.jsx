@@ -1,5 +1,4 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApprovalSplitView } from "@/pages/approvals/_components/ApprovalSplitView"
@@ -7,7 +6,7 @@ import { taskService } from "@/services/taskService.js"
 import { TASK_STATUS } from "@/constants/status.js"
 import { db } from "@/test/db/store"
 import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeTask } from "@/test/factories"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { waitForNetworkIdle } from "@/test/network"
 
 /**
@@ -127,7 +126,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("opens the task the reviewer clicks", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const tasks = [
                 seedPending({ task_description: "Replace the office switch" }),
                 seedPending({ task_description: "Patch the firewall" }),
@@ -157,7 +156,7 @@ describe("ApprovalSplitView", () => {
 
     describe("a manager approving a task", () => {
         it("writes the grade and remarks onto the task", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -178,7 +177,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("refuses to approve without a grade", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             const { onProcessTask } = renderQueue([task])
 
@@ -192,7 +191,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("leaves the task untouched when the reviewer only picks a grade", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -203,7 +202,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("returns a task to the employee with the reviewer's reason", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -220,7 +219,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("refuses to return a task with no reason given", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             const { onProcessTask } = renderQueue([task])
 
@@ -231,7 +230,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("surfaces a pipeline rejection instead of silently swallowing it", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             // Already approved and verified: the service will not let a manager
             // grade it again from here.
             const task = seedPending({
@@ -276,7 +275,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("signs the task off with the auditor's notes", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const hr = makeHrEmployee()
             const task = seedGraded()
             renderQueue([task], { isHr: true, currentUserId: hr.id })
@@ -301,7 +300,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("refuses to return a task without audit notes", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const hr = makeHrEmployee()
             const task = seedGraded()
             const { onProcessTask } = renderQueue([task], { isHr: true, currentUserId: hr.id })
@@ -313,7 +312,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("returns a verified-queue task to the manager with a reason", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const hr = makeHrEmployee()
             const task = seedGraded()
             renderQueue([task], { isHr: true, currentUserId: hr.id })
@@ -358,7 +357,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("opens the decision for editing when the reviewer asks", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             renderQueue([seedVerified()], { isVerifiedTab: true })
 
             await user.click(screen.getByRole("button", { name: /edit evaluation/i }))
@@ -369,7 +368,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("abandons an edit on cancel without touching the task", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedVerified()
             renderQueue([task], { isVerifiedTab: true })
 
@@ -387,7 +386,7 @@ describe("ApprovalSplitView", () => {
 
     describe("keyboard triage", () => {
         it("grades with the number keys and submits on Enter", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -401,7 +400,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("does not act on a keystroke aimed at the remarks box", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -414,7 +413,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("leaves a task alone when Enter is pressed on the queue row", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const task = seedPending()
             renderQueue([task])
 
@@ -429,7 +428,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("does not grade a task the reviewer is only reading", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const row = makeTask({
                 logged_by: author.id,
                 category_id: category.category_id,
@@ -451,7 +450,7 @@ describe("ApprovalSplitView", () => {
 
     describe("moving through the queue", () => {
         it("walks to the next task on J", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const tasks = [seedPending(), seedPending()]
             const { onSelectTaskId } = renderQueue(tasks)
 
@@ -461,7 +460,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("walks back on K", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const tasks = [seedPending(), seedPending()]
             const onSelectTaskId = vi.fn()
             renderWithProviders(
@@ -480,7 +479,7 @@ describe("ApprovalSplitView", () => {
         })
 
         it("stays put at the end of the queue", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const tasks = [seedPending()]
             const { onSelectTaskId } = renderQueue(tasks)
             onSelectTaskId.mockClear()
@@ -493,7 +492,7 @@ describe("ApprovalSplitView", () => {
 
     describe("bulk selection", () => {
         it("hands the selection back to the page", async () => {
-            const user = userEvent.setup()
+            const user = setupUser()
             const tasks = [seedPending()]
             const onToggleTaskSelection = vi.fn()
 

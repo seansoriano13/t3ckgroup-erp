@@ -7,8 +7,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
 import { makeLeaveCategory } from '@/test/factories';
 import LeaveCategoriesConfig from './LeaveCategoriesConfig';
 import { hrSettingsService } from '@/services/hrSettingsService';
@@ -33,7 +32,7 @@ describe('LeaveCategoriesConfig reordering', () => {
     renderWithProviders(<LeaveCategoriesConfig />);
     await screen.findByText('Sick Leave');
 
-    const user = userEvent.setup();
+    const user = setupUser();
     const moveDownButtons = screen.getAllByTitle('Move down');
     await user.click(moveDownButtons[0]); // move "Sick Leave" (first row) down
 
@@ -61,7 +60,7 @@ describe('LeaveCategoriesConfig reordering', () => {
     renderWithProviders(<LeaveCategoriesConfig />);
     await screen.findByText('Sick Leave');
 
-    const user = userEvent.setup();
+    const user = setupUser();
     await user.click(screen.getAllByTitle('Move down')[0]);
 
     // The component rolls back optimistically via react-query onError.

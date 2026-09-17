@@ -1,9 +1,8 @@
 import { screen, waitFor, within } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router";
 import EmployeeManagement from "@/pages/hr/management/index";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeHrEmployee } from "@/test/factories";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -21,7 +20,7 @@ describe("EmployeeManagement", () => {
   });
 
   it("filters the table by the Leave Manager role flag and ensures Standard excludes them", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     // 1. Create employees with different roles
     makeEmployee({ name: "Leave Boss", can_manage_leaves: true });
@@ -71,7 +70,7 @@ describe("EmployeeManagement", () => {
   });
 
   it("applies the SIL auto-grant to the input field on promotion and correctly handles edited balances", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
 
     makeEmployee({ name: "Probationary Worker", employment_status: "Probationary", sil_hours_balance: 5 });
 

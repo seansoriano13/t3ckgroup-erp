@@ -9,7 +9,7 @@
  * suite goes flaky in a way that looks like a service bug.
  *
  * `waitForNetworkIdle()` closes that gap: use it before asserting on anything a
- * service dispatched without awaiting, and the teardown in setup.js calls it
+ * service dispatched without awaiting, and the teardown in setup.harness.js calls it
  * before resetting so nothing leaks across the boundary either.
  */
 

@@ -1,8 +1,7 @@
 import { screen, fireEvent, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import OpportunityBoard from "./OpportunityBoard";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makePipelineStage } from "@/test/factories";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -182,7 +181,7 @@ describe("OpportunityBoard", () => {
     });
 
     it("switches columns when a different Sale Type is chosen", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       renderWithProviders(
         <OpportunityBoard
           opportunities={[flowDeal()]}
@@ -251,7 +250,7 @@ describe("OpportunityBoard", () => {
     });
 
     it("confirming the move calls updateStatus and closes on success", async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const onMoved = vi.fn();
       renderWithProviders(
         <OpportunityBoard
@@ -300,7 +299,7 @@ describe("OpportunityBoard", () => {
       );
 
       // Board opens on the first Sale Type by default; switch to Legacy pipeline.
-      const user = userEvent.setup();
+      const user = setupUser();
       await user.click(screen.getByText("Outright"));
       await user.click(screen.getByText("Legacy pipeline"));
 

@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react"
 import { screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeOpportunity, makeSuperAdmin } from "@/test/factories"
@@ -89,7 +88,7 @@ describe("FlowVersionRail", () => {
 
   it("expands a row to show what changed since the previous version", async () => {
     const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
@@ -108,7 +107,7 @@ describe("FlowVersionRail", () => {
     const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
     await salesFlowService.unlockFlow(flow.id, "Back to editing", admin.id)
     await salesFlowService.addStage(flow.id, "Onboarding", admin.id)
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
@@ -123,7 +122,7 @@ describe("FlowVersionRail", () => {
     const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
     await salesFlowService.unlockFlow(flow.id, "Back to editing", admin.id)
     await salesFlowService.addStage(flow.id, "Onboarding", admin.id)
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
@@ -147,7 +146,7 @@ describe("FlowVersionRail", () => {
   it("calls onViewVersion when a row's label is clicked, and highlights the viewed row", async () => {
     const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
     const onViewVersion = vi.fn()
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} onViewVersion={onViewVersion} />)
     await screen.findByText("v1.0")
 
@@ -160,7 +159,7 @@ describe("FlowVersionRail", () => {
     const { saleType, flow } = await buildFlowWithTwoSnapshots(admin.id)
     await salesFlowService.unlockFlow(flow.id, "Back to editing", admin.id)
     const onViewVersion = vi.fn()
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} onViewVersion={onViewVersion} viewingSnapshotId="some-id" />)
     await screen.findByText("Draft")
 
@@ -215,7 +214,7 @@ describe("FlowVersionRail", () => {
 
   it("collapses and re-expands the rail", async () => {
     const { saleType } = await buildFlowWithTwoSnapshots(admin.id)
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<Rail saleTypeId={saleType.id} />)
     await screen.findByText("v1.1")
 
@@ -285,7 +284,7 @@ describe("FlowVersionStatusChip", () => {
 
     const { flow, stages, edges } = await salesFlowService.getFlow(saleType.id)
     const versionPreview = await salesFlowService.previewVersion(flow.id)
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(
       <FlowVersionStatusChip
         flow={flow}

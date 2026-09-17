@@ -6,11 +6,10 @@
  * that result instead of looking broken.
  */
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import OpportunitiesPage from "@/pages/crm/index";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
@@ -39,7 +38,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
   });
 
   it("renders the same empty state on the Board tab", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <MemoryRouter>
         <OpportunitiesPage />
@@ -53,7 +52,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
   });
 
   it("renders a plain empty state on the Overview tab", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <MemoryRouter>
         <OpportunitiesPage />

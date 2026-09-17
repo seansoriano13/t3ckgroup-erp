@@ -1,10 +1,9 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import { MemoryRouter } from "react-router"
 
 import TasksPage from "@/pages/tasks/index.jsx"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { makeCategory, makeEmployee, makeTask } from "@/test/factories"
 
 /**
@@ -31,7 +30,7 @@ vi.mock("@/context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) })
 
 describe("TasksPage — delete", () => {
   it("drops a task from its own list the moment it's deleted, without a reload", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const category = makeCategory({ category_id: "IT-01" })
     const owner = makeEmployee({ name: "Ana Reyes" })
     authUser = { id: owner.id, is_head: false, is_hr: false, isSuperAdmin: false }

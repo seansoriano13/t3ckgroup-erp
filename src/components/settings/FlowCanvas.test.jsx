@@ -1,8 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import FlowCanvas from "./FlowCanvas"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { salesFlowService } from "@/services/salesFlowService"
 import {
   makeFlowEdge,
@@ -77,7 +76,7 @@ describe("FlowCanvas", () => {
     renderWithProviders(<FlowCanvas />)
 
     // Select the Sale Type explicitly to avoid parallel test pollution picking another flow
-    await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
 
     // Wait for the canvas to load nodes
     expect(await screen.findByText("Lead")).toBeInTheDocument()
@@ -102,7 +101,7 @@ describe("FlowCanvas", () => {
     makeFlowEdge(lead, awarded)
 
     renderWithProviders(<FlowCanvas />)
-    await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
 
     const leadNode = (await screen.findByText("Lead")).closest(".react-flow__node")
 
@@ -134,7 +133,7 @@ describe("FlowCanvas", () => {
   })
 
   it("disables Publish in the popover while the draft is unchanged, and shows why", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -155,7 +154,7 @@ describe("FlowCanvas", () => {
   })
 
   it("shows a change summary and enables Publish once the draft differs, and the note survives to history", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -182,7 +181,7 @@ describe("FlowCanvas", () => {
   })
 
   it("offers to move deals up after a minor publish, naming how many", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -217,7 +216,7 @@ describe("FlowCanvas", () => {
   })
 
   it("does not offer to move deals after a major publish", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -264,7 +263,7 @@ describe("FlowCanvas", () => {
   })
 
   it("adds a Stage the Operations Manager names herself", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType } = seedFlow()
 
     renderWithProviders(<FlowCanvas />)
@@ -280,7 +279,7 @@ describe("FlowCanvas", () => {
   })
 
   it("keeps the popover open with an inline error for a blank or duplicate Stage name", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     seedFlow()
 
     renderWithProviders(<FlowCanvas />)
@@ -296,7 +295,7 @@ describe("FlowCanvas", () => {
   })
 
   it("adds the next Stage and its move from a Stage's own outgoing plus", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, lead } = seedFlow()
 
     renderWithProviders(<FlowCanvas />)
@@ -321,7 +320,7 @@ describe("FlowCanvas", () => {
   })
 
   it("points to the canvas plus when the flow is empty and removes the docked input box", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const saleType = makeSaleType({ name: "Direct Sale" })
     makeSalesFlow({ sale_type_id: saleType.id })
 
@@ -336,7 +335,7 @@ describe("FlowCanvas", () => {
   })
 
   it("hides all plus buttons while the Sales Flow is published", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -358,7 +357,7 @@ describe("FlowCanvas", () => {
     await salesFlowService.lockFlow(flow.id, mockUser.current.id)
 
     renderWithProviders(<FlowCanvas />)
-    await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+    await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
     await screen.findByText("Lead")
 
     expect(screen.getByRole("button", { name: /Edit draft/ })).toBeInTheDocument()
@@ -369,7 +368,7 @@ describe("FlowCanvas", () => {
   // ── Version viewing and restore (issue #193) ─────────────────────────────
 
   it("draws a clicked version read-only under a banner, with no editing controls, and returns to the draft", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -391,7 +390,7 @@ describe("FlowCanvas", () => {
   })
 
   it("opens a version's Stage read-only when a Stage is clicked while viewing", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -421,7 +420,7 @@ describe("FlowCanvas", () => {
   // cards the live canvas draws — story 33 asks to "read its rules at a
   // glance", which a bare count doesn't give.
   it("draws a version's conditions as satellite cards, and clicking one opens the panel on that tab", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     makeStageCondition({
@@ -452,7 +451,7 @@ describe("FlowCanvas", () => {
   })
 
   it("disables Restore on a published Sales Flow, hinting to edit the draft first", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -467,7 +466,7 @@ describe("FlowCanvas", () => {
   })
 
   it("restores a version into the draft after confirming, from the banner", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -498,7 +497,7 @@ describe("FlowCanvas", () => {
 
   it("shows the refusal naming the Stage and SOR count when restore is blocked", async () => {
     const errorToast = vi.spyOn(toast, "error").mockImplementation(() => "id")
-    const user = userEvent.setup()
+    const user = setupUser()
     const { saleType, flow, lead, awarded } = seedFlow()
     makeFlowEdge(lead, awarded)
     await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
@@ -535,7 +534,7 @@ describe("FlowCanvas", () => {
     it("hides the archived section when there are none", async () => {
       seedFlow()
       renderWithProviders(<FlowCanvas />)
-      await userEvent.click(await screen.findByRole("button", { name: "Government Bidding" }))
+      await setupUser().click(await screen.findByRole("button", { name: "Government Bidding" }))
       expect(screen.queryByText(/Show archived/)).not.toBeInTheDocument()
     })
 
@@ -545,12 +544,12 @@ describe("FlowCanvas", () => {
       makeSalesFlow({ sale_type_id: archived.id })
 
       renderWithProviders(<FlowCanvas />)
-      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+      await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
 
       expect(await screen.findByText("Show archived (1)")).toBeInTheDocument()
       expect(screen.queryByText("Retired Program")).not.toBeInTheDocument()
 
-      await userEvent.click(screen.getByText("Show archived (1)"))
+      await setupUser().click(screen.getByText("Show archived (1)"))
       expect(await screen.findByText(/Retired Program/)).toBeInTheDocument()
     })
 
@@ -561,9 +560,9 @@ describe("FlowCanvas", () => {
       makeFlowStage({ flow_id: archivedFlow.id, name: "Only Stage", sort_order: 0 })
 
       renderWithProviders(<FlowCanvas />)
-      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
-      await userEvent.click(screen.getByText("Show archived (1)"))
-      await userEvent.click(screen.getByText(/Retired Program/))
+      await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
+      await setupUser().click(screen.getByText("Show archived (1)"))
+      await setupUser().click(screen.getByText(/Retired Program/))
 
       expect(await screen.findByRole("button", { name: "Retired Program" })).toBeInTheDocument()
       expect(await screen.findByText("Archived")).toBeInTheDocument()
@@ -581,31 +580,31 @@ describe("FlowCanvas", () => {
       // Click Archive in toolbar
       const archiveSvg = container.querySelector("svg.lucide-archive")
       expect(archiveSvg).toBeInTheDocument()
-      await userEvent.click(archiveSvg.closest("button"))
+      await setupUser().click(archiveSvg.closest("button"))
 
       // Confirm dialog appears and we confirm
       const confirmDialog = await screen.findByRole("dialog")
       const confirmArchiveBtn = within(confirmDialog).getByRole("button", { name: "Archive" })
-      await userEvent.click(confirmArchiveBtn)
+      await setupUser().click(confirmArchiveBtn)
 
       // The active flow now shows Archived badge
       expect(await screen.findByText("Archived")).toBeInTheDocument()
 
       // The picker separates it: opening the picker shows Zebra Sale as active, and Show archived (1)
-      await userEvent.click(await screen.findByRole("button", { name: saleType.name }))
+      await setupUser().click(await screen.findByRole("button", { name: saleType.name }))
       expect(await screen.findByText("Show archived (1)")).toBeInTheDocument()
 
       // Restore via the manage dropdown in the toolbar
       const trashSvg = container.querySelector("svg.lucide-trash-2")
       expect(trashSvg).toBeInTheDocument()
-      await userEvent.click(trashSvg.closest("button"))
+      await setupUser().click(trashSvg.closest("button"))
 
       const restoreMenuItem = await screen.findByRole("button", { name: /Restore/i })
-      await userEvent.click(restoreMenuItem)
+      await setupUser().click(restoreMenuItem)
 
       const restoreDialog = await screen.findByRole("dialog")
       const confirmRestoreBtn = within(restoreDialog).getByRole("button", { name: "Restore" })
-      await userEvent.click(confirmRestoreBtn)
+      await setupUser().click(confirmRestoreBtn)
 
       // Restored: Archived badge is removed
       await waitFor(() => {
@@ -613,7 +612,7 @@ describe("FlowCanvas", () => {
       })
 
       // In the picker, Show archived is gone
-      await userEvent.click(screen.getByRole("button", { name: saleType.name }))
+      await setupUser().click(screen.getByRole("button", { name: saleType.name }))
       expect(screen.queryByText(/Show archived/)).not.toBeInTheDocument()
     })
   })

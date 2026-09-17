@@ -11,10 +11,9 @@
  */
 
 import { screen, within, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import toast, { Toaster, resolveValue } from "react-hot-toast";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { CustomToast, confirmDeleteToast } from "./CustomToast";
 
@@ -60,7 +59,7 @@ describe("toasts raised while a modal Dialog is open (#175)", () => {
   });
 
   it("can be dismissed while the modal is open", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <AppShell>
         <ModalWithToastTrigger onRaiseToast={() => toast.success("Saved.")} />
@@ -85,7 +84,7 @@ describe("toasts raised while a modal Dialog is open (#175)", () => {
   });
 
   it("lets a delete confirmation raised inside the modal be confirmed", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onConfirm = vi.fn();
     renderWithProviders(
       <AppShell>
@@ -108,7 +107,7 @@ describe("toasts raised while a modal Dialog is open (#175)", () => {
   });
 
   it("lets a delete confirmation raised inside the modal be cancelled", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const onConfirm = vi.fn();
     renderWithProviders(
       <AppShell>
@@ -131,7 +130,7 @@ describe("toasts raised while a modal Dialog is open (#175)", () => {
   });
 
   it("positions a delete confirmation the same as every other toast", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <AppShell>
         <ModalWithToastTrigger

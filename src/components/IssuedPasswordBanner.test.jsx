@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { setupUser } from "@/test/support";
 import IssuedPasswordBanner from "./IssuedPasswordBanner";
 import * as AuthContext from "../context/AuthContext";
 
@@ -43,7 +43,7 @@ describe("IssuedPasswordBanner", () => {
   });
 
   it("can be dismissed, and stays dismissed across remounts, without blocking anything", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockUser({ isIssuedPassword: true, email: "a@t3ckgroup.test" });
     const { unmount } = render(<IssuedPasswordBanner />);
 

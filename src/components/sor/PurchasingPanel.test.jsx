@@ -22,8 +22,7 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "../../test/support"
+import { renderWithProviders, setupUser } from "../../test/support"
 import PurchasingPanel from "./PurchasingPanel"
 import { purchasingService } from "../../services/purchasingService"
 
@@ -180,14 +179,14 @@ describe("the form stays collapsed until asked for", () => {
   })
 
   it("opens the composer on click", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     expect(screen.getByRole("textbox", { name: "Product name 1" })).toBeInTheDocument()
   })
 
   it("puts the cursor in the first field so the next keystroke lands", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -201,7 +200,7 @@ describe("the form stays collapsed until asked for", () => {
   it("brings the composer into view rather than opening it off screen", async () => {
     const scrollIntoView = vi.fn()
     Element.prototype.scrollIntoView = scrollIntoView
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -213,7 +212,7 @@ describe("the form stays collapsed until asked for", () => {
   })
 
   it("cancel closes it again without sending anything", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     await nameProduct(user, "Hydraulic hose kit")
@@ -226,7 +225,7 @@ describe("the form stays collapsed until asked for", () => {
 
 describe("a named product is what creates the request", () => {
   it("will not send with an empty composer, however the buyer is chosen", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     await mention(user, "cjay", /Cjay Espina/)
@@ -238,7 +237,7 @@ describe("a named product is what creates the request", () => {
   })
 
   it("will not send a name with nobody chosen to receive it", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     await nameProduct(user, "Hydraulic hose kit")
@@ -250,7 +249,7 @@ describe("a named product is what creates the request", () => {
   })
 
   it("sends the name, quantity, unit and description together", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -290,7 +289,7 @@ describe("a named product is what creates the request", () => {
   })
 
   it("supports more than one product per request", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -307,7 +306,7 @@ describe("a named product is what creates the request", () => {
   })
 
   it("drops a card added and then left blank", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -324,7 +323,7 @@ describe("a named product is what creates the request", () => {
 
 describe("who ends up owning it", () => {
   it("names a buyer directly when one is picked", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     await nameProduct(user, "Hydraulic hose kit")
@@ -340,7 +339,7 @@ describe("who ends up owning it", () => {
   })
 
   it("sends the sub-department when a team is mentioned, not just the department", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
     await nameProduct(user, "Hydraulic hose kit")
@@ -360,7 +359,7 @@ describe("who ends up owning it", () => {
   })
 
   it("puts purchasing at the top before anything is typed", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -376,7 +375,7 @@ describe("who ends up owning it", () => {
   })
 
   it("offers people and teams from one field, with people first", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel()
     await openComposer(user)
 
@@ -395,7 +394,7 @@ describe("who ends up owning it", () => {
 
   it("lets a head assign the buyer for requests nobody owns yet", async () => {
     authUser = { id: HEAD_ID, isSuperAdmin: false, is_head: true }
-    const user = userEvent.setup()
+    const user = setupUser()
     const unowned = [
       request({ id: "req-1", assigned_to: null, assignee: null }),
       request({ id: "req-2", assigned_to: null, assignee: null, requested_name: "Safety harness" }),
@@ -426,7 +425,7 @@ describe("who ends up owning it", () => {
 
 describe("a request already sent", () => {
   it("shows what came back for it, including a screenshot if there was one", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({
       requests: [
         request({
@@ -453,7 +452,7 @@ describe("a request already sent", () => {
   })
 
   it("shows who the PO was placed with", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({
       requests: [
         request({
@@ -476,7 +475,7 @@ describe("a request already sent", () => {
   })
 
   it("says when the PO could not be confirmed, rather than implying it was", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({
       requests: [request({ outcome: "ON_ORDER", po_number: "P09999", verification: "NOT_FOUND" })],
     })
@@ -486,7 +485,7 @@ describe("a request already sent", () => {
   })
 
   it("still lets a new request be composed", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({ requests: [request()] })
 
     // An open request must not gate the whole panel — sales may need to ask
@@ -496,7 +495,7 @@ describe("a request already sent", () => {
   })
 
   it("lets sales edit an open request before a PO is recorded", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({ requests: [request()] })
 
     await user.click(screen.getByRole("button", { name: /edit hydraulic hose kit/i }))
@@ -531,7 +530,7 @@ describe("a request already sent", () => {
   })
 
   it("lets sales cancel/delete an open request before a PO is recorded", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({ requests: [request()] })
 
     await user.click(screen.getByRole("button", { name: /delete hydraulic hose kit/i }))
@@ -542,7 +541,7 @@ describe("a request already sent", () => {
   })
 
   it("locks edit and delete actions once a PO is purchased", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel({
       requests: [request({ outcome: "PURCHASED", po_number: "P01234" })],
     })
@@ -553,7 +552,7 @@ describe("a request already sent", () => {
   })
 
   it("lets sales click View Task to open the purchasing task details", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const dispatchSpy = vi.spyOn(window, "dispatchEvent")
     await renderPanel({ requests: [request({ task_id: "task-123" })] })
 

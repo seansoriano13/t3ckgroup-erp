@@ -12,8 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "../../test/support"
+import { renderWithProviders, setupUser } from "../../test/support"
 import StageChecklist from "./StageChecklist"
 import { opportunityService } from "../../services/opportunityService"
 import { employeeGroupService } from "../../services/employeeGroupService"
@@ -129,7 +128,7 @@ describe("who satisfied what and when", () => {
 
 describe("tickbox — the one item this list can also act on", () => {
   it("lets an unsatisfied tickbox be certified from here", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     opportunityService.getStageChecklist.mockResolvedValue([
       item({ condition: { ...item().condition, kind: "tickbox", label: "Bid documents checked" } }),
     ])
@@ -174,7 +173,7 @@ describe("tickbox — the one item this list can also act on", () => {
 
 describe("attachment — pick an existing SOR file (issue #203, story 13)", () => {
   it("offers picking a file already on the SOR, stamped the same as an upload", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     opportunityService.getStageChecklist.mockResolvedValue([
       item({ condition: { ...item().condition, kind: "attachment", label: "Notice of Award", config: {} } }),
     ])
@@ -213,7 +212,7 @@ describe("assignment — who narrows the dropdown (issue #203, story 17)", () =>
   ]
 
   it("offers only people who resolve into the condition's who", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     opportunityService.getStageChecklist.mockResolvedValue([
       item({
         condition: {
@@ -237,7 +236,7 @@ describe("assignment — who narrows the dropdown (issue #203, story 17)", () =>
   })
 
   it("keeps the full list for a legacy department-only condition (no who configured)", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     opportunityService.getStageChecklist.mockResolvedValue([
       item({
         condition: {

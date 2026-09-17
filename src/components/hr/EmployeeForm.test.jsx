@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest"
 import { render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { setupUser } from "@/test/support"
 import EmployeeForm from "./EmployeeForm"
 
 async function renderForm(props = {}) {
@@ -24,7 +24,7 @@ async function renderForm(props = {}) {
 
   // Required fields the browser's own validation would otherwise block
   // submission on — filled here so each test can focus on the override editor.
-  const user = userEvent.setup()
+  const user = setupUser()
   await user.type(screen.getByPlaceholderText("Employee Full Name"), "Test Employee")
   await user.type(screen.getByPlaceholderText("e.g. juan@t3ckgroup.com"), "test@t3ckgroup.test")
 

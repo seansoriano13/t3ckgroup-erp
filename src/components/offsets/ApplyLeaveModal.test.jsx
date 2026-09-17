@@ -1,9 +1,8 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApplyLeaveModal from "./ApplyLeaveModal"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
@@ -53,7 +52,7 @@ describe("ApplyLeaveModal", () => {
 
   /** Fills the visible tab's fields. */
   const fillForm = async ({ date, startTime, endTime, reason, categoryId }) => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
@@ -150,7 +149,7 @@ describe("ApplyLeaveModal", () => {
       // Every field is `required`, so the browser blocks the submit before the
       // handler runs; the JS guard behind it is a backstop, not the first line.
       open()
-      const user = userEvent.setup()
+      const user = setupUser()
 
       await submit(user)
       await waitForNetworkIdle()
@@ -183,7 +182,7 @@ describe("ApplyLeaveModal", () => {
 
   describe("spending offset leave", () => {
     const goToOffset = async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       await user.click(screen.getByRole("button", { name: "Offset" }))
       return user
     }
@@ -240,7 +239,7 @@ describe("ApplyLeaveModal", () => {
 
   describe("taking SIL", () => {
     const goToSil = async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       await user.click(screen.getByRole("button", { name: "SIL" }))
       return user
     }
@@ -317,7 +316,7 @@ describe("ApplyLeaveModal", () => {
     // Now there is one path, so both a Wednesday and an ordinary weekday
     // pre-fill from the same shared shift configuration.
     it("pre-fills Wednesday's later finish when a Wednesday is picked", async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       open()
       await goToSil()
 
@@ -333,7 +332,7 @@ describe("ApplyLeaveModal", () => {
     })
 
     it("pre-fills the ordinary finish time for a non-Wednesday weekday", async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       open()
       await goToSil()
 
@@ -351,7 +350,7 @@ describe("ApplyLeaveModal", () => {
 
   it("closes without filing anything when dismissed", async () => {
     open()
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getAllByRole("button").find((b) => b.querySelector("svg")))
 
@@ -378,7 +377,7 @@ describe("ApplyLeaveModal", () => {
 
     it("files an overtime request for the selected employee", async () => {
       openForHr()
-      const user = userEvent.setup()
+      const user = setupUser()
 
       // Two comboboxes exist once the tab body mounts: the Employee picker
       // (DOM-first, since it sits above the tab forms) and the Department

@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "../../test/support";
+import { renderWithProviders, setupUser } from "../../test/support";
 import DeletedOpportunitiesView from "./DeletedOpportunitiesView";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -69,7 +68,7 @@ describe("DeletedOpportunitiesView", () => {
   });
 
   it("requires typing the Sales Reference before permanent delete confirms", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(<DeletedOpportunitiesView currentUserId="admin-1" isSuperAdmin={true} />);
 
     await screen.findByText("Acme Corp");

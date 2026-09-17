@@ -1,8 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { renderWithProviders } from "../../test/support";
+import { renderWithProviders, setupUser } from "../../test/support";
 import OpportunitiesPage from "../../pages/crm/index";
 import { opportunityService } from "../../services/opportunityService";
 import { makeFlowSnapshot } from "../../test/factories";
@@ -158,7 +157,7 @@ describe("Sales Director visibility — blocked deals (ticket 6)", () => {
     opportunityService.getBlockedDeals.mockResolvedValue({
       "opp-uuid-1": [{ id: "req-1", label: "Bid documents checked" }],
     });
-    const user = userEvent.setup();
+    const user = setupUser();
 
     renderWithProviders(
       <MemoryRouter initialEntries={["/opportunities"]}>
@@ -356,7 +355,7 @@ describe("default sort sinks Terminal Stage SORs", () => {
   })
 
   it("lets an explicit column sort override the sink", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     renderPage()
 
     await screen.findByText("Company 1")

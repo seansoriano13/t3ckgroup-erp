@@ -5,6 +5,8 @@ pnpm test
 ```
 
 `pnpm test:watch` while working, `pnpm test:coverage` for a report in `coverage/`.
+`pnpm preflight` runs only the tests your branch can reach — see
+[Preflight runs the affected tests](#preflight-runs-the-affected-tests).
 
 ---
 
@@ -131,6 +133,52 @@ the library, so a test file left there becomes a route — and drags msw, the fa
 database and the SQL schema parser into the production bundle. The build fails
 outright when that happens. `src/test/pages` is the workaround, and this
 paragraph is why it is not an inconsistency to tidy up.
+
+### The environment each test runs in
+
+`pnpm test` is three Vitest projects, split by what a test needs to boot rather
+than by tier. Booting jsdom, MSW and the migration-parsed fake database costs
+seconds per file, and a pure function test should not pay for it.
+
+| Project | Environment | Setup | Where it lives |
+| --- | --- | --- | --- |
+| **logic** | Node | none | `src/{utils,constants}`, `src/lib/pdf`, `src/test/scripts` |
+| **services** | Node | `src/test/setup.harness.js` — the fake Supabase | `src/services`, `src/test/db`, `src/test/factories.test.js` |
+| **screens** | jsdom (`jsdom-node-fetch`) | the harness, then `src/test/setup.dom.js` | everything else |
+
+Membership is by location, and a new directory falls into **screens**, the
+project that has everything. `src/test/scripts/vitestProjects.test.js` asks
+Vitest itself which project each file lands in, and fails if any test file is
+in none or in two.
+
+A single file in a Node project that needs a browser global has two ways out:
+
+- `// @vitest-environment jsdom` on its first line (see
+  `src/utils/notificationRouter.test.js`). Vitest's docblock takes a named
+  environment only, so this is plain jsdom — fine without the network, wrong
+  for anything that fetches.
+- Stub the one global it reads (see `requestPasswordReset` in
+  `src/services/passwordService.test.js`).
+
+The harness setup must not touch the DOM: the services project runs it in
+plain Node.
+
+### Preflight runs the affected tests
+
+CI runs the full suite on every push, so `pnpm preflight` does not repeat it. It
+runs `vitest run --changed <merge base with origin/staging>` — the tests the
+branch's changes can reach through imports — and widens to the whole suite when
+that graph cannot see the change:
+
+- a migration (the fake schema reads the SQL off disk),
+- shared test infrastructure — anything under `src/test/` that is not itself a
+  test file,
+- a Vitest config, `package.json` or `pnpm-lock.yaml`,
+- no merge base with `origin/staging`,
+- `pnpm preflight --full`.
+
+The rule is `scripts/lib/testSelection.mjs`, tested in
+`src/test/scripts/testSelection.test.js`.
 
 ---
 
@@ -312,6 +360,20 @@ expect(db.rows("notifications")).toHaveLength(2)
 ```
 
 Teardown calls it too, so a stray write cannot land in the next test's database.
+
+### `setupUser()` — `@/test/support`
+
+Use it instead of `userEvent.setup()`:
+
+```js
+const user = setupUser()
+await user.type(screen.getByLabelText("Reason"), "Client visit")
+```
+
+user-event pauses on a `setTimeout` after every click and keystroke. On Windows
+that timer rounds up to ~15 ms, which on its own made interactive screen tests
+about a quarter slower. `setupUser()` turns the pause off. Pass
+`setupUser({ delay: 0 })` when the test is about timing.
 
 ---
 

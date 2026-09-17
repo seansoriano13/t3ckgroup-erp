@@ -6,8 +6,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from "vitest"
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { makeSuperAdmin } from "@/test/factories"
 import DayShiftConfig from "./DayShiftConfig"
@@ -44,7 +43,7 @@ describe("DayShiftConfig", () => {
 
   it("saves an edited start time on blur, leaving the other days untouched", async () => {
     const spy = vi.spyOn(dayShiftService, "updateDayShiftDay")
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<DayShiftConfig />)
 
     await screen.findByText("Monday")
@@ -61,7 +60,7 @@ describe("DayShiftConfig", () => {
   })
 
   it("toggling a day off disables its time fields and persists immediately", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     renderWithProviders(<DayShiftConfig />)
 
     await screen.findByText("Friday")

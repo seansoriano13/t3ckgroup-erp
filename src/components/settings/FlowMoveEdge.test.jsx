@@ -1,9 +1,8 @@
 import { fireEvent, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import FlowMoveEdge from "./FlowMoveEdge"
 import { ReactFlowProvider } from "@xyflow/react"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 
 vi.mock("@xyflow/react", async (importOriginal) => {
   const actual = await importOriginal()
@@ -55,7 +54,7 @@ describe("FlowMoveEdge", () => {
   })
 
   it("triggers onDelete when the delete button is clicked", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onDelete = vi.fn()
     renderEdge({ onDelete }, { selected: true })
 
@@ -85,7 +84,7 @@ describe("FlowMoveEdge", () => {
   })
 
   it("opens the name popover and submits the new Stage's name to onInsertStage", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     const onInsertStage = vi.fn().mockResolvedValue()
     renderEdge({ onInsertStage })
 

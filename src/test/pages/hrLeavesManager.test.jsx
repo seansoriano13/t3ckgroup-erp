@@ -1,9 +1,8 @@
 import { screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router';
 import HrLeavesManagerPage from '@/pages/hr/offsets/index';
-import { renderWithProviders } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
 import { makeHrEmployee, makeEmployee, makeOffsetLeave, makeOvertimeRequest } from '@/test/factories';
 import { db } from '@/test/db/store';
 
@@ -33,7 +32,7 @@ describe('HrLeavesManagerPage', () => {
   });
 
   it('shows a request dated in a future month in the Pending tab', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = makeEmployee({ name: 'Future Requester' });
 
     // Seed a pending request for next month
@@ -67,7 +66,7 @@ describe('HrLeavesManagerPage', () => {
   // legitimate-looking pending requests together could exceed what the
   // employee actually has left — this is what tells HR before they approve.
   it('shows available hours (balance minus every pending request) alongside each pending application', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const applicant = makeEmployee({ name: 'Stacked Requester', offset_hours_balance: 16 });
 
     makeOffsetLeave({
@@ -102,7 +101,7 @@ describe('HrLeavesManagerPage', () => {
   });
 
   it('hides deactivated employees from the Employee Balances register', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     makeEmployee({ name: 'Active Worker', is_deleted: false });
     makeEmployee({ name: 'Deactivated Worker', is_deleted: true });
 
@@ -134,7 +133,7 @@ describe('HrLeavesManagerPage', () => {
     });
 
     it('adds an approved record to the tray, previews it, and prints it for free — no PDF API call', async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const applicant = makeEmployee({ name: 'Printable Employee' });
       const leave = makeOffsetLeave({
         employee_id: applicant.id,
@@ -175,7 +174,7 @@ describe('HrLeavesManagerPage', () => {
     });
 
     it('the live preview follows tray order — the same order the browser will print in', async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const employeeA = makeEmployee({ name: 'Alpha Employee' });
       const employeeB = makeEmployee({ name: 'Beta Employee' });
       makeOffsetLeave({ employee_id: employeeA.id, status: 'APPROVED', date: midCurrentMonth() });
@@ -209,7 +208,7 @@ describe('HrLeavesManagerPage', () => {
     });
 
     it('filters the Approved Records picker by employee name, without touching the tray', async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const employeeA = makeEmployee({ name: 'Searchable Alpha' });
       const employeeB = makeEmployee({ name: 'Hidden Beta' });
       makeOffsetLeave({ employee_id: employeeA.id, status: 'APPROVED', date: midCurrentMonth() });
@@ -237,7 +236,7 @@ describe('HrLeavesManagerPage', () => {
     });
 
     it('removing a record from the tray takes it back out of the print composition', async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const applicant = makeEmployee({ name: 'Removable Employee' });
       makeOvertimeRequest({ employee_id: applicant.id, status: 'APPROVED_PAID', date: midCurrentMonth() });
 
@@ -263,7 +262,7 @@ describe('HrLeavesManagerPage', () => {
 
   describe('Request History', () => {
     it('is read-only — no selection checkboxes or print action remain', async () => {
-      const user = userEvent.setup();
+      const user = setupUser();
       const applicant = makeEmployee({ name: 'History Employee' });
       makeOffsetLeave({ employee_id: applicant.id, status: 'APPROVED', date: midCurrentMonth() });
 

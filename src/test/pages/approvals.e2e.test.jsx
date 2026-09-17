@@ -1,12 +1,11 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { MemoryRouter } from "react-router"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { TASK_STATUS } from "@/constants/status.js"
 import { db } from "@/test/db/store"
 import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin, makeTask } from "@/test/factories"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { waitForNetworkIdle } from "@/test/network"
 
 /**
@@ -94,7 +93,7 @@ const loadHrPage = async () =>
 
 describe("approval journeys", () => {
     it("a manager grades a task from their queue and it leaves the queue", { timeout: 20000 }, async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const task = pendingTask({ task_description: "Replace the office switch" })
         const TaskApprovals = await loadTasksPage()
 
@@ -130,7 +129,7 @@ describe("approval journeys", () => {
     })
 
     it("a manager sends a task back and the employee gets the reason", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const task = pendingTask({ task_description: "Quarterly stock count" })
         const TaskApprovals = await loadTasksPage()
 
@@ -153,7 +152,7 @@ describe("approval journeys", () => {
     })
 
     it("a manager triages a whole queue from the keyboard without touching the mouse", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const first = pendingTask({
             task_description: "Patch the firewall",
             created_at: ago(5),
@@ -186,7 +185,7 @@ describe("approval journeys", () => {
     })
 
     it("a manager narrows a busy queue to one person before grading", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const hers = pendingTask({ task_description: "Replace the office switch" })
         makeTask({
             logged_by: colleague.id,
@@ -215,7 +214,7 @@ describe("approval journeys", () => {
     })
 
     it("a manager splits the backlog out from today's work", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         pendingTask({ task_description: "Patch the firewall", created_at: ago(2) })
         pendingTask({ task_description: "Archive the 2025 tickets", created_at: ago(120) })
         const TaskApprovals = await loadTasksPage()
@@ -236,7 +235,7 @@ describe("approval journeys", () => {
     })
 
     it("HR audits a graded task and signs it off for payroll", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const hr = makeHrEmployee({ name: "Hera Dela Cruz" })
         const task = makeTask({
             logged_by: author.id,
@@ -269,7 +268,7 @@ describe("approval journeys", () => {
     })
 
     it("HR sends a task back to the manager and it leaves the verification queue", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const hr = makeHrEmployee({ name: "Hera Dela Cruz" })
         const task = makeTask({
             logged_by: author.id,
@@ -328,7 +327,7 @@ describe("approval journeys", () => {
     })
 
     it("a manager reopens an approved task and corrects the grade", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const task = makeTask({
             logged_by: author.id,
             category_id: category.category_id,
@@ -357,7 +356,7 @@ describe("approval journeys", () => {
     })
 
     it("HR verification queue correctly filters super admins and measures staleness from evaluated_at", async () => {
-        const user = userEvent.setup()
+        const user = setupUser()
         const hr = makeHrEmployee({ name: "Hera HR" })
         const superAdmin = makeSuperAdmin({ name: "Bruce Admin" })
 

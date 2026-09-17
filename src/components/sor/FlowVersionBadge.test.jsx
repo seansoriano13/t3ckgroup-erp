@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
+import { setupUser } from "@/test/support"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 
 import FlowVersionBadge from "./FlowVersionBadge"
@@ -80,7 +80,7 @@ describe("FlowVersionBadge", () => {
         renderBadge({ opportunity: FLOW_DEAL, onOpenVersion })
 
         const badge = await screen.findByRole("button", { name: /Government · v3.0/ })
-        await userEvent.click(badge)
+        await setupUser().click(badge)
 
         expect(onOpenVersion).toHaveBeenCalledWith("snap-1")
     })

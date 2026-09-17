@@ -6,6 +6,19 @@ import { fileURLToPath } from "url"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
+const LOGIC = [
+    "src/utils/**/*.test.{js,jsx}",
+    "src/constants/**/*.test.{js,jsx}",
+    "src/lib/pdf/**/*.test.{js,jsx}",
+    "src/test/scripts/**/*.test.{js,jsx}",
+]
+const SERVICES = [
+    "src/services/**/*.test.{js,jsx}",
+    "src/test/db/**/*.test.{js,jsx}",
+    "src/test/factories.test.js",
+]
+const EXCLUDE = [...configDefaults.exclude, "src/test/policy/**"]
+
 // Deliberately does NOT load the Generouted plugin from vite.config.js: it
 // scans src/pages to codegen a virtual route module that only main.jsx imports,
 // and running it on every test boot is pure cost.
@@ -25,19 +38,56 @@ export default defineConfig({
         },
     },
     test: {
-        environment: "./src/test/env/jsdom-node-fetch.js",
         globals: true,
-        setupFiles: ["./src/test/setup.js"],
         // The company and its data live in Asia/Manila. Date handling in this
         // app is local-time based, so tests must run in that zone or they
         // assert different behaviour than production sees.
         env: { TZ: "Asia/Manila" },
-        include: ["src/**/*.test.{js,jsx}"],
-        // The policy tier needs a real Postgres, so it must never be picked up
-        // by the default run — a colleague without the local stack up would
-        // otherwise see failures that say nothing about their change.
-        // It has its own config and its own command: `pnpm test:db`.
-        exclude: [...configDefaults.exclude, "src/test/policy/**"],
+        // Each file runs in the lightest environment it needs. Booting jsdom,
+        // MSW and the migration-parsed fake database costs seconds per file,
+        // so a pure function test should not pay for it. Membership is by
+        // location; src/test/scripts/vitestProjects.test.js fails if a test
+        // file lands in no project or in two. A single file that needs a
+        // browser global can opt in with a `@vitest-environment` docblock.
+        //
+        // The policy tier needs a real Postgres, so it is in no project — a
+        // colleague without the local stack up would otherwise see failures
+        // that say nothing about their change. It has its own config and its
+        // own command: `pnpm test:db`.
+        projects: [
+            {
+                extends: true,
+                test: {
+                    name: "logic",
+                    // Pure functions and scripts: no DOM, no network, no setup.
+                    environment: "node",
+                    include: LOGIC,
+                    exclude: EXCLUDE,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "services",
+                    // The fake Supabase, in plain Node — nothing here renders.
+                    environment: "node",
+                    setupFiles: ["./src/test/setup.harness.js"],
+                    include: SERVICES,
+                    exclude: EXCLUDE,
+                },
+            },
+            {
+                extends: true,
+                test: {
+                    name: "screens",
+                    // Everything else renders: components, hooks, pages.
+                    environment: "./src/test/env/jsdom-node-fetch.js",
+                    setupFiles: ["./src/test/setup.harness.js", "./src/test/setup.dom.js"],
+                    include: ["src/**/*.test.{js,jsx}"],
+                    exclude: [...EXCLUDE, ...LOGIC, ...SERVICES],
+                },
+            },
+        ],
         // The suite is read as tiers, and each can be run on its own:
         //
         //   pnpm test:unit         isolated functions and hooks, no I/O
