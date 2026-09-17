@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { canvasAccessLens, stageHasAccessNote } from "./canvasAccessLens";
+import { canvasAccessLens, stageCalledInSelectors, stageHasAccessNote } from "./canvasAccessLens";
+import { CONDITION_KINDS } from "../constants/stageGate";
 
 const employees = [
   { id: "emp-owner", sub_department: "NGO" },
@@ -143,5 +144,56 @@ describe("stageHasAccessNote", () => {
 
   it("is false for a falsy stage", () => {
     expect(stageHasAccessNote(null)).toBe(false);
+  });
+});
+
+describe("stageCalledInSelectors", () => {
+  it("returns nothing for no conditions and no actions", () => {
+    expect(stageCalledInSelectors([], [])).toEqual([]);
+    expect(stageCalledInSelectors()).toEqual([]);
+  });
+
+  it("collects an Assignment condition's who selectors", () => {
+    const conditions = [
+      {
+        kind: CONDITION_KINDS.ASSIGNMENT,
+        config: { who: [{ type: "role", role: "deal_owner" }, { type: "group", id: "g1" }] },
+      },
+    ];
+    expect(stageCalledInSelectors(conditions, [])).toEqual([
+      { type: "role", role: "deal_owner" },
+      { type: "group", id: "g1" },
+    ]);
+  });
+
+  it("ignores a non-Assignment condition's config", () => {
+    const conditions = [{ kind: CONDITION_KINDS.TICKBOX, config: { who: [{ type: "role", role: "deal_owner" }] } }];
+    expect(stageCalledInSelectors(conditions, [])).toEqual([]);
+  });
+
+  it("turns every action member into an employee selector", () => {
+    const actions = [
+      { config: { members: [{ employeeId: "emp-1" }, { employeeId: "emp-2", role: "Reviewer" }] } },
+      { config: { members: [{ employeeId: "emp-3" }] } },
+    ];
+    expect(stageCalledInSelectors([], actions)).toEqual([
+      { type: "employee", id: "emp-1" },
+      { type: "employee", id: "emp-2" },
+      { type: "employee", id: "emp-3" },
+    ]);
+  });
+
+  it("skips a member with no employeeId", () => {
+    const actions = [{ config: { members: [{ role: "Reviewer" }] } }];
+    expect(stageCalledInSelectors([], actions)).toEqual([]);
+  });
+
+  it("combines conditions and actions in order", () => {
+    const conditions = [{ kind: CONDITION_KINDS.ASSIGNMENT, config: { who: [{ type: "employee", id: "emp-1" }] } }];
+    const actions = [{ config: { members: [{ employeeId: "emp-2" }] } }];
+    expect(stageCalledInSelectors(conditions, actions)).toEqual([
+      { type: "employee", id: "emp-1" },
+      { type: "employee", id: "emp-2" },
+    ]);
   });
 });

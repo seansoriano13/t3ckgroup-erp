@@ -48,7 +48,7 @@ import { employeeService } from "../../services/employeeService";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { flowAccessService } from "../../services/flowAccessService";
 import { formatVersionNumber, formatSnapshotVersion } from "../../constants/flowVersion";
-import { canvasAccessLens, stageHasAccessNote } from "../../utils/canvasAccessLens";
+import { canvasAccessLens, stageCalledInSelectors, stageHasAccessNote } from "../../utils/canvasAccessLens";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
@@ -266,6 +266,20 @@ function FlowCanvasInner() {
     [allGroups],
   );
 
+  // Every Stage's own call-ins (issue #294's Stage Participant windows),
+  // read off the same condition/action rows the satellites below already
+  // fetched — not a separate query, and not stored on the Stage itself.
+  const calledInByStage = useMemo(
+    () =>
+      Object.fromEntries(
+        stages.map((s) => [
+          s.id,
+          stageCalledInSelectors(conditionsByStage[s.id], actionsByStage[s.id]),
+        ]),
+      ),
+    [stages, conditionsByStage, actionsByStage],
+  );
+
   // canvasAccessLens is pure: this is the one place its input snapshot is
   // assembled, from the same access rows the eye chip below reads.
   const accessLens = useMemo(
@@ -276,13 +290,14 @@ function FlowCanvasInner() {
             id: s.id,
             shutOutRoles: stageAccessByStage[s.id]?.shutOutRoles || [],
             excludedGroupIds: stageAccessByStage[s.id]?.excludedGroupIds || [],
+            calledIn: calledInByStage[s.id] || [],
           })),
           employees: allEmployees,
           groupMembersById,
         },
         selector: viewAsSelector,
       }),
-    [stages, stageAccessByStage, allEmployees, groupMembersById, viewAsSelector],
+    [stages, stageAccessByStage, calledInByStage, allEmployees, groupMembersById, viewAsSelector],
   );
 
   const refresh = useCallback(() => {
@@ -588,7 +603,10 @@ function FlowCanvasInner() {
             ),
           // Issue #296: the eye chip (this Stage restricts or calls someone
           // in) and the "View as" verdict for whoever is currently selected.
-          hasAccessNote: stageHasAccessNote(stageAccessByStage[stage.id]),
+          hasAccessNote: stageHasAccessNote({
+            ...stageAccessByStage[stage.id],
+            calledIn: calledInByStage[stage.id],
+          }),
           accessLensState: viewAsSelector ? accessLens[stage.id] : null,
         },
         draggable: !isLocked,
@@ -696,6 +714,7 @@ function FlowCanvasInner() {
     conditionsByStage,
     actionsByStage,
     stageAccessByStage,
+    calledInByStage,
     accessLens,
     viewAsSelector,
     selection,

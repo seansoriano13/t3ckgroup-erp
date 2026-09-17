@@ -23,15 +23,17 @@
  *       id,
  *       shutOutRoles?: string[],        // flow_stage_access.shut_out_roles
  *       excludedGroupIds?: string[],    // flow_stage_access.excluded_group_ids
- *       calledIn?: Array<selector>,     // who this Stage calls in — a Stage
- *                                        // Participant call-in source, once
- *                                        // one exists; empty/absent today
+ *       calledIn?: Array<selector>,     // who this Stage calls in — see
+ *                                        // stageCalledInSelectors() below for
+ *                                        // how the draft's own conditions/
+ *                                        // actions are turned into this list
  *     }],
  *     groupMembersById?: Record<string, { employeeIds?: string[], teams?: string[] }>,
  *     employees?: Array<{ id, sub_department?, is_deleted? }>,
  *   }
  */
 import { resolveGroupMemberIds, normaliseTeam, SELECTOR_TYPES } from "./resolvePeople";
+import { CONDITION_KINDS } from "../constants/stageGate";
 
 /** Whether `selector` (the viewer) is or resolves into `other` (a Stage's own selector). */
 function selectorMatchesViewer(other, selector, { employees, groupMembersById }) {
@@ -123,6 +125,39 @@ export function canvasAccessLens({ snapshotLikeDraft, selector } = {}) {
     }
   }
   return lens;
+}
+
+/**
+ * Who a Stage calls in, built from its own conditions and actions (issue
+ * #294's Stage Participant call-ins) rather than any config of its own:
+ *
+ *   - An Assignment condition's `config.who` — a resolvePeople.js selector
+ *     list (employee/group/team) — every one of them.
+ *   - Every action's `config.members[].employeeId` — a group task's or
+ *     individual task's assignees are always specific employees, never a
+ *     role/group/team, so each becomes an `{ type: "employee", id }`.
+ *
+ * `conditions`/`actions` are the raw `stage_conditions`/`flow_stage_actions`
+ * rows (`kind`, `config`) as `stageConditionService`/`stageActionService`
+ * already return them — no reshaping needed to call this from the canvas.
+ */
+export function stageCalledInSelectors(conditions = [], actions = []) {
+  const selectors = [];
+
+  for (const condition of conditions) {
+    if (condition?.kind !== CONDITION_KINDS.ASSIGNMENT) continue;
+    for (const who of condition.config?.who || []) {
+      if (who) selectors.push(who);
+    }
+  }
+
+  for (const action of actions) {
+    for (const member of action?.config?.members || []) {
+      if (member?.employeeId) selectors.push({ type: SELECTOR_TYPES.EMPLOYEE, id: member.employeeId });
+    }
+  }
+
+  return selectors;
 }
 
 /** Whether a Stage's own config earns it the eye chip: restricted, or calls someone in. */

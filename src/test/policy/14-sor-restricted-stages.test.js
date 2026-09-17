@@ -220,6 +220,67 @@ describe("Stage 2 shuts out the support_sales role", () => {
     })
 })
 
+describe("a Stage Participant window overrides the restriction (issue #294's call-in arm)", () => {
+    let participantId
+    let outsiderClient
+    let logId
+
+    beforeAll(async () => {
+        // A call-in (e.g. an Assignment condition's `who`) for someone with
+        // no Deal Team role at all opens an independent Stage Participant
+        // window — `sor_visible_visit_ids` unions the Participant arm in
+        // regardless of what the Deal Team arm's restriction excludes, so
+        // this proves being called in still wins. `visitIds[1]` at this
+        // point is whichever Stage 2 visit is current — an earlier test in
+        // this file re-enters Stage 2, giving it a second visit — so a
+        // fresh log is written on it rather than reusing an older one.
+        await ensureCastLoaded()
+        outsiderClient = await clientFor("outsider")
+
+        const participant = await serviceClient()
+            .from("sor_stage_participants")
+            .insert({
+                opportunity_id: sorId,
+                employee_id: ids.outsider,
+                source: "assignment",
+                opened_visit_id: visitIds[1],
+                until_rule: "stage_left",
+            })
+            .select("id")
+            .single()
+        if (participant.error) throw new Error(participant.error.message)
+        participantId = participant.data.id
+
+        const log = await serviceClient()
+            .from("sales_opportunity_logs")
+            .insert({
+                opportunity_id: sorId,
+                author_id: ids.dealOwner,
+                type: "COMMENT",
+                content: `${MARKER} note for the Stage Participant call-in test`,
+                stage_visit_id: visitIds[1],
+            })
+            .select("id")
+            .single()
+        if (log.error) throw new Error(log.error.message)
+        logId = log.data.id
+    })
+
+    afterAll(async () => {
+        await serviceClient().from("sor_stage_participants").delete().eq("id", participantId)
+    })
+
+    it("has no Deal Team access to the opportunity before the call-in", async () => {
+        const { data, error } = await outsiderClient.rpc("sor_access_level", { p_opportunity_id: sorId })
+        if (error) throw error
+        expect(data).not.toBe("full")
+    })
+
+    it("the called-in outsider reads Stage 2's timeline via the Participant window", async () => {
+        expect(await canRead(outsiderClient, "sales_opportunity_logs", logId)).toBe(true)
+    })
+})
+
 describe("the restriction stays in effect after the SOR leaves Stage 2", () => {
     let secondStage2VisitId
 
