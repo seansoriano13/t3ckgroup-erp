@@ -54,6 +54,7 @@ export const SEED_TABLES = [
   "flow_snapshots",
   "sales_opportunities",
   "sor_stage_visits",
+  "sor_stage_participants",
   "sales_opportunity_logs",
   "sales_opportunity_items",
   "sales_opportunity_members",

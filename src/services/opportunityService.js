@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { purchasingService } from "./purchasingService";
 import { notificationService } from "./notificationService";
+import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
 import { deriveProjectType } from "../utils/commission";
@@ -1045,6 +1046,25 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, groupTaskId },
         actorId
       ).catch(() => {});
+
+      // Issue #294: every assignee/member on this action task becomes a
+      // Stage Participant, windowed by the action's own `config.access`.
+      if (runRow?.stage_visit_id) {
+        for (const member of payload.members) {
+          if (!member?.employeeId) continue;
+          await sorStageParticipantService.openWindow(
+            {
+              opportunityId: existing.id,
+              employeeId: member.employeeId,
+              source: "action",
+              sourceId: action.id,
+              openedVisitId: runRow.stage_visit_id,
+              access: config.access,
+            },
+            actorId,
+          ).catch((err) => console.error("openWindow failed for action task:", err));
+        }
+      }
     }
   } else if (action.kind === "create_individual_task") {
     const { taskService } = await import("./taskService");
@@ -1098,6 +1118,21 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
         { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, taskId },
         actorId
       ).catch(() => {});
+
+      // Issue #294: the task's assignee becomes a Stage Participant.
+      if (runRow?.stage_visit_id && payload.loggedById) {
+        await sorStageParticipantService.openWindow(
+          {
+            opportunityId: existing.id,
+            employeeId: payload.loggedById,
+            source: "action",
+            sourceId: action.id,
+            openedVisitId: runRow.stage_visit_id,
+            access: config.access,
+          },
+          actorId,
+        ).catch((err) => console.error("openWindow failed for action task:", err));
+      }
     }
   } else {
     // No branch matched this action's kind. Before this existed the run row
@@ -2598,7 +2633,7 @@ export const opportunityService = {
    * satisfies itself through — assigning a purchasing officer at Proposal
    * Submitted is exactly this call.
    */
-  async addMember(opportunityId, employeeId, actorId) {
+  async addMember(opportunityId, employeeId, actorId, { conditionId = null } = {}) {
     if (!employeeId) throw new Error("Choose someone to add.");
 
     const existingMembers = await opportunityService.getMembers(opportunityId);
@@ -2618,6 +2653,31 @@ export const opportunityService = {
       .eq("id", opportunityId)
       .single();
     if (opportunityError) throw opportunityError;
+
+    // Issue #294: an Assignment condition is a call-in — the person added
+    // through it becomes a Stage Participant, windowed by the condition's
+    // own `config.access`.
+    if (conditionId) {
+      const currentVisitId = await opportunityService.getCurrentStageVisitId(opportunityId);
+      if (currentVisitId) {
+        const { data: condition } = await supabase
+          .from("stage_conditions")
+          .select("config")
+          .eq("id", conditionId)
+          .maybeSingle();
+        await sorStageParticipantService.openWindow(
+          {
+            opportunityId,
+            employeeId,
+            source: "assignment",
+            sourceId: conditionId,
+            openedVisitId: currentVisitId,
+            access: condition?.config?.access,
+          },
+          actorId,
+        ).catch((err) => console.error("openWindow failed for assignment condition:", err));
+      }
+    }
 
     const { data, error } = await supabase
       .from("sales_opportunity_members")

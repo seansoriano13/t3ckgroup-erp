@@ -14,6 +14,7 @@
  */
 
 import { pgrstError } from "./schema"
+import { windowClosesOnMove } from "../../utils/stageParticipantWindow"
 
 /** Raises the way `raise exception` in plpgsql does. */
 function raise(message) {
@@ -136,6 +137,49 @@ export const TRIGGERS = {
             left_at: null,
             left_by: null,
           })
+        }
+      },
+      // 20260925000000_stage_participants.sql — close_stage_participant_windows(),
+      // fired on the same update-of-flow_stage_id as recordStageVisit above.
+      // Closes every open sor_stage_participants row whose rule this move
+      // satisfies; a move into a Terminal Stage closes all of them at once.
+      function closeStageParticipantWindows(row, old, context) {
+        if (old === null) return
+        if (row.flow_stage_id === old.flow_stage_id) return
+
+        const stages = context.rowsOf("flow_stages")
+        const toStage = stages.find((s) => s.id === row.flow_stage_id)
+        const isTerminalMove = Boolean(toStage?.is_terminal)
+
+        const visits = context.rowsOf("sor_stage_visits")
+        const now = new Date().toISOString()
+
+        for (const participant of context.rowsOf("sor_stage_participants")) {
+          if (participant.opportunity_id !== row.id) continue
+          if (participant.closed_at != null) continue
+
+          if (isTerminalMove) {
+            participant.closed_at = now
+            participant.closed_reason = "terminal"
+            continue
+          }
+
+          const openedVisit = visits.find((v) => v.id === participant.opened_visit_id)
+          const callingStageId = openedVisit?.flow_stage_id ?? null
+
+          const closes = windowClosesOnMove(
+            {
+              untilRule: participant.until_rule,
+              untilStageId: participant.until_stage_id,
+              callingStageId,
+            },
+            { fromStageId: old.flow_stage_id, toStageId: row.flow_stage_id },
+          )
+
+          if (closes) {
+            participant.closed_at = now
+            participant.closed_reason = "rule_met"
+          }
         }
       },
     ],

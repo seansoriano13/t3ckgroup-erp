@@ -92,8 +92,8 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
   });
 
   const addMemberMutation = useMutation({
-    mutationFn: ({ employeeId }) =>
-      opportunityService.addMember(opportunityId, employeeId, actorId),
+    mutationFn: ({ employeeId, conditionId }) =>
+      opportunityService.addMember(opportunityId, employeeId, actorId, { conditionId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stageChecklist", opportunityId, stageCode] });
       queryClient.invalidateQueries({ queryKey: ["opportunityNotes", opportunityId] });
@@ -272,7 +272,7 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
                 onAssignmentChange={(val) => setAssignmentId((p) => ({ ...p, [condition.id]: val }))}
                 onAssign={() =>
                   assignmentId[condition.id] &&
-                  addMemberMutation.mutate({ employeeId: assignmentId[condition.id] })
+                  addMemberMutation.mutate({ employeeId: assignmentId[condition.id], conditionId: condition.id })
                 }
                 assignPending={addMemberMutation.isPending}
               />
