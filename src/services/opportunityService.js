@@ -2846,6 +2846,124 @@ export const opportunityService = {
   },
 
   /**
+   * ADR 0021 / #297: full | participant | locked | none for the caller on
+   * this opportunity, from `sor_access_level`. Drives which SOR-modal view
+   * renders and gates the calls below.
+   */
+  async getAccessLevel(opportunityId) {
+    if (!opportunityId) return "none";
+    const { data, error } = await supabase.rpc("sor_access_level", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data || "none";
+  },
+
+  /**
+   * ADR 0021 / #297: whether the caller may open the Journey tab —
+   * `sor_can_view_journey`. Always true at full access; at participant
+   * access, matched against the owning flow's `journey_viewers` selectors
+   * (flow_access_settings, #292).
+   */
+  async getCanViewJourney(opportunityId) {
+    if (!opportunityId) return false;
+    const { data, error } = await supabase.rpc("sor_can_view_journey", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return !!data;
+  },
+
+  /**
+   * ADR 0021 / #297: the locked-view summary (Sales Reference, project,
+   * current Stage name, restricted flag) from `sor_locked_summary`. Used both
+   * for a locked viewer's whole modal and for a full/participant viewer's
+   * "This stage is restricted" banner — same call, same rule. Null below
+   * locked access.
+   */
+  async getLockedSummary(opportunityId) {
+    if (!opportunityId) return null;
+    const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data?.[0] || null;
+  },
+
+  /**
+   * ADR 0021 / #297: the money-free SOR projection (`sor_participant_record`)
+   * a Stage Participant's modal renders from. Null below participant access.
+   */
+  async getParticipantRecord(opportunityId) {
+    if (!opportunityId) return null;
+    const { data, error } = await supabase.rpc("sor_participant_record", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data?.[0] || null;
+  },
+
+  /**
+   * ADR 0021 / #297: sales_opportunity_items with no unit_price column
+   * reachable, for a Participant's Items tab.
+   */
+  async getParticipantItems(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase.rpc("sor_participant_items", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * ADR 0021 / #297: the read-only "Your visits" list a locked viewer sees —
+   * every Stage Visit `sor_visible_visit_ids` still returns them (their own
+   * past window), joined to its Stage's name. `sor_stage_visits` itself has
+   * no visit-scoped read policy of its own (issue #203 left it open), so this
+   * filters client-side against the id set the function returns rather than
+   * relying on RLS to narrow the table select.
+   */
+  async getMyVisits(opportunityId) {
+    if (!opportunityId) return [];
+    const { data: idRows, error: idErr } = await supabase.rpc("sor_visible_visit_ids", {
+      p_opportunity_id: opportunityId,
+    });
+    if (idErr) throw idErr;
+    const ids = (idRows || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids));
+    if (!ids.length) return [];
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("id, entered_at, left_at, sequence, flow_stages(name)")
+      .in("id", ids)
+      .order("sequence", { ascending: true });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * ADR 0021 / #297: what GlobalDetailManager fetches to open the SOR modal
+   * by id alone — the one path a Stage Participant or locked viewer reaches,
+   * via a task link or notification. The register and Board query
+   * `sales_opportunities` directly, where RLS already excludes anyone below
+   * full access, so only this single-record path needs to branch on access
+   * level.
+   */
+  async getOpportunityForModal(opportunityId) {
+    if (!opportunityId) return { accessLevel: "none", opportunity: null };
+    let accessLevel;
+    try {
+      accessLevel = await opportunityService.getAccessLevel(opportunityId);
+    } catch {
+      // `sor_access_level` predates every caller of this function; a caller
+      // that cannot reach it (offline, an older Postgres without the
+      // function yet) should not lose the record it could always open
+      // before — fall back to the pre-#297 full fetch rather than refuse.
+      accessLevel = "full";
+    }
+    if (accessLevel === "full") {
+      return { accessLevel, opportunity: await opportunityService.getOpportunityById(opportunityId) };
+    }
+    if (accessLevel === "participant") {
+      return { accessLevel, opportunity: await opportunityService.getParticipantRecord(opportunityId) };
+    }
+    if (accessLevel === "locked") {
+      return { accessLevel, opportunity: null, lockedSummary: await opportunityService.getLockedSummary(opportunityId) };
+    }
+    return { accessLevel: "none", opportunity: null };
+  },
+
+  /**
    * The current Stage Visit's window, shaped the way `visitOwnsTask` reads a
    * visit — the Now tab scopes its task rows with it (#299), by the same rule
    * the Journey uses. Null for a pipeline deal, which never opens one.

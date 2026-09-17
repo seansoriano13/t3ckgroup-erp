@@ -57,7 +57,10 @@ export default function SorModalHeader({
   hasNext,
   onPrev,
   onNext,
+  accessLevel = "full",
+  moveDisabled = false,
 }) {
+  const canEdit = accessLevel === "full";
   const scrollRef = useRef(null);
   const activeChevronRef = useRef(null);
 
@@ -101,12 +104,14 @@ export default function SorModalHeader({
                 key={s.code}
                 ref={isCurrent ? activeChevronRef : undefined}
                 onClick={() => {
-                  if (!stageMutation.isPending && s.code !== opportunity.status) {
+                  if (!moveDisabled && !stageMutation.isPending && s.code !== opportunity.status) {
                     handleStageChange(s.code);
                   }
                 }}
+                title={moveDisabled ? "You do not have access to move this stage." : undefined}
                 className={cn(
-                  "relative flex flex-none cursor-pointer items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                  "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                  moveDisabled ? "cursor-default" : "cursor-pointer",
                   isCompleted && classes.completed,
                   isCurrent && cn(classes.current, "shadow-inner"),
                   isUpcoming && "bg-muted text-muted-foreground hover:bg-muted/80",
@@ -230,26 +235,30 @@ export default function SorModalHeader({
             </>
           ) : (
             <>
-              <button
-                onClick={handleEditToggle}
-                title="Edit"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
-              >
-                <Pencil size={14} />
-              </button>
-              <button
-                onClick={() =>
-                  confirmDeleteToast(
-                    `Delete ${opportunity.opportunity_no}?`,
-                    "The record is archived, not erased.",
-                    () => deleteMutation.mutate(),
-                  )
-                }
-                title="Delete"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-red-500"
-              >
-                <Trash2 size={14} />
-              </button>
+              {canEdit && (
+                <button
+                  onClick={handleEditToggle}
+                  title="Edit"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              {canEdit && (
+                <button
+                  onClick={() =>
+                    confirmDeleteToast(
+                      `Delete ${opportunity.opportunity_no}?`,
+                      "The record is archived, not erased.",
+                      () => deleteMutation.mutate(),
+                    )
+                  }
+                  title="Delete"
+                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-red-500"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
               <button
                 onClick={() => setIsExpanded((v) => !v)}
                 title={isExpanded ? "Collapse" : "Expand"}
@@ -311,6 +320,7 @@ export default function SorModalHeader({
           <FlowStageControl
             opportunity={opportunity}
             isMoving={stageMutation.isPending}
+            disabled={moveDisabled}
             blockedBy={checklist
               .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
               .map(({ condition }) => condition.label)}

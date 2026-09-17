@@ -65,9 +65,14 @@ export default function GlobalDetailManager() {
   });
 
   // 3. Opportunity Fetching
+  // ADR 0021 / #297: a task link or notification is the one way a Stage
+  // Participant or locked viewer reaches an SOR — the register and Board
+  // never list one for them, since RLS already excludes them from
+  // `sales_opportunities` there. `getOpportunityForModal` is what branches on
+  // access level so this fetch doesn't just throw for them.
   const { data: opportunityData, isLoading: isLoadingOpportunity } = useQuery({
     queryKey: ["globalOpportunity", activeItem?.id],
-    queryFn: () => opportunityService.getOpportunityById(activeItem.id),
+    queryFn: () => opportunityService.getOpportunityForModal(activeItem.id),
     enabled: activeItem?.type === "OPPORTUNITY" && !!activeItem?.id,
     staleTime: 0,
   });
@@ -310,11 +315,14 @@ export default function GlobalDetailManager() {
       )}
 
       {/* OPPORTUNITY MODAL */}
-      {activeItem.type === "OPPORTUNITY" && opportunityData && (
+      {activeItem.type === "OPPORTUNITY" && opportunityData && opportunityData.accessLevel !== "none" && (
         <OpportunityDetailsModal
           isOpen={true}
           onClose={handleClose}
-          opportunity={opportunityData}
+          opportunity={opportunityData.opportunity}
+          opportunityId={activeItem.id}
+          accessLevel={opportunityData.accessLevel}
+          lockedSummary={opportunityData.lockedSummary}
         />
       )}
     </>

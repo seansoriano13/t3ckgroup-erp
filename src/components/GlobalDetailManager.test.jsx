@@ -26,6 +26,15 @@ vi.mock("../services/opportunityService", () => ({
       if (id === "opp-123") return MOCK_OPP;
       return null;
     }),
+    // ADR 0021 / #297: GlobalDetailManager opens the SOR modal through this
+    // now, not `getOpportunityById` directly — see the matching comment on
+    // `getOpportunityForModal` in opportunityService.js.
+    getOpportunityForModal: vi.fn(async (id) => {
+      if (id !== "opp-123") return { accessLevel: "none", opportunity: null };
+      return { accessLevel: "full", opportunity: MOCK_OPP };
+    }),
+    getAccessLevel: vi.fn(async () => "full"),
+    getLockedSummary: vi.fn(async () => null),
     getItems: vi.fn(async () => []),
     getNotes: vi.fn(async () => []),
   },

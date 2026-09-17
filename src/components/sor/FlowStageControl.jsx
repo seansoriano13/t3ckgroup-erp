@@ -20,7 +20,7 @@ import { bracketRuns } from "../settings/flowCanvasLayout";
  * it may move to next. Those are the outgoing edges she drew, and nothing
  * else is offered, because a path that was never drawn never happens.
  */
-export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [] }) {
+export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [], disabled = false }) {
   const { data: canvas } = useQuery({
     queryKey: ["salesFlow", opportunity.sale_type_id],
     queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
@@ -39,7 +39,11 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
   // refused by `assertStageGateSatisfied`, and came back as a toast. Now the
   // refusal is visible before the click, naming what is missing.
   const isBlocked = blockedBy.length > 0;
-  const blockedTitle = isBlocked ? `Blocked — missing: ${blockedBy.join(", ")}` : undefined;
+  const blockedTitle = isBlocked
+    ? `Blocked — missing: ${blockedBy.join(", ")}`
+    : disabled
+      ? "You do not have access to move this stage."
+      : undefined;
 
   // Runs of consecutive Stages sharing one bracket label, in canvas order — a
   // brace draws above each labelled run, the same `bracketRuns` grouping the
@@ -105,22 +109,22 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
                     const isDestination = destinations.some((d) => d.id === s.id);
                     const isBlockedDestination = isDestination && isBlocked;
+                    const isClickable = isDestination && !isBlocked && !disabled;
 
                     return (
                       <li
                         key={s.id}
-                        title={isBlockedDestination ? blockedTitle : undefined}
+                        title={isBlockedDestination || (isDestination && disabled) ? blockedTitle : undefined}
                         onClick={() => {
-                          if (!isMoving && isDestination && !isBlocked) {
+                          if (!isMoving && isClickable) {
                             onMove(s.id);
                           }
                         }}
                         className={cn(
                           "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
-                          isDestination && !isBlocked
-                            ? "cursor-pointer hover:brightness-110"
-                            : "cursor-default",
+                          isClickable ? "cursor-pointer hover:brightness-110" : "cursor-default",
                           isBlockedDestination && "opacity-40 saturate-50",
+                          isDestination && disabled && "opacity-40 saturate-50",
                           isCompleted && classes.completed,
                           isCurrent && cn(classes.current, "shadow-inner"),
                           isUpcoming && "bg-muted text-muted-foreground",

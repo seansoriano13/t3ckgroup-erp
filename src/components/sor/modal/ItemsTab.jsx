@@ -117,7 +117,13 @@ export default function ItemsTab({ ctx, hasOpened }) {
     autoSyncingOdoo,
     handleRefreshStock,
     refreshingStock,
+    accessLevel,
   } = ctx;
+
+  // ADR 0021 / #297: `sor_participant_items` carries no unit_price column at
+  // all, so a Participant's Product List shows quantities without prices or
+  // line totals — not those figures hidden by the screen.
+  const showMoney = accessLevel !== "participant";
 
   const [search, setSearch] = useState("");
 
@@ -211,10 +217,14 @@ export default function ItemsTab({ ctx, hasOpened }) {
         </div>
 
         <div className="grid grid-cols-12 gap-3 border-t border-border/60 bg-muted/40 px-6 py-2.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-          <span className="col-span-6">Product &amp; Unit</span>
+          <span className={showMoney ? "col-span-6" : "col-span-10"}>Product &amp; Unit</span>
           <span className="col-span-2 text-right">Quantity</span>
-          <span className="col-span-2 text-right">Unit Price</span>
-          <span className="col-span-2 text-right">Line Total</span>
+          {showMoney && (
+            <>
+              <span className="col-span-2 text-right">Unit Price</span>
+              <span className="col-span-2 text-right">Line Total</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -224,7 +234,7 @@ export default function ItemsTab({ ctx, hasOpened }) {
         ) : (
           visible.map((it) => (
             <div key={it.id} className="grid grid-cols-12 items-center gap-3 px-6 py-3 text-sm transition-colors hover:bg-muted/25">
-              <div className="col-span-6 min-w-0 pr-2">
+              <div className={cn("min-w-0 pr-2", showMoney ? "col-span-6" : "col-span-10")}>
                 <span className="block truncate font-semibold text-foreground">{it.product_name}</span>
                 {it.unit && <span className="mt-0.5 inline-block text-[11px] font-medium text-muted-foreground">Unit: {it.unit}</span>}
               </div>
@@ -233,22 +243,28 @@ export default function ItemsTab({ ctx, hasOpened }) {
                   {it.quantity} {it.unit ? "" : "qty"}
                 </span>
               </div>
-              <span className="col-span-2 text-right font-medium tabular-nums text-muted-foreground">{formatPHP(it.unit_price)}</span>
-              <span className="col-span-2 text-right font-bold tabular-nums text-foreground">
-                {formatPHP(Number(it.quantity) * Number(it.unit_price))}
-              </span>
+              {showMoney && (
+                <>
+                  <span className="col-span-2 text-right font-medium tabular-nums text-muted-foreground">{formatPHP(it.unit_price)}</span>
+                  <span className="col-span-2 text-right font-bold tabular-nums text-foreground">
+                    {formatPHP(Number(it.quantity) * Number(it.unit_price))}
+                  </span>
+                </>
+              )}
               <ItemStockRow item={it} snapshotData={stockSnapshot?.data} />
             </div>
           ))
         )}
       </div>
 
-      <div className="grid shrink-0 grid-cols-12 items-center gap-3 border-t border-border/80 bg-muted/30 px-6 py-3 text-sm">
-        <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-          {search.trim() ? "Filtered Line Total" : "Product Line Total"}
-        </span>
-        <span className="col-span-4 text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
-      </div>
+      {showMoney && (
+        <div className="grid shrink-0 grid-cols-12 items-center gap-3 border-t border-border/80 bg-muted/30 px-6 py-3 text-sm">
+          <span className="col-span-8 text-right text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            {search.trim() ? "Filtered Line Total" : "Product Line Total"}
+          </span>
+          <span className="col-span-4 text-right text-base font-black tabular-nums text-foreground">{formatPHP(total)}</span>
+        </div>
+      )}
     </div>
   );
 }

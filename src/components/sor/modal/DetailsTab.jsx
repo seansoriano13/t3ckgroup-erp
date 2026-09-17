@@ -137,31 +137,40 @@ export default function DetailsTab({ ctx }) {
     handleFetchFromOdoo,
     isExpanded,
     onClose,
+    accessLevel,
   } = ctx;
+
+  // ADR 0021 / #297: Expected Value and commission stay Deal Team only, even
+  // inside a Participant's window — so a Participant sees no Estimated Value
+  // card, no Quotation Document actions (a priced document), and no
+  // commission footer at all, not one with its figures hidden.
+  const showMoney = accessLevel !== "participant";
 
   return (
     <div className="space-y-7 p-6">
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-4">
           <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden divide-y divide-border/60">
-            <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
-                {opportunity.status && <StatusBadge status={opportunity.status} />}
-              </div>
-              {isEditing ? (
-                <div>
-                  <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums opacity-80", estimatedValueSize)}>
-                    {estimatedValueDisplay}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/70 mt-1 font-medium italic">Auto-calculated from Product List</p>
+            {showMoney && (
+              <div className="p-5 bg-gradient-to-b from-muted/40 to-transparent">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
+                  {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
-              ) : (
-                <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>{estimatedValueDisplay}</p>
-              )}
-            </div>
+                {isEditing ? (
+                  <div>
+                    <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums opacity-80", estimatedValueSize)}>
+                      {estimatedValueDisplay}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-1 font-medium italic">Auto-calculated from Product List</p>
+                  </div>
+                ) : (
+                  <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>{estimatedValueDisplay}</p>
+                )}
+              </div>
+            )}
 
-            {!isEditing && opportunity.sales_reference && (
+            {showMoney && !isEditing && opportunity.sales_reference && (
               <div className="p-4 bg-muted/15 space-y-2">
                 <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground mb-1">
                   <span>Quotation Document</span>
@@ -607,7 +616,7 @@ export default function DetailsTab({ ctx }) {
       {!isEditing && <InclusionsPanel opportunity={opportunity} isRequired={requiresInclusions} />}
       {!isEditing && <PurchasingPanel opportunity={opportunity} isRequired={requiresPurchasing} />}
 
-      {!isEditing && <OpportunityCommissionFooter opportunity={opportunity} onClose={onClose} />}
+      {!isEditing && showMoney && <OpportunityCommissionFooter opportunity={opportunity} onClose={onClose} />}
     </div>
   );
 }

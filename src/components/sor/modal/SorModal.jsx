@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import TabGroup from "../../ui/TabGroup";
@@ -56,12 +57,60 @@ const TABS = [
  * content lifted unchanged (#299 redesigns it); Journey/Items/Details are
  * stubs (#300-#302).
  */
-export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onNavigate }) {
+export default function SorModal({
+  isOpen,
+  onClose,
+  opportunity: rawOpportunity,
+  opportunityId,
+  accessLevel: accessLevelProp,
+  lockedSummary: lockedSummaryProp,
+  siblingIds,
+  onNavigate,
+}) {
   const { user } = useAuth();
+  const id = rawOpportunity?.id || opportunityId;
+
+  // ADR 0021 / #297: full | participant | locked | none. The register and
+  // Board already pass a full-access-only opportunity (RLS filters them out
+  // there), so a caller that already knows the level (GlobalDetailManager)
+  // can skip this fetch by passing it; anyone else falls back to asking
+  // `sor_access_level` directly.
+  const { data: fetchedAccessLevel } = useQuery({
+    queryKey: ["sorAccessLevel", id],
+    queryFn: () => opportunityService.getAccessLevel(id),
+    enabled: !!id && isOpen && accessLevelProp == null,
+  });
+  const accessLevel = accessLevelProp ?? fetchedAccessLevel ?? "full";
+
+  // Also doubles as the full/participant "This stage is restricted" flag —
+  // see `isRestricted` below and NowTab's banner.
+  const { data: fetchedLockedSummary } = useQuery({
+    queryKey: ["sorLockedSummary", id],
+    queryFn: () => opportunityService.getLockedSummary(id),
+    enabled: !!id && isOpen && lockedSummaryProp == null,
+  });
+  const lockedSummary = lockedSummaryProp ?? fetchedLockedSummary ?? null;
+  const isRestricted = !!lockedSummary?.is_restricted;
+
+  const { data: myVisits = [] } = useQuery({
+    queryKey: ["sorMyVisits", id],
+    queryFn: () => opportunityService.getMyVisits(id),
+    enabled: !!id && isOpen && accessLevel === "locked",
+  });
+
+  // ADR 0021 / #297: a Participant's Journey tab is gated by the owning
+  // flow's `journey_viewers` setting — full access always sees it, so this
+  // only needs asking at participant level.
+  const { data: canViewJourneyFetched } = useQuery({
+    queryKey: ["sorCanViewJourney", id],
+    queryFn: () => opportunityService.getCanViewJourney(id),
+    enabled: !!id && isOpen && accessLevel === "participant",
+  });
+  const canViewJourney = accessLevel === "full" ? true : accessLevel === "participant" ? !!canViewJourneyFetched : false;
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
-    () => allStages.filter((s) => s.is_active || s.code === opportunity?.status),
-    [allStages, opportunity?.status],
+    () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
+    [allStages, rawOpportunity?.status],
   );
   const stageLabel = useCallback(
     (code) => pipelineStages.find((s) => s.code === code)?.label || code,
@@ -92,8 +141,6 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   const [activeTab, setActiveTab] = useState("now");
   const { markOpened, hasOpened } = useOpenedTabs("now");
   const isWide = useMediaQuery("(min-width: 1100px)");
-
-  const id = opportunity?.id;
 
   const currentKey = `${id || "none"}:${isOpen}`;
   const [draftKey, setDraftKey] = useState(currentKey);
@@ -148,23 +195,24 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   // carries the whole list into Save. `handleEditToggle` fetches it before
   // the form opens, so this staying idle until then can't empty the list.
   const { data: items = [], isLoading: itemsLoading } = useQuery({
-    queryKey: ["opportunityItems", id],
-    queryFn: () => opportunityService.getItems(id),
-    enabled: !!id && isOpen && (hasOpened("items") || isEditing),
+    queryKey: ["opportunityItems", id, accessLevel],
+    queryFn: () =>
+      accessLevel === "participant" ? opportunityService.getParticipantItems(id) : opportunityService.getItems(id),
+    enabled: !!id && isOpen && accessLevel !== "locked" && (hasOpened("items") || isEditing),
   });
 
   const { data: checklist = [] } = useQuery({
-    queryKey: ["stageChecklist", id, opportunity?.flow_stage_id || opportunity?.status],
-    queryFn: () => opportunityService.getStageChecklist(id, opportunity),
-    enabled: !!id && isOpen,
+    queryKey: ["stageChecklist", id, rawOpportunity?.flow_stage_id || rawOpportunity?.status],
+    queryFn: () => opportunityService.getStageChecklist(id, rawOpportunity),
+    enabled: !!id && isOpen && accessLevel !== "locked",
   });
 
   const { data: flowCanvas } = useQuery({
-    queryKey: ["salesFlow", opportunity?.sale_type_id],
-    queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
-    enabled: !!opportunity?.sale_type_id && isOpen,
+    queryKey: ["salesFlow", rawOpportunity?.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(rawOpportunity.sale_type_id),
+    enabled: !!rawOpportunity?.sale_type_id && isOpen,
   });
-  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === opportunity?.flow_stage_id) || null;
+  const currentFlowStage = flowCanvas?.stages?.find((s) => s.id === rawOpportunity?.flow_stage_id) || null;
   const currentFlowStageTone = flowCanvas ? flowStageTone(currentFlowStage, flowCanvas.flow, flowCanvas.stages) : "mauve";
 
   const requiresInclusions = checklist.some((c) => c.condition.kind === "inclusions");
@@ -173,7 +221,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   const { data: procurementRequests = [] } = useQuery({
     queryKey: ["procurementRequests", id],
     queryFn: () => purchasingService.listForOpportunity(id),
-    enabled: !!id && isOpen,
+    enabled: !!id && isOpen && accessLevel !== "locked",
   });
 
   const { data: employees = [] } = useQuery({
@@ -181,6 +229,27 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     queryFn: () => employeeService.getAllEmployees(),
     enabled: isOpen,
   });
+
+  // ADR 0021 / #297: `sor_participant_record` carries only ids, not the
+  // joined employee objects the register's own select attaches (registrar,
+  // deal_owner, closing_sales, support_1, support_2, sales_director) — the
+  // tabs below (PeopleRoster, the header) read those objects, not the ids.
+  // Resolved from `employees`, which every signed-in caller can already read
+  // regardless of SOR access.
+  const opportunity = useMemo(() => {
+    if (!rawOpportunity) return rawOpportunity;
+    if (accessLevel !== "participant") return rawOpportunity;
+    const byId = (empId) => employees.find((e) => e.id === empId) || null;
+    return {
+      ...rawOpportunity,
+      registrar: byId(rawOpportunity.registered_by),
+      deal_owner: byId(rawOpportunity.deal_owner_id),
+      closing_sales: byId(rawOpportunity.closing_sales_id),
+      support_1: byId(rawOpportunity.support_sales_1_id),
+      support_2: byId(rawOpportunity.support_sales_2_id),
+      sales_director: byId(rawOpportunity.sales_director_id),
+    };
+  }, [rawOpportunity, accessLevel, employees]);
 
   // ADR 0021 / #295: the SOR chat's mention roster offers only people who
   // can see the current Stage Visit — `sor_visit_audience`, not every
@@ -578,7 +647,80 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     });
   };
 
+  // ADR 0021 / #297: a locked viewer gets the summary plus their own past
+  // visits, nothing else — no tabs, no chat, no edit. Returned here, after
+  // every hook above has run unconditionally, so the branch never changes
+  // this component's hook order.
+  if (!id) return null;
+  if (accessLevel === "locked") {
+    return (
+      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex w-full max-w-[95vw] flex-col gap-0 overflow-hidden rounded-2xl p-0 md:max-w-[560px]"
+        >
+          <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-4">
+            <div className="min-w-0">
+              {lockedSummary?.sales_reference && (
+                <p className="truncate font-mono text-xs font-bold text-primary">{lockedSummary.sales_reference}</p>
+              )}
+              <h2 className="truncate text-lg font-black text-foreground">{lockedSummary?.project_title || "This SOR"}</h2>
+            </div>
+            <button
+              onClick={onClose}
+              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+            >
+              <X size={15} />
+            </button>
+          </div>
+
+          <div className="space-y-5 overflow-y-auto p-6">
+            {isRestricted && (
+              <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-[13px] font-semibold text-amber-11">
+                This stage is restricted.
+              </div>
+            )}
+
+            <div>
+              <p className="mb-1 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Current Stage</p>
+              <p className="text-sm font-semibold text-foreground">{lockedSummary?.current_stage_name || "—"}</p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Your visits</p>
+              {myVisits.length === 0 ? (
+                <p className="text-sm text-muted-foreground/70">No visits recorded.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {myVisits.map((v) => (
+                    <li
+                      key={v.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+                    >
+                      <span className="font-medium text-foreground">{v.flow_stages?.name || "Stage"}</span>
+                      <span className="text-[11px] text-muted-foreground">
+                        {v.entered_at ? new Date(v.entered_at).toLocaleDateString() : ""}
+                        {v.left_at ? ` – ${new Date(v.left_at).toLocaleDateString()}` : " – present"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   if (!opportunity) return null;
+
+  // ADR 0021 / #297: only a full-access caller may move the Stage — a
+  // Participant never could (`sor_guard_stage_move` requires 'full'), and a
+  // full-access caller shut out of the current Stage by a Restricted Stage
+  // is refused by the same guard even though their access level stays
+  // 'full'. Both are surfaced here rather than left to a server error.
+  const moveDisabled = accessLevel !== "full" || isRestricted;
 
   const editItemsSum = (editForm.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
   const estimatedValueDisplay = isEditing ? formatPHP(editItemsSum) : formatPHP(opportunity.expected_value);
@@ -594,6 +736,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   };
 
   const handleStageChange = (next) => {
+    if (moveDisabled) return;
     if (!next || next === opportunity.status) return;
     if (isLostCode(next) || (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)) {
       setPendingStage(next);
@@ -633,6 +776,8 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
   const tabCtx = {
     opportunity,
     id,
+    accessLevel,
+    isRestricted,
     user,
     isEditing,
     editForm,
@@ -692,7 +837,11 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     />
   );
 
-  const tabsWithChat = isWide ? TABS : [...TABS, { value: "chat", label: "Chat" }];
+  // ADR 0021 / #297: a Participant shut out of Journey by the flow's
+  // journey_viewers setting gets no Journey tab at all — not one that opens
+  // to nothing.
+  const visibleTabs = canViewJourney ? TABS : TABS.filter((t) => t.value !== "journey");
+  const tabsWithChat = isWide ? visibleTabs : [...visibleTabs, { value: "chat", label: "Chat" }];
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -728,6 +877,8 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
           hasNext={hasNext}
           onPrev={goPrev}
           onNext={goNext}
+          accessLevel={accessLevel}
+          moveDisabled={moveDisabled}
         />
 
         <div className="flex min-h-0 flex-1">
@@ -746,7 +897,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
               <div className={activeTab === "now" ? "h-full overflow-y-auto" : "hidden"}>
                 <NowTab ctx={tabCtx} />
               </div>
-              {hasOpened("journey") && (
+              {canViewJourney && hasOpened("journey") && (
                 <div className={activeTab === "journey" ? "h-full overflow-y-auto" : "hidden"}>
                   <JourneyTab opportunityId={id} hasOpened={hasOpened} onGoToNow={() => handleTabChange("now")} />
                 </div>

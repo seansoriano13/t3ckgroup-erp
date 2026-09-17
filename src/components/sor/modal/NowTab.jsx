@@ -61,6 +61,7 @@ export default function NowTab({ ctx }) {
     stageLabel,
     cancelPendingStage,
     stageMutation,
+    isRestricted,
   } = ctx;
 
   // A flow SOR's `status` never changes (it stays LEAD), so anything keyed
@@ -92,6 +93,12 @@ export default function NowTab({ ctx }) {
 
   return (
     <div className="space-y-7 p-6">
+      {isRestricted && (
+        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-sm font-semibold text-amber-11">
+          This stage is restricted — Move is disabled.
+        </div>
+      )}
+
       {isLostPending && (
         <div className="flex items-end gap-2">
           <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
