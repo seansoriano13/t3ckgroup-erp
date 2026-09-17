@@ -182,6 +182,30 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     enabled: isOpen,
   });
 
+  // ADR 0021 / #295: the SOR chat's mention roster offers only people who
+  // can see the current Stage Visit — `sor_visit_audience`, not every
+  // employee. A legacy pipeline deal has no Stage Visit to scope by
+  // (`currentVisitId` stays null), so its roster is left as the full
+  // employee list rather than restricted to nobody.
+  const { data: currentVisitId = null } = useQuery({
+    queryKey: ["sorCurrentVisitId", id],
+    queryFn: () => opportunityService.getCurrentStageVisitId(id),
+    enabled: !!id && isOpen,
+  });
+
+  const { data: visitAudienceIds = null } = useQuery({
+    queryKey: ["sorVisitAudience", id, currentVisitId],
+    queryFn: () => opportunityService.getVisitAudienceIds(id, currentVisitId),
+    enabled: !!id && !!currentVisitId && isOpen,
+  });
+
+  const mentionableEmployees = useMemo(() => {
+    if (!currentVisitId) return employees;
+    if (!visitAudienceIds) return [];
+    const allowed = new Set(visitAudienceIds);
+    return employees.filter((e) => allowed.has(e.id));
+  }, [employees, currentVisitId, visitAudienceIds]);
+
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
     queryKey: ["leadSources", "active"],
@@ -212,6 +236,15 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
 
   const handleMentionClick = (person) => {
     if (!person?.name) return;
+    // ADR 0021 / #295: clicking a past author's name to mention them is the
+    // same mention surface as typing `@` — it must not offer someone the
+    // roster itself would not, e.g. a Participant whose window has since
+    // closed. Only enforced once the audience is known (`currentVisitId` set
+    // and `visitAudienceIds` loaded); a legacy deal with no Stage Visit is
+    // left unrestricted, same as the roster above.
+    if (currentVisitId && visitAudienceIds && person.id && !visitAudienceIds.includes(person.id)) {
+      return;
+    }
     const name = person.name;
     const mentionTag = `@${name}`;
     setNote((prev) => {
@@ -223,7 +256,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
     if (person.id) {
       setNoteMentions((prev) => (prev.some((m) => m.id === person.id || m.name === name) ? prev : [...prev, person]));
     } else {
-      const matched = employees.find((e) => e.name === name);
+      const matched = mentionableEmployees.find((e) => e.name === name);
       if (matched) {
         setNoteMentions((prev) => (prev.some((m) => m.id === matched.id || m.name === matched.name) ? prev : [...prev, matched]));
       }
@@ -651,7 +684,7 @@ export default function SorModal({ isOpen, onClose, opportunity, siblingIds, onN
       setNote={setNote}
       noteMentions={noteMentions}
       setNoteMentions={setNoteMentions}
-      employees={employees}
+      employees={mentionableEmployees}
       attachments={attachments}
       fileInputRef={fileInputRef}
       isPosting={isPosting}

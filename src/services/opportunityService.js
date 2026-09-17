@@ -2328,11 +2328,24 @@ export const opportunityService = {
         opportunity?.sales_reference || opportunity?.client_name || "an opportunity";
       const snippet = trimmed.length > 90 ? `${trimmed.slice(0, 90)}…` : trimmed;
 
+      // ADR 0021 / #295: a mention grants nothing — notifying someone
+      // outside this visit's audience would be telling them about a Stage
+      // Visit they cannot open. `currentVisit` is the same open visit the
+      // rest of this file reads the SOR through; `null` audience means
+      // there is no visit to scope by (a legacy pipeline deal), in which
+      // case every live mention still gets notified as before.
+      const currentVisit = await currentVisitFor(opportunityId).catch(() => null);
+      const audienceIds = currentVisit?.id
+        ? await this.getVisitAudienceIds(opportunityId, currentVisit.id).catch(() => null)
+        : null;
+      const notifiable = audienceIds ? new Set(audienceIds) : null;
+
       await Promise.all(
         live
           // Mentioning yourself is a way of writing, not a request for a
           // notification.
           .filter((m) => m.id !== authorId)
+          .filter((m) => !notifiable || notifiable.has(m.id))
           .map((m) =>
             notificationService.createNotification({
               recipient_id: m.id,
@@ -2812,6 +2825,24 @@ export const opportunityService = {
   async getCurrentStageVisitId(opportunityId) {
     const visit = await currentVisitFor(opportunityId);
     return visit?.id ?? null;
+  },
+
+  /**
+   * ADR 0021 / #295: employee ids who may see `visitId` right now, per
+   * `sor_visit_audience`. The SOR chat's mention roster and its
+   * mention-notification routing both read through this — nothing else
+   * decides who belongs in either. Returns `null` (not an empty list) when
+   * there is no visit to scope by, so a legacy pipeline deal with no Stage
+   * Visits is left unrestricted rather than restricted to nobody.
+   */
+  async getVisitAudienceIds(opportunityId, visitId) {
+    if (!opportunityId || !visitId) return null;
+    const { data, error } = await supabase.rpc("sor_visit_audience", {
+      p_opportunity_id: opportunityId,
+      p_visit_id: visitId,
+    });
+    if (error) throw error;
+    return (data || []).map((row) => (typeof row === "string" ? row : row.sor_visit_audience));
   },
 
   /**

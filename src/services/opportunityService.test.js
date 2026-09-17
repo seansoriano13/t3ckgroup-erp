@@ -26,7 +26,7 @@ import {
 } from "@/test/factories"
 import { employeeGroupService } from "./employeeGroupService"
 import { waitForNetworkIdle } from "@/test/network"
-import { stubEdgeFunction } from "@/test/msw/server"
+import { stubEdgeFunction, stubRpc } from "@/test/msw/server"
 import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
 
 /**
@@ -2944,6 +2944,76 @@ describe("opportunityService", () => {
         // to the task pages instead of the deal being discussed.
         type: "OPPORTUNITY_MENTION",
         reference_id: opportunity.id,
+      })
+    })
+
+    describe("ADR 0021 / #295 — visit-scoped mention notifications", () => {
+      it("notifies a mentioned employee who is in sor_visit_audience for the open visit", async () => {
+        const flowSaleType = makeSaleType({ name: "Flow for mentions" })
+        const flowStage = makeFlowStage({ name: "Lead" })
+        const opportunity = makeOpportunity({ registered_by: registrar.id, sale_type_id: flowSaleType.id })
+        const visit = makeStageVisit({ opportunity_id: opportunity.id, flow_stage_id: flowStage.id })
+        const buyer = makeEmployee({ name: "Cjay Espina" })
+
+        // OPPORTUNITY_MENTION is a push-only type (#168) — it never lands a
+        // row in `notifications`, so the assertion has to be on the push
+        // edge function, same as "notifies the person named in a note" above.
+        const pushed = []
+        stubEdgeFunction("send-push", (body) => {
+          pushed.push(body)
+          return { success: true }
+        })
+
+        stubRpc("sor_visit_audience", (args) => {
+          expect(args).toMatchObject({ p_opportunity_id: opportunity.id, p_visit_id: visit.id })
+          return [buyer.id]
+        })
+
+        await opportunityService.addNote(
+          opportunity.id,
+          registrar.id,
+          "@Cjay Espina can you check stock on this",
+          [],
+          [{ id: buyer.id, name: "Cjay Espina" }],
+        )
+        await waitForNetworkIdle()
+
+        expect(pushed).toHaveLength(1)
+        expect(pushed[0]).toMatchObject({ recipient_id: buyer.id, type: "OPPORTUNITY_MENTION" })
+      })
+
+      it("does not notify a mentioned employee who sor_visit_audience excludes — a mention grants nothing", async () => {
+        const flowSaleType = makeSaleType({ name: "Flow for mentions 2" })
+        const flowStage = makeFlowStage({ name: "Lead" })
+        const opportunity = makeOpportunity({ registered_by: registrar.id, sale_type_id: flowSaleType.id })
+        const visit = makeStageVisit({ opportunity_id: opportunity.id, flow_stage_id: flowStage.id })
+        // Picked from the composer's roster before their access window closed,
+        // or added to the note text by hand — either way, sor_visit_audience
+        // no longer names them for this visit.
+        const outOfWindow = makeEmployee({ name: "Cjay Espina" })
+
+        const pushed = []
+        stubEdgeFunction("send-push", (body) => {
+          pushed.push(body)
+          return { success: true }
+        })
+
+        stubRpc("sor_visit_audience", (args) => {
+          expect(args).toMatchObject({ p_opportunity_id: opportunity.id, p_visit_id: visit.id })
+          return []
+        })
+
+        await opportunityService.addNote(
+          opportunity.id,
+          registrar.id,
+          "@Cjay Espina can you check stock on this",
+          [],
+          [{ id: outOfWindow.id, name: "Cjay Espina" }],
+        )
+        await waitForNetworkIdle()
+
+        expect(pushed).toHaveLength(0)
+        expect(db.rows("notifications")).toHaveLength(0)
       })
     })
 
