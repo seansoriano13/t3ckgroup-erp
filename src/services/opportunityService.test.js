@@ -796,6 +796,39 @@ describe("opportunityService", () => {
         expect(addedNotes).toHaveLength(1)
       })
 
+      // Issue #294: a day-one Assignment call-in — the registration form
+      // fills this the same way a checklist row's "Assign" button does.
+      it("opens a Stage Participant window for a day-one Assignment condition made at registration", async () => {
+        const condition = makeStageCondition({
+          stage_id: lead.id,
+          kind: "assignment",
+          label: "Buyer assigned",
+          config: { who: [], access: { until: "stage_left" } },
+        })
+        const buyer = makeEmployee({ name: "Rey Santos" })
+        makeFlowSnapshot({ flow_id: flow.id })
+
+        const created = await opportunityService.createOpportunity(
+          flowPayload({ dayOneAssignments: { [condition.id]: buyer.id } }),
+          registrar.id,
+        )
+
+        const members = await opportunityService.getMembers(created.id)
+        expect(members.map((m) => m.employee_id)).toContain(buyer.id)
+
+        const openVisit = db
+          .rows("sor_stage_visits")
+          .find((v) => v.opportunity_id === created.id && v.left_at == null)
+        const participant = db
+          .rows("sor_stage_participants")
+          .find((p) => p.opportunity_id === created.id && p.employee_id === buyer.id)
+        expect(participant).toBeTruthy()
+        expect(participant.source).toBe("assignment")
+        expect(participant.source_id).toBe(condition.id)
+        expect(participant.opened_visit_id).toBe(openVisit.id)
+        expect(participant.closed_at).toBeNull()
+      })
+
       // Code review of #203 (0eceec9): a "who" selector of kind "group" or
       // "team" could never be satisfied because the members evaluateCondition
       // saw carried no groupIds/teamId at all — only employeeId/department.

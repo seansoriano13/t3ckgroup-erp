@@ -1443,6 +1443,21 @@ export const opportunityService = {
       await formFieldService.saveValues(data.id, payload.formValues, actorId);
     }
 
+    // Issue #294: entry-Stage Assignment conditions render as People Pickers
+    // on this same form (RegistrationField's "assignment" case) — answering
+    // one is the same call-in `addMember` already handles for a checklist
+    // row, just made on day one instead of later on the SOR. Reuses that one
+    // path rather than a second "day-one participant" writer, so the window
+    // it opens and the notification it sends are the same either way.
+    if (payload.dayOneAssignments && Object.keys(payload.dayOneAssignments).length > 0) {
+      for (const [conditionId, employeeId] of Object.entries(payload.dayOneAssignments)) {
+        if (!employeeId) continue;
+        await opportunityService.addMember(data.id, employeeId, actorId, { conditionId }).catch((err) =>
+          console.error("Day-one Assignment addMember failed:", err),
+        );
+      }
+    }
+
     const final = await opportunityService.getOpportunityById(data.id);
 
     await opportunityService.addSystemNote(

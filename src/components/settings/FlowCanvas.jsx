@@ -519,6 +519,14 @@ function FlowCanvasInner() {
           hasOutgoing: edges.some((e) => e.from_stage_id === stage.id),
           canAddStage: !isLocked,
           onAddStage: (name) => addStageAfter(stage, name),
+          // Issue #294: a condition or action calling in from this Stage had
+          // its access window's chosen end Stage deleted and fell back to
+          // "calling Stage left" — surfaced here rather than only inside the
+          // settings panel, so it's seen without opening it.
+          hasAccessFallbackWarning:
+            [...(conditionsByStage[stage.id] ?? []), ...(actionsByStage[stage.id] ?? [])].some(
+              (item) => item.config?.accessFallbackWarning,
+            ),
         },
         draggable: !isLocked,
       });

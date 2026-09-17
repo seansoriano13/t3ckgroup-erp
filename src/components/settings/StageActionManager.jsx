@@ -9,6 +9,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import TemplateTokenText from "@/components/ui/TemplateTokenText";
 
+import AccessWindowConfig from "./AccessWindowConfig";
 import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
 import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
@@ -33,6 +34,14 @@ export default function StageActionManager({ stageId, disabled = false }) {
   const [editingAction, setEditingAction] = useState(null);
   const [pendingArchive, setPendingArchive] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
+  // Issue #294: the access window this action's call-in opens, chosen in its
+  // own step — held here rather than inside CreateGroupTaskModal/LogTaskModal,
+  // because those are the shared, ordinary task modals (not automation-only
+  // forms), so the window picker runs before either opens rather than inside
+  // one. `accessStep` is `{ kind }` while adding or `{ action }` while
+  // editing, and holds the modal open until "Continue" confirms the window.
+  const [accessStep, setAccessStep] = useState(null);
+  const [draftAccess, setDraftAccess] = useState({ until: "stage_left" });
 
   const { data: employees } = useQuery({
     queryKey: ["employees"],
@@ -107,8 +116,10 @@ export default function StageActionManager({ stageId, disabled = false }) {
     reorderMutation.mutate(updates);
   };
 
-  const handleAdd = (kind, config) => addMutation.mutate({ stageId, kind, config });
-  const handleUpdate = (config) => updateMutation.mutate({ id: editingAction.id, config });
+  const handleAdd = (kind, config) =>
+    addMutation.mutate({ stageId, kind, config: { ...config, access: draftAccess } });
+  const handleUpdate = (config) =>
+    updateMutation.mutate({ id: editingAction.id, config: { ...config, access: draftAccess } });
 
   if (isLoading) {
     return <div className="m-5 h-20 animate-pulse rounded-2xl bg-mauve-a2" />;
@@ -188,7 +199,10 @@ export default function StageActionManager({ stageId, disabled = false }) {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => setEditingAction(action)}
+                      onClick={() => {
+                        setDraftAccess(action.config?.access?.until ? action.config.access : { until: "stage_left" });
+                        setAccessStep({ action });
+                      }}
                       aria-label={`Edit ${title}`}
                       className="text-muted-foreground hover:text-foreground"
                     >
@@ -252,7 +266,8 @@ export default function StageActionManager({ stageId, disabled = false }) {
                     key={value}
                     type="button"
                     onClick={() => {
-                      setAddingKind(value);
+                      setDraftAccess({ until: "stage_left" });
+                      setAccessStep({ kind: value });
                       close();
                     }}
                     className="flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-mauve-a2"
@@ -275,6 +290,32 @@ export default function StageActionManager({ stageId, disabled = false }) {
           </Dropdown>
         )}
       </div>
+
+      {accessStep && (
+        <div className="mx-5 mb-3 space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            How long the person this calls in can see the deal, before {accessStep.action ? "changing" : "building"}{" "}
+            {accessStep.action ? "the rest of the automation" : "the rest of it"}.
+          </p>
+          <AccessWindowConfig stageId={stageId} value={draftAccess} onChange={setDraftAccess} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setAccessStep(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (accessStep.kind) setAddingKind(accessStep.kind);
+                else setEditingAction(accessStep.action);
+                setAccessStep(null);
+              }}
+            >
+              Continue
+            </Button>
+          </div>
+        </div>
+      )}
 
       {addingKind === "create_group_task" && (
         <CreateGroupTaskModal

@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, fireEvent } from "@testing-library/react";
+import { screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { renderWithProviders } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 import { odooService } from "../../services/odooService";
@@ -45,6 +45,47 @@ vi.mock("../../services/leadSourceService", () => ({
 
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: { getItems: vi.fn(async () => []) },
+}));
+
+const SALE_TYPE_ID = "6f6a1a2a-5555-4a3a-9a3a-1a2b3c4d5e6f";
+const ENTRY_STAGE_ID = "9c9c9c9c-1111-4a3a-9a3a-1a2b3c4d5e6f";
+const CONDITION_ID = "1d1d1d1d-2222-4a3a-9a3a-1a2b3c4d5e6f";
+
+vi.mock("../../services/salesFlowService", () => ({
+  salesFlowService: {
+    getSaleTypes: vi.fn(async () => [{ id: SALE_TYPE_ID, name: "Flow A" }]),
+    getFlow: vi.fn(async (saleTypeId) =>
+      saleTypeId === SALE_TYPE_ID
+        ? { stages: [{ id: ENTRY_STAGE_ID, sort_order: 0 }], edges: [] }
+        : { stages: [], edges: [] },
+    ),
+  },
+}));
+
+vi.mock("../../services/stageConditionService", () => ({
+  stageConditionService: {
+    getForStage: vi.fn(async (stageId) =>
+      stageId === ENTRY_STAGE_ID
+        ? [
+            {
+              id: CONDITION_ID,
+              kind: "assignment",
+              label: "Buyer assigned",
+              is_required: true,
+              config: { who: [] },
+            },
+          ]
+        : [],
+    ),
+  },
+}));
+
+vi.mock("../../services/employeeGroupService", () => ({
+  employeeGroupService: { list: vi.fn(async () => []) },
+}));
+
+vi.mock("../../services/formFieldService", () => ({
+  formFieldService: { getForSaleType: vi.fn(async () => []) },
 }));
 
 vi.mock("../../services/odooService", () => ({
@@ -110,6 +151,33 @@ describe("OpportunityFormModal — Sales Director", () => {
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
     expect(onSubmit.mock.calls[0][0].sales_director_id).toBe(OWNER_ID);
+  });
+});
+
+describe("OpportunityFormModal — day-one Assignment (#294)", () => {
+  it("blocks registration until a required entry-Stage Assignment is filled, then submits it as a call-in", async () => {
+    const onSubmit = renderForm();
+    await screen.findByText("101");
+
+    fireEvent.click(screen.getByText("Select sale type…"));
+    fireEvent.click(await screen.findByText("Flow A"));
+
+    await screen.findByText("Buyer assigned");
+
+    const form = document.getElementById("opportunity-form");
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Buyer assigned")));
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    const assignmentLabel = await screen.findByText("Buyer assigned");
+    fireEvent.click(within(assignmentLabel.closest("div")).getByText("Select…"));
+    fireEvent.click(await screen.findByText("Maey Zausa"));
+
+    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].dayOneAssignments).toEqual({ [CONDITION_ID]: OWNER_ID });
   });
 });
 

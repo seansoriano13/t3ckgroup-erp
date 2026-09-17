@@ -11,6 +11,7 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 
+import AccessWindowConfig from "./AccessWindowConfig";
 import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
 import { CONDITION_KINDS, NEW_CONDITION_KINDS, CONDITION_STATUS } from "../../constants/stageGate";
@@ -25,7 +26,7 @@ const emptyConfigFor = (kind) => {
     case CONDITION_KINDS.ATTACHMENT:
       return { accepts: [] };
     case CONDITION_KINDS.ASSIGNMENT:
-      return { who: [] };
+      return { who: [], access: { until: "stage_left" } };
     case CONDITION_KINDS.DEADLINE:
       return { days: "" };
     default:
@@ -42,7 +43,13 @@ function configFor(kind, config) {
       // Issue #203: `who` is a list of PeoplePicker selectors (issue #201's
       // shape). Legacy `department` is left alone by this form — it's still
       // read by the evaluator for a condition that hasn't been touched here.
-      return { who: Array.isArray(config.who) ? config.who : [] };
+      // Issue #294: `access` is rebuilt fresh from the form's own state
+      // every save, which is also what clears a stale `accessFallbackWarning`
+      // the moment someone re-confirms the window here.
+      return {
+        who: Array.isArray(config.who) ? config.who : [],
+        access: config.access?.until ? config.access : { until: "stage_left" },
+      };
     case CONDITION_KINDS.DEADLINE:
       return { days: Number(config.days) || 0 };
     default:
@@ -349,11 +356,19 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 </span>
                 <PeoplePicker
                   value={config.who || []}
-                  onChange={(who) => setConfig({ who })}
+                  onChange={(who) => setConfig((c) => ({ ...c, who }))}
                   types={[SELECTOR_TYPES.EMPLOYEE, SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM]}
                   placeholder="Add who satisfies this"
                 />
               </div>
+            )}
+
+            {kind === CONDITION_KINDS.ASSIGNMENT && (
+              <AccessWindowConfig
+                stageId={stageId}
+                value={config.access}
+                onChange={(access) => setConfig((c) => ({ ...c, access }))}
+              />
             )}
 
             {kind === CONDITION_KINDS.DEADLINE && (

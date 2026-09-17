@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { salesFlowService } from "./salesFlowService"
+import { stageConditionService } from "./stageConditionService"
+import { stageActionService } from "./stageActionService"
 import { waitForNetworkIdle } from "@/test/network"
 import {
   makeEmployee,
@@ -165,6 +167,69 @@ describe("salesFlowService", () => {
       const after = await salesFlowService.getFlow(flow.sale_type_id)
       expect(after.stages.map((s) => s.name)).toEqual(["Lead"])
       expect(after.edges).toEqual([])
+    })
+
+    it("getFlowGraphForStage returns the Stages and Edges of whichever flow a Stage belongs to (#294)", async () => {
+      const flow = makeSalesFlow()
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const qualified = await salesFlowService.addStage(flow.id, "Qualified", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, qualified.id, admin.id)
+
+      const graph = await salesFlowService.getFlowGraphForStage(lead.id)
+
+      expect(graph.stages.map((s) => s.id)).toEqual(expect.arrayContaining([lead.id, qualified.id]))
+      expect(graph.edges).toEqual([
+        expect.objectContaining({ from_stage_id: lead.id, to_stage_id: qualified.id }),
+      ])
+    })
+
+    it("falls an access window's config back to 'calling Stage left' once its chosen end Stage is deleted (#294)", async () => {
+      const flow = makeSalesFlow()
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const qualified = await salesFlowService.addStage(flow.id, "Qualified", admin.id)
+      const negotiation = await salesFlowService.addStage(flow.id, "Negotiation", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, qualified.id, admin.id)
+      await salesFlowService.addEdge(flow.id, qualified.id, negotiation.id, admin.id)
+
+      await stageConditionService.add(
+        { stageId: lead.id, kind: "assignment", label: "Buyer assigned", config: { who: [], access: { until: "later_stage_left", stageId: negotiation.id } } },
+        admin.id,
+      )
+      await stageActionService.add(
+        { stageId: lead.id, kind: "create_individual_task", config: { access: { until: "stage_entered", stageId: negotiation.id } } },
+        admin.id,
+      )
+
+      await salesFlowService.deleteStage(negotiation.id, admin.id)
+
+      const [fallenCondition] = await stageConditionService.getForStage(lead.id)
+      expect(fallenCondition.config.access).toEqual({ until: "stage_left" })
+      expect(fallenCondition.config.accessFallbackWarning).toBe(true)
+
+      const [fallenAction] = await stageActionService.getForStage(lead.id)
+      expect(fallenAction.config.access).toEqual({ until: "stage_left" })
+      expect(fallenAction.config.accessFallbackWarning).toBe(true)
+    })
+
+    it("leaves an access window alone when the Stage deleted isn't the one it's waiting on (#294)", async () => {
+      const flow = makeSalesFlow()
+      const lead = await salesFlowService.addStage(flow.id, "Lead", admin.id)
+      const qualified = await salesFlowService.addStage(flow.id, "Qualified", admin.id)
+      const negotiation = await salesFlowService.addStage(flow.id, "Negotiation", admin.id)
+      const spare = await salesFlowService.addStage(flow.id, "Spare", admin.id)
+      await salesFlowService.addEdge(flow.id, lead.id, qualified.id, admin.id)
+      await salesFlowService.addEdge(flow.id, qualified.id, negotiation.id, admin.id)
+
+      await stageConditionService.add(
+        { stageId: lead.id, kind: "assignment", label: "Buyer assigned", config: { who: [], access: { until: "later_stage_left", stageId: negotiation.id } } },
+        admin.id,
+      )
+
+      await salesFlowService.deleteStage(spare.id, admin.id)
+
+      const [unaffected] = await stageConditionService.getForStage(lead.id)
+      expect(unaffected.config.access).toEqual({ until: "later_stage_left", stageId: negotiation.id })
+      expect(unaffected.config.accessFallbackWarning).toBeUndefined()
     })
 
     it("refuses to delete the Stage the flow calls Won", async () => {

@@ -88,6 +88,45 @@ async function edgesOf(flowId) {
 }
 
 /**
+ * Issue #294 — every Assignment condition or task-creating action anywhere
+ * in this flow whose `config.access.stageId` names the Stage about to be
+ * deleted falls back to `{until: "stage_left"}` (the calling Stage itself),
+ * flagged with `accessFallbackWarning` so FlowCanvas can surface it without
+ * a caller having to re-derive "was this pointed at a Stage that's gone".
+ */
+async function fallBackAccessWindowsTargeting(deletedStageId, flowId) {
+  const stageIds = (await stagesOf(flowId)).map((s) => s.id);
+  if (stageIds.length === 0) return;
+
+  const [{ data: conditions, error: conditionError }, { data: actions, error: actionError }] =
+    await Promise.all([
+      supabase.from("stage_conditions").select("id, config").in("stage_id", stageIds),
+      supabase.from("flow_stage_actions").select("id, config").in("stage_id", stageIds),
+    ]);
+  if (conditionError) throw conditionError;
+  if (actionError) throw actionError;
+
+  const fallenBackConfig = (config) => ({
+    ...config,
+    access: { until: "stage_left" },
+    accessFallbackWarning: true,
+  });
+
+  await Promise.all([
+    ...(conditions || [])
+      .filter((row) => row.config?.access?.stageId === deletedStageId)
+      .map((row) =>
+        supabase.from("stage_conditions").update({ config: fallenBackConfig(row.config) }).eq("id", row.id),
+      ),
+    ...(actions || [])
+      .filter((row) => row.config?.access?.stageId === deletedStageId)
+      .map((row) =>
+        supabase.from("flow_stage_actions").update({ config: fallenBackConfig(row.config) }).eq("id", row.id),
+      ),
+  ]);
+}
+
+/**
  * Turns a Flow Snapshot's stored shape into live Stages, Edges, Actions and
  * Conditions on `flow` — the write path behind `importSnapshot`, where a
  * brand-new Sale Type gets its starting point.
@@ -269,6 +308,27 @@ export const salesFlowService = {
    * many flows exist, then the caller resolves a Stage by id and its flow by
    * `flow_id`.
    */
+  /**
+   * The Stages and Edges of whichever flow `stageId` belongs to — issue
+   * #294's later-Stage picker needs the drawn moves reachable from a given
+   * calling Stage, and every config screen that needs it (StageConditionManager,
+   * StageActionDetail) only ever has the Stage id in hand, not the flow's.
+   */
+  async getFlowGraphForStage(stageId) {
+    if (!stageId) return { stages: [], edges: [] };
+
+    const { data: stage, error: stageError } = await supabase
+      .from("flow_stages")
+      .select("flow_id")
+      .eq("id", stageId)
+      .maybeSingle();
+    if (stageError) throw stageError;
+    if (!stage) return { stages: [], edges: [] };
+
+    const [stages, edges] = await Promise.all([stagesOf(stage.flow_id), edgesOf(stage.flow_id)]);
+    return { stages, edges };
+  },
+
   async getAllStagesIndex() {
     const [{ data: flows, error: flowsError }, { data: stages, error: stagesError }] =
       await Promise.all([
@@ -648,6 +708,12 @@ export const salesFlowService = {
         `"${stage.name}" is this flow's Won Stage. Choose a different Won Stage before deleting it.`,
       );
     }
+
+    // Issue #294: any access window elsewhere in this flow that chose this
+    // Stage as its end Stage falls back to "calling Stage left" the instant
+    // it can no longer be reached — done before the Stage itself is gone, so
+    // the fallback can still name what it was pointing at.
+    await fallBackAccessWindowsTargeting(stageId, flow.id);
 
     // The composite foreign keys in 0048 cascade the edges. Deleting them
     // first anyway keeps the harness and the database agreeing on what a

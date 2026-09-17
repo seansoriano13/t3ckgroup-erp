@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { CircleDot, Flag, Octagon, Plus } from "lucide-react";
+import { AlertTriangle, CircleDot, Flag, Octagon, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Dropdown from "@/components/ui/Dropdown";
@@ -107,12 +107,13 @@ const COLOR_BACKGROUNDS = {
   green: "bg-green-2",
 };
 
-const Chip = ({ className, icon: Icon, children }) => (
+const Chip = ({ className, icon: Icon, children, ...rest }) => (
   <span
     className={cn(
       "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-black uppercase tracking-[0.12em]",
       className || "bg-mauve-a3 text-mauve-11",
     )}
+    {...rest}
   >
     {Icon && <Icon size={9} strokeWidth={3} />}
     {children}
@@ -155,6 +156,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
     hasOutgoing = false,
     canAddStage = false,
     onAddStage,
+    hasAccessFallbackWarning = false,
   } = data;
   const [addOpen, setAddOpen] = useState(false);
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
@@ -232,6 +234,15 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                 Stage
               </span>
+            )}
+            {hasAccessFallbackWarning && (
+              <Chip
+                className="bg-amber-a4 text-amber-11"
+                icon={AlertTriangle}
+                title="An access window here fell back to 'calling Stage left' — its chosen end Stage was deleted."
+              >
+                Access fallback
+              </Chip>
             )}
           </div>
         </div>
