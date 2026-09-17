@@ -48,6 +48,10 @@ export const SEED_TABLES = [
   "flow_stage_actions",
   "flow_stage_fields",
   "flow_stage_follow_ups",
+  // Flow and Stage access settings (#292). After sales_flows and flow_stages,
+  // which they point at.
+  "flow_access_settings",
+  "flow_stage_access",
   // The flow's registration-form customization. After sales_flows, which it
   // points at.
   "flow_form_fields",
