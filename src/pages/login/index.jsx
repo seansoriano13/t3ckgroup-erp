@@ -18,8 +18,12 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState(
+    () => import.meta.env.VITE_MAGIC_LOGIN_EMAIL || ""
+  );
+  const [password, setPassword] = useState(
+    () => import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || ""
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
