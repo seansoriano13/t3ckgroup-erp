@@ -67,6 +67,16 @@ export const CAST = {
         role: "SALES EXECUTIVE",
         has_sales_flow: true,
     },
+    closingSales: {
+        // #293 (ADR 0021): the Closing Salesperson joins the Deal Team via
+        // closing_sales_id, distinct from Deal Owner/Support so a pass here
+        // can only be that column doing the work.
+        name: "Closing Salesperson",
+        department: "SALES",
+        sub_department: "NGO",
+        role: "SALES EXECUTIVE",
+        has_sales_flow: true,
+    },
     head: {
         // No sub_department: the "master head" shape the nav and the badge
         // counts treat as owning a whole department.

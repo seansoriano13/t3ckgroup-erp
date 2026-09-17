@@ -27,6 +27,9 @@ export async function makeSor({
     dealOwnerId = null,
     supportSales1Id = null,
     salesDirectorId = null,
+    closingSalesId = null,
+    saleTypeId = null,
+    flowStageId = null,
     companyName = `${MARKER} Acme Rescue Supplies`,
 } = {}) {
     const { data, error } = await serviceClient()
@@ -36,6 +39,9 @@ export async function makeSor({
             deal_owner_id: dealOwnerId,
             support_sales_1_id: supportSales1Id,
             sales_director_id: salesDirectorId,
+            closing_sales_id: closingSalesId,
+            sale_type_id: saleTypeId,
+            flow_stage_id: flowStageId,
             lead_source: "REFERRAL",
             client_name: companyName,
             project_title: `${MARKER} Rope Rescue Equipment`,

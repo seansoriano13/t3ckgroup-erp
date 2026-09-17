@@ -24,18 +24,33 @@ import { canRead, tryInsert, tryUpdate, tryDelete, RLS_VIOLATION } from "./suppo
 const EVERYONE = CAST_KEYS
 
 /**
- * Who `sor_update` lets through on the seeded SOR. The registrar, the deal
- * owner, either supporting salesperson and the sales director, plus anyone
- * holding is_head or is_super_admin — which is why a sub-department head who
- * has nothing to do with the record appears here. #130 reuses this exact set,
- * plus HR, as the read predicate.
+ * What `sor_update`'s own USING clause names: the registrar, the deal owner,
+ * either supporting salesperson and the sales director, plus anyone holding
+ * is_head or is_super_admin. #293 (ADR 0021) leaves this predicate's text
+ * untouched — it narrows `sor_read` only — but Postgres requires a row to
+ * pass the table's SELECT policy before an UPDATE (or DELETE) may touch it at
+ * all, on top of whatever the UPDATE policy's own USING allows. A Group Task
+ * below documents the same mechanic. So narrowing reads narrows this set for
+ * free: `subHead` matches the predicate but, with no Deal Team role or Always
+ * sees grant, can no longer edit the SOR either. `MAY_EDIT_THE_SOR` is the
+ * intersection actually left standing.
  */
-const MAY_EDIT_THE_SOR = ["dealOwner", "support", "head", "subHead", "superAdmin"]
-const MAY_NOT_EDIT_THE_SOR = EVERYONE.filter((k) => !MAY_EDIT_THE_SOR.includes(k))
+const SOR_UPDATE_PREDICATE = ["dealOwner", "support", "head", "subHead", "superAdmin"]
 
-/** `sor_read` is the edit predicate plus HR, stated explicitly. */
-const MAY_READ_THE_SOR = [...MAY_EDIT_THE_SOR, "hr"]
+/**
+ * `sor_read` as of #293 (ADR 0021): the Deal Team — registrar, Deal Owner,
+ * Closing Salesperson, either Support Sales, Sales Director — plus Super
+ * Admins. `head` is here because the fixture below names them the seeded
+ * SOR's Sales Director, a Deal Team role, not because `is_head` grants
+ * anything any more. `subHead` holds only `is_head` with no role on this
+ * record, which is exactly the access Heads lost. A Sales Flow's Always sees
+ * list is what would put a Head or HR back; covered separately below.
+ */
+const MAY_READ_THE_SOR = ["dealOwner", "support", "closingSales", "head", "superAdmin"]
 const MAY_NOT_READ_THE_SOR = EVERYONE.filter((k) => !MAY_READ_THE_SOR.includes(k))
+
+const MAY_EDIT_THE_SOR = SOR_UPDATE_PREDICATE.filter((k) => MAY_READ_THE_SOR.includes(k))
+const MAY_NOT_EDIT_THE_SOR = EVERYONE.filter((k) => !MAY_EDIT_THE_SOR.includes(k))
 
 /** Who `committee_task_visible` lets through on the seeded Group Task: its
  * creator, its one named member, and a Super Admin. */
@@ -62,6 +77,7 @@ beforeAll(async () => {
         dealOwnerId: ids.dealOwner,
         supportSales1Id: ids.support,
         salesDirectorId: ids.head,
+        closingSalesId: ids.closingSales,
     })
     othersSor = await makeSor({
         registeredBy: ids.outsider,
@@ -116,9 +132,9 @@ describe("a table that is supposed to be protected", () => {
 // SOR
 // ===========================================================================
 
-describe("reading an SOR", () => {
+describe("reading an SOR (#293, ADR 0021 — Deal Team plus Always sees)", () => {
     it.each(MAY_READ_THE_SOR)(
-        "%s can read an SOR they are attached to, oversee, or hold HR access to",
+        "%s can read an SOR they are on the Deal Team for, or a Super Admin",
         async (key) => {
             const client = await clientFor(key)
             expect(await canRead(client, "sales_opportunities", sor)).toBe(true)
@@ -133,6 +149,21 @@ describe("reading an SOR", () => {
         },
     )
 
+    it("a Head with no Deal Team role on the record cannot read it — Heads lost automatic access", async () => {
+        const client = await clientFor("subHead")
+        expect(await canRead(client, "sales_opportunities", sor)).toBe(false)
+    })
+
+    it("an HR employee with no Deal Team role on the record cannot read it — HR lost automatic access", async () => {
+        const client = await clientFor("hr")
+        expect(await canRead(client, "sales_opportunities", sor)).toBe(false)
+    })
+
+    it("the Closing Salesperson can read their own SOR for the first time", async () => {
+        const client = await clientFor("closingSales")
+        expect(await canRead(client, "sales_opportunities", sor)).toBe(true)
+    })
+
     it("whoever registered an SOR can still read it after handing it over", async () => {
         const client = await clientFor("outsider")
         expect(await canRead(client, "sales_opportunities", othersSor)).toBe(true)
@@ -145,6 +176,78 @@ describe("reading an SOR", () => {
 
     it("a caller who is not signed in can read no SOR at all", async () => {
         expect(await canRead(anonymousClient(), "sales_opportunities", sor)).toBe(false)
+    })
+})
+
+describe("reading an SOR via a Sales Flow's Always sees list (#293, ADR 0021)", () => {
+    let saleTypeId
+    let flowId
+    let stageId
+    let flowSor
+
+    beforeAll(async () => {
+        const svc = serviceClient()
+
+        const saleType = await svc
+            .from("sale_types")
+            .insert({ name: `${MARKER} Always Sees Sale Type` })
+            .select("id")
+            .single()
+        if (saleType.error) throw new Error(`Seeding a Sale Type: ${saleType.error.message}`)
+        saleTypeId = saleType.data.id
+
+        const flow = await svc
+            .from("sales_flows")
+            .insert({ sale_type_id: saleTypeId })
+            .select("id")
+            .single()
+        if (flow.error) throw new Error(`Seeding a flow: ${flow.error.message}`)
+        flowId = flow.data.id
+
+        const stage = await svc
+            .from("flow_stages")
+            .insert({ flow_id: flowId, name: `${MARKER} Enquiry`, sort_order: 10 })
+            .select("id")
+            .single()
+        if (stage.error) throw new Error(`Seeding a stage: ${stage.error.message}`)
+        stageId = stage.data.id
+
+        const access = await svc.from("flow_access_settings").insert({
+            flow_id: flowId,
+            always_sees: [{ type: "employee", id: ids.hr }],
+        })
+        if (access.error) throw new Error(`Seeding flow_access_settings: ${access.error.message}`)
+
+        flowSor = await makeSor({
+            registeredBy: ids.outsider,
+            saleTypeId,
+            flowStageId: stageId,
+            companyName: `${MARKER} Always Sees Company`,
+        })
+    })
+
+    afterAll(async () => {
+        const svc = serviceClient()
+        await svc.from("sales_opportunities").delete().eq("id", flowSor)
+        await svc.from("flow_access_settings").delete().eq("flow_id", flowId)
+        await svc.from("flow_stages").delete().eq("id", stageId)
+        await svc.from("sales_flows").delete().eq("id", flowId)
+        await svc.from("sale_types").delete().eq("id", saleTypeId)
+    })
+
+    it("an employee named in that flow's Always sees list can read every SOR of that Sale Type", async () => {
+        const client = await clientFor("hr")
+        expect(await canRead(client, "sales_opportunities", flowSor)).toBe(true)
+    })
+
+    it("an employee not named in Always sees, and not on the Deal Team, still cannot read it", async () => {
+        const client = await clientFor("dealOwner")
+        expect(await canRead(client, "sales_opportunities", flowSor)).toBe(false)
+    })
+
+    it("Always sees does not reach an SOR of a different Sale Type", async () => {
+        const client = await clientFor("hr")
+        expect(await canRead(client, "sales_opportunities", sor)).toBe(false)
     })
 })
 
@@ -170,7 +273,12 @@ describe("reading an SOR's items through an embedded select", () => {
         await serviceClient().from("sales_opportunity_items").delete().eq("id", itemId)
     })
 
-    it.each(MAY_READ_THE_SOR)(
+    // `sales_opportunity_items` still reads through `sor_can_edit_opportunity`,
+    // which #293 leaves untouched — it doesn't know about closing_sales_id.
+    // `closingSales` is deliberately excluded here: they see the parent row
+    // (proven above) but not yet its items, a child-table gap the later
+    // Stage-scoped-visibility tickets (#294-#297) close, not this one.
+    it.each(MAY_READ_THE_SOR.filter((k) => k !== "closingSales"))(
         "%s sees the item embedded in an SOR they may read",
         async (key) => {
             const client = await clientFor(key)
@@ -182,6 +290,17 @@ describe("reading an SOR's items through an embedded select", () => {
             expect(data[0]?.sales_opportunity_items.map((i) => i.id)).toContain(itemId)
         },
     )
+
+    it("the Closing Salesperson sees the SOR but not yet its items — sales_opportunity_items is a later ticket", async () => {
+        const client = await clientFor("closingSales")
+        const { data, error } = await client
+            .from("sales_opportunities")
+            .select("id, sales_opportunity_items(id)")
+            .eq("id", sor)
+        expect(error).toBeNull()
+        expect(data[0]?.id).toBe(sor)
+        expect(data[0]?.sales_opportunity_items).toEqual([])
+    })
 
     it.each(MAY_NOT_READ_THE_SOR)(
         "%s gets neither the SOR nor its item through an embedded select",
@@ -223,6 +342,8 @@ describe("registering an SOR", () => {
     })
 })
 
+/** Bypasses RETURNING's SELECT filter entirely, to prove a write landed even
+ *  for an actor `sor_read` (#293) no longer lets read the row back. */
 describe("editing an SOR", () => {
     it.each(MAY_EDIT_THE_SOR)("%s can edit an SOR they are attached to or oversee", async (key) => {
         const client = await clientFor(key)
@@ -240,15 +361,18 @@ describe("editing an SOR", () => {
         expect(result.affected, `${key} was allowed to edit`).toBe(0)
     })
 
-    it("a sub-department head can edit any SOR in the company, including one from another department", async () => {
-        // `is_head` is not scoped to a department anywhere in the policy, so a
-        // team lead in Sales can edit an Operations record. #129 leaves this
-        // as it is; narrowing it needs the departments table that is deferred.
+    it("a sub-department head can no longer edit an SOR they have no Deal Team role on — #293 narrows this for free", async () => {
+        // Before #293, `is_head` alone satisfied `sor_update`'s own USING
+        // clause regardless of role. It still does, textually — but Postgres
+        // requires a row to pass the table's SELECT policy before an UPDATE
+        // may touch it at all, same as the Group Task tables below, and
+        // `sor_read` (#293) no longer lets a Head with no role on the record
+        // through. The predicate's text is unchanged; what it can reach is not.
         const client = await clientFor("subHead")
         const result = await tryUpdate(client, "sales_opportunities", othersSor, {
             lost_reason: "touched by a head from another department",
         })
-        expect(result.affected).toBe(1)
+        expect(result.affected).toBe(0)
     })
 
     it("whoever registered an SOR keeps the ability to edit it after handing it over", async () => {

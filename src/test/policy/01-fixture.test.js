@@ -35,8 +35,8 @@ describe("the seeded cast", () => {
         employees = Object.fromEntries(data.map((e) => [e.email, e]))
     })
 
-    it("creates every one of the eleven identities the matrix discriminates on", () => {
-        expect(CAST_KEYS).toHaveLength(11)
+    it("creates every one of the twelve identities the matrix discriminates on", () => {
+        expect(CAST_KEYS).toHaveLength(12)
         for (const key of CAST_KEYS) {
             expect(employees[castEmail(key)], `missing employee row for ${key}`).toBeTruthy()
         }
