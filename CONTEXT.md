@@ -380,7 +380,17 @@ _Avoid_: Line Item, Procurement Request
 
 **Procurement Queue**:
 The cross-SOR list of every Purchase Request with a Requested Item still open.
-_Avoid_: Purchasing Dashboard, Sourcing List
+_Avoid_: Sourcing List, Purchasing Dashboard (a different thing: the Queue lists open requests, the Dashboard groups all buying by what is outstanding)
+
+**Purchasing Dashboard**:
+Where every project's buying is seen at once, grouped by what is outstanding
+rather than by which record holds it — **To source**, **To price**, **To order**,
+**On order**, **To check**. The groups are derived and never stored, and one SOR
+sits in as many as apply, because purchasing is not a line: components are
+canvassed while others are already ordered and others are on a truck. Sits above
+the Procurement Queue and Order Monitoring rather than replacing either — they
+answer what to do today, this answers where everything is.
+_Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
 
 **Inclusion**:
 One item that comes with a bundle Component in the Costing Matrix — the cabinet or beacon lights that come with a vehicle, the registration that comes with it. Carries no price of its own; it is listed so it can be checked as actually included. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Anything bought or taken from stock on its own is a Component, not an Inclusion, however a sheet lists it.
@@ -399,12 +409,49 @@ Odoo's count of a product that is on hand and not reserved, per warehouse, as of
 _Avoid_: Inventory (unqualified), Live Stock
 
 **Canvass**:
-The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase never appeared on a Costing Matrix — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Carries the reason its winner was chosen, written by the canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished.
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
 _Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
 
 **Offer**:
 One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
 _Avoid_: Quote, Bid, Supplier Response
+
+**Reference Rate**:
+The PHP value of one unit of a foreign currency on a given day, fetched once a
+day from one source and always shown with the day it is for. It pre-fills an
+Offer's comparison rate, and nowhere else does it fill anything: on an IPAS
+payment it is shown beside the typed rate as context and flags a wide
+divergence, so a fat-fingered rate is caught without an estimate ever being
+saved as the fact. The rate that reaches Landed Cost is always the one actually
+paid. Never presented as live — a bid that revalued itself overnight could not
+be signed — so it is a fact with a date on it, the way Stock Availability is,
+and a failed fetch keeps the last good rate under its own stale date rather than
+showing nothing.
+_Avoid_: Exchange Rate (unqualified), Live Rate, Forex, Comparison Rate (the
+Offer's own figure, which a Reference Rate only suggests)
+
+**Offer Projection**:
+What a Component's costing would become if a given Offer won, shown beside every
+Offer in a Canvass so the choice can be judged before it is made. Split the way
+the matrix itself is: the purchaser sees the projected Acquire in PHP and the
+Markup Price that follows — enough to compare three suppliers — and the Closed
+Book adds the projected margin and what the matrix summary would become.
+Arithmetic over the live matrix, computed on the fly and never stored: there is
+one Costing Matrix, and a Projection is a look at it, not a copy of it. Exists
+only where the Canvass has a Component; a Canvass on a bare Requested Item has
+no row to project.
+_Avoid_: Draft Matrix, Scenario, What-if, Alternative Costing
+
+**Canvasser**:
+The purchaser who owns a Canvass — defaulting to the Purchase Request's Buyer,
+changeable by Purchasing, and the name printed as "Canvassed by". Ownership, not
+access: every employee with Purchasing access reads every Canvass, and the
+Canvasser is who answers for this one. Research runs over days and people go on
+leave, so the paper names whoever holds it now rather than whoever opened it;
+the creator stays in the audit trail. A Canvasser cannot sign off their own
+Canvass.
+_Avoid_: Assignee, Creator, Canvassed by (as the field name), Buyer (a Purchase
+Request's role)
 
 ### Philippine Government Procurement
 
@@ -574,6 +621,20 @@ which is Purchasing's proposed cost and the one markup is taken from, nor Landed
 Cost, which is what the item turned out to cost once bought.
 _Avoid_: Final Cost, Approved Cost, Management Price
 
+**Closed Book**:
+The figures that reveal the spread between what T3CK pays and what it charges —
+Final Acquire, the markup factor, the Costing Matrix summary, achieved markup,
+the projected margin on an Offer, and the numbers a Bid Decision was taken
+against — read only by Super Admins and the Final Acquire list. The rest of the
+matrix stays open to the people who fill it, because the two sides never meet:
+Purchasing proposes Acquire and never sees the Final Offer; Sales reads the peso
+Markup Price, types the Final Offer, and sees neither the cost nor the factor
+that produced it. Neither side can derive the margin alone, which is the whole
+point, and the database serves each side its own column list rather than the
+browser hiding what it was sent. Distinct from the write bands, which say who may
+*change* a column and grant no reading.
+_Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
+
 **Incharge**:
 The salesperson and the purchaser who answer for a Costing Matrix row — set once
 for the matrix, and overridable row by row. Names only: being Incharge grants no
@@ -584,8 +645,10 @@ _Avoid_: Assignee, Owner, Buyer (a Purchase Request's role)
 A factor on a Component's Acquire cost that suggests its Markup Price. The
 Costing Matrix has one default factor, typed or picked from presets the business
 edits, which any component or cost-only row can override; cost-only rows start
-at ×1.00. Only ever a suggestion: Sales sets the Final Offer, and each tender
-line shows the markup it actually achieves beside the target.
+at ×1.00. Set by the Final Acquire list and part of the Closed Book, because the
+factor and the Markup Price together give away the Acquire behind them. Only ever
+a suggestion: Sales reads the peso Markup Price, sets the Final Offer, and each
+tender line's achieved markup is reported back to the Closed Book alone.
 _Avoid_: Margin, Auto Pricing, Mark-up percentage (as the stored form)
 
 **Evaluation of Specification**:
@@ -611,6 +674,17 @@ The income tax the Costing Matrix deducts from an offer — 8% of the Final Offe
 Commission Rate called Withholding, even though that rate is labelled
 "Withholding (ITR)" on screen.
 _Avoid_: Withholding, Income Tax (unqualified)
+
+**Bid Decision**:
+Whether the company bids the offer it has just priced — Go, No-go or Revise —
+recorded on the Costing Matrix against the Final Offer total and the ABC it was
+taken at, with the reason in the decider's own words. What the Costing Matrix
+exists to produce: the judgement of whether this price can win this project.
+Cleared by any later change to a Final Offer or a Final Acquire, so a Go always
+refers to numbers that still stand. Not the retired Project Evaluation, which
+judged whether a deal was worth chasing before anything was costed; this judges
+one priced offer.
+_Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
 
 ### Chat & Mentions
 
