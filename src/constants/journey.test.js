@@ -80,6 +80,14 @@ describe("journeyRows", () => {
     expect(expanded[0].isExpanded).toBe(true)
   })
 
+  it("never expands a restricted past visit, even when its id is in expandedIds (#296)", () => {
+    const restricted = makeVisit({ id: "past", sequence: 1, leftAt: "2026-01-02T00:00:00Z", isRestricted: true })
+
+    const rows = journeyRows([restricted], { expandedIds: ["past"] })
+
+    expect(rows[0].isExpanded).toBe(false)
+  })
+
   it("handles a visit with no tasks", () => {
     const past = makeVisit({ id: "past", sequence: 1, leftAt: "2026-01-02T00:00:00Z", tasks: [], groupTasks: [] })
     const current = makeVisit({ id: "current", sequence: 2, enteredAt: "2026-01-02T00:00:00Z", tasks: [], groupTasks: [] })
@@ -114,6 +122,24 @@ describe("visitSummary", () => {
     })
 
     expect(visitSummary(visit).line).toBe("Nothing outstanding")
+  })
+
+  it("reports 'This stage is restricted' rather than counting anything, for a restricted visit (#296)", () => {
+    // Even if conditions/tasks somehow arrived on the object (they never do —
+    // RLS already stripped them), a restricted visit's summary must not
+    // count them: the line would otherwise misread as "nothing outstanding"
+    // rather than "you can't see what's here".
+    const visit = makeVisit({
+      isRestricted: true,
+      conditions: [{ status: CONDITION_STATUS.UNSATISFIED }],
+      tasks: [{ status: TASK_STATUS.INCOMPLETE }],
+    })
+
+    const summary = visitSummary(visit)
+    expect(summary.line).toBe("This stage is restricted")
+    expect(summary.isRestricted).toBe(true)
+    expect(summary.outstandingConditions).toBe(0)
+    expect(summary.openTasks).toBe(0)
   })
 })
 

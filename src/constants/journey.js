@@ -68,6 +68,22 @@ const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`
  * the Journey would otherwise repeat the whole tab beside it.
  */
 export function visitSummary(visit) {
+  // #296: a restricted visit carries no conditions/tasks to count — RLS
+  // already stripped them — so its summary line says exactly that instead
+  // of misreading "nothing outstanding" as "there is nothing here".
+  if (visit?.isRestricted) {
+    return {
+      stageName: visit?.stage?.name || "This stage",
+      bracket: visit?.stage?.bracket || null,
+      enteredAt: visit?.enteredAt || null,
+      enteredBy: visit?.enteredBy || null,
+      outstandingConditions: 0,
+      openTasks: 0,
+      isRestricted: true,
+      line: "This stage is restricted",
+    }
+  }
+
   const outstanding = (visit?.conditions || []).filter(isConditionOutstanding).length
   const openTasks = [...(visit?.tasks || []), ...(visit?.groupTasks || [])].filter(isTaskOpen).length
 
@@ -82,6 +98,7 @@ export function visitSummary(visit) {
     enteredBy: visit?.enteredBy || null,
     outstandingConditions: outstanding,
     openTasks,
+    isRestricted: false,
     line: parts.length > 0 ? parts.join(" · ") : "Nothing outstanding",
   }
 }
@@ -115,7 +132,9 @@ export function journeyRows(visits = [], { expandedIds = [] } = {}) {
       visit,
       isCurrent,
       // The current visit never collapses: it has no detail here to hide.
-      isExpanded: !isCurrent && expanded.has(visit.id),
+      // A restricted visit never expands either — #296, there is nothing
+      // behind it to open once RLS has stripped its contents.
+      isExpanded: !isCurrent && !visit.isRestricted && expanded.has(visit.id),
       summary: isCurrent ? visitSummary(visit) : null,
     }
   })

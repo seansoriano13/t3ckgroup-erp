@@ -1,6 +1,6 @@
 import { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { AlertTriangle, CircleDot, Flag, Octagon, Plus } from "lucide-react";
+import { AlertTriangle, CircleDot, Eye, Flag, Octagon, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Dropdown from "@/components/ui/Dropdown";
@@ -157,6 +157,8 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
     canAddStage = false,
     onAddStage,
     hasAccessFallbackWarning = false,
+    hasAccessNote = false,
+    accessLensState = null,
   } = data;
   const [addOpen, setAddOpen] = useState(false);
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
@@ -177,6 +179,12 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
 
   const bgClass = COLOR_BACKGROUNDS[colorKey] || COLOR_BACKGROUNDS.mauve;
 
+  // Issue #296 — "View as" dims a Stage the selected identity can't see at
+  // all, and rings one that calls them in; `null` (nobody selected, or
+  // nothing restricts/calls this Stage) leaves the node exactly as it was.
+  const isHiddenForViewer = accessLensState === "hidden";
+  const callsViewerIn = accessLensState === "calls-in";
+
   return (
     <div
       style={{ width: STAGE_W, minHeight: STAGE_H }}
@@ -184,9 +192,11 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         "group/stage relative flex flex-col justify-center gap-2 rounded-2xl px-4 py-3.5",
         bgClass,
         "shadow-[0_1px_2px_rgba(0,0,0,0.05),0_10px_24px_-14px_rgba(0,0,0,0.35)]",
-        "transition-[box-shadow,outline-color] duration-150",
+        "transition-[box-shadow,outline-color,opacity] duration-150",
         "-outline-offset-1",
-        outlineClass
+        outlineClass,
+        isHiddenForViewer && "opacity-35 grayscale",
+        callsViewerIn && "outline-2 outline-amber-9 shadow-[0_0_0_4px_var(--amber-a4)]",
       )}
     >
       <Handle
@@ -242,6 +252,15 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
                 title="An access window here fell back to 'calling Stage left' — its chosen end Stage was deleted."
               >
                 Access fallback
+              </Chip>
+            )}
+            {hasAccessNote && (
+              <Chip
+                className="bg-mauve-a4 text-mauve-11"
+                icon={Eye}
+                title="This Stage restricts who can see it, or calls someone in."
+              >
+                Access
               </Chip>
             )}
           </div>

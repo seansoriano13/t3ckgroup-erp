@@ -3272,6 +3272,23 @@ export const opportunityService = {
     const visits = visitRows || [];
     if (visits.length === 0) return [];
 
+    // #296: sor_stage_visits itself reads open to any signed-in employee
+    // (20260915030000's deliberate choice), so a Restricted Stage's visit
+    // row still comes back above — that's what lets the Journey render its
+    // one line. What must NOT come back is its contents, and this is how
+    // the tab tells which visits those are: anything sor_visible_visit_ids
+    // leaves out is restricted for the caller, even though the row itself
+    // was readable. Only asked once a visit exists — a deal with none has
+    // nothing that could be restricted, and nothing to scope the RPC by.
+    const { data: visibleVisitRows, error: visibleVisitsError } = await supabase.rpc("sor_visible_visit_ids", {
+      p_opportunity_id: opportunityId,
+    });
+    if (visibleVisitsError) throw visibleVisitsError;
+
+    const visibleVisitIds = new Set(
+      (visibleVisitRows || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids)),
+    );
+
     const snapshotIdFor = (visit) => visit.flow_snapshot_id || opportunity?.flow_snapshot_id || null;
     const snapshotIds = [...new Set(visits.map(snapshotIdFor).filter(Boolean))];
     const stageIds = [...new Set(visits.map((v) => v.flow_stage_id).filter(Boolean))];
@@ -3315,6 +3332,7 @@ export const opportunityService = {
 
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
+      const isRestricted = !visibleVisitIds.has(visit.id);
       return {
         ...visitWindow,
         sequence: visit.sequence,
@@ -3322,8 +3340,13 @@ export const opportunityService = {
         flowSnapshotId: snapshotIdFor(visit),
         enteredBy: visit.enteredBy || null,
         leftBy: visit.leftBy || null,
-        tasks: tasks.filter((task) => visitOwnsTask(task, visitWindow)),
-        groupTasks: groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
+        // #296: a restricted visit's contents never populate these — RLS on
+        // tasks/committee_tasks/sor_condition_status already excludes them —
+        // but `isRestricted` is what tells the tab to render one line
+        // instead of an (accidentally empty-looking) full row.
+        isRestricted,
+        tasks: isRestricted ? [] : tasks.filter((task) => visitOwnsTask(task, visitWindow)),
+        groupTasks: isRestricted ? [] : groupTasks.filter((task) => visitOwnsTask(task, visitWindow)),
         // #209 fills this in with the visit's Purchase Requests; until it does,
         // the slot exists so the tab renders the same shape either way.
         requestedItems: [],
@@ -3332,6 +3355,7 @@ export const opportunityService = {
 
     const withConditions = await Promise.all(
       shaped.map(async (visit) => {
+        if (visit.isRestricted) return { ...visit, conditions: [] };
         const conditions = conditionsForSnapshotStage(
           snapshotsById[visit.flowSnapshotId]?.snapshot_data?.conditions || [],
           visit.stage.id,

@@ -2867,6 +2867,15 @@ describe("opportunityService", () => {
       v1 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id, sequence: 1, entered_at: "2026-01-01T00:00:00.000Z", left_at: "2026-01-10T00:00:00.000Z" })
       v2 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: qualified.id, flow_snapshot_id: snapshot.id, sequence: 2, entered_at: "2026-01-10T00:00:00.000Z", left_at: "2026-01-20T00:00:00.000Z" })
       v3 = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id, sequence: 3, entered_at: "2026-01-20T00:00:00.000Z" })
+
+      // #296: getJourney asks sor_visible_visit_ids which of this deal's
+      // visits are restricted for the caller. None of these tests are about
+      // restriction, so the stub names every visit visible — the fake store
+      // has no Postgres function to fall back on.
+      stubRpc("sor_visible_visit_ids", (args) => {
+        expect(args).toMatchObject({ p_opportunity_id: deal.id })
+        return [v1.id, v2.id, v3.id]
+      })
     })
 
     it("lists every visit latest first, named from the SOR's own snapshot", async () => {

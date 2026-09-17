@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
+  Eye,
   Lock,
   LockOpen,
   Pencil,
@@ -40,9 +41,14 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import Spinner from "@/components/ui/Spinner";
 import { Tooltip } from "@/components/ui/Tooltip";
+import PeoplePicker from "@/components/ui/PeoplePicker";
 import { supabase } from "../../lib/supabase";
 import { opportunityService } from "../../services/opportunityService";
+import { employeeService } from "../../services/employeeService";
+import { employeeGroupService } from "../../services/employeeGroupService";
+import { flowAccessService } from "../../services/flowAccessService";
 import { formatVersionNumber, formatSnapshotVersion } from "../../constants/flowVersion";
+import { canvasAccessLens, stageHasAccessNote } from "../../utils/canvasAccessLens";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
@@ -88,6 +94,12 @@ const edgeTypes = {
  * infinite rebuild loop rather than a missing value.
  */
 const NO_SATELLITES = Object.freeze({});
+// Same reasoning as NO_SATELLITES above, for the #296 access-lens reads: a
+// fresh `[]`/`{}` default on every render while a query is still unsettled
+// is a new dependency on every render, which is an infinite rebuild loop of
+// the node-building effect below rather than a missing value.
+const NO_EMPLOYEES = Object.freeze([]);
+const NO_GROUPS = Object.freeze([]);
 
 const EDGE_COLOR = "var(--mauve-9)";
 const SATELLITE_COLOR = { [GATE]: "var(--amber-a8)", [RUN]: "var(--violet-a8)" };
@@ -162,6 +174,9 @@ function FlowCanvasInner() {
   // Collapsed by default (issue #194) — archived Sale Types stay out of the
   // way of the working list until someone asks to see them.
   const [showArchivedTypes, setShowArchivedTypes] = useState(false);
+  // Issue #296: who the Operations Manager is previewing the canvas as — a
+  // single resolvePeople.js selector, or null for "nobody, show everything".
+  const [viewAsSelector, setViewAsSelector] = useState(null);
 
   const { data: saleTypes, isLoading: loadingTypes } = useQuery({
     queryKey: ["saleTypes", "all"],
@@ -225,6 +240,50 @@ function FlowCanvasInner() {
     queryFn: () => stageActionService.getForStages(stageIds),
     enabled: stageIds.length > 0,
   });
+
+  // Issue #296: every Stage's restriction config in one round trip — the eye
+  // chip and the "View as" lens both need it, and neither is worth a query
+  // per Stage.
+  const { data: stageAccessByStage = NO_SATELLITES } = useQuery({
+    queryKey: ["stageAccessByStage", stageKey],
+    queryFn: () => flowAccessService.getForStages(stageIds),
+    enabled: stageIds.length > 0,
+  });
+
+  // Shares its cache with PeoplePicker's own reads below, so opening "View
+  // as" costs nothing extra once the picker has been opened once.
+  const { data: allEmployees = NO_EMPLOYEES } = useQuery({
+    queryKey: ["employees"],
+    queryFn: () => employeeService.getAllEmployees(),
+  });
+  const { data: allGroups = NO_GROUPS } = useQuery({
+    queryKey: ["employeeGroups", "all"],
+    queryFn: () => employeeGroupService.list({ includeArchived: true }),
+  });
+
+  const groupMembersById = useMemo(
+    () => Object.fromEntries(allGroups.map((g) => [g.id, { employeeIds: g.memberIds || [] }])),
+    [allGroups],
+  );
+
+  // canvasAccessLens is pure: this is the one place its input snapshot is
+  // assembled, from the same access rows the eye chip below reads.
+  const accessLens = useMemo(
+    () =>
+      canvasAccessLens({
+        snapshotLikeDraft: {
+          stages: stages.map((s) => ({
+            id: s.id,
+            shutOutRoles: stageAccessByStage[s.id]?.shutOutRoles || [],
+            excludedGroupIds: stageAccessByStage[s.id]?.excludedGroupIds || [],
+          })),
+          employees: allEmployees,
+          groupMembersById,
+        },
+        selector: viewAsSelector,
+      }),
+    [stages, stageAccessByStage, allEmployees, groupMembersById, viewAsSelector],
+  );
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["saleTypes"] });
@@ -527,6 +586,10 @@ function FlowCanvasInner() {
             [...(conditionsByStage[stage.id] ?? []), ...(actionsByStage[stage.id] ?? [])].some(
               (item) => item.config?.accessFallbackWarning,
             ),
+          // Issue #296: the eye chip (this Stage restricts or calls someone
+          // in) and the "View as" verdict for whoever is currently selected.
+          hasAccessNote: stageHasAccessNote(stageAccessByStage[stage.id]),
+          accessLensState: viewAsSelector ? accessLens[stage.id] : null,
         },
         draggable: !isLocked,
       });
@@ -632,6 +695,9 @@ function FlowCanvasInner() {
     entry,
     conditionsByStage,
     actionsByStage,
+    stageAccessByStage,
+    accessLens,
+    viewAsSelector,
     selection,
     isLocked,
     viewingSnapshot,
@@ -1241,6 +1307,50 @@ function FlowCanvasInner() {
                 <SorFormBuilder flow={flow} />
 
                 <FlowAccessSettings flowId={flow.id} disabled={isLocked} />
+
+                {/* Issue #296: preview the canvas as a role/group/person — a
+                    pure canvasAccessLens verdict per Stage, not a live
+                    session, so it works before anything is published. */}
+                <Dropdown
+                  usePortal
+                  placement="bottom-start"
+                  popoverClassName="popover-enter z-[10001] w-80 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
+                  trigger={
+                    <Tooltip content="View as">
+                      <Button
+                        variant={viewAsSelector ? "secondary" : "ghost"}
+                        size="icon-sm"
+                        aria-label="View as"
+                      >
+                        <Eye size={14} />
+                      </Button>
+                    </Tooltip>
+                  }
+                >
+                  {() => (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+                        View as
+                      </p>
+                      <PeoplePicker
+                        value={viewAsSelector ? [viewAsSelector] : []}
+                        onChange={(next) => setViewAsSelector(next[next.length - 1] || null)}
+                        allowRoles
+                        placeholder="Pick a role, group, or person"
+                      />
+                      {viewAsSelector && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => setViewAsSelector(null)}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </Dropdown>
 
                 <div className="mx-1 h-4 w-px bg-border" />
 

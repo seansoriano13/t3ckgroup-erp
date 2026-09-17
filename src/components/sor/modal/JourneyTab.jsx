@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleDashed, History, PackageSearch } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleDashed, History, PackageSearch, ShieldOff } from "lucide-react";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import TabSkeleton from "./TabSkeleton";
@@ -87,8 +87,42 @@ function VisitGroup({ label, children, count }) {
  * looped can carry a dozen of these, and a reader opening the Journey is
  * looking for the shape of the history before any one visit's detail.
  */
+/**
+ * A restricted Stage Visit (#296): one line, no toggle, no counts. RLS has
+ * already stripped its conditions/tasks, so there is nothing behind this row
+ * to open — rendering it as an ordinary PastVisit would show "0 tasks · All
+ * met", which reads as "nothing happened here" rather than "you can't see
+ * what happened here".
+ */
+function RestrictedVisit({ visit }) {
+  const entered = formatWhen(visit.enteredAt);
+  const left = formatWhen(visit.leftAt);
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/50 px-3 py-2">
+      <ShieldOff size={14} className="shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">
+        <span className="text-xs font-bold text-foreground">{visit.stage.name}</span>
+        {visit.stage.bracket && (
+          <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
+            {visit.stage.bracket}
+          </span>
+        )}
+      </span>
+      <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+        {entered} → {left || "open"}
+      </span>
+      <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">
+        Restricted
+      </span>
+    </div>
+  );
+}
+
 function PastVisit({ row, onToggle }) {
   const { visit, isExpanded } = row;
+  if (visit.isRestricted) return <RestrictedVisit visit={visit} />;
+
   const entered = formatWhen(visit.enteredAt);
   const left = formatWhen(visit.leftAt);
   const unmet = visit.conditions.filter(isConditionOutstanding).length;
