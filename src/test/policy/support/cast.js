@@ -120,6 +120,16 @@ export const CAST = {
         role: "OPERATIONS MANAGER",
         can_edit_sales_flows: true,
     },
+    stageParticipant: {
+        // #295 (ADR 0021): called into a single Stage's work by an action or
+        // Assignment condition — no Deal Team role, no Always-sees grant, so
+        // any access this identity gets can only come from an open
+        // sor_stage_participants window.
+        name: "Stage Participant",
+        department: "OPERATIONS",
+        sub_department: "PROCUREMENT",
+        role: "PURCHASER",
+    },
     superAdmin: {
         name: "Super Admin",
         department: "ADMINISTRATION",

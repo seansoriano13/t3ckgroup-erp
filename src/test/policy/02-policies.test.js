@@ -302,12 +302,12 @@ describe("reading an SOR's items through an embedded select", () => {
         await serviceClient().from("sales_opportunity_items").delete().eq("id", itemId)
     })
 
-    // `sales_opportunity_items` still reads through `sor_can_edit_opportunity`,
-    // which #293 leaves untouched — it doesn't know about closing_sales_id.
-    // `closingSales` is deliberately excluded here: they see the parent row
-    // (proven above) but not yet its items, a child-table gap the later
-    // Stage-scoped-visibility tickets (#294-#297) close, not this one.
-    it.each(MAY_READ_THE_SOR.filter((k) => k !== "closingSales"))(
+    // #295 (ADR 0021) moved `sales_opportunity_items` off
+    // `sor_can_edit_opportunity` onto the same Deal Team / Always-sees test
+    // `sales_opportunities` itself now reads through — closing_sales_id
+    // included, closing the child-table gap the old version of this test
+    // documented as still open.
+    it.each(MAY_READ_THE_SOR)(
         "%s sees the item embedded in an SOR they may read",
         async (key) => {
             const client = await clientFor(key)
@@ -319,17 +319,6 @@ describe("reading an SOR's items through an embedded select", () => {
             expect(data[0]?.sales_opportunity_items.map((i) => i.id)).toContain(itemId)
         },
     )
-
-    it("the Closing Salesperson sees the SOR but not yet its items — sales_opportunity_items is a later ticket", async () => {
-        const client = await clientFor("closingSales")
-        const { data, error } = await client
-            .from("sales_opportunities")
-            .select("id, sales_opportunity_items(id)")
-            .eq("id", sor)
-        expect(error).toBeNull()
-        expect(data[0]?.id).toBe(sor)
-        expect(data[0]?.sales_opportunity_items).toEqual([])
-    })
 
     it.each(MAY_NOT_READ_THE_SOR)(
         "%s gets neither the SOR nor its item through an embedded select",
