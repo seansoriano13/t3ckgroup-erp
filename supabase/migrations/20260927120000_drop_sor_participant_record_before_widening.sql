@@ -1,0 +1,23 @@
+-- Unblocks 20260928000000_sor_participant_modal_fields.sql (#297).
+--
+-- That migration widens `sor_participant_record` from the handful of columns
+-- #295 returned to every non-money field the SOR modal renders. It does so
+-- with `create or replace`, which Postgres refuses when the returned columns
+-- change:
+--
+--   ERROR: cannot change return type of existing function (SQLSTATE 42P13)
+--
+-- It stopped staging's `db push` at that file, and the policy-test stack
+-- building from empty stops at the same place.
+--
+-- The shipped file is history and is not edited (AGENTS.md, "The migration set
+-- is append-only"). This migration sorts before it and drops the #295 version,
+-- so its `create or replace` runs as a plain create. `db push --include-all`
+-- applies it in filename order even though staging's tip is already past it.
+--
+-- Safe to drop: nothing in the schema depends on the function — no view,
+-- policy or function body references it, and it carries no explicit grants to
+-- lose. The SOR modal reaches it only by RPC, and the next migration recreates
+-- it in the same push.
+
+drop function if exists public.sor_participant_record(uuid);

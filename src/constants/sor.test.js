@@ -359,9 +359,6 @@ describe("realized is having a contract date", () => {
     // instead of relying on each row embedding its own.
     it("resolves the snapshot from a snapshotsById context, even with no embed", () => {
       const won = { ...wonThenLost, flow_snapshot: undefined, flow_stage_id: "s-won" }
-      const snapshotsById = {
-        [won.flow_snapshot_id]: undefined, // no flow_snapshot_id on this fixture; falls through
-      }
       expect(isRealizedOpportunity(won, { snapshotsById: {} })).toBe(false)
 
       const withId = { ...won, flow_snapshot_id: "snap-1" }
