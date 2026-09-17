@@ -183,6 +183,7 @@ describe("reading an SOR via a Sales Flow's Always sees list (#293, ADR 0021)", 
     let saleTypeId
     let flowId
     let stageId
+    let groupId
     let flowSor
 
     beforeAll(async () => {
@@ -212,14 +213,31 @@ describe("reading an SOR via a Sales Flow's Always sees list (#293, ADR 0021)", 
         if (stage.error) throw new Error(`Seeding a stage: ${stage.error.message}`)
         stageId = stage.data.id
 
+        const group = await svc
+            .from("employee_groups")
+            .insert({ name: `${MARKER} Always Sees Group`, created_by: ids.superAdmin })
+            .select("id")
+            .single()
+        if (group.error) throw new Error(`Seeding an employee group: ${group.error.message}`)
+        groupId = group.data.id
+
+        const groupMember = await svc
+            .from("employee_group_members")
+            .insert({ group_id: groupId, employee_id: ids.leaveManager })
+        if (groupMember.error) throw new Error(`Seeding a group member: ${groupMember.error.message}`)
+
         const access = await svc.from("flow_access_settings").insert({
             flow_id: flowId,
-            always_sees: [{ type: "employee", id: ids.hr }],
+            always_sees: [
+                { type: "employee", id: ids.hr },
+                { type: "group", id: groupId },
+                { type: "team", team: "LOGISTICS" },
+            ],
         })
         if (access.error) throw new Error(`Seeding flow_access_settings: ${access.error.message}`)
 
         flowSor = await makeSor({
-            registeredBy: ids.outsider,
+            registeredBy: ids.dealOwner,
             saleTypeId,
             flowStageId: stageId,
             companyName: `${MARKER} Always Sees Company`,
@@ -230,18 +248,29 @@ describe("reading an SOR via a Sales Flow's Always sees list (#293, ADR 0021)", 
         const svc = serviceClient()
         await svc.from("sales_opportunities").delete().eq("id", flowSor)
         await svc.from("flow_access_settings").delete().eq("flow_id", flowId)
+        await svc.from("employee_groups").delete().eq("id", groupId)
         await svc.from("flow_stages").delete().eq("id", stageId)
         await svc.from("sales_flows").delete().eq("id", flowId)
         await svc.from("sale_types").delete().eq("id", saleTypeId)
     })
 
-    it("an employee named in that flow's Always sees list can read every SOR of that Sale Type", async () => {
+    it("an employee selector in Always sees can read every SOR of that Sale Type", async () => {
         const client = await clientFor("hr")
         expect(await canRead(client, "sales_opportunities", flowSor)).toBe(true)
     })
 
+    it("a group selector in Always sees reaches its members", async () => {
+        const client = await clientFor("leaveManager")
+        expect(await canRead(client, "sales_opportunities", flowSor)).toBe(true)
+    })
+
+    it("a team selector in Always sees reaches everyone on that Sub-department", async () => {
+        const client = await clientFor("outsider")
+        expect(await canRead(client, "sales_opportunities", flowSor)).toBe(true)
+    })
+
     it("an employee not named in Always sees, and not on the Deal Team, still cannot read it", async () => {
-        const client = await clientFor("dealOwner")
+        const client = await clientFor("support")
         expect(await canRead(client, "sales_opportunities", flowSor)).toBe(false)
     })
 
