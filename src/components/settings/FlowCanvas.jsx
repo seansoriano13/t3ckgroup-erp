@@ -54,6 +54,7 @@ import FlowBracketNode from "./FlowBracketNode";
 import FlowMoveEdge from "./FlowMoveEdge";
 import StageSettingsPanel from "./StageSettingsPanel";
 import SorFormBuilder from "./SorFormBuilder";
+import FlowAccessSettings from "./FlowAccessSettings";
 import DiffSummary from "./FlowSnapshotDiffSummary";
 import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import FlowVersionViewer from "../sor/FlowVersionViewer";
@@ -1230,6 +1231,8 @@ function FlowCanvasInner() {
                 </Button>
 
                 <SorFormBuilder flow={flow} />
+
+                <FlowAccessSettings flowId={flow.id} disabled={isLocked} />
 
                 <div className="mx-1 h-4 w-px bg-border" />
 

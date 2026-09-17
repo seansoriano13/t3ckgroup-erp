@@ -6,6 +6,7 @@ import { stageConditionService } from "./stageConditionService";
 import { followUpService } from "./followUpService";
 import { stageFieldService } from "./stageFieldService";
 import { formFieldService } from "./formFieldService";
+import { flowAccessService } from "./flowAccessService";
 import { formatSnapshotVersion, formatVersionNumber } from "../constants/flowVersion";
 
 /**
@@ -153,15 +154,18 @@ async function materializeSnapshotIntoFlow(flow, snapshotData, actorId) {
  */
 async function buildSnapshotData(flow, stages, edges) {
   const stageIds = stages.map((s) => s.id);
-  const [actionsObj, conditionsObj, fieldsObj, followUpsObj, formFields] = await Promise.all([
-    stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
-    stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
-    stageIds.length > 0 ? stageFieldService.getForStages(stageIds) : {},
-    stageIds.length > 0 ? followUpService.getForStages(stageIds) : {},
-    // Flow-scoped, not Stage-scoped — the registration form belongs to the
-    // flow, so this is read even by a flow with no Stages yet.
-    flow?.id ? formFieldService.getForFlow(flow.id) : [],
-  ]);
+  const [actionsObj, conditionsObj, fieldsObj, followUpsObj, formFields, flowAccess, stageAccessObj] =
+    await Promise.all([
+      stageIds.length > 0 ? stageActionService.getForStages(stageIds) : {},
+      stageIds.length > 0 ? stageConditionService.getForStages(stageIds) : {},
+      stageIds.length > 0 ? stageFieldService.getForStages(stageIds) : {},
+      stageIds.length > 0 ? followUpService.getForStages(stageIds) : {},
+      // Flow-scoped, not Stage-scoped — the registration form belongs to the
+      // flow, so this is read even by a flow with no Stages yet.
+      flow?.id ? formFieldService.getForFlow(flow.id) : [],
+      flow?.id ? flowAccessService.getForFlow(flow.id) : null,
+      stageIds.length > 0 ? flowAccessService.getForStages(stageIds) : {},
+    ]);
 
   // Follow-up Cadence is one row per Stage in the database (keyed by
   // stage_id), but the snapshot shape diffs everything by `id` like the
@@ -170,6 +174,13 @@ async function buildSnapshotData(flow, stages, edges) {
   const followUps = Object.entries(followUpsObj || {}).map(([stageId, cadence]) => ({
     id: stageId,
     ...cadence,
+  }));
+
+  // Stage Access is likewise one row per Stage, keyed by stage_id — carried
+  // into the snapshot keyed by its own Stage id (issue #292).
+  const accessStages = Object.entries(stageAccessObj || {}).map(([stageId, row]) => ({
+    id: stageId,
+    ...row,
   }));
 
   return buildDraftSnapshotData({
@@ -186,6 +197,7 @@ async function buildSnapshotData(flow, stages, edges) {
     stageFields: Object.values(fieldsObj || {}).flat(),
     formFields: formFields || [],
     followUps,
+    access: { flow: flowAccess, stages: accessStages },
   });
 }
 

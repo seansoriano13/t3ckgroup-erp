@@ -251,6 +251,26 @@ describe("editing a flow", () => {
     })
 })
 
+describe("the Access configuration tables (issue #292)", () => {
+    it.each(["flow_access_settings", "flow_stage_access"])(
+        "has row level security turned on and at least one policy: %s",
+        async (table) => {
+            const { enabled, policies } = await rlsStatus(table)
+            expect(enabled, `${table} has RLS switched off`).toBe(true)
+            expect(policies, `${table} has RLS on but no policies`).toBeGreaterThan(0)
+        },
+    )
+
+    it.each(["flow_access_settings", "flow_stage_access"])(
+        "is readable by an ordinary employee: %s",
+        async (table) => {
+            const client = await clientFor("ordinary")
+            const { error } = await client.from(table).select("*").limit(1)
+            expect(error, `${table}: ${error?.message}`).toBeNull()
+        },
+    )
+})
+
 describe("editing a Stage's other Flow Canvas settings (#291 gates every table, not just the original six)", () => {
     let followUpStageId
 
@@ -334,6 +354,42 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
             .from("flow_stage_follow_ups")
             .insert({ stage_id: followUpStageId, enabled: true, every_days: 3 })
         expect(error, `${key} set a follow-up cadence`).not.toBeNull()
+    })
+
+    it.each(CAN_EDIT)("%s can set a Stage's Access settings (issue #292)", async (key) => {
+        // Not tryInsert: this table's primary key is stage_id, not id.
+        const client = await clientFor(key)
+        const { error } = await client
+            .from("flow_stage_access")
+            .insert({ stage_id: followUpStageId, shut_out_roles: ["registrar"] })
+        expect(error, `${key} was refused: ${error?.message}`).toBeNull()
+        await serviceClient().from("flow_stage_access").delete().eq("stage_id", followUpStageId)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot set a Stage's Access settings (issue #292)", async (key) => {
+        const client = await clientFor(key)
+        const { error } = await client
+            .from("flow_stage_access")
+            .insert({ stage_id: followUpStageId, shut_out_roles: ["registrar"] })
+        expect(error, `${key} set Stage Access settings`).not.toBeNull()
+    })
+
+    it.each(CAN_EDIT)("%s can set a flow's Access settings (issue #292)", async (key) => {
+        // Not tryInsert: this table's primary key is flow_id, not id.
+        const client = await clientFor(key)
+        const { error } = await client
+            .from("flow_access_settings")
+            .insert({ flow_id: flowId, always_sees: [{ type: "role", role: "deal_owner" }] })
+        expect(error, `${key} was refused: ${error?.message}`).toBeNull()
+        await serviceClient().from("flow_access_settings").delete().eq("flow_id", flowId)
+    })
+
+    it.each(CANNOT_EDIT)("%s cannot set a flow's Access settings (issue #292)", async (key) => {
+        const client = await clientFor(key)
+        const { error } = await client
+            .from("flow_access_settings")
+            .insert({ flow_id: flowId, always_sees: [{ type: "role", role: "deal_owner" }] })
+        expect(error, `${key} set flow Access settings`).not.toBeNull()
     })
 })
 

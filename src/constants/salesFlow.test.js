@@ -264,6 +264,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       stageFields: [],
       formFields: [],
       followUps: [],
+      access: { flow: null, stages: [] },
       wonStageId: "s-won",
       saleTypeId: "st-1",
     })
@@ -278,6 +279,7 @@ describe("shaping a draft into a Flow Snapshot's shape", () => {
       stageFields: [],
       formFields: [],
       followUps: [],
+      access: { flow: null, stages: [] },
       wonStageId: null,
       saleTypeId: null,
     })
@@ -314,6 +316,8 @@ describe("comparing two Flow Snapshots", () => {
     expect(diff.edges).toEqual({ added: [], removed: [] })
     expect(diff.actions).toEqual({ added: [], removed: [], changed: [] })
     expect(diff.conditions).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.accessFlow).toEqual({ added: [], removed: [], changed: [] })
+    expect(diff.accessStages).toEqual({ added: [], removed: [], changed: [] })
     expect(diff.wonStageChanged).toBe(false)
   })
 
@@ -407,6 +411,46 @@ describe("comparing two Flow Snapshots", () => {
     ])
     expect(diff.actions.added).toEqual([])
     expect(diff.actions.removed).toEqual([])
+  })
+
+  it("reports the flow-level Access row added, changed, and removed", () => {
+    const withAccess = { ...base, access: { flow: { alwaysSees: [{ type: "role", role: "deal_owner" }] }, stages: [] } }
+
+    const added = diffFlowSnapshots(base, withAccess)
+    expect(added.hasChanges).toBe(true)
+    expect(added.accessFlow.added).toEqual([{ id: "flow", alwaysSees: [{ type: "role", role: "deal_owner" }] }])
+
+    const changed = diffFlowSnapshots(withAccess, {
+      ...withAccess,
+      access: { flow: { alwaysSees: [], journeyViewers: [{ type: "role", role: "sales_director" }] }, stages: [] },
+    })
+    expect(changed.accessFlow.changed).toHaveLength(1)
+
+    const removed = diffFlowSnapshots(withAccess, base)
+    expect(removed.accessFlow.removed).toEqual([{ id: "flow", alwaysSees: [{ type: "role", role: "deal_owner" }] }])
+  })
+
+  it("reports a Stage's Access row added and changed, matched by stage id", () => {
+    const withStageAccess = {
+      ...base,
+      access: { flow: null, stages: [{ id: "s-lead", shutOutRoles: ["registrar"], excludedGroupIds: [] }] },
+    }
+
+    const added = diffFlowSnapshots(base, withStageAccess)
+    expect(added.hasChanges).toBe(true)
+    expect(added.accessStages.added).toEqual([
+      { id: "s-lead", shutOutRoles: ["registrar"], excludedGroupIds: [] },
+    ])
+
+    const next = {
+      ...withStageAccess,
+      access: {
+        flow: null,
+        stages: [{ id: "s-lead", shutOutRoles: ["registrar", "closing_sales"], excludedGroupIds: [] }],
+      },
+    }
+    const changed = diffFlowSnapshots(withStageAccess, next)
+    expect(changed.accessStages.changed).toHaveLength(1)
   })
 
   it("reports a Stage Condition added and one removed", () => {

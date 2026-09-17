@@ -5,6 +5,7 @@ import {
   Flag,
   ListChecks,
   ListTodo,
+  Lock,
   Octagon,
   Pencil,
   Settings2,
@@ -21,6 +22,7 @@ import TabGroup from "@/components/ui/TabGroup";
 import StageConditionManager from "./StageConditionManager";
 import StageActionManager from "./StageActionManager";
 import StageFieldManager from "./StageFieldManager";
+import StageAccessManager from "./StageAccessManager";
 import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
 
 /**
@@ -95,6 +97,7 @@ export default function StageSettingsPanel({
     { value: "fields", label: "Fields", icon: ListChecks },
     { value: "conditions", label: "Conditions", icon: ListTodo },
     { value: "actions", label: "Actions", icon: Wand2 },
+    { value: "access", label: "Access", icon: Lock },
   ];
 
   return (
@@ -311,6 +314,10 @@ export default function StageSettingsPanel({
 
         {activeTab === "actions" && (
           <StageActionManager stageId={stage.id} disabled={disabled} />
+        )}
+
+        {activeTab === "access" && (
+          <StageAccessManager stageId={stage.id} disabled={disabled} />
         )}
       </div>
     </aside>

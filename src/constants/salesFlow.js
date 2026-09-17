@@ -257,6 +257,12 @@ export function buildDraftSnapshotData({
   stageFields = [],
   formFields = [],
   followUps = [],
+  // Access configuration (issue #292): who always sees this Sale Type's
+  // SORs, who may open the Journey, and per-Stage shut-out roles/excluded
+  // groups. `flow` is the single Always-sees/Journey-viewers row (or null,
+  // when never saved) and `stages` is one entry per Stage carrying its own
+  // saved row — same "frozen with everything else" reasoning as `formFields`.
+  access = { flow: null, stages: [] },
 } = {}) {
   return {
     stages,
@@ -269,6 +275,7 @@ export function buildDraftSnapshotData({
     // version's form, and so reverting a version reverts its form too.
     formFields,
     followUps,
+    access,
     wonStageId: flow?.won_stage_id ?? null,
     saleTypeId: flow?.sale_type_id ?? null,
   }
@@ -342,15 +349,34 @@ export function diffFlowSnapshots(snapshotDataA = {}, snapshotDataB = {}) {
   const stageFields = diffById(snapshotDataA.stageFields, snapshotDataB.stageFields)
   const formFields = diffById(snapshotDataA.formFields, snapshotDataB.formFields)
   const followUps = diffById(snapshotDataA.followUps, snapshotDataB.followUps)
+  // The flow-level Always-sees/Journey-viewers row has no natural id list —
+  // it is a single row or none — so it is diffed the same way as everything
+  // else in this module, wrapped as a one-item list under a fixed id.
+  const accessFlowA = snapshotDataA.access?.flow ? [{ id: "flow", ...snapshotDataA.access.flow }] : []
+  const accessFlowB = snapshotDataB.access?.flow ? [{ id: "flow", ...snapshotDataB.access.flow }] : []
+  const accessFlow = diffById(accessFlowA, accessFlowB)
+  const accessStages = diffById(snapshotDataA.access?.stages, snapshotDataB.access?.stages)
   const wonStageChanged = (snapshotDataA.wonStageId ?? null) !== (snapshotDataB.wonStageId ?? null)
 
   const hasChanges =
     wonStageChanged ||
-    [stages, edges, actions, conditions, stageFields, formFields, followUps].some(
+    [stages, edges, actions, conditions, stageFields, formFields, followUps, accessFlow, accessStages].some(
       (d) => d.added.length > 0 || d.removed.length > 0 || (d.changed?.length || 0) > 0,
     )
 
-  return { stages, edges, actions, conditions, stageFields, formFields, followUps, wonStageChanged, hasChanges }
+  return {
+    stages,
+    edges,
+    actions,
+    conditions,
+    stageFields,
+    formFields,
+    followUps,
+    accessFlow,
+    accessStages,
+    wonStageChanged,
+    hasChanges,
+  }
 }
 
 /**
@@ -372,6 +398,8 @@ export function countFlowSnapshotChanges(diffResult) {
     byGroup(diffResult.stageFields) +
     byGroup(diffResult.formFields) +
     byGroup(diffResult.followUps) +
+    byGroup(diffResult.accessFlow) +
+    byGroup(diffResult.accessStages) +
     (diffResult.wonStageChanged ? 1 : 0)
   )
 }

@@ -5,6 +5,7 @@ import { stageActionService } from '../../services/stageActionService';
 import { stageFieldService } from '../../services/stageFieldService';
 import { followUpService } from '../../services/followUpService';
 import { formFieldService } from '../../services/formFieldService';
+import { flowAccessService } from '../../services/flowAccessService';
 
 export const FlowDataContext = createContext();
 
@@ -24,6 +25,7 @@ export function FlowDataProvider({ children }) {
     stageField: stageFieldService,
     followUp: followUpService,
     formField: formFieldService,
+    flowAccess: flowAccessService,
     // This provider names no presence scope; `FlowCanvas` falls back to a
     // per-Sale-Type live scope so peers on the same flow still see each other.
     presenceScope: null,
