@@ -100,6 +100,16 @@ export const CAST = {
         role: "HR ASSISTANT",
         can_manage_leaves: true,
     },
+    flowEditor: {
+        // The Flow editor capability on its own — deliberately not
+        // superAdmin and not has_sales_flow, so a pass here can only be the
+        // flag doing the work (#291).
+        name: "Flow Editor",
+        department: "OPERATIONS",
+        sub_department: null,
+        role: "OPERATIONS MANAGER",
+        can_edit_sales_flows: true,
+    },
     superAdmin: {
         name: "Super Admin",
         department: "ADMINISTRATION",
@@ -174,6 +184,7 @@ function employeeRow(key, id) {
         is_hr: spec.is_hr ?? false,
         is_super_admin: spec.is_super_admin ?? false,
         can_manage_leaves: spec.can_manage_leaves ?? false,
+        can_edit_sales_flows: spec.can_edit_sales_flows ?? false,
         has_sales_flow: spec.has_sales_flow ?? false,
         has_task_flow: spec.has_task_flow ?? false,
         has_purchasing_flow: spec.has_purchasing_flow ?? false,
