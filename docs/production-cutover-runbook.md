@@ -102,7 +102,7 @@ node scripts/transfer-sales-flows.mjs --from staging --to prod --apply Governmen
 psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/scripts/cutover/legacy_pipeline_backfill.sql
 ```
 
-**Check:** it prints `attached N SORs` (N ≈ 249, the non-deleted ones). Then:
+**Check:** it prints `attached N SORs` (N = the non-deleted SORs with no Sale Type: 251 on 2026-09-18), each placed on the Legacy Pipeline Stage named after its current status. Then:
 
 ```sql
 select name from sale_types where id = 'f1d4e085-9a13-4c30-a2b7-b9f97f009608';  -- Legacy Pipeline
