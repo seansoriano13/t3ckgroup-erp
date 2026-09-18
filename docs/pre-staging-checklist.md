@@ -109,9 +109,10 @@ org-members-only and 2/hour limits described above.
 - You proved it with `supabase db reset` (replays from empty) against the local
   stack, not a remote project. CI applies it on push; you never run
   `supabase db push` or a Supabase MCP `apply_migration` against staging.
-- Production's ledger is not staging's — read `docs/production-deployment-gap.md`
-  before assuming a migration that ran on staging will apply the same way to
-  prod.
+- Production's ledger is not staging's. Run `pnpm db:ledger:check prod` before
+  assuming a migration that ran on staging will apply the same way to prod —
+  prod has historically drifted in both directions (AGENTS.md, "Database
+  migrations").
 
 ## 5. Changelog
 

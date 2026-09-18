@@ -6,44 +6,45 @@ wrong (see "Revision" below). Expect further revisions — this document exists
 so the next round of input can be diffed against what was already settled
 rather than re-litigated from scratch.
 
-## ⚠️ Migrations — none of 0017–0023 have been run
+## Migrations — all applied and archived
 
-Pushing to main deploys the frontend but not the schema. Run these in the
-Supabase SQL editor, **in order, before** deploying the frontend. Every one of
-them is written to be safe against a live frontend of any version and safe to
-re-run; the "if it is missing" column is what breaks when it is not applied.
+0017–0023 shipped long ago. They were folded into the baseline
+(`supabase/migrations/20260904000000_baseline_schema.sql`, ADR 0011) and the
+files now live under `supabase/migrations/_archive/`. **Do not run them by
+hand** — migrations reach staging via `.github/workflows/migrate-staging.yml`
+on push and production via a manually triggered `migrate-prod.yml` (AGENTS.md,
+"Database migrations"). What each one established:
 
-| # | What it does | If it is missing |
-| --- | --- | --- |
-| 0017 | Creates `sor_procurement_requests` + RLS | `procurementService` reads 404; the panel renders empty. Degrades gracefully — verified — and breaks nothing else. |
-| 0018 | `sor_raise_procurement_task` SECURITY DEFINER insert | `new row violates row-level security policy for table "tasks"` — the Send button fails on **every** request. |
-| 0019 | Widens the outcome CHECK to the 3-step lifecycle | Every `PURCHASED` / `DELIVERED` resolve violates the constraint. Load-bearing. |
-| 0020 | Realtime on `sor_procurement_requests` | Panels stop updating live; a reload still shows the truth. |
-| 0021 | Realtime on `sales_opportunity_logs` | Log notes stop updating live; a reload still shows the truth. |
-| 0022 | Adds `odoo_vendor` | `resolveRequest` writes the column unconditionally, so every resolve fails. Load-bearing. |
-| 0023 | Column guard trigger on the update policy | Sales can write `outcome`, `po_number` and `verification` on their own request — including marking their own PO `VERIFIED`. |
+| # | What it established |
+| --- | --- |
+| 0017 | `sor_procurement_requests` + RLS |
+| 0018 | `sor_raise_procurement_task` SECURITY DEFINER insert |
+| 0019 | Widened the outcome CHECK to the 3-step lifecycle |
+| 0020 | Realtime on `sor_procurement_requests` |
+| 0021 | Realtime on `sales_opportunity_logs` |
+| 0022 | Added `odoo_vendor` |
+| 0023 | Column guard trigger on the update policy |
 
 0017 was revised in place after the rework (free text + images replaced the
-flagged-line shape) rather than split into a second file — it converges either
-way, so a database that already ran the first version is not stuck.
+flagged-line shape) rather than split into a second file.
 
 **Where it lives:**
 
 | Piece | File |
 | --- | --- |
-| Table + RLS | `supabase/migrations/0017_sor_procurement_requests.sql` |
-| Task insert (RLS workaround) | `supabase/migrations/0018_sor_raise_procurement_task.sql` |
-| Outcome lifecycle constraint | `supabase/migrations/0019_sor_procurement_lifecycle_statuses.sql` |
-| Realtime publications | `supabase/migrations/0020_…_realtime.sql`, `0021_…_realtime.sql` |
-| PO vendor column | `supabase/migrations/0022_sor_procurement_odoo_vendor.sql` |
-| Who may write purchasing's columns | `supabase/migrations/0023_sor_procurement_column_guard.sql` |
+| Table + RLS | `supabase/migrations/_archive/0017_sor_procurement_requests.sql` |
+| Task insert (RLS workaround) | `supabase/migrations/_archive/0018_sor_raise_procurement_task.sql` |
+| Outcome lifecycle constraint | `supabase/migrations/_archive/0019_sor_procurement_lifecycle_statuses.sql` |
+| Realtime publications | `supabase/migrations/_archive/0020_…_realtime.sql`, `0021_…_realtime.sql` |
+| PO vendor column | `supabase/migrations/_archive/0022_sor_procurement_odoo_vendor.sql` |
+| Who may write purchasing's columns | `supabase/migrations/_archive/0023_sor_procurement_column_guard.sql` |
 | Outcomes, PO format, title builder | `src/constants/procurement.js` |
 | Badge palette (shared leaf) | `src/constants/statusTheme.js` |
-| Flow logic | `src/services/procurementService.js` |
+| Flow logic | `src/services/purchasingService.js` |
 | Task-deletion guard (leaf, breaks the cycle) | `src/services/procurementTaskLinks.js` |
 | PO verification | `supabase/functions/odoo-po-verify/index.ts` |
 | @ mentions in Log Notes | `src/components/ui/MentionTextarea.jsx`, `src/utils/mentions.js` |
-| Sales-side request UI | `src/components/sor/ProcurementPanel.jsx` |
+| Sales-side request UI | `src/components/sor/PurchasingPanel.jsx` |
 | Purchasing-side resolution UI | `src/components/ProcurementResolutionPanel.jsx` |
 | Recorded PO / vendor / ETA block (shared) | `src/components/ProcurementMetaFooter.jsx` |
 
@@ -152,8 +153,8 @@ routing twice, in testing against the real org:
   correctly).
 
 Both were caught by deliberately mutating the code back to each broken version
-and confirming the test suite fails — see `procurementService.test.js` and
-`ProcurementPanel.test.jsx`, which fixture the real shape (`OPERATIONS` with
+and confirming the test suite fails — see `purchasingService.test.js` and
+`PurchasingPanel.test.jsx`, which fixture the real shape (`OPERATIONS` with
 its own head, `PURCHASING` nested under it with theirs) rather than a flattened
 one, so re-flattening it later re-breaks the test instead of the routing.
 
@@ -187,6 +188,12 @@ cross-system key, and approvals search is a substring match over description
 (`src/pages/approvals/tasks/index.jsx:290`).
 
 ### 6. Per-item outcomes
+
+> **Superseded in part.** The table below is the 2026-08-17 vocabulary.
+> `ON_ORDER` was renamed `PURCHASED` and `IN_PROGRESS` / `DELIVERED` were added
+> — see "Built beyond this record" at the end of this document. The live set is
+> `src/constants/procurement.js` (`PROCUREMENT_OUTCOME`); `ON_ORDER` survives
+> only in `LEGACY_PROCUREMENT_OUTCOME` for rows already carrying it.
 
 **No new task status.** `TASK_STATUS` is untouched. Outcomes are a column on the
 request rows:
@@ -278,7 +285,7 @@ carry, so the two halves of a request cannot come apart. `EXECUTE` is revoked
 from `public` and granted to `authenticated`.
 
 Because the insert no longer goes through `taskMutationService.createTask`,
-`procurementService.openTaskFor` posts the system activity entry and the
+`purchasingService.openTaskFor` posts the system activity entry and the
 `TASK_ASSIGNED` / `NEW_TASK_SUBMITTED` notifications itself — otherwise the
 task would appear with no trail and nobody would be told it exists.
 
@@ -307,7 +314,7 @@ Purchasing gets write access **scoped to the procurement rows only**. They can
 never edit the parent SOR.
 
 `sor_can_edit_opportunity()`
-(`supabase/migrations/0003_sales_opportunity_items.sql:78`) grants write to the
+(`supabase/migrations/_archive/0003_sales_opportunity_items.sql:78`) grants write to the
 registrant, the four sales participants, heads and super admins — a purchasing
 employee is none of these and would be blocked from writing the PO number back.
 The new table needs its own policy, not a reuse of that helper. (RLS is

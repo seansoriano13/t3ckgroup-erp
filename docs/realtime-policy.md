@@ -59,28 +59,34 @@ mount and tearing the channel down on unmount.
 
 A channel that is not a table stream is outside what this hook can express:
 it takes a table name and the query keys to invalidate when a row changes, and
-a channel carrying neither has nothing to give it. Flow Plans (#116, #117) are
-the first of these — `useFlowPlanDoc` moves CRDT document updates between the
-people editing one plan, and `useFlowPresence` carries a presence roster and
-cursor positions. Both hand-write `.channel()` deliberately, and both own the
+a channel carrying neither has nothing to give it. `useFlowPresence` is the
+one such channel — it carries a presence roster and cursor positions rather
+than row changes, hand-writes `.channel()` deliberately, and owns the
 subscribe-on-mount / tear-down-on-unmount discipline the hook exists to
 standardise. The rule above still binds every consumer that *is* watching a
 table.
 
-The ten realtime subscriptions across eight files that predate this hook (two
-each in `taskActivityService.js` and `groupTaskActivityService.js`, one each
-in `notificationService.js`, `systemAuditLogService.js`,
-`ProcurementResolutionPanel.jsx`, `ProcurementPanel.jsx`,
-`OpportunityDetailsModal.jsx`, and `ComprehensiveChatModal.jsx`) are not
-retrofitted onto it as part of introducing it — that's a separate follow-up,
-not a prerequisite.
+(Flow Plans, #116–#117, once added a second such channel — `useFlowPlanDoc`,
+moving CRDT document updates between people editing one plan. The Sandbox and
+its `flow_plans` table were removed with [ADR 0019](adr/0019-flow-canvas-is-one-editing-surface.md);
+`useFlowPresence` survives, now scoped to the live Flow Canvas.)
+
+The hand-written subscriptions that predate this hook (in
+`taskActivityService.js`, `groupTaskActivityService.js`,
+`notificationService.js`, `systemAuditLogService.js`,
+`ProcurementResolutionPanel.jsx`, `sor/PurchasingPanel.jsx`,
+`sor/OpportunityDetailsModal.jsx`, `sor/modal/SorModal.jsx`,
+`TaskActivityTimeline.jsx`, `settings/FlowCanvas.jsx`,
+`group-tasks/_components/GroupTaskDetailModal.jsx` and
+`ComprehensiveChatModal.jsx`) are not retrofitted onto it as part of
+introducing it — that's a separate follow-up, not a prerequisite.
 
 ## Cost
 
 Current plan: Supabase Pro — 500 concurrent connections, 500 messages/second,
 500 channel joins/second, 100 channels per connection. This codebase's
-realtime usage (11 subscription sites as of `tasks` being added) is nowhere
-close to those limits, so there's no cap here on how many tables may be
+realtime usage (a dozen or so subscription sites) is nowhere close to those
+limits, so there's no cap here on how many tables may be
 realtime-enabled. A cap picked without evidence would be worse than checking
 the Supabase dashboard's realtime usage graph if this ever becomes a real
 question — revisit there, not here, if it does.

@@ -1,5 +1,23 @@
 # Getting brochures off Supabase egress
 
+> **Status: done — all four steps shipped.** Kept for the measurements and the
+> reasoning, which are still the argument for why the path looks like this.
+> Read it as a record, not a to-do: the work below in future tense is built.
+>
+> | Step | Where it lives now |
+> | --- | --- |
+> | A — mirror script | `scripts/mirror-brochures.mjs`, plus nightly `.github/workflows/mirror-brochures.yml` |
+> | B — Cloudinary reads | `src/services/quotationService.js`; the URL formula is `src/lib/brochureUrl.js`, imported by both the script and the browser |
+> | C — `kind: "document"` deleted | `supabase/functions/odoo-quotation-file/index.ts` now answers it `410` so a stale bundle fails loudly |
+> | D — the 46-document flip | rollback response kept at `scripts/flip-rollback-quotation-46.json` |
+>
+> One deviation from decision 3: the URL gained an **extension** segment, because
+> Odoo holds brochures named with no extension at all (and at least one PNG). See
+> the comments in `src/lib/brochureUrl.js`.
+>
+> For the current-tense version of this feature, read
+> [quotation-feature-explainer.md](./quotation-feature-explainer.md).
+
 ## Why
 
 Supabase is metered and the grace period is over. One cold download of S07813
