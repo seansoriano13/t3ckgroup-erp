@@ -79,7 +79,12 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
     } else {
       navigate("/tasks", { state: { openTaskId: notif.reference_id } });
     }
-  } else if (notif.type.startsWith("OPPORTUNITY_")) {
+  } else if (notif.type.startsWith("OPPORTUNITY_") || notif.type.startsWith("SOR_")) {
+    // `SOR_STAGE_PARTICIPANT_ADDED` (ADR 0021) is the ONLY way a Stage
+    // Participant reaches the deal: `sor_read` has no participant clause, so
+    // the SOR never appears in their register. Without this branch the
+    // notification silently no-ops — the failure mode the COMMITTEE_ shim
+    // above was written for — and being called into a deal becomes a dead end.
     navigate("/sors", {
       state: { openOpportunityId: notif.reference_id },
     });

@@ -171,6 +171,21 @@ describe("handleNotificationRoute", () => {
       })
     })
 
+    it("opens the deal a Stage Participant was just called into", () => {
+      // ADR 0021: a participant gets no register row, so this notification is
+      // their only route in. An unmatched type no-ops silently.
+      handleNotificationRoute(
+        { type: "SOR_STAGE_PARTICIPANT_ADDED", reference_id: "opp-9" },
+        employee,
+        navigate,
+        onClose,
+      )
+
+      expect(navigate).toHaveBeenCalledWith("/sors", {
+        state: { openOpportunityId: "opp-9" },
+      })
+    })
+
     it("sends procurement notifications to the deal, not to purchasing's task", () => {
       // The naming is load-bearing. The branch above this one is
       // `type.includes("TASK")`, so calling these PROCUREMENT_TASK_* would
