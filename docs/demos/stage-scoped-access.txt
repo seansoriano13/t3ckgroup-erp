@@ -1,202 +1,188 @@
 DEMO - STAGE-SCOPED ACCESS (FLOW CANVAS + SORS)
-Staging only. Two logins side by side. ~15 min.
+Staging. Two logins side by side. ~15 min.
+
+Every line is an action. "->" is what you should see.
+If you don't see it, check section 3.
 
 
-=== 0. BEFORE THE ROOM ===
+=== 0. SETUP ===
 
-Data is already seeded on staging. Nothing to install, nothing to run.
-Browser only. Any device.
+Data is already seeded. Nothing to install, nothing to run. Browser only.
 
-1. Two browsers:
-   LEFT  = normal window, login arkadatax03@gmail.com   -> ADMIN
-   RIGHT = private window, login tggroup.itdept@gmail.com -> EMPLOYEE
-2. Both on t3ckgroup-erp-staging.vercel.app
-3. Both go to Sales > SORS.
-4. Do NOT use "View as". It is a drawing preview. It does not change the database.
+1. LEFT  browser, normal window  -> login arkadatax03@gmail.com     (ADMIN)
+2. RIGHT browser, private window -> login tggroup.itdept@gmail.com  (EMPLOYEE)
+3. Both -> t3ckgroup-erp-staging.vercel.app
+4. Both -> Sales > SORS
+5. LEFT -> ~139 rows.  RIGHT -> exactly 1 row (S99001).
+   Wrong numbers, stop and read section 3 before you start.
 
-Sanity check before you start:
-   LEFT register ~139 rows. RIGHT register exactly 1 row (S99001).
-   If RIGHT shows 0 or shows many, the demo will not land - see section 3.
+Do NOT use "View as" - drawing preview only, changes nothing.
 
-WHAT IS SEEDED
-- Sale Type: ZZ Demo — Stage Access
-- 6 stages: Registered > Technical Review > Costing > Bid Submitted > Awarded / Closed Lost
-- Costing is RESTRICTED. Shut out: Deal Owner role,
-  plus group ZZ Demo — Costing Excluded (Mary Grace)
-- Won Stage = Awarded. Terminal = Closed Lost
-- Stage Actions: Technical Review fires an INDIVIDUAL TASK to Sean (only this Stage).
-  Bid Submitted fires a GROUP TASK to Sean + Raquel (rest of the deal).
-  Costing has no action on purpose - one there would hand Sean back
-  the Stage that Beat 3 shuts him out of.
-- S99001 / Demo A - EMPLOYEE is Deal Owner. At Technical Review.
-- S99002 / Demo B - EMPLOYEE not on team. At Registered. Call-in not yet made.
-- S99003 / Demo C - EMPLOYEE was called in, window already closed. At Bid Submitted.
+THE FIXTURE
+  Sale Type   ZZ Demo — Stage Access
+  Stages      Registered > Technical Review > Costing > Bid Submitted
+              > Awarded / Closed Lost
+  Restricted  Costing - shut out: Deal Owner role
+              + group ZZ Demo — Costing Excluded
+  Conditions  Registered        Assignment -> Sean, through Bid Submitted
+              Technical Review  Assignment -> Sean, only this Stage
+              Costing           Tickbox
+  Actions     Technical Review  Individual Task -> Sean, only this Stage
+              Bid Submitted     Group Task -> Sean + Raquel, rest of deal
+  SORs        S99001 Demo A   Sean is Deal Owner.    At Technical Review.
+              S99002 Demo B   Sean not on team.      At Registered.
+              S99003 Demo C   Sean's window closed.  At Bid Submitted.
 
 
 === 1. RUN SHEET ===
 
-BEAT 1 - THE REGISTER (2 min)
+BEAT 1 - THE REGISTER (1 min)
 
-1. LEFT: register shows ~139 SORs.
-2. RIGHT: register shows 1 row. S99001 only.
-3. Say: same table, same query. Database decided, not the screen.
-4. Demo B and Demo C exist. He is not on them. Not hidden - not returned.
+1. LEFT  -> SORS register. ~139 rows.
+2. RIGHT -> SORS register. 1 row, S99001.
+3. RIGHT -> search "Demo". Only S99001 comes back.
 
-BEAT 2 - THE CANVAS SAYS WHO SEES WHAT (2 min)
+BEAT 2 - THE CANVAS (3 min)
 
-5. LEFT: Flow Canvas. Pick Sale Type ZZ Demo — Stage Access.
-6. Every stage node states its audience. None are blank.
-7. Registered node shows 1 person called in.
-8. Costing node shows a shut-out count.
-9. Click Costing's audience chip. Access tab opens.
-10. Read out: shut out by role Deal Owner, and by group
-    ZZ Demo — Costing Excluded. Two sources, named.
-11. Click Registered's chip. Roster names Sean, the condition calling him, and his window:
-    "This Stage, through Bid Submitted".
-12. Click Technical Review's chip. Same person, different window: "Only this Stage".
-13. Say: same man, two call-ins, two windows. Kept as two lines, not merged.
+4. LEFT -> Flow Canvas > Sale Type "ZZ Demo — Stage Access".
+5. LEFT -> look at every node. Each states its audience. None blank.
+6. LEFT -> click the Costing node's audience chip.
+   -> Access tab. Shut out by role Deal Owner,
+      and by group ZZ Demo — Costing Excluded.
+7. LEFT -> click the Registered node's chip.
+   -> Sean, the condition calling him,
+      window "This Stage, through Bid Submitted".
+8. LEFT -> click the Technical Review node's chip.
+   -> Sean again, "Only this Stage". Plus the Individual Task action.
+9. LEFT -> click the Bid Submitted node's chip.
+   -> Sean + Raquel Galacgac, "The rest of the deal".
 
-BEAT 3 - A DEAL OWNER SHUT OUT OF HIS OWN DEAL (3 min)
+BEAT 3 - SHUT OUT OF YOUR OWN DEAL (4 min)
 
-14. RIGHT: open S99001. Full record. All four tabs.
-15. LEFT: SORS > Board view.
-16. LEFT: drag S99001 from Technical Review to Costing. Confirm.
-17. RIGHT: refresh.
-18. RIGHT: S99001 still opens. He is Deal Owner, the record stays his. What he loses is Costing.
-19. RIGHT: open Journey. Costing is there as ONE LINE WITH NO CONTENTS.
-20. RIGHT: try to move it on the Board. Refused - "This stage is restricted."
-21. Say: he owns this deal and cannot see what is happening on it, or move it.
-    Super Admin is never shut out. That is why LEFT still can.
-22. LEFT: drag S99001 back to Technical Review (Costing > Technical Review loop-back edge).
-23. RIGHT: refresh. He can work it again. But the Costing line in the Journey STAYS BLANK FOREVER.
-24. Say slowly: access is per VISIT, not per stage. The deal came back. That visit did not re-open.
+10. RIGHT -> open S99001. All four tabs. Full record.
+11. LEFT  -> SORS > Board view.
+12. LEFT  -> drag S99001 from Technical Review to Costing. Confirm.
+13. RIGHT -> refresh. S99001 still in his register. Still opens.
+14. RIGHT -> Journey tab.
+    -> Costing is one line with NO contents.
+15. RIGHT -> Board view, try to drag S99001 anywhere.
+    -> refused, "This stage is restricted."
+16. LEFT  -> drag S99001 back to Technical Review.
+17. RIGHT -> refresh. He can move it again.
+18. RIGHT -> Journey tab.
+    -> the Costing line is STILL blank.
 
-BEAT 4 - CALLING SOMEONE IN, LIVE (3 min)
+BEAT 4 - CALLING SOMEONE IN (3 min)
 
-25. LEFT: open S99002 / Demo B. It sits at Registered.
-26. LEFT: on the Now tab, find condition "Assign the Technical Reviewer".
-27. LEFT: pick Sean Dominic J. Soriano in the People Picker. Save.
-28. RIGHT: refresh. Notification arrives: "Added to a deal".
-29. RIGHT: HIS REGISTER STILL SHOWS 1 ROW. Demo B is NOT there.
-30. Say: being called in does not put the deal in your register. Ever.
-    You reach it from the notification.
-31. RIGHT: click the notification. The SOR opens.
-32. RIGHT: point out what is missing - no money, no commission, no Expected Value.
-33. RIGHT: Journey tab IS present (his team is on the flow's Journey viewers list).
-34. Say: his window runs from here through Bid Submitted. He will see Costing too.
-    A participant window carries no role shut-out. Different rule, deliberately.
-    Costing hides the Deal Team, not the people called in to do the work.
+19. LEFT  -> open S99002 / Demo B. Now tab.
+20. LEFT  -> condition "Assign the Technical Reviewer" > People Picker
+             > Sean Dominic J. Soriano > Save.
+21. RIGHT -> refresh. Notification: "Added to a deal".
+22. RIGHT -> SORS register. STILL 1 row. Demo B is not there.
+23. RIGHT -> click the notification.
+    -> Demo B opens.
+24. RIGHT -> look for money.
+    -> no Expected Value, no commission, no unit prices.
+25. RIGHT -> Journey tab is present.
 
-BEAT 4B - TASKS, THE OTHER WAY IN (3 min)
+BEAT 4B - TASKS (3 min)
 
-35. LEFT: Demo B is still at Registered, Sean now called in.
-    Board view, move it to Technical Review.
-36. A Stage Action fires ON ENTRY: an Individual Task, assigned to Sean.
-37. RIGHT: refresh. The task is on his task list.
-    Opening the task does NOT open the SOR. A task is work. Access is separate.
-38. Say: the task also called him in. Action or Assignment condition -
-    same window, two different triggers.
-39. LEFT: move Demo B on to Costing, then to Bid Submitted.
-40. Entering Bid Submitted fires a GROUP TASK: Sean plus Raquel Galacgac,
-    window "the rest of the deal". Two people, one action, two windows.
-41. Say: Actions HAPPEN on entry. Conditions BLOCK the exit.
-    Each fires once per stage, permanently - re-entering creates nothing new.
+26. LEFT  -> Board view, move Demo B from Registered to Technical Review.
+    -> an Individual Task is created on entry.
+27. RIGHT -> Tasks. The task is on his list.
+28. RIGHT -> open the task. It does NOT open the SOR.
+29. LEFT  -> move Demo B to Costing, then to Bid Submitted.
+    -> a Group Task is created on entering Bid Submitted.
+30. LEFT  -> open the Group Task. Members: Sean and Raquel Galacgac.
+31. LEFT  -> Flow Canvas > Bid Submitted node > Access tab.
+    -> both listed, each with the same window.
 
 BEAT 5 - THE WINDOW CLOSES (2 min)
 
-42. RIGHT: open S99003 / Demo C from the notification list. There is no other way in.
-43. RIGHT: it opens LOCKED. Sales Reference, project, current stage. Nothing else.
-44. Say: he worked this deal. Called in at Technical Review on an "Only this Stage" window.
-    The deal moved twice. The window shut behind him.
-45. Say: nobody revoked it. No admin action. The rule did it.
+32. RIGHT -> notifications, open S99003 / Demo C.
+33. RIGHT -> opens LOCKED. Reference, project, current stage. Nothing else.
+34. RIGHT -> no Journey, no Items, no money.
 
-BEAT 6 - THE CLOSING MOVE (2 min)
+BEAT 6 - ONE SETTING (2 min)
 
-46. LEFT: Flow Canvas > toolbar > Access settings (icon next to "Tidy layout").
-47. LEFT: under "Always sees", add team IT. Save.
-48. RIGHT: refresh the register.
-49. RIGHT: all 3 demo SORs appear, full access.
-50. Say: one setting. No code, no deploy. Operations owns this.
-51. LEFT: remove team IT again. RIGHT: refresh. Back to 1 row.
+35. LEFT  -> Flow Canvas > toolbar > Access settings.
+36. LEFT  -> "Always sees" > add team IT > Save.
+37. RIGHT -> refresh register.
+    -> 3 rows. All demo SORs, full access.
+38. LEFT  -> Access settings > remove team IT > Save.
+39. RIGHT -> refresh register.
+    -> back to 1 row.
 
 
-=== 2. FILLING IN AN SOR (if asked to register one live) ===
+=== 2. REGISTERING AN SOR LIVE (only if asked) ===
 
-52. SORS > Register SOR.
-53. Sale Type: ZZ Demo — Stage Access. PICK THIS FIRST - it chooses the form.
-54. Fields in order:
-    Sales Reference   optional, but must look like S12345. Use S99010.
-                      Letters or dashes are rejected.
-    Lead Source       required. Pick LGU.
-    Company           required. Demo Municipality
-    Contact Person    required. Free text. Juan Cruz 0917...
-    Project           required. Live demo registration
-    Expected Award Date  optional. Any date.
-    Referral          optional. Leave blank.
-55. Items: add one line, any product, any price.
-    Expected Value is computed from the lines. You cannot type it.
-56. Deal Owner: leave yourself, or pick someone else to change who sees it.
-57. Save. It lands on Registered, the flow's first stage.
-58. Sale Type can still be changed while it sits on the first stage. After its first move it locks.
-59. If registration is refused, the Sales Reference is the usual cause. S + digits only.
+40. SORS > Register SOR.
+41. Sale Type -> ZZ Demo — Stage Access.  PICK FIRST, it chooses the form.
+42. Sales Reference      S99010               must match S + digits
+43. Lead Source          LGU                  required
+44. Company              Demo Municipality    required
+45. Contact Person       Juan Cruz 0917...    required, free text
+46. Project              Live demo registration    required
+47. Expected Award Date  any date             optional
+48. Referral             blank                optional
+49. Items > add one line, any product, any price.
+    -> Expected Value fills itself. You cannot type it.
+50. Deal Owner -> whoever you want to see it.
+51. Save.
+    -> lands on Registered.
 
 
 === 3. IF IT BREAKS ===
 
-Most of these you can fix from the browser. The two that cannot are marked.
-
-60. RIGHT register shows many rows, not 1.
-    Beat 6 was left on from a previous run.
-    LEFT: Flow Canvas > Access settings > remove team IT from "Always sees". Save.
-61. RIGHT register shows 0 rows.
-    S99001 lost its Deal Owner. LEFT: open S99001 > Details >
-    set Deal Owner to Sean Dominic J. Soriano. Save.
-62. S99001 is not at Technical Review.
-    LEFT: Board view, drag it back to Technical Review. Beats 1-3 assume it starts there.
-63. Cannot drag a card on the Board.
-    Check you are on LEFT (admin). A restricted stage refuses the move.
-64. Notification does not arrive.
+52. RIGHT shows many rows, not 1.
+    LEFT > Flow Canvas > Access settings > remove team IT from "Always sees".
+53. RIGHT shows 0 rows.
+    LEFT > open S99001 > Details > Deal Owner > Sean Dominic J. Soriano > Save.
+54. S99001 is not at Technical Review.
+    LEFT > Board > drag it back. Beats 1-3 start there.
+55. Cannot drag a card.
+    You are on RIGHT, or the SOR sits on Costing. Use LEFT.
+56. Notification does not appear.
     Refresh. It is written on save, not pushed.
-65. Beat 4's condition is already answered (Demo B call-in already made).
-    NO BROWSER FIX - a call-in cannot be undone on screen.
-    Go straight to Beat 5; Demo C shows the same window, already closed.
-66. Costing still readable by the employee in Beat 3.
-    He holds a participant window on S99001 from a stray call-in.
-    NO BROWSER FIX - there is no remove-participant control yet.
-    Skip Beat 3's Journey point, say the rule instead, reseed afterwards.
-67. Clicking the notification does nothing (Beat 4 step 31, Beat 5 step 35).
-    The fix is committed but needs a staging deploy. If staging was NOT
-    redeployed, the employee has NO way to open Demo B or Demo C -
-    they are not in his register and the notification is dead.
-    Fallback: run Beats 4 and 5 from LEFT only. Show the Access tab roster
-    naming him and his window, and say what he would see. Beats 1, 2, 3 and 6
-    are unaffected and still carry the demo.
-68. Anything genuinely broken - skip that beat. The others stand alone.
-    Reseed needs the dev machine: node scripts/seed-stage-access-demo.mjs --apply
+57. Clicking the notification does nothing.       NO BROWSER FIX
+    Fix is committed but needs staging redeployed. If it was not:
+    Demo B and Demo C cannot be opened from RIGHT at all.
+    Run Beats 4, 4B, 5 from LEFT only, using the canvas Access tab.
+    Beats 1, 2, 3, 6 are unaffected.
+58. Demo B's condition is already answered.       NO BROWSER FIX
+    A call-in cannot be undone on screen. Skip to Beat 5.
+59. Costing is readable by RIGHT in Beat 3.       NO BROWSER FIX
+    Stray participant window on S99001. Skip steps 14 and 18.
+60. Stage Action did not fire in Beat 4B.
+    Fires once per SOR per Stage, forever. Demo B already passed through.
+    Reseed, or show the action on the canvas instead.
+61. Anything else - skip the beat. The others stand alone.
+    Reseed (dev machine): node scripts/seed-stage-access-demo.mjs --apply
 
 
-=== 4. KNOWN GAP - do not volunteer, but have the answer ===
+=== 4. IF SOMEONE ASKS ABOUT TASKS ===
 
-69. The tasks table on staging is still readable by anyone signed in.
-70. Stage Actions that create tasks put the Sales Reference and Company in the task text.
-71. This demo calls people in with an Assignment condition, not a task, so it does not touch that.
-72. If asked: yes it is known, it is ADR 0021's own listed consequence, and it is a separate ticket.
+62. The tasks table on staging is readable by any signed-in employee.
+63. Beat 4B creates real tasks. Their titles carry the Sales Reference.
+64. Known. ADR 0021's own listed consequence - "task policies have to
+    close first". Separate ticket.
+65. Stage access is enforced. Task-table access is next to close.
 
 
 === 5. AFTER ===
 
-73. Leave it. The Sale Type is a permanent fixture, named "ZZ ..." so it sorts last.
-74. If you changed anything in Beat 6, undo it: remove team IT from "Always sees".
-75. Back at the dev machine, reset the three SORs before the next demo:
+66. Remove team IT from "Always sees" if you left it on.
+67. Leave the fixture. Permanent, named "ZZ ..." so it sorts last.
+68. Reset before the next demo:
     node scripts/seed-stage-access-demo.mjs --apply
-76. To remove the whole fixture:
+69. Remove entirely:
     node scripts/seed-stage-access-demo.mjs --teardown --apply
 
 
-=== REFERENCE - THE FOUR ACCESS LEVELS ===
+=== REFERENCE - FOUR ACCESS LEVELS ===
 
 full         Super Admin, Deal Team, Always sees
-             Everything, minus Restricted Stages.
+             Everything except Restricted Stages.
 
 participant  Called in, window open
              Visits from the call-in forward. No money.
@@ -207,4 +193,20 @@ locked       Window closed
 none         Everyone else
              Nothing. Not even a row.
 
-Decided by sor_access_level() in Postgres. Not by the screen.
+Decided by sor_access_level() in Postgres.
+
+
+=== REFERENCE - WHAT OPENS AND CLOSES A WINDOW ===
+
+Opened by  a task-creating Stage Action, an Assignment condition,
+           or a Purchase Request.
+
+Closed by  Only this Stage        leaving that Stage
+           Until X begins         entering X
+           Through X              leaving X
+           The rest of the deal   a Terminal Stage
+
+Also       one call-in = one window.
+           Two call-ins on one person = two windows.
+           A window only reaches FORWARD. Never shows what came before.
+           A Mention grants nothing.
