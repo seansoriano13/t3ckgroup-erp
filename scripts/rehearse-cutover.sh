@@ -101,10 +101,10 @@ docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -
 step "spot-check SOR visibility as real employees (RLS)"
 # visible_as <email>: how many non-deleted SORs this employee can read.
 visible_as() {
-  # One -c string = one session; psql prints only the last statement's result.
+  # One -c string = one session; psql also echoes SET, so keep the last line.
   scalar "set role authenticated;
     select set_config('request.jwt.claims', json_build_object('email', '$1', 'role', 'authenticated')::text, false);
-    select count(*) from public.sales_opportunities where coalesce(is_deleted,false)=false;"
+    select count(*) from public.sales_opportunities where coalesce(is_deleted,false)=false;" | tail -1
 }
 TOTAL=$(scalar "select count(*) from public.sales_opportunities where coalesce(is_deleted,false)=false")
 ADMIN=$(scalar "select email from public.employees where is_super_admin and email is not null limit 1")
