@@ -2909,9 +2909,8 @@ export const opportunityService = {
   /**
    * ADR 0021 / #297: the read-only "Your visits" list a locked viewer sees —
    * every Stage Visit `sor_visible_visit_ids` still returns them (their own
-   * past window), joined to its Stage's name. `sor_stage_visits` itself has
-   * no visit-scoped read policy of its own (issue #203 left it open), so this
-   * filters client-side against the id set the function returns rather than
+   * past window), joined to its Stage's name. `sor_stage_visits` reads by
+   * SOR access level (#327), not per visit, so this filters client-side against the id set the function returns rather than
    * relying on RLS to narrow the table select.
    */
   async getMyVisits(opportunityId) {
@@ -3390,8 +3389,8 @@ export const opportunityService = {
     const visits = visitRows || [];
     if (visits.length === 0) return [];
 
-    // #296: sor_stage_visits itself reads open to any signed-in employee
-    // (20260915030000's deliberate choice), so a Restricted Stage's visit
+    // #296: sor_stage_visits reads every visit for anyone who can open the
+    // SOR (#327 narrowed it from any signed-in employee), so a Restricted Stage's visit
     // row still comes back above — that's what lets the Journey render its
     // one line. What must NOT come back is its contents, and this is how
     // the tab tells which visits those are: anything sor_visible_visit_ids
