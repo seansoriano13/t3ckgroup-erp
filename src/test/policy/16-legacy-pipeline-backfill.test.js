@@ -32,7 +32,7 @@ beforeAll(async () => {
 
     expect(script.split(PROD_SALE_TYPE_ID)).toHaveLength(2)
 
-    const saleType = await svc.from("sale_types").insert({ name: "Standard Pipeline" }).select("id").single()
+    const saleType = await svc.from("sale_types").insert({ name: `${MARKER} Standard Pipeline` }).select("id").single()
     if (saleType.error) throw new Error(`Seeding a Sale Type: ${saleType.error.message}`)
     saleTypeId = saleType.data.id
 
