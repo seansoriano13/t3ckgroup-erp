@@ -1,0 +1,42 @@
+name: Prod backup (pre-cutover)
+
+# Runbook step 2 (#338): a restorable pg_dump of production taken right before
+# the cutover, kept as a 1-day private artifact. Read-only against prod.
+# Triggered by pushing a `backup/**` branch.
+
+on:
+  push:
+    branches: ["backup/**"]
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: pg_dump production (custom format)
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          docker run --rm -e PGURL="$PROD_DB_URL" -v "$PWD:/out" postgres:17 \
+            sh -c 'pg_dump "$PGURL" --format=custom --no-owner --file=/out/prod-pre-cutover.dump'
+          ls -la prod-pre-cutover.dump
+
+      - name: Check it restores (table of contents + a scratch restore of public)
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD:/out" postgres:17 pg_restore --list /out/prod-pre-cutover.dump | head -20
+          docker run -d --name scratch -e POSTGRES_PASSWORD=x postgres:17
+          until docker exec scratch pg_isready -U postgres; do sleep 1; done
+          docker cp prod-pre-cutover.dump scratch:/tmp/d.dump
+          docker exec scratch sh -c 'psql -U postgres -c "create role anon; create role authenticated; create role service_role; create role supabase_admin; create role authenticator;" >/dev/null; pg_restore -U postgres -d postgres --no-owner --no-privileges -n public /tmp/d.dump' || true
+          docker exec scratch psql -U postgres -At -c "select 'sales_opportunities=' || count(*) from public.sales_opportunities"
+          docker exec scratch psql -U postgres -At -c "select 'employees=' || count(*) from public.employees"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prod-pre-cutover-${{ env.STAMP }}
+          path: prod-pre-cutover.dump
+          retention-days: 1
