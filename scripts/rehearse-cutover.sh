@@ -34,7 +34,10 @@ docker exec "$DB_CONTAINER" pg_dump "$PROD_DB_URL" -n public -n supabase_migrati
   --no-owner --no-privileges --format=plain -f /tmp/prod.sql
 docker exec "$DB_CONTAINER" sh -c 'wc -c /tmp/prod.sql'
 
-psql_local -c "drop schema if exists public cascade; drop schema if exists supabase_migrations cascade;"
+# Everything the repo migrations created on the empty stack goes, so only
+# prod's own state remains (archive_quota included: left behind, it would
+# make the archive migration skip as "already exists").
+psql_local -c "drop schema if exists public cascade; drop schema if exists supabase_migrations cascade; drop schema if exists archive_quota cascade;"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X -q -f /tmp/prod.sql
 psql_local <<'SQL'
 grant usage on schema public to anon, authenticated, service_role;
