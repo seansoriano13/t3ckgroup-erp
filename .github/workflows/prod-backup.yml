@@ -27,7 +27,7 @@ jobs:
       - name: Check it restores (table of contents + a scratch restore of public)
         run: |
           set -euo pipefail
-          docker run --rm -v "$PWD:/out" postgres:17 pg_restore --list /out/prod-pre-cutover.dump | head -20
+          docker run --rm -v "$PWD:/out" postgres:17 pg_restore --list /out/prod-pre-cutover.dump > toc.txt; wc -l toc.txt; head -12 toc.txt
           docker run -d --name scratch -e POSTGRES_PASSWORD=x postgres:17
           until docker exec scratch pg_isready -U postgres; do sleep 1; done
           docker cp prod-pre-cutover.dump scratch:/tmp/d.dump
