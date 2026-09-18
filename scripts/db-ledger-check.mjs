@@ -55,7 +55,9 @@ if (!dbUrl) {
   process.exit(1);
 }
 
-const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+// No TLS for a local database (the cutover rehearsal points this at one).
+const isLocal = /@(127.0.0.1|localhost)[:/]/.test(dbUrl);
+const client = new pg.Client({ connectionString: dbUrl, ssl: isLocal ? false : { rejectUnauthorized: false } });
 await client.connect();
 
 const { rows: ledger } = await client.query(`
