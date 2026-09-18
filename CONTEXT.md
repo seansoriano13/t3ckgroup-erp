@@ -24,17 +24,21 @@ _Avoid_: Approvals Tab, Verification Page
 
 ### Domain Modules & Entities
 
-**SOR (Sales Opportunity Record)**:
-A commercial deal registration tracking potential sales, client requirements, quotations, and special procurement requests.
-_Avoid_: Opportunity, Lead, Deal
+**SOR (Sales Opportunity Registration)**:
+One registered commercial deal — the record tracking a potential sale, its client requirements, quotations, and special procurement requests. Named by Policy CCPR-2026-001, Annex C. Earlier drafts of this glossary expanded it as "Sales Opportunity Record", which the policy does not say.
+_Avoid_: Opportunity, Lead, Deal, Sales Opportunity Record
 
 **SOR Register**:
-The centralized index and management table of all registered Sales Opportunity Records.
+The centralized index and management table of all registered SORs.
 _Avoid_: Opportunities Page, Opportunity Registration
 
-**CRM**:
-Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; CRM is the process it enters.
-_Avoid_: SOR / CRM, SOR system
+**SORS (Sales Opportunity Registration System)**:
+Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; SORS is the process it enters. The company's own name for this system, from Policy CCPR-2026-001, Annex C, and the name the first migration was written under. It was briefly renamed "CRM" (issue #206) and renamed back; see ADR 0024 for why an imported industry word was the wrong one for a thing the board had already named.
+_Avoid_: CRM, SOR / CRM, SOR system
+
+**Retail SOR**:
+A marketplace order — Shopee, Lazada, any storefront — registered as an ordinary SOR because the Odoo sync writes to the same table a salesperson does. Real and never deleted: it carries a true Sales Reference and a true amount. Excluded from the pipeline, the commission engine and every aggregate read, because it describes a sale with no proposal, no bidding, no negotiation and no award, and so runs no Sales Flow. Seen on its own screen, not in the Register.
+_Avoid_: Retail deal, Shopee deal, Online order
 
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
@@ -129,7 +133,7 @@ Role-based UI presentation masking where standard employees view only their own 
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
 
-### CRM Flow
+### SORS Flow
 
 Terms introduced by the Flow Canvas (issue #36). These supersede the Deal Type
 vocabulary in ADR 0004 and deprecate `docs/crm-pipeline-redesign.md` as an
@@ -300,7 +304,7 @@ _Avoid_: Intake Form, SOR Form (when meaning the Details card), Form Template
 
 **Flow Canvas**:
 The module in which the developer and Operations build Sales Flows together,
-on staging — a long-lived feature, not a one-time build: the business's CRM
+on staging — a long-lived feature, not a one-time build: the business's SORS
 process keeps changing after a Sales Flow is published, so the canvas keeps
 being used to revise it, each revision landing as its own Flow Snapshot. One
 editing surface, editing `sales_flows` directly; the Flow Snapshot history

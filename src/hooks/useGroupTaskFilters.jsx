@@ -107,7 +107,7 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
         if (!tagFilter.some((id) => taskTagIds.includes(id))) return false;
       }
 
-      // 10. CRM Filter — only tasks linked to an SOR
+      // 10. SORS Filter — only tasks linked to an SOR
       if (crmOnly && !task.opportunity_id) return false;
 
       return true;

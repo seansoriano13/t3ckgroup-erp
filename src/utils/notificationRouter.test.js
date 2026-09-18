@@ -166,7 +166,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/crm", {
+      expect(navigate).toHaveBeenCalledWith("/sors", {
         state: { openOpportunityId: "opp-1" },
       })
     })
@@ -184,7 +184,7 @@ describe("handleNotificationRoute", () => {
         navigate.mockClear()
         handleNotificationRoute({ type, reference_id: "opp-9" }, employee, navigate, onClose)
 
-        expect(navigate).toHaveBeenCalledWith("/crm", {
+        expect(navigate).toHaveBeenCalledWith("/sors", {
           state: { openOpportunityId: "opp-9" },
         })
       }

@@ -127,7 +127,7 @@ export default function EmployeeOpportunityMatrix({
   }, [employeeStats, searchTerm]);
 
   const goToEmployee = (empId, status) => {
-    navigate("/crm", {
+    navigate("/sors", {
       state: { filterEmployeeId: empId, filterStatus: status || undefined },
     });
   };

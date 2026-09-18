@@ -23,7 +23,7 @@ const THEME_DOT = {
 const LEGACY_KEY = "LEGACY";
 
 /**
- * CRM Board (issue #206) — one Sale Type's Stages at a time, in the same
+ * SORS Board (issue #206) — one Sale Type's Stages at a time, in the same
  * bracket order the Flow Canvas draws, plus a "Legacy pipeline" option for
  * SORs with no Sale Type. Mixing every flow's Stages into one row was the
  * old board's problem: two flows' Stages are unrelated (ADR 0006), so

@@ -112,7 +112,7 @@ const defaultEdgeOptions = {
 
 /**
  * The Flow Canvas (issue #36). The developer and the Operations Manager build
- * the CRM process together on this one screen, against staging.
+ * the SORS process together on this one screen, against staging.
  *
  * The canvas shows the whole contract of a flow, not just its shape: every
  * Stage carries its conditions below-left and its actions below-right, drawn

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { renderWithProviders, setupUser } from "../../test/support";
-import OpportunitiesPage from "../../pages/crm/index";
+import OpportunitiesPage from "../../pages/sors/index";
 import { opportunityService } from "../../services/opportunityService";
 import { makeFlowSnapshot } from "../../test/factories";
 

@@ -48,7 +48,7 @@ export default function FlowVersionPage() {
         <div className="relative flex h-full flex-col bg-background">
             <header className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
                 <Link
-                    to="/crm"
+                    to="/sors"
                     className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-sm text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
                 >
                     <ArrowLeft className="h-4 w-4" aria-hidden="true" />

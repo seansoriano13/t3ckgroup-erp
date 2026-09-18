@@ -285,7 +285,7 @@ export function buildDraftSnapshotData({
  * Normalizes an item for semantic comparison between Flow Snapshots:
  * - Omits database timestamps (`created_at`, `updated_at`), canvas coordinates
  *   (`pos_x`, `pos_y`), and container foreign keys (`flow_id`) that do not
- *   represent changes to the CRM business process.
+ *   represent changes to the SORS business process.
  * - Omits null/undefined/empty-string optional properties so missing keys match
  *   explicit nulls.
  * - Recursively sorts object keys so key order differences (e.g. from Postgres

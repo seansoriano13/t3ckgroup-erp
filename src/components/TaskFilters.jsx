@@ -359,7 +359,7 @@ export default function TaskFilters({
                 className={`flex items-center gap-2 h-[40px] md:h-[46px] text-[13px] shrink-0 font-semibold ${crmOnly ? "ring-1 ring-mauve-4" : ""}`}
               >
                 <Briefcase size={16} />
-                CRM
+                SORS
               </Button>
             )}
           </div>

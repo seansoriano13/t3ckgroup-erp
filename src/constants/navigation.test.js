@@ -154,7 +154,7 @@ describe("navigation registry", () => {
       const salesGroup = groups.find((g) => g.key === "sales");
       expect(salesGroup).toBeDefined();
       expect(salesGroup.links.map((l) => l.label)).toEqual([
-        "CRM",
+        "SORS",
         "Commission Dashboard",
         "Commission Formula",
         // Retail moved out of the register's tab strip onto its own screen.
@@ -258,7 +258,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(withOverride);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
           "Commission Formula",
           "Retail",
         ]);
@@ -270,7 +270,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
           "Commission Dashboard",
           "Commission Formula",
           "Retail",
@@ -296,7 +296,7 @@ describe("navigation registry", () => {
         const groups = getFilteredNavigationGroups(salesUser);
         const salesGroup = groups.find((g) => g.key === "sales");
         expect(salesGroup.links.map((l) => l.label)).toEqual([
-          "CRM",
+          "SORS",
           "Commission Dashboard",
           "Commission Formula",
           "Retail",

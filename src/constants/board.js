@@ -1,5 +1,5 @@
 /**
- * CRM Board — pure column-building helpers (issue #206).
+ * SORS Board — pure column-building helpers (issue #206).
  *
  * A flow's Stages have no shared ordering with any other flow's (ADR 0006),
  * so a board showing every Sale Type at once mixed unrelated Stages into one

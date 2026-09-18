@@ -80,7 +80,7 @@ export function handleNotificationRoute(notif, user, navigate, onClose) {
       navigate("/tasks", { state: { openTaskId: notif.reference_id } });
     }
   } else if (notif.type.startsWith("OPPORTUNITY_")) {
-    navigate("/crm", {
+    navigate("/sors", {
       state: { openOpportunityId: notif.reference_id },
     });
   }

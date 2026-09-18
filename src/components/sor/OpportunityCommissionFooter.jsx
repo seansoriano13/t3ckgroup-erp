@@ -44,7 +44,7 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
 
   const handleOpenDashboard = () => {
     if (onClose) onClose();
-    navigate("/crm/commission", {
+    navigate("/sors/commission", {
       state: { openOpportunityId: opportunity.id },
     });
   };

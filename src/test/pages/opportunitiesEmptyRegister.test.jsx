@@ -8,7 +8,7 @@
 import { screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import OpportunitiesPage from "@/pages/crm/index";
+import OpportunitiesPage from "@/pages/sors/index";
 import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee } from "@/test/factories";
 

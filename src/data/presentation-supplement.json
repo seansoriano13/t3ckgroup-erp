@@ -49,11 +49,11 @@
     },
     {
       "id": "crm-board",
-      "block": "CRM",
-      "title": "CRM, and a board you drag SORs across",
+      "block": "SORS",
+      "title": "SORS, and a board you drag SORs across",
       "impact": "Dragging a card was not a styling decision - it was impossible. The rule that Closed Lost needs a reason lived inside the details modal, so a drag could not enforce it and drag-and-drop was deliberately switched off. Moving the guard into the move itself is what made the board draggable. The board also shows one Sale Type at a time, because Stages of different flows have no shared order and showing them together mixed unrelated Stages into one row.",
       "changes": [
-        "Opportunities is now CRM, and the register runs the full width of the screen instead of sitting in a narrow column.",
+        "The register runs the full width of the screen instead of sitting in a narrow column.",
         "The board shows one Sale Type at a time, with one column per Stage of that flow in the same bracket order the Flow Canvas already uses.",
         "An SOR moves between Stages by dragging it.",
         "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked."
@@ -67,7 +67,7 @@
     },
     {
       "id": "crm-itb-won",
-      "block": "CRM",
+      "block": "SORS",
       "title": "The ITB gate is gone, and Won is on the register",
       "impact": "Every SOR had to carry an ITB Number to move, including the ones that never had one, so people typed placeholders to get past it. That requirement is now a Stage Field the flow decides, not a rule baked into the system. The register also shows what was won, not only what is open.",
       "changes": [
@@ -82,7 +82,7 @@
     },
     {
       "id": "stage-fields",
-      "block": "CRM",
+      "block": "SORS",
       "title": "Any Stage can require any field",
       "impact": "Requirements used to be written in code, which meant every new one was a development request. A Stage now carries its own fields, with its own conditions, edited on the canvas by whoever owns the process.",
       "changes": [
@@ -98,7 +98,7 @@
     },
     {
       "id": "blocked-move",
-      "block": "CRM",
+      "block": "SORS",
       "title": "A blocked move says so before you click",
       "impact": "You used to click Move, wait, and get an error telling you what you should have done first. The button now carries its own reason, and a finished checklist looks finished.",
       "changes": [
@@ -232,7 +232,7 @@
         ]
       },
       {
-        "title": "Group Task Tags, and a CRM filter on both Tasks and Group Tasks",
+        "title": "Group Task Tags, and a SORS filter on both Tasks and Group Tasks",
         "issues": [
           205
         ]
@@ -286,9 +286,9 @@
   },
   "epics": [
     {
-      "phase": "Finish CRM",
+      "phase": "Finish SORS",
       "number": 206,
-      "title": "CRM register",
+      "title": "SORS register",
       "unlocks": "The register stops being a list and becomes the place the commercial process is run from.",
       "tickets": [
         286,
@@ -305,7 +305,7 @@
       ]
     },
     {
-      "phase": "Finish CRM",
+      "phase": "Finish SORS",
       "number": 207,
       "title": "SOR modal organised around the Stage Visit",
       "unlocks": "Opening an SOR shows what this Stage needs now, what already happened, what is being sold, and the conversation, instead of one long form.",
@@ -319,7 +319,7 @@
       ]
     },
     {
-      "phase": "Finish CRM",
+      "phase": "Finish SORS",
       "number": 208,
       "title": "Stage-scoped SOR visibility",
       "unlocks": "A purchaser or engineer called into one Stage sees that Stage and nothing else, and some Stages can be closed to some of the Deal Team. Enforced by the database (ADR 0021).",

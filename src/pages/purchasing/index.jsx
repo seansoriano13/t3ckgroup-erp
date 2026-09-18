@@ -197,7 +197,7 @@ function PurchasingQueue() {
   const now = data?.fetchedAt;
 
   const openSor = (opportunityId) =>
-    navigate("/crm", { state: { openOpportunityId: opportunityId } });
+    navigate("/sors", { state: { openOpportunityId: opportunityId } });
 
   const uniqueSors = useMemo(() => {
     if (!requests) return [];

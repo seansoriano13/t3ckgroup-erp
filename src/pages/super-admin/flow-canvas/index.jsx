@@ -5,7 +5,7 @@ import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**
  * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
- * one activity: building and refining the CRM process.
+ * one activity: building and refining the SORS process.
  *
  * It edits `sales_flows` directly — real Sale Types, Stages and Scratch SORs.
  * The Live/Sandbox toggle and its one shared Sandbox document are gone (issue

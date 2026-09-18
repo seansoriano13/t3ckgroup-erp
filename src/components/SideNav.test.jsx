@@ -87,7 +87,7 @@ describe("SideNav Component", () => {
     renderSideNav(user);
 
     expect(screen.getByText("Sales")).toBeInTheDocument();
-    expect(screen.getByText("CRM")).toBeInTheDocument();
+    expect(screen.getByText("SORS")).toBeInTheDocument();
   });
 
   it("renders all ERP modules for Super Admin", () => {

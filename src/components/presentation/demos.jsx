@@ -123,7 +123,7 @@ export function FlowVersioningDemo() {
   )
 }
 
-/* ── 2. CRM board (#206, #286, #288) ────────────────────────────────────── */
+/* ── 2. SORS board (#206, #286, #288) ───────────────────────────────────── */
 
 // The shipped board (constants/board.js `flowBoardColumns`) shows ONE Sale
 // Type at a time, one column per Stage of that flow in bracket order, and a
@@ -155,7 +155,7 @@ export function CrmBoardDemo() {
 
   return (
     <BeforeAfter
-      liveHref="/crm"
+      liveHref="/sors"
       note="Dragging was switched off on purpose: the Closed Lost reason was enforced inside the modal, so a drag could not ask for it. Moving the guard into the move is what made the board draggable."
       before={
         <Chrome title="Opportunities · Board">
@@ -189,7 +189,7 @@ export function CrmBoardDemo() {
         </Chrome>
       }
       after={
-        <Chrome title="CRM · Board">
+        <Chrome title="SORS · Board">
           <div className="mb-2 flex items-center gap-1.5">
             {Object.keys(FLOWS).map((name) => (
               <button
@@ -319,7 +319,7 @@ export function BlockedMoveDemo() {
 
   return (
     <BeforeAfter
-      liveHref="/crm"
+      liveHref="/sors"
       note="The same information, moved to before the click instead of after it."
       before={
         <Chrome title="SOR S07971">
@@ -378,7 +378,7 @@ function stockTone(free, qty) {
 export function StockBadgesDemo() {
   return (
     <BeforeAfter
-      liveHref="/crm"
+      liveHref="/sors"
       note="The figure is stamped when it is pulled, so what you are reading has a known age rather than being assumed current."
       before={
         <Chrome title="SOR S07971 · Product List">

@@ -174,7 +174,7 @@ Not a spec: an edit pass, because #209 is already `ready-for-agent` and three de
 1. IPAS v1, standalone, with its printed form
 2. Transmittals, TSRs and the Packing List, with their printed forms
 3. Order monitoring
-4. The queued CRM specs, up to Purchase Requests
+4. The queued SORS specs, up to Purchase Requests
 5. The Costing Matrix, the Evaluation of Specification and the Canvass, with their printed forms
 6. Landed cost back into the Costing Matrix
 
