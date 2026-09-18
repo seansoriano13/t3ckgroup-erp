@@ -7,7 +7,7 @@ Everything runs from `release/2026-09` (frozen; see [release-2026-09.md](release
 ## Ground rules
 
 - **Never rename a migration file to match a ledger row.** A file's timestamp is its identity. Renaming one a ledger has already recorded is exactly what creates the next orphan. Fix the ledger with the repair workflow instead.
-- **Never execute the baseline** (`20260904000000_baseline_schema.sql`). Production already has every object it creates. It is only ever *marked* applied.
+- **Never execute the baseline** (`20260904000000_baseline_schema.sql`). It is only ever *marked* applied. Prod has everything it creates except `sales_opportunities.is_scratch`, which the rehearsal found missing. `20260904180000_prod_baseline_catchup.sql` adds it idempotently as the first migration `migrate-prod` applies.
 - Every step has a check. Don't start the next step until the check passes. If a check fails, go to [Rollback](#rollback).
 - Production project ref: `epqmberwewztzbrkhhss`. Staging: `fpjxdyowngpnovotbzqi`. Verify against `.env.local`, not `list_projects`.
 
@@ -102,7 +102,7 @@ node scripts/transfer-sales-flows.mjs --from staging --to prod --apply Governmen
 psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/scripts/cutover/legacy_pipeline_backfill.sql
 ```
 
-**Check:** it prints `attached N SORs` (N = the non-deleted SORs with no Sale Type: 251 on 2026-09-18), each placed on the Legacy Pipeline Stage named after its current status. Then:
+**Check:** it prints `attached N SORs` (N = the non-deleted SORs with no Sale Type: 252 in the 2026-09-18 rehearsal), each placed on the Legacy Pipeline Stage named after its current status. Then:
 
 ```sql
 select name from sale_types where id = 'f1d4e085-9a13-4c30-a2b7-b9f97f009608';  -- Legacy Pipeline
@@ -124,6 +124,10 @@ Merge through a PR. Vercel is disconnected, so nothing deploys yet.
 3. Note the time. The window closes here.
 
 **Check:** the production deployment is Ready, then run the smoke test from #338: a Deal Owner opens a legacy SOR, registers a new SOR on Government, and HR approves an offset with edited hours.
+
+## Rehearsal
+
+`Cutover rehearsal` workflow (#336): push any `rehearsal/**` branch. It runs steps 2–8 twice against fresh read-only dumps of prod on a CI runner (`scripts/rehearse-cutover.sh`), plus a `baseline-gap` job that diffs the baseline prod is marked as having against its live schema. Passed twice on 2026-09-18 (run 35315484079).
 
 ## Rollback
 
