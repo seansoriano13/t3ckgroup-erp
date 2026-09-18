@@ -70,6 +70,14 @@ jobs:
       - name: Diff (- claimed by prod's ledger, + actually in prod)
         run: diff -u supabase/schema/staging.sql supabase/schema/prod.sql | grep -v '^[-+]-- ' || true
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baseline-gap
+          path: |
+            supabase/schema/staging.sql
+            supabase/schema/prod.sql
+          retention-days: 3
+
   rehearse:
     name: Rehearsal run ${{ matrix.run }}
     runs-on: ubuntu-latest
