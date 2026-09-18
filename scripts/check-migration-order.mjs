@@ -18,6 +18,11 @@ import { execFileSync } from "node:child_process";
 const BASE_REF = process.env.MIGRATION_GATE_BASE_REF || "origin/staging";
 const MIGRATIONS_DIR = "supabase/migrations";
 const TIMESTAMP_RE = /^(\d{14})_/;
+// A migration that must sort before an existing one (e.g. #329's archive,
+// which has to precede the drop it preserves) opts out explicitly with this
+// on its first line, plus a reason. migrate-staging pushes with --include-all,
+// so such a file still applies there; the marker keeps it a reviewed choice.
+const ALLOW_MARKER = /^-- allow-out-of-order: \S/;
 
 function git(args) {
   return execFileSync("git", args, { encoding: "utf8" }).trim();
@@ -58,9 +63,14 @@ const existing = existingStagingTimestamps();
 const maxExisting = existing.length ? existing.reduce((a, b) => (a > b ? a : b)) : "0";
 const added = addedMigrationFiles();
 
+function allowsOutOfOrder(name) {
+  const firstLine = git(["show", `HEAD:${MIGRATIONS_DIR}/${name}`]).split("\n")[0];
+  return ALLOW_MARKER.test(firstLine);
+}
+
 const stale = added.filter((name) => {
   const ts = timestampOf(name);
-  return ts && ts <= maxExisting;
+  return ts && ts <= maxExisting && !allowsOutOfOrder(name);
 })
 
 if (stale.length > 0) {
