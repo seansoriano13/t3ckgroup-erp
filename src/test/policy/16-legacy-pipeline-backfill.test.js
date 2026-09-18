@@ -20,6 +20,7 @@ const script = readFileSync("supabase/scripts/cutover/legacy_pipeline_backfill.s
 
 let saleTypeId
 let flowId
+let leadStageId
 const sors = {}
 
 async function runBackfill(targetId) {
@@ -40,6 +41,19 @@ beforeAll(async () => {
     if (flow.error) throw new Error(`Seeding a flow: ${flow.error.message}`)
     flowId = flow.data.id
 
+    // Production's Legacy Pipeline Stages are named after crm_pipeline_stages
+    // labels, one each. The script attaches every NULL SOR in the database,
+    // whatever its status, so the fixture flow carries all of them too.
+    const { data: crm, error: crmError } = await svc.from("crm_pipeline_stages").select("code, label, sort_order")
+    if (crmError) throw new Error(`Reading pipeline stages: ${crmError.message}`)
+    const stages = await svc
+        .from("flow_stages")
+        .insert(crm.map((c) => ({ flow_id: flowId, name: c.label, sort_order: c.sort_order, is_terminal: false })))
+        .select("id, name")
+    if (stages.error) throw new Error(`Seeding the Stages: ${stages.error.message}`)
+    const leadLabel = crm.find((c) => c.code === "LEAD").label
+    leadStageId = stages.data.find((st) => st.name === leadLabel).id
+
     sors.owned = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, companyName: `${MARKER} Legacy A` })
     sors.other = await makeSor({ registeredBy: ids.closingSales, dealOwnerId: ids.closingSales, companyName: `${MARKER} Legacy B` })
     sors.deleted = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, companyName: `${MARKER} Legacy Deleted` })
@@ -51,7 +65,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
     const svc = serviceClient()
-    await svc.from("sales_opportunities").update({ sale_type_id: null }).eq("sale_type_id", saleTypeId)
+    await svc.from("sales_opportunities").update({ sale_type_id: null, flow_stage_id: null }).eq("sale_type_id", saleTypeId)
+    const { data: fixtureStages } = await svc.from("flow_stages").select("id").eq("flow_id", flowId)
+    await svc.from("sor_stage_visits").delete().in("flow_stage_id", (fixtureStages || []).map((st) => st.id))
+    await svc.from("flow_stages").delete().eq("flow_id", flowId)
     await svc.from("sales_opportunities").delete().in("id", Object.values(sors))
     await svc.from("sales_flows").delete().eq("id", flowId)
     await svc.from("sale_types").delete().eq("id", saleTypeId)
@@ -78,6 +95,13 @@ describe("the Legacy Pipeline backfill", () => {
         expect(await saleTypeOf(sors.other)).toBe(saleTypeId)
     })
 
+    it("puts each SOR on the Stage named after its current status, without changing status", async () => {
+        const { data, error } = await serviceClient().from("sales_opportunities").select("flow_stage_id, status").eq("id", sors.owned).single()
+        if (error) throw error
+        expect(data.flow_stage_id).toBe(leadStageId)
+        expect(data.status).toBe("LEAD")
+    })
+
     it("leaves soft-deleted SORs alone", async () => {
         expect(await saleTypeOf(sors.deleted)).toBeNull()
     })
@@ -93,7 +117,7 @@ describe("the Legacy Pipeline backfill", () => {
     })
 
     it("does nothing when the Sale Type id isn't present (e.g. staging)", async () => {
-        const { error } = await serviceClient().from("sales_opportunities").update({ sale_type_id: null }).eq("id", sors.owned)
+        const { error } = await serviceClient().from("sales_opportunities").update({ sale_type_id: null, flow_stage_id: null }).eq("id", sors.owned)
         if (error) throw error
         await runBackfill("00000000-0000-0000-0000-000000000330")
         expect(await saleTypeOf(sors.owned)).toBeNull()
