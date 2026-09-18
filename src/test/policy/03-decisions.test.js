@@ -799,6 +799,30 @@ describe("approving Offset leave with edited hours (#328)", () => {
         await expectOffsetBalance(ids.ordinary, 20)
     })
 
+    it("splits an uneven total so the day-rows add up to exactly what was spent", async () => {
+        await setBalances(ids.ordinary, { offset: 30 })
+        const group = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-06-15", "2026-06-16", "2026-06-17"],
+            hoursPerDay: 8,
+        })
+        cleanup.push(() => svc().from("offset_leaves").delete().eq("leave_group_id", group))
+
+        await rpcAs(hr, "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 10,
+            p_hr_notes: null,
+            p_hr_id: ids.hr,
+        })
+        await expectOffsetBalance(ids.ordinary, 20)
+        const { data } = await svc().from("offset_leaves").select("approved_hours").eq("leave_group_id", group)
+        expect(data.reduce((sum, r) => sum + Number(r.approved_hours), 0)).toBeCloseTo(10, 10)
+
+        await rpcAs(hr, "undo_offset_leave_decision", { p_group_id: group, p_hr_id: ids.hr })
+        await expectOffsetBalance(ids.ordinary, 30)
+    })
+
     it("refuses more hours than were requested", async () => {
         await setBalances(ids.ordinary, { offset: 20 })
         const group = await makeLeaveGroup("offset_leaves", {

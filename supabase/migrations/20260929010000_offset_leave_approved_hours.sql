@@ -3,7 +3,7 @@
 -- Production has the column (main's 0071, #198): HR approves offset leave
 -- with editable hours, and 7 historical rows hold an approved value that
 -- differs from what was requested. Staging never received it, and its atomic
--- decision RPC (#109) has no way to set it. Nothing is dropped — on
+-- decision RPC (#109) has no way to set it. Nothing is dropped ï¿½ on
 -- production the column already exists and this is a no-op add.
 --
 -- decide_offset_leave_decision gains p_approved_hours (the group total,
@@ -133,6 +133,15 @@ BEGIN
       ELSE round(hours * v_approved_hours / v_total_hours, 2)
     END
   WHERE leave_group_id = p_group_id;
+
+  -- Rounding each day can leave the rows a cent off the total that was
+  -- debited; the last day absorbs it, so undo/withdraw refund exactly that.
+  IF v_approved_hours IS NOT NULL THEN
+    UPDATE offset_leaves SET approved_hours = approved_hours + (
+      v_approved_hours - (SELECT sum(approved_hours) FROM offset_leaves WHERE leave_group_id = p_group_id)
+    )
+    WHERE id = (SELECT id FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY date DESC, id DESC LIMIT 1);
+  END IF;
 
   IF v_new_balance IS NOT NULL THEN
     UPDATE employees SET offset_hours_balance = v_new_balance, updated_at = v_now WHERE id = v_employee_id;

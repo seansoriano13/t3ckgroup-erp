@@ -725,7 +725,7 @@ export const offsetService = {
     if (error) throw new Error(error.message);
 
     const { rows: updatedRows, employee_id: employeeId, total_hours: requestedHours, approved_hours: approvedTotal } = result;
-    const totalHours = approvedTotal ?? requestedHours;
+    const decidedHours = approvedTotal ?? requestedHours;
     const rangeLabel = describeLeaveRange(result.dates, { withDayCount: true });
 
     notificationService.createNotification({
@@ -733,14 +733,14 @@ export const offsetService = {
       sender_id: hrId,
       type: 'OFFSET_LEAVE_DECISION',
       title: 'Offset Leave Application Status',
-      message: `Your offset leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      message: `Your offset leave application for ${decidedHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       reference_id: groupId,
     });
 
     systemAuditLogService.addApprovalEvent(
       'OFFSET_LEAVE',
       groupId,
-      `Offset leave application for ${totalHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
+      `Offset leave application for ${decidedHours} hrs (${rangeLabel}) was ${status.toLowerCase()}.`,
       { event: 'OFFSET_LEAVE_DECISION', status, employeeId, leaveGroupId: groupId },
       hrId,
     ).catch(console.error);

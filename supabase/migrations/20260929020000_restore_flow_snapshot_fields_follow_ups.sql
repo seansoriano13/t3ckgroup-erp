@@ -276,30 +276,49 @@ begin
   end loop;
 
   -- Registration form fields: same archive-don't-delete rule (sor_form_values).
-  -- A 'default' row is unique per (flow, default_key), so a live row for a key
-  -- the target also customizes, under a different id, makes way first.
+  -- A 'default' row is unique per (flow, default_key). When the draft already
+  -- has one for a key the target customizes, under a different id, that row
+  -- is updated in place (keeping its id and its values) rather than replaced.
   select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
     into v_target_form_field_ids
   from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e;
-
-  delete from flow_form_fields f
-   where f.flow_id = p_flow_id
-     and f.source = 'default'
-     and not (f.id = any(v_target_form_field_ids))
-     and f.default_key in (
-       select e->>'default_key'
-       from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e
-       where e->>'source' = 'default'
-     );
 
   update flow_form_fields
      set archived_at = now(), updated_at = now()
    where flow_id = p_flow_id
      and not (id = any(v_target_form_field_ids))
+     and not (
+       source = 'default'
+       and default_key in (
+         select e->>'default_key'
+         from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e
+         where e->>'source' = 'default'
+       )
+     )
      and archived_at is null;
 
   for v_elem in select e from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e
   loop
+    if v_elem->>'source' = 'default' then
+      update flow_form_fields set
+        label = nullif(v_elem->>'label', ''),
+        help = nullif(v_elem->>'help', ''),
+        field_type = nullif(v_elem->>'field_type', ''),
+        options = coalesce(v_elem->'options', '[]'::jsonb),
+        is_required = (v_elem->>'is_required')::boolean,
+        is_hidden = coalesce((v_elem->>'is_hidden')::boolean, false),
+        sort_order = coalesce((v_elem->>'sort_order')::int, 0),
+        archived_at = nullif(v_elem->>'archived_at', '')::timestamptz,
+        updated_at = now()
+      where flow_id = p_flow_id
+        and source = 'default'
+        and default_key = v_elem->>'default_key'
+        and id <> (v_elem->>'id')::uuid;
+      if found then
+        continue;
+      end if;
+    end if;
+
     insert into flow_form_fields (
       id, flow_id, source, default_key, label, help, field_type, options, is_required, is_hidden, sort_order, archived_at, created_at, updated_at
     )

@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-09-18",
+        "title": "Approve Offset Leave With Edited Hours",
+        "version": "1.7.21",
+        "changes": [
+            "When HR approves offset leave, they can now change the number of hours before approving. It starts at the hours requested and can't go higher.",
+            "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
+        ]
+    },
+    {
+        "date": "2026-09-18",
         "title": "CRM Is Called SORS",
         "version": "1.7.20",
         "changes": [
