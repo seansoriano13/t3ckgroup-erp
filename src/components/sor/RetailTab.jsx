@@ -73,7 +73,7 @@ export default function RetailTab() {
         <div>
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
             <ShoppingBag size={15} className="text-muted-foreground" />
-            Retail
+            Recorded orders
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
             Marketplace orders (issue #170) — excluded from the pipeline and commission, kept here for visibility.

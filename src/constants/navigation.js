@@ -13,6 +13,7 @@ import {
   Percent,
   Workflow,
   ShoppingCart,
+  ShoppingBag,
   Presentation,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
@@ -96,6 +97,24 @@ export const NAV_MODULES = {
         link: "/crm/commission-formula",
         icon: Percent,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+      },
+      // Issues #170-#174 put the Retail Queue and Retail totals in the
+      // register's tab strip. They live on their own screen now — the strip
+      // was the crowded thing, and retail is a sideline that nobody scans the
+      // register for. Last in the group for the same reason.
+      //
+      // This gate is deliberately coarser than the screen's own: `isPermitted`
+      // is synchronous, and the real eligibility (#173 — a Super Admin, or a
+      // Sales Director on a live opportunity) needs a query to answer. Same
+      // arrangement as Commission Dashboard: the sidebar offers the entry, the
+      // page decides. Nothing is granted here that the page would refuse.
+      {
+        key: "sales.retail",
+        label: "Retail",
+        link: "/retail",
+        icon: ShoppingBag,
+        isPermitted: (ctx) => ctx.isSuperAdmin || ctx.hasSalesFlow,
+        exactMatch: true,
       },
     ],
   },

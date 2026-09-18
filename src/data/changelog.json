@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-09-18",
+        "title": "Retail Has Its Own Screen",
+        "version": "1.7.19",
+        "changes": [
+            "Retail has moved out of the SOR register and into its own entry in the sidebar, under Sales. The register's tabs are now just List, Board, Overview and Deleted.",
+            "The new screen shows marketplace orders waiting for review at the top, and what has already been counted — totals by month and storefront — below. Orders only appear at the top when there is something to review.",
+            "Who can open it has not changed: Super Admins and Sales Directors, the same as before the move."
+        ]
+    },
+    {
         "date": "2026-09-16",
         "title": "A Tidier SOR Window",
         "version": "1.7.18",

@@ -157,7 +157,21 @@ describe("navigation registry", () => {
         "CRM",
         "Commission Dashboard",
         "Commission Formula",
+        // Retail moved out of the register's tab strip onto its own screen.
+        // The sidebar gate is the coarse one — the same shape Commission
+        // Dashboard uses — because `isPermitted` is synchronous and the real
+        // eligibility (Sales Director on a live opportunity, issue #173) can
+        // only be answered by a query. The page itself enforces that.
+        "Retail",
       ]);
+    });
+
+    it("keeps Retail out of the sidebar for an employee with no sales flow", () => {
+      const taskUser = { id: "task-1", has_task_flow: true };
+
+      const groups = getFilteredNavigationGroups(taskUser);
+      const salesGroup = groups.find((g) => g.key === "sales");
+      expect(salesGroup).toBeUndefined();
     });
 
     it("returns all 7 modules for Super Admin", () => {
@@ -246,6 +260,7 @@ describe("navigation registry", () => {
         expect(salesGroup.links.map((l) => l.label)).toEqual([
           "CRM",
           "Commission Formula",
+          "Retail",
         ]);
       });
 
@@ -258,6 +273,7 @@ describe("navigation registry", () => {
           "CRM",
           "Commission Dashboard",
           "Commission Formula",
+          "Retail",
         ]);
       });
 
@@ -283,6 +299,7 @@ describe("navigation registry", () => {
           "CRM",
           "Commission Dashboard",
           "Commission Formula",
+          "Retail",
         ]);
       });
 
