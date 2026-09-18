@@ -1,12 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
+import PageContainer from "../../components/ui/PageContainer";
+import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
 import RetailOrdersQueue from "../../components/sor/RetailOrdersQueue";
 import RetailTab from "../../components/sor/RetailTab";
-import { getRetailQueuePendingCount } from "../../services/retailQueueService";
-import { commissionService } from "../../services/commissionService";
-import { useAuth } from "../../context/AuthContext";
+import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
 
 /**
  * Retail — marketplace orders (Shopee, Lazada), on their own screen.
@@ -17,35 +16,17 @@ import { useAuth } from "../../context/AuthContext";
  * what somebody actually opens this for. Stacking them on one page — pending
  * review above, what's already counted below — says that in the layout.
  *
- * A retail SOR is a real row with a real Sales Reference and amount, excluded
+ * A Retail SOR is a real row with a real Sales Reference and amount, excluded
  * from the pipeline, the commission engine and every aggregate read (see the
  * `is_retail` flag, issue #171). Nothing here deletes one.
  */
 function RetailScreen() {
-  const { user } = useAuth();
-
   // Issue #173's gate, unchanged by the move: a Super Admin, or a Sales
   // Director on a live opportunity — the same eligibility as the RLS policy
   // guarding the queue table, because approving an item writes an SOR.
-  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
-  const { data: isRetailSalesDirector = false, isLoading: isGateLoading } = useQuery({
-    queryKey: ["isSalesDirector", user?.id],
-    queryFn: () => commissionService.isSalesDirector(user.id),
-    enabled: !isSuperAdmin && !!user?.id,
-  });
-  const canHandleRetail = isSuperAdmin || isRetailSalesDirector;
+  const { hasAccess, isResolving } = useSalesDirectorAccess();
 
-  // Drives whether the band renders at all. A permanently-empty review table
-  // above the totals would be the same clutter this page was made to remove,
-  // so the band appears only when there is something in it.
-  const { data: pendingCount = 0 } = useQuery({
-    queryKey: ["retailQueueCount"],
-    queryFn: () => getRetailQueuePendingCount(),
-    refetchInterval: 60_000,
-    enabled: canHandleRetail,
-  });
-
-  if (!isSuperAdmin && isGateLoading) {
+  if (isResolving) {
     return (
       <div className="flex items-center justify-center gap-2 py-24 text-muted-foreground">
         <Spinner size="sm" />
@@ -54,7 +35,7 @@ function RetailScreen() {
     );
   }
 
-  if (!canHandleRetail) {
+  if (!hasAccess) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 py-24 text-center text-muted-foreground">
         <ShoppingBag size={28} className="opacity-40" />
@@ -70,21 +51,18 @@ function RetailScreen() {
   }
 
   return (
-    <div>
-      <div className="mb-2">
-        <h1 className="flex items-center gap-2 text-sm font-black uppercase tracking-widest text-foreground">
-          <ShoppingBag size={16} className="text-muted-foreground" />
-          Retail
-        </h1>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Marketplace orders from Odoo. Kept out of the pipeline and the
-          commission engine, and counted here instead.
-        </p>
-      </div>
-
-      {pendingCount > 0 && <RetailOrdersQueue />}
+    <PageContainer>
+      <PageHeader
+        title="Retail"
+        description="Marketplace orders from Odoo. Kept out of the pipeline and the commission engine, and counted here instead."
+      />
+      {/* Always mounted, including when nothing is pending: the queue carries a
+          collapsible Dismissed history alongside the review rows, and hiding
+          the section on an empty pending count would put that history out of
+          reach exactly when somebody goes looking for it. */}
+      <RetailOrdersQueue />
       <RetailTab />
-    </div>
+    </PageContainer>
   );
 }
 

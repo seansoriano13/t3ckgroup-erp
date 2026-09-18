@@ -159,7 +159,6 @@ async function runSync() {
   for (const note of allNotes) {
     const rawText = typeof note.content === "string" ? note.content : "";
     const cleanText = toPlainText(rawText);
-    const text = cleanText.toUpperCase();
     const soData = soMap[note.res_id];
     const partnerName: string | null = soData?.partner_id ? soData.partner_id[1] : null;
 

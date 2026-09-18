@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
-import { useAuth } from "../../context/AuthContext";
+import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
 
 const ROLE_LABELS_BY_PROJECT_TYPE = {
   SSP: {
@@ -125,18 +125,7 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
  * Sales-Director-editable Commission Split percentages per Project Type (SSP, CP, STRATEGIC).
  */
 export default function CommissionFormulaView() {
-  const { user } = useAuth();
-  const isSuperAdmin = !!(user?.is_super_admin || user?.isSuperAdmin);
-
-  // "Sales Director" isn't a flag on the user record — it's whoever is
-  // actually set as sales_director_id on at least one opportunity. See
-  // commissionService.isSalesDirector.
-  const { data: isDirector } = useQuery({
-    queryKey: ["isSalesDirector", user?.id],
-    queryFn: () => commissionService.isSalesDirector(user.id),
-    enabled: !isSuperAdmin && !!user?.id,
-  });
-  const canEditSplits = isSuperAdmin || !!isDirector;
+  const { user, hasAccess: canEditSplits } = useSalesDirectorAccess();
 
   const { data: rates } = useQuery({
     queryKey: ["commissionRateHistory"],

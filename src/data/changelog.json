@@ -6,7 +6,7 @@
         "changes": [
             "The CRM module is now called SORS — the Sales Opportunity Registration System, the name it has in company policy (CCPR-2026-001, Annex C). One SOR is one Sales Opportunity Registration.",
             "Its address changed from /crm to /sors, and the Commission Dashboard and Commission Formula moved with it. Old links still work: anything pointing at /crm or /opportunities, including links inside notifications you have not opened yet, lands in the right place.",
-            "The filter on Tasks and Group Tasks that shows only work linked to a deal is now labelled SORS."
+            "The filter on Tasks and Group Tasks that shows only work linked to an SOR is now labelled SORS."
         ]
     },
     {

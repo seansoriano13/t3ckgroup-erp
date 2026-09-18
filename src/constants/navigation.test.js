@@ -170,8 +170,21 @@ describe("navigation registry", () => {
       const taskUser = { id: "task-1", has_task_flow: true };
 
       const groups = getFilteredNavigationGroups(taskUser);
-      const salesGroup = groups.find((g) => g.key === "sales");
-      expect(salesGroup).toBeUndefined();
+      expect(groups.find((g) => g.key === "sales")).toBeUndefined();
+
+      // Asserted against the entry itself, not just the absent group: the
+      // group disappears when every link in it is filtered out, so checking
+      // only for `undefined` would still pass if Retail were visible to all.
+      const retail = NAV_MODULES.sales.links.find((l) => l.key === "sales.retail");
+      expect(retail).toBeDefined();
+      expect(retail.link).toBe("/retail");
+      expect(retail.isPermitted(buildUserPermissionContext(taskUser))).toBe(false);
+      expect(
+        retail.isPermitted(buildUserPermissionContext({ id: "s", has_sales_flow: true })),
+      ).toBe(true);
+      expect(
+        retail.isPermitted(buildUserPermissionContext({ id: "a", isSuperAdmin: true })),
+      ).toBe(true);
     });
 
     it("returns all 7 modules for Super Admin", () => {

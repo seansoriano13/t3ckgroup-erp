@@ -107,7 +107,10 @@ export const NAV_MODULES = {
       // is synchronous, and the real eligibility (#173 — a Super Admin, or a
       // Sales Director on a live opportunity) needs a query to answer. Same
       // arrangement as Commission Dashboard: the sidebar offers the entry, the
-      // page decides. Nothing is granted here that the page would refuse.
+      // page decides. So a salesperson who is not a Sales Director does see
+      // this entry and is refused on arrival. That is the cost of a coarse
+      // sidebar gate, not a hole — the page and the queue table's RLS policy
+      // both enforce the real one, and nothing is reachable without them.
       {
         key: "sales.retail",
         label: "Retail",
