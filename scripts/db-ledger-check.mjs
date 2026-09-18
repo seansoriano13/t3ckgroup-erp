@@ -26,13 +26,16 @@
  * Reads STAGING_DB_URL / PROD_DB_URL from .env.local (or from the environment
  * in CI) — the same read-only connection scripts/db-snapshot.mjs uses.
  *
- * Exit codes: 0 = ledger and files agree, 1 = orphans present (push blocked).
+ * Exit codes: 0 = safe to push, 1 = orphans or out-of-order pending migrations
+ * (push blocked, or would skip/apply around them). migrate-prod runs this as a
+ * hard pre-flight gate before `db push` (#332).
  */
 import pg from 'pg';
 import { readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { loadDotEnvLocal } from './lib/seedShared.mjs';
+import { analyzeLedger } from './lib/ledger.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
@@ -67,27 +70,18 @@ await client.end();
 // A migration file's name is "<14-digit UTC timestamp>_<name>.sql". Anything
 // else under the directory (notably _archive/, superseded by the baseline) is
 // not part of the set the ledger tracks.
-const files = readdirSync(join(repoRoot, 'supabase', 'migrations'))
-  .filter((f) => /^\d{14}_.*\.sql$/.test(f))
-  .sort();
-
-const fileVersions = new Map(files.map((f) => [f.slice(0, 14), f]));
-const ledgerVersions = new Set(ledger.map((r) => r.version));
-
-const orphans = ledger.filter((r) => !fileVersions.has(r.version));
-const pending = files.filter((f) => !ledgerVersions.has(f.slice(0, 14)));
-const remoteTip = ledger.length ? ledger[ledger.length - 1].version : null;
+const files = readdirSync(join(repoRoot, 'supabase', 'migrations'));
 
 // `db push` applies pending migrations in filename order and will not reach
 // back past what the remote has already recorded without --include-all. A
 // pending file that sorts before the tip is the "my timestamp is too early"
 // trap — the remedy is a NEW file with a current timestamp, never a rename.
-const outOfOrder = remoteTip ? pending.filter((f) => f.slice(0, 14) < remoteTip) : [];
+const { orphans, pending, outOfOrder, remoteTip, fileCount, ok } = analyzeLedger({ ledger, files });
 
 const bold = (s) => `[1m${s}[0m`;
 console.log(`\n${bold(`Migration ledger — ${target}`)} (${projectRef})\n`);
 console.log(`  applied on remote : ${ledger.length}`);
-console.log(`  local files       : ${files.length}`);
+console.log(`  local files       : ${fileCount}`);
 console.log(`  remote tip        : ${remoteTip ?? '(empty ledger)'}`);
 
 if (orphans.length) {
@@ -124,4 +118,8 @@ if (!orphans.length && !pending.length) {
 }
 
 console.log('');
-process.exit(orphans.length ? 1 : 0);
+if (!ok) {
+  console.log(`${bold('BLOCKED')} — ${orphans.length} orphan(s), ${outOfOrder.length} out-of-order pending migration(s). Do not push.
+`);
+}
+process.exit(ok ? 0 : 1);
