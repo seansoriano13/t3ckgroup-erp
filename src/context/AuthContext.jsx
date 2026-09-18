@@ -3,6 +3,8 @@ import { employeeService } from "../services/employeeService.js";
 import { storageService } from "../services/storageService.js";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase.js";
+import { isRecoveryActive } from "../lib/recoveryFlag.js";
+import { isResetPasswordPath } from "../lib/recoveryLink.js";
 
 const AuthContext = createContext(null);
 const PROFILE_CACHE_KEY = "t3ck_user_profile";
@@ -91,10 +93,33 @@ export const AuthProvider = ({ children }) => {
       }
     }, 15_000);
 
+    // A password reset owns its short-lived recovery session until the new
+    // password is set. Resolving the employee off it — or hitting the
+    // no-employee branch and calling logout(), which signs the session out and
+    // redirects to /login — tears that flow down mid-reset and spends the
+    // one-time token. `isRecoveryActive()` is the cross-tab guard: a lingering
+    // /login tab sees the recovery session appear via storage sync and must
+    // leave it alone too, not just the /reset-password tab itself. The reset
+    // page redirects out with a full load once done, booting a clean resolve.
+    const skipForRecovery = () =>
+      isResetPasswordPath(window.location.pathname) || isRecoveryActive();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      // Only the session-bearing branch is the hazard: it resolves the employee
+      // and, finding none, logs out. A SIGNED_OUT with no session has nothing
+      // left to protect, so it must still clear this tab — guarding it too
+      // would leave every tab unable to react to a genuine sign-out.
       if (session?.user) {
+        if (skipForRecovery()) {
+          if (isMounted) {
+            setIsAuthLoading(false);
+            setInitFinished(true);
+            settledRef.current = true;
+          }
+          return;
+        }
         resolveEmployee(session.user, isMounted);
       } else {
         if (isMounted) {
@@ -109,6 +134,7 @@ export const AuthProvider = ({ children }) => {
 
     // Re-verify session when user returns to the tab
     const handleVisibilityChange = () => {
+      if (skipForRecovery()) return;
       if (document.visibilityState === "visible") {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user && isMounted) {

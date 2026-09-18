@@ -2,6 +2,11 @@
 
 ## Status
 
+**Superseded 2026-08-27 by [ADR 0006](./0006-sales-flow-as-a-graph.md).** Its container survives — a deal
+carries a type and the type owns a flow — but the axis is renamed **Sale Type**,
+its values are configured by Operations rather than fixed at Bidding/Outright,
+and the flow is a graph rather than an ordered list. Read below as history.
+
 Accepted 2026-08-24. **Challenged and re-affirmed 2026-08-25** with one
 constraint added.
 

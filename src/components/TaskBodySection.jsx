@@ -1,4 +1,5 @@
 import { FolderKanban, Receipt } from "lucide-react"
+import SorLink from "./sor/SorLink"
 import Dot from "./ui/Dot"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -24,6 +25,7 @@ export default function TaskBodySection({
   executeUpdate,
   task,
   user,
+  onClose,
 }) {
   const projectTitles = useProjectTitles(task?.loggedById || task?.logged_by || user?.id, isEditing);
 
@@ -66,6 +68,9 @@ export default function TaskBodySection({
           )}
         </div>
       )}
+
+      {/* --- OPPORTUNITY LINK --- */}
+      <SorLink opportunityId={task?.opportunityId || task?.opportunity_id} onClose={onClose} />
 
       {/* --- PAYMENT VOUCHER --- */}
       {((isEditing && taskDept?.toUpperCase() === "ADMIN") ||

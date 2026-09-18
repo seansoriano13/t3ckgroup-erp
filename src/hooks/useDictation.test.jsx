@@ -10,7 +10,7 @@ import { useDictation } from "./useDictation"
  * under test rather than untested wiring in a component.
  *
  * jsdom implements no speech recognition API, so a stub constructor stands in
- * for it. `src/test/setup.js` does the same for WebSocket, and the Vitest
+ * for it. `src/test/setup.harness.js` does the same for WebSocket, and the Vitest
  * config restores stubbed globals between tests.
  */
 

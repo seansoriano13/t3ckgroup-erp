@@ -4,8 +4,8 @@ import { getColumn, getTable, resolveRelation, schema } from "./schema"
 /**
  * The schema registry is the foundation every service test stands on: if it
  * misreads the SQL, every downstream test is checking the wrong database.
- * Expected values here are read off t3ckgroup.sql and supabase/migrations/*.sql
- * by hand, never derived from the parser.
+ * Expected values here are read off supabase/migrations/*.sql by hand, never
+ * derived from the parser.
  */
 describe("schema registry", () => {
   it("reads columns, types and NOT NULL from the baseline dump", () => {

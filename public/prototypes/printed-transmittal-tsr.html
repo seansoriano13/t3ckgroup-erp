@@ -1,0 +1,339 @@
+<title>Printed Transmittal and TSR</title>
+<!--
+  PROTOTYPE — throwaway. Ticket: Printed Transmittal and TSR (#238) on the IPAS/PMS map (#210).
+  Three treatments of the pair, switchable with ?variant=A|B|C, the bar, or the arrow keys.
+  Contents follow "What a Transmittal is and what it carries" and "What a TSR records".
+  Print idiom follows ADR 0014, including its half-letter pairing (variant B).
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Spectral:ital,wght@0,400;0,600&display=swap">
+<style>
+  :root {
+    --desk: #e7e3dc; --desk-ink: #2c2a26; --desk-soft: #6d685f; --desk-edge: #cdc7bd;
+    --shadow: 0 1px 2px rgba(24,22,18,.16), 0 12px 28px rgba(24,22,18,.13);
+    --paper: #fff; --ink: #16181c; --ink-soft: #55606c; --ink-faint: #8b95a1;
+    --rule: #c4c9d0; --hair: #e4e7eb; --wash: #f4f6f8; --accent: #0d4f3c; --flag: #9d3218; --ok: #1f5c46;
+    --sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: "Geist Mono", ui-monospace, "SFMono-Regular", Consolas, monospace;
+    --serif: "Spectral", ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+  }
+  :root[data-theme="dark"] { --desk: #1a1c20; --desk-ink: #e8e6e1; --desk-soft: #9aa0a8; --desk-edge: #2f3339; --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px rgba(0,0,0,.45); }
+
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--desk); color: var(--desk-ink); font-family: var(--sans); font-size: 14px; }
+  .desk { padding-block: 28px 120px; padding-left: 16px; padding-right: 16px; display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .desk-head { width: min(1000px, 100%); display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 18px; }
+  .desk-head h1 { font-family: var(--serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .desk-head p { margin: 0; color: var(--desk-soft); font-size: 13px; max-width: 64ch; }
+  .desk-head .tag { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--desk-soft); border: 1px solid var(--desk-edge); border-radius: 2px; padding: 3px 7px; }
+
+  .sheet { width: 210mm; min-height: 297mm; padding: 12mm 13mm 10mm; background: var(--paper); color: var(--ink); box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 5mm; font-size: 9pt; line-height: 1.35; }
+  .sheet.land { width: 297mm; min-height: 210mm; }
+  .halfpage { width: 216mm; min-height: 279mm; background: var(--paper); box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .halfpage .half { flex: 1; padding: 9mm 11mm; color: var(--ink); font-size: 8.4pt; line-height: 1.3; display: flex; flex-direction: column; gap: 3.5mm; }
+  .halfpage .half + .half { border-top: 1px dashed var(--rule); }
+
+  .rail { display: flex; align-items: flex-end; gap: 9px; border-bottom: 1.4px solid var(--ink); padding-bottom: 4px; }
+  .rail .mark { width: 20px; height: 20px; color: var(--accent); flex: none; }
+  .rail .mark svg { width: 100%; height: 100%; display: block; }
+  .rail .org { font-size: 7pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-soft); line-height: 1.25; }
+  .rail .org b { display: block; font-size: 9.5pt; letter-spacing: .04em; color: var(--ink); }
+  .rail .doc { margin-left: auto; text-align: right; }
+  .rail .doc .t { font-family: var(--serif); font-size: 14pt; font-weight: 600; line-height: 1; }
+  .rail .doc .s { font-family: var(--mono); font-size: 7.2pt; color: var(--ink-soft); }
+  .rail .doc .form { font-family: var(--mono); font-size: 6.6pt; color: var(--ink-faint); letter-spacing: .1em; }
+
+  .route { display: grid; grid-template-columns: 1fr 14mm 1fr 1fr; gap: 6px; align-items: center; border: 1px solid var(--rule); padding: 5px 7px; }
+  .route .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; }
+  .route .v { font-size: 10pt; font-weight: 500; }
+  .route .arrow { text-align: center; color: var(--ink-faint); font-size: 13pt; }
+
+  .facts { display: flex; flex-wrap: wrap; gap: 3px 20px; }
+  .fact .k { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); display: block; }
+  .fact .v { font-size: 8.8pt; font-weight: 500; }
+  .fact .v.m { font-family: var(--mono); font-weight: 400; }
+
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; vertical-align: top; padding: 3.5px 6px; border-bottom: 1px solid var(--hair); }
+  thead th { font-size: 6.4pt; letter-spacing: .085em; text-transform: uppercase; color: var(--ink-soft); border-bottom: 1px solid var(--ink); }
+  td.num, th.num { text-align: right; font-family: var(--mono); }
+  .sub { color: var(--ink-soft); font-size: 7.2pt; }
+  .m { font-family: var(--mono); }
+  .box { border: 1px solid var(--rule); padding: 5px 7px; }
+  .box .h { font-size: 6.4pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3px; }
+
+  .chip { display: inline-block; font-size: 6.2pt; letter-spacing: .07em; text-transform: uppercase; padding: 1px 4px; border: 1px solid var(--rule); border-radius: 2px; color: var(--ink-soft); }
+  .chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, var(--rule)); }
+  .chip.bad { color: var(--flag); border-color: color-mix(in srgb, var(--flag) 45%, var(--rule)); }
+  .tick { font-family: var(--mono); }
+
+  .incl { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 12px; }
+  .incl span { font-size: 7.2pt; }
+  .incl span.miss { color: var(--flag); }
+
+  .photos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .photo { aspect-ratio: 4 / 3; max-width: 100%; border: 1px solid var(--rule); background: var(--wash); display: flex; align-items: flex-end; justify-content: center; padding: 3px; font-size: 6.4pt; color: var(--ink-faint); }
+
+  .sigs { display: grid; gap: 7mm; margin-top: auto; padding-top: 3mm; }
+  .sigs.n3 { grid-template-columns: repeat(3, 1fr); }
+  .sigs.n2 { grid-template-columns: repeat(2, 1fr); }
+  .sig .k { font-size: 6.2pt; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-faint); }
+  .sig .plate { height: 12mm; border-bottom: 1px solid var(--ink); display: flex; align-items: flex-end; padding-bottom: 2px; }
+  .sig .plate .printed { font-family: var(--serif); font-style: italic; font-size: 10.5pt; }
+  .sig .who { font-size: 7.8pt; font-weight: 500; margin-top: 3px; }
+  .sig .role { font-size: 6.6pt; color: var(--ink-soft); }
+  .sig .stamp { font-family: var(--mono); font-size: 6.2pt; color: var(--ink-faint); margin-top: 2px; }
+  .sig.awaiting .plate { border-bottom-style: dashed; }
+  .sig.awaiting .stamp { color: var(--flag); }
+
+  .stub { border-top: 1.5px dashed var(--ink); margin-top: 5mm; padding-top: 4mm; display: grid; grid-template-columns: 1fr 58mm; gap: 8mm; }
+  .stub .scissors { font-size: 6.4pt; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 3mm; }
+
+  .foot { display: flex; justify-content: space-between; gap: 14px; border-top: 1px solid var(--hair); padding-top: 4px; font-size: 6.4pt; color: var(--ink-faint); font-family: var(--mono); }
+
+  .switcher { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 50; display: flex; background: #101215; color: #f4f5f7; border-radius: 999px; box-shadow: 0 6px 24px rgba(0,0,0,.4); overflow: hidden; }
+  .switcher button { background: none; border: 0; color: inherit; font: inherit; padding: 10px 15px; cursor: pointer; font-size: 16px; line-height: 1; }
+  .switcher button:hover { background: rgba(255,255,255,.12); }
+  .switcher button:focus-visible { outline: 2px solid #8fd7bd; outline-offset: -3px; }
+  .switcher .label { padding: 9px 6px; min-width: 210px; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+  .switcher .label b { font-size: 13px; }
+  .switcher .label span { font-size: 10px; letter-spacing: .09em; text-transform: uppercase; color: #9aa4ae; }
+
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: #fff; }
+    .desk { padding: 0; gap: 0; }
+    .desk-head, .switcher { display: none !important; }
+    .sheet, .halfpage { box-shadow: none; page-break-after: always; }
+  }
+  @media (max-width: 820px) {
+    .sheet, .halfpage, .sheet.land { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
+    .route { grid-template-columns: 1fr; }
+    .route .arrow { display: none; }
+    .sigs.n3, .sigs.n2 { grid-template-columns: 1fr 1fr; }
+    .incl, .photos { grid-template-columns: 1fr 1fr; }
+    .stub { grid-template-columns: 1fr; }
+    .switcher .label { min-width: 120px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="desk">
+  <div class="desk-head">
+    <h1>Printed Transmittal and TSR</h1>
+    <span class="tag">prototype · #238</span>
+    <p>One hand-off from Purchasing to Technical, and the check that followed it. Three treatments of the pair — flip with the bar, the arrow keys, or <code>?variant=</code>.</p>
+  </div>
+  <div id="stage"></div>
+</div>
+
+<div class="switcher" role="group" aria-label="Prototype variant switcher">
+  <button type="button" id="prev" aria-label="Previous variant">&#8592;</button>
+  <div class="label"><b id="vname">Two full forms</b><span id="vkey">Variant A</span></div>
+  <button type="button" id="next" aria-label="Next variant">&#8594;</button>
+</div>
+
+<script>
+const MARK = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="204 177 650 550" role="img" aria-label="T3CKGROUP"><path d="M492.51 240.23C492.91 240.97 492.53 241.46 493.45 241.96C495.1 242.87 508.27 242.24 511.06 242.25C530.08 242.31 549.09 242.16 568.11 242.18C632.01 242.23 695.92 241.89 759.82 242.13C776.65 242.2 793.48 242.21 810.32 242.1C815 242.06 825.21 243.53 828.76 240.84C827.84 246.58 824.24 252.21 821.99 257.65C818.53 266.04 815.56 274.69 811.94 283.01C810.26 286.89 808.16 290.61 806.56 294.54C803.77 301.39 801.24 311.91 796.63 317.49C783.01 318.59 768.84 317.65 755.14 317.69C723.03 317.81 690.93 317.84 658.82 317.86C646.35 317.87 633.89 317.91 621.41 317.76C616.52 317.7 609.38 316.33 605.07 318.83C604.78 318.34 604.89 317.74 604.27 317.47C601.72 316.35 592.79 317.18 589.62 317.17C573.46 317.1 557.13 316.8 540.99 317.41C536.8 322.42 533.82 334.35 531.05 340.78C523.06 359.37 515.47 378.12 507.47 396.71C481.23 457.69 456.33 519.24 430.24 580.29C421.53 600.69 413.65 621.47 404.6 641.72C402.45 646.53 400.62 651.4 398.71 656.3C397.7 658.9 395.97 661.24 397.25 663.89C393.14 666.46 390.6 676.47 388.83 681.11C385.64 689.5 381.65 697.57 378.03 705.78C375.49 711.54 373.63 717.62 370.79 723.25C365.75 725.3 347.54 723.73 340.87 723.88C315.32 724.44 289.73 723.89 264.18 724.01C255.77 724.05 247.34 724.23 238.93 723.92C235.16 723.79 231.02 724.32 227.71 722.63C230.5 711.05 236.9 699.94 241.56 688.99C249.35 670.7 256.43 652.17 264.02 633.8C266.89 626.84 270.49 620.14 273.23 613.1C284.71 583.5 297.33 554.43 309.77 525.28C312.42 519.08 314.42 512.64 316.93 506.4C327.26 480.73 338.3 455.39 349.01 429.88C359.88 404.01 370.86 378.38 380.76 352.27C383.69 344.54 387.52 337.09 390.69 329.45C392.12 326 394.34 321.91 394.17 318.2C331.83 317.92 269.48 317.63 207.14 317.35C206.03 311.02 212.64 300.35 215.18 294.14C217.67 288.1 219.6 281.8 222.05 275.74C224.43 269.82 227.36 264.17 229.63 258.18C231.65 252.84 233.51 247.21 236.13 242.14C242.42 240.59 251.87 241.78 258.59 241.81C272.61 241.89 286.62 241.7 300.65 241.8C342.69 242.1 384.73 241.45 426.76 241.73C442.69 241.84 458.64 241.36 474.57 241.7C478.85 241.79 489.82 243.24 492.51 240.23Z" fill="currentColor" fill-rule="evenodd"/></svg>';
+
+const TRN = {
+  no: 'TRN_034', form: 'TG03', entity: 'TG Enterprise',
+  from: 'Purchasing · J. Bautista', to: 'Technical RRD · C. Villanueva',
+  date: '14 Sep 2026', reason: 'Quality checking before hand-over to the Warehouse',
+  location: 'BM Office', sors: 'S07983',
+  lines: [
+    { n: '1', what: 'Ambulance Folding Stretcher · Redleaf RL-FS190', qty: 2, ipas: 'TGIPAS_050', po: 'P02445', cond: 'Received' },
+    { n: '2', what: 'Compartment Backup Spine Board · Redleaf', qty: 1, ipas: 'TGIPAS_050', po: 'P02445', cond: 'Received' },
+    { n: '3', what: 'Siren with PA System · Toyota', qty: 1, ipas: 'TGIPAS_049', po: 'P02574', cond: 'Damaged · casing cracked in transit' }
+  ],
+  docs: [
+    { what: 'Waybill · AWB 176-4432119', tick: true },
+    { what: 'Packing List', tick: true },
+    { what: 'Commercial Invoice', tick: false }
+  ],
+  sigs: [
+    { k: 'Prepared by', who: 'J. Bautista', role: 'Purchasing · 114', stamp: 'signed 14 Sep 2026', printed: true },
+    { k: 'Approved by', who: 'A. Dela Cruz', role: 'Purchasing Manager · 1001', stamp: 'signed 14 Sep 2026', printed: true },
+    { k: 'Received by', who: 'C. Villanueva', role: 'Technical Supervisor / RRD', stamp: 'name printed · no stored signature', printed: false }
+  ]
+};
+
+const TSR = {
+  no: 'TSR_089', trn: 'TRN_034', line: '1', entity: 'TG Enterprise',
+  item: 'Ambulance Folding Stretcher · Redleaf RL-FS190', sor: 'S07983', po: 'P02445',
+  checked: '15 Sep 2026', by: 'C. Villanueva',
+  units: [
+    { n: 1, serial: 'RL190-26-0417', verdict: 'Pass', note: 'Straps complete, frame true, latch firm.' },
+    { n: 2, serial: 'RL190-26-0418', verdict: 'Fail', note: 'Left latch does not engage; frame bent 4 mm at the hinge.' }
+  ],
+  inclusions: [
+    ['Restraint straps × 3', true], ['Carry bag', true], ['Mattress pad', false], ['Manual', true], ['Warranty card', true], ['Spare latch pin', true]
+  ],
+  photos: ['unit 1 · full', 'unit 1 · serial', 'unit 2 · latch', 'unit 2 · hinge'],
+  video: 'unit 2 latch test · 00:42',
+  sigs: [{ k: 'Checked by', who: 'C. Villanueva', role: 'Technical Supervisor / RRD · TSR_089', stamp: 'signed 15 Sep 2026', printed: true }]
+};
+
+const sigBlock = s => `<div class="sig${s.awaiting ? ' awaiting' : ''}">
+  <div class="k">${s.k}</div>
+  <div class="plate">${s.printed ? `<span class="printed">${s.who}</span>` : ''}</div>
+  <div class="who">${s.who}</div><div class="role">${s.role}</div>
+  <div class="stamp">${s.stamp}</div></div>`;
+
+const rail = (title, sub, form) => `<div class="rail"><span class="mark">${MARK}</span>
+  <span class="org"><b>T3CKGROUP</b>${TRN.entity}</span>
+  <span class="doc"><div class="t">${title}</div><div class="s">${sub}</div>${form ? `<div class="form">form ${form}</div>` : ''}</span></div>`;
+
+const route = () => `<div class="route">
+  <div><span class="k">From</span><span class="v">${TRN.from}</span></div>
+  <div class="arrow">&#8594;</div>
+  <div><span class="k">To</span><span class="v">${TRN.to}</span></div>
+  <div><span class="k">Date handed over</span><span class="v">${TRN.date}</span></div>
+</div>`;
+
+const trnFacts = () => `<div class="facts">
+  <div class="fact"><span class="k">Reason</span><span class="v">${TRN.reason}</span></div>
+  <div class="fact"><span class="k">Item location</span><span class="v">${TRN.location}</span></div>
+  <div class="fact"><span class="k">SOR</span><span class="v m">${TRN.sors}</span></div>
+  <div class="fact"><span class="k">Lines</span><span class="v m">${TRN.lines.length}</span></div>
+</div>`;
+
+const trnTable = () => `<table>
+  <thead><tr><th>#</th><th>What is handed over</th><th class="num">Qty</th><th>IPAS / PO</th><th>Received as</th></tr></thead>
+  <tbody>${TRN.lines.map(l => `<tr>
+    <td class="m">${l.n}</td><td>${l.what}</td><td class="num">${l.qty}</td>
+    <td class="m">${l.ipas}<div class="sub m">${l.po}</div></td>
+    <td>${l.cond.startsWith('Received') ? '<span class="chip ok">received</span>' : '<span class="chip bad">damaged</span><div class="sub">' + l.cond.replace('Damaged · ', '') + '</div>'}</td>
+  </tr>`).join('')}</tbody></table>`;
+
+const trnDocs = () => `<div class="box"><div class="h">Documents travelling with it</div>
+  ${TRN.docs.map(d => `<div><span class="tick">${d.tick ? '✓' : '☐'}</span> ${d.what}</div>`).join('')}</div>`;
+
+const tsrHead = () => `<div class="facts">
+  <div class="fact"><span class="k">Item</span><span class="v">${TSR.item}</span></div>
+  <div class="fact"><span class="k">Transmittal</span><span class="v m">${TSR.trn} · line ${TSR.line}</span></div>
+  <div class="fact"><span class="k">SOR / PO</span><span class="v m">${TSR.sor} · ${TSR.po}</span></div>
+  <div class="fact"><span class="k">Checked</span><span class="v">${TSR.checked} · ${TSR.by}</span></div>
+</div>`;
+
+const tsrUnits = () => `<table>
+  <thead><tr><th>Unit</th><th>Serial number</th><th>Verdict</th><th>Remark</th></tr></thead>
+  <tbody>${TSR.units.map(u => `<tr>
+    <td class="m">${u.n}</td><td class="m">${u.serial}</td>
+    <td>${u.verdict === 'Pass' ? '<span class="chip ok">pass</span>' : '<span class="chip bad">fail</span>'}</td>
+    <td>${u.note}</td></tr>`).join('')}</tbody></table>`;
+
+const tsrIncl = () => `<div class="box"><div class="h">Inclusions present · ${TSR.inclusions.filter(i => i[1]).length} of ${TSR.inclusions.length}</div>
+  <div class="incl">${TSR.inclusions.map(i => `<span class="${i[1] ? '' : 'miss'}"><span class="tick">${i[1] ? '✓' : '✗'}</span> ${i[0]}</span>`).join('')}</div></div>`;
+
+const tsrPhotos = () => `<div class="box"><div class="h">Evidence · ${TSR.photos.length} photographs, 1 video (${TSR.video})</div>
+  <div class="photos">${TSR.photos.map(p => `<div class="photo">${p}</div>`).join('')}</div></div>`;
+
+const foot = (l, r) => `<div class="foot"><span>${l}</span><span>${r}</span><span>printed 15 Sep 2026</span></div>`;
+
+// A — two full forms, one per sheet
+function variantA() {
+  return `<div class="sheet">
+    ${rail('Transmittal', TRN.no, TRN.form)}
+    ${route()}
+    ${trnFacts()}
+    ${trnTable()}
+    ${trnDocs()}
+    <div class="sigs n3">${TRN.sigs.map(sigBlock).join('')}</div>
+    ${foot(TRN.no + ' · ' + TRN.sors, '1 of 3 lines damaged on receipt')}
+  </div>
+  <div class="sheet">
+    ${rail('Technical Service Report', TSR.no, null)}
+    ${tsrHead()}
+    ${tsrUnits()}
+    ${tsrIncl()}
+    ${tsrPhotos()}
+    <div class="sigs n2">${TSR.sigs.map(sigBlock).join('')}<div class="sig"><div class="k">Noted by (purchasing)</div><div class="plate"></div><div class="who">&nbsp;</div><div class="role">on the failed unit</div><div class="stamp">optional</div></div></div>
+    ${foot(TSR.no + ' · follows ' + TSR.trn, '1 unit failed of 2')}
+  </div>`;
+}
+
+// B — the house idiom: two half-letter forms on one page
+function variantB() {
+  return `<div class="halfpage">
+    <div class="half">
+      ${rail('Transmittal', TRN.no, TRN.form)}
+      ${route()}
+      ${trnTable()}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5mm">
+        ${trnDocs()}
+        <div class="box"><div class="h">Reason and location</div><div>${TRN.reason}</div><div class="sub">${TRN.location} · ${TRN.sors}</div></div>
+      </div>
+      <div class="sigs n3">${TRN.sigs.map(sigBlock).join('')}</div>
+      ${foot(TRN.no, 'half 1 · hand-off')}
+    </div>
+    <div class="half">
+      ${rail('Technical Service Report', TSR.no, null)}
+      ${tsrHead()}
+      ${tsrUnits()}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5mm">
+        ${tsrIncl()}
+        <div class="box"><div class="h">Evidence</div><div>${TSR.photos.length} photographs, 1 video</div><div class="sub">${TSR.video} · held in the ERP, not printed</div></div>
+      </div>
+      <div class="sigs n2">${TSR.sigs.map(sigBlock).join('')}<div class="sig"><div class="k">Received back by</div><div class="plate"></div><div class="who">&nbsp;</div><div class="role">Purchasing</div><div class="stamp">on return of the failed unit</div></div></div>
+      ${foot(TSR.no, 'half 2 · check')}
+    </div>
+  </div>`;
+}
+
+// C — transmittal with a tear-off receipt, TSR as an evidence sheet
+function variantC() {
+  return `<div class="sheet">
+    ${rail('Transmittal', TRN.no, TRN.form)}
+    ${route()}
+    ${trnFacts()}
+    ${trnTable()}
+    ${trnDocs()}
+    <div class="sigs n2">${[TRN.sigs[0], TRN.sigs[1]].map(sigBlock).join('')}</div>
+    <div class="stub">
+      <div>
+        <div class="scissors">&#9986; Receipt — detach, sign and return to Purchasing</div>
+        <div><b>${TRN.no}</b> · ${TRN.lines.length} lines · ${TRN.from} &#8594; ${TRN.to} · handed over ${TRN.date}</div>
+        <div class="sub">Received as: ${TRN.lines.map(l => l.n + '. ' + (l.cond.startsWith('Received') ? 'received' : 'damaged')).join(' · ')}</div>
+        <div class="sub">Anything short or damaged is written on the line above before signing.</div>
+      </div>
+      <div class="sigs n1" style="grid-template-columns:1fr;margin-top:0;padding-top:0">${sigBlock(TRN.sigs[2])}</div>
+    </div>
+    ${foot(TRN.no + ' · ' + TRN.sors, 'receipt stub below the fold')}
+  </div>
+  <div class="sheet land">
+    ${rail('Technical Service Report', TSR.no + ' · evidence sheet', null)}
+    ${tsrHead()}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6mm">
+      <div>${tsrUnits()}${tsrIncl()}</div>
+      <div>${tsrPhotos()}</div>
+    </div>
+    <div class="sigs n2">${TSR.sigs.map(sigBlock).join('')}<div class="sig"><div class="k">Noted by (purchasing)</div><div class="plate"></div><div class="who">&nbsp;</div><div class="role">on the failed unit</div><div class="stamp">optional</div></div></div>
+    ${foot(TSR.no + ' · follows ' + TSR.trn, 'landscape · photographs printed')}
+  </div>`;
+}
+
+const VARIANTS = [
+  { key: 'A', name: 'Two full forms', render: variantA },
+  { key: 'B', name: 'Half-letter pair', render: variantB },
+  { key: 'C', name: 'Receipt stub + evidence sheet', render: variantC }
+];
+function currentKey() { const p = new URLSearchParams(location.search).get('variant'); return VARIANTS.some(v => v.key === p) ? p : 'A'; }
+function show(key) {
+  const v = VARIANTS.find(x => x.key === key) || VARIANTS[0];
+  document.getElementById('stage').innerHTML = v.render();
+  document.getElementById('vname').textContent = v.name;
+  document.getElementById('vkey').textContent = 'Variant ' + v.key;
+  const url = new URL(location.href); url.searchParams.set('variant', v.key); history.replaceState(null, '', url);
+}
+function step(n) { const i = VARIANTS.findIndex(v => v.key === currentKey()); show(VARIANTS[(i + n + VARIANTS.length) % VARIANTS.length].key); }
+document.getElementById('prev').addEventListener('click', () => step(-1));
+document.getElementById('next').addEventListener('click', () => step(1));
+document.addEventListener('keydown', e => {
+  const t = e.target; if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (e.key === 'ArrowLeft') step(-1); if (e.key === 'ArrowRight') step(1);
+});
+show(currentKey());
+</script>

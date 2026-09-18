@@ -7,8 +7,10 @@ import {
   isAnchorCode,
   isLostCode,
   isOpenRegionStage,
-  isRealizedCode,
-  isRealizedStage,
+  isRealizedOpportunity,
+  isOpenPipelineOpportunity,
+  isStillMovingOpportunity,
+  isOnTerminalStage,
   isTerminalStage,
   isWonCode,
   renderableStages,
@@ -21,10 +23,6 @@ import {
   PROJECT_TYPE_LABELS,
   PROJECT_TYPE_SHORT,
   itbGateSatisfiedBy,
-  itbGateStage,
-  realizedStageCodes,
-  REALIZED_STAGES,
-  requiresItbNumber,
   requiresSalesReference,
   STAGE_LABELS,
 } from "./sor"
@@ -125,21 +123,6 @@ describe("pipeline definition", () => {
     expect(PROJECT_TYPE_SHORT.STRATEGIC).toBe("Strategic")
   })
 
-  it("identifies realized stages as the anchor and everything after it, less lost", () => {
-    // Payment Verification joined this set when it was added after Awarded.
-    // That is the intended consequence of putting a stage past the anchor: the
-    // deal is awarded and priced, so accounting still checking the payment
-    // does not move it back into the Projected pool.
-    expect(REALIZED_STAGES).toEqual([
-      "AWARDED",
-      "PAYMENT_VERIFICATION",
-      "PO_RECEIVED",
-      "PROJECT_DELIVERY",
-      "COLLECTION",
-      "CLOSED_WON",
-      "RETENTION",
-    ])
-  })
 })
 
 describe("formatPHP", () => {
@@ -239,55 +222,164 @@ describe("pipeline stage seed", () => {
   })
 })
 
-describe("deriving realized stages from stage order", () => {
-  it("reproduces the policy Realized set exactly from the seed", () => {
-    // The regression that makes the whole refactor safe: derivation must not
-    // move a single deal between the Realized and Projected Commission Pool.
-    expect(realizedStageCodes(PIPELINE_STAGE_SEED)).toEqual(REALIZED_STAGES)
+/**
+ * ADR 0006 — Realized is a fact about the deal, not a position in a list. A
+ * Sales Flow is a graph, so "at or past the anchor" has no meaning; the
+ * question is answered by the Contract Date the Won Stage already stamps and
+ * never un-stamps.
+ */
+describe("realized is having a contract date", () => {
+  it("counts a deal that has a contract date", () => {
+    expect(isRealizedOpportunity({ status: "AWARDED", contract_date: "2026-03-04" })).toBe(true)
   })
 
-  it("finds the Anchor Stage that stamps Contract Date", () => {
+  it("does not count a deal that has never been awarded", () => {
+    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: null })).toBe(false)
+    expect(isRealizedOpportunity({ status: "NEGOTIATION" })).toBe(false)
+  })
+
+  it("still counts a deal that has since moved backwards", () => {
+    // The case the positional rule got wrong and had a special case for: the
+    // Contract Date records that the deal was won, and a later move cannot
+    // unsay it. Under a graph there is no "backwards" to detect anyway.
+    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
+  })
+
+  it("never counts a lost deal, whatever its contract date says", () => {
+    // The one guard the positional rule carried that survives: a deal that was
+    // awarded and then lost is not booked money.
+    expect(isRealizedOpportunity({ status: "CLOSED_LOST", contract_date: "2026-03-04" })).toBe(false)
+  })
+
+  it("does not depend on where the deal's stage sorts", () => {
+    // Two deals on the same Stage, classified differently — impossible under
+    // the positional rule, and the whole point of the fact-based one.
+    const stage = "PAYMENT_VERIFICATION"
+    expect(isRealizedOpportunity({ status: stage, contract_date: "2026-03-04" })).toBe(true)
+    expect(isRealizedOpportunity({ status: stage, contract_date: null })).toBe(false)
+  })
+
+  it("treats a missing opportunity as not realized", () => {
+    // Under-reporting is the safe direction: the alternative silently promotes
+    // pipeline deals into booked money.
+    expect(isRealizedOpportunity(null)).toBe(false)
+    expect(isRealizedOpportunity(undefined)).toBe(false)
+  })
+
+  it("follows a caller's own stage list when deciding what lost means", () => {
+    const renamed = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_lost: s.code === "NEGOTIATION" }))
+    const deal = { status: "NEGOTIATION", contract_date: "2026-03-04" }
+    expect(isRealizedOpportunity(deal, renamed)).toBe(false)
+    expect(isRealizedOpportunity(deal)).toBe(true)
+  })
+
+  it("still finds the Stage that stamps Contract Date", () => {
+    // The anchor keeps its stamping job; it just no longer answers the
+    // Realized question by position.
     expect(anchorStage(PIPELINE_STAGE_SEED).code).toBe("AWARDED")
   })
 
-  it("counts a stage at or after the anchor as realized", () => {
-    const at = (code) => PIPELINE_STAGE_SEED.find((s) => s.code === code)
-    expect(isRealizedStage(at("AWARDED"), PIPELINE_STAGE_SEED)).toBe(true)
-    expect(isRealizedStage(at("COLLECTION"), PIPELINE_STAGE_SEED)).toBe(true)
-    expect(isRealizedStage(at("NEGOTIATION"), PIPELINE_STAGE_SEED)).toBe(false)
-  })
-
-  it("never counts the lost stage as realized despite it sorting last", () => {
-    const lost = PIPELINE_STAGE_SEED.find((s) => s.is_lost)
-    expect(lost.sort_order).toBeGreaterThan(anchorStage(PIPELINE_STAGE_SEED).sort_order)
-    expect(isRealizedStage(lost, PIPELINE_STAGE_SEED)).toBe(false)
-  })
-
-  it("puts a newly added open-region stage in the Projected pool", () => {
-    const stages = [
-      ...PIPELINE_STAGE_SEED,
-      {
-        code: "SITE_SURVEY",
-        label: "Site Survey",
-        sort_order: 45,
-        theme: "blue",
-        is_active: true,
-        is_system: false,
-        is_default: false,
-        is_anchor: false,
-        is_won: false,
-        is_lost: false,
+  // Issue #36/#83 — a flow-built deal (it carries a sale_type_id) has no
+  // crm_pipeline_stages code, so `status` never answers "is this lost" for
+  // it. The caller has to embed the deal's OWN Flow Snapshot instead of the
+  // live flow — a later change to the live Won Stage must not retroactively
+  // alter which SORs are Realized.
+  describe("for a deal that runs a Sales Flow", () => {
+    const wonThenLost = {
+      sale_type_id: "st-1",
+      status: "LEAD", // stale — a flow deal's status never changes
+      contract_date: "2026-03-04",
+      flow_stage_id: "s-lost",
+      flow_snapshot: {
+        snapshot_data: {
+          wonStageId: "s-won",
+          stages: [{ id: "s-lost", is_terminal: true }],
+        },
       },
-    ]
-    expect(realizedStageCodes(stages)).toEqual(REALIZED_STAGES)
-  })
+    }
 
-  it("treats a stage list with no anchor as having nothing realized", () => {
-    // A truncated or corrupt stage list must under-report the Realized pool
-    // rather than silently promoting pipeline deals into it.
-    const anchorless = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_anchor: false }))
-    expect(anchorStage(anchorless)).toBeNull()
-    expect(realizedStageCodes(anchorless)).toEqual([])
+    it("never counts a deal that reached a terminal Stage other than Won", () => {
+      expect(isRealizedOpportunity(wonThenLost)).toBe(false)
+    })
+
+    it("counts a deal sitting on its flow's Won Stage", () => {
+      const won = {
+        ...wonThenLost,
+        flow_stage_id: "s-won",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] },
+        },
+      }
+      expect(isRealizedOpportunity(won)).toBe(true)
+    })
+
+    it("counts a deal on a non-terminal Stage — still in play, not lost", () => {
+      const inProgress = {
+        ...wonThenLost,
+        flow_stage_id: "s-mid",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-mid", is_terminal: false }] },
+        },
+      }
+      expect(isRealizedOpportunity(inProgress)).toBe(true)
+    })
+
+    it("does not count it when the flow_snapshot embed is missing", () => {
+      // Under-reporting is the safe direction: a caller that forgot to embed
+      // flow_snapshot must not silently overcount a lost deal as booked money.
+      expect(isRealizedOpportunity({ ...wonThenLost, flow_snapshot: undefined })).toBe(false)
+    })
+
+    it("does not count it when its own Stage no longer appears in its snapshot", () => {
+      // A stranded reference (a Stage id the snapshot never captured) is
+      // treated the same as a missing embed, not trusted.
+      expect(
+        isRealizedOpportunity({
+          ...wonThenLost,
+          flow_snapshot: { snapshot_data: { wonStageId: "s-won", stages: [] } },
+        }),
+      ).toBe(false)
+    })
+
+    it("stays Realized after the live Won Stage is moved on a later snapshot", () => {
+      // The whole point of issue #83: this deal's own snapshot still says it
+      // won, regardless of what the live flow's Won Stage is today.
+      const stillWon = {
+        ...wonThenLost,
+        flow_stage_id: "s-won",
+        flow_snapshot: {
+          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] },
+        },
+      }
+      expect(isRealizedOpportunity(stillWon)).toBe(true)
+    })
+
+    // Issue #206 — a caller judging many flow SORs at once (the register's
+    // Won total, the Board's per-column totals) passes a bulk snapshot index
+    // instead of relying on each row embedding its own.
+    it("resolves the snapshot from a snapshotsById context, even with no embed", () => {
+      const won = { ...wonThenLost, flow_snapshot: undefined, flow_stage_id: "s-won" }
+      expect(isRealizedOpportunity(won, { snapshotsById: {} })).toBe(false)
+
+      const withId = { ...won, flow_snapshot_id: "snap-1" }
+      const context = {
+        snapshotsById: {
+          "snap-1": { snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] } },
+        },
+      }
+      expect(isRealizedOpportunity(withId, context)).toBe(true)
+    })
+
+    it("prefers snapshotsById over an embedded flow_snapshot when both are given", () => {
+      const withId = { ...wonThenLost, flow_snapshot_id: "snap-1", flow_stage_id: "s-won" }
+      const context = {
+        snapshotsById: {
+          "snap-1": { snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-won", is_terminal: true }] } },
+        },
+      }
+      // The embed still says s-lost/terminal, but the context's snapshot wins.
+      expect(isRealizedOpportunity(withId, context)).toBe(true)
+    })
   })
 })
 
@@ -302,14 +394,11 @@ describe("asking about a stage by the code stored on an opportunity", () => {
     expect(stageByCode(null)).toBeNull()
   })
 
-  it("answers won, lost and realized without the caller knowing a code", () => {
+  it("answers won and lost without the caller knowing a code", () => {
     expect(isWonCode("CLOSED_WON")).toBe(true)
     expect(isWonCode("AWARDED")).toBe(false)
     expect(isLostCode("CLOSED_LOST")).toBe(true)
     expect(isLostCode("CLOSED_WON")).toBe(false)
-    expect(isRealizedCode("PO_RECEIVED")).toBe(true)
-    expect(isRealizedCode("QUALIFIED")).toBe(false)
-    expect(isRealizedCode("CLOSED_LOST")).toBe(false)
   })
 
   it("identifies the stage that stamps Contract Date", () => {
@@ -317,19 +406,9 @@ describe("asking about a stage by the code stored on an opportunity", () => {
     expect(isAnchorCode("CLOSED_WON")).toBe(false)
   })
 
-  it("treats an unknown status as neither won, lost nor realized", () => {
+  it("treats an unknown status as neither won nor lost", () => {
     expect(isWonCode("SOME_RETIRED_STAGE")).toBe(false)
     expect(isLostCode("SOME_RETIRED_STAGE")).toBe(false)
-    expect(isRealizedCode("SOME_RETIRED_STAGE")).toBe(false)
-  })
-
-  it("follows a caller's own stage list rather than the seed", () => {
-    // What the register does once it has loaded crm_pipeline_stages.
-    const renamed = PIPELINE_STAGE_SEED.map((s) =>
-      s.code === "AWARDED" ? { ...s, is_anchor: false } : { ...s, is_anchor: s.code === "NEGOTIATION" },
-    )
-    expect(isRealizedCode("NEGOTIATION", renamed)).toBe(true)
-    expect(isRealizedCode("NEGOTIATION")).toBe(false)
   })
 })
 
@@ -347,71 +426,6 @@ describe("stage gating derived from flags rather than codes", () => {
     }))
     expect(requiresSalesReference("QUALIFIED", "NEGOTIATION", stages)).toBe(true)
     expect(requiresSalesReference("LEAD", "QUALIFIED", stages)).toBe(false)
-  })
-})
-
-/**
- * The ITB (Invitation to Bid) Number gate was added on top of the flag-driven
- * design: it must key off the same is_itb_gate flag pattern as the anchor,
- * never off a stage's sort_order literal or code — a magic number baked into
- * a threshold comparison is exactly what the flag design exists to prevent,
- * because reordering or renaming the gate stage would silently detach it.
- *
- * The gate asks two separate questions, and they are separate functions here
- * for a reason: requiresItbNumber() is about the *move* (does the gate stand
- * between these two stages), itbGateSatisfiedBy() is about the *record* (does
- * this deal have what the gate asks for). Collapsing them is how the outright
- * exemption ends up honoured at two call sites out of three.
- */
-describe("the ITB Number gate", () => {
-  it("names For Bidding as the single stage requiring an ITB Number", () => {
-    expect(itbGateStage(PIPELINE_STAGE_SEED).code).toBe("FOR_BIDDING")
-  })
-
-  it("requires an ITB Number moving from before the gate to it or beyond", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING")).toBe(true)
-    expect(requiresItbNumber("QUALIFIED", "NEGOTIATION")).toBe(true)
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "AWARDED")).toBe(true)
-  })
-
-  it("gates the jump straight to Closed Won, not only the pre-award stages", () => {
-    // The move sales actually makes on an outright deal. It crosses the gate
-    // like any other, which is why the exemption below has to exist.
-    expect(requiresItbNumber("QUALIFIED", "CLOSED_WON")).toBe(true)
-  })
-
-  it("does not gate a move that stays before the gate stage", () => {
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED")).toBe(false)
-  })
-
-  it("does not re-gate a move that stays at or past the gate stage", () => {
-    // Already-quoted opportunities keep advancing without a second ask.
-    expect(requiresItbNumber("FOR_BIDDING", "BID_SUBMITTED")).toBe(false)
-    expect(requiresItbNumber("NEGOTIATION", "AWARDED")).toBe(false)
-  })
-
-  it("lets a deal be closed as lost before it was ever put out to bid", () => {
-    expect(requiresItbNumber("QUALIFIED", "CLOSED_LOST")).toBe(false)
-  })
-
-  it("keeps gating at the position the gate stage actually holds after a reorder", () => {
-    // The whole point of deriving from a flag: moving For Bidding's sort_order
-    // must move the gate with it, not leave a stale threshold behind.
-    const reordered = PIPELINE_STAGE_SEED.map((s) => {
-      if (s.code === "FOR_BIDDING") return { ...s, sort_order: 25 }
-      if (s.code === "QUALIFIED") return { ...s, sort_order: 35 }
-      return s
-    })
-
-    // A move that used to be gated (Qualified was past For Bidding) no longer is.
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "QUALIFIED", reordered)).toBe(true)
-    expect(requiresItbNumber("PROPOSAL_SUBMITTED", "FOR_BIDDING", reordered)).toBe(true)
-  })
-
-  it("never gates anything when no stage carries the flag", () => {
-    const noGate = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_itb_gate: false }))
-    expect(itbGateStage(noGate)).toBeNull()
-    expect(requiresItbNumber("LEAD", "CLOSED_WON", noGate)).toBe(false)
   })
 })
 
@@ -523,5 +537,100 @@ describe("classifying stages for the register and the admin screen", () => {
     expect(isOpenRegionStage(at("AWARDED"), PIPELINE_STAGE_SEED)).toBe(false)
     expect(isOpenRegionStage(at("RETENTION"), PIPELINE_STAGE_SEED)).toBe(false)
     expect(isOpenRegionStage(at("CLOSED_LOST"), PIPELINE_STAGE_SEED)).toBe(false)
+  })
+})
+
+// Issue #199 — Open Pipeline and "still moving" are two named rules.
+describe("open pipeline and still moving", () => {
+  const snapshot = {
+    id: "snap-1",
+    snapshot_data: {
+      wonStageId: "won",
+      stages: [
+        { id: "lead", is_terminal: false },
+        { id: "won", is_terminal: false },
+        { id: "delivery", is_terminal: false },
+        { id: "closed", is_terminal: true },
+        { id: "lost", is_terminal: true },
+      ],
+    },
+  }
+  const snapshotsById = { "snap-1": snapshot }
+  const flowDeal = (overrides) => ({
+    sale_type_id: "st-1",
+    flow_snapshot_id: "snap-1",
+    status: "LEAD",
+    contract_date: null,
+    ...overrides,
+  })
+
+  it("counts a flow SOR with no Contract Date on a non-terminal Stage as open", () => {
+    expect(isOpenPipelineOpportunity(flowDeal({ flow_stage_id: "lead" }), { snapshotsById })).toBe(true)
+  })
+
+  it("leaves a won flow SOR out of the open pipeline but keeps it moving on a post-award Stage", () => {
+    const won = flowDeal({ flow_stage_id: "delivery", contract_date: "2026-03-04" })
+    expect(isOpenPipelineOpportunity(won, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(won, { snapshotsById })).toBe(true)
+  })
+
+  it("leaves a lost flow SOR out of both, whatever its stale status says", () => {
+    const lost = flowDeal({ flow_stage_id: "lost" })
+    expect(isOpenPipelineOpportunity(lost, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(lost, { snapshotsById })).toBe(false)
+  })
+
+  it("judges a flow SOR against its own snapshot, not an embed from a different flow", () => {
+    const other = { "snap-1": { snapshot_data: { stages: [{ id: "lead", is_terminal: true }] } } }
+    expect(isOpenPipelineOpportunity(flowDeal({ flow_stage_id: "lead" }), { snapshotsById: other })).toBe(false)
+  })
+
+  it("counts an SOR whose snapshot is missing under neither rule", () => {
+    const deal = flowDeal({ flow_stage_id: "lead" })
+    expect(isOpenPipelineOpportunity(deal, { snapshotsById: {} })).toBe(false)
+    expect(isStillMovingOpportunity(deal, { snapshotsById: {} })).toBe(false)
+  })
+
+  it("counts an SOR whose Stage is not in its snapshot under neither rule", () => {
+    const deal = flowDeal({ flow_stage_id: "gone" })
+    expect(isOpenPipelineOpportunity(deal, { snapshotsById })).toBe(false)
+    expect(isStillMovingOpportunity(deal, { snapshotsById })).toBe(false)
+  })
+
+  it("judges a legacy SOR by its pipeline stage code and its Contract Date", () => {
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: null })).toBe(true)
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(false)
+    expect(isStillMovingOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
+    expect(isStillMovingOpportunity({ status: "CLOSED_WON" })).toBe(false)
+    expect(isOpenPipelineOpportunity({ status: "CLOSED_LOST" })).toBe(false)
+    expect(isStillMovingOpportunity({ status: "NOT_A_STAGE" })).toBe(false)
+  })
+
+  // Issue #206 — the register's default sort sinks a Terminal Stage SOR.
+  describe("isOnTerminalStage", () => {
+    it("is true for a legacy SOR on a won or lost stage", () => {
+      expect(isOnTerminalStage({ status: "CLOSED_WON" })).toBe(true)
+      expect(isOnTerminalStage({ status: "CLOSED_LOST" })).toBe(true)
+    })
+
+    it("is false for a legacy SOR still moving, even post-award", () => {
+      expect(isOnTerminalStage({ status: "NEGOTIATION" })).toBe(false)
+      expect(isOnTerminalStage({ status: "RETENTION" })).toBe(false)
+    })
+
+    it("is true for a flow SOR whose own snapshot marks its Stage terminal", () => {
+      const lost = flowDeal({ flow_stage_id: "lost" })
+      expect(isOnTerminalStage(lost, { snapshotsById })).toBe(true)
+    })
+
+    it("is false for a flow SOR on a non-terminal Stage, won or not", () => {
+      const delivery = flowDeal({ flow_stage_id: "delivery", contract_date: "2026-03-04" })
+      expect(isOnTerminalStage(delivery, { snapshotsById })).toBe(false)
+    })
+
+    it("is false, not true, when the Stage can't be resolved", () => {
+      expect(isOnTerminalStage({ status: "NOT_A_STAGE" })).toBe(false)
+      expect(isOnTerminalStage(flowDeal({ flow_stage_id: "gone" }), { snapshotsById })).toBe(false)
+    })
   })
 })

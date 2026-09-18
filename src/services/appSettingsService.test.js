@@ -19,6 +19,7 @@ describe("appSettingsService", () => {
       enable_self_verification: false,
       enable_bulk_approval: false,
       enable_visual_shaming: false,
+      retail_storefronts: ["Shopee", "Lazada"],
     })
   })
 

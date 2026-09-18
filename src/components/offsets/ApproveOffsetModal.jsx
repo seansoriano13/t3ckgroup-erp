@@ -9,7 +9,8 @@ import { offsetService } from '../../services/offsetService';
  * HR approves an offset leave request, editing the hours actually debited
  * before the employee's balance is spent — mirrors ApproveOvertimeModal, but
  * capped at the requested hours since this spends a banked balance rather
- * than crediting one.
+ * than crediting one. `request` is a grouped entry (groupLeaveRows), so the
+ * hours are the application's total across all its days.
  */
 export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onSuccess }) {
   const [approvedHours, setApprovedHours] = useState('');
@@ -34,7 +35,7 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
     setSubmitting(true);
     try {
       await offsetService.handleOffsetLeaveDecision({
-        leaveId: request.id,
+        groupId: request.leave_group_id,
         status: 'APPROVED',
         approvedHours: parsedHours,
         hrId,
@@ -66,7 +67,8 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <p className="text-xs font-semibold text-muted-foreground">
-            {request.employee?.name || 'This employee'} requested {request.hours} hrs on{' '}
+            {request.employee?.name || 'This employee'} requested {request.hours} hrs
+            {request.dayCount > 1 ? ` across ${request.dayCount} days from ` : ' on '}
             {new Date(request.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}.
           </p>
 

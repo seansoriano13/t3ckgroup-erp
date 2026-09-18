@@ -1,20 +1,12 @@
+import { parseChecklist } from "./checklist";
+
 export const formatTaskPreview = (description, checklist = null) => {
   let descText = "";
   let checklistText = "";
 
   // 1. Check explicit checklist
   if (checklist) {
-    let items = [];
-    if (typeof checklist === "string") {
-      try {
-        const parsed = JSON.parse(checklist);
-        items = Array.isArray(parsed) ? parsed : parsed?.items || [];
-      } catch {
-        // Not JSON: fall through to the empty-items case below.
-      }
-    } else {
-      items = Array.isArray(checklist) ? checklist : checklist?.items || [];
-    }
+    const items = parseChecklist(checklist);
     if (items.length > 0) {
       checklistText = `Checklist: ${items.length} Items`;
     }

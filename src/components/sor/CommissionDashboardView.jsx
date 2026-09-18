@@ -419,7 +419,7 @@ export default function CommissionDashboardView() {
           subtitle={scope === "REALIZED" ? "Awarded to Closed Won" : "Including active pipeline"}
           icon={<CheckCircle2 size={18} className="text-muted-foreground" />}
           color="mauve"
-          onClick={() => navigate("/opportunities", { state: { filterStatus: anchorStage().code } })}
+          onClick={() => navigate("/crm", { state: { filterStatus: anchorStage().code } })}
         />
       </div>
 
@@ -536,7 +536,7 @@ export default function CommissionDashboardView() {
                   key={dept.name}
                   onClick={() =>
                     dept.isSales &&
-                    navigate("/opportunities", {
+                    navigate("/crm", {
                       state: { filterStatus: anchorStage().code },
                     })
                   }
@@ -770,7 +770,7 @@ export default function CommissionDashboardView() {
                       <tr
                         key={emp.employeeId}
                         onClick={() =>
-                          navigate("/opportunities", {
+                          navigate("/crm", {
                             state: { filterEmployeeId: emp.employeeId },
                           })
                         }
@@ -879,7 +879,7 @@ export default function CommissionDashboardView() {
                       <Fragment key={deal.id}>
                         <tr
                           onClick={() =>
-                            navigate("/opportunities", {
+                            navigate("/crm", {
                               state: { openOpportunityId: deal.id },
                             })
                           }
@@ -1006,7 +1006,7 @@ export default function CommissionDashboardView() {
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      navigate("/opportunities", {
+                                      navigate("/crm", {
                                         state: { openOpportunityId: deal.id },
                                       })
                                     }
@@ -1077,7 +1077,7 @@ export default function CommissionDashboardView() {
                     key={dept.name}
                     onClick={() =>
                       dept.isSales &&
-                      navigate("/opportunities", {
+                      navigate("/crm", {
                         state: { filterStatus: anchorStage().code },
                       })
                     }

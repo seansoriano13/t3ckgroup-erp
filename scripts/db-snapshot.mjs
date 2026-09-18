@@ -2,16 +2,23 @@
 /**
  * Generates a read-only schema mirror (supabase/schema/{prod,staging}.sql)
  * from the live database's pg_catalog, and optionally checks it against the
- * committed file without writing (--check), for the drift-detection CI job.
+ * committed file without writing (--check). One comparator, three callers:
+ * the nightly drift job, the pull-request migration gate, and local
+ * verification all resolve "are these schemas the same" through this file.
  *
  * Usage:
  *   node scripts/db-snapshot.mjs prod          # regenerate supabase/schema/prod.sql
  *   node scripts/db-snapshot.mjs staging       # regenerate supabase/schema/staging.sql
  *   node scripts/db-snapshot.mjs prod --check  # exit 1 if live schema != committed file
  *
+ *   # Arbitrary database (the PR gate's throwaway Postgres, or a local one):
+ *   # never writes a mirror file, only compares.
+ *   node scripts/db-snapshot.mjs --db-url <url> --check --against supabase/schema/staging.sql
+ *
  * Reads the connection string from PROD_DB_URL or STAGING_DB_URL (.env.local
- * locally, repo secrets in CI). This queries pg_catalog directly rather than
- * shelling out to pg_dump, so it has no Docker dependency.
+ * locally, repo secrets in CI) for the named targets, or from --db-url /
+ * DATABASE_URL for an arbitrary one. This queries pg_catalog directly rather
+ * than shelling out to pg_dump, so it has no Docker dependency of its own.
  */
 import pg from 'pg';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
@@ -21,25 +28,50 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dirname, '..');
 
-const target = process.argv[2];
-const checkOnly = process.argv.includes('--check');
+const args = process.argv.slice(2);
+const flag = (name) => {
+  const i = args.indexOf(name);
+  return i === -1 ? null : args[i + 1];
+};
 
-if (!['prod', 'staging'].includes(target)) {
+const target = args[0]?.startsWith('--') ? null : args[0];
+const checkOnly = args.includes('--check');
+const explicitUrl = flag('--db-url') ?? process.env.DATABASE_URL ?? null;
+const against = flag('--against');
+
+if (!target && !explicitUrl) {
+  console.error('Usage: node scripts/db-snapshot.mjs <prod|staging> [--check]');
+  console.error('   or: node scripts/db-snapshot.mjs --db-url <url> --check --against <file>');
+  process.exit(1);
+}
+if (target && !['prod', 'staging'].includes(target)) {
   console.error('Usage: node scripts/db-snapshot.mjs <prod|staging> [--check]');
   process.exit(1);
 }
+if (explicitUrl && !checkOnly) {
+  console.error('--db-url is for comparison only; pass --check --against <file>.');
+  process.exit(1);
+}
+if (explicitUrl && !against) {
+  console.error('--db-url requires --against <file> to compare the live schema to.');
+  process.exit(1);
+}
 
-const envVar = target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL';
-const dbUrl = process.env[envVar];
+const dbUrl = explicitUrl ?? process.env[target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL'];
 if (!dbUrl) {
+  const envVar = target === 'prod' ? 'PROD_DB_URL' : 'STAGING_DB_URL';
   console.error(`Missing ${envVar}. Set it in .env.local (local) or as a repo secret (CI).`);
   process.exit(1);
 }
 
-const projectRef = target === 'prod' ? 'epqmberwewztzbrkhhss' : 'fpjxdyowngpnovotbzqi';
-const outFile = join(repoRoot, 'supabase', 'schema', `${target}.sql`);
+const projectRef = target === 'prod' ? 'epqmberwewztzbrkhhss' : target === 'staging' ? 'fpjxdyowngpnovotbzqi' : null;
+const outFile = explicitUrl ? join(repoRoot, against) : join(repoRoot, 'supabase', 'schema', `${target}.sql`);
 
-const client = new pg.Client({ connectionString: dbUrl, ssl: { rejectUnauthorized: false } });
+// Remote (prod/staging) connections are SSL-only; a local Postgres — the
+// throwaway one this gate boots, or a developer's `supabase start` — speaks
+// plaintext and errors out if a client demands TLS.
+const isLocal = /^(127\.0\.0\.1|localhost)\b/.test(new URL(dbUrl).hostname);
+const client = new pg.Client({ connectionString: dbUrl, ssl: isLocal ? false : { rejectUnauthorized: false } });
 await client.connect();
 
 const q = (sql, params) => client.query(sql, params).then((r) => r.rows);
@@ -99,7 +131,15 @@ const constraints = await q(`
   select conrelid::regclass::text as table_name, conname, pg_get_constraintdef(oid) as def, contype
   from pg_constraint
   where connamespace = 'public'::regnamespace
-  order by contype, conrelid::regclass::text, conname;
+  -- Primary keys and unique constraints before foreign keys: a foreign key
+  -- needs the unique index it references to already exist. Ordering by
+  -- contype alphabetically ('c','f','p','u') got this backwards — harmless
+  -- for a mirror nothing ever executes, fatal for the baseline migration
+  -- (issue #87) generated from this same query, which failed applying to an
+  -- empty database with "no unique constraint matching given keys" on the
+  -- very first self-referencing-adjacent foreign key.
+  order by case contype when 'p' then 0 when 'u' then 1 when 'c' then 2 when 'f' then 3 else 4 end,
+    conrelid::regclass::text, conname;
 `);
 for (const c of constraints) {
   out.push(`alter table ${c.table_name} add constraint "${c.conname}" ${c.def};`);
@@ -184,9 +224,10 @@ for (const v of views) {
 
 await client.end();
 
-const label = target === 'prod' ? 'production' : 'staging';
+const label = target === 'prod' ? 'production' : target === 'staging' ? 'staging' : 'the target database';
 const otherLabel = target === 'prod' ? 'staging' : 'prod';
-const header = `-- ==============================================================================
+const compareFile = explicitUrl ? against : `supabase/schema/${target}.sql`;
+const header = explicitUrl ? '' : `-- ==============================================================================
 -- GENERATED — DO NOT EDIT OR APPLY
 --
 -- Schema mirror — ${label} (${projectRef})
@@ -214,11 +255,15 @@ if (checkOnly) {
   const normalize = (s) => s.replace(/\r\n/g, '\n');
   const stripHeader = (s) => s.split('-- ============================================================\n-- Tables').slice(1).join('-- ============================================================\n-- Tables');
   if (stripHeader(normalize(committed)) !== stripHeader(normalize(body))) {
-    console.error(`DRIFT DETECTED: live ${label} schema no longer matches supabase/schema/${target}.sql`);
-    console.error(`Run 'pnpm db:snapshot:${target}' locally, review the diff, and commit it.`);
+    console.error(`DRIFT DETECTED: the live schema on ${label} no longer matches ${compareFile}`);
+    console.error(
+      explicitUrl
+        ? `Compare the diff above against ${compareFile} to see what the migration set is missing or has wrong.`
+        : `Run 'pnpm db:snapshot:${target}' locally, review the diff, and commit it.`,
+    );
     process.exit(1);
   }
-  console.log(`No drift: supabase/schema/${target}.sql matches live ${label} schema.`);
+  console.log(`No drift: ${compareFile} matches the live schema on ${label}.`);
   process.exit(0);
 }
 

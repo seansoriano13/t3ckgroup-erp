@@ -1,8 +1,7 @@
 import { screen, within } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 import TaskCard from "./TaskCard"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 
 /**
  * The card every employee sees on every list. Two behaviours carry real
@@ -103,7 +102,7 @@ describe("TaskCard", () => {
     it("opens the task when the card is clicked", async () => {
       const { onView } = renderCard()
 
-      await userEvent.click(screen.getByText("Replace the office switch"))
+      await setupUser().click(screen.getByText("Replace the office switch"))
 
       expect(onView).toHaveBeenCalled()
     })
@@ -136,6 +135,17 @@ describe("TaskCard", () => {
       expect(screen.getByText("Switch replacement")).toBeInTheDocument()
     })
 
+    it("displays the active step and total items for grouped multi-step checklists", () => {
+      const grouped = [
+        { id: "g1", title: "Phase 1", items: [{ text: "Step 1 Done", checked: true }] },
+        { id: "g2", title: "Phase 2", items: [{ text: "Step 2 Todo", checked: false }] },
+      ]
+
+      renderCard({ task: task({ checklist: grouped }) })
+
+      expect(screen.getByText(/Step 2\/2 · 1\/2/)).toBeInTheDocument()
+    })
+
     it("accepts a checklist that arrived already parsed", () => {
       renderCard({
         task: task({ taskDescription: [{ text: "Order the part", checked: false }] }),
@@ -158,7 +168,7 @@ describe("TaskCard", () => {
 
       const toggle = screen.getByRole("button", { name: /3 items/i })
 
-      await userEvent.click(toggle)
+      await setupUser().click(toggle)
 
       expect(screen.getByRole("button", { name: /see less/i })).toBeInTheDocument()
     })
@@ -182,7 +192,7 @@ describe("TaskCard", () => {
       // migrates that task onto the new field.
       const { onSilentUpdate } = renderCard({ as: owner, task: task({ taskDescription: items }) })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).toHaveBeenCalledWith({
         id: "task-1",
@@ -201,7 +211,7 @@ describe("TaskCard", () => {
       ])
       const { onSilentUpdate } = renderCard({ as: owner, task: task({ taskDescription: partly }) })
 
-      await userEvent.click(screen.getByText("Swap the unit"))
+      await setupUser().click(screen.getByText("Swap the unit"))
 
       expect(JSON.parse(onSilentUpdate.mock.calls[0][0].checklist)).toEqual([
         { text: "Order the part", checked: true },
@@ -215,7 +225,7 @@ describe("TaskCard", () => {
         task: task({ taskDescription: [{ text: "Order the part", checked: false }] }),
       })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate.mock.calls[0][0].checklist).toEqual([
         { text: "Order the part", checked: true },
@@ -228,7 +238,7 @@ describe("TaskCard", () => {
         task: task({ taskDescription: items }),
       })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).not.toHaveBeenCalled()
     })
@@ -237,7 +247,7 @@ describe("TaskCard", () => {
       // A head may review the task, but the checklist belongs to its owner.
       const { onSilentUpdate } = renderCard({ as: head, task: task({ taskDescription: items }) })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).not.toHaveBeenCalled()
     })
@@ -248,7 +258,7 @@ describe("TaskCard", () => {
         task: task({ taskDescription: items, status: "AWAITING APPROVAL" }),
       })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).not.toHaveBeenCalled()
     })
@@ -259,7 +269,7 @@ describe("TaskCard", () => {
         task: task({ taskDescription: items, status: "COMPLETED" }),
       })
 
-      await userEvent.click(screen.getByText("Order the part"))
+      await setupUser().click(screen.getByText("Order the part"))
 
       expect(onSilentUpdate).not.toHaveBeenCalled()
     })

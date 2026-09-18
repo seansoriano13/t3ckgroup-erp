@@ -32,6 +32,10 @@ _Avoid_: Opportunity, Lead, Deal
 The centralized index and management table of all registered Sales Opportunity Records.
 _Avoid_: Opportunities Page, Opportunity Registration
 
+**CRM**:
+Where the whole commercial process runs — the SOR Register, its board, and every SOR's journey through its Sales Flow. The SOR is the entry point; CRM is the process it enters.
+_Avoid_: SOR / CRM, SOR system
+
 **Company**:
 The organization an SOR is being sold to — the account, not a human. Verified against Odoo's commercial partner whenever the SOR carries a Sales Reference.
 _Avoid_: Client, Client Name, Customer, Account
@@ -48,16 +52,32 @@ _Avoid_: Leave credit, OT slip
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Individual Task**:
+A task with one owner, tracked on that person's own list rather than as
+shared work. The other kind of task a Stage Action can create, alongside a
+Group Task: same trigger, same fire-once rule, but no members and no roles —
+it says what one person must do. Its kind of work is named by its Category,
+not by a Tag.
+_Avoid_: Personal Task, My Task, Solo Task
+
+**Tag**:
+A label from one managed list, put on a Group Task by hand or by the Stage Action that created it, saying what kind of work it is. Individual tasks say that with their Category instead. Where a task came from — an SOR — is its source, not a Tag.
+_Avoid_: Label, Category (when meaning a Group Task's kind)
+
 **Employee Directory**:
 The workforce register and profile repository for company personnel.
 _Avoid_: HR Management, User List
+
+**Call Sign**:
+The short number each person goes by inside the company — 101 for Boss Lito, 1001 for Ma'am Raquel, 102 for Ma'am Grace — kept on their employee record. Paper forms name signers by it ("Check by … 1001"), so printed forms print it under a signature, and signer lists are seeded by it. An identifier people say aloud, not a login or payroll number.
+_Avoid_: Employee code, Employee ID
 
 ### Commission
 
 Terms introduced by the Commission Pool feature (issue #10 and its tickets #11–#17). Commission Department/Position/Split are a standalone vocabulary scoped to this feature — deliberately not linked to an employee's Department or Role fields, which stay freeform text used throughout the rest of the app.
 
 **Commission Rate**:
-One of three dated percentages — VAT, Withholding (ITR), or the Pool rate itself. Takes effect from a stated date; an Opportunity uses whichever Commission Rate was in force on its Contract Date, so a later change never moves an already-priced Opportunity's figures.
+One of three dated percentages — VAT, Withholding, or the Pool rate itself. Takes effect from a stated date; an Opportunity uses whichever Commission Rate was in force on its Contract Date, so a later change never moves an already-priced Opportunity's figures.
 _Avoid_: Tax Rate
 
 **Commissionable Revenue**:
@@ -109,6 +129,330 @@ Role-based UI presentation masking where standard employees view only their own 
 
 Not implemented, and out of scope for the current feature: any actual payout/disbursement mechanism, eligibility computation, or a release/holdback stage. The Commission Pool is always a live estimate, never a payout.
 
+### CRM Flow
+
+Terms introduced by the Flow Canvas (issue #36). These supersede the Deal Type
+vocabulary in ADR 0004 and deprecate `docs/crm-pipeline-redesign.md` as an
+authority — that document is retained as history only.
+
+**Sale Type**:
+What kind of sale an SOR is. The set is configured by Operations, never fixed
+in code, and starts empty — the system proposes no values. Each Sale Type owns
+exactly one Sales Flow. Chosen when an SOR is registered; changeable only while
+the SOR still sits at its flow's first Stage, and locked from its first move
+onward. Orthogonal to Commission Split (SSP / CP / Strategic), which selects
+how money is divided and has nothing to do with which flow a deal follows.
+_Avoid_: Deal Type, Project Type, Type
+
+**Sales Flow**:
+The whole process one Sale Type follows — its Stages and the moves permitted
+between them. A directed graph, not an ordered list: a flow may loop back, skip
+ahead, or branch, because deals are re-opened and fast-tracked in reality.
+_Avoid_: Pipeline (when meaning a specific Sale Type's process), Workflow
+
+**Stage** (within a Sales Flow):
+A named point an SOR occupies. **Private to its Sales Flow** — two flows may
+each contain a Stage named "Proposal Submitted" and they are unrelated objects.
+Grouping SORs across Sale Types by Stage therefore requires an explicit
+mapping; same-named Stages are genuinely two different things.
+_Avoid_: Status, Step
+
+**Terminal Stage**:
+A Stage no SOR can leave — where a Sales Flow ends (Closed Won, Closed Lost).
+Not the Won Stage, which usually sits mid-flow with PO, delivery and collection
+still ahead of it. SORs on a Terminal Stage sink to the bottom of the register's
+default order.
+_Avoid_: Last Stage, Final Stage, Closed
+
+**Stage Visit**:
+One stay of an SOR on a Stage — from the move that lands it there to the move
+that takes it away. Because flows loop, one SOR can visit the same Stage more
+than once, and each stay is its own Stage Visit. Access to a Stage's trail is
+granted per Stage Visit, never per Stage.
+_Avoid_: Stage Period, Stage Instance
+
+**Deal Team**:
+The people holding an SOR's own roles — registrar, Deal Owner, Closing
+Salesperson, Support Sales 1 and 2, Sales Director. They see the SOR across its
+Stage Visits, except on a Stage its Sales Flow closes to them. Anyone else sees
+only what they were called into, unless the Sales Flow names them as always
+seeing it.
+_Avoid_: Participants, Members (when meaning these roles)
+
+**Stage Participant**:
+Someone outside the Deal Team called into an SOR — by a task a Stage Action
+creates, by an Assignment condition, or as a purchasing member of a Purchase
+Request opened there. Sees every Stage Visit inside their access window, which
+opens when they are called and closes when the calling Stage is left, when a
+chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
+set it; a Terminal Stage always closes it. An Assignment on the entry Stage makes
+someone a participant from the SOR's first day. Afterwards they get a locked
+view plus a read-only look at the visits they worked on. A Mention never makes
+someone a Stage Participant.
+_Avoid_: Collaborator, Guest, Member
+
+**Restricted Stage**:
+A Stage its Sales Flow closes to part of the Deal Team — by role, by an
+excluded Employee Group, or both. Anyone shut out sees only that the SOR is
+there and for how long; they cannot move it on, are not notified from it, and
+stay shut out of that visit after the SOR leaves. Super Admins are never shut
+out. The Stage's configuration stays readable on the Flow Canvas; only the
+SOR's data on it is withheld.
+_Avoid_: Hidden Stage, Private Stage
+
+**Journey**:
+One SOR's whole story as a single list — every Stage Visit, with the
+conditions, tasks, and Requested Items on each, their status and owner. A
+Restricted Stage appears as one line with no contents to anyone shut out of it.
+Who may open an SOR's Journey is set by its Sales Flow.
+_Avoid_: Overview, Iceberg, Timeline
+
+**Stage Field**:
+An input a Sales Flow defines on a Stage, filled in on the SOR under that
+Stage. Either an **SOR field** — one of the SOR's own fields, written to the SOR
+itself — or a **custom field** (text, number, date, or a choice) kept once per
+Stage Visit. Not a Stage Condition, though a required one also blocks the way
+out.
+_Avoid_: Custom Condition, Field on record, Metadata
+
+**Team**:
+The unit an employee actually works in — Purchasing, Logistics, IT, and so on —
+below the four broad Departments. What "a whole department" means wherever the
+system picks people.
+_Avoid_: Sub-department
+
+**Employee Group**:
+A named set of employees — hand-picked, or a whole Team — kept in one place and
+pointed at by any "who" setting in a Sales Flow. Always means its current
+members, so editing a group changes every flow that uses it.
+_Avoid_: Distribution List, Roster
+
+**Stage Action**:
+Something that happens when an SOR *enters* a Stage — create a Group Task,
+notify, stamp a date, start a countdown, raise a purchase request, or a note.
+Fires once per (SOR, Stage), permanently: re-entering a Stage creates nothing
+new. Distinct from a Stage Condition by what it does — an Action *happens*, a
+Condition *blocks*.
+_Avoid_: Trigger, Automation, Hook
+
+**Optional Action**:
+A Stage Action that waits for its Decider — the Deal Owner unless the Sales
+Flow names someone else — to create it or skip it after the SOR enters the
+Stage. Never blocks leaving; leaving undecided counts as a skip, and a skip is
+final for that Stage.
+_Avoid_: Manual Action, Conditional Action
+
+**Stage Condition**:
+Something that must be true before an SOR may *leave* a Stage. Verifiable kinds
+— attachment, tickbox, assignment, deadline, purchasing settled (every
+Requested Item closed), and costing settled (every Tender Line priced, no blank
+cost, the evaluation approved, and the offer within ABC) — plus Note Conditions. Something a
+deal must fill in is a Stage Field, never a condition. An attachment condition
+is met only by a file given through that condition, not by any matching file on
+the SOR. A deadline never blocks; it warns on approach and marks the deal
+overdue on breach.
+_Avoid_: Gate, Requirement, Rule
+
+**Note Condition**:
+A condition written in plain words because the system cannot express it, kept
+verbatim in the author's own wording. Operations chooses per note whether it
+blocks; a blocking note behaves as a tickbox — a human certifies it and the
+system verifies nothing. Notes are the record of what was asked for and not yet
+built, and they export as the implementation list.
+_Avoid_: Comment, TODO, Placeholder
+
+**Follow-up Cadence**:
+A Stage setting — neither a Condition nor an Action — that reminds chosen
+people, the Deal Owner by default, every N days while an SOR sits on that
+Stage. A **Logged Follow-up**, a note with proof attached, restarts the count,
+so reminders chase silence rather than the calendar. Every reminder and every
+Logged Follow-up lands on the SOR's timeline.
+_Avoid_: Reminder (unqualified), Recurring Notification
+
+**Won Stage**:
+The one Stage per Sales Flow that means the deal has been won. Reaching it
+stamps the Contract Date, which fixes that SOR's commission pricing forever.
+Exactly one per flow; a Sales Flow cannot be published without one. Set by the
+developer, never presented to Operations in commission vocabulary.
+_Avoid_: Anchor, Anchor Stage, Award Stage
+
+**Realized** (redefined):
+An SOR counts as booked money once it **has a Contract Date** — no longer a
+comparison of its position against an anchor's. Position ceased to mean
+anything when a Sales Flow became a graph, and the positional rule already
+misfired when a deal moved backwards. Its value is labelled **Won** on screen.
+_Avoid_: Booked, Closed (when meaning the money pool)
+
+**Open Pipeline**:
+The value of SORs that are neither Realized nor on a Terminal Stage — what is
+still being worked. Shown beside Won; a lost SOR counts toward neither.
+_Avoid_: Closed Pipeline, Total Pipeline
+
+**Registration Form**:
+What a salesperson fills in to register an SOR, defined per Sale Type and
+built on the Flow Canvas. Always the SOR's built-in default fields — which can
+be renamed and reordered, and, where they are not required to register at all,
+hidden — plus any **custom fields** that Sale Type adds. Choosing the Sale Type
+at registration is what chooses the form. Frozen into the Flow Snapshot on
+Publish, so an SOR was registered against the form its version defined, and
+**Restore** means going back to the built-in default, not to a previous edit.
+_Avoid_: Intake Form, SOR Form (when meaning the Details card), Form Template
+
+**Flow Canvas**:
+The module in which the developer and Operations build Sales Flows together,
+on staging — a long-lived feature, not a one-time build: the business's CRM
+process keeps changing after a Sales Flow is published, so the canvas keeps
+being used to revise it, each revision landing as its own Flow Snapshot. One
+editing surface, editing `sales_flows` directly; the Flow Snapshot history
+opens from it.
+_Avoid_: Builder, Planner, Designer, Flow Plan (a sandbox mode removed by #186 —
+the canvas edits the live flow only)
+
+**Publish**:
+The action that freezes the current draft into a new Flow Snapshot new SORs
+of that Sale Type are registered against, and — for a Sales Flow that already
+has one — makes it the one live deals can be moved onto. The database decides
+the version it creates, `vX.Y` (issue #188, ADR 0020): a Stage removed or the
+Won Stage changed starts a new major; anything else is a minor. The button
+shows the number the click will create, taken from the same rule, before it is
+pressed.
+_Avoid_: Lock, Lock this flow, Freeze
+
+**draft**:
+A Sales Flow's editable state — the one the Flow Canvas draws and lets the
+developer or Operations change. Every Sales Flow starts here; Publish moves it
+to `locked`, and Edit draft moves it back. The database column keeps the
+`draft`/`locked` values (and the `lock_sales_flow` function keeps its name);
+"draft" and "published" are what the screen calls those two states.
+_Avoid_: Unlocked, Editable
+
+**Edit draft**:
+Reopens a published Sales Flow for editing. The reopening itself is always
+recorded, because repeated reopening is a pattern about how the process is
+being agreed and has to stay visible (issue #36) — but it asks for no reason:
+what changed is said on the Publish note instead, at the point where it is
+actually known. Deals already pinned to an earlier Flow Snapshot are
+unaffected — Edit draft only changes what the *next* Publish will produce.
+_Avoid_: Unlock, Reopen (as a button label — used only in prose about what
+Edit draft does)
+
+**Scratch SOR**:
+An SOR that exists only to be pushed through a Sales Flow so its behaviour can
+be observed. An ordinary SOR carrying a scratch flag, running identical code to
+a real one — which is what makes "it works" an observation rather than a claim.
+Excluded from every register, dashboard, and commission total.
+_Avoid_: Test Deal, Dummy, Fixture
+
+**Flow Snapshot**:
+The entire Sales Flow captured at the moment it was published. Answers "what
+did we agree on the day of the meeting" by being opened. A snapshot is also
+importable as a new flow's starting point, so the baseline template and the
+version history are one thing. Its on-screen label is lower-case **version**
+— the SOR's badge, the version page, the history dialog and per-deal history
+notes all read `vX.Y` (issue #188, ADR 0020) rather than naming the entity;
+"Flow Snapshot" is the vocabulary for talking about the record, not for what
+appears on screen.
+_Avoid_: Backup, Export
+
+### Purchasing
+
+Terms for purchasing's work against SORs (issue #38 and its tickets #39–#50). The go/no-go Project Evaluation that issue also introduced is retired: the business keeps that judgment in its own linked sheet.
+
+**Purchasing**:
+The Module carrying purchasing's own work — Purchase Requests and the Procurement Queue that lists them. Granted per employee by an access flag, alongside Sales and Task access; deliberately not inferred from the freeform `department` field, which a typo would silently break.
+_Avoid_: Procurement, PMS (when meaning the Module)
+
+**Purchase Request**:
+Where Sales and Purchasing coordinate buying for one SOR — one per SOR, opened by a Stage Action, holding Requested Items, its own members, and its own Chat, so each project's buying talk stays apart from every other's. Its purchasing members also see the SOR's Stage Visit it was opened in; any other member sees only the request and the SOR's locked header.
+_Avoid_: Procurement Request, Requisition, PR Batch
+
+**Buyer**:
+The one purchaser who owns a Purchase Request — named by the Stage Action that opens it, or taken from the Procurement Queue by anyone with Purchasing access. Once there is a Buyer, the request's status changes and chat notify only the Buyer and the requester.
+_Avoid_: Assignee, Purchaser (when meaning this role)
+
+**Requested Item**:
+One product a Purchase Request asks for — copied from an SOR line or a Costing
+Matrix Component at the moment it was picked, or described as a new product.
+Later edits to the source never rewrite it. It keeps the link to the Component it
+buys for, and once Ordered it records the Odoo purchase order line as well as its
+number, which is how Landed Cost finds its way back. Carries its own status: Requested, then From stock, or To order → Canvassing → Ordered → Received; or out via Substituted, Cannot source, or Cancelled.
+_Avoid_: Line Item, Procurement Request
+
+**Procurement Queue**:
+The cross-SOR list of every Purchase Request with a Requested Item still open.
+_Avoid_: Sourcing List, Purchasing Dashboard (a different thing: the Queue lists open requests, the Dashboard groups all buying by what is outstanding)
+
+**Purchasing Dashboard**:
+Where every project's buying is seen at once, grouped by what is outstanding
+rather than by which record holds it — **To source**, **To price**, **To order**,
+**On order**, **To check**. The groups are derived and never stored, and one SOR
+sits in as many as apply, because purchasing is not a line: components are
+canvassed while others are already ordered and others are on a truck. Sits above
+the Procurement Queue and Order Monitoring rather than replacing either — they
+answer what to do today, this answers where everything is.
+_Avoid_: Purchasing Stages, Sourcing (the Inclusion field of that name), Pipeline
+
+**Inclusion**:
+One item that comes with a bundle Component in the Costing Matrix — the cabinet or beacon lights that come with a vehicle, the registration that comes with it. Carries no price of its own; it is listed so it can be checked as actually included. Exists because Odoo bundles a complex product into a single order line whose inclusions are free text in the description, making the item-by-item check impossible there. Anything bought or taken from stock on its own is a Component, not an Inclusion, however a sheet lists it.
+_Avoid_: Line item, Product, BOM entry, Accessory
+
+**Completeness**:
+Whether an Inclusion is answered — Covered, Missing, Substituted, or Not required. Not required drops out of both sides of the fraction rather than counting as answered. An SOR with no Inclusions has no completeness figure at all, which is a different statement from 0%. A bid-time judgement about the offer: whether each inclusion physically arrived is asked again, separately, in the Technical inspection of the Transmittal that brings it.
+_Avoid_: Status, Progress
+
+**Sourcing**:
+How an Inclusion would be obtained — In stock, Stocked but needs ordering, or Source out. Three values rather than a boolean: a stockable item with none on hand still needs ordering and is explicitly not source-out, and that middle case is most of purchasing's work. Null until somebody assesses it.
+_Avoid_: Source out (as a boolean), Availability
+
+**Stock Availability**:
+Odoo's count of a product that is on hand and not reserved, per warehouse, as of the last fetch — always shown with the time it was fetched and never presented as live. A fact read from Odoo, where Sourcing is purchasing's own judgment.
+_Avoid_: Inventory (unqualified), Live Stock
+
+**Canvass**:
+The three-or-more supplier comparison, recorded as structured Offers against exactly one Costing Matrix Component — or one Requested Item, where the purchase has no Costing Matrix row yet — never both, never neither. Never against an Inclusion: anything sourced on its own is a Component. Where research that began on a bare Requested Item later becomes part of a bid, the same Canvass re-points to the Component that appears, keeping its number, its Offers and its reason, and refusing the move if that Component already has one — one comparison per thing bought. Carries the reason its winner was chosen, written by the Canvasser and required before sign-off, because the cheapest offer often isn't the one taken. Replaces the ad-hoc sheet that could never be produced later as evidence for why a supplier was chosen or what a product actually costs. The three-offer minimum is a warning at sign-off, not a database constraint: research happens over days and a Canvass must be saveable half-finished. Nothing forces an item through one — but an item ordered without a Canvass says so on its Costing Matrix row and on the printed sheet, because an unexplained purchase is the loudest version of the problem a Canvass exists to solve.
+_Avoid_: Comparison Sheet, RFQ, Sourcing Sheet
+
+**Offer**:
+One supplier's answer within a Canvass — the supplier, brand, description, source link, brochure, remarks, unit price in the currency quoted — with the rate used to compare it, which is never the rate actually paid — how long the quote holds, lead time, and a quality note, mirroring the stated policy of comparing on price, delivery speed and quality rather than price alone. At most one Offer per Canvass may be marked the winner; marking a new one clears whichever held it before. Winning fills its Component's Acquire, Offer Specification and documents, and proposes its Brand for Sales to accept.
+_Avoid_: Quote, Bid, Supplier Response
+
+**Reference Rate**:
+The PHP value of one unit of a foreign currency on a given day, fetched once a
+day from one source and always shown with the day it is for. It pre-fills an
+Offer's comparison rate, and nowhere else does it fill anything: on an IPAS
+payment it is shown beside the typed rate as context and flags a wide
+divergence, so a fat-fingered rate is caught without an estimate ever being
+saved as the fact. The rate that reaches Landed Cost is always the one actually
+paid. Never presented as live — a bid that revalued itself overnight could not
+be signed — so it is a fact with a date on it, the way Stock Availability is,
+and a failed fetch keeps the last good rate under its own stale date rather than
+showing nothing.
+_Avoid_: Exchange Rate (unqualified), Live Rate, Forex, Comparison Rate (the
+Offer's own figure, which a Reference Rate only suggests)
+
+**Offer Projection**:
+What a Component's costing would become if a given Offer won, shown beside every
+Offer in a Canvass so the choice can be judged before it is made. Split the way
+the matrix itself is: the purchaser sees the projected Acquire in PHP and the
+Markup Price that follows — enough to compare three suppliers — and the Closed
+Book adds the projected margin and what the matrix summary would become.
+Arithmetic over the live matrix, computed on the fly and never stored: there is
+one Costing Matrix, and a Projection is a look at it, not a copy of it. Exists
+only where the Canvass has a Component; a Canvass on a bare Requested Item has
+no row to project.
+_Avoid_: Draft Matrix, Scenario, What-if, Alternative Costing
+
+**Canvasser**:
+The purchaser who owns a Canvass — defaulting to the Purchase Request's Buyer,
+changeable by Purchasing, and the name printed as "Canvassed by". Ownership, not
+access: every employee with Purchasing access reads every Canvass, and the
+Canvasser is who answers for this one. Research runs over days and people go on
+leave, so the paper names whoever holds it now rather than whoever opened it;
+the creator stays in the audit trail. A Canvasser cannot sign off their own
+Canvass.
+_Avoid_: Assignee, Creator, Canvassed by (as the field name), Buyer (a Purchase
+Request's role)
+
 ### Philippine Government Procurement
 
 Terms the system models. The full acronym list from the bidding documents is
@@ -148,19 +492,238 @@ A per-day deduction for late delivery, needing no proof of actual loss. At 10%
 of the total contract price the client may rescind the contract.
 _Avoid_: Penalty, Late Fee
 
-**ILPAS (Importation, Local Purchase And Shipping information form)**:
-Purchasing's per-shipment record for an imported or externally sourced item —
-supplier, currency, payment terms and forex, freight, duties, the shipping
-document checklist, and the shipping status run of Ordered → Boarded → Arrived
-→ Delivered. What the Sales Offer Matrix's `IPAS` column marks as Applicable or
-Not Applicable is **whether an item needs one**; house-brand stock does not.
-_Avoid_: IPAS (a transcription of the same word), Import Form
+**IPAS (Integrated Purchasing and Shipping Form)**:
+The company's record of one Odoo purchase order end to end — supplier and
+payment details, sales operations, documentation, logistics, finance, and final
+filing — so the purchase is recorded, monitored, and approved in one place.
+Every split payment and shipment of that order sits inside its one IPAS, and an
+order has at most one. Purchasing raises one when a purchase needs it, not for
+every order, and never without an order, though the order may still be an
+unconfirmed RFQ. A Project purchase names the SOR or SORs it buys for and
+appears in each one's PMS; an Inventory, Supplies or Events purchase names none.
+Numbered in one series across all four entities, carrying on from the sheet's.
+Its fields are defined by the company's own IPAS sheet, not by this glossary.
+_Avoid_: ILPAS, Import Form, Payment Request, Shipment Form
+
+**Filing**:
+The last sign-off on an IPAS — section 7's Approved, given once Finance has
+received the IPAS and it has been noted and checked, and only after sections 1
+and 3 are approved and the purchase's costs are marked complete, since filing
+freezes a Landed Cost that would otherwise still be provisional. A filed IPAS is frozen: its copy of the Odoo purchase order,
+its payments and charges, its Purpose and its SORs no longer change. Earlier
+approvals block nothing; filing is the one point that locks.
+_Avoid_: Closing, Archiving, Final Approval (when meaning sections 1 or 3)
+
+**Finance access**:
+Who counts as Finance — granted per employee by its own access flag, the way
+Purchasing access is, and never inferred from the freeform department or
+sub-department text. Finance receives an IPAS for Filing, records its payments
+and charges, and sees supplier bank details.
+_Avoid_: Accounting (as a role), Finance department (when meaning who has access)
+
+**Charge**:
+An amount an IPAS pays to bring the goods in, apart from the goods themselves —
+an importation charge such as brokerage, destination charges or duties, or the
+bank's charge fee on a payment. Its kinds come from a list the business edits.
+Every charge counts toward Landed Cost, spread over the purchase's lines; a
+charge that covers several purchases is recorded as each one's share. Shipping
+fees paid to the supplier are payments, not charges, but count the same way.
+_Avoid_: Fee (unqualified), Expense, Importation (as a noun)
+
+**Transmittal**:
+The numbered slip goods travel on after they are bought — the company's
+Transmittal Form, numbered TG03-525, TG03-526 and on — from where they came
+(Purchasing, Logistics, the Warehouse) through the checks they need. Its Checking
+boxes decide those: Warehouse checking, Warehouse releasing when the goods leave
+for Technical, and Technical inspection. At each check the in-charge rates every
+line GC or NA, and the stage is signed by two people with its remarks and
+pictures. Received in Odoo by and two Check by signatures close it. It stands on its own, each line
+naming the purchase order line and the SOR (Project Name) it is for, because one
+delivery is often split across slips and one slip often carries several orders. A
+line rated NA still lets the slip close — the check happened — and a replacement
+comes on a new Transmittal. It carries goods, not papers; documents for Finance
+travel on the IPAS document list. Deliveries to the client are not transmittals;
+they stay in Odoo.
+_Avoid_: Transmittal Form (when meaning the record), Delivery Receipt, Gate Pass,
+TSR or Technical Service Report (Technical's check is the Transmittal's Technical
+inspection, not a record of its own), hand-off (when meaning the whole slip)
+
+**GC / NA**:
+The rating the Warehouse and Technical give each line of a Transmittal at their
+check — GC, Good Condition, or NA, Need Attention, which always carries a remark.
+Given once per check by that check's in-charge, so a line can be GC at the
+Warehouse and NA at Technical. Not a pass/fail on the supplier: an NA says
+someone has to act, and a later GC on a replacement settles it.
+_Avoid_: Pass / Fail, Received / Short / Damaged, Condition (unqualified)
+
+**Packing List**:
+What is inside each box the Warehouse packs for an SOR — contents and
+quantities, marks or seal numbers, and the weight where it is known — printed
+and signed by whoever packed it. Made by Purchasing or the Warehouse. The one
+warehouse step PMS keeps, because Odoo has never held a package, while its
+receipts, reservations and deliveries are in daily use. It moves no stock and
+writes nothing to Odoo; a delivery reference can be typed on it. Not the
+"Packing List / Picking List" ticked on a Transmittal's Reference Checklist,
+which is the paper that came with the goods.
+_Avoid_: Packing Slip, Box List, Delivery Note
 
 **Landed Cost**:
-An imported item's true unit cost once everything is apportioned onto it —
-`unit price + duties/item + freight/item + other charges/item`, computed on the
-ILPAS sheet. The basis every markup and income figure is taken from.
-_Avoid_: Cost, Unit Cost, Acquire Cost
+An item's true unit cost once everything is apportioned onto it —
+`unit price + duties/item + freight/item + other charges/item` — worked out the
+same way for Local and Import purchases. The unit price is the purchase order's,
+before VAT and withholding, turned into PHP at the rate actually paid so far;
+Charges and shipping fees are spread over the order's lines. Provisional until
+Purchasing marks the purchase's costs complete, final after. The basis every
+markup and income figure is taken from.
+_Avoid_: Cost, Unit Cost, Acquire Cost, Local Cost
+
+**PMS (Purchasing Monitoring System)**:
+One SOR's whole purchasing file — Sales asking Purchasing about products, the
+Costing Matrix, the Purchase Request, each purchase's IPAS, the Transmittals
+whose Warehouse and Technical checks follow the goods, and the Packing Lists they
+leave in. What
+people mean by "PMS" whether they are asking about a product, costing a bid, or
+buying after award. Purchasing is the Module that works every SOR's PMS.
+_Avoid_: Purchasing (when meaning one SOR's file), Sales Offer Matrix
+
+**Costing Matrix**:
+The part of PMS in which Sales, Purchasing and Management cost one SOR's offer
+item by item — what the client asked for and its ABC, how each item is sourced
+and what it costs, the markup, and the Final Offer — closing on a summary of
+tax, retention, collected amount and revenue. The company's "PMS sheet". Every
+column belongs to one side — Sales meaning the Deal Team, Purchasing,
+Management, or Technical for the compliance verdict — and only that side writes
+it. Its costs, offer and summary are
+seen by whoever sees the whole SOR, and by Purchasing, Finance and Management on
+every SOR; anyone else called into the SOR sees the matrix without money.
+_Avoid_: PMS (when meaning only the grid), PMS sheet, Sales Offer Matrix, Project Evaluation, Costing Sheet
+
+**Tender Line**:
+One thing the client asked for in the Costing Matrix — its specification,
+quantity, ABC and Final Offer. The offer price is quoted per tender line. Typed,
+or picked from an SOR line whose name, quantity and unit it then keeps.
+_Avoid_: Line item, Item, SOR line (a different thing)
+
+**Component**:
+One thing T3CK supplies toward a Tender Line, with its own brand, sourcing,
+costs and markup. Cost is tracked per component, so a tender line's margin is
+its Final Offer against its components. A component priced as a whole is a
+bundle, and lists its Inclusions. What gets bought: a Requested Item names the
+component it buys for, and the Landed Cost of the purchase arrives beside the
+component's estimates without replacing any of them.
+_Avoid_: Offer component, Part, Sub-item, Child row
+
+**Final Acquire**:
+The cost Management sets on a Component — the figure the Costing Matrix summary
+reads as Operational Expenses and takes Revenue from. Written only by the people
+on the list Super Admins keep for it, never by a whole role. Neither Acquire,
+which is Purchasing's proposed cost and the one markup is taken from, nor Landed
+Cost, which is what the item turned out to cost once bought.
+_Avoid_: Final Cost, Approved Cost, Management Price
+
+**Closed Book**:
+The figures that reveal the spread between what T3CK pays and what it charges —
+Final Acquire, the markup factor, the Costing Matrix summary, achieved markup,
+the projected margin on an Offer, and the numbers a Bid Decision was taken
+against — read only by Super Admins and the Final Acquire list. The rest of the
+matrix stays open to the people who fill it, because the two sides never meet:
+Purchasing proposes Acquire and never sees the Final Offer; Sales reads the peso
+Markup Price, types the Final Offer, and sees neither the cost nor the factor
+that produced it. Neither side can derive the margin alone, which is the whole
+point, and the database serves each side its own column list rather than the
+browser hiding what it was sent. Distinct from the write bands, which say who may
+*change* a column and grant no reading.
+_Avoid_: Margin Tier, Confidential, Management View, Band (which is the write rule)
+
+**Incharge**:
+The salesperson and the purchaser who answer for a Costing Matrix row — set once
+for the matrix, and overridable row by row. Names only: being Incharge grants no
+access and sends no notifications.
+_Avoid_: Assignee, Owner, Buyer (a Purchase Request's role)
+
+**Markup**:
+A factor on a Component's Acquire cost that suggests its Markup Price. The
+Costing Matrix has one default factor, typed or picked from presets the business
+edits, which any component or cost-only row can override; cost-only rows start
+at ×1.00. Set by the Final Acquire list and part of the Closed Book, because the
+factor and the Markup Price together give away the Acquire behind them. Only ever
+a suggestion: Sales reads the peso Markup Price, sets the Final Offer, and each
+tender line's achieved markup is reported back to the Closed Book alone.
+_Avoid_: Margin, Auto Pricing, Mark-up percentage (as the stored form)
+
+**Evaluation of Specification**:
+The item-by-item comparison of what the client's specification requires with
+what is offered, deciding whether each offered item complies. Not a document of
+its own: it is the Costing Matrix row read across, the Tender Line's ask against
+its Components' offer, approved once for the whole matrix. Not the retired
+Project Evaluation, which judged whether a deal was worth pursuing at all.
+_Avoid_: Project Evaluation, Spec Check, Compliance Matrix
+
+**Compliance**:
+Whether a Component answers the Tender Line it sits under — Complies, Deviates,
+or unjudged. A deviation is always written down, and may name the compliant
+alternative recommended instead; it records the gap and blocks nothing. Judged
+by Technical, meaning the people an SOR's evaluation group task calls in, who
+see the Costing Matrix without its money. Distinct from Completeness, which asks
+the same question of one Inclusion inside a bundle.
+_Avoid_: Compliant (as a status name), Conformity, Spec match
+
+**ITR**:
+The income tax the Costing Matrix deducts from an offer — 8% of the Final Offer above
+₱250,000, as the company's sheets compute it. A different figure from the
+Commission Rate called Withholding, even though that rate is labelled
+"Withholding (ITR)" on screen.
+_Avoid_: Withholding, Income Tax (unqualified)
+
+**Bid Decision**:
+Whether the company bids the offer it has just priced — Go, No-go or Revise —
+recorded on the Costing Matrix against the Final Offer total and the ABC it was
+taken at, with the reason in the decider's own words. What the Costing Matrix
+exists to produce: the judgement of whether this price can win this project.
+Cleared by any later change to a Final Offer or a Final Acquire, so a Go always
+refers to numbers that still stand. Not the retired Project Evaluation, which
+judged whether a deal was worth chasing before anything was costed; this judges
+one priced offer.
+_Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
+
+### Chat & Mentions
+
+One vocabulary for a thing the code currently spells four ways. A Chat is the
+same concept whether it hangs off a Task, a Group Task, an SOR, or a Purchase
+Request, even though each stores its Messages in its own table.
+
+**Chat**:
+A single conversation bound to exactly one Task, Group Task, SOR, or Purchase
+Request. There is
+no standalone Chat and no Chat between people — a Chat always belongs to the
+record it discusses, and is reached either from that record or from the chat
+list, which is the set of Chats an employee is currently party to.
+_Avoid_: Thread, Conversation, Discussion, Comments
+
+**Message**:
+One entry in a Chat, whichever table it lives in. The code says `task_activity`,
+`committee_task_activity`, and `sales_opportunity_logs`; those are three
+storage locations for one concept, not three concepts. Not editable and not
+deletable by design — a Chat is an append-only record of what was said.
+_Avoid_: Note, Comment, Log, Activity, Post
+
+**Mention**:
+A deliberate address of one employee inside a Message, captured when it is
+written rather than inferred from the text afterwards. Carries who was meant,
+not merely the name that was typed — so a Mention survives the mentioned
+employee later being renamed. Mentioning someone notifies them and suppresses
+the ordinary new-message notification they would otherwise receive, so a Mention
+replaces that notice rather than adding a second one.
+_Avoid_: Tag, @, Callout
+
+**Mention Target**:
+The one Message a mention notification takes the recipient to — the most recent
+Message in that Chat that mentions them. Resolved when the notification is
+opened, not recorded when it is sent, so a Mention Target is always the latest
+thing said to that employee in that Chat rather than the specific Message that
+raised the notification. Where an employee has been mentioned several times in
+one Chat, every one of those notifications leads to the same Mention Target.
+_Avoid_: Anchor, Deep link, Jump target
 
 ### Task Logging & Dictation
 

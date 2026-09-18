@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 import { taskService } from "../services/taskService"
 import { getCurrentLocalTime } from "../utils/formatDate"
+import { hasChecklistContent } from "../utils/checklist"
+import { resolveDepartmentHeads, resolveOrgWideHeads } from "../utils/resolveDepartmentHeads"
 
 const DRAFT_KEY = "logTask_draft"
 
@@ -14,6 +16,9 @@ export function useLogTaskHandlers({
   employees,
   availableHeads,
   roles,
+  mode = "normal",
+  onSubmitOverride,
+  initialData = null,
 }) {
   const queryClient = useQueryClient()
   const { isHr, isHead, isSuperAdmin } = roles
@@ -48,6 +53,11 @@ export function useLogTaskHandlers({
   // Stable attachments ref – immune to React state resets (fixes tab-switch image loss)
   const attachmentsPersistRef = useRef([])
   const restoringAttachmentsRef = useRef(false)
+  // The hand-off below fires on a timer after the modal has already closed, so
+  // it can outlive the component. Left uncleared it reaches for `window` after
+  // unmount — harmless in a browser that is still there, an unhandled
+  // ReferenceError under a torn-down test environment.
+  const handOffTimerRef = useRef(null)
 
   // Keep persist ref in sync with form state
   useEffect(() => {
@@ -80,6 +90,42 @@ export function useLogTaskHandlers({
 
     if (justOpened) {
       queueMicrotask(() => {
+        if (initialData) {
+          setFormData({
+            loggedById: initialData.loggedById || user?.id || "",
+            categoryId: initialData.categoryId || "",
+            projectTitle: initialData.projectTitle || "",
+            taskDescription: initialData.taskDescription || "",
+            checklist: initialData.checklist || null,
+            startAt: initialData.startAt || getCurrentLocalTime(),
+            endAt: initialData.endAt || "",
+            priority: initialData.priority || "LOW",
+            paymentVoucher: initialData.paymentVoucher || "",
+            attachments: initialData.attachments || [],
+          })
+          attachmentsPersistRef.current = initialData.attachments || []
+          if (initialData.committeeRole)
+            setCommitteeRole(initialData.committeeRole)
+          if (initialData.othersRemarks)
+            setOthersRemarks(initialData.othersRemarks)
+          if (initialData.showChecklist)
+            setShowChecklist(initialData.showChecklist)
+          
+          setHrDeptFilter(
+            isHr && !isSuperAdmin ? user.department || "ADMIN" : "",
+          )
+          setHrSubDeptFilter(
+            isHr && !isSuperAdmin
+              ? user.sub_department || user.subDepartment || "HR"
+              : "",
+          )
+          setOpenPopover(null)
+          setCategorySearch("")
+          setSelectedHead("")
+          setIsExpanded(false)
+          return
+        }
+
         // Restore draft if one exists
         const savedDraft = (() => {
           try {
@@ -101,13 +147,7 @@ export function useLogTaskHandlers({
               savedDraft.taskDescription?.trim()) ||
             savedDraft.categoryId ||
             savedDraft.attachments?.length > 0 ||
-            (savedDraft.checklist && (() => {
-              try {
-                const items = typeof savedDraft.checklist === "string"
-                  ? JSON.parse(savedDraft.checklist) : savedDraft.checklist;
-                return Array.isArray(items) && items.some(i => i.text?.trim());
-              } catch { return false; }
-            })())
+            hasChecklistContent(savedDraft.checklist)
 
           if (hasMeaningfulContent) {
             setFormData({
@@ -191,37 +231,12 @@ export function useLogTaskHandlers({
     const selectedEmployee = employees.find((e) => e.id === formData.loggedById)
     if (!selectedEmployee) return
 
-    const empSubDept = selectedEmployee.sub_department
-    const empDept = selectedEmployee.department
-
-    const directHeads = availableHeads.filter((h) => {
-      if (
-        empSubDept &&
-        h.sub_department &&
-        h.sub_department.toUpperCase() !== "ALL"
-      ) {
-        return (
-          h.sub_department.trim().toLowerCase() ===
-          empSubDept.trim().toLowerCase()
-        )
-      }
-      if (h.department?.toUpperCase() !== "SUPER ADMIN" && empDept) {
-        return (
-          h.department?.trim().toLowerCase() === empDept?.trim().toLowerCase()
-        )
-      }
-      return false
-    })
+    const directHeads = resolveDepartmentHeads(selectedEmployee, availableHeads)
 
     if (directHeads.length > 0) {
       queueMicrotask(() => setSelectedHead(directHeads[0].id))
     } else {
-      const adminHeads = availableHeads.filter(
-        (h) =>
-          h.is_super_admin ||
-          h.sub_department?.trim().toUpperCase() === "ALL" ||
-          h.department?.trim().toUpperCase() === "SUPER ADMIN",
-      )
+      const adminHeads = resolveOrgWideHeads(availableHeads)
       if (adminHeads.length > 0) {
         queueMicrotask(() => setSelectedHead(adminHeads[0].id))
       } else {
@@ -295,7 +310,11 @@ export function useLogTaskHandlers({
         setCategorySearch("")
       } else {
         onClose()
-        setTimeout(() => {
+        // Let the modal finish closing before the detail view opens over it.
+        clearTimeout(handOffTimerRef.current)
+        handOffTimerRef.current = setTimeout(() => {
+          handOffTimerRef.current = null
+          if (typeof window === "undefined") return
           window.dispatchEvent(
             new CustomEvent("OPEN_ENTITY_DETAILS", {
               detail: { id: data.id, type: "TASK", isNew: true },
@@ -306,26 +325,12 @@ export function useLogTaskHandlers({
     },
   })
 
+  // Nothing may still be pending once this hook goes away.
+  useEffect(() => () => clearTimeout(handOffTimerRef.current), [])
+
   const handleChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
-  }
-
-  /**
-   * Check if the checklist has at least one non-empty item.
-   */
-  const hasChecklistContent = (checklist) => {
-    if (!checklist) return false
-    try {
-      const items =
-        typeof checklist === "string" ? JSON.parse(checklist) : checklist
-      if (Array.isArray(items)) {
-        return items.some((item) => item.text?.trim())
-      }
-    } catch {
-      /* not valid JSON */
-    }
-    return false
   }
 
   const handleTogglePopover = (name) => {
@@ -344,10 +349,27 @@ export function useLogTaskHandlers({
       return
     }
 
+    // An automation has no task description at configuration time — the
+    // project title is the only name it carries, and actionTitle() reads
+    // config.projectTitle to label it on the canvas and in StageActionManager.
+    // A normal task has always let the title stay blank; requiring it there
+    // too would block a submission this form has accepted for as long as it
+    // has existed.
+    if (mode === "automation" && !formData.projectTitle.trim()) {
+      toast.error("Please enter a project title")
+      return
+    }
+
+    // ── Normal Mode Validations ─────────────────────────────────
+    if (mode !== "automation" && !formData.loggedById) {
+      toast.error("Please assign the task to someone")
+      return
+    }
+
     // Validate: at least one of description or checklist must be filled
     const hasDescription = formData.taskDescription?.trim()
     const hasChecklist = hasChecklistContent(formData.checklist)
-    if (!hasDescription && !hasChecklist) {
+    if (mode !== "automation" && !hasDescription && !hasChecklist) {
       toast.error("Please add a description or checklist items.")
       return
     }
@@ -376,6 +398,12 @@ export function useLogTaskHandlers({
 
     const payload = {
       ...formData,
+      // buildAndCreateActionTask reads config.description (or
+      // config.descriptionTemplate), never config.taskDescription — the
+      // form's own field name — so an automation's description would
+      // silently never render without this alias.
+      ...(mode === "automation" ? { description: formData.taskDescription } : {}),
+      endAt: mode === "automation" ? null : formData.endAt,
       isAutoVerified: false,
       remarks: mergedRemarks,
       paymentVoucher: formData.paymentVoucher?.trim() || null,
@@ -383,6 +411,14 @@ export function useLogTaskHandlers({
       submittedByName: user.name,
       reportedTo: selectedHead || null,
     }
+
+    if (mode === "automation") {
+      if (onSubmitOverride) {
+        onSubmitOverride(payload)
+      }
+      return
+    }
+
     addTaskMutation.mutate(payload)
   }
 

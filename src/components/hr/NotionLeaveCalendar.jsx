@@ -24,6 +24,32 @@ export default function NotionLeaveCalendar({
     }
   }
 
+
+  /**
+   * Whether the leave this card belongs to has already been taken — the same
+   * question `withdraw_offset_leave` and `cancel_sil_leave` ask before they
+   * refuse a refund (issue #111, ADR 0015), asked here so the button is absent
+   * rather than present and rejected.
+   *
+   * A multi-day leave is one application, so what matters is the group's first
+   * day, not the day whose card was clicked — otherwise a range that started
+   * yesterday would still offer "Withdraw" on tomorrow's card. Falls back to
+   * the card's own date for a leave with no group, which is a group of one.
+   *
+   * Compared as `YYYY-MM-DD` strings against today in UTC, which is exactly
+   * what the SQL does: `first_date < CURRENT_DATE`. Parsing either side into a
+   * `Date` would put the boundary eight hours into the Manila working day and
+   * would also exclude the start day itself, which ADR 0015 deliberately keeps
+   * withdrawable.
+   */
+  const hasAlreadyBeenTaken = (leave) => {
+    const groupDates = leave.leave_group_id
+      ? approvedLeaves.filter((l) => l.leave_group_id === leave.leave_group_id).map((l) => l.date)
+      : [leave.date];
+    const firstDate = (groupDates.sort()[0] || leave.date || '').slice(0, 10);
+    return Boolean(firstDate) && firstDate < new Date().toISOString().slice(0, 10);
+  };
+
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'
@@ -35,7 +61,7 @@ export default function NotionLeaveCalendar({
 
   const prevMonthDays = Array.from({ length: firstDayOfMonth }, (_, i) => daysInPrevMonth - firstDayOfMonth + i + 1);
   const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  
+
   const totalGridCells = Math.ceil((firstDayOfMonth + daysInMonth) / 7) * 7;
   const nextMonthDays = Array.from({ length: totalGridCells - (firstDayOfMonth + daysInMonth) }, (_, i) => i + 1);
 
@@ -95,11 +121,10 @@ export default function NotionLeaveCalendar({
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, idx) => (
           <span
             key={d}
-            className={`text-[10px] font-black uppercase tracking-[0.15em] ${
-              idx === 0 || idx === 6
-                ? 'text-red-11'
-                : 'text-muted-foreground'
-            }`}
+            className={`text-[10px] font-black uppercase tracking-[0.15em] ${idx === 0 || idx === 6
+              ? 'text-red-11'
+              : 'text-muted-foreground'
+              }`}
           >
             {d}
           </span>
@@ -124,22 +149,20 @@ export default function NotionLeaveCalendar({
           return (
             <div
               key={`curr-${day}`}
-              className={`min-h-[110px] p-2 transition-colors relative group flex flex-col justify-between ${
-                isWeekendCell ? 'bg-muted/30' : 'bg-card hover:bg-muted/40'
-              }`}
+              className={`min-h-[110px] p-2 transition-colors relative group flex flex-col justify-between ${isWeekendCell ? 'bg-muted/30' : 'bg-card hover:bg-muted/40'
+                }`}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full inline-block ${
-                    isToday(day)
-                      ? 'bg-primary text-primary-foreground shadow-xs'
-                      : 'text-foreground'
-                  }`}
+                  className={`text-xs font-bold px-2 py-0.5 rounded-full inline-block ${isToday(day)
+                    ? 'bg-primary text-primary-foreground shadow-xs'
+                    : 'text-foreground'
+                    }`}
                 >
                   {day}
                 </span>
                 {leaves.length > 0 && (
-                  <span className="text-[10px] font-black uppercase tracking-wider text-primary bg-primary/10 border border-primary/20 px-1.5 py-0.5 rounded-md">
+                  <span className="text-[10px] font-black uppercase tracking-wider border border-mauve-6 px-1.5 py-0.5 rounded-md">
                     {leaves.length} {leaves.length === 1 ? 'leave' : 'leaves'}
                   </span>
                 )}
@@ -271,7 +294,7 @@ export default function NotionLeaveCalendar({
                 <X size={18} />
               </button>
             </div>
-            
+
             <div className="p-5 space-y-5">
               <div className="flex items-center space-x-4">
                 <Avatar src={selectedLeave.employee?.avatar_path} name={selectedLeave.employee?.name} size="lg" />
@@ -309,25 +332,25 @@ export default function NotionLeaveCalendar({
 
               {selectedLeave.reason && (canViewAllReasons || currentUserId === selectedLeave.employee_id) && (
                 <div className="bg-muted/30 p-3 rounded-xl border border-border">
-                   <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
-                   <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
+                  <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Reason</p>
+                  <p className="text-sm font-medium text-foreground">{selectedLeave.reason}</p>
                 </div>
               )}
 
               {/* Action for Employee to Withdraw their own future leave */}
-              {currentUserId === selectedLeave.employee_id && 
-               new Date(selectedLeave.date) > new Date() && 
-               onWithdrawLeave && (
-                <button
-                  onClick={() => {
-                    onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
-                    setSelectedLeave(null);
-                  }}
-                  className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
-                >
-                  Withdraw Leave
-                </button>
-              )}
+              {currentUserId === selectedLeave.employee_id &&
+                !hasAlreadyBeenTaken(selectedLeave) &&
+                onWithdrawLeave && (
+                  <button
+                    onClick={() => {
+                      onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
+                      setSelectedLeave(null);
+                    }}
+                    className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
+                  >
+                    Withdraw Leave
+                  </button>
+                )}
             </div>
           </div>
         </div>

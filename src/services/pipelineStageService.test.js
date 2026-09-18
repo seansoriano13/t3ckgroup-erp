@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest"
 import { pipelineStageService } from "./pipelineStageService"
-import { REALIZED_STAGES, realizedStageCodes } from "@/constants/sor"
 import { makePipelineStage } from "@/test/factories"
 
 /**
@@ -90,11 +89,6 @@ describe("pipelineStageService", () => {
       expect(stages.every((s) => s.is_system)).toBe(true)
     })
 
-    it("classifies the fallback pipeline into the same Realized set as policy", async () => {
-      const stages = await pipelineStageService.getAllStages()
-
-      expect(realizedStageCodes(stages)).toEqual(REALIZED_STAGES)
-    })
   })
 
   describe("reordering stages", () => {

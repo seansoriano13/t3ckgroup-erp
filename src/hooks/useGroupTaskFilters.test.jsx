@@ -168,4 +168,48 @@ describe("useGroupTaskFilters", () => {
 
     expect(found).toHaveLength(1)
   })
+
+  describe("tags", () => {
+    const bidding = { id: "tag-bidding", name: "Bidding", color: "blue" }
+    const committee = { id: "tag-committee", name: "Committee", color: "green" }
+
+    it("shows everything with no tag selected", () => {
+      const tasks = [groupTask({ tags: [bidding] }), groupTask({ tags: [] })]
+
+      expect(filter(tasks).filteredTasks).toHaveLength(2)
+    })
+
+    it("matches any of the selected tags", () => {
+      const tasks = [
+        groupTask({ title: "A", tags: [bidding] }),
+        groupTask({ title: "B", tags: [committee] }),
+        groupTask({ title: "C", tags: [] }),
+      ]
+
+      const found = filter(tasks, { tagFilter: [bidding.id, committee.id] }).filteredTasks
+      expect(found.map((t) => t.title).sort()).toEqual(["A", "B"])
+    })
+
+    it("excludes archived tags from uniqueTags", () => {
+      const tasks = [
+        groupTask({ tags: [bidding, { ...committee, archived_at: "2026-01-01T00:00:00Z" }] }),
+      ]
+
+      expect(filter(tasks).uniqueTags.map((t) => t.id)).toEqual([bidding.id])
+    })
+  })
+
+  describe("crmOnly combined with tags", () => {
+    it("requires both a linked SOR and a matching tag", () => {
+      const bidding = { id: "tag-bidding", name: "Bidding", color: "blue" }
+      const tasks = [
+        groupTask({ title: "Linked+tagged", opportunity_id: "sor-1", tags: [bidding] }),
+        groupTask({ title: "Linked only", opportunity_id: "sor-2", tags: [] }),
+        groupTask({ title: "Tagged only", opportunity_id: null, tags: [bidding] }),
+      ]
+
+      const found = filter(tasks, { crmOnly: true, tagFilter: [bidding.id] }).filteredTasks
+      expect(found.map((t) => t.title)).toEqual(["Linked+tagged"])
+    })
+  })
 })

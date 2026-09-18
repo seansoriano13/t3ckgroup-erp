@@ -38,7 +38,7 @@ export function deriveHours(start, end, allowOvernight = false) {
       throw new Error('End time must be after start time.');
     }
   }
-  
+
   // Return rounded to 2 decimals
   return Number((diff / 60).toFixed(2));
 }
@@ -82,6 +82,20 @@ export function formatTime(timeStr) {
 export function formatWindow(start, end) {
   if (!start || !end) return '';
   return `${formatTime(start)} - ${formatTime(end)}`;
+}
+
+/**
+ * Renders a leave group's dates as the label every notification and audit line
+ * about that group uses. A group of one reads as its single date; a range reads
+ * as its span, with the day count added where the message is about the decision
+ * rather than the dates themselves. `dates` arrives already sorted from the
+ * decision RPCs, which is where a group's dates are now assembled.
+ */
+export function describeLeaveRange(dates, { withDayCount = false } = {}) {
+  const days = dates || [];
+  if (days.length <= 1) return days[0];
+  const span = `${days[0]} to ${days[days.length - 1]}`;
+  return withDayCount ? `${span} (${days.length} days)` : span;
 }
 
 /**

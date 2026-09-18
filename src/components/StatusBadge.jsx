@@ -3,10 +3,14 @@ import { getStatusTheme } from "../constants/status";
 export default function StatusBadge({
   status,
   label,
+  theme: themeOverride,
   children,
   className = "",
 }) {
-  const theme = getStatusTheme(status);
+  // `theme` bypasses the status→theme lookup entirely — for a caller that
+  // already knows the theme it wants (a flow Stage's own color or role, which
+  // has no crm_pipeline_stages code to look up).
+  const theme = themeOverride || getStatusTheme(status);
 
   const themeStyles = {
     green: "bg-card text-green-600 dark:text-green-400 border-green-400",

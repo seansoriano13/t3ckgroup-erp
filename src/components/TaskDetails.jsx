@@ -19,7 +19,7 @@ import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
 import { taskQueryService } from "@/services/tasks/taskQueryService"
-import { procurementService } from "@/services/procurementService"
+import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
@@ -74,7 +74,7 @@ export default function TaskDetails({
 
   const { data: procurementRequests = [] } = useQuery({
     queryKey: ["procurement", "task", activeTask?.id],
-    queryFn: () => procurementService.listForTask(activeTask?.id),
+    queryFn: () => purchasingService.listForTask(activeTask?.id),
     enabled: isOpen && !!activeTask?.id && isProcurement,
   })
 
@@ -599,8 +599,9 @@ export default function TaskDetails({
                   searchTerm={searchTerm}
                   setFormData={setFormData}
                   executeUpdate={executeUpdate}
-                  task={task}
+                  task={activeTask}
                   user={user}
+                  onClose={onClose}
                 />
 
                 {/* Renders nothing unless this task carries procurement
@@ -609,6 +610,18 @@ export default function TaskDetails({
                   taskId={activeTask?.id}
                   userId={user?.id}
                   user={user}
+                  // Mirrors sor_canvasses_write (0059): canvassing is
+                  // purchasing's job regardless of which subject a Canvass
+                  // hangs off.
+                  canEditCanvass={Boolean(
+                    user &&
+                      (user.has_purchasing_flow ||
+                        user.hasPurchasingFlow ||
+                        user.is_head ||
+                        user.isHead ||
+                        user.is_super_admin ||
+                        user.isSuperAdmin),
+                  )}
                   onSubmittingChange={setIsSubmitting}
                   onDeliveredComplete={() => {
                     onClose?.()

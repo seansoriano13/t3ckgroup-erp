@@ -25,12 +25,13 @@ nice-to-have doesn't qualify by itself.
 ## Every realtime table needs a tracked migration
 
 No more enabling realtime from the Supabase dashboard and leaving it
-unrecorded. As of this writing, four of the six realtime-enabled tables in
-this codebase were switched on that way — `notifications`, `task_activity`,
+unrecorded. As of this writing, three of the six realtime-enabled tables in
+this codebase were switched on that way — `task_activity`,
 `committee_task_activity`, `system_audit_logs`. That gap is acknowledged here,
 not fixed retroactively, and not the norm to repeat: every table enabled after
 this document exists gets a migration, the same way `sor_procurement_requests`
-(0020), `sales_opportunity_logs` (0021), and `tasks` (0027) did.
+(0020), `sales_opportunity_logs` (0021), `tasks` (0027), and `notifications`
+(#169) did.
 
 ## Two ways to enable a table, and how to choose
 
@@ -55,6 +56,16 @@ New consumers subscribe via `useTableRealtime` (`src/hooks/useTableRealtime.js`)
 rather than hand-writing another `.channel()` call. It takes a table name and
 the query keys to invalidate when a change arrives, and handles subscribing on
 mount and tearing the channel down on unmount.
+
+A channel that is not a table stream is outside what this hook can express:
+it takes a table name and the query keys to invalidate when a row changes, and
+a channel carrying neither has nothing to give it. Flow Plans (#116, #117) are
+the first of these — `useFlowPlanDoc` moves CRDT document updates between the
+people editing one plan, and `useFlowPresence` carries a presence roster and
+cursor positions. Both hand-write `.channel()` deliberately, and both own the
+subscribe-on-mount / tear-down-on-unmount discipline the hook exists to
+standardise. The rule above still binds every consumer that *is* watching a
+table.
 
 The ten realtime subscriptions across eight files that predate this hook (two
 each in `taskActivityService.js` and `groupTaskActivityService.js`, one each

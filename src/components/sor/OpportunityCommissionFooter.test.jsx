@@ -149,7 +149,7 @@ describe("OpportunityCommissionFooter", () => {
     fireEvent.click(btn);
 
     expect(onClose).toHaveBeenCalled();
-    expect(mockNavigate).toHaveBeenCalledWith("/opportunities/commission", {
+    expect(mockNavigate).toHaveBeenCalledWith("/crm/commission", {
       state: { openOpportunityId: "opp-123" },
     });
   });

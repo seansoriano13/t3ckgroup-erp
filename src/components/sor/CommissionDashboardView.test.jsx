@@ -10,7 +10,7 @@ let mockLocationState = {};
 
 vi.mock("react-router", () => ({
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: "/opportunities/commission", state: mockLocationState }),
+  useLocation: () => ({ pathname: "/crm/commission", state: mockLocationState }),
 }));
 
 vi.mock("../../services/commissionService", () => ({
@@ -309,7 +309,7 @@ describe("CommissionDashboardView", () => {
     const aliceRow = screen.getByText("Alice Rep").closest("tr");
     fireEvent.click(aliceRow);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
       state: { filterEmployeeId: "user-alice" },
     });
   });
@@ -331,7 +331,7 @@ describe("CommissionDashboardView", () => {
     const dealRow = screen.getByText("SOR-001").closest("tr");
     fireEvent.click(dealRow);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
       state: { openOpportunityId: "opp-1" },
     });
   });

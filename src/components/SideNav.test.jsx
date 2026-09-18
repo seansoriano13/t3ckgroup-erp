@@ -12,7 +12,7 @@ vi.mock("./ComprehensiveChatModal", () => ({ default: () => null }));
 vi.mock("./GlobalDetailManager", () => ({ default: () => null }));
 vi.mock("./BroadcastModal", () => ({ default: () => null }));
 vi.mock("./LogTaskModal", () => ({ default: () => null }));
-vi.mock("../pages/group-tasks/components/CreateGroupTaskModal", () => ({ default: () => null }));
+vi.mock("../pages/group-tasks/_components/CreateGroupTaskModal", () => ({ default: () => null }));
 vi.mock("./offsets/ApplyLeaveModal", () => ({ default: () => null }));
 vi.mock("./sor/OpportunityFormModal", () => ({ default: () => null }));
 vi.mock("./RoleSwitcher", () => ({ default: () => <div data-testid="role-switcher" /> }));
@@ -50,10 +50,13 @@ describe("SideNav Component", () => {
 
     expect(screen.getByText("Workspace")).toBeInTheDocument();
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
-    expect(screen.getByText("My Leaves & Overtime")).toBeInTheDocument();
+    expect(screen.getByText("My Requests")).toBeInTheDocument();
     expect(screen.queryByText("My Tasks")).not.toBeInTheDocument();
     expect(screen.queryByText("Human Resources")).not.toBeInTheDocument();
-    expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+    // Flow Canvas (issue #36) is deliberately visible to everyone while it is
+    // scaffolding for building Sales Flows with Operations, so Administration
+    // shows up for that one link — see navigation.js's comment on it.
+    expect(screen.getByText("Administration")).toBeInTheDocument();
   });
 
   it("renders Operations and Approvals for Department Head with task flow", () => {
@@ -84,7 +87,7 @@ describe("SideNav Component", () => {
     renderSideNav(user);
 
     expect(screen.getByText("Sales")).toBeInTheDocument();
-    expect(screen.getByText("SOR / CRM")).toBeInTheDocument();
+    expect(screen.getByText("CRM")).toBeInTheDocument();
   });
 
   it("renders all ERP modules for Super Admin", () => {
@@ -102,7 +105,7 @@ describe("SideNav Component", () => {
     expect(screen.getByText("Approvals")).toBeInTheDocument();
     expect(screen.getByText("Human Resources")).toBeInTheDocument();
     expect(screen.getByText("Administration")).toBeInTheDocument();
-    expect(screen.getByText("System Admin")).toBeInTheDocument();
+    expect(screen.getByText("Commission Pool")).toBeInTheDocument();
     expect(screen.getByText("Activity Log")).toBeInTheDocument();
   });
 
@@ -164,5 +167,30 @@ describe("SideNav Component", () => {
       "erp_sidebar_groups_persisted-user-1",
       expect.stringContaining('"workspace":false')
     );
+  });
+
+  // Issue #206 — the sidebar collapses to an icon rail app-wide, remembered
+  // per person beside the group accordion state above.
+  it("persists the collapse toggle in localStorage, per user", () => {
+    const user = { id: "collapse-user-1", name: "Collapse Test", isSuperAdmin: true };
+
+    const setItemSpy = vi.spyOn(window.localStorage, "setItem");
+
+    renderSideNav(user);
+
+    const toggle = screen.getByTitle("Collapse sidebar");
+    fireEvent.click(toggle);
+
+    expect(setItemSpy).toHaveBeenCalledWith("erp_sidebar_collapsed_collapse-user-1", "1");
+    expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
+  });
+
+  it("restores a collapsed sidebar from localStorage on load", () => {
+    const user = { id: "collapse-user-2", name: "Collapse Test 2", isSuperAdmin: true };
+    localStorage.setItem("erp_sidebar_collapsed_collapse-user-2", "1");
+
+    renderSideNav(user);
+
+    expect(screen.getByTitle("Expand sidebar")).toBeInTheDocument();
   });
 });

@@ -9,6 +9,12 @@ vi.mock("../services/taskService", () => ({
   },
 }));
 
+vi.mock("../services/headApprovalService", () => ({
+  headApprovalService: {
+    getPendingForHead: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 vi.mock("../lib/supabase", () => ({
   supabase: {
     from: vi.fn(),
@@ -33,6 +39,7 @@ describe("useNavBadges", () => {
     expect(result.current).toEqual({
       taskApprovals: 0,
       hrVerifications: 0,
+      leaveApprovals: 0,
     });
   });
 

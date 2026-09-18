@@ -54,6 +54,27 @@ export function makeCategory(overrides = {}) {
   })
 }
 
+export function makeCompany(overrides = {}) {
+  const n = next()
+  return db.seed("companies", {
+    name: `Company ${n}`,
+    is_active: true,
+    sort_order: n,
+    ...overrides,
+  })
+}
+
+export function makeLeaveCategory(overrides = {}) {
+  const n = next()
+  return db.seed("hr_leave_categories", {
+    id: `LVCAT-${n}`,
+    label: `Leave Category ${n}`,
+    is_active: true,
+    sort_order: n,
+    ...overrides,
+  })
+}
+
 export function makeTask(overrides = {}) {
   const loggedBy = overrides.logged_by ?? makeEmployee().id
   const categoryId = overrides.category_id ?? makeCategory().category_id
@@ -100,6 +121,146 @@ export function makeOpportunityItem(opportunityId, overrides = {}) {
     unit_price: 1000,
     sort_order: 0,
     ...overrides,
+  })
+}
+
+/**
+ * A Stage's condition. Required, active, `field`-kind by default — the
+ * kind that needs no attachment/member data to satisfy, so a bare call
+ * blocks a crossing without a test also having to fake evidence for it.
+ */
+export function makeStageCondition(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  const n = next()
+  return db.seed("stage_conditions", {
+    kind: "field",
+    label: `Condition ${n}`,
+    is_required: true,
+    sort_order: n,
+    config: {},
+    archived_at: null,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
+/**
+ * A Stage Field (issue #203) — a custom text field by default, required,
+ * kept per Stage Visit.
+ */
+export function makeStageField(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  const n = next()
+  return db.seed("flow_stage_fields", {
+    label: `Field ${n}`,
+    help: null,
+    source: "custom",
+    sor_field: null,
+    field_type: "text",
+    options: [],
+    is_required: true,
+    sort_order: n,
+    archived_at: null,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
+/**
+ * A Stage's Follow-up Cadence (issue #204 Part 3) — enabled every 7 days by
+ * default, so a bare call is ready to be picked up by `makeFlowSnapshot`'s
+ * own `followUps` group without a test having to spell out every field.
+ */
+export function makeFollowUpCadence(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  return db.seed("flow_stage_follow_ups", {
+    enabled: true,
+    every_days: 7,
+    recipients: [{ type: "role", role: "deal_owner" }],
+    proof_required: true,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
+/** A Stage Visit (issue #203) — the record of one stay on a Stage. Open (no `left_at`) by default. */
+export function makeStageVisit(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const stageId = overrides.flow_stage_id ?? makeFlowStage().id
+  return db.seed("sor_stage_visits", {
+    flow_snapshot_id: null,
+    sequence: 1,
+    entered_at: new Date().toISOString(),
+    entered_by: null,
+    left_at: null,
+    left_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    flow_stage_id: stageId,
+  })
+}
+
+/**
+ * A Stage's action (automation) — fires when a deal arrives at the stage.
+ * An individual task by default, titled so `actionTitle()` has something to show.
+ */
+export function makeStageAction(overrides = {}) {
+  const stageId = overrides.stage_id ?? makeFlowStage().id
+  const n = next()
+  return db.seed("flow_stage_actions", {
+    kind: "create_individual_task",
+    config: { title: `Action ${n}` },
+    sort_order: n,
+    archived_at: null,
+    ...overrides,
+    stage_id: stageId,
+  })
+}
+
+/**
+ * An Employee Group (issue #201) with the given members/teams already
+ * seeded into `employee_group_members`/`employee_group_teams`, so a Decider
+ * selector `{type:"group", id}` resolves the way `employeeGroupService.list()`
+ * would.
+ */
+export function makeEmployeeGroup({ employeeIds = [], teams = [], ...overrides } = {}) {
+  const n = next()
+  const group = db.seed("employee_groups", {
+    name: `Group ${n}`,
+    description: null,
+    archived_at: null,
+    ...overrides,
+  })
+  for (const employeeId of employeeIds) {
+    db.seed("employee_group_members", { group_id: group.id, employee_id: employeeId })
+  }
+  for (const team of teams) {
+    db.seed("employee_group_teams", { group_id: group.id, team })
+  }
+  return group
+}
+
+/** Satisfies a condition for an opportunity — the row IS the satisfaction. */
+export function makeConditionStatus(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const conditionId = overrides.condition_id ?? makeStageCondition().id
+  return db.seed("sor_condition_status", {
+    satisfied_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    condition_id: conditionId,
+  })
+}
+
+/** An SOR Member — someone added to a deal (docs/crm-pipeline-redesign.md's SOR Member). */
+export function makeOpportunityMember(overrides = {}) {
+  const opportunityId = overrides.opportunity_id ?? makeOpportunity().id
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  return db.seed("sales_opportunity_members", {
+    added_by: null,
+    ...overrides,
+    opportunity_id: opportunityId,
+    employee_id: employeeId,
   })
 }
 
@@ -153,6 +314,25 @@ export function makeOvertimeRequest(overrides = {}) {
     },
     { allowOvernight: true },
   )
+}
+
+export function makeUndertimeRequest(overrides = {}) {
+  const employeeId = overrides.employee_id ?? makeEmployee().id
+  const row = {
+    date: "2026-03-10",
+    original_start_time: "08:00",
+    original_end_time: "17:00",
+    actual_start_time: "08:00",
+    actual_end_time: "15:00",
+    status: "PENDING",
+    ...overrides,
+    employee_id: employeeId,
+  }
+  if (!("hours" in row)) {
+    // 8h scheduled (net of lunch) minus 6h actual (net of lunch) = 2h shortfall by default.
+    row.hours = 2
+  }
+  return db.seed("undertime_requests", row)
 }
 
 export function makeOffsetLeave(overrides = {}) {
@@ -270,5 +450,110 @@ export function makeNotification(overrides = {}) {
     is_read: false,
     ...overrides,
     recipient_id: recipientId,
+  })
+}
+
+// ── Sales Flows (issue #36) ─────────────────────────────────────────────────
+// A Sale Type owns exactly one Sales Flow. The two factories stay separate so
+// that "a Sale Type with no flow" is representable here — the service is what
+// guarantees it never happens, and a factory that pre-empted the guarantee
+// would make the test proving it impossible to write.
+
+export function makeSaleType(overrides = {}) {
+  const n = next()
+  return db.seed("sale_types", { name: `Sale Type ${n}`, ...overrides })
+}
+
+export function makeSalesFlow(overrides = {}) {
+  const saleTypeId = overrides.sale_type_id ?? makeSaleType().id
+  return db.seed("sales_flows", { state: "draft", ...overrides, sale_type_id: saleTypeId })
+}
+
+export function makeFlowStage(overrides = {}) {
+  const flowId = overrides.flow_id ?? makeSalesFlow().id
+  const n = next()
+  return db.seed("flow_stages", {
+    name: `Stage ${n}`,
+    sort_order: n,
+    is_terminal: false,
+    pos_x: 0,
+    pos_y: 0,
+    ...overrides,
+    flow_id: flowId,
+  })
+}
+
+export function makeFlowEdge(fromStage, toStage, overrides = {}) {
+  return db.seed("flow_edges", {
+    flow_id: fromStage.flow_id,
+    from_stage_id: fromStage.id,
+    to_stage_id: toStage.id,
+    ...overrides,
+  })
+}
+
+/**
+ * A Flow Snapshot (issue #83) — mirrors exactly what `salesFlowService.
+ * lockFlow` assembles, so a snapshot built here behaves identically to one a
+ * real lock would have produced. By default it captures whatever is already
+ * seeded live for the flow at call time; a test proving an SOR stays frozen
+ * to its OWN snapshot builds this first, then edits the live tables
+ * afterward, or passes an explicit `snapshot_data` to diverge outright.
+ */
+export function makeFlowSnapshot(overrides = {}) {
+  const flowId = overrides.flow_id ?? makeSalesFlow().id
+  const flow = db.internal.rowsOf("sales_flows").find((f) => f.id === flowId)
+  const stages = db.internal.rowsOf("flow_stages").filter((s) => s.flow_id === flowId)
+  const stageIds = stages.map((s) => s.id)
+  const edges = db.internal.rowsOf("flow_edges").filter((e) => e.flow_id === flowId)
+  const actions = db.internal
+    .rowsOf("flow_stage_actions")
+    .filter((a) => stageIds.includes(a.stage_id) && !a.archived_at)
+  const conditions = db.internal
+    .rowsOf("stage_conditions")
+    .filter((c) => stageIds.includes(c.stage_id) && !c.archived_at)
+  const stageFields = db.internal
+    .rowsOf("flow_stage_fields")
+    .filter((f) => stageIds.includes(f.stage_id) && !f.archived_at)
+  const followUps = db.internal
+    .rowsOf("flow_stage_follow_ups")
+    .filter((f) => stageIds.includes(f.stage_id))
+    .map((f) => ({
+      id: f.stage_id,
+      enabled: f.enabled,
+      everyDays: f.every_days,
+      recipients: f.recipients,
+      proofRequired: f.proof_required,
+    }))
+
+  const existingVersions = db.internal
+    .rowsOf("flow_snapshots")
+    .filter((s) => s.flow_id === flowId)
+    .map((s) => s.version)
+  const nextVersion = existingVersions.length > 0 ? Math.max(...existingVersions) + 1 : 1
+
+  // Deep-cloned, not the live rows by reference: a real lock reads through
+  // `supabase.from(...).select("*")`, which hands back independent copies —
+  // editing the live row afterward (e.g. archiving a condition) must not
+  // retroactively change what an already-taken snapshot says.
+  const snapshotData = overrides.snapshot_data
+    ? structuredClone(overrides.snapshot_data)
+    : structuredClone({
+        stages,
+        edges,
+        actions,
+        conditions,
+        stageFields,
+        followUps,
+        wonStageId: flow?.won_stage_id ?? null,
+        saleTypeId: flow?.sale_type_id ?? null,
+      })
+
+  return db.seed("flow_snapshots", {
+    version: nextVersion,
+    version_minor: 0,
+    ...overrides,
+    flow_id: flowId,
+    snapshot_data: snapshotData,
   })
 }

@@ -75,6 +75,7 @@ export const taskQueryService = {
         editor:employees!tasks_edited_by_fk(name, avatar_path),
         evaluator:employees!tasks_evaluated_by_fkey(name, avatar_path),
         reportedToHead:employees!tasks_reported_to_fkey(name, avatar_path),
+        opportunity:sales_opportunities(client_name, sales_reference),
         categories(description)
       `,
       )
@@ -94,6 +95,8 @@ export const taskQueryService = {
       taskDescription: resolveDescription(task.task_description, task.checklist),
       checklist: resolveChecklist(task.task_description, task.checklist),
       projectTitle: task.project_title || null,
+      opportunityId: task.opportunity_id || null,
+      opportunity: task.opportunity || null,
       categoryId: task.category_id,
       categoryDesc: task.categories?.description,
       loggedById: task.logged_by,
@@ -139,6 +142,7 @@ export const taskQueryService = {
         editor:employees!tasks_edited_by_fk(name, avatar_path),
         evaluator:employees!tasks_evaluated_by_fkey(name, avatar_path),
         reportedToHead:employees!tasks_reported_to_fkey(name, avatar_path),
+        opportunity:sales_opportunities(client_name, sales_reference),
         categories(description)
       `,
       )
@@ -159,6 +163,8 @@ export const taskQueryService = {
       taskDescription: resolveDescription(task.task_description, task.checklist),
       checklist: resolveChecklist(task.task_description, task.checklist),
       projectTitle: task.project_title || null,
+      opportunityId: task.opportunity_id || null,
+      opportunity: task.opportunity || null,
       categoryId: task.category_id,
       categoryDesc: task.categories?.description,
       loggedById: task.logged_by,
@@ -213,6 +219,7 @@ export const taskQueryService = {
         *, 
         creator:employees!tasks_logged_by_fk(name, department, sub_department, email, is_super_admin, avatar_path),
         editor:employees!tasks_edited_by_fk(name, avatar_path),
+        opportunity:sales_opportunities(client_name, sales_reference),
         evaluator:employees!tasks_evaluated_by_fkey(name, avatar_path),
         reportedToHead:employees!tasks_reported_to_fkey(name, avatar_path),
         activityLogs:task_activity!task_activity_task_id_fkey(content, metadata, created_at),
@@ -229,6 +236,8 @@ export const taskQueryService = {
       taskDescription: resolveDescription(data.task_description, data.checklist),
       checklist: resolveChecklist(data.task_description, data.checklist),
       projectTitle: data.project_title || null,
+      opportunityId: data.opportunity_id || null,
+      opportunity: data.opportunity || null,
       categoryId: data.category_id,
       categoryDesc: data.categories?.description,
       loggedById: data.logged_by,

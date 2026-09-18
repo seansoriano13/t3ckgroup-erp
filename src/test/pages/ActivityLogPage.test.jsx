@@ -35,9 +35,25 @@ const MOCK_SYSTEM_OPP_LOG = {
   isSystemLog: true,
 };
 
-vi.mock("../../services/taskActivityService", () => ({
+const MOCK_CHECKLIST_TASK_LOG = {
+  id: "log-checklist-1",
+  taskId: "task-789",
+  taskDescription: JSON.stringify([
+    { text: "Confirm site survey", checked: false },
+    { text: "Send quotation", checked: true },
+  ]),
+  taskStatus: "IN_PROGRESS",
+  type: "TASK",
+  content: "Checklist updated",
+  metadata: {},
+  createdAt: "2026-08-20T09:00:00Z",
+  authorId: "user-1",
+  authorName: "Alice",
+};
+
+vi.mock("../../services/tasks/taskActivityService", () => ({
   taskActivityService: {
-    getRecentTaskActivity: vi.fn(async () => []),
+    getRecentTaskActivity: vi.fn(async () => [MOCK_CHECKLIST_TASK_LOG]),
     subscribeToAllActivity: vi.fn(() => ({})),
     unsubscribeFromActivity: vi.fn(),
   },
@@ -145,5 +161,19 @@ describe("SuperAdminActivityLogPage Clickable SOR Logs", () => {
         detail: { id: "opp-456", type: "OPPORTUNITY" },
       })
     );
+  });
+
+  it("renders a JSON-encoded checklist title as checklist items, not raw JSON", async () => {
+    renderWithProviders(<SuperAdminActivityLogPage />);
+
+    const tasksTab = await screen.findByRole("button", { name: "Task Logs" });
+    fireEvent.click(tasksTab);
+
+    await waitFor(() => {
+      expect(screen.getByText("Confirm site survey")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("Send quotation")).toBeInTheDocument();
+    expect(screen.queryByText(/"checked":true/)).not.toBeInTheDocument();
   });
 });

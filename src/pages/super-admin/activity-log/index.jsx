@@ -78,8 +78,9 @@ function tryParseChecklist(str) {
     ) {
       return parsed;
     }
-    // eslint-disable-next-line no-empty, no-unused-vars
-  } catch (e) { }
+  } catch (e) {
+    console.error("Failed to parse checklist:", e);
+  }
   return null;
 }
 
@@ -165,6 +166,7 @@ const ENTITY_TYPE_STYLES = {
   CATEGORY: "bg-orange-a2 text-orange-11 border-orange-a4",
   ANNOUNCEMENT: "bg-yellow-a2 text-yellow-11 border-yellow-a4",
   SETTINGS: "bg-purple-a2 text-purple-11 border-purple-a4",
+  HR_SETTINGS: "bg-purple-a2 text-purple-11 border-purple-a4",
   QUOTA: "bg-green-a2 text-green-11 border-green-a4",
   OPPORTUNITY: "bg-cyan-a2 text-cyan-11 border-cyan-a4",
 };

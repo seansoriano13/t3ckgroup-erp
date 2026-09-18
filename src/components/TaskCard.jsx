@@ -9,12 +9,18 @@ import {
   Circle,
 } from "lucide-react"
 import Dot from "./ui/Dot"
+import { SorLinkChip } from "./ui/SorLinkChip"
 import StatusBadge from "./StatusBadge"
 import { useAuth } from "../context/AuthContext"
 import { TASK_STATUS } from "../constants/status"
 import Avatar from "./Avatar"
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap"
 import HighlightText from "./HighlightText"
+import {
+  getChecklistProgress,
+  parseChecklist,
+  parseChecklistGroups,
+} from "../utils/checklist"
 
 const getRelativeTime = (dateString) => {
   if (!dateString) return ""
@@ -97,31 +103,15 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
   let checkedItems = 0
   let parsedDesc = null
   let plainTextContent = ""
+  let checklistProgress = null
 
   // 1. Check native checklist field
   if (task.checklist) {
     isChecklistFormat = true;
-    if (typeof task.checklist === "string") {
-      try {
-        parsedDesc = JSON.parse(task.checklist);
-      } catch {
-        parsedDesc = task.checklist;
-      }
-    } else {
-      parsedDesc = task.checklist;
-    }
-
-    if (Array.isArray(parsedDesc)) {
-      totalItems = parsedDesc.length;
-      checkedItems = parsedDesc.filter(
-        (item) => item && typeof item === "object" && item.checked,
-      ).length;
-    } else if (parsedDesc && Array.isArray(parsedDesc.items)) {
-      totalItems = parsedDesc.items.length;
-      checkedItems = parsedDesc.items.filter(
-        (item) => item && typeof item === "object" && item.checked,
-      ).length;
-    }
+    checklistProgress = getChecklistProgress(task.checklist);
+    totalItems = checklistProgress.total;
+    checkedItems = checklistProgress.checked;
+    parsedDesc = parseChecklist(task.checklist);
 
     if (typeof task.taskDescription === "string") {
       plainTextContent = task.taskDescription.trim();
@@ -137,10 +127,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         parsedDesc = JSON.parse(trimmed)
         if (Array.isArray(parsedDesc)) {
           isChecklistFormat = true
-          totalItems = parsedDesc.length
-          checkedItems = parsedDesc.filter(
-            (item) => item && typeof item === "object" && item.checked,
-          ).length
+          checklistProgress = getChecklistProgress(parsedDesc)
+          totalItems = checklistProgress.total
+          checkedItems = checklistProgress.checked
+          parsedDesc = parseChecklist(parsedDesc)
         } else {
           plainTextContent = trimmed;
         }
@@ -152,10 +142,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
         parsedDesc = JSON.parse(trimmed)
         if (parsedDesc && Array.isArray(parsedDesc.items)) {
           isChecklistFormat = true
-          totalItems = parsedDesc.items.length
-          checkedItems = parsedDesc.items.filter(
-            (item) => item && typeof item === "object" && item.checked,
-          ).length
+          checklistProgress = getChecklistProgress(parsedDesc)
+          totalItems = checklistProgress.total
+          checkedItems = checklistProgress.checked
+          parsedDesc = parseChecklist(parsedDesc)
         } else {
           plainTextContent = trimmed;
         }
@@ -164,11 +154,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       }
     } else if (Array.isArray(task.taskDescription)) {
       isChecklistFormat = true
-      parsedDesc = task.taskDescription
-      totalItems = task.taskDescription.length
-      checkedItems = task.taskDescription.filter(
-        (item) => item && typeof item === "object" && item.checked,
-      ).length
+      checklistProgress = getChecklistProgress(task.taskDescription)
+      totalItems = checklistProgress.total
+      checkedItems = checklistProgress.checked
+      parsedDesc = parseChecklist(task.taskDescription)
     } else {
       plainTextContent = trimmed;
     }
@@ -189,7 +178,18 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
     if (!onSilentUpdate || isDisabled) return
 
     let newDesc
-    if (Array.isArray(parsedDesc)) {
+    if (task.checklist && checklistProgress?.isGrouped) {
+      const groups = parseChecklistGroups(task.checklist);
+      let count = 0;
+      newDesc = groups.map((g) => ({
+        ...g,
+        items: g.items.map((item) => {
+          const isTarget = count === index;
+          count++;
+          return isTarget ? { ...item, checked: !item.checked } : item;
+        }),
+      }));
+    } else if (Array.isArray(parsedDesc)) {
       newDesc = parsedDesc.map((item, i) =>
         i === index ? { ...item, checked: !item.checked } : item,
       )
@@ -205,7 +205,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
     }
 
     const payloadDesc =
-      typeof task.taskDescription === "string"
+      typeof task.checklist === "string" || typeof task.taskDescription === "string"
         ? JSON.stringify(newDesc)
         : newDesc
     handleInlineCheck(payloadDesc)
@@ -220,7 +220,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
       ? parsedDesc
       : parsedDesc?.items || []
     : []
-  const checklistTitle = isChecklistFormat ? parsedDesc?.title || null : null
+  const checklistTitle = isChecklistFormat
+    ? checklistProgress?.groups?.find((g) => g.title?.trim())?.title ||
+      (typeof parsedDesc === "object" && !Array.isArray(parsedDesc) ? parsedDesc?.title : null)
+    : null
   const previewItems = []
   const hiddenItems = checklistItems
 
@@ -270,6 +273,12 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                 <Clock size={10} className="shrink-0" />
                 {getRelativeTime(task.createdAt)}
               </div>
+            </>
+          )}
+          {task.opportunity && (
+            <>
+              <span className="text-mauve-7 text-[10px] shrink-0">•</span>
+              <SorLinkChip opportunityId={task.opportunityId} opportunity={task.opportunity} />
             </>
           )}
         </div>
@@ -441,8 +450,8 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                 </button>
               )}
 
-              <div className="flex items-center gap-2 w-1/3 min-w-[100px] max-w-[140px]">
-                <div className="flex-1 h-1.5 rounded-full bg-mauve-3 overflow-hidden">
+              <div className="flex items-center gap-2 max-w-[170px]">
+                <div className="w-16 h-1.5 rounded-full bg-mauve-3 overflow-hidden shrink-0">
                   <div
                     className="h-full rounded-full bg-green-8 transition-all duration-500"
                     style={{
@@ -454,7 +463,9 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                   />
                 </div>
                 <span className="text-[10px] font-bold text-muted-foreground shrink-0 tabular-nums">
-                  {checkedItems}/{totalItems}
+                  {checklistProgress?.isGrouped && checklistProgress.totalSteps > 1
+                    ? `Step ${checklistProgress.activeStepIndex + 1}/${checklistProgress.totalSteps} · ${checkedItems}/${totalItems}`
+                    : `${checkedItems}/${totalItems}`}
                 </span>
               </div>
             </div>

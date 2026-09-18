@@ -1,8 +1,7 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import TaskTableView from "./TaskTableView";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -54,7 +53,7 @@ describe("TaskTableView", () => {
   });
 
   it("calls onView when a table row is clicked", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     mockUser.current = owner;
     const onView = vi.fn();
     const taskItem = mockTask({ id: "t1", projectTitle: "Inspect Firewall" });
@@ -94,5 +93,22 @@ describe("TaskTableView", () => {
     );
 
     expect(screen.getByText("2/3")).toBeInTheDocument();
+  });
+
+  it("renders grouped checklist progress with step indicator", () => {
+    const groupedTask = mockTask({
+      id: "t-grouped",
+      projectTitle: "Multi-Step Project",
+      checklist: [
+        { id: "g1", title: "Step 1", items: [{ text: "Item 1", checked: true }] },
+        { id: "g2", title: "Step 2", items: [{ text: "Item 2", checked: false }] },
+      ],
+    });
+
+    renderWithProviders(
+      <TaskTableView tasks={[groupedTask]} searchTerm="" onView={vi.fn()} />,
+    );
+
+    expect(screen.getByText(/S2\s*·\s*1\/2/)).toBeInTheDocument();
   });
 });

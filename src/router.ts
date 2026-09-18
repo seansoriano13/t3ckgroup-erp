@@ -6,29 +6,15 @@ import { components, hooks, utils } from '@generouted/react-router/client'
 export type Path =
   | `/`
   | `/approvals`
-  | `/approvals/components/ApprovalDetailPane`
-  | `/approvals/components/ApprovalHeader`
-  | `/approvals/components/ApprovalQueueItem`
-  | `/approvals/components/ApprovalRow`
-  | `/approvals/components/ApprovalSplitView`
-  | `/approvals/components/BulkDeclineModal`
-  | `/approvals/components/BulkGradeModal`
-  | `/approvals/components/GroupTaskApprovalSection`
   | `/approvals/hr-verification`
-  | `/approvals/hr-verification/components/BulkVerifyModal`
+  | `/approvals/leaves`
   | `/approvals/tasks`
+  | `/crm`
+  | `/crm/commission`
+  | `/crm/commission-formula`
+  | `/flow-versions/:snapshotId`
   | `/group-tasks`
-  | `/group-tasks/components/CreateGroupTaskModal`
-  | `/group-tasks/components/GroupRoleManagerModal`
-  | `/group-tasks/components/GroupTaskCard`
-  | `/group-tasks/components/GroupTaskDetailModal`
-  | `/group-tasks/components/GroupTaskMemberPanel`
-  | `/group-tasks/components/GroupTaskMemberRail`
-  | `/group-tasks/components/GroupTaskTableView`
-  | `/group-tasks/components/RateEmployeesModal`
-  | `/group-tasks/components/SaveGroupTaskTemplateModal`
   | `/group-tasks/templates`
-  | `/group-tasks/templates/components/TemplateEditorModal`
   | `/hr`
   | `/hr/management`
   | `/hr/offsets`
@@ -38,18 +24,23 @@ export type Path =
   | `/opportunities/commission`
   | `/opportunities/commission-formula`
   | `/profile`
+  | `/purchasing`
+  | `/reset-password`
   | `/settings`
   | `/settings/FAQEditor`
   | `/settings/FAQModal`
   | `/super-admin`
   | `/super-admin/activity-log`
   | `/super-admin/commission`
+  | `/super-admin/flow-canvas`
   | `/super-admin/lead-sources`
-  | `/super-admin/pipeline-stages`
+  | `/super-admin/release-notes`
   | `/tasks`
+  | `/verify/:token`
 
 export type Params = {
-  
+  '/flow-versions/:snapshotId': { snapshotId: string }
+  '/verify/:token': { token: string }
 }
 
 export type ModalPath = never

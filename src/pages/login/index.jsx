@@ -6,11 +6,9 @@ import { useAuth } from "../../context/AuthContext";
 import PrimaryButton from "../../components/PrimaryButton";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
+import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
-
-// Updated for the dark theme disabled state
-export const INPUT_STYLE =
-  "px-4 py-3 bg-mauve-3 border border-mauve-6 text-mauve-12 rounded-lg outline-none cursor-not-allowed opacity-70 transition-all w-full placeholder:text-mauve-8";
+import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -20,10 +18,13 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-
-  const allowTestLogin = import.meta.env.VITE_ALLOW_TEST_LOGIN === "true";
+  const [email, setEmail] = useState(
+    () => import.meta.env.VITE_MAGIC_LOGIN_EMAIL || ""
+  );
+  const [password, setPassword] = useState(
+    () => import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || ""
+  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // If the user is already authenticated (e.g. swiped back to /login, or
   // the session was restored on reload), redirect immediately.
@@ -35,16 +36,13 @@ export default function Login() {
 
   const handleManualLogin = async (e) => {
     e.preventDefault();
-    if (!allowTestLogin) {
-      toast.error("Test login is disabled.");
-      return;
-    }
 
     if (!email || !password) {
-      toast.error("Please enter email and password.");
+      toast.error("Please enter your email and password.");
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -59,7 +57,31 @@ export default function Login() {
       }
     } catch (error) {
       console.error("Manual login failed:", error);
-      toast.error(error.message || "Manual login failed");
+      // The provider's own "Invalid login credentials" doesn't say what to do
+      // next; anything else (network, rate limit) is shown as-is, since that
+      // guidance would be wrong for it.
+      const isBadCredentials = /invalid login credentials/i.test(error.message || "");
+      toast.error(
+        isBadCredentials
+          ? "Incorrect email or password. Use Forgot password? below, or sign in with Google."
+          : error.message || "Login failed. Please try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      toast.error("Enter your email address first.");
+      return;
+    }
+    try {
+      await passwordService.requestPasswordReset(email);
+      toast.success("Check your email for a link to reset your password.");
+    } catch (error) {
+      console.error("Password reset request failed:", error);
+      toast.error(error.message || "Could not send reset email.");
     }
   };
 
@@ -108,21 +130,16 @@ export default function Login() {
             </p>
           </div>
 
-          {/* Dummy Form */}
-          <div className="grid gap-5">
+          {/* Email + password form */}
+          <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider flex justify-between">
-                Email Address{" "}
-                {!allowTestLogin && (
-                  <span className="text-mauve-9 normal-case font-normal">
-                    (Disabled)
-                  </span>
-                )}
+              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+                Email Address
               </label>
               <input
-                disabled={!allowTestLogin}
-                className={`${INPUT_STYLE} ${!allowTestLogin ? "cursor-not-allowed opacity-70" : "cursor-text opacity-100"}`}
-                type="text"
+                className={`${INPUT_STYLE} cursor-text`}
+                type="email"
+                autoComplete="username"
                 placeholder="name@t3ckgroup.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -130,51 +147,53 @@ export default function Login() {
             </div>
 
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider flex justify-between">
-                Password{" "}
-                {!allowTestLogin && (
-                  <span className="text-mauve-9 normal-case font-normal">
-                    (Disabled)
-                  </span>
-                )}
-              </label>
+              <div className="flex justify-between items-center">
+                <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+                  Password
+                </label>
+                <button
+                  type="button"
+                  onClick={handleForgotPassword}
+                  className="text-xs text-mauve-11 font-medium hover:underline"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
-                disabled={!allowTestLogin}
-                className={`${INPUT_STYLE} ${!allowTestLogin ? "cursor-not-allowed opacity-70" : "cursor-text opacity-100"}`}
+                className={`${INPUT_STYLE} cursor-text`}
                 type="password"
+                autoComplete="current-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
             </div>
-          </div>
 
-          {/* Action Area */}
-          <div className="pt-6 border-t border-mauve-6 mt-8">
-            <p className="text-sm font-bold text-mauve-10 mb-4">
-              Please authenticate using your corporate Google account.
-            </p>
+            {/* Action Area */}
+            <div className="pt-6 border-t border-mauve-6 mt-3">
+              <p className="text-sm font-bold text-mauve-10 mb-4">
+                Sign in with your email and password, or your corporate Google account.
+              </p>
 
-            <div className="flex flex-col sm:flex-row gap-4 items-center">
-              {/* Making the custom button look disabled so users know to click Google */}
-              <PrimaryButton
-                label="Log In"
-                className={`w-full sm:w-auto ${!allowTestLogin ? "opacity-50 cursor-not-allowed bg-mauve-5 text-mauve-9 hover:bg-mauve-5 shadow-none" : ""}`}
-                onClick={handleManualLogin}
-              />
-
-              <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  useOneTap
-                  theme={theme === "light" ? "outline" : "filled_black"} // 👈 Applies theme dynamically
-                  shape="rectangular"
-                  size="large"
+              <div className="flex flex-col sm:flex-row gap-4 items-center">
+                <PrimaryButton
+                  label={isSubmitting ? "Logging in..." : "Log In"}
+                  className={`w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
                 />
+
+                <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={handleGoogleError}
+                    useOneTap
+                    theme={theme === "light" ? "outline" : "filled_black"} // 👈 Applies theme dynamically
+                    shape="rectangular"
+                    size="large"
+                  />
+                </div>
               </div>
             </div>
-          </div>
+          </form>
         </div>
       </div>
 

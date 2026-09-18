@@ -328,6 +328,40 @@ describe("useTaskFilters", () => {
 
       expect(filter(tasks, { reportedToFilter: "head-1" }).filteredTasks).toHaveLength(1)
     })
+
+    it("combines the CRM filter with the team (department) filter", () => {
+      const tasks = [
+        task({ loggedById: "emp-1", opportunityId: "sor-1" }),
+        task({ loggedById: "emp-1", opportunityId: null }),
+        task({ loggedById: "emp-2", opportunityId: "sor-2" }),
+      ]
+
+      const found = filter(
+        tasks,
+        { crmOnly: true, deptFilter: "IT" },
+        { isManagement: true, allEmployees },
+      ).filteredTasks
+
+      expect(found).toHaveLength(1)
+      expect(found[0].opportunityId).toBe("sor-1")
+    })
+  })
+
+  describe("crm filter", () => {
+    it("shows only tasks linked to an SOR", () => {
+      const tasks = [
+        task({ opportunityId: "sor-1" }),
+        task({ opportunityId: null }),
+      ]
+
+      expect(filter(tasks, { crmOnly: true }).filteredTasks).toHaveLength(1)
+    })
+
+    it("shows everything when off", () => {
+      const tasks = [task({ opportunityId: "sor-1" }), task({ opportunityId: null })]
+
+      expect(filter(tasks, { crmOnly: false }).filteredTasks).toHaveLength(2)
+    })
   })
 
   describe("sorting", () => {

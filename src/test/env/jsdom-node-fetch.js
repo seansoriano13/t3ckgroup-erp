@@ -1,12 +1,18 @@
 /**
- * jsdom, but with Node's AbortController/AbortSignal left in place.
+ * jsdom, but with Node's AbortController/AbortSignal/Blob/File/FormData left
+ * in place.
  *
- * jsdom installs its own AbortController. Node's fetch (undici) brand-checks
- * `init.signal` against its internal AbortSignal, so the controller that
- * `customFetch` in src/lib/supabase.js creates gets rejected with
- * "Expected signal to be an instance of AbortSignal" — every request fails
- * before it reaches MSW. Nothing is wrong with the application code: in a real
- * browser both classes come from the same realm.
+ * jsdom installs its own versions of all of these. Node's fetch (undici)
+ * brand-checks `init.signal` against its internal AbortSignal, so the
+ * controller that `customFetch` in src/lib/supabase.js creates gets rejected
+ * with "Expected signal to be an instance of AbortSignal" — every request
+ * fails before it reaches MSW. The same brand-checking bites a multipart
+ * upload: undici only recognises a body as FormData against its OWN
+ * FormData class, so a jsdom FormData built from a jsdom File serializes to
+ * a plain string instead — a receiving handler that calls
+ * `request.formData()` sees "Content-Type was not multipart/form-data"
+ * rather than the file. Nothing is wrong with the application code: in a
+ * real browser every one of these classes comes from the same realm.
  *
  * This module is imported before jsdom is installed, so the globals captured
  * here are Node's originals; they are put back after jsdom populates the
@@ -17,6 +23,9 @@ import { builtinEnvironments } from "vitest/environments"
 
 const NodeAbortController = globalThis.AbortController
 const NodeAbortSignal = globalThis.AbortSignal
+const NodeBlob = globalThis.Blob
+const NodeFile = globalThis.File
+const NodeFormData = globalThis.FormData
 
 /** The Web Storage API, backed by a Map. */
 function createMemoryStorage() {
@@ -41,17 +50,27 @@ export default {
 
         const jsdomAbortController = global.AbortController
         const jsdomAbortSignal = global.AbortSignal
+        const jsdomBlob = global.Blob
+        const jsdomFile = global.File
+        const jsdomFormData = global.FormData
         global.AbortController = NodeAbortController
         global.AbortSignal = NodeAbortSignal
+        global.Blob = NodeBlob
+        global.File = NodeFile
+        global.FormData = NodeFormData
 
         // Neither jsdom nor Node supplies a usable Storage here: Node 26's
-        // `localStorage` global is a disabled accessor, and jsdom leaves
-        // window.localStorage undefined without a storage-backed origin. Code
-        // that reads it — the theme hook, the Supabase session store — would
-        // see undefined. An in-memory Storage keeps that code on its normal
-        // path, and per-test isolation comes from the worker being fresh.
+        // `localStorage` global is a disabled accessor, and depending on
+        // jsdom's version/config, window.localStorage is either undefined
+        // (no storage-backed origin) or a real, Proxy-wrapped jsdom Storage
+        // that `vi.spyOn` cannot intercept (its methods live behind the Proxy,
+        // not as plain own/prototype properties spyOn can shadow). Always
+        // installing our own plain-object Storage sidesteps both: code that
+        // reads it — the theme hook, the Supabase session store — stays on
+        // its normal path, and tests can reliably spy on getItem/setItem.
+        // Per-test isolation comes from the worker being fresh.
         for (const key of ["localStorage", "sessionStorage"]) {
-            const storage = global.window?.[key] ?? createMemoryStorage()
+            const storage = createMemoryStorage()
             for (const target of [global, global.window]) {
                 if (!target) continue
                 Object.defineProperty(target, key, {
@@ -66,6 +85,9 @@ export default {
             teardown(g) {
                 g.AbortController = jsdomAbortController
                 g.AbortSignal = jsdomAbortSignal
+                g.Blob = jsdomBlob
+                g.File = jsdomFile
+                g.FormData = jsdomFormData
                 return teardown(g)
             },
         }

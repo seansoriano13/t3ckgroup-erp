@@ -2,7 +2,7 @@
  * The purchasing side: answering a requisition, one product at a time.
  *
  * ── Written to survive a UI rework ──────────────────────────────────────────
- * These assert on the *payload handed to procurementService.resolveRequest*
+ * These assert on the *payload handed to purchasingService.resolveRequest*
  * and on accessible names — never on class names, DOM structure, or copy.
  *
  * The rules worth protecting:
@@ -20,17 +20,16 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
-import { renderWithProviders } from "../test/support"
+import { renderWithProviders, setupUser } from "../test/support"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
-import { procurementService } from "../services/procurementService"
+import { purchasingService } from "../services/purchasingService"
 import { PROCUREMENT_OUTCOME } from "../constants/procurement"
 
 const TASK_ID = "task-1"
 const BUYER_ID = "22222222-2222-4222-8222-222222222222"
 
-vi.mock("../services/procurementService", () => ({
-  procurementService: {
+vi.mock("../services/purchasingService", () => ({
+  purchasingService: {
     listForTask: vi.fn(async () => []),
     sorForTask: vi.fn(async () => null),
     resolveRequest: vi.fn(async () => ({
@@ -72,7 +71,7 @@ const request = (overrides = {}) => ({
 })
 
 async function renderPanel(requests, props = {}) {
-  procurementService.listForTask.mockResolvedValue(requests)
+  purchasingService.listForTask.mockResolvedValue(requests)
   const view = renderWithProviders(
     <ProcurementResolutionPanel taskId={TASK_ID} userId={BUYER_ID} {...props} />,
   )
@@ -97,7 +96,7 @@ const recordButton = () =>
 
 beforeEach(() => {
   vi.clearAllMocks()
-  procurementService.resolveRequest.mockResolvedValue({
+  purchasingService.resolveRequest.mockResolvedValue({
     id: "req-1",
     opportunity_id: "opp-1",
     verification: "VERIFIED",
@@ -147,61 +146,61 @@ describe("staying out of the way", () => {
 
 describe("the PO number is the evidence", () => {
   it("will not record a purchased outcome without one", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
     await user.click(recordButton())
 
-    expect(procurementService.resolveRequest).not.toHaveBeenCalled()
+    expect(purchasingService.resolveRequest).not.toHaveBeenCalled()
   })
 
   it("allows setting status to in progress instantly on dropdown selection without a PO number or form submit", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "In progress")
 
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
-    const [requestId, payload] = procurementService.resolveRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
+    const [requestId, payload] = purchasingService.resolveRequest.mock.calls[0]
     expect(requestId).toBe("req-1")
     expect(payload.outcome).toBe(PROCUREMENT_OUTCOME.IN_PROGRESS)
     expect(payload.poNumber).toBe("")
   })
 
   it("will not record a substitution without one either", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Substituted")
     await user.click(recordButton())
 
-    expect(procurementService.resolveRequest).not.toHaveBeenCalled()
+    expect(purchasingService.resolveRequest).not.toHaveBeenCalled()
   })
 
   it("does not demand a PO when nothing was bought", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Already in Odoo")
 
     // The PO is optional and does not block recording when nothing was bought
     await user.click(recordButton())
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
   })
 
   it("does not demand a PO when the product cannot be sourced", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Cannot source")
 
     await user.click(recordButton())
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
   })
 
   it("clears PO number and product name when switching outcome to In Progress in the edit form", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -215,7 +214,7 @@ describe("the PO number is the evidence", () => {
 
 describe("what gets recorded", () => {
   it("sends the outcome, the PO, the ETA and the note for one product", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -230,9 +229,9 @@ describe("what gets recorded", () => {
     await user.type(screen.getByRole("textbox", { name: /purchasing remarks|note for sales/i }), "6 week lead time")
     await user.click(recordButton())
 
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
 
-    const [requestId, payload, actorId] = procurementService.resolveRequest.mock.calls[0]
+    const [requestId, payload, actorId] = purchasingService.resolveRequest.mock.calls[0]
     expect(requestId).toBe("req-1")
     expect(actorId).toBe(BUYER_ID)
     expect(payload).toMatchObject({
@@ -245,7 +244,7 @@ describe("what gets recorded", () => {
   })
 
   it("answers each product on its own, so two suppliers means two POs", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({ id: "req-1", requested_name: "Hydraulic hose kit" }),
       request({ id: "req-2", requested_name: "Safety harness" }),
@@ -262,8 +261,8 @@ describe("what gets recorded", () => {
     })
     await user.click(recordButtons[0])
 
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
-    const [requestId, payload] = procurementService.resolveRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
+    const [requestId, payload] = purchasingService.resolveRequest.mock.calls[0]
     expect(requestId).toBe("req-2")
     expect(payload.poNumber).toBe("P05678")
   })
@@ -296,7 +295,7 @@ describe("what gets recorded", () => {
   })
 
   it("allows editing an already-recorded PO number and saving changes", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -313,14 +312,14 @@ describe("what gets recorded", () => {
     await user.type(poInput, "P02540")
     await user.click(screen.getByRole("button", { name: /save changes/i }))
 
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
-    const [requestId, payload] = procurementService.resolveRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
+    const [requestId, payload] = purchasingService.resolveRequest.mock.calls[0]
     expect(requestId).toBe("req-1")
     expect(payload.poNumber).toBe("P02540")
   })
 
   it("disables the Odoo product name field when the PO is verified in Odoo", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -338,7 +337,7 @@ describe("what gets recorded", () => {
   })
 
   it("provides 1-click quick action to mark a purchased item as delivered", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.PURCHASED,
@@ -349,15 +348,15 @@ describe("what gets recorded", () => {
 
     await user.click(screen.getByRole("button", { name: /mark delivered/i }))
 
-    await waitFor(() => expect(procurementService.resolveRequest).toHaveBeenCalled())
-    const [requestId, payload] = procurementService.resolveRequest.mock.calls[0]
+    await waitFor(() => expect(purchasingService.resolveRequest).toHaveBeenCalled())
+    const [requestId, payload] = purchasingService.resolveRequest.mock.calls[0]
     expect(requestId).toBe("req-1")
     expect(payload.outcome).toBe(PROCUREMENT_OUTCOME.DELIVERED)
     expect(payload.poNumber).toBe("P01234")
   })
 
   it("Record PO button opens the resolution form with Purchased preselected", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([
       request({
         outcome: PROCUREMENT_OUTCOME.IN_PROGRESS,
@@ -373,14 +372,14 @@ describe("what gets recorded", () => {
 
   it("calls onDeliveredComplete when all items are delivered and task is auto-submitted", async () => {
     const onDeliveredComplete = vi.fn()
-    procurementService.resolveRequest.mockResolvedValue({
+    purchasingService.resolveRequest.mockResolvedValue({
       id: "req-1",
       outcome: PROCUREMENT_OUTCOME.DELIVERED,
       task_id: TASK_ID,
       opportunity_id: "opp-1",
       taskAutoSubmitted: true,
     })
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel(
       [
         request({
@@ -409,8 +408,8 @@ describe("what gets recorded", () => {
 describe("what the buyer is told about the PO check", () => {
   it("says the number was not found rather than letting it read as confirmed", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
-    procurementService.resolveRequest.mockResolvedValue({
+    const user = setupUser()
+    purchasingService.resolveRequest.mockResolvedValue({
       id: "req-1",
       opportunity_id: "opp-1",
       po_number: "P09999",
@@ -431,8 +430,8 @@ describe("what the buyer is told about the PO check", () => {
 
   it("distinguishes an unreachable Odoo from a rejected number", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
-    procurementService.resolveRequest.mockResolvedValue({
+    const user = setupUser()
+    purchasingService.resolveRequest.mockResolvedValue({
       id: "req-1",
       opportunity_id: "opp-1",
       po_number: "P01234",
@@ -450,8 +449,8 @@ describe("what the buyer is told about the PO check", () => {
 
   it("surfaces a rejected PO format instead of failing silently", async () => {
     const toast = (await import("react-hot-toast")).default
-    const user = userEvent.setup()
-    procurementService.resolveRequest.mockRejectedValue(
+    const user = setupUser()
+    purchasingService.resolveRequest.mockRejectedValue(
       new Error('PO Number must be the Odoo purchase order number — "P" followed by digits.'),
     )
     await renderPanel([request()])
@@ -465,7 +464,7 @@ describe("what the buyer is told about the PO check", () => {
   })
 
   it("live checks the PO and auto-populates the official Odoo product name", async () => {
-    const user = userEvent.setup()
+    const user = setupUser()
     await renderPanel([request()])
 
     await chooseOutcome(user, "Purchased")
@@ -473,7 +472,7 @@ describe("what the buyer is told about the PO check", () => {
 
     await user.type(screen.getByRole("textbox", { name: "PO Number" }), "P01234")
 
-    await waitFor(() => expect(procurementService.verifyPoNumber).toHaveBeenCalledWith("P01234"))
+    await waitFor(() => expect(purchasingService.verifyPoNumber).toHaveBeenCalledWith("P01234"))
     await waitFor(() => expect(screen.getByText(/populated from po/i)).toBeInTheDocument())
 
     expect(screen.getByDisplayValue("[HOSE-01] Hydraulic Hose 5m")).toBeInTheDocument()
@@ -502,7 +501,7 @@ describe("the deal behind the requisition", () => {
   }
 
   const renderWithSor = (sor, props = {}) => {
-    procurementService.sorForTask.mockResolvedValue(sor)
+    purchasingService.sorForTask.mockResolvedValue(sor)
     return renderPanel([request()], props)
   }
 
@@ -532,7 +531,7 @@ describe("the deal behind the requisition", () => {
   it("asks to open the SOR rather than navigating away itself", async () => {
     const opened = vi.fn()
     window.addEventListener("OPEN_ENTITY_DETAILS", opened)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await renderWithSor(SOR, { user: { id: SOR.deal_owner_id } })
     await user.click(await screen.findByRole("button", { name: /view full sor/i }))

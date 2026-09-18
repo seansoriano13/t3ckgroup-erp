@@ -99,7 +99,7 @@ export default function TasksList({ selectedRange }) {
                   setIsDrawerOpen(true);
                 }
               })
-              .catch(() => {});
+              .catch(console.error);
           }
         );
         navigate(location.pathname, { replace: true, state: {} });

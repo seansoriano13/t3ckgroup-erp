@@ -1,0 +1,105 @@
+name: Repair migration history
+
+# One-off utility, not part of the normal pipeline. Use this only when
+# `supabase db push` fails with "Remote migration versions not found in
+# local migrations directory" — that means the remote
+# supabase_migrations.schema_migrations ledger has an entry with no matching
+# file under supabase/migrations/. This marks that entry's status in the
+# ledger (does not touch schema) so migrate-staging.yml / migrate-prod.yml
+# can push again.
+#
+# Generalized from the staging-only version (issue #87) to take a project
+# target: the baseline migration (20260904000000_baseline_schema.sql) needs
+# marking "applied" in BOTH ledgers, since both databases already have every
+# object it creates and neither should ever actually run it.
+#
+# Press the button in the Actions tab; a human decides when, same as
+# migrate-prod.yml.
+
+on:
+  workflow_dispatch:
+    inputs:
+      project:
+        description: "Which project's ledger to repair"
+        type: choice
+        options: ["staging", "prod"]
+        required: true
+      version:
+        description: "Migration version/timestamp to repair, e.g. 20260904000000"
+        required: true
+      status:
+        description: 'reverted (remove from ledger) | applied (mark as run) | renumber (move to new_version)'
+        type: choice
+        options: ["reverted", "applied", "renumber"]
+        required: true
+        default: "reverted"
+      new_version:
+        description: "renumber only: the version to move the row to, e.g. 20260908150000"
+        required: false
+
+concurrency:
+  group: migrate-${{ github.event.inputs.project }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: supabase migration repair --project-ref ${{ github.event.inputs.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Resolve project ref and DB password
+        id: target
+        run: |
+          if [ "${{ github.event.inputs.project }}" = "prod" ]; then
+            echo "ref=epqmberwewztzbrkhhss" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=fpjxdyowngpnovotbzqi" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Repair migration history
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ github.event.inputs.project == 'prod' && secrets.PROD_DB_PASSWORD || secrets.STAGING_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          ref='${{ steps.target.outputs.ref }}'
+          version='${{ github.event.inputs.version }}'
+          status='${{ github.event.inputs.status }}'
+          new_version='${{ github.event.inputs.new_version }}'
+
+          if [ "$status" != "renumber" ]; then
+            supabase migration repair --status "$status" "$version" --project-ref "$ref"
+            exit 0
+          fi
+
+          # A migration that ran under one filename and now lives under another
+          # (the file was renamed before the append-only rule was enforced).
+          # The schema is correct; only the ledger's idea of which version
+          # produced it is stale. Decomposes into the two operations the CLI
+          # does have — drop the stale identity, assert the current one.
+          #
+          # Note: `--status applied` writes a row with no SQL body, so the
+          # renumbered row will not carry the original statements. That is
+          # cosmetic — `db push` compares versions, not bodies — but it means
+          # you MUST have confirmed the migration's objects are actually live
+          # before running this, exactly as for a bare `applied`.
+          if [ -z "$new_version" ]; then
+            echo "::error::renumber requires new_version."
+            exit 1
+          fi
+          echo "Renumbering $version -> $new_version on $ref"
+          supabase migration repair --status reverted "$version" --project-ref "$ref"
+          supabase migration repair --status applied "$new_version" --project-ref "$ref"
+
+      - name: Show resulting migration list
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ github.event.inputs.project == 'prod' && secrets.PROD_DB_PASSWORD || secrets.STAGING_DB_PASSWORD }}
+        run: supabase migration list --project-ref ${{ steps.target.outputs.ref }}

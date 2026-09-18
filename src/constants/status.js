@@ -17,6 +17,21 @@ export const TASK_STATUS = {
   DELETED: "DELETED",
 };
 
+// A Group Task's own lifecycle (`committee_tasks.status`) and each member's
+// part of it (`committee_task_members.status`), as `groupTaskService` writes
+// them — kept apart from TASK_STATUS because an individual task never passes
+// through the HR hand-off.
+export const GROUP_TASK_STATUS = {
+  ACTIVE: "ACTIVE",
+  HR_PENDING: "HR_PENDING",
+  HR_VERIFIED: "HR_VERIFIED",
+};
+
+export const GROUP_MEMBER_STATUS = {
+  PENDING: "PENDING",
+  DONE: "DONE",
+};
+
 export { STATUS_THEME } from "./statusTheme";
 
 // Map each task status to a consistent color theme
@@ -45,6 +60,24 @@ export const OPPORTUNITY_STATUS_THEME = {
   RETENTION: STATUS_THEME.VIOLET,
   CLOSED_LOST: STATUS_THEME.RED,
 };
+
+// "My Requests" stage ladder (issue #158, #160): submitted -> waiting on a
+// named head -> with HR -> decided -> printed. Colored by `tone` rather than
+// by `key`, since DECIDED alone covers three different outcomes (approved,
+// withdrawn, declined) that must not all read as the same color. Kept
+// separate from getStatusTheme below, whose keys are raw `status` column
+// values shared across unrelated domains (tasks, opportunities) — a stage is
+// a distinct, derived concept (see utils/requestStage.js) and shouldn't be
+// matched by coincidence against those.
+export const REQUEST_STAGE_TONE_THEME = {
+  progress: STATUS_THEME.AMBER,
+  positive: STATUS_THEME.GREEN,
+  negative: STATUS_THEME.RED,
+  neutral: STATUS_THEME.MAUVE,
+};
+
+export const getRequestStageTheme = (tone) =>
+  REQUEST_STAGE_TONE_THEME[tone] || STATUS_THEME.MAUVE;
 
 // Helper function to get theme
 export const getStatusTheme = (status) => {

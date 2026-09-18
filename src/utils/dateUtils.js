@@ -34,6 +34,28 @@ export function formatDateToYMD(date) {
 }
 
 /**
+ * Lists every date from `startDate` to `endDate` inclusive, as "YYYY-MM-DD"
+ * strings. Used to expand a date-range leave application into its day-rows.
+ * @param {string} startDate - "YYYY-MM-DD"
+ * @param {string} endDate - "YYYY-MM-DD"
+ * @returns {string[]}
+ */
+export function enumerateDateRange(startDate, endDate) {
+  if (!startDate || !endDate) return [];
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const [ey, em, ed] = endDate.split("-").map(Number);
+  const start = new Date(Date.UTC(sy, sm - 1, sd));
+  const end = new Date(Date.UTC(ey, em - 1, ed));
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return [];
+
+  const dates = [];
+  for (let d = start; d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+/**
  * Returns boundaries for a calendar quarter.
  * @param {number} year - e.g. 2026
  * @param {number} quarter - 1-4

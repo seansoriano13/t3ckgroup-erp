@@ -25,6 +25,9 @@ export function CustomToast({
   const content = resolveValue(t.message, t);
   let displayTitle = title;
   let displayDescription = description || content;
+  if (!displayDescription && resolvedVariant === "error") {
+    displayDescription = "Something went wrong. Please try again.";
+  }
 
   // Provide sensible default titles
   if (!displayTitle) {
@@ -157,7 +160,7 @@ export const confirmDeleteToast = (title, description, onConfirm) => {
         confirmText="Confirm Deletion"
       />
     ),
-    { duration: Infinity, id: "delete-confirm", position: "bottom-center" }
+    { duration: Infinity, id: "delete-confirm" }
   );
 };
 
@@ -175,6 +178,37 @@ export const confirmActionToast = (title, description, confirmText, actionType, 
         confirmText={confirmText}
       />
     ),
-    { duration: Infinity, id: `action-confirm-${Date.now()}`, position: "bottom-center" }
+    { duration: Infinity, id: `action-confirm-${Date.now()}` }
+  );
+};
+
+/**
+ * Shows a success toast with a timed Undo button.
+ *
+ * react-hot-toast's `toast.success` ignores any `action` option — it is not
+ * part of the library's public API. This helper uses `toast.custom` instead so
+ * the action reaches `CustomToast`, which already renders `t.action` when
+ * present. All three call sites that previously used the dead pattern now go
+ * through this single function (closes #96).
+ *
+ * @param {string}   message  - The success message to display
+ * @param {string}   label    - The undo button label (e.g. "Undo")
+ * @param {function} onUndo   - Called when the button is clicked; toast is
+ *                              dismissed immediately after, so this handler
+ *                              should fire-and-forget async work.
+ * @param {number}   [duration=6000] - Auto-dismiss after this many ms
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export const undoableSuccessToast = (message, label, onUndo, duration = 6000) => {
+  const id = `undoable-${Date.now()}`;
+  toast.custom(
+    (t) => (
+      <CustomToast
+        t={{ ...t, action: { label, onClick: onUndo } }}
+        variant="success"
+        description={message}
+      />
+    ),
+    { duration, id },
   );
 };

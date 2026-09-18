@@ -19,6 +19,7 @@ export default function LogTaskPropertyBar({
   setOthersRemarks,
   openPopover,
   onTogglePopover,
+  mode = "normal",
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2 py-2.5 border-t border-mauve-3/40 animate-content-in stagger-3 relative z-20">
@@ -71,34 +72,58 @@ export default function LogTaskPropertyBar({
           popoverClassName="absolute top-full mt-1.5 bg-muted border border-border rounded-xl shadow-2xl z-[110] p-4 popover-enter"
           trigger={({ isOpen }) => (
             <PropertyPill
-              isActive={!!formData.endAt}
+              isActive={mode === "automation" ? formData.dueOffsetDays !== undefined && formData.dueOffsetDays !== "" : !!formData.endAt}
               isOpen={isOpen}
               icon={Clock}
             >
-              {formData.endAt ? formatTaskDateTime(formData.endAt) : "Set End Time"}
+              {mode === "automation"
+                ? formData.dueOffsetDays !== undefined && formData.dueOffsetDays !== ""
+                  ? `Due in ${formData.dueOffsetDays} day(s)`
+                  : "Set Target Due"
+                : formData.endAt
+                ? formatTaskDateTime(formData.endAt)
+                : "Set End Time"}
             </PropertyPill>
           )}
         >
           {({ close }) => (
             <>
               <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">
-                End Date & Time
+                {mode === "automation" ? "Target Due Date" : "End Date & Time"}
               </label>
               <div className="w-full py-1">
-                <DatePicker
-                  selected={formData.endAt ? new Date(formData.endAt) : null}
-                  onChange={(date) =>
-                    setFormData((p) => ({
-                      ...p,
-                      endAt: date ? date.toISOString() : "",
-                    }))
-                  }
-                  inline
-                  showTimeSelect
-                  timeIntervals={15}
-                  timeCaption="Time"
-                  dateFormat="Pp"
-                />
+                {mode === "automation" ? (
+                  <div className="px-1">
+                    <p className="text-xs text-muted-foreground mb-3">
+                      How many days after the deal enters this stage should this task be due?
+                    </p>
+                    <input
+                      type="number"
+                      min="0"
+                      value={formData.dueOffsetDays || ""}
+                      onChange={(e) =>
+                        setFormData((p) => ({ ...p, dueOffsetDays: e.target.value }))
+                      }
+                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+                      placeholder="e.g. 3"
+                    />
+                  </div>
+                ) : (
+                  <DatePicker
+                    selected={formData.endAt ? new Date(formData.endAt) : null}
+                    onChange={(date) =>
+                      setFormData((p) => ({
+                        ...p,
+                        endAt: date ? date.toISOString() : "",
+                      }))
+                    }
+                    inline
+                    showTimeSelect
+                    timeIntervals={15}
+                    timeCaption="Time"
+                    dateFormat="Pp"
+                  />
+                )}
               </div>
               <div className="flex justify-end mt-3 pt-2 border-t border-border">
                 <button

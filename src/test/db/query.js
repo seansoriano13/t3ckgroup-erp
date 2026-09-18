@@ -148,7 +148,12 @@ function evaluateComparison(row, tableName, columnName, operator, rawValue) {
 
   if (operator === "like" || operator === "ilike") {
     if (actual == null) return UNKNOWN
-    return likeToRegExp(unquote(rawValue), operator === "ilike" ? "i" : "").test(String(actual))
+    // SQL LIKE/ILIKE's `%` matches any sequence of characters, newlines
+    // included — `s` (dotAll) keeps `.` doing the same, or a `%` before a
+    // multi-line value (e.g. a task description) fails to match anything
+    // after the first newline.
+    const flags = operator === "ilike" ? "is" : "s"
+    return likeToRegExp(unquote(rawValue), flags).test(String(actual))
   }
 
   const expected = castOperand(tableName, columnName, rawValue)

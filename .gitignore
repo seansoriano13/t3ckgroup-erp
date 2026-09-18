@@ -15,6 +15,13 @@ lerna-debug.log*
 # ...and the template for the brochure mirror, which is all empty keys and
 # comments. The real .env.mirror holds a live Odoo API key and stays ignored.
 !.env.mirror.example
+# ...and the template for local Supabase dev (issue #87): the Supabase
+# URL/anon key are deterministic and safe to commit as real values (see
+# AGENTS.md); the three real secrets it also names are left blank. The real
+# .env.local holds those plus live staging/prod DB URLs and stays ignored.
+!.env.local.example
+
+.scratch
 
 node_modules
 dist
@@ -48,6 +55,10 @@ MEETING.MD
 supabase/.temp
 supabase/.branches
 supabase/.cache
+
+# Sanitized-but-still-real seed data (scripts/seed-dump.mjs, seed-snapshot.mjs)
+# — never committed, even scrubbed. See AGENTS.md § Local development.
+supabase/.seed
 
 # Cursor
 /.cursor
@@ -83,3 +94,21 @@ docs/*.pdf
 
 .claude/*
 
+# Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
+eslint.json
+
+# Local pre-baseline safety dumps (ledgers + schema), not repo content —
+# supabase/schema/ is the tracked, reviewed mirror.
+.baseline-backup/
+
+# Odoo investigation / scratch files — one-off scripts and data dumps
+# used while building the SOR sync feature. Not project files.
+analyze-sor-odoo.mjs
+test-odoo-api.mjs
+test-odoo-api2.mjs
+deals.json
+deals_fixed.json
+diff.patch
+scratch-activities.json
+scratch-messages.json
+scratch/

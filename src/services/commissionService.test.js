@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { commissionService } from "./commissionService"
+import { db } from "@/test/db/store"
 import {
   makeCommissionDepartment,
   makeCommissionPosition,
   makeCommissionRate,
   makeCommissionSplit,
   makeEmployee,
+  makeFlowEdge,
+  makeFlowSnapshot,
+  makeFlowStage,
   makeOpportunity,
+  makeSaleType,
+  makeSalesFlow,
   makeSuperAdmin,
 } from "@/test/factories"
 
@@ -49,6 +55,27 @@ describe("commissionService", () => {
 
     it("throws when a rate type has no effective row for the given date", async () => {
       await expect(commissionService.getEffectiveRates("1999-01-01")).rejects.toThrow(/No effective Commission Rate/)
+    })
+  })
+
+  describe("getEffectiveRetentionPercent", () => {
+    it("returns null when no Retention rate has ever been set", async () => {
+      expect(await commissionService.getEffectiveRetentionPercent()).toBeNull()
+    })
+
+    it("does not affect getEffectiveRates, which stays VAT/Withholding/Pool only", async () => {
+      makeCommissionRate({ rate_type: "RETENTION", percent: 1, effective_from: "2000-01-01" })
+
+      const rates = await commissionService.getEffectiveRates()
+      expect(rates).toEqual({ vatPercent: 12, withholdingPercent: 8, poolPercent: 1 })
+    })
+
+    it("picks the latest Retention rate on or before the given date", async () => {
+      makeCommissionRate({ rate_type: "RETENTION", percent: 1, effective_from: "2026-01-01" })
+      makeCommissionRate({ rate_type: "RETENTION", percent: 2, effective_from: "2026-06-01" })
+
+      expect(await commissionService.getEffectiveRetentionPercent("2026-03-01")).toBe(1)
+      expect(await commissionService.getEffectiveRetentionPercent("2026-07-01")).toBe(2)
     })
   })
 
@@ -222,6 +249,19 @@ describe("commissionService", () => {
       ).rejects.toThrow(/Rate type must be one of/)
     })
 
+    // Issue #42.
+    it("accepts a Retention rate, even though it's not required by getEffectiveRates", async () => {
+      const admin = makeSuperAdmin()
+
+      await commissionService.createRate(
+        { rateType: "RETENTION", percent: 1, effectiveFrom: "2027-01-01" },
+        admin.id,
+      )
+
+      const retention = await commissionService.getEffectiveRetentionPercent("2027-02-01")
+      expect(retention).toBe(1)
+    })
+
     it("rejects a non-Super-Admin without writing anything", async () => {
       const regular = makeEmployee()
       const before = await commissionService.listRateHistory()
@@ -345,6 +385,25 @@ describe("commissionService", () => {
 
       expect(await commissionService.isSalesDirector(regular.id)).toBe(false)
     })
+
+    // Issue #36 — this is an authorization check, not a report. A Scratch SOR
+    // is drawn by whoever is at the canvas; naming somebody Sales Director on
+    // one must not hand them the Commission Dashboard.
+    it("is false for an employee who is only a sales director on a Scratch SOR", async () => {
+      const director = makeEmployee({ name: "Scratch Director" })
+      makeOpportunity({ sales_director_id: director.id, is_scratch: true })
+
+      expect(await commissionService.isSalesDirector(director.id)).toBe(false)
+    })
+
+    // Issue #170/#171 — approving one Shopee order through the retail queue
+    // must not hand the approver Commission Split write access.
+    it("is false for an employee who is only a sales director on a Retail SOR", async () => {
+      const director = makeEmployee({ name: "Retail Director" })
+      makeOpportunity({ sales_director_id: director.id, is_retail: true })
+
+      expect(await commissionService.isSalesDirector(director.id)).toBe(false)
+    })
   })
 
   describe("saveSplitsForProjectType", () => {
@@ -454,6 +513,143 @@ describe("commissionService", () => {
       expect(bob.totalCommissionShare).toBeCloseTo(2_464.29, 2)
 
       expect(dashboard.dealLedger).toHaveLength(2)
+    })
+
+    // Issue #36 — the Scratch SOR below carries a Contract Date and a value,
+    // so under every rule the dashboard applies it is booked money. The only
+    // thing keeping it out of the company's commission totals is the flag.
+    it("leaves Scratch SORs out of the commission totals entirely", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      makeOpportunity({
+        sales_reference: "S02001",
+        itb_number: "ITB-2026-101",
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+      })
+
+      makeOpportunity({
+        sales_reference: "S02002",
+        itb_number: "ITB-2026-102",
+        project_type: "SSP",
+        expected_value: 9_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-11",
+        deal_owner_id: owner.id,
+        is_scratch: true,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
+      expect(dashboard.dealLedger).toHaveLength(1)
+    })
+
+    // Issue #170/#171 — a retail order has no Contract Date, so before this
+    // flag it was invisible here (REALIZED) while still booked in full under
+    // Forecast. The flag removes it from both instead of leaving one side wrong.
+    it("leaves Retail SORs out of the commission totals entirely", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      makeOpportunity({
+        sales_reference: "S02003",
+        itb_number: "ITB-2026-103",
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        status: "AWARDED",
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+      })
+
+      makeOpportunity({
+        sales_reference: "S08286",
+        project_type: "SSP",
+        expected_value: 6_875,
+        status: "CLOSED_WON",
+        itb_exempt: true,
+        contract_date: null,
+        deal_owner_id: owner.id,
+        is_retail: true,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
+      expect(dashboard.dealLedger).toHaveLength(1)
+    })
+
+    // Issue #36 — a flow-built deal's `status` never changes after
+    // registration (it moves via flow_stage_id instead), so a deal that was
+    // won and then reached a Lost Stage in its own flow must not stay in the
+    // Realized pool on a stale status code.
+    it("drops a flow-built deal from the pool once it reaches a Lost Stage in its flow", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      const saleType = makeSaleType({ name: "Government Bidding" })
+      const flow = makeSalesFlow({ sale_type_id: saleType.id })
+      const won = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 0 })
+      const lost = makeFlowStage({
+        flow_id: flow.id,
+        name: "Lost to Competitor",
+        sort_order: 1,
+        is_terminal: true,
+      })
+      makeFlowEdge(won, lost)
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+
+      makeOpportunity({
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+        sale_type_id: saleType.id,
+        flow_stage_id: lost.id,
+        flow_snapshot_id: snapshot.id,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(0)
+      expect(dashboard.totalContractValue).toBe(0)
+    })
+
+    it("counts a flow-built deal sitting on its flow's Won Stage", async () => {
+      const owner = makeEmployee({ name: "Alice Rep" })
+      makeCommissionSplit({ project_type: "SSP", share_role: "deal_owner", percent: 80 })
+      makeCommissionSplit({ project_type: "SSP", share_role: "sales_director", percent: 20 })
+
+      const saleType = makeSaleType({ name: "Government Bidding" })
+      const flow = makeSalesFlow({ sale_type_id: saleType.id })
+      const won = makeFlowStage({ flow_id: flow.id, name: "Awarded", sort_order: 0 })
+      db.internal.rowsOf("sales_flows").find((f) => f.id === flow.id).won_stage_id = won.id
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+
+      makeOpportunity({
+        project_type: "SSP",
+        expected_value: 1_000_000,
+        contract_date: "2026-01-10",
+        deal_owner_id: owner.id,
+        sale_type_id: saleType.id,
+        flow_stage_id: won.id,
+        flow_snapshot_id: snapshot.id,
+      })
+
+      const dashboard = await commissionService.getCommissionDashboardData({ scope: "REALIZED" })
+
+      expect(dashboard.totalDealsCount).toBe(1)
+      expect(dashboard.totalContractValue).toBe(1_000_000)
     })
   })
 })

@@ -1,4 +1,15 @@
-# CRM pipeline redesign — living source of truth
+# CRM pipeline redesign — superseded, retained as history
+
+> **Deprecated as an authority, 2026-08-27.** The source of truth is now
+> [issue #36](https://github.com/seansoriano13/t3ckgroup-erp/issues/36) plus
+> [ADR 0006](./adr/0006-sales-flow-as-a-graph.md). Where this document and
+> those disagree, they are correct. The newest meeting wins, unconditionally.
+>
+> The decision log D1–D44 records reasoning worth reading and **must not be
+> cited to block or amend** current work. Several of its decisions were
+> contradicted by the workflow meeting that produced #36 — among them the
+> removal of ITB, the dropping of Negotiation, and Deal Type as a fixed
+> Bidding/Outright pair.
 
 **Status:** in design. Opened 2026-08-24 after an operations-head meeting that
 revealed the current SOR pipeline is one track where the business actually runs

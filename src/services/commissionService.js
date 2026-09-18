@@ -11,6 +11,12 @@ import { getCurrentLocalDate } from "../utils/formatDate";
 
 const RATE_TYPE_LIST = [RATE_TYPES.VAT, RATE_TYPES.WITHHOLDING, RATE_TYPES.POOL];
 
+// Retention (issue #42) is creatable and listable like any other rate, but
+// deliberately absent from RATE_TYPE_LIST above: that list is what
+// getEffectiveRates treats as required, and a Retention rate is optional —
+// read only by Project Evaluation.
+const CREATABLE_RATE_TYPES = [...RATE_TYPE_LIST, RATE_TYPES.RETENTION];
+
 /**
  * Throws unless `actorId` is a Super Admin. This is enforced independently
  * at the database via RLS (see supabase/migrations/0028, 0031) — this check
@@ -35,12 +41,20 @@ async function requireSuperAdmin(actorId) {
  * set as `sales_director_id` on at least one opportunity. Checked here
  * rather than trusting a client-supplied role, for the same reason as
  * requireSuperAdmin.
+ *
+ * Scratch and Retail SORs are excluded (issue #36 migration 0046; issue #171)
+ * because this is an authorization check rather than a report: a deal drawn
+ * on the Flow Canvas to watch a Stage fire, or a Shopee order approved
+ * through the retail queue, must not be able to grant somebody the
+ * Commission Dashboard as a side effect of being named on it.
  */
 async function isSalesDirector(actorId) {
   const { data, error } = await supabase
     .from("sales_opportunities")
     .select("id")
     .eq("sales_director_id", actorId)
+    .eq("is_scratch", false)
+    .eq("is_retail", false)
     .limit(1);
   if (error) throw error;
 
@@ -90,6 +104,25 @@ async function getEffectiveRates(asOfDate = getCurrentLocalDate()) {
   };
 }
 
+/**
+ * The Retention rate in force as of a date, or null if none has ever been
+ * set (issue #42). Read only by Project Evaluation — getEffectiveRates above
+ * never calls this, so a Commission Pool figure is never affected by whether
+ * a Retention rate exists.
+ */
+async function getEffectiveRetentionPercent(asOfDate = getCurrentLocalDate()) {
+  const { data, error } = await supabase
+    .from("commission_rates")
+    .select("percent, effective_from")
+    .eq("rate_type", RATE_TYPES.RETENTION)
+    .lte("effective_from", asOfDate)
+    .order("effective_from", { ascending: false })
+    .limit(1);
+  if (error) throw error;
+
+  return data?.[0] ? Number(data[0].percent) : null;
+}
+
 /** The current Commission Department allocations. */
 async function getDepartments() {
   const { data, error } = await supabase
@@ -133,8 +166,8 @@ async function listRateHistory() {
 async function createRate({ rateType, percent, effectiveFrom }, actorId) {
   await requireSuperAdmin(actorId);
 
-  if (!RATE_TYPE_LIST.includes(rateType)) {
-    throw new Error(`Rate type must be one of ${RATE_TYPE_LIST.join(", ")}.`);
+  if (!CREATABLE_RATE_TYPES.includes(rateType)) {
+    throw new Error(`Rate type must be one of ${CREATABLE_RATE_TYPES.join(", ")}.`);
   }
   if (!effectiveFrom) {
     throw new Error("Effective-from date is required.");
@@ -344,14 +377,23 @@ async function getCommissionDashboardData({
     supabase
       .from("sales_opportunities")
       .select(
-        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at,
+        `id, opportunity_no, project_title, client_name, expected_value, status, project_type, contract_date, created_at, sale_type_id, flow_stage_id,
          deal_owner:employees!sales_opportunities_deal_owner_id_fkey(id, name, avatar_path),
          closing_sales:employees!sales_opportunities_closing_sales_id_fkey(id, name, avatar_path),
          support_1:employees!sales_opportunities_support_sales_1_id_fkey(id, name, avatar_path),
          support_2:employees!sales_opportunities_support_sales_2_id_fkey(id, name, avatar_path),
-         sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path)`,
+         sales_director:employees!sales_opportunities_sales_director_id_fkey(id, name, avatar_path),
+         flow_snapshot:flow_snapshots(snapshot_data)`,
       )
       .neq("is_deleted", true)
+      // Issue #36, migration 0046 — a Scratch SOR carries a value and a
+      // Contract Date like any other deal, so the flag is the only thing
+      // keeping it out of the company's booked money.
+      .eq("is_scratch", false)
+      // Issue #170/#171 — a retail order has no Contract Date, so it was
+      // leaking in full into the Forecast scope while being invisible to
+      // Realized. The flag removes it from both instead of fixing one.
+      .eq("is_retail", false)
       .order("contract_date", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false }),
     supabase
@@ -388,6 +430,7 @@ async function getCommissionDashboardData({
 
 export const commissionService = {
   getEffectiveRates,
+  getEffectiveRetentionPercent,
   getDepartments,
   getSplitsForProjectType,
   getCommissionBreakdownForOpportunity,

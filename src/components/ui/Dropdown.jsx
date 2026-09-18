@@ -147,11 +147,24 @@ const Dropdown = forwardRef(
         }
       };
 
-      document.addEventListener("mousedown", handleClickOutside);
-      document.addEventListener("touchstart", handleClickOutside);
+      const handleKeyDown = (event) => {
+        if (event.key === "Escape" && isOpen && !disabled) {
+          if (isControlled) {
+            if (onClose) onClose();
+          } else {
+            setInternalIsOpen(false);
+            if (onClose) onClose();
+          }
+        }
+      };
+
+      document.addEventListener("mousedown", handleClickOutside, true);
+      document.addEventListener("touchstart", handleClickOutside, true);
+      document.addEventListener("keydown", handleKeyDown);
       return () => {
-        document.removeEventListener("mousedown", handleClickOutside);
-        document.removeEventListener("touchstart", handleClickOutside);
+        document.removeEventListener("mousedown", handleClickOutside, true);
+        document.removeEventListener("touchstart", handleClickOutside, true);
+        document.removeEventListener("keydown", handleKeyDown);
       };
     }, [isOpen, isControlled, onClose, disabled]);
 

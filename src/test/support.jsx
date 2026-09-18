@@ -9,6 +9,7 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { render, renderHook } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 
 export function createTestQueryClient() {
   return new QueryClient({
@@ -53,4 +54,16 @@ export function renderWithProviders(ui, { client = createTestQueryClient(), ...o
       ...options,
     }),
   }
+}
+
+/**
+ * A user-event instance with no pause between actions.
+ *
+ * user-event's default waits one `setTimeout` after every click and keystroke.
+ * On Windows that timer rounds up to ~15 ms, which on its own made an
+ * interactive screen test file around a quarter slower. Pass `{ delay: 0 }`
+ * (or any other option) when the test is about timing.
+ */
+export function setupUser(options = {}) {
+  return userEvent.setup({ delay: null, ...options })
 }

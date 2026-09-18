@@ -1,16 +1,17 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApproveOffsetModal from "./ApproveOffsetModal"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
+import { stubOffsetLeaveDecisionRpcs } from "@/test/stubs/leaveDecisionRpc"
 import { db } from "@/test/db/store"
 import { makeEmployee, makeHrEmployee, makeOffsetLeave } from "@/test/factories"
 
 /**
  * HR's editable approval step for offset leave. Mirrors ApproveOvertimeModal,
  * except approved hours may not exceed what was requested — this spends a
- * banked balance rather than crediting one.
+ * banked balance rather than crediting one. Forward-ported from main (#198)
+ * onto staging's group-level decision RPC (#328).
  */
 describe("ApproveOffsetModal", () => {
   let employee
@@ -25,6 +26,7 @@ describe("ApproveOffsetModal", () => {
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
     vi.spyOn(toast, "success").mockImplementation(() => "id")
+    stubOffsetLeaveDecisionRpcs()
   })
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).offset_hours_balance
@@ -52,7 +54,7 @@ describe("ApproveOffsetModal", () => {
   it("debits the requested hours unchanged", async () => {
     const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
     open(leave)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getByRole("button", { name: /confirm approval/i }))
 
@@ -64,7 +66,7 @@ describe("ApproveOffsetModal", () => {
   it("debits a reduced figure instead of the requested one", async () => {
     const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
     open(leave)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)
@@ -77,7 +79,7 @@ describe("ApproveOffsetModal", () => {
   it("will not submit a zero approved-hours value", async () => {
     const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
     open(leave)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)
@@ -91,7 +93,7 @@ describe("ApproveOffsetModal", () => {
   it("will not submit more hours than were requested", async () => {
     const leave = makeOffsetLeave({ employee_id: employee.id, hours: 8 })
     open(leave)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)

@@ -1,0 +1,417 @@
+[
+    {
+        "date": "2026-09-18",
+        "title": "Approve Offset Leave With Edited Hours",
+        "version": "1.7.19",
+        "changes": [
+            "When HR approves offset leave, they can now change the number of hours before approving. It starts at the hours requested and can't go higher.",
+            "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
+        ]
+    },
+    {
+        "date": "2026-09-16",
+        "title": "A Tidier SOR Window",
+        "version": "1.7.18",
+        "changes": [
+            "The SOR window now has tabs. It opens on Now, which shows what the current Stage needs today: what's blocking it first, then the Stage's fields, any decisions waiting on you, the tasks, and the next follow-up.",
+            "Each task is now one line with its people, how many parts are done and its due date. Click the arrow on a group task to see each person's part, or click the title to open the task.",
+            "Journey lists every Stage the SOR has been through, newest first, with what was done on each.",
+            "Items holds the Product List with search and stock levels. Its header stays in place as you scroll long lists. If the list is empty, it tells you to fetch from Odoo or to add a Sales Reference first.",
+            "Details holds the SOR's fields, the Deal Team, Estimated Value, the quotation buttons, commission, and Inclusions and Purchasing."
+        ]
+    },
+    {
+        "date": "2026-09-15",
+        "title": "Reusable Employee Groups",
+        "version": "1.7.17",
+        "changes": [
+            "Super Admins can now set up Employee Groups in Settings: named sets of people made of hand-picked employees and whole teams, so later Sales Flow settings can say who they are about once and reuse it.",
+            "A group always means its current members. When someone joins or leaves a team, every group that includes that team follows automatically."
+        ]
+    },
+    {
+        "date": "2026-09-15",
+        "title": "Safer Stage Checklist & Accurate Pipeline",
+        "version": "1.7.16",
+        "changes": [
+            "Saving a field from a Stage Checklist now changes only that field. The rest of the SOR, including the Deal Team, dates and Product List, stays as it was.",
+            "After you move an SOR, the tasks the move created and the new Stage's checklist show right away, without reopening the SOR. If an automation fails, you're told which one so you can create it by hand.",
+            "Tasks created for an SOR now link back to it from both the task and Group Task windows.",
+            "Open pipeline value now leaves out won and lost SORs, and the Open filter lists exactly the SORs it adds up."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Clearer Flow Modes & Accurate Draft Diffing",
+        "version": "1.7.15",
+        "changes": [
+            "Renamed the misleading 'Restore into draft' button to 'Revert to this version', with clear confirmation explaining that your draft will take on that version's rules without altering live deals until you publish.",
+            "The Draft version row in the left-hand Versions panel is now directly clickable to return to draft mode at any time, with clear selection highlighting and an 'Editing' status badge.",
+            "The top version-preview banner is now reassuring and friendly for new users: featuring a clear 'Back to draft' action with back arrow, an explicit (X) close button, and a separate, guarded 'Revert to this version' action with helpful tooltip explanations.",
+            "Fixed false diff changes: stages are no longer reported as changed when nothing changed. The comparator now compares actual process properties (name, sequence, terminal status, brackets, colors) rather than database timestamps, coordinates, or PostgreSQL key ordering.",
+            "Clicking 'Compare with draft' in the version rail now automatically expands the version and reveals the exact comparison against your unpublished changes with a single click.",
+            "Canvas editing is now strictly locked when viewing a published flow: stages and moves cannot be moved or deleted until you click 'Edit draft', eliminating confusion between live and draft states.",
+            "Prominent status badges make your current mode obvious at a glance: 'Live' on published versions, 'Editing' when modifying a draft, and 'Viewing' when inspecting version history.",
+            "Expanded the Versions panel with generous padding, comfortable spacing between version cards, and improved readability for version notes, author stamps, and comparisons."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Cleaner Flow Canvas Layout & Intuitive Popovers",
+        "version": "1.7.14",
+        "changes": [
+            "The Flow Canvas controls are now cleanly anchored across the screen: the Sale Type switcher aligns with the version history rail on the left, while status indicators and publish actions sit neatly on the right.",
+            "Canvas navigation tools (minimap and zoom controls) are logically grouped in the bottom-right corner, and the Add Stage button is a clear, polished action in the bottom-left.",
+            "Menus and popovers — including unpublished changes and the Add Stage dialog — now reliably close whenever you click away on the canvas or press the Escape key."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Roomier Flow Publish Window",
+        "version": "1.7.13",
+        "changes": [
+            "The publish dialog on the Sales Flow canvas is now wider and more spacious, with increased padding and comfortable room for reviewing draft changes.",
+            "Long change lists now scroll neatly inside the window, keeping the Cancel and Publish action buttons always visible and accessible."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Publish vX.Y",
+        "version": "1.7.12",
+        "changes": [
+            "\"Lock this flow\" is now \"Publish\", and it shows the version number the click will create — \"Publish v3.2\" — straight from the database, so the preview and the result can never disagree. \"Unlock\" is now \"Edit draft\" and still asks for a reason.",
+            "Versions now carry meaning: v3.2 tells you it's a routine refinement of v3.x, while v4.0 means a Stage was removed or the Won Stage changed and deals on the old version may not move up safely. Adding, renaming or rewiring Stages is minor; losing a Stage or changing the Won Stage starts a new major version.",
+            "A Sales Flow's first publish is v1.0. Every version already on record — v1, v2, v3 — now reads as v1.0, v2.0, v3.0, so the numbers on old deals still match their history notes.",
+            "The version badge on an SOR, the version page, the history dialog and a deal's own history notes all read vX.Y now."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "See a Past Version's Stage Rules",
+        "version": "1.7.11",
+        "changes": [
+            "On the read-only Sales Flow version page you reach from an SOR's version badge, clicking a Stage now opens its panel and shows that version's actual Stage Conditions and Stage Actions — read from the saved version itself, not from the flow as it stands today. Until now the page showed only counts.",
+            "The panel has no editing controls; the live flow is still edited only on the Flow Canvas.",
+            "A version that was locked before any Conditions or Actions were drawn now says so plainly instead of showing an empty panel."
+        ]
+    },
+    {
+        "date": "2026-09-11",
+        "title": "Flow Canvas Is One Canvas Now",
+        "version": "1.7.10",
+        "changes": [
+            "The Flow Canvas no longer has a Live/Sandbox switch. It opens straight onto the real Sales Flow, which is the only thing it ever edited that mattered — the shared Sandbox scratch space has been retired.",
+            "You still see who else is working on the same flow, and a Super Admin can still open the Snapshot History from the canvas."
+        ]
+    },
+    {
+        "date": "2026-09-10",
+        "title": "Password Reset Links That Hold Up",
+        "version": "1.7.9",
+        "changes": [
+            "Password reset links no longer stop working before you get to them. Some email systems quietly open every link in a message to check it's safe, which used to use up your one-time reset link — so clicking it yourself gave an error. The link is now only spent when you actually open it.",
+            "The reset page tells you where you stand instead of guessing: it shows a brief check while your link is verified, opens the password form only once the link is confirmed good, and says plainly when a link has expired or has already been used — with a way straight back to the login page.",
+            "Saving a new password no longer fails with a confusing \"session missing\" message.",
+            "Having the portal open in another tab no longer interrupts a reset you're in the middle of.",
+            "Opening the reset page without a link from an email now says so, instead of showing a password form that couldn't work. To change a password you already know, use your profile."
+        ]
+    },
+    {
+        "date": "2026-09-09",
+        "title": "Desktop Notifications",
+        "version": "1.7.8",
+        "changes": [
+            "You can now turn on Desktop Notifications from Settings, so a mention, a task assigned to you, a decision on your request, or an approval waiting on you can reach you even with the portal closed.",
+            "Turn it off again anytime from the same toggle — it only ever asks for permission after you turn it on.",
+            "Everything still shows up in the notification drawer as before; desktop notifications are in addition to that, not a replacement.",
+            "Deleting a notification now actually removes it, instead of coming back on your next visit."
+        ]
+    },
+    {
+        "date": "2026-09-09",
+        "title": "A Second Way In: Email + Password Login",
+        "version": "1.7.7",
+        "changes": [
+            "Signing in with email and password is now a real, supported route alongside Google — no longer a disabled test form.",
+            "New employees are issued a password when their account is created; a banner reminds you while you're still on it, and it dismisses without blocking anything.",
+            "Change your password anytime from your profile, or reset it from the login page if you've forgotten it — both go through an emailed verification link.",
+            "A Super Admin can reissue a lost first-day password from Employee Management, but only while the employee hasn't yet set their own — after that, it's email verification only."
+        ]
+    },
+    {
+        "date": "2026-09-09",
+        "title": "Undertime Requests, Filing Through Printing",
+        "version": "1.7.6",
+        "changes": [
+            "You can now file for Undertime alongside Overtime, Offset, and SIL from the same Apply modal — record the scheduled work window, the window actually worked, and a purpose; the shortfall between the two is computed for you.",
+            "The scheduled window pre-fills from your department's working-week schedule for the day you pick, but stays fully editable.",
+            "Undertime goes through the same department-head approval stage as every other request type before HR makes the final call, with an editable approved-hours field on HR's side — no paid/offset choice, since undertime never touches your offset or SIL balance.",
+            "Employee Balances now shows a derived 'Undertime (this month)' column — summed from approved requests only, never a stored balance.",
+            "Approved undertime prints as its own TG-13 form, with the same QR verification and signature plates (Employee, Department Head, HR) as Overtime and Leave forms."
+        ]
+    },
+    {
+        "date": "2026-09-08",
+        "title": "Department Head Approval for Leaves & Overtime",
+        "version": "1.7.5",
+        "changes": [
+            "SIL leave, offset leave, and overtime requests now go to your department head for approval first, before HR makes the final decision.",
+            "When you apply, the system automatically fills in your department head based on your department and sub-department. If it can't tell for sure who that is, you'll be asked to pick one yourself.",
+            "Department heads approve or reject requests with their own e-signature, and you'll get a notification as soon as they decide.",
+            "If a department head isn't available, HR can override the head-approval step and proceed directly, with the reason recorded for the record."
+        ]
+    },
+    {
+        "date": "2026-09-08",
+        "title": "Deal Visibility Now Enforced by the Server",
+        "version": "1.7.4",
+        "changes": [
+            "Sales Opportunity Records are now only visible to the people actually attached to a deal (registrar, owner, supporting salespeople, sales director), plus department heads, HR, and Super Admins — a stray API call can no longer reveal every deal in the company.",
+            "Tasks and Group Tasks now carry real database-level access rules matching what the screens already showed, closing a gap where those tables previously accepted reads and writes from anyone.",
+            "A salesperson with no visible deals now sees a clear empty state instead of anything that could look broken."
+        ]
+    },
+    {
+        "date": "2026-09-08",
+        "title": "See the Exact Flow Version Your Deal Is On",
+        "version": "1.7.3",
+        "changes": [
+            "Each deal in the SOR now shows a version badge (e.g. 'Government · v1') next to the stage control, so you can tell at a glance which set of rules that deal is following.",
+            "Click the badge to open a read-only canvas of that version — centred on the deal's current stage so you immediately see where you are and what comes next.",
+            "Deals pin to a flow version at registration and stay there for life. If the flow has since been updated, the badge is what tells the truth about which rules actually apply."
+        ]
+    },
+    {
+        "date": "2026-09-08",
+        "title": "Grouped Checklists with Smart Progressive Disclosure",
+        "version": "1.7.2",
+        "changes": [
+            "Organize long checklists into distinct sections and phases with an inline '+ Add Section' button.",
+            "Smart Progressive Disclosure: Completed phases automatically collapse into clean summary bars so you can focus on the active phase without visual clutter.",
+            "Visual Step Indicators: Kanban cards and table views now show active step progress (e.g. Step 2 of 3) alongside total item counts.",
+            "100% Backward Compatible: Simple, un-sectioned checklists continue to look and work exactly as before with zero disruption."
+        ]
+    },
+    {
+        "date": "2026-09-08",
+        "title": "Flow Canvas Collaborative Editing & Realtime Preview",
+        "version": "1.7.1",
+        "changes": [
+            "Enabled real-time live preview in Flow Canvas: see who else is viewing the canvas with active user indicators, live collaborative cursors, and real-time node drag previews across both Live and Sandbox modes.",
+            "Opened Flow Canvas editing to all authenticated team members so everyone can collaborate on sales flows, stages, conditions, and actions.",
+            "Fixed an issue where switching to Sandbox mode did not properly activate collaborative presence and shared document editing."
+        ]
+    },
+    {
+        "date": "2026-09-07",
+        "title": "Retail Orders Queue",
+        "version": "1.7.0",
+        "changes": [
+            "Added a new 'Retail Queue' tab in the SOR/CRM module where Shopee retail orders from Odoo are held for review before entering the Sales Opportunity Register.",
+            "Sales users can now review each queued order, edit the details (client name, buyer, amount, deal owner), and approve with one click to create the official SOR entry.",
+            "Dismissed orders are tracked with an audit trail and never appear in the SOR. If the order is still present in Odoo the next sync cycle, it stays dismissed."
+        ]
+    },
+    {
+        "date": "2026-09-07",
+        "title": "Automated Odoo to SOR Lead Syncing",
+        "version": "1.6.0",
+        "changes": [
+            "Added a background cron job that automatically syncs materialized sales (regular and retail/Shopee) from Odoo directly to the Sales Opportunity Register.",
+            "Shopee sales without a prior lead are now automatically created as Closed Won in the SOR, saving sales from manual double-entry.",
+            "The background sync also automatically pulls any attached Proofs of Payment straight from the Odoo log and attaches them to the new deal in the SOR."
+        ]
+    },
+    {
+        "date": "2026-09-07",
+        "title": "Plan a Flow Together, and Safer Leave Withdrawals",
+        "version": "1.5.0",
+        "changes": [
+            "Two people can now open the same Flow Plan and work on it at once — adding, moving, renaming and deleting Stages all appear for everyone straight away, with nobody's work overwriting anyone else's and nobody needing to reload.",
+            "You can see who else has a Flow Plan open, with a named cursor for each person. Live cursors have moved off the operational Flow Canvas, which edits the real flow, onto Flow Plans, where working together is the point.",
+            "A leave you have already taken can no longer be withdrawn for a refund of its hours. If an approved leave was genuinely never taken, HR can undo the approval to put the hours back.",
+            "Approving, undoing or withdrawing an offset or SIL leave now moves every day of a multi-day leave and the hours balance together, so a leave can never end up half-decided and two HR officers acting at the same time can no longer lose a balance change between them."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Flow Plan Sandbox & Purchasing Queue Improvements",
+        "version": "1.4.0",
+        "changes": [
+            "Introduced a new Flow Plans sandbox where you can draft and experiment with sales flows without affecting production data.",
+            "The Purchasing Queue now includes a filter bar, allowing you to instantly filter requests by Assignee, Outcome, and SOR.",
+            "You can now quickly reassign a Purchasing request to another employee directly from its row in the queue.",
+            "Upgraded the HR and Employee Leaves pages to update instantly when a leave is approved or rejected, eliminating unnecessary full page reloads."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Leave Manager Landing Page Fix",
+        "version": "1.3.17",
+        "changes": [
+            "Leave managers who navigate directly to /hr are now correctly redirected to Offsets & Leaves, instead of being bounced to the dashboard."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Leave Balances Now Account for Pending Requests",
+        "version": "1.3.15",
+        "changes": [
+            "Applying for offset or SIL leave now checks your available balance (what's left after your own pending requests), not just your total balance — closing a gap where several pending requests together could add up to more hours than you actually have.",
+            "The apply form and the HR pending queue now both show available hours, not the raw balance.",
+            "A refused application now tells you how many hours are already committed to pending requests and how many are left."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Leave Calendar Privacy Fix",
+        "version": "1.3.16",
+        "changes": [
+            "Leave reasons are no longer sent to colleagues' browsers when viewing the shared leave calendar. Only the details needed to render the calendar card (name, date, hours, time window) are loaded for other people's leaves."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "HR Activity Log Access",
+        "version": "1.3.14",
+        "changes": [
+            "HR officers can now open the HR Activity Log from the Human Resources section of the sidebar, instead of needing a Super Admin to open it for them."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Leave Manager Redirect Fix",
+        "version": "1.3.13",
+        "changes": [
+            "Leave managers who navigate directly to /hr are now correctly redirected to Offsets & Leaves, instead of being bounced to the dashboard."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "HR Config Screen Robustness",
+        "version": "1.3.12",
+        "changes": [
+            "Printed form settings now work even on a database with no settings row yet — saving creates it instead of erroring.",
+            "The activity log search no longer sends a request on every keystroke.",
+            "Config screens no longer throw if they render before your session finishes loading.",
+            "Deactivating a leave category now asks for confirmation, matching Delete elsewhere in the module."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "HR Leave Categories Reliability",
+        "version": "1.3.10",
+        "changes": [
+            "Reordering leave categories is now processed as a single atomic operation, preventing partial saves when reordering long lists.",
+            "Adding a new category is now safe against concurrent modifications by multiple HR admins."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "HR Module Consistency & Polish",
+        "version": "1.3.9",
+        "changes": [
+            "The Leaves Manager page now shows one title instead of two stacked headers.",
+            "The page, navigation, and tab now all use the same name for this screen.",
+            "Loading states across the HR module now consistently show a spinner instead of bare text.",
+            "The Employees and Categories tabs now share the same card style.",
+            "Deleting an employee now uses the same styled confirmation prompt as other destructive actions, replacing the plain browser dialog."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "HR Module Visual Improvements",
+        "version": "1.3.8",
+        "changes": [
+            "Removed hardcoded colors across the HR module to ensure it displays correctly in dark mode.",
+            "Replaced several flat palette steps with theme tokens for a more consistent visual hierarchy."
+        ]
+    },
+    {
+        "date": "2026-09-06",
+        "title": "Fixed HR Verification Queue Filtering",
+        "version": "1.3.7",
+        "changes": [
+            "Super admins are now properly filtered out of the HR Verification employee filter.",
+            "Backlog staleness is now accurately measured based on when a task was graded, rather than when it was originally logged."
+        ]
+    },
+    {
+        "version": "1.3.6",
+        "date": "2026-09-06",
+        "title": "HR Verification Load Optimization",
+        "changes": [
+            "Fixed an issue where non-HR users visiting the HR Verification route would trigger unnecessary data loading before being redirected.",
+            "Optimized the HR Verification page to reuse cached employee and category lists, significantly improving load times."
+        ]
+    },
+    {
+        "version": "1.3.5",
+        "date": "2026-09-06",
+        "title": "Undo Now Works After Bulk Actions",
+        "changes": [
+            "The Undo button that appears after bulk-verifying, approving, or declining tasks now actually works â€” previously it was silently ignored due to a library incompatibility."
+        ]
+    },
+    {
+        "version": "1.3.4",
+        "date": "2026-09-06",
+        "title": "Consistent Leave Rules for Offset and SIL",
+        "changes": [
+            "Applying for SIL leave on a Saturday or Sunday is now blocked, matching Offset leave.",
+            "The 1-hour lunch deduction on a leave window of 5+ hours now applies consistently to Offset and SIL, single-day and date-range applications, and the amount shown in the form now matches what gets recorded.",
+            "Only Regular employees can file for or be approved for SIL leave, closing a gap where a Probationary or OJT employee could spend a SIL balance they were not entitled to."
+        ]
+    },
+    {
+        "version": "1.3.3",
+        "date": "2026-09-06",
+        "title": "Employee Directory Improvements",
+        "changes": [
+            "Added new filters for Employment Status and Leave Manager in the Employee Directory.",
+            "Improved the reliability of employee email duplication checks.",
+            "Fixed an issue where the +40 SIL auto-grant was not reflected in the balance input field before saving.",
+            "Improved the Self-Service Leaves page to group multi-day leaves into a single application row for easier viewing."
+        ]
+    },
+    {
+        "version": "1.2.1",
+        "date": "2026-09-06",
+        "title": "HR Overtime Fix & Audit Trail Updates",
+        "changes": [
+            "Fixed an issue where deactivated employees were still visible in the Employee Balances register and HR file-for-employee picker.",
+            "Completed the HR audit trail to now track when leave categories are renamed, reordered, or deactivated, and when form printed settings are changed.",
+            "Fixed an issue where the Document Center print tray would lose its staged records if the page was reloaded or the month was changed.",
+            "Fixed an issue where HR officers were unable to file overtime on behalf of employees."
+        ]
+    },
+    {
+        "version": "1.2.0",
+        "date": "2026-09-05",
+        "title": "Group Task Mentions, Stage Requirement Notices & Odoo Inclusions Import",
+        "changes": [
+            "Fixed group task mentions (@name) so every employee can see and tag the full team, not just managers.",
+            "Adding a new requirement to a Sales Flow stage now leaves a note on the timeline of every deal already sitting there, explaining what changed.",
+            "SOR Inclusions can now be imported directly from the linked Odoo quotation, ready to review and edit before saving."
+        ]
+    },
+    {
+        "version": "1.1.0",
+        "date": "2026-09-05",
+        "title": "Sales Flow Lock & Condition Improvements",
+        "changes": [
+            "Sales Flows can now be locked and unlocked directly from the Flow Canvas, with a clear list of what's blocking a lock.",
+            "Adding a 'Field on record' condition to a Stage now lets you specify which field to check.",
+            "Fixed a bug in the Purchasing request form where quickly typing a buyer's name right after opening the form could scramble the product name field."
+        ]
+    },
+    {
+        "version": "1.0.0",
+        "date": "2026-09-04",
+        "title": "Changelog Feature Introduced",
+        "changes": [
+            "Added a new 'What's Changed' modal to announce updates natively within the application.",
+            "Established standard practice for recording version control updates."
+        ]
+    }
+]

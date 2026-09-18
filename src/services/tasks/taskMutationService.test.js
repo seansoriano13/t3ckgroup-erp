@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeCategory, makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin, seedPipeline } from "@/test/factories"
+import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
  * The task pipeline is the product: INCOMPLETE → AWAITING APPROVAL → head
@@ -123,10 +124,18 @@ describe("taskMutationService", () => {
     })
 
     it("tells the employee when someone else logged the task for them", async () => {
+      // TASK_ASSIGNED is one of the four types #168 pushes to a closed tab,
+      // so it is sent via the send-push edge function.
+      const pushed = []
+      stubEdgeFunction("send-push", (body) => {
+        pushed.push(body)
+        return { success: true }
+      })
+
       await createTask({ submittedById: hr.id, submittedByName: "HR Officer" })
       await waitForNetworkIdle()
 
-      const assigned = db.rows("notifications").filter((n) => n.type === "TASK_ASSIGNED")
+      const assigned = pushed.filter((n) => n.type === "TASK_ASSIGNED")
       expect(assigned).toHaveLength(1)
       expect(assigned[0].recipient_id).toBe(employee.id)
     })

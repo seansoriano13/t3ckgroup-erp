@@ -22,6 +22,7 @@ import {
   UserCheck
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { undoableSuccessToast } from "../../../components/ui/CustomToast";
 import Spinner from "@/components/ui/Spinner";
 import TaskDetails from "../../../components/TaskDetails.jsx";
 import TaskFilters from "../../../components/TaskFilters.jsx";
@@ -32,10 +33,11 @@ import {
   summariseQueueEmployees,
   toggleSelectedId,
 } from "../../../utils/approvalQueue.js";
-import { ApprovalHeader } from "../components/ApprovalHeader";
-import { ApprovalSplitView } from "../components/ApprovalSplitView";
-import BulkGradeModal from "../components/BulkGradeModal";
-import BulkDeclineModal from "../components/BulkDeclineModal";
+import { sameDepartment } from "../../../utils/compareDepartment.js";
+import { ApprovalHeader } from "../_components/ApprovalHeader";
+import { ApprovalSplitView } from "../_components/ApprovalSplitView";
+import BulkGradeModal from "../_components/BulkGradeModal";
+import BulkDeclineModal from "../_components/BulkDeclineModal";
 import { Button } from "@/components/ui/button";
 import PageContainer from "../../../components/ui/PageContainer";
 import TabGroup from "../../../components/ui/TabGroup";
@@ -139,7 +141,7 @@ export default function TaskApprovalsPage() {
     const filteredCats =
       deptFilter === "ALL"
         ? allCategories
-        : allCategories.filter((c) => c.department === deptFilter);
+        : allCategories.filter((c) => sameDepartment(c.department, deptFilter));
     return [
       ...new Set(filteredCats.map((c) => c.subDepartment).filter(Boolean)),
     ].sort();
@@ -148,9 +150,9 @@ export default function TaskApprovalsPage() {
   const uniqueEmployees = useMemo(() => {
     let pool = allEmployees.filter((e) => !e.is_super_admin);
     if (deptFilter !== "ALL")
-      pool = pool.filter((e) => e.department === deptFilter);
+      pool = pool.filter((e) => sameDepartment(e.department, deptFilter));
     if (subDeptFilter !== "ALL")
-      pool = pool.filter((e) => e.subDepartment === subDeptFilter);
+      pool = pool.filter((e) => sameDepartment(e.subDepartment, subDeptFilter));
     return pool.sort((a, b) => a.name.localeCompare(b.name));
   }, [allEmployees, deptFilter, subDeptFilter]);
 
@@ -173,7 +175,7 @@ export default function TaskApprovalsPage() {
                 setActiveTaskId(task.id);
               }
             })
-            .catch(() => { });
+            .catch((err) => toast.error(err.message || "Something went wrong"));
         }
       });
       navigate(location.pathname, { replace: true, state: {} });
@@ -393,10 +395,12 @@ export default function TaskApprovalsPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedTaskIds([]);
-      toast.success(`Success! ${idsToUndo.length} tasks approved.`, {
-        action: { label: "Undo", onClick: () => handleUndoBulk(idsToUndo) },
-        duration: 6000,
-      });
+      undoableSuccessToast(
+        `Success! ${idsToUndo.length} tasks approved.`,
+        "Undo",
+        () => handleUndoBulk(idsToUndo),
+        6000,
+      );
     } catch (err) {
       toast.error(err.message || "Bulk approval failed.");
     }
@@ -411,10 +415,12 @@ export default function TaskApprovalsPage() {
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       setSelectedTaskIds([]);
-      toast.success(`Success! ${idsToUndo.length} tasks declined.`, {
-        action: { label: "Undo", onClick: () => handleUndoBulk(idsToUndo) },
-        duration: 6000,
-      });
+      undoableSuccessToast(
+        `Success! ${idsToUndo.length} tasks declined.`,
+        "Undo",
+        () => handleUndoBulk(idsToUndo),
+        6000,
+      );
     } catch (err) {
       toast.error(err.message || "Bulk decline failed.");
     }

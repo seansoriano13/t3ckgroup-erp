@@ -10,8 +10,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { renderWithProviders } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
+import { upcomingWeekdays } from '@/test/dates';
 import NotionLeaveCalendar from './NotionLeaveCalendar';
 
 const leave = (overrides = {}) => ({
@@ -60,7 +60,7 @@ describe('NotionLeaveCalendar', () => {
   });
 
   it('gives the hidden leaves their windows once the day is opened', async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderBoard([
       leave({ id: 'a', hours: 3, start_time: '14:00', end_time: '17:00' }),
       leave({ id: 'b', hours: 2, start_time: '08:00', end_time: '10:00' }),
@@ -71,5 +71,75 @@ describe('NotionLeaveCalendar', () => {
 
     // The afternoon leave was the one the cell had no room for.
     expect(await screen.findByText('2:00 PM - 5:00 PM')).toBeInTheDocument();
+  });
+
+  /**
+   * Issue #111: the hours of a leave already taken are not the employee's to
+   * reclaim, and the server refuses to give them back. The card must not offer
+   * a button that only leads to that refusal — and for a multi-day leave, what
+   * decides is the group's first day, not the day whose card was clicked.
+   */
+  describe('withdrawing an approved leave', () => {
+    const renderOwn = (approvedLeaves, targetDate) =>
+      renderWithProviders(
+        <NotionLeaveCalendar
+          approvedLeaves={approvedLeaves}
+          currentUserId="ana"
+          onWithdrawLeave={() => {}}
+          targetDate={targetDate}
+        />,
+      );
+
+    const openCard = async (dayLabel) => {
+      const user = setupUser();
+      await user.click(screen.getByText(dayLabel));
+    };
+
+    it('offers to withdraw a leave that has not started yet', async () => {
+      const [date] = upcomingWeekdays(1);
+      renderOwn([leave({ employee_id: 'ana', date, leave_group_id: 'g1' })], date);
+
+      await openCard('8h · 9AM–5PM');
+
+      expect(screen.getByRole('button', { name: /Withdraw Leave/i })).toBeInTheDocument();
+    });
+
+    it('does not offer to withdraw a leave whose day has passed', async () => {
+      renderOwn(
+        [leave({ employee_id: 'ana', date: '2020-01-06', leave_group_id: 'g1' })],
+        '2020-01-01',
+      );
+
+      await openCard('8h · 9AM–5PM');
+
+      expect(screen.queryByRole('button', { name: /Withdraw Leave/i })).not.toBeInTheDocument();
+    });
+
+    it('still offers to withdraw a leave dated today, which the server still allows', async () => {
+      // ADR 0015 keeps the start day itself withdrawable: the cutoff is
+      // `first_date < CURRENT_DATE`, not `<=`. Comparing parsed Dates here
+      // instead of date strings would hide the button partway through the
+      // Manila morning, for a withdrawal the server would have accepted.
+      const today = new Date().toISOString().slice(0, 10);
+      renderOwn([leave({ employee_id: 'ana', date: today, leave_group_id: 'g1' })], today);
+
+      await openCard('8h · 9AM–5PM');
+
+      expect(screen.getByRole('button', { name: /Withdraw Leave/i })).toBeInTheDocument();
+    });
+
+    it('does not offer to withdraw a later day of a range that has already started', async () => {
+      // The clicked day is still in the future; the leave it belongs to is not.
+      const [future] = upcomingWeekdays(1);
+      const group = [
+        leave({ id: 'day-1', employee_id: 'ana', date: '2020-01-06', leave_group_id: 'g1' }),
+        leave({ id: 'day-2', employee_id: 'ana', date: future, leave_group_id: 'g1' }),
+      ];
+      renderOwn(group, future);
+
+      await openCard('8h · 9AM–5PM');
+
+      expect(screen.queryByRole('button', { name: /Withdraw Leave/i })).not.toBeInTheDocument();
+    });
   });
 });

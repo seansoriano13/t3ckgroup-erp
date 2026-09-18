@@ -1,11 +1,14 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
+import { companyService, matchesCompanyFilter } from "../../../services/companyService";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
-import { UserPlus, Edit, Trash2, Shield } from "lucide-react";
+import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
+import { UserPlus, Edit, Trash2, Shield, KeyRound } from "lucide-react";
+import { passwordService } from "../../../services/passwordService";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "../../../components/ui/dialog";
 import PageHeader from "../../../components/ui/PageHeader";
@@ -31,6 +34,8 @@ export default function EmployeeManagement() {
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [roleFlagFilter, setRoleFlagFilter] = useState("ALL");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [companyFilter, setCompanyFilter] = useState("ALL"); // company id, "ALL", or "NONE"
   const [sortBy, setSortBy] = useState("NAME_ASC");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
@@ -43,6 +48,11 @@ export default function EmployeeManagement() {
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["allEmployees"],
     queryFn: () => employeeService.getAllEmployees(),
+  });
+
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => companyService.getCompanies(),
   });
 
   // Derived option lists
@@ -64,6 +74,10 @@ export default function EmployeeManagement() {
     () => [...new Set(employees.map((e) => e.role).filter(Boolean))].sort(),
     [employees],
   );
+  const uniqueStatuses = useMemo(
+    () => [...new Set(employees.map((e) => e.employment_status).filter(Boolean))].sort(),
+    [employees],
+  );
 
   const filteredEmployees = useMemo(() => {
     const q = searchTerm.toLowerCase();
@@ -78,13 +92,16 @@ export default function EmployeeManagement() {
     if (subDeptFilter !== "ALL")
       list = list.filter((e) => e.subDepartment === subDeptFilter);
     if (roleFilter !== "ALL") list = list.filter((e) => e.role === roleFilter);
+    if (statusFilter !== "ALL") list = list.filter((e) => e.employment_status === statusFilter);
+    list = list.filter((e) => matchesCompanyFilter(e.companyId, companyFilter));
     if (roleFlagFilter !== "ALL") {
       list = list.filter((e) => {
         if (roleFlagFilter === "SUPER_ADMIN") return e.isSuperAdmin;
         if (roleFlagFilter === "HR") return e.isHr;
         if (roleFlagFilter === "HEAD") return e.isHead;
+        if (roleFlagFilter === "LEAVE_MANAGER") return e.canManageLeaves;
         if (roleFlagFilter === "STANDARD")
-          return !e.isSuperAdmin && !e.isHr && !e.isHead;
+          return !e.isSuperAdmin && !e.isHr && !e.isHead && !e.canManageLeaves;
         return true;
       });
     }
@@ -109,6 +126,8 @@ export default function EmployeeManagement() {
     deptFilter,
     subDeptFilter,
     roleFilter,
+    statusFilter,
+    companyFilter,
     roleFlagFilter,
     sortBy,
   ]);
@@ -142,6 +161,28 @@ export default function EmployeeManagement() {
     setIsModalOpen(true);
   };
 
+  const reissueMutation = useMutation({
+    mutationFn: (employeeId) => passwordService.reissuePassword(employeeId),
+    onSuccess: (password, employeeId) => {
+      const emp = employees.find((e) => e.id === employeeId);
+      toast.success(
+        `New password for ${emp?.name || "this employee"}: ${password}\nShown once — copy it now.`,
+        { duration: Infinity },
+      );
+    },
+    onError: (err) => toast.error(err.message || "Failed to reissue password."),
+  });
+
+  const handleReissuePassword = (employee) => {
+    if (
+      window.confirm(
+        `Issue ${employee.name} a new password? Their current one stops working immediately.`,
+      )
+    ) {
+      reissueMutation.mutate(employee.id);
+    }
+  };
+
   return (
     <ProtectedRoute requireHr={true}>
       <PageContainer className="pt-4">
@@ -157,6 +198,7 @@ export default function EmployeeManagement() {
             tabs={[
               { value: "employees", label: "Employees" },
               { value: "categories", label: "Categories Config" },
+              { value: "leave_config", label: "Leave & Form Config" },
             ]}
             activeTab={activeTab}
             onChange={setActiveTab}
@@ -164,6 +206,7 @@ export default function EmployeeManagement() {
           />
 
           <Button
+            variant="primary"
             className="h-[46px] px-6 rounded-xl shadow-lg shadow-primary/20 shrink-0"
             onClick={handleAddNew}
           >
@@ -188,13 +231,28 @@ export default function EmployeeManagement() {
                   setRoleFilter={setRoleFilter}
                   roleFlagFilter={roleFlagFilter}
                   setRoleFlagFilter={setRoleFlagFilter}
+                  statusFilter={statusFilter}
+                  setStatusFilter={setStatusFilter}
                   sortBy={sortBy}
                   setSortBy={setSortBy}
                   uniqueDepts={uniqueDepts}
                   uniqueSubDepts={uniqueSubDepts}
                   uniqueRoles={uniqueRoles}
+                  uniqueStatuses={uniqueStatuses}
                 />
               </div>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="h-[46px] px-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
+                title="Filter by company"
+              >
+                <option value="ALL">All companies</option>
+                <option value="NONE">No company set</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
@@ -207,6 +265,7 @@ export default function EmployeeManagement() {
                     <th className="p-4">Sub-Dept</th>
                     <th className="p-4">Role</th>
                     <th className="p-4">Status</th>
+                    <th className="p-4">Company</th>
                     <th className="p-4">Balances</th>
                     <th className="p-4">Role Flags</th>
                     <th className="p-4 text-right">Actions</th>
@@ -273,15 +332,23 @@ export default function EmployeeManagement() {
                         </td>
                         <td className="p-4 text-sm">
                           {emp.employment_status ? (
-                            <span className={`px-2 py-1 rounded text-xs font-bold ${
-                              emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
-                              emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
-                              'bg-blue-100 text-blue-700'
-                            }`}>
+                            <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
+                                emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
+                                  'bg-blue-100 text-blue-700'
+                              }`}>
                               {emp.employment_status}
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
+                          )}
+                        </td>
+                        <td className="p-4 text-sm">
+                          {emp.company?.name ? (
+                            <span className="text-muted-foreground">{emp.company.name}</span>
+                          ) : (
+                            <span className="text-amber-11 bg-amber-2 border border-amber-6 px-2 py-1 rounded text-xs font-bold">
+                              No company
+                            </span>
                           )}
                         </td>
                         <td className="p-4">
@@ -310,13 +377,35 @@ export default function EmployeeManagement() {
                               Head
                             </span>
                           )}
-                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && (
+                          {emp.canManageLeaves && (
+                            <span className="bg-orange-2 text-orange-11 border border-orange-6 px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
+                              Leave Mgr
+                            </span>
+                          )}
+                          {!emp.isSuperAdmin && !emp.isHr && !emp.isHead && !emp.canManageLeaves && (
                             <span className="bg-muted text-muted-foreground border border-border px-2.5 py-1 rounded-lg font-black text-[10px] uppercase tracking-wider">
                               Standard
                             </span>
                           )}
+                          {emp.isIssuedPassword && (
+                            <span
+                              className="bg-amber-2 text-amber-11 border border-amber-6 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider"
+                              title="Still signed in with an issued password"
+                            >
+                              <KeyRound size={11} /> Issued Password
+                            </span>
+                          )}
                         </td>
                         <td className="p-4 text-right space-x-2">
+                          {!!user?.isSuperAdmin && emp.isIssuedPassword && (
+                            <button
+                              onClick={() => handleReissuePassword(emp)}
+                              className="p-2 bg-amber-2 hover:bg-amber-3 text-amber-11 rounded-xl transition-all inline-block border border-transparent hover:border-amber-6"
+                              title="Reissue Password"
+                            >
+                              <KeyRound size={15} />
+                            </button>
+                          )}
                           <button
                             onClick={() => handleEdit(emp)}
                             className="p-2 bg-muted hover:bg-muted/70 text-foreground rounded-xl transition-all inline-block hover:border-mauve-5 border border-transparent"
@@ -348,9 +437,13 @@ export default function EmployeeManagement() {
               </table>
             </div>
           </div>
-        ) : (
+        ) : activeTab === "categories" ? (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <HRCategoriesConfig />
+          </div>
+        ) : (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
+            <LeaveCategoriesConfig />
           </div>
         )}
 
@@ -379,29 +472,40 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
     queryFn: () => employeeService.getAllEmployees(),
   });
 
+  const { data: companies = [] } = useQuery({
+    queryKey: ["companies"],
+    queryFn: () => companyService.getCompanies(),
+  });
+
   const mutation = useMutation({
     mutationFn: (data) => {
       const payload = { ...data };
-      if (
-        isEditing &&
-        employee?.employment_status !== "Regular" &&
-        payload.employment_status === "Regular"
-      ) {
-        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
-      } else if (!isEditing && payload.employment_status === "Regular") {
-        payload.sil_hours_balance = (parseFloat(payload.sil_hours_balance) || 0) + 40;
-      }
       return isEditing
         ? employeeService.updateEmployee(employee.id, payload, user?.id || null)
         : employeeService.createEmployee({
-            ...payload,
-            updatedBy: user?.id || null,
-          });
+          ...payload,
+          updatedBy: user?.id || null,
+        });
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["allEmployees"] });
       toast.success(isEditing ? "Employee updated!" : "Employee added!");
       onClose();
+
+      if (!isEditing && data?.id) {
+        try {
+          const password = await passwordService.issuePassword(data.id);
+          toast.success(
+            `Password for ${data.name}: ${password}\nShown once — copy it now.`,
+            { duration: Infinity },
+          );
+        } catch (err) {
+          console.error("Failed to issue a password for the new employee:", err);
+          toast.error(
+            `Employee added, but issuing a sign-in password failed: ${err.message || "unknown error"}`,
+          );
+        }
+      }
     },
     onError: (err) => {
       toast.error(err.message || "Failed to save employee.");
@@ -481,6 +585,8 @@ function EmployeeFormModal({ isOpen, employee, onClose }) {
         onSubmit={handleSubmit}
         rawCategories={rawCategories}
         rawEmployees={employees}
+        rawCompanies={companies}
+        canGrantLeaveManagement={!!user?.isSuperAdmin}
       />
     </HRFormModal>
   );

@@ -7,6 +7,7 @@ import {
   UploadCloud,
   Sparkles,
   Save,
+  PenLine,
 } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
@@ -16,8 +17,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { storageService } from "../../services/storageService";
 import { employeeService } from "../../services/employeeService";
+import { signatureService } from "../../services/signatureService";
+import { passwordService } from "../../services/passwordService";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
+import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
 import { TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
@@ -49,6 +53,24 @@ export default function ProfilePage() {
 
   const [avatarFile, setAvatarFile] = useState(null);
   const [bannerFile, setBannerFile] = useState(null);
+  const [isSendingPasswordReset, setIsSendingPasswordReset] = useState(false);
+
+  // Changing a password — whether this is the first time or the tenth —
+  // always goes through the provider's email verification flow. There is no
+  // inline "type your new password" form: this only asks for a reset email.
+  const handleChangePassword = async () => {
+    if (!user?.email) return;
+    setIsSendingPasswordReset(true);
+    try {
+      await passwordService.requestPasswordReset(user.email);
+      toast.success("Check your email for a link to set a new password.");
+    } catch (error) {
+      console.error("Password reset request failed:", error);
+      toast.error(error.message || "Could not send reset email.");
+    } finally {
+      setIsSendingPasswordReset(false);
+    }
+  };
 
   const [bannerUrlInput, setBannerUrlInput] = useState(() =>
     isHttpUrl(user?.dashboardBannerPath) ? user.dashboardBannerPath : "",
@@ -69,6 +91,14 @@ export default function ProfilePage() {
   // Crop modal
   const [cropModalOpen, setCropModalOpen] = useState(false);
   const [pendingAvatarFile, setPendingAvatarFile] = useState(null);
+
+  // Signature
+  const [signatureModalOpen, setSignatureModalOpen] = useState(false);
+  const { data: signatureUrl, isLoading: isSignatureLoading } = useQuery({
+    queryKey: ["signatureUrl", user?.signaturePath],
+    queryFn: () => signatureService.getSignatureUrl(user.signaturePath),
+    enabled: !!user?.signaturePath,
+  });
 
   const avatarFileObjectUrl = useMemo(() => {
     if (!avatarFile) return null;
@@ -344,6 +374,14 @@ export default function ProfilePage() {
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
                 <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
               </p>
+              <button
+                type="button"
+                onClick={handleChangePassword}
+                disabled={isSendingPasswordReset}
+                className="mt-3 text-xs font-bold text-foreground hover:underline disabled:opacity-60"
+              >
+                {isSendingPasswordReset ? "Sending..." : "Change Password"}
+              </button>
             </div>
           </div>
         </div>
@@ -398,6 +436,31 @@ export default function ProfilePage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Signature */}
+          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center justify-between border-b border-border pb-3 mb-5">
+              <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Signature
+              </h3>
+              <button
+                type="button"
+                onClick={() => setSignatureModalOpen(true)}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border cursor-pointer"
+              >
+                <PenLine size={14} /> {user?.signaturePath ? "Replace" : "Add Signature"}
+              </button>
+            </div>
+            <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)] min-h-[100px] flex items-center justify-center">
+              {isSignatureLoading ? (
+                <Spinner size="sm" />
+              ) : signatureUrl ? (
+                <img src={signatureUrl} alt="Your signature" className="max-h-24 max-w-[80%] object-contain" />
+              ) : (
+                <p className="text-xs text-muted-foreground font-medium">No signature on file yet.</p>
+              )}
             </div>
           </div>
 
@@ -680,6 +743,12 @@ export default function ProfilePage() {
           setPendingAvatarFile(null);
           setCropModalOpen(false);
         }}
+      />
+      <SignatureCaptureModal
+        isOpen={signatureModalOpen}
+        onClose={() => setSignatureModalOpen(false)}
+        employeeId={user?.id}
+        onSuccess={(updated) => updateUserPreferences({ signaturePath: updated.signature_path })}
       />
     </PageContainer>
   );

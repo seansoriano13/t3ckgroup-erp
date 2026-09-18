@@ -1,10 +1,10 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApproveOvertimeModal from "./ApproveOvertimeModal"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
+import { stubOvertimeDecisionRpcs } from "@/test/stubs/overtimeRpc"
 import { makeEmployee, makeHrEmployee, makeOvertimeRequest } from "@/test/factories"
 
 /**
@@ -25,6 +25,7 @@ describe("ApproveOvertimeModal", () => {
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
     vi.spyOn(toast, "success").mockImplementation(() => "id")
+    stubOvertimeDecisionRpcs()
   })
 
   const balanceOf = (id) => db.rows("employees").find((e) => e.id === id).offset_hours_balance
@@ -59,7 +60,7 @@ describe("ApproveOvertimeModal", () => {
   it("credits the requested hours unchanged", async () => {
     const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
     open(request)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getByRole("button", { name: /confirm approval/i }))
 
@@ -72,7 +73,7 @@ describe("ApproveOvertimeModal", () => {
     // A real TG-12 shows 4hrs struck through and replaced with 3.5.
     const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
     open(request)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)
@@ -85,7 +86,7 @@ describe("ApproveOvertimeModal", () => {
   it("credits nothing when approving as paid", async () => {
     const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
     open(request, "APPROVED_PAID")
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getByRole("button", { name: /confirm approval/i }))
 
@@ -96,7 +97,7 @@ describe("ApproveOvertimeModal", () => {
   it("will not submit a zero approved-hours value", async () => {
     const request = makeOvertimeRequest({ employee_id: employee.id, hours: 4 })
     open(request)
-    const user = userEvent.setup()
+    const user = setupUser()
 
     const hoursField = screen.getByLabelText(/approved hours/i)
     await user.clear(hoursField)

@@ -14,6 +14,7 @@
  */
 
 import { pgrstError } from "./schema"
+import { windowClosesOnMove } from "../../utils/stageParticipantWindow"
 
 /** Raises the way `raise exception` in plpgsql does. */
 function raise(message) {
@@ -28,12 +29,10 @@ export const TRIGGERS = {
       // S0#### format with Odoo's sales references while identifying an
       // unrelated record, so it is no longer minted. New rows leave it null.
       // 0011 — sales_opportunities_require_sales_ref(), INSERT branch.
-      // Rewritten in 0034 to read flags from crm_pipeline_stages, and in 0036
-      // to gate the ITB Number the same way — by the is_itb_gate flag's own
-      // sort_order, never a literal, so reordering the gate stage moves the
-      // gate with it instead of leaving a stale threshold behind. 0038 added
-      // the outright exemption: an award won with no bidding has no ITB
-      // Number to give, so itb_exempt satisfies the gate in its place.
+      // Rewritten in 0034 to read flags from crm_pipeline_stages, in 0036 to
+      // add the ITB gate, and in the #206 migration to drop that gate again —
+      // Sales Flows replaced it (ADR 0004 D12). itb_number/itb_exempt stay on
+      // the row, still trimmed, just no longer enforced.
       function requireSalesReferenceOnInsert(row, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
@@ -42,7 +41,6 @@ export const TRIGGERS = {
 
         const stages = context.rowsOf("crm_pipeline_stages")
         const stage = stages.find((s) => s.code === row.status)
-        const gate = stages.find((s) => s.is_itb_gate)
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
 
@@ -51,22 +49,12 @@ export const TRIGGERS = {
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required to register an opportunity beyond Lead.",
           )
         }
-        if (
-          gate &&
-          stage?.sort_order >= gate.sort_order &&
-          !isLost &&
-          row.itb_number == null &&
-          !row.itb_exempt
-        ) {
-          raise(
-            "An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond, unless it is marked outright (no bidding required).",
-          )
-        }
       },
     ],
     beforeUpdate: [
       // 0011 — sales_opportunities_require_sales_ref(), UPDATE branch.
-      // Rewritten in 0034/0036 — see the INSERT branch above.
+      // Rewritten in 0034/0036, then again by the #206 migration — see the
+      // INSERT branch above.
       function requireSalesReferenceOnStageMove(row, old, context) {
         row.sales_reference = row.sales_reference?.trim()
           ? row.sales_reference.trim().toUpperCase()
@@ -76,7 +64,6 @@ export const TRIGGERS = {
         const stages = context.rowsOf("crm_pipeline_stages")
         const stage = stages.find((s) => s.code === row.status)
         const oldStage = stages.find((s) => s.code === old.status)
-        const gate = stages.find((s) => s.is_itb_gate)
 
         const isLead = stage?.is_default
         const isLost = stage?.is_lost
@@ -87,19 +74,6 @@ export const TRIGGERS = {
         if (oldIsLead && !isLead && !isLost && row.sales_reference == null) {
           raise(
             "A Sales Reference (Odoo quotation no., e.g. S01237) is required before this opportunity can leave Lead.",
-          )
-        }
-
-        if (
-          gate &&
-          oldStage?.sort_order < gate.sort_order &&
-          stage?.sort_order >= gate.sort_order &&
-          !isLost &&
-          row.itb_number == null &&
-          !row.itb_exempt
-        ) {
-          raise(
-            "An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond, unless it is marked outright (no bidding required).",
           )
         }
       },
@@ -114,6 +88,99 @@ export const TRIGGERS = {
           raise("registered_by is immutable")
         }
         row.updated_at = new Date().toISOString()
+      },
+    ],
+    // 20260915030000_stage_fields_and_visits.sql — record_stage_visit(),
+    // fired on insert and on update of flow_stage_id. Opens a Stage Visit
+    // for a flow-built deal on insert; on a stage change, closes whatever
+    // visit was open and opens a new one. Legacy-pipeline deals
+    // (flow_stage_id null) get no visit, matching the real trigger's guard.
+    afterWrite: [
+      function recordStageVisit(row, old, context) {
+        if (old === null) {
+          if (row.flow_stage_id == null) return
+          context.rowsOf("sor_stage_visits").push({
+            id: crypto.randomUUID(),
+            opportunity_id: row.id,
+            flow_stage_id: row.flow_stage_id,
+            flow_snapshot_id: row.flow_snapshot_id ?? null,
+            sequence: 1,
+            entered_at: row.created_at ?? new Date().toISOString(),
+            entered_by: row.registered_by ?? null,
+            left_at: null,
+            left_by: null,
+          })
+          return
+        }
+
+        if (row.flow_stage_id === old.flow_stage_id) return
+
+        const visits = context.rowsOf("sor_stage_visits")
+        const now = new Date().toISOString()
+        for (const visit of visits) {
+          if (visit.opportunity_id === row.id && visit.left_at == null) {
+            visit.left_at = now
+          }
+        }
+
+        if (row.flow_stage_id != null) {
+          const nextSequence =
+            Math.max(0, ...visits.filter((v) => v.opportunity_id === row.id).map((v) => v.sequence)) + 1
+          visits.push({
+            id: crypto.randomUUID(),
+            opportunity_id: row.id,
+            flow_stage_id: row.flow_stage_id,
+            flow_snapshot_id: row.flow_snapshot_id ?? null,
+            sequence: nextSequence,
+            entered_at: now,
+            entered_by: null,
+            left_at: null,
+            left_by: null,
+          })
+        }
+      },
+      // 20260925000000_stage_participants.sql — close_stage_participant_windows(),
+      // fired on the same update-of-flow_stage_id as recordStageVisit above.
+      // Closes every open sor_stage_participants row whose rule this move
+      // satisfies; a move into a Terminal Stage closes all of them at once.
+      function closeStageParticipantWindows(row, old, context) {
+        if (old === null) return
+        if (row.flow_stage_id === old.flow_stage_id) return
+
+        const stages = context.rowsOf("flow_stages")
+        const toStage = stages.find((s) => s.id === row.flow_stage_id)
+        const isTerminalMove = Boolean(toStage?.is_terminal)
+
+        const visits = context.rowsOf("sor_stage_visits")
+        const now = new Date().toISOString()
+
+        for (const participant of context.rowsOf("sor_stage_participants")) {
+          if (participant.opportunity_id !== row.id) continue
+          if (participant.closed_at != null) continue
+
+          if (isTerminalMove) {
+            participant.closed_at = now
+            participant.closed_reason = "terminal"
+            continue
+          }
+
+          const openedVisit = visits.find((v) => v.id === participant.opened_visit_id)
+          const callingStageId = openedVisit?.flow_stage_id ?? null
+
+          const closes = windowClosesOnMove(
+            {
+              untilRule: participant.until_rule,
+              untilStageId: participant.until_stage_id,
+              callingStageId,
+            },
+            { fromStageId: old.flow_stage_id, toStageId: row.flow_stage_id },
+          )
+
+          if (closes) {
+            participant.closed_at = now
+            participant.closed_reason = "rule_met"
+          }
+        }
       },
     ],
   },
@@ -156,6 +223,19 @@ export const TRIGGERS = {
       },
     ],
   },
+
+  // sil_leaves / offset_leaves / overtime_requests:
+  // guard_head_status_change() (20260908110000_department_head_approval_stage.sql,
+  // broadened by 20260908140000_broaden_head_status_guard.sql for issue #139)
+  // is deliberately NOT mirrored here, for the same reason as
+  // sor_procurement_requests_guard() above: it decides whether to reject a
+  // write to head_status/head_note/head_decided_at/head_signature_version
+  // based on public.is_hr()/is_super_admin()/is_head()/get_employee_id() —
+  // who the caller is — and the fake has no authenticated actor to answer
+  // with. The guarantee it enforces (an ordinary employee cannot record a
+  // head decision on their own application) is checked against a real
+  // database, like the RLS policies it sits alongside; it is not provable by
+  // `npm run test:unit` / `test:integration`.
 }
 
 export function runBeforeInsert(table, row, context) {

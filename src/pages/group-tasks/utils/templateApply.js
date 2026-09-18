@@ -1,4 +1,4 @@
-import { parseChecklist } from "@/utils/checklist";
+import { cleanChecklistForSave } from "@/utils/checklist";
 
 /**
  * Group task template helpers — pure transforms with no Supabase call, same
@@ -40,12 +40,7 @@ export function applyTemplateToMembers(template, employees) {
     const isActive = rawEmployeeId && activeIds.has(rawEmployeeId);
     if (rawEmployeeId && !isActive) skippedCount += 1;
 
-    const parsed = parseChecklist(m.checklist);
-    const validItems = parsed
-      .filter((i) => i?.text?.trim())
-      .map((i) => ({ text: i.text.trim(), checked: false }));
-
-    const checklist = validItems.length > 0 ? validItems : null;
+    const checklist = cleanChecklistForSave(m.checklist, { resetChecked: true });
 
     return {
       ...makeMemberDraft(),

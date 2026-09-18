@@ -33,9 +33,15 @@ export default function LogTaskAssignmentBar({
   user,
   openPopover,
   onTogglePopover,
+  mode,
 }) {
   const { isHr, isHead } = roles // isSuperAdmin
-  const canAssignOthers = isHr || isHead
+  // An automation task has no "self" to log it for — the assignee is a flow
+  // design choice for whoever edits the Sales Flow (already gated by
+  // stageActionService's own Super Admin check), not something to further
+  // gate behind the editor's own HR/Head role the way logging a task for
+  // yourself is.
+  const canAssignOthers = isHr || isHead || mode === "automation"
 
   return (
     <div

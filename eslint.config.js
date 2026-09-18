@@ -3,6 +3,7 @@ import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
+import noPrimaryDecoration from './src/lib/linting/no-primary-decoration.js'
 
 export default defineConfig([
   globalIgnores(['dist/**', '.claude/**', '.gemini/**', '.github/**']),
@@ -18,6 +19,8 @@ export default defineConfig([
       globals: {
         ...globals.browser,
         __APP_VERSION__: 'readonly',
+        __APP_SEMVER__: 'readonly',
+        __BUILD_TIME__: 'readonly',
       },
       parserOptions: {
         ecmaVersion: 'latest',
@@ -25,8 +28,16 @@ export default defineConfig([
         sourceType: 'module',
       },
     },
+    plugins: {
+      local: {
+        rules: {
+          'no-primary-decoration': noPrimaryDecoration,
+        },
+      },
+    },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]', argsIgnorePattern: '^[A-Z_]' }],
+      'local/no-primary-decoration': 'warn',
     },
   },
   {

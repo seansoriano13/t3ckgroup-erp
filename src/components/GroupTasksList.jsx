@@ -12,7 +12,7 @@ import {
 import { Link } from "react-router";
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import GroupTaskCard from "../pages/group-tasks/components/GroupTaskCard";
+import GroupTaskCard from "../pages/group-tasks/_components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
 
 export default function GroupTasksList({ selectedRange }) {

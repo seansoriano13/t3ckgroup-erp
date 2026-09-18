@@ -14,7 +14,10 @@ async function prepareEmailForSave(email, currentEmployeeId = null) {
   }
 
   const { data: existingRows, error } = await query;
-  if (error || !existingRows || existingRows.length === 0) {
+  if (error) {
+    throw new Error("Unable to verify if email is already in use. Please try again.");
+  }
+  if (!existingRows || existingRows.length === 0) {
     return cleanEmail;
   }
 
@@ -44,7 +47,7 @@ export const employeeService = {
   async getEmployeeByEmail(email) {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      .select("*, company:companies(id, name)")
       .eq("email", email)
       .neq("is_deleted", true)
       .single();
@@ -61,21 +64,31 @@ export const employeeService = {
       isHead: data.is_head,
       isHr: data.is_hr,
       isSuperAdmin: data.is_super_admin,
+      isRoleSimulator: data.is_role_simulator,
+      isIssuedPassword: !!data.is_issued_password,
+      hiddenNavKeys: data.hidden_nav_keys || [],
+      canManageLeaves: data.can_manage_leaves,
+      signaturePath: data.signature_path || null,
       avatarPath: data.avatar_path || null,
       dashboardBannerPath: data.dashboard_banner_path || null,
       dashboardQuote: data.dashboard_quote || null,
       has_sales_flow: data.has_sales_flow,
       has_task_flow: data.has_task_flow,
+      // Coerced: a frontend running ahead of 0054 gets undefined from `select("*")`,
+      // and the flag grants nothing until a Super Admin turns it on anyway.
+      has_purchasing_flow: !!data.has_purchasing_flow,
       offset_hours_balance: data.offset_hours_balance || 0,
       employment_status: data.employment_status || null,
       sil_hours_balance: data.sil_hours_balance || 0,
+      companyId: data.company_id || null,
+      company: data.company || null,
     };
   },
 
   async getAllEmployees() {
     const { data, error } = await supabase
       .from("employees")
-      .select("*")
+      .select("*, company:companies(id, name)")
       .neq("is_deleted", true);
     if (error) throw error;
 
@@ -89,14 +102,22 @@ export const employeeService = {
       isHead: employee.is_head,
       isHr: employee.is_hr,
       isSuperAdmin: employee.is_super_admin,
+      isRoleSimulator: employee.is_role_simulator,
+      isIssuedPassword: !!employee.is_issued_password,
+      hiddenNavKeys: employee.hidden_nav_keys || [],
+      canManageLeaves: employee.can_manage_leaves,
+      signaturePath: employee.signature_path || null,
       avatarPath: employee.avatar_path || null,
       dashboardBannerPath: employee.dashboard_banner_path || null,
       dashboardQuote: employee.dashboard_quote || null,
       has_sales_flow: employee.has_sales_flow,
       has_task_flow: employee.has_task_flow,
+      has_purchasing_flow: !!employee.has_purchasing_flow,
       offset_hours_balance: employee.offset_hours_balance || 0,
       employment_status: employee.employment_status || null,
       sil_hours_balance: employee.sil_hours_balance || 0,
+      companyId: employee.company_id || null,
+      company: employee.company || null,
     }));
   },
 
@@ -204,11 +225,15 @@ export const employeeService = {
           is_head: employeeData.isHead,
           is_hr: employeeData.isHr,
           is_super_admin: employeeData.isSuperAdmin,
+          can_manage_leaves: employeeData.canManageLeaves,
           has_sales_flow: employeeData.has_sales_flow,
           has_task_flow: employeeData.has_task_flow,
+          has_purchasing_flow: employeeData.has_purchasing_flow,
+          hidden_nav_keys: employeeData.hiddenNavKeys || [],
           employment_status: employeeData.employment_status || null,
           sil_hours_balance: employeeData.sil_hours_balance || 0,
           offset_hours_balance: employeeData.offset_hours_balance || 0,
+          company_id: employeeData.companyId || null,
           updated_at: new Date().toISOString(),
           updated_by: employeeData?.updatedBy || null,
         },
@@ -248,11 +273,15 @@ export const employeeService = {
         is_head: employeeData.isHead,
         is_hr: employeeData.isHr,
         is_super_admin: employeeData.isSuperAdmin,
+        can_manage_leaves: employeeData.canManageLeaves,
         has_sales_flow: employeeData.has_sales_flow,
         has_task_flow: employeeData.has_task_flow,
+        has_purchasing_flow: employeeData.has_purchasing_flow,
+        hidden_nav_keys: employeeData.hiddenNavKeys !== undefined ? employeeData.hiddenNavKeys : undefined,
         employment_status: employeeData.employment_status || null,
         sil_hours_balance: employeeData.sil_hours_balance !== undefined ? employeeData.sil_hours_balance : undefined,
         offset_hours_balance: employeeData.offset_hours_balance !== undefined ? employeeData.offset_hours_balance : undefined,
+        company_id: employeeData.companyId !== undefined ? (employeeData.companyId || null) : undefined,
         updated_at: new Date().toISOString(),
         updated_by: actorId || employeeData?.updatedBy || null,
       })

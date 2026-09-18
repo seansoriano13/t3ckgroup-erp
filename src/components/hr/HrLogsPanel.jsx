@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Users,
   Activity,
+  Settings,
 } from "lucide-react";
 import { systemAuditLogService, HR_ENTITY_TYPES } from "../../services/systemAuditLogService";
 import { employeeService } from "../../services/employeeService";
@@ -34,6 +35,7 @@ const ENTITY_CONFIG = {
   OVERTIME: { label: "Overtime", icon: Timer, style: "bg-primary/10 text-primary border-primary/20" },
   OFFSET_LEAVE: { label: "Offset Leave", icon: CalendarClock, style: "bg-blue-2 text-blue-11 border-blue-6" },
   SIL_LEAVE: { label: "SIL Leave", icon: CalendarHeart, style: "bg-green-2 text-green-11 border-green-6" },
+  HR_SETTINGS: { label: "Settings", icon: Settings, style: "bg-purple-a2 text-purple-11 border-purple-a4" },
 };
 
 function formatWhen(iso) {
@@ -61,11 +63,23 @@ export default function HrLogsPanel() {
     search: "",
   });
 
+  const [debouncedSearch, setDebouncedSearch] = useState(filters.search);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filters.search), 300);
+    return () => clearTimeout(timer);
+  }, [filters.search]);
+
+  const queryFilters = useMemo(
+    () => ({ ...filters, search: debouncedSearch }),
+    [filters, debouncedSearch],
+  );
+
   const offset = useMemo(() => page * PAGE_SIZE, [page]);
 
   useEffect(() => {
     queueMicrotask(() => setPage(0));
-  }, [filters.entityType, filters.type, filters.authorId, filters.employeeId, filters.search]);
+  }, [filters.entityType, filters.type, filters.authorId, filters.employeeId, debouncedSearch]);
 
   useEffect(() => {
     const handleNewEntry = (entry) => {
@@ -90,16 +104,16 @@ export default function HrLogsPanel() {
     isError,
     error,
   } = useQuery({
-    queryKey: ["hrActivityLog", offset, filters],
+    queryKey: ["hrActivityLog", offset, queryFilters],
     queryFn: () =>
       systemAuditLogService.getRecentHrActivity({
         limit: PAGE_SIZE,
         offset,
-        entityType: filters.entityType,
-        type: filters.type,
-        authorId: filters.authorId,
-        employeeId: filters.employeeId,
-        search: filters.search,
+        entityType: queryFilters.entityType,
+        type: queryFilters.type,
+        authorId: queryFilters.authorId,
+        employeeId: queryFilters.employeeId,
+        search: queryFilters.search,
       }),
     staleTime: 15_000,
   });

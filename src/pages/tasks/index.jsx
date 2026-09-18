@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
+import { useSavedFilters } from "../../hooks/useSavedFilters.js";
 import { useTableRealtime } from "../../hooks/useTableRealtime.js";
 import { employeeService } from "../../services/employeeService.js";
 import PageHeader from "../../components/ui/PageHeader";
@@ -107,6 +108,13 @@ export default function TasksPage() {
     location.state?.filterEmployeeId || (!isManagement ? user?.id : "ALL"),
   );
   const [reportedToFilter, setReportedToFilter] = useState("ALL");
+
+  const { initial: savedTaskFilters, hasSavedDefault, saveDefault, clearDefault } = useSavedFilters(
+    "tasks",
+    user?.id,
+    { crmOnly: false },
+  );
+  const [crmOnly, setCrmOnly] = useState(savedTaskFilters.crmOnly);
 
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
@@ -224,7 +232,7 @@ export default function TasksPage() {
               .then((task) => {
                 if (task) setViewTask(task);
               })
-              .catch(() => { });
+              .catch((err) => toast.error(err.message || "Something went wrong"));
           },
         );
         navigate(location.pathname, { replace: true, state: {} });
@@ -299,6 +307,7 @@ export default function TasksPage() {
       employeeFilter,
       reportedToFilter,
       sortBy,
+      crmOnly,
     },
     {
       isManagement: isHr && hrViewMode === "PERSONAL" ? false : isManagement,
@@ -409,6 +418,8 @@ export default function TasksPage() {
         setSortBy={wrapFilter(setSortBy)}
         forceAdvancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
+        crmOnly={crmOnly}
+        setCrmOnly={wrapFilter(setCrmOnly)}
         actions={
           <TabGroup
             variant="pill"
@@ -423,6 +434,26 @@ export default function TasksPage() {
           />
         }
       />
+
+      <div className="flex justify-end -mt-2 mb-2">
+        {hasSavedDefault ? (
+          <button
+            type="button"
+            onClick={clearDefault}
+            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+          >
+            Clear saved default
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => saveDefault({ crmOnly })}
+            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+          >
+            Save as my default
+          </button>
+        )}
+      </div>
 
       {viewMode === "table" ? (
         <div className="pb-10">

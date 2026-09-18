@@ -5,10 +5,12 @@ pnpm test
 ```
 
 `pnpm test:watch` while working, `pnpm test:coverage` for a report in `coverage/`.
+`pnpm preflight` runs only the tests your branch can reach — see
+[Preflight runs the affected tests](#preflight-runs-the-affected-tests).
 
 ---
 
-## The three tiers
+## The tiers
 
 The suite is read as a pyramid, and each tier runs on its own:
 
@@ -17,6 +19,7 @@ The suite is read as a pyramid, and each tier runs on its own:
 | **Unit** | `pnpm test:unit` | One function, one hook, no I/O | `src/{utils,constants,lib,hooks}`, `src/test/db`, `src/test/factories` |
 | **Integration** | `pnpm test:integration` | A service or component against the fake database | `src/{services,context,components}`, `src/test/pages/*.test.jsx` |
 | **E2E** | `pnpm test:e2e` | A whole page, mounted and driven as a user | `src/test/pages/*.e2e.test.jsx` |
+| **Policy** | `pnpm test:db` | RLS policies and plpgsql functions, executed against a real Postgres | `src/test/policy/**` |
 
 The target shape is **70 / 20 / 10**. Where it actually stands:
 
@@ -25,6 +28,73 @@ The target shape is **70 / 20 / 10**. Where it actually stands:
 | Unit | 980 | 63% | 70% |
 | Integration | 574 | 37% | 20% |
 | E2E | 10 | 0.6% | 10% |
+
+### The policy tier is separate on purpose
+
+The first three tiers run against the fake database and are one command,
+`pnpm test`. The fourth is not part of it, because it needs the local Supabase
+stack running — a colleague without Docker up would otherwise see failures that
+say nothing about their change.
+
+It exists because the fake database is blind to the two things most likely to
+hurt somebody:
+
+- **Policies.** `src/test/db/schema.js` truncates every SQL source at its first
+  `-- Functions` marker, so the parser has never read a policy. The fake
+  enforces tables and constraints, and nothing about who may see a row.
+- **Stored procedures.** `src/test/msw/postgrest.js` answers `rpc()` from a stub
+  map. The functions that move an employee's leave balance have never run in a
+  test; the service tests assert only that they were *called* correctly.
+
+So a change to either can pass ~1,560 tests while being completely wrong. The
+policy tier is the only place it can fail.
+
+```bash
+pnpm test:db        # resets the local database, then runs the tier
+pnpm test:db:only   # runs it against the stack as it stands (for iterating)
+```
+
+`pnpm test:db` resets first because the tier is meant to prove the *migrations*,
+not whatever state a machine has accumulated. Use `test:db:only` while writing a
+test and `test:db` before trusting the result. CI runs it on any change under
+`supabase/migrations/` (`.github/workflows/policy-tests.yml`).
+
+> **`pnpm test:db` wipes your local database.** That includes the magic dev
+> login and whatever `pnpm db:seed:restore` last pulled down. Restore it
+> afterwards with `pnpm db:seed:fresh`. `test:db:only` touches nothing but the
+> tier's own fixture rows.
+
+Because it resets, the tier cannot assume any reference data exists. It seeds
+what its fixtures need — currently one `crm_pipeline_stages` row, because
+`sales_opportunities.status` has a foreign key to that table and no active
+migration fills it. If a fixture starts failing on a foreign key after a reset,
+that is the same gap, not a broken test.
+
+Three things about how it is built are load-bearing:
+
+- **Assertions go through an ordinary client holding a real signed-in user's
+  token**, never the service role, because the service role bypasses RLS and
+  would prove nothing. The service role appears only in seeding and teardown.
+- **Identity resolves by the email claim.** `get_employee_id()` matches
+  `auth.jwt() ->> 'email'` against `employees.email`, so every fixture creates an
+  auth user *and* an employee row with the same address. Get that wrong and the
+  helper returns null, every policy denies, and a matrix of refusals passes
+  while proving nothing — which is why `01-fixture.test.js` asserts the link for
+  all ten identities before anything else runs.
+- **Every rule is asserted in both directions.** A permission proven without its
+  matching refusal is half a test, and the refusals are the half that matters.
+
+Some tests deliberately assert behaviour that is *wrong* — that every employee
+can read every SOR, that `tasks` has no policies at all, that an employee can
+approve their own overtime. They are named for the issue that will change them.
+When that work lands they fail, and rewriting them is how the change gets
+recorded.
+
+`04-flow-canvas.test.js` covers the Flow Canvas write policies, which are open
+to every signed-in employee by decision rather than by accident: a Sale Type's
+rules are pinned onto each SOR as a snapshot at registration, and a stage that
+deals are parked on cannot be deleted. The file records that decision so the
+next change to those tables is a deliberate one, whichever way it goes.
 
 Two notes on the gap, so nobody closes it the wrong way.
 
@@ -51,6 +121,9 @@ and push everything narrower down a tier.
   **Integration.**
 - Is it a path a real person walks, start to finish? **E2E** — and check the
   path is not already covered before adding one.
+- Does it depend on an RLS policy or a plpgsql function actually running?
+  **Policy** — the other three tiers cannot see either, so a test placed
+  anywhere else will pass whether the rule is right or wrong.
 
 ### Why page tests live in `src/test/pages`
 
@@ -60,6 +133,52 @@ the library, so a test file left there becomes a route — and drags msw, the fa
 database and the SQL schema parser into the production bundle. The build fails
 outright when that happens. `src/test/pages` is the workaround, and this
 paragraph is why it is not an inconsistency to tidy up.
+
+### The environment each test runs in
+
+`pnpm test` is three Vitest projects, split by what a test needs to boot rather
+than by tier. Booting jsdom, MSW and the migration-parsed fake database costs
+seconds per file, and a pure function test should not pay for it.
+
+| Project | Environment | Setup | Where it lives |
+| --- | --- | --- | --- |
+| **logic** | Node | none | `src/{utils,constants}`, `src/lib/pdf`, `src/test/scripts` |
+| **services** | Node | `src/test/setup.harness.js` — the fake Supabase | `src/services`, `src/test/db`, `src/test/factories.test.js` |
+| **screens** | jsdom (`jsdom-node-fetch`) | the harness, then `src/test/setup.dom.js` | everything else |
+
+Membership is by location, and a new directory falls into **screens**, the
+project that has everything. `src/test/scripts/vitestProjects.test.js` asks
+Vitest itself which project each file lands in, and fails if any test file is
+in none or in two.
+
+A single file in a Node project that needs a browser global has two ways out:
+
+- `// @vitest-environment jsdom` on its first line (see
+  `src/utils/notificationRouter.test.js`). Vitest's docblock takes a named
+  environment only, so this is plain jsdom — fine without the network, wrong
+  for anything that fetches.
+- Stub the one global it reads (see `requestPasswordReset` in
+  `src/services/passwordService.test.js`).
+
+The harness setup must not touch the DOM: the services project runs it in
+plain Node.
+
+### Preflight runs the affected tests
+
+CI runs the full suite on every push, so `pnpm preflight` does not repeat it. It
+runs `vitest run --changed <merge base with origin/staging>` — the tests the
+branch's changes can reach through imports — and widens to the whole suite when
+that graph cannot see the change:
+
+- a migration (the fake schema reads the SQL off disk),
+- shared test infrastructure — anything under `src/test/` that is not itself a
+  test file,
+- a Vitest config, `package.json` or `pnpm-lock.yaml`,
+- no merge base with `origin/staging`,
+- `pnpm preflight --full`.
+
+The rule is `scripts/lib/testSelection.mjs`, tested in
+`src/test/scripts/testSelection.test.js`.
 
 ---
 
@@ -79,10 +198,11 @@ test rather than in production.
 
 ### The schema comes from your SQL
 
-`src/test/db/schema.js` parses `t3ckgroup.sql` and every file in
-`supabase/migrations/`, in order. Tables, columns, types, NOT NULL, defaults,
-primary keys, UNIQUE, CHECK constraints and foreign keys are all derived from
-there.
+`src/test/db/schema.js` parses every file in `supabase/migrations/`, in
+order — including the baseline (`20260904000000_baseline_schema.sql`, issue
+#87), so the fake starts from the same 57 tables a fresh `supabase db reset`
+does. Tables, columns, types, NOT NULL, defaults, primary keys, UNIQUE, CHECK
+constraints and foreign keys are all derived from there.
 
 **Add a table or column in a migration and the fake picks it up on the next test
 run.** Nothing in `src/test/` needs editing.
@@ -176,9 +296,15 @@ is one component wired to a service.
 ### Factories — `@/test/factories`
 
 `makeEmployee`, `makeHrEmployee`, `makeHead`, `makeSuperAdmin`, `makeCategory`,
-`makeTask`, `makeOpportunity`, `makeOpportunityItem`, `makeSilLeave`,
-`makeOvertimeRequest`, `makeOffsetLeave`, `makeGroupTask`,
-`makeLeadSource`, `makeNotification`.
+`makeTask`, `makeOpportunity`, `makeOpportunityItem`, `makeStageRequirement`,
+`makeRequirementStatus`, `makeOpportunityMember`, `makeSilLeave`,
+`makeOvertimeRequest`, `makeOffsetLeave`, `makeGroupTask`, `makeLeadSource`,
+`makePipelineStage`, `makeCommissionRate`, `makeCommissionDepartment`,
+`makeCommissionPosition`, `makeCommissionSplit`, `makeNotification`,
+`makeSaleType`, `makeSalesFlow`, `makeFlowStage`, `makeFlowEdge` (issue #36 —
+`makeSaleType` creates the Sale Type only, not its flow: the two stay separate
+factories so "a Sale Type with no flow" is representable for the one test that
+needs it, the same way the service is what guarantees it never really happens).
 
 Each seeds the minimum its table's constraints require and creates its owning
 rows on demand — `makeTask()` with no arguments produces a valid task, its
@@ -213,6 +339,13 @@ Every non-database boundary has a sane default and a stub:
 Anything not covered by a handler **fails the test** rather than reaching the
 internet.
 
+Supabase Storage is the one exception to "stub a canned response": it's a small
+in-memory fake (upload, signed URL, plain download) against the real bucket
+constraints (size cap, allowed MIME types), the same way the database is faked
+rather than stubbed. `seedStorageObject(bucket, path, { bytes, contentType })`
+— `@/test/msw/storage` — plants an object a test didn't upload itself, for
+reading back a signature/file another actor produced.
+
 ### `waitForNetworkIdle()` — `@/test/network`
 
 Several services fire and forget: a notification broadcast or an audit-log write
@@ -227,6 +360,20 @@ expect(db.rows("notifications")).toHaveLength(2)
 ```
 
 Teardown calls it too, so a stray write cannot land in the next test's database.
+
+### `setupUser()` — `@/test/support`
+
+Use it instead of `userEvent.setup()`:
+
+```js
+const user = setupUser()
+await user.type(screen.getByLabelText("Reason"), "Client visit")
+```
+
+user-event pauses on a `setTimeout` after every click and keystroke. On Windows
+that timer rounds up to ~15 ms, which on its own made interactive screen tests
+about a quarter slower. `setupUser()` turns the pause off. Pass
+`setupUser({ delay: 0 })` when the test is about timing.
 
 ---
 
@@ -308,3 +455,12 @@ Worth knowing before you trust a green test too far:
 - **Transactions are not modelled.** A multi-statement service call that fails
   halfway leaves its earlier writes in place, as it would with PostgREST's
   per-statement behaviour, but a real `BEGIN/ROLLBACK` would differ.
+- **A unique index over an expression is unenforced.** `create unique index …
+  on t (lower(btrim(name)))` is understood as a partial-index predicate when it
+  is a bare column list, but a real expression like `lower(btrim(name))` is
+  left unenforced rather than evaluated — the same direction an unrecognised
+  CHECK is handled. `sale_types_live_name_key` and `flow_stages_name_per_flow_key`
+  (issue #36) are two examples: the case-insensitive name clash they guarantee
+  in production is enforced only in `salesFlowService`'s own name checks, not
+  by the fake. A service that needs the guarantee tested has to assert it
+  where it enforces it, not lean on the fake to catch a collision.

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import toast from "react-hot-toast";
-import { Download, Loader2 } from "lucide-react";
 import HRFormModal from "../hr/HRFormModal";
 import { TextField, SelectField } from "./SorField";
 import OpportunityItemsEditor from "./OpportunityItemsEditor";
@@ -17,6 +16,14 @@ import {
 } from "../../constants/sor";
 import { deriveProjectType } from "../../utils/commission";
 import { leadSourceService } from "../../services/leadSourceService";
+import { salesFlowService } from "../../services/salesFlowService";
+import { formFieldService } from "../../services/formFieldService";
+import { stageConditionService } from "../../services/stageConditionService";
+import { resolveFormFields } from "../../constants/sorFormBuilder";
+import { entryStage } from "../../constants/salesFlow";
+import { resolvePeople } from "../../utils/resolvePeople";
+import { employeeGroupService } from "../../services/employeeGroupService";
+import RegistrationField from "./RegistrationField";
 
 const FORM_ID = "opportunity-form";
 
@@ -29,6 +36,7 @@ const blankForm = () => ({
   contact_person: "",
   project_title: "",
   project_type: "SSP",
+  sale_type_id: "",
   sales_reference: "",
   expected_award_date: "",
   po_date: "",
@@ -48,6 +56,7 @@ const fromRecord = (o) => ({
   contact_person: o.contact_person || "",
   project_title: o.project_title || "",
   project_type: o.project_type || "SSP",
+  sale_type_id: o.sale_type_id || "",
   sales_reference: o.sales_reference || "",
   expected_award_date: o.expected_award_date || "",
   po_date: o.po_date || "",
@@ -95,6 +104,87 @@ export default function OpportunityFormModal({
     enabled: isOpen,
   });
 
+  // Issue #36 — the Sale Type a deal is registered against decides which
+  // Sales Flow it runs. The list is whatever the Operations Manager has drawn
+  // on the Flow Canvas, and is empty until she has drawn one; the field hides
+  // itself in that case rather than offering an empty picker.
+  const { data: saleTypes = [] } = useQuery({
+    queryKey: ["saleTypes"],
+    queryFn: () => salesFlowService.getSaleTypes(),
+  });
+
+  // Issue #294: an entry-Stage Assignment condition is a call-in like any
+  // other — it just happens on day one instead of later on the SOR. Read
+  // live, the same as the custom form fields below, not off the flow's
+  // locked snapshot: a Super Admin editing the draft sees the picker change
+  // immediately rather than only after the next publish.
+  const { data: flowGraph } = useQuery({
+    queryKey: ["flowGraphForSaleType", form.sale_type_id],
+    queryFn: () => salesFlowService.getFlow(form.sale_type_id),
+    enabled: !isEdit && isOpen && Boolean(form.sale_type_id),
+  });
+  const entry = entryStage(flowGraph?.stages || []);
+
+  const { data: entryConditions = [] } = useQuery({
+    queryKey: ["stageConditions", entry?.id],
+    queryFn: () => stageConditionService.getForStage(entry.id),
+    enabled: !isEdit && isOpen && Boolean(entry?.id),
+  });
+  const entryAssignmentConditions = entryConditions.filter((c) => c.kind === "assignment");
+
+  const { data: employeeGroups = [] } = useQuery({
+    queryKey: ["employeeGroups"],
+    queryFn: () => employeeGroupService.list(),
+    enabled: !isEdit && isOpen && entryAssignmentConditions.length > 0,
+  });
+  const groupMembersById = Object.fromEntries(
+    employeeGroups.map((g) => [g.id, { employeeIds: g.memberIds || [], teams: [] }]),
+  );
+
+  const [dayOneAssignments, setDayOneAssignments] = useState({});
+  if (!isOpen && Object.keys(dayOneAssignments).length > 0) {
+    // Cheap reset alongside the rest of the form's render-phase sync above —
+    // a reopened registration form starts every one of these blank too.
+    setDayOneAssignments({});
+  }
+
+  // The chosen Sale Type decides the form: its flow's builder customization
+  // (labels, order, hidden fields) plus any custom fields it adds. No Sale
+  // Type, or one whose flow has no customization, resolves to the built-in
+  // default form — which is why this needs no loading state.
+  const { data: formRows = [] } = useQuery({
+    queryKey: ["flowFormFields", "saleType", form.sale_type_id],
+    queryFn: () => formFieldService.getForSaleType(form.sale_type_id),
+    enabled: isOpen && Boolean(form.sale_type_id),
+  });
+
+  const formFields = resolveFormFields(formRows);
+  const visibleFields = formFields.filter((f) => !f.isHidden);
+  const customFields = visibleFields.filter((f) => f.source === "custom");
+
+  // Answers to the custom fields, keyed by field id. Kept apart from `form`
+  // because they are not columns on the SOR — they travel as `formValues` and
+  // are written to sor_form_values after the insert.
+  const [customValues, setCustomValues] = useState({});
+
+  // Q22: switching Sale Type switches forms. Answers to fields the new form
+  // also has are kept; the rest are dropped and the salesperson is told, since
+  // silently discarding typed work and silently keeping it against a field
+  // that no longer exists are both worse.
+  const [customSeedKey, setCustomSeedKey] = useState(form.sale_type_id);
+  if (customSeedKey !== form.sale_type_id) {
+    setCustomSeedKey(form.sale_type_id);
+    const stillValid = new Set(customFields.map((f) => f.id));
+    const kept = Object.fromEntries(
+      Object.entries(customValues).filter(([fieldId]) => stillValid.has(fieldId)),
+    );
+    const droppedCount = Object.keys(customValues).length - Object.keys(kept).length;
+    setCustomValues(kept);
+    if (droppedCount > 0) {
+      toast(`${droppedCount} field${droppedCount === 1 ? "" : "s"} don't apply to this Sale Type — their answers were cleared.`);
+    }
+  }
+
   const { data: activeLeadSources = [] } = useQuery({
     queryKey: ["leadSources", "active"],
     queryFn: () => leadSourceService.getActiveLeadSources(),
@@ -126,6 +216,8 @@ export default function OpportunityFormModal({
       label: e.subDepartment ? `${e.name} — ${e.subDepartment}` : e.name,
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
+
+  const saleTypeOptions = saleTypes.map((t) => ({ value: t.id, label: t.name }));
 
   const leadSourceOptions = activeLeadSources.map((s) => ({
     value: s.value,
@@ -295,6 +387,23 @@ export default function OpportunityFormModal({
     setDisplacedCompany(null);
   };
 
+  // Everything RegistrationField needs to draw a live, working field. Bundled
+  // rather than passed one prop at a time so the builder's inert equivalent
+  // (SAMPLE_FIELD_CTX) is obviously the same shape.
+  const fieldCtx = {
+    form,
+    set,
+    odooFilled,
+    displacedCompany,
+    handleUndoCompany,
+    handleFetchFromOdoo,
+    fetchingOdoo,
+    leadSourceOptions,
+    customValues,
+    onCustomChange: (fieldId, value) =>
+      setCustomValues((prev) => ({ ...prev, [fieldId]: value })),
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const sales_reference = normalizeSalesReference(form.sales_reference);
@@ -307,12 +416,25 @@ export default function OpportunityFormModal({
       supportSales2Id: form.support_sales_2_id,
       currentProjectType: form.project_type,
     });
+    for (const condition of entryAssignmentConditions) {
+      if (condition.is_required && !dayOneAssignments[condition.id]) {
+        toast.error(`"${condition.label}" needs someone assigned before this can be registered.`);
+        return;
+      }
+    }
     onSubmit({
       ...form,
       project_type: derivedType,
+      sale_type_id: form.sale_type_id || null,
       sales_reference,
       sales_director_id: effectiveSalesDirectorId,
       items,
+      // Only the custom fields still on this form — see the Sale Type switch
+      // above. `createOpportunity` writes these to sor_form_values.
+      formValues: customValues,
+      // Issue #294 — conditionId -> employeeId. createOpportunity turns each
+      // into the same addMember call-in a checklist row makes later.
+      dayOneAssignments,
     });
   };
 
@@ -339,114 +461,76 @@ export default function OpportunityFormModal({
           </p>
         )}
 
-        {/* The Sales Reference leads the form because it FILLS the form. Left
-            where it used to sit — below Company, Contact Person and the
-            Product List — it invited the salesperson to type all three by
-            hand and only then offered a button that overwrites them. Framed
-            as an optional shortcut rather than as field #1, because roughly
-            half of SORs are registered before any quotation exists. */}
-        <div className="space-y-2 pb-1 border-b border-border/50">
-          <div className="flex gap-2">
-            <TextField
-              label="Sales Reference"
-              placeholder="e.g. S01237"
-              value={form.sales_reference}
-              onChange={set("sales_reference")}
-              className="flex-1"
-            />
-            <button
-              type="button"
-              onClick={handleFetchFromOdoo}
-              disabled={fetchingOdoo || !isValidSalesReference(form.sales_reference)}
-              title="Pull the customer and the product list from this quotation in Odoo"
-              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
-            >
-              {fetchingOdoo ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <Download size={14} />
-              )}
-              Fetch from Odoo
-            </button>
-          </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            Fetching fills the Company, the Contact Person and the Product List
-            from the quotation. No quotation yet? Leave it blank — it is
-            required before this opportunity can move from Lead to Qualified.
-          </p>
-        </div>
+        {/* Issue #36 — chosen at registration, and changeable afterwards only
+            while the deal is still on its flow's first Stage, which is why the
+            edit form does not offer it.
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {!isEdit && (
-            <TextField
-              label="Registration Date"
-              type="date"
-              required
-              disabled
-              value={form.registration_date}
-              onChange={set("registration_date")}
-            />
-          )}
+            It leads the form because it now *chooses* the form: the flow's
+            builder decides which fields appear below, their labels and their
+            order. Left mid-form, the page visibly grew under the cursor of
+            someone who had already started filling it in. */}
+        {!isEdit && saleTypes.length > 0 && (
           <SelectField
-            label="Lead Source"
-            required
-            placeholder="Select lead source…"
-            options={leadSourceOptions}
-            value={form.lead_source}
-            onChange={set("lead_source")}
-          />
-        </div>
-
-        {form.lead_source === "OTHERS" && (
-          <TextField
-            label="Referral"
-            required
-            placeholder="e.g. John Doe"
-            value={form.lead_source_detail}
-            onChange={set("lead_source_detail")}
+            label="Sale Type"
+            placeholder="Select sale type…"
+            options={saleTypeOptions}
+            value={form.sale_type_id}
+            onChange={set("sale_type_id")}
           />
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {!isEdit && (
           <TextField
-            label="Company"
+            label="Registration Date"
+            type="date"
             required
-            placeholder="e.g. Acme Corp"
-            value={form.client_name}
-            onChange={set("client_name")}
-            autofilled={!!odooFilled.client_name}
-            action={
-              displacedCompany ? (
-                <button
-                  type="button"
-                  onClick={handleUndoCompany}
-                  title={`Restore "${displacedCompany}"`}
-                  className="-my-1.5 -mr-1 px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 rounded-md transition-colors"
-                >
-                  Undo
-                </button>
-              ) : null
-            }
+            disabled
+            value={form.registration_date}
+            onChange={set("registration_date")}
           />
-          <TextField
-            label="Contact Person"
-            required
-            placeholder="e.g. Juan Dela Cruz"
-            value={form.contact_person}
-            onChange={set("contact_person")}
-            autofilled={!!odooFilled.contact_person}
-          />
-        </div>
+        )}
 
-        <TextField
-          label="Project"
-          required
-          placeholder="e.g. 2 Units Boom Lift"
-          value={form.project_title}
-          onChange={set("project_title")}
-        />
+        {/* Drawn by the same component the Flow Canvas builder draws, so what
+            the builder shows and what a salesperson fills in cannot drift
+            apart. The builder decides order and presence; RegistrationField
+            decides appearance. */}
+        {visibleFields.map((field) => (
+          <RegistrationField key={field.key} field={field} ctx={fieldCtx} />
+        ))}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* Issue #294 — this Sale Type's flow calls someone in the moment a
+            deal enters its first Stage. Rendered here rather than through
+            RegistrationField/SorFormBuilder: the builder-authored field list
+            (flow_form_fields) and a Stage's Assignment conditions are two
+            different config sources today. */}
+        {entryAssignmentConditions.map((condition) => {
+          const whoSelectors = Array.isArray(condition.config?.who) ? condition.config.who : [];
+          const candidates =
+            whoSelectors.length > 0
+              ? (() => {
+                  const ids = new Set(resolvePeople(whoSelectors, { employees, groupMembersById }));
+                  return employees.filter((e) => ids.has(e.id));
+                })()
+              : employees;
+
+          return (
+            <SelectField
+              key={condition.id}
+              label={condition.label}
+              required={condition.is_required}
+              placeholder="Select…"
+              options={candidates
+                .map((e) => ({ value: e.id, label: e.name }))
+                .sort((a, b) => a.label.localeCompare(b.label))}
+              value={dayOneAssignments[condition.id] || ""}
+              onChange={(e) =>
+                setDayOneAssignments((prev) => ({ ...prev, [condition.id]: e.target.value }))
+              }
+            />
+          );
+        })}
+
+        <div className="grid grid-cols-1 gap-3">
           <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 mb-1">
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
@@ -478,23 +562,12 @@ export default function OpportunityFormModal({
               </span>
             </div>
           </div>
-          {/* Two dates, deliberately separate. `expected_award_date` is a
-              pre-award forecast; `po_date` is the date printed on the client's
-              PO. They shared one field labelled "Purchase Date/Order" until
-              migration 0039, which is why some rows hold a future date and
-              some a past one. */}
-          <TextField
-            label="Expected Award Date"
-            type="date"
-            value={form.expected_award_date}
-            onChange={set("expected_award_date")}
-          />
-          <TextField
-            label="PO Date"
-            type="date"
-            value={form.po_date}
-            onChange={set("po_date")}
-          />
+          {/* Expected Award Date is NOT rendered here any more — it is one of
+              the builder-ordered fields above, and leaving a second copy here
+              put it on the form twice. PO Date is no longer offered at all;
+              its column, its writer and every value already recorded are
+              untouched, and the form still round-trips the value it loaded so
+              editing an SOR never blanks it. */}
         </div>
 
         <div className="pt-2 border-t border-border/50">

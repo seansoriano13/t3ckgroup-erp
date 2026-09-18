@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react"
-import { Shield, Users, Briefcase, ListCheck, ChevronDown } from "lucide-react"
+import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
+import { getAllOverridableEntries } from "@/constants/navigation"
+import { getPermissionContext } from "@/utils/permissions"
 
 export default function EmployeeForm({
   initialData,
@@ -11,6 +13,8 @@ export default function EmployeeForm({
   formId = "employee-form",
   rawCategories = [],
   rawEmployees = [],
+  rawCompanies = [],
+  canGrantLeaveManagement = false,
 }) {
   const [formData, setFormData] = useState({
     name: "",
@@ -21,13 +25,18 @@ export default function EmployeeForm({
     isHead: false,
     isHr: false,
     isSuperAdmin: false,
+    canManageLeaves: false,
     has_sales_flow: false,
     has_task_flow: true,
+    has_purchasing_flow: false,
     employment_status: "",
     sil_hours_balance: 0,
     offset_hours_balance: 0,
+    companyId: null,
     ...initialData,
   })
+
+  const [hasAutoGranted, setHasAutoGranted] = useState(false)
 
   useEffect(() => {
     // The form is reseeded whenever the record it edits changes; without
@@ -42,13 +51,18 @@ export default function EmployeeForm({
       isHead: false,
       isHr: false,
       isSuperAdmin: false,
+      canManageLeaves: false,
       has_sales_flow: false,
       has_task_flow: true,
+      has_purchasing_flow: false,
+      hiddenNavKeys: [],
       employment_status: "",
       sil_hours_balance: 0,
       offset_hours_balance: 0,
+      companyId: null,
       ...initialData,
     })
+    setHasAutoGranted(false)
   }, [initialData])
 
   const uniqueDepts = useMemo(() => {
@@ -92,6 +106,25 @@ export default function EmployeeForm({
 
     return [...new Set([...subDepts, ...fromEmps])].sort()
   }, [rawCategories, rawEmployees, formData.department])
+
+  // What the toggles above currently permit, live — the override list only
+  // ever shows entries the flags already grant, since hiding one that the
+  // flags deny already would be a no-op and confusing to present as a choice.
+  const permittedEntries = useMemo(() => {
+    const ctx = getPermissionContext(formData)
+    return getAllOverridableEntries().filter((entry) => entry.isPermitted(ctx))
+  }, [formData])
+
+  const toggleHiddenKey = (key) =>
+    setFormData((prev) => {
+      const hiddenNavKeys = prev.hiddenNavKeys || []
+      return {
+        ...prev,
+        hiddenNavKeys: hiddenNavKeys.includes(key)
+          ? hiddenNavKeys.filter((k) => k !== key)
+          : [...hiddenNavKeys, key],
+      }
+    })
 
   const handleSubmit = (e) => {
     e.preventDefault()
@@ -152,6 +185,61 @@ export default function EmployeeForm({
         uniqueSubDepts={uniqueSubDepts}
       />
 
+      {/* Company (issue #142) — nullable; a blank entry is filed as a blank
+          on the printed forms rather than guessed. */}
+      <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+          Name of Company
+        </label>
+        <Dropdown
+          usePortal={true}
+          placement="bottom-start"
+          trigger={({ isOpen }) => (
+            <button
+              type="button"
+              className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
+            >
+              {rawCompanies.find((c) => c.id === formData.companyId)?.name || (
+                <span className="text-muted-foreground/50">-- No company set --</span>
+              )}
+              <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+          )}
+        >
+          {({ close }) => (
+            <div className="p-1 flex flex-col min-w-[220px]">
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, companyId: null }))
+                  close()
+                }}
+                className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                  !formData.companyId ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                }`}
+              >
+                -- No company set --
+              </button>
+              {rawCompanies.map((company) => (
+                <button
+                  key={company.id}
+                  type="button"
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, companyId: company.id }))
+                    close()
+                  }}
+                  className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                    formData.companyId === company.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {company.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </Dropdown>
+      </div>
+
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
@@ -178,7 +266,28 @@ export default function EmployeeForm({
                     key={status}
                     type="button"
                     onClick={() => {
-                      setFormData(prev => ({ ...prev, employment_status: status }));
+                      setFormData(prev => {
+                        const willBeRegular = status === "Regular";
+                        const wasRegularInitially = initialData?.employment_status === "Regular";
+                        let newSil = parseFloat(prev.sil_hours_balance) || 0;
+                        let newlyGranted = hasAutoGranted;
+                        
+                        if (willBeRegular && !wasRegularInitially && !hasAutoGranted) {
+                          newSil += 40;
+                          newlyGranted = true;
+                        } else if (!willBeRegular && !wasRegularInitially && hasAutoGranted) {
+                          newSil = Math.max(0, newSil - 40);
+                          newlyGranted = false;
+                        }
+                        
+                        setHasAutoGranted(newlyGranted);
+                        
+                        return { 
+                          ...prev, 
+                          employment_status: status,
+                          sil_hours_balance: newSil
+                        };
+                      });
                       close();
                     }}
                     className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
@@ -194,13 +303,14 @@ export default function EmployeeForm({
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
+          <label htmlFor="sil-balance" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
             <span>SIL Hours Balance</span>
-            {initialData?.employment_status !== "Regular" && formData.employment_status === "Regular" && (
-              <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-grant</span>
+            {hasAutoGranted && (
+              <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
             )}
           </label>
           <input
+            id="sil-balance"
             type="number"
             step="0.5"
             value={formData.sil_hours_balance}
@@ -270,6 +380,23 @@ export default function EmployeeForm({
             iconStrokeWidth={2.5}
           />
 
+          {/* Leave Management — Super Admin only; the database refuses this
+              change from anyone else regardless, but hiding it here keeps an
+              HR-only editor from seeing a switch they cannot actually use. */}
+          {canGrantLeaveManagement && (
+            <AccessSwitch
+              label="Leave Management"
+              description="Approve & reject leave, offset and overtime applications"
+              icon={Clock}
+              checked={formData.canManageLeaves}
+              onChange={(val) =>
+                setFormData((prev) => ({ ...prev, canManageLeaves: val }))
+              }
+              activeColor="bg-orange-3 text-orange-10"
+              hoverColor="group-hover:bg-orange-2"
+            />
+          )}
+
           {/* Sales Opportunity access */}
           <AccessSwitch
             label="Sales Opportunities"
@@ -281,6 +408,19 @@ export default function EmployeeForm({
             }
             activeColor="bg-green-3 text-green-10"
             hoverColor="group-hover:bg-green-2"
+          />
+
+          {/* Purchasing — issue #39 */}
+          <AccessSwitch
+            label="Purchasing"
+            description="Access to the Purchasing Queue"
+            icon={ShoppingCart}
+            checked={formData.has_purchasing_flow}
+            onChange={(val) =>
+              setFormData((prev) => ({ ...prev, has_purchasing_flow: val }))
+            }
+            activeColor="bg-amber-3 text-amber-10"
+            hoverColor="group-hover:bg-amber-2"
           />
 
           {/* Task Flow */}
@@ -296,6 +436,65 @@ export default function EmployeeForm({
             hoverColor="group-hover:bg-fuchsia-50"
           />
         </div>
+      </div>
+
+      {/* Hidden-from-navigation override (#133-135). Presentation only: this
+          can never grant anything the toggles above deny, and it cannot
+          hide an entry HR just revoked here — the list always reflects the
+          current toggle state, live. */}
+      <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
+        <div className="flex items-center justify-between">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+            <EyeOff size={12} /> Hidden From Navigation
+          </label>
+          {formData.hiddenNavKeys?.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
+              className="text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
+            >
+              <X size={11} /> Clear all
+            </button>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          This controls what is shown in this employee's sidebar, not what
+          they are permitted to do. It can only hide entries their access
+          rights above already grant — it can never reveal anything those
+          rights deny.
+        </p>
+        {permittedEntries.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground/70 italic">
+            Nothing to hide yet — this employee's access rights don't grant any navigation entries.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {permittedEntries.map((entry) => {
+              const hidden = (formData.hiddenNavKeys || []).includes(entry.key)
+              return (
+                <div
+                  key={entry.key}
+                  onClick={() => toggleHiddenKey(entry.key)}
+                  className="flex items-center justify-between p-2.5 rounded-lg border border-border bg-muted/20 hover:bg-muted/40 cursor-pointer transition-colors select-none"
+                >
+                  <div>
+                    <p className={`text-xs font-bold ${hidden ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                      {entry.label}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-medium">{entry.group}</p>
+                  </div>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      className="data-checked:bg-foreground data-checked:text-background"
+                      checked={hidden}
+                      onCheckedChange={() => toggleHiddenKey(entry.key)}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
     </form>
   )

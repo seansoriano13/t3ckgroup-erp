@@ -1,23 +1,8 @@
-import ProtectedRoute from "../../components/ProtectedRoute.jsx";
+import { Navigate } from "react-router";
 
-import SystemUpdateBanner from "../../components/SystemUpdateBanner.jsx";
-import SystemUpdateManager from "../../components/SystemUpdateManager.jsx";
-import PageHeader from "../../components/ui/PageHeader";
-import PageContainer from "../../components/ui/PageContainer";
-
+// Issue #177 — System Announcements moved into Settings, gated the same way
+// this page was (Super Admin). The route stays so an old bookmark or link
+// still resolves instead of 404ing.
 export default function SuperAdminDashboard() {
-  return (
-    <ProtectedRoute requireSuperAdmin={true}>
-      <PageContainer className="pt-4">
-        <PageHeader
-          title="Admin Control"
-          description="Configure tracking rules and broadcast system updates."
-        />
-
-        <SystemUpdateBanner />
-
-        <SystemUpdateManager />
-      </PageContainer>
-    </ProtectedRoute>
-  );
+  return <Navigate to="/settings" replace />;
 }

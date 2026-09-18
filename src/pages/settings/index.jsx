@@ -1,15 +1,29 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle } from "lucide-react";
-import { useState } from "react";
+import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 import FAQModal from "./FAQModal";
+import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
+import { getPermissionContext } from "../../utils/permissions";
+import { canEditFAQ } from "../../utils/faqAccess";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { appSettingsService } from "../../services/appSettingsService";
 import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
+import { formatBuildFingerprint } from "@/utils/buildFingerprint";
+import DayShiftConfig from "../../components/settings/DayShiftConfig";
+import LeadSourceManager from "../../components/settings/LeadSourceManager";
+import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
+import SystemUpdateBanner from "../../components/SystemUpdateBanner";
+import SystemUpdateManager from "../../components/SystemUpdateManager";
+import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
+
+const appSemver = __APP_SEMVER__;
+const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
 
 function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPending, isLoading }) {
   return (
@@ -41,12 +55,42 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
 
 export default function SettingsPage() {
   const { logout, user } = useAuth();
+  const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
   const queryClient = useQueryClient();
   const [showFAQ, setShowFAQ] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
 
-  // const isHr = user?.is_hr === true || user?.isHr === true;
-  const isSuperAdmin = user?.isSuperAdmin;
+  useEffect(() => {
+    isPushEnabled().then(setPushEnabled);
+  }, []);
+
+  const togglePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disablePushNotifications(user.id);
+        setPushEnabled(false);
+      } else {
+        const granted = await enablePushNotifications(user.id);
+        if (granted) {
+          setPushEnabled(true);
+        } else {
+          toast.error("Desktop notifications were not enabled.");
+        }
+      }
+    } catch (err) {
+      toast.error(err.message || "Could not update desktop notifications.");
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
+  const { isSuperAdmin } = getPermissionContext(user);
+  const canEditFAQContent = canEditFAQ(user);
 
   const { data: appSettings, isLoading: loadingSettings } = useQuery({
     queryKey: ["appSettings"],
@@ -69,6 +113,7 @@ export default function SettingsPage() {
   return (
     <PageContainer maxWidth="4xl" className="pt-4">
       <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
+      <ChangelogModal manualOpen={showChangelog} onManualClose={() => setShowChangelog(false)} />
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <PageHeader
@@ -116,20 +161,37 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Notifications row */}
-            <div className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
+            {/* Desktop push notifications — #166/#167 */}
+            {isPushSupported() && (
+              <SettingToggle
+                label="Desktop Notifications"
+                description="Get notified on this device when someone mentions you, assigns you a task, decides on your request, or needs your approval — even with the portal closed."
+                icon={Bell}
+                checked={pushEnabled}
+                onToggle={togglePush}
+                isPending={pushBusy}
+              />
+            )}
+
+            {/* What's New row */}
+            <div 
+              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => setShowChangelog(true)}
+            >
               <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
-                  <Bell size={18} />
+                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                  <Sparkles size={18} />
                 </div>
                 <div>
-                  <p className="font-bold text-foreground text-sm">Email Notifications</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Get alerted when a manager reviews your task.</p>
+                  <p className="font-bold text-foreground text-sm">What's New</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">View the latest updates and release notes.</p>
                 </div>
               </div>
-              {/* Fake Toggle - Off */}
-              <div className="w-11 h-6 bg-mauve-5 rounded-full relative cursor-pointer shrink-0">
-                <div className="absolute left-1 top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all" />
+              <div className="flex items-center gap-2 pr-2">
+                <span className="text-xs font-semibold text-muted-foreground">v{appSemver}</span>
+                <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                  <ArrowRight size={16} />
+                </span>
               </div>
             </div>
           </div>
@@ -197,6 +259,83 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* WORKING WEEK — issue #150/#152: gated to Super Admin, same as Customization above */}
+        {isSuperAdmin && <DayShiftConfig />}
+
+        {/* CONTENT SECTION — #177: FAQ editing was reachable only through a
+            button buried in the Help modal and its route had no guard of
+            its own; gated by the same predicate that button already used. */}
+        {canEditFAQContent && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30">
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Content
+              </h2>
+            </div>
+            <div
+              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => navigate("/settings/FAQEditor")}
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                  <BookOpen size={18} />
+                </div>
+                <div>
+                  <p className="font-bold text-foreground text-sm">FAQ Editor</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Edit the Help &amp; FAQ content shown to every role.</p>
+                </div>
+              </div>
+              <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </div>
+        )}
+
+        {/* LEAD SOURCES — #177: moved from /super-admin/lead-sources, same Super Admin gate */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Shuffle size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Lead Sources
+              </h2>
+            </div>
+            <LeadSourceManager />
+          </div>
+        )}
+
+        {/* EMPLOYEE GROUPS — #201: Super Admin only, because a group decides who sees SOR data (ADR 0021) */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
+                <Users size={14} className="text-muted-foreground" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Employee Groups
+              </h2>
+            </div>
+            <EmployeeGroupManager />
+          </div>
+        )}
+
+        {/* SYSTEM ANNOUNCEMENTS — #177: moved from /super-admin, same Super Admin gate */}
+        {isSuperAdmin && (
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Megaphone size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                System Announcements
+              </h2>
+            </div>
+            <SystemUpdateBanner />
+            <SystemUpdateManager />
+          </div>
+        )}
+
         {/* DANGER ZONE SECTION */}
         <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border bg-destructive/5 flex items-center gap-2.5">
@@ -231,6 +370,11 @@ export default function SettingsPage() {
           <HelpCircle size={12} />
           Have questions? View the Help & FAQ
         </button>
+      </div>
+
+      {/* Build fingerprint — for support conversations, not the reader */}
+      <div className="mt-2 flex items-center justify-center">
+        <span className="text-[10px] text-muted-foreground/40">{buildFingerprint}</span>
       </div>
     </PageContainer>
   );

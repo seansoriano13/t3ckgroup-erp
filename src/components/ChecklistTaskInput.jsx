@@ -1,78 +1,198 @@
-import React, { useState, useEffect } from "react";
-import { Plus, X, GripVertical } from "lucide-react";
+import React, { useState, useRef } from "react";
+import { Plus, X, GripVertical, FolderPlus, Trash2 } from "lucide-react";
+import { parseChecklistGroups } from "../utils/checklist";
+
+let idCounter = 0;
+function createLocalId(prefix) {
+  idCounter += 1;
+  return `${prefix}-${idCounter}`;
+}
 
 export default function ChecklistTaskInput({
   value,
   onChange,
   name = "taskDescription",
 }) {
-  const [items, setItems] = useState([]);
-  const [draggedIndex, setDraggedIndex] = useState(null);
+  const prevPropRef = useRef(value);
+  const lastEmittedRef = useRef(value);
+  const [groups, setGroups] = useState(() => {
+    const parsed = parseChecklistGroups(value);
+    if (parsed.length > 0) return parsed;
+    return [
+      {
+        id: `group-0`,
+        title: "",
+        items: [{ id: `item-0-0`, text: "", checked: false }],
+      },
+    ];
+  });
+  const [draggedItem, setDraggedItem] = useState(null); // { gIdx, iIdx }
+  const containerRef = useRef(null);
 
-  // Parse JSON on mount — supports both legacy {title, items} and plain array formats
-  useEffect(() => {
-    try {
-      if (value) {
-        const trimmed = value.trim();
-        if (trimmed.startsWith("[")) {
-          const parsed = JSON.parse(trimmed);
-          if (Array.isArray(parsed)) {
-            queueMicrotask(() => setItems(parsed));
-            return;
-          }
-        } else if (trimmed.startsWith("{")) {
-          // Legacy format: {title, items} — migrate items out, title is now a native field
-          const parsed = JSON.parse(trimmed);
-          if (parsed && Array.isArray(parsed.items)) {
-            queueMicrotask(() => setItems(parsed.items));
-            return;
-          }
-        }
-      }
-    } catch {
-      // Not valid JSON, ignore
+  // Synchronize when external value prop changes from parent (e.g. switching tasks)
+  if (value !== prevPropRef.current) {
+    prevPropRef.current = value;
+    if (value !== lastEmittedRef.current) {
+      lastEmittedRef.current = value;
+      const parsed = parseChecklistGroups(value);
+      setGroups(
+        parsed.length > 0
+          ? parsed
+          : [
+              {
+                id: `group-0`,
+                title: "",
+                items: [{ id: `item-0-0`, text: "", checked: false }],
+              },
+            ],
+      );
     }
-    // Starting state
-    if (!value && items.length === 0) {
-      queueMicrotask(() => setItems([{ text: "", checked: false }]));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only on mount
+  }
 
-  const emitChange = (newItems) => {
+  const isMultiGroup =
+    groups.length > 1 || Boolean(groups[0]?.title?.trim());
+
+  const emitChange = (nextGroups) => {
+    const multi =
+      nextGroups.length > 1 || Boolean(nextGroups[0]?.title?.trim());
+
+    let outputValue;
+    if (!multi && nextGroups.length === 1 && !nextGroups[0].title) {
+      // Flat array for complete backwards compatibility
+      const flatItems = nextGroups[0].items.map((i) => ({
+        text: i.text,
+        checked: Boolean(i.checked),
+      }));
+      outputValue = JSON.stringify(flatItems);
+    } else {
+      // Grouped array
+      outputValue = JSON.stringify(
+        nextGroups.map((g) => ({
+          id: g.id,
+          title: g.title,
+          items: g.items.map((i) => ({
+            id: i.id,
+            text: i.text,
+            checked: Boolean(i.checked),
+          })),
+        })),
+      );
+    }
+
+    lastEmittedRef.current = outputValue;
+
     onChange({
       target: {
         name,
-        value: JSON.stringify(newItems),
+        value: outputValue,
       },
     });
   };
 
-  const handleTextChange = (index, newText) => {
-    const newItems = [...items];
-    newItems[index].text = newText;
-    setItems(newItems);
-    emitChange(newItems);
+  // Section Handlers
+  const addSection = () => {
+    const nextGroups = [...groups];
+    // If the first section has no title and we are adding a 2nd section, give it a default title
+    if (nextGroups.length === 1 && !nextGroups[0].title.trim()) {
+      nextGroups[0].title = "Phase 1";
+    }
+
+    const newGroup = {
+      id: createLocalId("group"),
+      title: `Phase ${nextGroups.length + 1}`,
+      items: [{ id: createLocalId("item"), text: "", checked: false }],
+    };
+
+    const updated = [...nextGroups, newGroup];
+    setGroups(updated);
+    emitChange(updated);
+
+    // Focus the title input of the new section
+    setTimeout(() => {
+      const titleInputs = containerRef.current?.querySelectorAll(
+        'input[data-section-title="true"]',
+      );
+      titleInputs?.[titleInputs.length - 1]?.focus();
+      titleInputs?.[titleInputs.length - 1]?.select();
+    }, 0);
   };
 
-  const addItem = () => {
-    const newItems = [...items, { text: "", checked: false }];
-    setItems(newItems);
-    emitChange(newItems);
+  const removeSection = (gIdx) => {
+    if (groups.length <= 1) {
+      // Clear instead of removing last section
+      const updated = [
+        {
+          id: `group-0`,
+          title: "",
+          items: [{ id: `item-0-0`, text: "", checked: false }],
+        },
+      ];
+      setGroups(updated);
+      emitChange(updated);
+      return;
+    }
+
+    const updated = groups.filter((_, i) => i !== gIdx);
+    setGroups(updated);
+    emitChange(updated);
   };
 
-  const removeItem = (index) => {
-    if (items.length === 1) return; // Always keep at least 1
-    const newItems = items.filter((_, i) => i !== index);
-    setItems(newItems);
-    emitChange(newItems);
+  const handleSectionTitleChange = (gIdx, title) => {
+    const nextGroups = [...groups];
+    nextGroups[gIdx] = { ...nextGroups[gIdx], title };
+    setGroups(nextGroups);
+    emitChange(nextGroups);
   };
 
-  // Drag and Drop Handlers
-  const handleDragStart = (e, index) => {
-    setDraggedIndex(index);
+  // Item Handlers
+  const handleItemTextChange = (gIdx, iIdx, text) => {
+    const nextGroups = [...groups];
+    const group = { ...nextGroups[gIdx] };
+    const items = [...group.items];
+    items[iIdx] = { ...items[iIdx], text };
+    group.items = items;
+    nextGroups[gIdx] = group;
+
+    setGroups(nextGroups);
+    emitChange(nextGroups);
+  };
+
+  const addItem = (gIdx) => {
+    const nextGroups = [...groups];
+    const group = { ...nextGroups[gIdx] };
+    const items = [
+      ...group.items,
+      { id: createLocalId("item"), text: "", checked: false },
+    ];
+    group.items = items;
+    nextGroups[gIdx] = group;
+
+    setGroups(nextGroups);
+    emitChange(nextGroups);
+  };
+
+  const removeItem = (gIdx, iIdx) => {
+    const nextGroups = [...groups];
+    const group = { ...nextGroups[gIdx] };
+
+    if (group.items.length === 1) {
+      // Keep at least 1 empty item
+      group.items = [
+        { id: createLocalId("item"), text: "", checked: false },
+      ];
+    } else {
+      group.items = group.items.filter((_, i) => i !== iIdx);
+    }
+
+    nextGroups[gIdx] = group;
+    setGroups(nextGroups);
+    emitChange(nextGroups);
+  };
+
+  // Drag & Drop
+  const handleDragStart = (e, gIdx, iIdx) => {
+    setDraggedItem({ gIdx, iIdx });
     e.dataTransfer.effectAllowed = "move";
-    // Set transparent drag image or basic format
   };
 
   const handleDragOver = (e) => {
@@ -80,122 +200,243 @@ export default function ChecklistTaskInput({
     e.dataTransfer.dropEffect = "move";
   };
 
-  const handleDrop = (e, targetIndex) => {
+  const handleDrop = (e, targetGIdx, targetIIdx) => {
     e.preventDefault();
-    if (draggedIndex === null || draggedIndex === targetIndex) return;
+    if (!draggedItem) return;
+    const { gIdx: srcGIdx, iIdx: srcIIdx } = draggedItem;
 
-    const newItems = [...items];
-    const draggedItem = newItems[draggedIndex];
-    newItems.splice(draggedIndex, 1);
-    newItems.splice(targetIndex, 0, draggedItem);
+    if (srcGIdx === targetGIdx && srcIIdx === targetIIdx) return;
 
-    setItems(newItems);
-    emitChange(newItems);
-    setDraggedIndex(null);
+    const nextGroups = [...groups];
+    const srcGroup = { ...nextGroups[srcGIdx], items: [...nextGroups[srcGIdx].items] };
+    const [movedItem] = srcGroup.items.splice(srcIIdx, 1);
+
+    if (srcGIdx === targetGIdx) {
+      srcGroup.items.splice(targetIIdx, 0, movedItem);
+      nextGroups[srcGIdx] = srcGroup;
+    } else {
+      const targetGroup = {
+        ...nextGroups[targetGIdx],
+        items: [...nextGroups[targetGIdx].items],
+      };
+      targetGroup.items.splice(targetIIdx, 0, movedItem);
+      nextGroups[srcGIdx] = srcGroup;
+      nextGroups[targetGIdx] = targetGroup;
+    }
+
+    setGroups(nextGroups);
+    emitChange(nextGroups);
+    setDraggedItem(null);
   };
 
   // Detect Paste with Newlines to Auto-Populate multiple items
-  const handlePaste = (e, index) => {
+  const handlePaste = (e, gIdx, iIdx) => {
     const paste = (e.clipboardData || window.clipboardData).getData("text");
     if (paste && paste.includes("\n")) {
       e.preventDefault();
       const lines = paste.split(/\r?\n/).filter((line) => line.trim() !== "");
 
       if (lines.length > 0) {
-        const newItems = [...items];
+        const nextGroups = [...groups];
+        const group = { ...nextGroups[gIdx], items: [...nextGroups[gIdx].items] };
+
         // Replace the current item with the first pasted line
-        newItems[index].text = lines[0];
+        group.items[iIdx] = { ...group.items[iIdx], text: lines[0] };
 
         // Add the rest of the lines as new items
         const additionalItems = lines.slice(1).map((line) => ({
+          id: createLocalId("item"),
           text: line.trim(),
           checked: false,
         }));
 
-        newItems.splice(index + 1, 0, ...additionalItems);
-        setItems(newItems);
-        emitChange(newItems);
+        group.items.splice(iIdx + 1, 0, ...additionalItems);
+        nextGroups[gIdx] = group;
+
+        setGroups(nextGroups);
+        emitChange(nextGroups);
       }
     }
   };
 
   return (
-    <>
-      <div className="space-y-2 pb-2">
-        {items.map((item, index) => (
-          <div
-            key={index}
-            draggable
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragOver={(e) => handleDragOver(e)}
-            onDrop={(e) => handleDrop(e, index)}
-            className={`flex items-center gap-3 group transition-all rounded-xl p-2.5 bg-muted/30 border border-transparent hover:border-border hover:bg-muted/50 ${draggedIndex === index ? "opacity-50" : ""}`}
-          >
-            <span className="text-muted-foreground cursor-grab active:cursor-grabbing opacity-50 group-hover:opacity-100 shrink-0 p-1 hover:bg-muted rounded-md transition-all">
-              <GripVertical size={16} />
-            </span>
-            <div className="w-5 h-5 border border-border rounded-md shrink-0 bg-card shadow-sm" />
-            <input
-              type="text"
-              value={item.text}
-              onChange={(e) => handleTextChange(index, e.target.value)}
-              onPaste={(e) => handlePaste(e, index)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  // Insert a new item right after this one and focus it
-                  const newItems = [...items];
-                  newItems.splice(index + 1, 0, { text: "", checked: false });
-                  setItems(newItems);
-                  emitChange(newItems);
-                  // Focus the newly created input on next render
-                  setTimeout(() => {
-                    const inputs = e.target
-                      .closest(".space-y-2")
-                      ?.querySelectorAll('input[type="text"]');
-                    inputs?.[index + 1]?.focus();
-                  }, 0);
-                } else if (e.key === "Backspace" && e.target.value === "") {
-                  e.preventDefault();
-                  if (items.length > 1) {
-                    const newItems = items.filter((_, i) => i !== index);
-                    setItems(newItems);
-                    emitChange(newItems);
-                    setTimeout(() => {
-                      const inputs = e.target
-                        .closest(".space-y-2")
-                        ?.querySelectorAll('input[type="text"]');
-                      inputs?.[Math.max(0, index - 1)]?.focus();
-                    }, 0);
+    <div ref={containerRef} className="space-y-4">
+      {groups.map((group, gIdx) => (
+        <div
+          key={group.id || gIdx}
+          data-group-card="true"
+          className={`${
+            isMultiGroup
+              ? "p-3 rounded-xl bg-muted/20 border border-border/50 space-y-2.5"
+              : "space-y-2"
+          }`}
+        >
+          {/* Section Header (only shown if multi-section or titled) */}
+          {isMultiGroup && (
+            <div className="flex items-center justify-between gap-2 pb-1 border-b border-border/40">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <span className="w-5 h-5 rounded-md bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
+                  {gIdx + 1}
+                </span>
+                <input
+                  type="text"
+                  data-section-title="true"
+                  value={group.title}
+                  onChange={(e) =>
+                    handleSectionTitleChange(gIdx, e.target.value)
                   }
-                }
-              }}
-              placeholder="List detailed requirement..."
-              className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-sm py-1 placeholder:text-muted-foreground transition-all"
-            />
-            <button
-              type="button"
-              onClick={() => removeItem(index)}
-              className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1.5 rounded-lg hover:bg-destructive/10"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ))}
-      </div>
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      // Focus first item input in this section
+                      const groupCard = e.target.closest('[data-group-card="true"]');
+                      const inputs = groupCard?.querySelectorAll('input[data-item-input="true"]');
+                      inputs?.[0]?.focus();
+                    }
+                  }}
+                  placeholder={`Section title (e.g. Phase ${gIdx + 1})...`}
+                  className="bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60 w-full"
+                />
+              </div>
 
-      <div className="pt-3 ">
-        <div className="flex justify-between items-center">
+              {groups.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeSection(gIdx)}
+                  title="Remove section"
+                  className="text-muted-foreground/60 hover:text-destructive p-1 rounded hover:bg-destructive/10 transition-colors"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Section Items */}
+          <div className="space-y-2">
+            {group.items.map((item, iIdx) => (
+              <div
+                key={item.id || iIdx}
+                draggable
+                onDragStart={(e) => handleDragStart(e, gIdx, iIdx)}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, gIdx, iIdx)}
+                className={`flex items-center gap-2.5 group transition-all rounded-xl p-2 bg-card/60 border border-border/40 hover:border-border hover:bg-card ${
+                  draggedItem?.gIdx === gIdx && draggedItem?.iIdx === iIdx
+                    ? "opacity-40"
+                    : ""
+                }`}
+              >
+                <span className="text-muted-foreground cursor-grab active:cursor-grabbing opacity-40 group-hover:opacity-100 shrink-0 p-0.5 hover:bg-muted rounded transition-all">
+                  <GripVertical size={14} />
+                </span>
+
+                <div className="w-4 h-4 border border-border rounded shrink-0 bg-background/80" />
+
+                <input
+                  type="text"
+                  data-item-input="true"
+                  value={item.text}
+                  onChange={(e) =>
+                    handleItemTextChange(gIdx, iIdx, e.target.value)
+                  }
+                  onPaste={(e) => handlePaste(e, gIdx, iIdx)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      e.stopPropagation();
+
+                      // Insert new item right after this one in the same group
+                      const nextGroups = [...groups];
+                      const grp = { ...nextGroups[gIdx] };
+                      const items = [...grp.items];
+                      items.splice(iIdx + 1, 0, {
+                        id: createLocalId("item"),
+                        text: "",
+                        checked: false,
+                      });
+                      grp.items = items;
+                      nextGroups[gIdx] = grp;
+                      setGroups(nextGroups);
+                      emitChange(nextGroups);
+
+                      // Focus the newly created input on next render
+                      setTimeout(() => {
+                        const groupCard = e.target.closest('[data-group-card="true"]');
+                        const inputs = groupCard?.querySelectorAll('input[data-item-input="true"]');
+                        inputs?.[iIdx + 1]?.focus();
+                      }, 0);
+                    } else if (e.key === "Backspace" && e.target.value === "") {
+                      e.preventDefault();
+                      if (group.items.length > 1) {
+                        removeItem(gIdx, iIdx);
+                        setTimeout(() => {
+                          const groupCard = e.target.closest('[data-group-card="true"]');
+                          const inputs = groupCard?.querySelectorAll('input[data-item-input="true"]');
+                          inputs?.[Math.max(0, iIdx - 1)]?.focus();
+                        }, 0);
+                      } else if (iIdx === 0 && isMultiGroup) {
+                        // Focus the section title if first item in multi-group is empty
+                        const groupCard = e.target.closest('[data-group-card="true"]');
+                        const titleInput = groupCard?.querySelector('input[data-section-title="true"]');
+                        titleInput?.focus();
+                      }
+                    }
+                  }}
+                  placeholder="List detailed condition..."
+                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => removeItem(gIdx, iIdx)}
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1 rounded hover:bg-destructive/10"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add item button for this section */}
+          {isMultiGroup && (
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => addItem(gIdx)}
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-all py-1 px-2 rounded-lg hover:bg-muted/60"
+              >
+                <Plus size={13} /> Add item to this section
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Footer Controls: Add Item (for flat) & Add Section */}
+      <div className="pt-2 flex items-center justify-between gap-2 border-t border-border/30">
+        {!isMultiGroup ? (
           <button
             type="button"
-            onClick={addItem}
-            className="flex items-center gap-2 text-xs font-bold text-mauve-10 transition-all py-2 px-3 rounded-lg hover:bg-mauve-3"
+            onClick={() => addItem(0)}
+            className="flex items-center gap-1.5 text-xs font-bold text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
           >
-            <Plus size={16} /> Add Item
+            <Plus size={15} /> Add Item
           </button>
-        </div>
+        ) : (
+          <div />
+        )}
+
+        <button
+          type="button"
+          onClick={addSection}
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
+        >
+          <FolderPlus size={14} />
+          <span>{isMultiGroup ? "Add Another Section" : "Add Section / Steps"}</span>
+        </button>
       </div>
-    </>
+    </div>
   );
 }
+

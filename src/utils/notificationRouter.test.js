@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { handleNotificationRoute } from "./notificationRouter"
 
@@ -209,7 +210,7 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/opportunities", {
+      expect(navigate).toHaveBeenCalledWith("/crm", {
         state: { openOpportunityId: "opp-1" },
       })
     })
@@ -227,7 +228,7 @@ describe("handleNotificationRoute", () => {
         navigate.mockClear()
         handleNotificationRoute({ type, reference_id: "opp-9" }, employee, navigate, onClose)
 
-        expect(navigate).toHaveBeenCalledWith("/opportunities", {
+        expect(navigate).toHaveBeenCalledWith("/crm", {
           state: { openOpportunityId: "opp-9" },
         })
       }

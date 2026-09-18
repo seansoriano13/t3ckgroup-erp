@@ -8,6 +8,7 @@
  */
 
 import { STATUS_THEME } from "./statusTheme";
+import { isLostFlowStage } from "./salesFlow";
 
 // Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
 // Previously, they were hardcoded here as LEAD_SOURCES.
@@ -40,9 +41,10 @@ export const PROJECT_TYPES = [
 //               commission, and reachable from any stage.
 //   is_system   seeded by policy; cannot be deactivated or reordered.
 //
-// Realized-vs-Projected is deliberately NOT a flag here. It is derived from
-// position relative to the anchor (see `isRealizedStage`), so that no settings
-// screen anywhere can move an opportunity between the two pools.
+// Realized-vs-Projected is deliberately NOT a flag here, and as of ADR 0006 it
+// is not a property of a stage at all. It is a property of the deal: whether it
+// has a Contract Date (see `isRealizedOpportunity`). No settings screen can move
+// an opportunity between the two pools, because no stage carries the answer.
 //
 // sort_order is gapped by ten so inserting a stage never renumbers its
 // neighbours, which would otherwise rewrite every row on an ordering change.
@@ -50,12 +52,12 @@ export const PROJECT_TYPES = [
 // after the fact, which is the mechanism working as intended: no existing
 // stage moved.
 //
-// Payment Verification sits AFTER the anchor, so an opportunity there counts
-// toward the Realized Commission Pool. That is correct — it has been awarded
-// and its Contract Date is already stamped; accounting still checking the
-// payment does not un-award it. It also means adding it was a change to the
-// realized set, which is why a stage this side of the anchor is a migration
-// and a policy decision rather than something a settings screen can do.
+// Payment Verification sits AFTER the anchor. Under the retired positional
+// rule that placement was itself a change to the Realized set, which is why
+// adding a stage there was a migration and a policy decision. Under ADR 0006
+// it is no longer load-bearing: a deal at Payment Verification counts as
+// Realized because its Contract Date was stamped at Awarded, not because of
+// where the stage sorts.
 
 const stage = (code, label, sort_order, theme, flags = {}) => ({
   code,
@@ -98,32 +100,111 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
   stages.find((s) => s.is_default) ?? null;
 
 /**
- * The single stage an ITB Number (Invitation to Bid) must be on record to
- * reach, or null if a list has none. Resolved by flag and compared by
- * position, the same way the Anchor Stage is — never by a literal sort_order
- * or code, which would silently detach from the gate the moment that stage is
- * renamed or reordered.
- */
-export const itbGateStage = (stages = PIPELINE_STAGE_SEED) =>
-  stages.find((s) => s.is_itb_gate) ?? null;
-
-/**
- * Whether an opportunity in this stage counts toward the Realized Commission
- * Pool rather than the Projected one.
+ * Whether an opportunity counts toward the Realized Commission Pool rather
+ * than the Projected one.
  *
- * Derived, never stored: a stage at or past the anchor has been awarded, and a
- * lost deal never counts however late it sorts. A stage list with no anchor
- * yields nothing realized — under-reporting is the safe direction to fail,
- * because the alternative silently promotes pipeline deals into booked money.
+ * A fact about the deal, not a position in a list (ADR 0006). The Contract
+ * Date is stamped the first time the deal reaches the Stage that wins it and
+ * is never un-stamped, so it answers "has this been booked" without asking
+ * where the deal currently sits — which is the only thing that still works
+ * once a Sales Flow is a graph and "at or past the anchor" has no meaning.
+ *
+ * Two consequences, both deliberate. A deal that has since moved backwards
+ * stays Realized: its history already answered the question, and the
+ * positional rule's special case for exactly this existed only because
+ * position kept contradicting it. A lost deal never counts, whatever its
+ * Contract Date says — the one guard the positional rule carried that is
+ * about the deal rather than about the ordering.
+ *
+ * An opportunity with no Contract Date is not Realized. Under-reporting is
+ * the safe direction to fail, because the alternative silently promotes
+ * pipeline deals into booked money.
  */
-export const isRealizedStage = (s, stages = PIPELINE_STAGE_SEED) => {
-  const anchor = anchorStage(stages);
-  if (!anchor || !s) return false;
-  return s.sort_order >= anchor.sort_order && !s.is_lost;
+export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
+  if (!opportunity?.contract_date) return false;
+
+  // Second argument is either a bare stages array (the original, still
+  // supported shape) or `{ snapshotsById, stages }` like isOpenPipelineOpportunity
+  // and isStillMovingOpportunity take — a caller juggling many flow SORs at
+  // once (the register's totals, the Board's per-column totals) can pass a
+  // bulk snapshot index instead of relying on every row embedding its own.
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(stagesOrContext)
+    ? { stages: stagesOrContext }
+    : stagesOrContext || {};
+
+  // Issue #36/#83 — a flow-built deal carries a Sale Type and has no
+  // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
+  // cannot answer "is this lost". `isLostFlowStage` asks the same question
+  // of the deal's OWN Flow Snapshot, not the live flow: a later change to
+  // the live Won Stage must not retroactively alter which SORs are
+  // Realized. Resolved from `snapshotsById[flow_snapshot_id]` first, else an
+  // embedded `flow_snapshot` — either missing answers false rather than
+  // trusting an absence, the same under-reporting direction a deal with no
+  // Contract Date fails in.
+  if (opportunity.sale_type_id) {
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
+    if (!snapshotData) return false;
+    const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    if (!flowStage) return false;
+    return !isLostFlowStage(flowStage, snapshotData.wonStageId);
+  }
+
+  return !isLostCode(opportunity.status, stages);
 };
 
-export const realizedStageCodes = (stages = PIPELINE_STAGE_SEED) =>
-  stages.filter((s) => isRealizedStage(s, stages)).map((s) => s.code);
+/**
+ * The SOR's current Stage, as far as "has it stopped moving" goes — or null
+ * when it cannot be resolved. A flow SOR is resolved against its OWN Flow
+ * Snapshot (issue #83): `snapshotsById[flow_snapshot_id]`, else an embedded
+ * `flow_snapshot`. A legacy SOR is resolved by its pipeline stage code.
+ */
+const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = {}) => {
+  if (!opportunity) return null;
+  if (opportunity.sale_type_id) {
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
+    const flowStage = (snapshotData?.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    return flowStage ? { isTerminal: Boolean(flowStage.is_terminal) } : null;
+  }
+  const stage = stages.find((s) => s.code === opportunity.status);
+  return stage ? { isTerminal: isTerminalStage(stage) } : null;
+};
+
+/**
+ * Open Pipeline (CONTEXT.md, issue #199): no Contract Date, and the current
+ * Stage is not a Terminal Stage. Drives the register's Open pipeline value
+ * and its Open filter, so the two always agree. An SOR whose Stage can't be
+ * resolved is not counted — the same under-reporting direction Realized
+ * fails in.
+ */
+export const isOpenPipelineOpportunity = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage) && !opportunity.contract_date && !stage.isTerminal;
+};
+
+/**
+ * Whether the SOR's current Stage is a Terminal Stage (won or lost) — issue
+ * #206's default sort sinks these to the bottom of the register. An SOR whose
+ * Stage can't be resolved sorts as not-terminal, the same under-reporting
+ * direction the rest of this file takes.
+ */
+export const isOnTerminalStage = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage?.isTerminal);
+};
+
+/**
+ * Still moving: the current Stage is not a Terminal Stage, won or not. Scopes
+ * the Blocked filter and deadlines, so a won SOR on a post-award Stage (PO,
+ * delivery, collection) still shows what those Stages owe.
+ */
+export const isStillMovingOpportunity = (opportunity, context) => {
+  const stage = currentStageTerminality(opportunity, context);
+  return Boolean(stage) && !stage.isTerminal;
+};
 
 /** Won or lost — an opportunity here has stopped moving. */
 export const isTerminalStage = (s) => Boolean(s?.is_won || s?.is_lost);
@@ -177,9 +258,6 @@ export const isLostCode = (code, stages = PIPELINE_STAGE_SEED) =>
 export const isAnchorCode = (code, stages = PIPELINE_STAGE_SEED) =>
   Boolean(stageByCode(code, stages)?.is_anchor);
 
-export const isRealizedCode = (code, stages = PIPELINE_STAGE_SEED) =>
-  isRealizedStage(stageByCode(code, stages), stages);
-
 export const isTerminalCode = (code, stages = PIPELINE_STAGE_SEED) =>
   isTerminalStage(stageByCode(code, stages));
 
@@ -196,8 +274,6 @@ export const OPPORTUNITY_STAGES = PIPELINE_STAGE_SEED.map((s) => ({
   value: s.code,
   label: s.label,
 }));
-
-export const REALIZED_STAGES = realizedStageCodes(PIPELINE_STAGE_SEED);
 
 export const STAGE_LABELS = Object.fromEntries(
   PIPELINE_STAGE_SEED.map((s) => [s.code, s.label]),
@@ -257,52 +333,10 @@ export const requiresSalesReference = (
   !isLostCode(toStatus, stages);
 
 /**
- * Whether a stage move requires an ITB Number (Invitation to Bid) to be on
- * record. Required when moving from before the gate stage (For Bidding) to it
- * or beyond; rows already at or past it keep advancing without a second ask.
- *
- * Compared against the gate stage's own sort_order, not a literal — reordering
- * or renaming For Bidding must move the gate with it. A stage list with no
- * gate stage requires nothing, the same fail-safe direction isRealizedStage
- * takes when a list has no anchor.
- *
- * This answers only "does the gate stand in the way of this move" — never
- * "has this opportunity already satisfied it". Ask itbGateSatisfiedBy() for
- * that; the two are separate because the gate is crossed by a move and
- * satisfied by a record, and conflating them is how the exemption gets
- * forgotten at one call site out of three.
- */
-export const requiresItbNumber = (
-  fromStatus,
-  toStatus,
-  stages = PIPELINE_STAGE_SEED,
-) => {
-  const gate = itbGateStage(stages);
-  const fromStage = stageByCode(fromStatus, stages);
-  const toStage = stageByCode(toStatus, stages);
-  if (!gate || !fromStage || !toStage) return false;
-
-  return (
-    fromStage.sort_order < gate.sort_order &&
-    toStage.sort_order >= gate.sort_order &&
-    !isLostCode(toStatus, stages)
-  );
-};
-
-/**
- * Whether an opportunity already has what the ITB gate asks for.
- *
- * Two things satisfy it, and the second is the whole reason the gate is
- * survivable: an ITB Number on record, or the deal being marked outright —
- * an award with no bidding involved, government direct contracts among them,
- * where no Invitation to Bid was ever issued and so no number exists to give.
- * Without that second answer the gate could only block those deals or be
- * switched off for everybody, which is exactly what happened between
- * migrations 0035 and 0038.
- *
- * Every gate check goes through here rather than spelling out the pair
- * inline, so a caller cannot honour the number and forget the exemption.
- * Mirrored by the trigger — see migration 0038.
+ * Whether an opportunity carries what the old ITB gate used to ask for — an
+ * ITB Number on record, or the deal marked outright (no bidding involved).
+ * The gate itself was removed (issue #206, ADR 0004 D12); this only decides
+ * whether the details view has anything read-only to show.
  */
 export const itbGateSatisfiedBy = (opportunity) =>
   Boolean(opportunity?.itb_number || opportunity?.itb_exempt);

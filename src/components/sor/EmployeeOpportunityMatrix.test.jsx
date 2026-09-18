@@ -1,8 +1,7 @@
 import { screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import EmployeeOpportunityMatrix from "./EmployeeOpportunityMatrix";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makePipelineStage } from "@/test/factories";
 
 const mockNavigate = vi.fn();
@@ -128,7 +127,7 @@ describe("EmployeeOpportunityMatrix", () => {
   });
 
   it("switches to Leaderboard View and Full Grid layout modes", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     const { container } = renderWithProviders(
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );
@@ -148,7 +147,7 @@ describe("EmployeeOpportunityMatrix", () => {
   });
 
   it("filters salespeople when typing into the search input and clears on reset", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );
@@ -165,14 +164,14 @@ describe("EmployeeOpportunityMatrix", () => {
   });
 
   it("navigates to opportunities page with filter params on row and stage click", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );
 
     // Click row
     await user.click(screen.getByText("Juan Dela Cruz"));
-    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
       state: { filterEmployeeId: "user-1", filterStatus: undefined },
     });
 
@@ -181,13 +180,13 @@ describe("EmployeeOpportunityMatrix", () => {
     expect(proposalLabels.length).toBeGreaterThan(0);
     await user.click(proposalLabels[0]);
 
-    expect(mockNavigate).toHaveBeenCalledWith("/opportunities", {
+    expect(mockNavigate).toHaveBeenCalledWith("/crm", {
       state: { filterEmployeeId: "user-1", filterStatus: "PROPOSAL_SUBMITTED" },
     });
   });
 
   it("renders pipeline value badge and win rate in Grid cards", async () => {
-    const user = userEvent.setup();
+    const user = setupUser();
     renderWithProviders(
       <EmployeeOpportunityMatrix opportunities={mockOpportunities} />,
     );

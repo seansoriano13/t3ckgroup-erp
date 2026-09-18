@@ -6,18 +6,33 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { employeeService } from "../../services/employeeService";
 import toast from "react-hot-toast";
-import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-react";
+import { Users, Plus, Search, LayoutGrid, Table as TableIcon, Tags } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
+import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 
-import GroupTaskCard from "./components/GroupTaskCard";
-import GroupTaskTableView from "./components/GroupTaskTableView";
-import CreateGroupTaskModal from "./components/CreateGroupTaskModal";
-import GroupTaskDetailModal from "./components/GroupTaskDetailModal";
-import RateEmployeesModal from "./components/RateEmployeesModal";
+import GroupTaskCard from "./_components/GroupTaskCard";
+import GroupTaskTableView from "./_components/GroupTaskTableView";
+import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
+import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
+import RateEmployeesModal from "./_components/RateEmployeesModal";
 import GroupTaskFilters from "../../components/GroupTaskFilters";
+import ManageTagsModal from "../../components/settings/ManageTagsModal";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
+import { useSavedFilters } from "../../hooks/useSavedFilters";
 import { useMemo } from "react";
+
+const GROUP_TASK_FILTER_DEFAULTS = {
+  statusFilter: "ALL",
+  creatorFilter: "ALL",
+  memberFilter: "ALL",
+  deptFilter: "ALL",
+  subDeptFilter: "ALL",
+  timeframe: "DAILY",
+  selectedDateFilter: "",
+  tagFilter: [],
+  crmOnly: false,
+};
 
 export default function GroupTasksPage() {
   const { user } = useAuth();
@@ -93,15 +108,26 @@ export default function GroupTasksPage() {
     }
   };
 
+  const { initial: savedFilters, hasSavedDefault, saveDefault, clearDefault } = useSavedFilters(
+    "group_tasks",
+    user?.id,
+    GROUP_TASK_FILTER_DEFAULTS,
+  );
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("ALL"); // ALL, ACTIVE, COMPLETED
-  const [creatorFilter, setCreatorFilter] = useState("ALL");
-  const [memberFilter, setMemberFilter] = useState("ALL");
-  const [deptFilter, setDeptFilter] = useState("ALL");
-  const [subDeptFilter, setSubDeptFilter] = useState("ALL");
-  const [timeframe, setTimeframe] = useState("DAILY");
-  const [selectedDateFilter, setSelectedDateFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(savedFilters.statusFilter); // ALL, ACTIVE, COMPLETED
+  const [creatorFilter, setCreatorFilter] = useState(savedFilters.creatorFilter);
+  const [memberFilter, setMemberFilter] = useState(savedFilters.memberFilter);
+  const [deptFilter, setDeptFilter] = useState(savedFilters.deptFilter);
+  const [subDeptFilter, setSubDeptFilter] = useState(savedFilters.subDeptFilter);
+  const [timeframe, setTimeframe] = useState(savedFilters.timeframe);
+  const [selectedDateFilter, setSelectedDateFilter] = useState(savedFilters.selectedDateFilter);
   const [dueDate, setDueDate] = useState(null);
+  const [tagFilter, setTagFilter] = useState(savedFilters.tagFilter);
+  const [crmOnly, setCrmOnly] = useState(savedFilters.crmOnly);
+
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
 
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const selectedTask = useMemo(() => {
@@ -111,7 +137,7 @@ export default function GroupTasksPage() {
   const [isRateOpen, setIsRateOpen] = useState(false);
 
   // --- Filtering ---
-  const { filteredTasks, uniqueCreators, uniqueMembers } = useGroupTaskFilters(
+  const { filteredTasks, uniqueCreators, uniqueMembers, uniqueTags } = useGroupTaskFilters(
     groupTasks,
     {
       searchTerm,
@@ -123,8 +149,23 @@ export default function GroupTasksPage() {
       timeframe,
       selectedDateFilter,
       dueDate,
+      tagFilter,
+      crmOnly,
     },
   );
+
+  const handleSaveDefaultFilters = () =>
+    saveDefault({
+      statusFilter,
+      creatorFilter,
+      memberFilter,
+      deptFilter,
+      subDeptFilter,
+      timeframe,
+      selectedDateFilter,
+      tagFilter,
+      crmOnly,
+    });
 
   const uniqueDepts = useMemo(() => {
     const fromEmps = employees.map((e) => e.department);
@@ -146,6 +187,16 @@ export default function GroupTasksPage() {
 
 
   // --- Mutations ---
+
+  const createGroupMutation = useMutation({
+    mutationFn: (payload) => groupTaskService.createGroupTask(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["groupTasks"] });
+      toast.success("Group Task created!");
+      setIsCreateOpen(false);
+    },
+    onError: (err) => toast.error(err.message),
+  });
 
   const markDoneMutation = useMutation({
     mutationFn: (memberId) =>
@@ -313,7 +364,18 @@ export default function GroupTasksPage() {
             ? "Create and manage group task assignments."
             : "View your group task assignments and update progress."
         }
-      />
+      >
+        {canManage && (
+          <Button variant="outline" onClick={() => setIsManageTagsOpen(true)}>
+            <Tags size={16} className="mr-1.5" />
+            Manage Tags
+          </Button>
+        )}
+        <Button onClick={() => setIsCreateOpen(true)}>
+          <Plus size={16} className="mr-1.5" />
+          Create Group Task
+        </Button>
+      </PageHeader>
 
       {/* TOOLBAR */}
       <div className="mb-6">
@@ -336,10 +398,15 @@ export default function GroupTasksPage() {
           setSelectedDateFilter={setSelectedDateFilter}
           dueDate={dueDate}
           setDueDate={setDueDate}
+          tagFilter={tagFilter}
+          setTagFilter={setTagFilter}
+          crmOnly={crmOnly}
+          setCrmOnly={setCrmOnly}
           uniqueCreators={uniqueCreators}
           uniqueMembers={uniqueMembers}
           uniqueDepts={uniqueDepts}
           uniqueSubDepts={uniqueSubDepts}
+          uniqueTags={uniqueTags}
           isManagement={canManage}
           actions={
             <TabGroup
@@ -355,6 +422,25 @@ export default function GroupTasksPage() {
             />
           }
         />
+        <div className="flex justify-end mt-2">
+          {hasSavedDefault ? (
+            <button
+              type="button"
+              onClick={clearDefault}
+              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            >
+              Clear saved default
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSaveDefaultFilters}
+              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            >
+              Save as my default
+            </button>
+          )}
+        </div>
       </div>
 
       {viewMode === "table" ? (
@@ -399,6 +485,15 @@ export default function GroupTasksPage() {
       )}
 
       {/* MODALS */}
+
+      <CreateGroupTaskModal
+        isOpen={isCreateOpen}
+        onClose={() => setIsCreateOpen(false)}
+        user={user}
+        employees={employees}
+        onSubmit={(payload) => createGroupMutation.mutateAsync(payload)}
+        isSubmitting={createGroupMutation.isPending}
+      />
 
       <GroupTaskDetailModal
         isOpen={!!selectedTaskId}
@@ -445,6 +540,12 @@ export default function GroupTasksPage() {
         searchTerm={searchTerm}
       />
 
+
+      <ManageTagsModal
+        isOpen={isManageTagsOpen}
+        onClose={() => setIsManageTagsOpen(false)}
+        userId={user?.id}
+      />
 
       {selectedTaskId && canManage && (
         <RateEmployeesModal

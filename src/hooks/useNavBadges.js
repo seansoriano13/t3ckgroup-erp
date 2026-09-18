@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { taskService } from "../services/taskService";
+import { headApprovalService } from "../services/headApprovalService";
 
 
 /**
@@ -46,8 +47,18 @@ export function useNavBadges(user) {
     }).length;
   }
 
+  // 2. Pending leave/overtime requests routed to this head, awaiting decision.
+  const { data: pendingHeadApprovals = [] } = useQuery({
+    queryKey: ["navHeadPendingApprovals", user?.id],
+    queryFn: () => headApprovalService.getPendingForHead(user.id),
+    enabled: !!user?.id && (isSuperAdmin || isHead),
+    staleTime: 30000,
+  });
+  const leaveApprovals = isSuperAdmin || isHead ? pendingHeadApprovals.length : 0;
+
   return {
     taskApprovals,
     hrVerifications,
+    leaveApprovals,
   };
 }

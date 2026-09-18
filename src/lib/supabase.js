@@ -1,16 +1,11 @@
 // lib/supabase.js
 
 import { createClient } from "@supabase/supabase-js";
+import { markRecoveryActive } from "./recoveryFlag";
+import { isResetPasswordPath, isRecoveryLanding } from "./recoveryLink";
 
-const isProdDbEnabled = import.meta.env.DEV && localStorage.getItem('t3ckgroup-use-prod-db') === 'true';
-
-const supabaseUrl = isProdDbEnabled 
-  ? import.meta.env.VITE_SUPABASE_URL_PROD 
-  : import.meta.env.VITE_SUPABASE_URL;
-
-const supabaseKey = isProdDbEnabled 
-  ? import.meta.env.VITE_SUPABASE_ANON_KEY_PROD 
-  : import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 
 // Simple delay helper
@@ -110,6 +105,36 @@ const customFetch = async (url, options, retries = 2) => {
 };
 
 /**
+ * The auth params in the URL at first paint, captured before the client is
+ * built. `detectSessionInUrl` consumes the recovery hash and then wipes it
+ * with `history.replaceState`, so by the time the /reset-password screen's
+ * effect runs the live URL is already clean either way. This snapshot lets
+ * that screen still tell apart the three landings: GoTrue rejected the token
+ * (`#error=access_denied&error_code=otp_expired…`), a good token that's still
+ * being exchanged, and someone who reached the route with no token at all.
+ *
+ * Scoped to the reset route on purpose. A global snapshot outlives the page it
+ * was taken on: boot at /login with a Google `#access_token=…` fragment, then
+ * client-navigate to /reset-password, and the screen would read those stale
+ * params as a recovery link and raise the cross-tab hold with no reset in
+ * flight — which leaves every tab rendering signed-out until it expires.
+ * Off the reset route this stays empty and the screen reads the live URL.
+ */
+const bootedOnResetRoute =
+  typeof window !== "undefined" && isResetPasswordPath(window.location.pathname);
+
+export const initialAuthUrlParams = bootedOnResetRoute
+  ? { hash: window.location.hash || "", search: window.location.search || "" }
+  : { hash: "", search: "" };
+
+// Landing on the reset route with recovery params: flag it for every tab now,
+// before detectSessionInUrl writes the recovery session to localStorage, so a
+// lingering /login tab can't race in and sign it out. See lib/recoveryFlag.js.
+if (typeof window !== "undefined" && isRecoveryLanding(window.location)) {
+  markRecoveryActive();
+}
+
+/**
  * Singleton protection for the Supabase client.
  * Prevents "multiple Supabase clients" issues during HMR or multi-tab usage.
  */
@@ -135,4 +160,21 @@ if (!globalThis._supabaseInstance) {
   });
 }
 
-export const supabase = globalThis._supabaseInstance;
+export const supabase = globalThis._supabaseInstance;
+
+/**
+ * Whether this build is pointed at the production Supabase project.
+ *
+ * There is no `VITE_APP_ENV` — staging and production are separated by which
+ * Supabase project the deploy's `VITE_SUPABASE_URL` points at (ADR 0005), not
+ * by an app-level flag. epqmberwewztzbrkhhss is that production project ref;
+ * everything else (the staging project, the fake `supabase.test` origin the
+ * test harness uses) is not production.
+ *
+ * The one caller today is the Flow Canvas (issue #36): "The canvas and its
+ * Scratch SORs live on staging. Production is never the drafting surface."
+ * Fragile in the sense that a production project migration would need this
+ * updated too — accepted, because inventing a second, independently
+ * maintained "which environment am I" signal risks the two disagreeing.
+ */
+export const isProductionSupabase = Boolean(supabaseUrl?.includes("epqmberwewztzbrkhhss"));

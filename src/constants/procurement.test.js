@@ -4,11 +4,13 @@ import {
   REQUEST_UNITS,
   buildRequisitionTitle,
   countResolved,
+  daysWaiting,
   isValidPoNumber,
   normalizePoNumber,
   openRequests,
   outcomeRequiresPo,
 } from "./procurement"
+import { stageActionTaskTitle } from "./salesFlow"
 
 describe("PO number", () => {
   it("accepts an Odoo purchase order number", () => {
@@ -78,6 +80,27 @@ describe("requisition title", () => {
     expect(one).toContain("1 item to source")
     expect(two).toContain("2 items to source")
   })
+
+  // Issue #178 — a Stage Action automation names its task with a different
+  // builder (`stageActionTaskTitle`, constants/salesFlow.js). The risk this
+  // guards against is a well-meaning unification of the two: this prefix is
+  // matched by isRequisitionTitle/requisitionBatchNumber and must stay [PR],
+  // never the automation's [ref] [project] shape.
+  it("keeps its own [PR] prefix, unaffected by the Stage Action title builder", () => {
+    const requisitionTitle = buildRequisitionTitle({
+      salesReference: "S01237",
+      clientName: "ACME Corp",
+      itemCount: 3,
+    })
+    const automationTitle = stageActionTaskTitle({
+      salesReference: "S01237",
+      projectTitle: "ACME Corp",
+    })
+
+    expect(requisitionTitle).toBe("[PR] S01237 — ACME Corp — 3 items to source")
+    expect(requisitionTitle).not.toBe(automationTitle)
+    expect(requisitionTitle.startsWith("[PR]")).toBe(true)
+  })
 })
 
 describe("request units", () => {
@@ -87,5 +110,28 @@ describe("request units", () => {
 
   it("has no duplicates", () => {
     expect(new Set(REQUEST_UNITS).size).toBe(REQUEST_UNITS.length)
+  })
+})
+
+describe("daysWaiting", () => {
+  const NOW = Date.parse("2026-08-27T09:00:00.000Z")
+
+  it("counts whole days a request has been waiting", () => {
+    expect(daysWaiting({ created_at: "2026-08-20T09:00:00.000Z" }, NOW)).toBe(7)
+  })
+
+  it("reads a request raised earlier today as 0 days, not 1", () => {
+    expect(daysWaiting({ created_at: "2026-08-27T01:00:00.000Z" }, NOW)).toBe(0)
+  })
+
+  // A missing timestamp is not "raised today". Rendering it as 0 would tell a
+  // purchaser the oldest thing on the queue is the newest.
+  it("has no answer when there is nothing to measure from", () => {
+    expect(daysWaiting({}, NOW)).toBeNull()
+    expect(daysWaiting({ created_at: "not a date" }, NOW)).toBeNull()
+  })
+
+  it("does not go negative on a clock that disagrees", () => {
+    expect(daysWaiting({ created_at: "2026-09-01T00:00:00.000Z" }, NOW)).toBe(0)
   })
 })

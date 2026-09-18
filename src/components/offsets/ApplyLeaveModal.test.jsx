@@ -1,12 +1,11 @@
 import { screen, waitFor } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApplyLeaveModal from "./ApplyLeaveModal"
-import { renderWithProviders } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
-import { makeEmployee } from "@/test/factories"
+import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
 
 /**
  * The one form employees use to claim overtime and spend leave. It writes
@@ -23,6 +22,7 @@ describe("ApplyLeaveModal", () => {
   let employee
   let onClose
   let onSuccess
+  let defaultCategory
 
   beforeEach(() => {
     employee = makeEmployee({
@@ -30,7 +30,15 @@ describe("ApplyLeaveModal", () => {
       offset_hours_balance: 16,
       sil_hours_balance: 40,
     })
-    mockUser.current = { id: employee.id, name: employee.name }
+    defaultCategory = makeLeaveCategory({ label: "Medical" })
+    // Every apply form now carries a required Department Head field (issue
+    // #137) that auto-fills only when exactly one head matches the
+    // applicant's department — a head is seeded here so the self-service
+    // forms below can submit without selecting one by hand. The mock user
+    // needs the department itself, since the self-service path resolves the
+    // head straight off `user`, not a fetched employee row.
+    makeHead({ name: "Dept Head", department: employee.department })
+    mockUser.current = { id: employee.id, name: employee.name, department: employee.department }
     onClose = vi.fn()
     onSuccess = vi.fn()
     vi.spyOn(toast, "error").mockImplementation(() => "id")
@@ -43,12 +51,19 @@ describe("ApplyLeaveModal", () => {
     )
 
   /** Fills the visible tab's fields. */
-  const fillForm = async ({ date, startTime, endTime, reason }) => {
-    const user = userEvent.setup()
+  const fillForm = async ({ date, startTime, endTime, reason, categoryId }) => {
+    const user = setupUser()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
+    // Not `form.querySelector("select")` — the overtime tab's only select is
+    // now the required Department Head field (issue #137), so the category
+    // select (offset/SIL only) is picked out by its own placeholder option
+    // instead of by position.
+    const selectField = Array.from(form.querySelectorAll("select")).find(
+      (s) => s.querySelector('option[value=""]')?.textContent === "Select category...",
+    )
 
     await user.clear(dateField)
     await user.type(dateField, date)
@@ -64,6 +79,13 @@ describe("ApplyLeaveModal", () => {
       }
     }
     
+    if (selectField) {
+      await waitFor(() => {
+        expect(selectField.options.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(selectField, categoryId || defaultCategory.id)
+    }
+
     await user.clear(reasonField)
     await user.type(reasonField, reason)
     return { user, form }
@@ -127,7 +149,7 @@ describe("ApplyLeaveModal", () => {
       // Every field is `required`, so the browser blocks the submit before the
       // handler runs; the JS guard behind it is a backstop, not the first line.
       open()
-      const user = userEvent.setup()
+      const user = setupUser()
 
       await submit(user)
       await waitForNetworkIdle()
@@ -160,7 +182,7 @@ describe("ApplyLeaveModal", () => {
 
   describe("spending offset leave", () => {
     const goToOffset = async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       await user.click(screen.getByRole("button", { name: "Offset" }))
       return user
     }
@@ -178,7 +200,8 @@ describe("ApplyLeaveModal", () => {
       await submit(user)
       await waitFor(() => expect(db.rows("offset_leaves")).toHaveLength(1))
 
-      expect(db.rows("offset_leaves")[0]).toMatchObject({ hours: 8, status: "PENDING" })
+      // 8-hour window minus the 1-hour lunch deduction (issue #91).
+      expect(db.rows("offset_leaves")[0]).toMatchObject({ hours: 7, status: "PENDING" })
     })
 
     it("tells the employee when they do not have the hours", async () => {
@@ -193,7 +216,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient offset hours balance. You have 16 hrs remaining.",
+          "Insufficient offset hours. 0 hrs already committed to pending applications, leaving 16 hrs available.",
         ),
       )
     })
@@ -208,7 +231,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Offset leaves cannot be applied on weekends (Saturday / Sunday).",
+          "Leaves cannot be applied on weekends (Saturday / Sunday).",
         ),
       )
     })
@@ -216,7 +239,7 @@ describe("ApplyLeaveModal", () => {
 
   describe("taking SIL", () => {
     const goToSil = async () => {
-      const user = userEvent.setup()
+      const user = setupUser()
       await user.click(screen.getByRole("button", { name: "SIL" }))
       return user
     }
@@ -235,7 +258,7 @@ describe("ApplyLeaveModal", () => {
       await waitFor(() => expect(db.rows("sil_leaves")).toHaveLength(1))
 
       expect(db.rows("sil_leaves")[0]).toMatchObject({
-        hours: 8,
+        hours: 7,
         reason: "Medical appointment",
         status: "PENDING",
       })
@@ -245,7 +268,7 @@ describe("ApplyLeaveModal", () => {
       // The guard reads the balance from the database, not from the signed-in
       // context, so the short balance has to be the one on the row.
       const short = makeEmployee({ name: "Ben Cruz", sil_hours_balance: 5 })
-      mockUser.current = { id: short.id, name: short.name }
+      mockUser.current = { id: short.id, name: short.name, department: short.department }
 
       open()
       await goToSil()
@@ -255,7 +278,7 @@ describe("ApplyLeaveModal", () => {
 
       await waitFor(() =>
         expect(toast.error).toHaveBeenCalledWith(
-          "Insufficient SIL hours balance. You have 5 hrs remaining.",
+          "Insufficient SIL hours. 0 hrs already committed to pending applications, leaving 5 hrs available.",
         ),
       )
     })
@@ -271,14 +294,169 @@ describe("ApplyLeaveModal", () => {
 
       expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
     })
+
+    it("refuses a weekend, matching Offset", async () => {
+      open()
+      await goToSil()
+      // 2026-03-14 is a Saturday.
+      const { user } = await fillForm({ date: "2026-03-14", startTime: "09:00", endTime: "17:00", reason: "Weekend" })
+
+      await submit(user)
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith(
+          "Leaves cannot be applied on weekends (Saturday / Sunday).",
+        ),
+      )
+    })
+
+    // Issue #150: picking a date used to fill the start/end times from two
+    // literal copies that disagreed about how to read the date — one in
+    // local time, one in UTC — so the two could land on different weekdays.
+    // Now there is one path, so both a Wednesday and an ordinary weekday
+    // pre-fill from the same shared shift configuration.
+    it("pre-fills Wednesday's later finish when a Wednesday is picked", async () => {
+      const user = setupUser()
+      open()
+      await goToSil()
+
+      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-11") // a Wednesday
+
+      await waitFor(() => expect(timeFields[0]).toHaveValue("07:30"))
+      expect(timeFields[1]).toHaveValue("18:30")
+    })
+
+    it("pre-fills the ordinary finish time for a non-Wednesday weekday", async () => {
+      const user = setupUser()
+      open()
+      await goToSil()
+
+      const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-10") // a Tuesday
+
+      await waitFor(() => expect(timeFields[0]).toHaveValue("07:30"))
+      expect(timeFields[1]).toHaveValue("18:00")
+    })
   })
 
   it("closes without filing anything when dismissed", async () => {
     open()
-    const user = userEvent.setup()
+    const user = setupUser()
 
     await user.click(screen.getAllByRole("button").find((b) => b.querySelector("svg")))
 
     expect(db.rows("overtime_requests")).toEqual([])
+  })
+
+  describe("with the employee selector (HR variant)", () => {
+    let hrOfficer
+    let targetEmployee
+    let targetHead
+
+    beforeEach(() => {
+      hrOfficer = makeEmployee({ name: "HR Manager", is_hr: true })
+      targetEmployee = makeEmployee({ name: "Alice Worker" })
+      // The Department Head field is required (issue #137); a head matching
+      // the target employee's department lets the field be filled. Named
+      // distinctly from the top-level describe's own seeded head, since both
+      // beforeEach hooks stack and both heads land in the same employee pool.
+      targetHead = makeHead({ name: "Alice's Dept Head", department: targetEmployee.department })
+      mockUser.current = { id: hrOfficer.id, name: hrOfficer.name }
+    })
+
+    const openForHr = () => open({ showEmployeeSelector: true })
+
+    it("files an overtime request for the selected employee", async () => {
+      openForHr()
+      const user = setupUser()
+
+      // Two comboboxes exist once the tab body mounts: the Employee picker
+      // (DOM-first, since it sits above the tab forms) and the Department
+      // Head picker inside the active tab's form — so this can't be
+      // getByRole singular.
+      await waitFor(() => {
+        expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
+      })
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(employeeSelect, targetEmployee.id)
+
+      const headSelect = screen.getAllByRole("combobox")[1]
+      await waitFor(() => {
+        expect(headSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(headSelect, targetHead.id)
+
+      const form = screen.getByRole("button", { name: /submit/i }).closest("form")
+      const dateField = form.querySelector('input[type="date"]')
+      const timeFields = form.querySelectorAll('input[type="time"]')
+      const reasonField = form.querySelector("textarea")
+
+      await user.clear(dateField)
+      await user.type(dateField, "2026-03-15")
+
+      await user.clear(timeFields[0])
+      await user.type(timeFields[0], "17:00")
+
+      await user.clear(timeFields[1])
+      await user.type(timeFields[1], "20:00")
+
+      await user.clear(reasonField)
+      await user.type(reasonField, "Crunch time")
+
+      await user.click(screen.getByRole("button", { name: /submit/i }))
+
+      await waitFor(() => expect(db.rows("overtime_requests")).toHaveLength(1))
+
+      expect(db.rows("overtime_requests")[0]).toMatchObject({
+        employee_id: targetEmployee.id,
+        start_time: "17:00",
+        end_time: "20:00",
+        reason: "Crunch time",
+        status: "PENDING",
+      })
+
+      expect(toast.success).toHaveBeenCalledWith("Overtime application submitted!")
+      expect(onSuccess).toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it("hides deactivated employees from the employee picker", async () => {
+      makeEmployee({ name: "Active Worker", is_deleted: false })
+      makeEmployee({ name: "Deactivated Worker", is_deleted: true })
+
+      openForHr()
+      await waitFor(() => {
+        expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
+      })
+
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+
+      const options = Array.from(employeeSelect.options).map((opt) => opt.text)
+      expect(options).toContain("Active Worker")
+      expect(options).not.toContain("Deactivated Worker")
+    })
+
+    it("does not show the employee selector for the self-service variant", () => {
+      open()
+
+      expect(screen.queryByText("Employee")).not.toBeInTheDocument()
+    })
   })
 })

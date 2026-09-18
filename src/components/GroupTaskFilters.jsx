@@ -4,6 +4,8 @@ import {
   Filter,
   Users,
   Building2,
+  Briefcase,
+  Tag,
   Calendar as CalendarIcon,
   ChevronDown,
 } from "lucide-react";
@@ -12,7 +14,7 @@ import "react-datepicker/dist/react-datepicker.css";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import Dropdown from "./ui/Dropdown";
-import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
+import { FilterTrigger, FilterOptionList, MultiFilterOptionList } from "./ui/FilterDropdown";
 
 export default function GroupTaskFilters({
   searchTerm,
@@ -33,10 +35,15 @@ export default function GroupTaskFilters({
   setSelectedDateFilter,
   dueDate,
   setDueDate,
+  tagFilter = [],
+  setTagFilter,
+  crmOnly = false,
+  setCrmOnly,
   uniqueCreators = [],
   uniqueDepts = [],
   uniqueSubDepts = [],
   uniqueMembers = [],
+  uniqueTags = [],
   actions,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -49,6 +56,8 @@ export default function GroupTaskFilters({
     subDeptFilter !== "ALL" ||
     selectedDateFilter !== "" ||
     dueDate !== null ||
+    tagFilter.length > 0 ||
+    crmOnly ||
     searchTerm !== "";
 
   const handleClearAll = () => {
@@ -60,6 +69,8 @@ export default function GroupTaskFilters({
     if (setSubDeptFilter) setSubDeptFilter("ALL");
     if (setSelectedDateFilter) setSelectedDateFilter("");
     if (setDueDate) setDueDate(null);
+    if (setTagFilter) setTagFilter([]);
+    if (setCrmOnly) setCrmOnly(false);
   };
 
   const timeframeOptions = [
@@ -94,6 +105,14 @@ export default function GroupTaskFilters({
     { value: "ALL", label: "All Sub-Depts" },
     ...uniqueSubDepts.filter((s) => s !== "ALL").map((s) => ({ value: s, label: s })),
   ];
+
+  const tagOptions = uniqueTags.map((t) => ({ value: t.id, label: t.name }));
+  const currentTagLabel =
+    tagFilter.length === 0
+      ? "Tags: Any"
+      : tagFilter.length === 1
+        ? tagOptions.find((o) => o.value === tagFilter[0])?.label || "1 tag"
+        : `${tagFilter.length} tags`;
 
   const currentStatusLabel =
     statusOptions.find((o) => o.value === statusFilter)?.label ||
@@ -260,6 +279,18 @@ export default function GroupTaskFilters({
               <Filter size={16} />
               Add Filter
             </Button>
+
+            {setCrmOnly && (
+              <Button
+                type="button"
+                variant={crmOnly ? "secondary" : "outline"}
+                onClick={() => setCrmOnly(!crmOnly)}
+                className={`flex items-center gap-2 h-[40px] md:h-[46px] text-[13px] shrink-0 font-semibold ${crmOnly ? "ring-1 ring-mauve-4" : ""}`}
+              >
+                <Briefcase size={16} />
+                CRM
+              </Button>
+            )}
           </div>
 
           {actions}
@@ -367,6 +398,24 @@ export default function GroupTaskFilters({
               <FilterOptionList options={memberOptions} value={memberFilter} onChange={setMemberFilter} close={close} />
             )}
           </Dropdown>
+
+          {setTagFilter && (
+            <Dropdown
+              className="flex-1 min-w-[170px]"
+              trigger={({ isOpen }) => (
+                <FilterTrigger
+                  label={currentTagLabel}
+                  isActive={tagFilter.length > 0}
+                  isOpen={isOpen}
+                  icon={Tag}
+                />
+              )}
+            >
+              {() => (
+                <MultiFilterOptionList options={tagOptions} values={tagFilter} onChange={setTagFilter} />
+              )}
+            </Dropdown>
+          )}
 
           {/* DUE DATE FILTER */}
           <Dropdown

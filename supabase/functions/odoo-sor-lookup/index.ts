@@ -14,6 +14,7 @@ import {
   corsHeaders,
   executeKw,
   fetchCustomer,
+  fetchProductStock,
   findOrder,
   isConfigured,
   jsonResponse,
@@ -35,7 +36,15 @@ async function fetchOrderItems(uid, orderId) {
   return lines
     .filter((l) => !l.display_type) // section/note lines aren't products
     .map((l) => ({
+      // product_id comes back as [id, display_name]; issue #202 needs the id
+      // kept so stock can be looked up without re-reading the quotation.
+      odoo_product_id: (l.product_id && l.product_id[0]) || null,
       product_name: (l.product_id && l.product_id[1]) || l.name || "",
+      // Issue #44: a bundled order's Inclusions live as free text in the
+      // line's own description, not in the product name — kept as its own
+      // field rather than folded into product_name so the existing Product
+      // List mapping (and everything downstream of it) is untouched.
+      description: l.name || "",
       unit: (l.product_uom && l.product_uom[1]) || "",
       quantity: l.product_uom_qty || 0,
       unit_price: l.price_unit || 0,
@@ -87,6 +96,21 @@ Deno.serve(async (req) => {
       fetchCustomer(uid, order),
     ]);
 
+    // Stock rides along with every fetch (issue #202) so the Product List and
+    // its availability badges are always as fresh as each other. A stock
+    // read failure must not fail the whole lookup — the lines and customer
+    // are still good — so it's swallowed here and comes back empty; the
+    // caller keeps whatever snapshot it already had.
+    const productIds = items
+      .map((it) => it.odoo_product_id)
+      .filter((id) => Number.isInteger(id));
+    let stock = { warehouses: [], products: {} };
+    try {
+      stock = await fetchProductStock(uid, productIds);
+    } catch (err) {
+      console.error("odoo-sor-lookup stock read error:", err);
+    }
+
     // A quotation with no product lines is still a found quotation with a real
     // customer on it. Verifying the Company and pulling the Product List are
     // two jobs sharing one request, so an empty list reports itself in the
@@ -97,6 +121,7 @@ Deno.serve(async (req) => {
       order: { id: order.id, name: order.name, state: order.state },
       customer,
       items,
+      stock,
       message: items.length
         ? undefined
         : `${order.name} was found in Odoo but has no product lines yet.`,

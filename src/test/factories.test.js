@@ -10,8 +10,11 @@ import {
   makeOffsetLeave,
   makeOpportunity,
   makeOpportunityItem,
+  makeOpportunityMember,
   makeOvertimeRequest,
+  makeConditionStatus,
   makeSilLeave,
+  makeStageCondition,
   makeSuperAdmin,
   makeTask,
 } from "./factories"
@@ -39,6 +42,9 @@ describe("fixture factories", () => {
       makeGroupTask()
       makeLeadSource()
       makeNotification()
+      makeStageCondition()
+      makeConditionStatus()
+      makeOpportunityMember()
     }).not.toThrow()
   })
 

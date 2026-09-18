@@ -154,7 +154,10 @@ function parseCheck(name, expression) {
     return { name, kind: "enum", column: inList[1], values }
   }
 
-  const comparison = expr.match(/\(?\s*([a-z_0-9]+)\s*(>=|<=|>|<)\s*(-?[\d.]+)/)
+  // The literal may be bare (hand-written migrations: `hours > 0`) or wrapped
+  // in a paren + cast the way pg_get_constraintdef() canonicalizes it when a
+  // constraint is read back from a live database: `hours > (0)::numeric`.
+  const comparison = expr.match(/\(?\s*([a-z_0-9]+)\s*(>=|<=|>|<)\s*\(?\s*(-?[\d.]+)\s*\)?(?:::[a-z_ ]+)?/)
   if (comparison) {
     return {
       name,
@@ -176,6 +179,7 @@ function emptyTable(name) {
     foreignKeys: {},
     checks: [],
     unique: [],
+    uniqueByName: {},
     uniqueIndexes: [],
     identity: [],
   }
@@ -272,7 +276,12 @@ function parseConstraint(table, part, registry) {
 
   const unique = body.match(/^unique\s*\(([^)]*)\)/i)
   if (unique) {
-    table.unique.push(unique[1].split(",").map((c) => c.trim().replace(/"/g, "")))
+    const cols = unique[1].split(",").map((c) => c.trim().replace(/"/g, ""))
+    table.unique.push(cols)
+    // Remember the column set under the constraint name so a later
+    // `drop constraint` can find and remove it — Postgres drops a UNIQUE by
+    // name, and without this the harness could only ever add them.
+    ;(table.uniqueByName ||= {})[name] = cols
     return true
   }
 
@@ -293,7 +302,10 @@ function parseConstraint(table, part, registry) {
  * the same way an unrecognised CHECK is.
  */
 function applyCreateIndex(sql, registry) {
-  const head = /create\s+unique\s+index(?:\s+concurrently)?(?:\s+if\s+not\s+exists)?\s+"?([a-z_0-9]+)"?\s+on\s+(?:public\.)?"?([a-z_0-9]+)"?\s*/gi
+  // `using btree` (etc.) is optional in hand-written migrations but always
+  // present in indexdef as read back from a live database (pg_indexes),
+  // e.g. `CREATE UNIQUE INDEX x ON public.t USING btree (col)`.
+  const head = /create\s+unique\s+index(?:\s+concurrently)?(?:\s+if\s+not\s+exists)?\s+"?([a-z_0-9]+)"?\s+on\s+(?:public\.)?"?([a-z_0-9]+)"?\s*(?:using\s+\w+\s*)?/gi
   let match
   while ((match = head.exec(sql))) {
     const [, name, tableName] = match
@@ -328,10 +340,22 @@ function applyCreateIndex(sql, registry) {
       where = { column, negated }
     }
 
-    // A key list of column names dedupes on those columns; anything else is an
-    // expression over constants, where every matching row shares one key.
+    // A key list of column names dedupes on those columns. A key list that
+    // mentions no column at all is an expression over constants — `((true))` —
+    // where every row the predicate selects shares one key, which is how "at
+    // most one row may set this flag" is spelled.
+    //
+    // A key list that references columns but is not a bare list of them is an
+    // expression this harness cannot evaluate — `lower(btrim(name))`, say.
+    // Treating that as a constant would collapse every row onto one key and
+    // make the table hold a single row, so it is left UNENFORCED instead, the
+    // same way an unrecognised CHECK or index predicate is. A service that
+    // needs the guarantee tested has to assert it where it enforces it.
     const parts = keyBody.split(",").map((c) => c.trim().replace(/"/g, ""))
     const columns = parts.every((c) => table.columns[c]) ? parts : null
+    if (columns === null && Object.keys(table.columns).some((c) => new RegExp(`\\b${c}\\b`).test(keyBody))) {
+      continue
+    }
 
     table.uniqueIndexes.push({ name, columns, where })
   }
@@ -358,6 +382,21 @@ function applyCreateTable(sql, registry) {
   }
 }
 
+function applyDropTable(sql, registry) {
+  const pattern = /drop\s+table\s+(?:if\s+exists\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s*(?:cascade)?\s*;/gi
+  let match
+  while ((match = pattern.exec(sql)) !== null) {
+    const tableName = match[1]
+    delete registry.tables[tableName]
+    // Also remove any relations that point from this table
+    for (const [constraintName, relation] of Object.entries(registry.relationsByConstraint)) {
+      if (relation.fromTable === tableName) {
+        delete registry.relationsByConstraint[constraintName]
+      }
+    }
+  }
+}
+
 /**
  * ALTER statements must be replayed in source order: 0007 drops a constraint
  * and re-adds it under the same name, so applying every drop after every add
@@ -380,13 +419,28 @@ function applyAlterTable(sql, registry) {
       regex:
         /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+drop\s+constraint\s+(?:if\s+exists\s+)?"?([a-z_0-9]+)"?/gi,
     },
+    {
+      kind: "renameTable",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
+    {
+      kind: "renameColumn",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+column\s+"?([a-z_0-9]+)"?\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
+    {
+      kind: "renameConstraint",
+      regex:
+        /alter\s+table\s+(?:only\s+)?(?:public\.)?"?([a-z_0-9]+)"?\s+rename\s+constraint\s+"?([a-z_0-9]+)"?\s+to\s+"?([a-z_0-9]+)"?\s*;/gi,
+    },
   ]
 
   const statements = []
   for (const { kind, regex } of patterns) {
     let match
     while ((match = regex.exec(sql)) !== null) {
-      statements.push({ kind, at: match.index, table: match[1], payload: match[2] })
+      statements.push({ kind, at: match.index, table: match[1], payload: match[2], extra: match[3] })
     }
   }
   statements.sort((a, b) => a.at - b.at)
@@ -399,33 +453,101 @@ function applyAlterTable(sql, registry) {
       parseColumn(table, statement.payload.trim(), registry)
     } else if (statement.kind === "addConstraint") {
       parseConstraint(table, statement.payload.trim(), registry)
-    } else {
+    } else if (statement.kind === "dropConstraint") {
       table.checks = table.checks.filter((c) => c.name !== statement.payload)
       if (table.foreignKeys[statement.payload]) {
         delete table.foreignKeys[statement.payload]
         delete registry.relationsByConstraint[statement.payload]
       }
+      const droppedUnique = table.uniqueByName?.[statement.payload]
+      if (droppedUnique) {
+        // Remove every entry with these columns: `create table if not exists`
+        // is replayed across migrations, so the same UNIQUE can sit in the
+        // list more than once.
+        const key = droppedUnique.join(",")
+        table.unique = table.unique.filter((cols) => cols.join(",") !== key)
+        delete table.uniqueByName[statement.payload]
+      }
+    } else if (statement.kind === "renameTable") {
+      const newTableName = statement.payload
+      registry.tables[newTableName] = table
+      delete registry.tables[statement.table]
+      
+      for (const relation of Object.values(registry.relationsByConstraint)) {
+        if (relation.toTable === statement.table) relation.toTable = newTableName
+        if (relation.fromTable === statement.table) relation.fromTable = newTableName
+      }
+    } else if (statement.kind === "renameColumn") {
+      const oldCol = statement.payload
+      const newCol = statement.extra
+      if (table.columns[oldCol]) {
+        table.columns[newCol] = table.columns[oldCol]
+        table.columns[newCol].name = newCol
+        delete table.columns[oldCol]
+        
+        table.primaryKey = table.primaryKey.map(c => c === oldCol ? newCol : c)
+        table.unique = table.unique.map(cols => cols.map(c => c === oldCol ? newCol : c))
+      }
+    } else if (statement.kind === "renameConstraint") {
+      const oldConst = statement.payload
+      const newConst = statement.extra
+      if (table.foreignKeys[oldConst]) {
+        table.foreignKeys[newConst] = table.foreignKeys[oldConst]
+        table.foreignKeys[newConst].constraint = newConst
+        delete table.foreignKeys[oldConst]
+        registry.relationsByConstraint[newConst] = registry.relationsByConstraint[oldConst]
+        delete registry.relationsByConstraint[oldConst]
+      }
+      for (const check of table.checks) {
+        if (check.name === oldConst) check.name = newConst
+      }
     }
   }
 }
 
+/**
+ * All sources are now `supabase/migrations/*.sql`, in filename order — the
+ * baseline migration (issue #87, `20260904000000_baseline_schema.sql`) means
+ * the files alone build the full schema, so the schema mirror this parser
+ * used to lean on as a starting point (supabase/schema/staging.sql) is no
+ * longer needed as a base. That mirror is generated (pnpm db:snapshot:staging)
+ * and stays read-only reference/drift-detection material — see AGENTS.md
+ * § Database migrations — never a source this parser reads.
+ *
+ * t3ckgroup.sql at the repo root is EXCLUDED on purpose: its own header reads
+ * "This schema is for context only and is not meant to be run" — it is a
+ * periodically regenerated snapshot for AI context, not an executable
+ * source, and it goes stale between regenerations (its
+ * sales_opportunities.status inline CHECK still lists the original twelve
+ * codes, missing FOR_BIDDING and Payment Verification). Ingesting it
+ * duplicated every table-level named constraint under a second,
+ * auto-generated `_check` name that no migration ever drops, so the fake DB
+ * silently enforced whatever this snapshot happened to say even after 0033+
+ * moved the real schema on.
+ *
+ * The baseline migration additionally carries Functions, RLS and Triggers
+ * sections (it is generated from a schema mirror — see docs/adr/0011), whose
+ * bodies are dollar-quoted (`$function$ ... $function$`) and can embed their
+ * own parentheses, commas and semicolons. Nothing in this file's parser
+ * understands dollar-quoting — it only tracks single-quoted strings and paren
+ * depth — so feeding it a function body would corrupt statement splitting for
+ * everything after it. `truncateBeforeFunctions` drops a source at its first
+ * `-- Functions` section marker, the same cut the parser used to make against
+ * the schema mirror directly; an ordinary hand-written migration has no such
+ * marker and passes through whole.
+ */
+function truncateBeforeFunctions(sql) {
+  const marker = sql.indexOf("-- Functions\n")
+  return marker === -1 ? sql : sql.slice(0, marker)
+}
+
 function sqlSources() {
   const sources = []
-  // t3ckgroup.sql is EXCLUDED on purpose: its own header reads "This schema is
-  // for context only and is not meant to be run" — it is a periodically
-  // regenerated snapshot for AI context, not an executable source, and it goes
-  // stale between regenerations (its sales_opportunities.status inline CHECK
-  // still lists the original twelve codes, missing FOR_BIDDING and Payment
-  // Verification). Ingesting it duplicated every table-level named constraint
-  // under a second, auto-generated `_check` name that no migration ever drops,
-  // so the fake DB silently enforced whatever this snapshot happened to say
-  // even after 0033+ moved the real schema on. The migrations directory is the
-  // only executable, kept-current source of truth.
 
   const migrations = path.join(REPO_ROOT, "supabase", "migrations")
   if (fs.existsSync(migrations)) {
     for (const file of fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).sort()) {
-      sources.push(fs.readFileSync(path.join(migrations, file), "utf8"))
+      sources.push(truncateBeforeFunctions(fs.readFileSync(path.join(migrations, file), "utf8")))
     }
   }
   return sources
@@ -435,6 +557,7 @@ function build() {
   const registry = { tables: {}, relationsByConstraint: {} }
   for (const source of sqlSources()) {
     const sql = stripComments(source)
+    applyDropTable(sql, registry)
     applyCreateTable(sql, registry)
     applyAlterTable(sql, registry)
     applyCreateIndex(sql, registry)

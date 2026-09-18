@@ -6,6 +6,7 @@ import {
   calculateCommissionPool,
   deriveProjectType,
   resolveEffectiveRatesFromList,
+  resolveOptionalRateFromList,
   aggregateOpportunityCommissions,
   splitByDepartment,
   splitByPosition,
@@ -39,6 +40,34 @@ describe("calculateCommissionableRevenue", () => {
     });
 
     expect(revenue).toBeCloseTo(500_000, 2);
+  });
+
+  // Issue #42: Retention as a dated rate on the existing deduction math.
+  it("applies Retention on top of VAT and Withholding when given a rate", () => {
+    // 892,857.142857... (VAT-exclusive) * 0.92 (withholding) = 821,428.571428...
+    // 821,428.571428... * 0.99 (1% retention) = 813,214.285714...
+    const revenue = calculateCommissionableRevenue(1_000_000, {
+      vatPercent: 12,
+      withholdingPercent: 8,
+      retentionPercent: 1,
+    });
+
+    expect(revenue).toBeCloseTo(813_214.29, 2);
+  });
+
+  it("leaves Commissionable Revenue unchanged when no Retention rate is configured", () => {
+    const withoutRetentionTerm = calculateCommissionableRevenue(1_000_000, {
+      vatPercent: 12,
+      withholdingPercent: 8,
+    });
+    const withZeroRetention = calculateCommissionableRevenue(1_000_000, {
+      vatPercent: 12,
+      withholdingPercent: 8,
+      retentionPercent: 0,
+    });
+
+    expect(withoutRetentionTerm).toBeCloseTo(821_428.57, 2);
+    expect(withZeroRetention).toBe(withoutRetentionTerm);
   });
 });
 
@@ -277,6 +306,30 @@ describe("calculateCommissionBreakdown", () => {
 
     expect(breakdown.commissionPool).toBe(0);
   });
+
+  // Issue #42: threading retentionPercent through must not change a caller
+  // that never passes one — this is the Commission Pool's own function.
+  it("is unaffected when retentionPercent is omitted, and applies it when given", () => {
+    const withoutRetention = calculateCommissionBreakdown({
+      contractValue: 1_000_000,
+      vatPercent: 12,
+      withholdingPercent: 8,
+      poolPercent: 1,
+      departments: DEPARTMENTS,
+    });
+    const withRetention = calculateCommissionBreakdown({
+      contractValue: 1_000_000,
+      vatPercent: 12,
+      withholdingPercent: 8,
+      retentionPercent: 1,
+      poolPercent: 1,
+      departments: DEPARTMENTS,
+    });
+
+    expect(withoutRetention.commissionableRevenue).toBeCloseTo(821_428.57, 2);
+    expect(withRetention.commissionableRevenue).toBeCloseTo(813_214.29, 2);
+    expect(withRetention.commissionableRevenue).toBeLessThan(withoutRetention.commissionableRevenue);
+  });
 });
 
 describe("resolveEffectiveRatesFromList", () => {
@@ -300,6 +353,32 @@ describe("resolveEffectiveRatesFromList", () => {
     expect(() => resolveEffectiveRatesFromList(rateList, "2024-01-01")).toThrow(
       /No effective Commission Rate found for VAT/,
     );
+  });
+
+  // Issue #42: adding RETENTION to the rate-type set must not make this
+  // throw for every deal in a company that has never configured one.
+  it("never requires a Retention rate — the returned shape is unchanged when none exists", () => {
+    expect(resolveEffectiveRatesFromList(rateList, "2025-05-15")).toEqual({
+      vatPercent: 12,
+      withholdingPercent: 8,
+      poolPercent: 1,
+    });
+  });
+});
+
+describe("resolveOptionalRateFromList", () => {
+  const rateList = [
+    { rate_type: "VAT", percent: 12, effective_from: "2025-01-01" },
+    { rate_type: "RETENTION", percent: 1, effective_from: "2026-03-01" },
+  ];
+
+  it("resolves the latest rate of the given type effective on or before the date", () => {
+    expect(resolveOptionalRateFromList(rateList, "2026-07-01", "RETENTION")).toBe(1);
+  });
+
+  it("returns null, never throws, when no rate of that type has been set yet", () => {
+    expect(resolveOptionalRateFromList(rateList, "2026-01-01", "RETENTION")).toBeNull();
+    expect(resolveOptionalRateFromList([], "2026-07-01", "RETENTION")).toBeNull();
   });
 });
 
@@ -434,6 +513,46 @@ describe("aggregateOpportunityCommissions", () => {
     // Zero discrepancy check: Sum of all rep shares = sales department total
     const sumRepShares = agg.salesEmployees.reduce((sum, e) => sum + e.totalCommissionShare, 0);
     expect(sumRepShares).toBeCloseTo(agg.salesDeptTotal, 2);
+  });
+
+  // ADR 0006 — the two cases that tell the fact-based rule apart from the
+  // positional one it replaced. Both deals below sit on Stages whose
+  // sort_order gives the opposite answer to the one the Contract Date gives.
+  it("books a deal that has moved backwards but keeps its contract date", () => {
+    const reopened = { ...opp1, id: "opp-reopened", status: "NEGOTIATION" };
+
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [reopened],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    // Negotiation sorts before the anchor, so the positional rule dropped this
+    // deal out of the pool the moment it was re-opened. It was awarded; the
+    // award has not been undone.
+    expect(agg.totalDealsCount).toBe(1);
+    expect(agg.wonDealsCount).toBe(1);
+    expect(agg.totalContractValue).toBe(1_000_000);
+  });
+
+  it("does not book a deal sitting past the anchor with no contract date", () => {
+    const unstamped = { ...opp1, id: "opp-unstamped", contract_date: null };
+
+    const agg = aggregateOpportunityCommissions({
+      opportunities: [unstamped],
+      ratesResolver: () => RATES,
+      departments: DEPARTMENTS,
+      splitsByProjectType: SPLITS,
+      scope: "REALIZED",
+    });
+
+    // The positional rule booked this on position alone. Nothing recorded that
+    // the deal was ever won, so nothing books it.
+    expect(agg.totalDealsCount).toBe(0);
+    expect(agg.totalContractValue).toBe(0);
+    expect(agg.totalCommissionPool).toBe(0);
   });
 
   it("includes early pipeline deals when scope is FORECAST", () => {

@@ -9,6 +9,7 @@ import {
   compareByStartTime,
   windowsOverlap,
   isRequestInPendingPeriod,
+  describeLeaveRange,
 } from './time';
 
 describe('time.js', () => {
@@ -189,6 +190,33 @@ describe('time.js', () => {
       expect(isRequestInPendingPeriod(today, 'NEXT_MONTH')).toBe(false);
       expect(isRequestInPendingPeriod(nextMonth, 'NEXT_MONTH')).toBe(true);
       expect(isRequestInPendingPeriod(twoMonths, 'NEXT_MONTH')).toBe(false);
+    });
+  });
+
+  describe('describeLeaveRange', () => {
+    it('reads a group of one as its single date', () => {
+      expect(describeLeaveRange(['2026-03-10'])).toBe('2026-03-10');
+    });
+
+    it('reads a range as its span', () => {
+      expect(describeLeaveRange(['2026-03-10', '2026-03-11', '2026-03-12'])).toBe(
+        '2026-03-10 to 2026-03-12',
+      );
+    });
+
+    it('adds the day count where the message is about the decision', () => {
+      expect(describeLeaveRange(['2026-03-10', '2026-03-12'], { withDayCount: true })).toBe(
+        '2026-03-10 to 2026-03-12 (2 days)',
+      );
+    });
+
+    it('leaves the day count off a group of one, which would only ever say "1 day"', () => {
+      expect(describeLeaveRange(['2026-03-10'], { withDayCount: true })).toBe('2026-03-10');
+    });
+
+    it('has nothing to say about a group with no dates', () => {
+      expect(describeLeaveRange([])).toBeUndefined();
+      expect(describeLeaveRange(null)).toBeUndefined();
     });
   });
 });

@@ -50,10 +50,28 @@ const upsertGroupChecklistActivity = async (groupTaskId, memberId, taskDescripti
   }
 };
 
+const GROUP_TASK_SELECT = `
+  *,
+  creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
+  opportunity:sales_opportunities(client_name, sales_reference),
+  tags:committee_task_tags(tag:task_tags(id, name, color, archived_at)),
+  members:committee_task_members(
+    id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role, attachments,
+    employee:employees!committee_task_members_employee_id_fkey(name, avatar_path, department, sub_department)
+  )
+`;
+
+// committee_task_tags comes back nested as [{ tag: {...} }]; every reader
+// wants the flat tag list, not the join row.
+const flattenTags = (row) => ({
+  ...row,
+  tags: (row.tags || []).map((t) => t.tag).filter(Boolean),
+});
+
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
-    const { title, description, dueDate, createdBy, members, templateId } = payload;
+    const { title, description, dueDate, createdBy, members, templateId, opportunityId, stageActionId, stageVisitId, tagIds } = payload;
 
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
@@ -69,6 +87,11 @@ export const groupTaskService = {
           created_by: createdBy,
           status: "ACTIVE",
           template_id: templateId ?? null,
+          opportunity_id: opportunityId ?? null,
+          // Issue #204 Part 2 — direct linkage to the Stage Action/Stage
+          // Visit that created this group task.
+          stage_action_id: stageActionId ?? null,
+          stage_visit_id: stageVisitId ?? null,
         },
       ])
       .select()
@@ -98,6 +121,17 @@ export const groupTaskService = {
       // rollback if needed
       await supabase.from("committee_tasks").delete().eq("id", groupTask.id);
       throw membersError;
+    }
+
+    if (tagIds && tagIds.length > 0) {
+      const { error: tagsError } = await supabase.from("committee_task_tags").insert(
+        tagIds.map((tagId) => ({
+          committee_task_id: groupTask.id,
+          tag_id: tagId,
+          added_by: createdBy,
+        })),
+      );
+      if (tagsError) throw tagsError;
     }
 
     await logGroupTaskActivity(groupTask.id, "CREATED", { title }, createdBy);
@@ -178,24 +212,19 @@ export const groupTaskService = {
   async getGroupTasks(userId, isHead, isSuperAdmin) {
     let query = supabase
       .from("committee_tasks")
-      .select(`
-        *,
-        creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
-        members:committee_task_members(
-          id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role, attachments,
-          employee:employees!committee_task_members_employee_id_fkey(name, avatar_path, department, sub_department)
-        )
-      `)
+      .select(GROUP_TASK_SELECT)
       .neq("status", "CANCELLED")
       .order("created_at", { ascending: false });
 
     const { data, error } = await query;
     if (error) throw error;
 
-    if (isSuperAdmin) return data;
+    const rows = data.map(flattenTags);
+
+    if (isSuperAdmin) return rows;
 
     // Filter locally if needed
-    return data.filter((ct) => {
+    return rows.filter((ct) => {
       if (ct.created_by === userId) return true; // Created by this head
       return ct.members.some((m) => m.employee_id === userId); // Is a member
     });
@@ -204,19 +233,51 @@ export const groupTaskService = {
   async getGroupTaskById(id) {
     const { data, error } = await supabase
       .from("committee_tasks")
-      .select(`
-        *,
-        creator:employees!committee_tasks_created_by_fkey(name, department, sub_department, avatar_path),
-        members:committee_task_members(
-          id, employee_id, task_description, checklist, status, grade, grade_remarks, rated_at, rated_by, role, custom_role, attachments,
-          employee:employees!committee_task_members_employee_id_fkey(name, avatar_path, department)
-        )
-      `)
+      .select(GROUP_TASK_SELECT)
       .eq("id", id)
       .single();
 
     if (error) throw error;
-    return data;
+    return flattenTags(data);
+  },
+
+  // Replaces the group task's full tag set. Only the creator or a Super
+  // Admin may call this — the RLS policies on committee_task_tags enforce
+  // the same rule, this just avoids a partial write on the happy path.
+  async setTags(groupTaskId, tagIds, actorId) {
+    const { data: existing, error: readError } = await supabase
+      .from("committee_task_tags")
+      .select("tag_id")
+      .eq("committee_task_id", groupTaskId);
+    if (readError) throw readError;
+
+    const existingIds = new Set((existing || []).map((r) => r.tag_id));
+    const nextIds = new Set(tagIds || []);
+
+    const toAdd = [...nextIds].filter((id) => !existingIds.has(id));
+    const toRemove = [...existingIds].filter((id) => !nextIds.has(id));
+
+    if (toRemove.length > 0) {
+      const { error } = await supabase
+        .from("committee_task_tags")
+        .delete()
+        .eq("committee_task_id", groupTaskId)
+        .in("tag_id", toRemove);
+      if (error) throw error;
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await supabase.from("committee_task_tags").insert(
+        toAdd.map((tagId) => ({
+          committee_task_id: groupTaskId,
+          tag_id: tagId,
+          added_by: actorId,
+        })),
+      );
+      if (error) throw error;
+    }
+
+    return true;
   },
 
   // UPDATE - Member Status (Employee marks done)

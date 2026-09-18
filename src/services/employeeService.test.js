@@ -41,6 +41,30 @@ describe("employeeService", () => {
       })
     })
 
+    it("maps the leave-management capability alongside the other role flags", async () => {
+      makeEmployee({ email: "ysabelle@t3ckgroup.test", can_manage_leaves: true })
+
+      const found = await employeeService.getEmployeeByEmail("ysabelle@t3ckgroup.test")
+
+      expect(found.canManageLeaves).toBe(true)
+    })
+
+    it("maps hidden_nav_keys onto hiddenNavKeys, defaulting to empty", async () => {
+      makeEmployee({ email: "hidden@t3ckgroup.test", hidden_nav_keys: ["sales.commissionDashboard"] })
+      makeEmployee({ email: "unhidden@t3ckgroup.test" })
+
+      const withOverride = await employeeService.getEmployeeByEmail("hidden@t3ckgroup.test")
+      const withoutOverride = await employeeService.getEmployeeByEmail("unhidden@t3ckgroup.test")
+
+      expect(withOverride.hiddenNavKeys).toEqual(["sales.commissionDashboard"])
+      expect(withoutOverride.hiddenNavKeys).toEqual([])
+
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.email === "hidden@t3ckgroup.test").hiddenNavKeys).toEqual([
+        "sales.commissionDashboard",
+      ])
+    })
+
     it("returns null for an unknown address rather than throwing", async () => {
       expect(await employeeService.getEmployeeByEmail("nobody@t3ckgroup.test")).toBeNull()
     })
@@ -67,6 +91,24 @@ describe("employeeService", () => {
       const hire = found.find((e) => e.name === "New Hire")
 
       expect(hire).toMatchObject({ sil_hours_balance: 0, offset_hours_balance: 0 })
+    })
+
+    it("maps the leave-management capability in the full directory listing", async () => {
+      makeEmployee({ name: "Ysabelle", can_manage_leaves: true })
+
+      const found = await employeeService.getAllEmployees()
+
+      expect(found.find((e) => e.name === "Ysabelle").canManageLeaves).toBe(true)
+    })
+
+    it("maps the signature path in both getEmployeeByEmail and getAllEmployees", async () => {
+      makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test", signature_path: "ana-sig.png" })
+
+      const single = await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")
+      expect(single.signaturePath).toBe("ana-sig.png")
+
+      const all = await employeeService.getAllEmployees()
+      expect(all.find((e) => e.name === "Ana Reyes").signaturePath).toBe("ana-sig.png")
     })
   })
 
@@ -96,6 +138,22 @@ describe("employeeService", () => {
       await expect(
         employeeService.createEmployee({ name: "Impostor", email: "ana@t3ckgroup.test" }),
       ).rejects.toThrow('An active employee with the email "ana@t3ckgroup.test" already exists.')
+    })
+
+    it("blocks the save with a clear message if the duplicate-email lookup errors", async () => {
+      const { server } = await import("@/test/msw/server")
+      const { http, HttpResponse } = await import("msw")
+      const BASE_URL = import.meta.env.VITE_SUPABASE_URL
+
+      server.use(
+        http.get(`${BASE_URL}/rest/v1/employees`, () => {
+          return HttpResponse.json({ message: "Network error" }, { status: 500 })
+        })
+      )
+
+      await expect(
+        employeeService.createEmployee({ name: "Impostor", email: "ana@t3ckgroup.test" })
+      ).rejects.toThrow("Unable to verify if email is already in use. Please try again.")
     })
 
     it("trims the address before checking it", async () => {
@@ -160,6 +218,20 @@ describe("employeeService", () => {
       ).resolves.toBeTruthy()
     })
 
+    it("writes hiddenNavKeys through to hidden_nav_keys", async () => {
+      const employee = makeEmployee({ name: "Ana Reyes", email: "ana@t3ckgroup.test" })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ana Reyes", email: "ana@t3ckgroup.test", hiddenNavKeys: ["hr.activityLog"] },
+        actor.id,
+      )
+
+      expect(await employeeService.getEmployeeByEmail("ana@t3ckgroup.test")).toMatchObject({
+        hiddenNavKeys: ["hr.activityLog"],
+      })
+    })
+
     it("refuses to move an employee onto a colleague's address", async () => {
       makeEmployee({ email: "ben@t3ckgroup.test" })
       const employee = makeEmployee({ email: "ana@t3ckgroup.test" })
@@ -213,6 +285,18 @@ describe("employeeService", () => {
       )
 
       expect(db.rows("employees").find((e) => e.id === employee.id).sil_hours_balance).toBe(40)
+    })
+
+    it("saves a grant of the leave-management capability", async () => {
+      const employee = makeEmployee({ name: "Ysabelle", can_manage_leaves: false })
+
+      await employeeService.updateEmployee(
+        employee.id,
+        { name: "Ysabelle", email: null, canManageLeaves: true },
+        actor.id,
+      )
+
+      expect(db.rows("employees").find((e) => e.id === employee.id).can_manage_leaves).toBe(true)
     })
   })
 
