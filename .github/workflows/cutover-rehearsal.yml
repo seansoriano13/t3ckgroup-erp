@@ -1,0 +1,56 @@
+name: Cutover rehearsal
+
+# #336: runs scripts/rehearse-cutover.sh, the production cutover runbook's
+# database steps (2-8), against a fresh throwaway copy of production on the
+# runner. Production is only read (pg_dump); nothing is written to it.
+#
+# Twice in a row, each on a fresh runner with a fresh dump, as #336 asks.
+# Triggered by pushing a `rehearsal/**` branch (a push trigger, so it runs from
+# the branch without being on main).
+
+on:
+  push:
+    branches: ["rehearsal/**"]
+
+concurrency:
+  group: cutover-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  rehearse:
+    name: Rehearsal run ${{ matrix.run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      max-parallel: 1
+      fail-fast: true
+      matrix:
+        run: [1, 2]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start the local Supabase stack
+        run: supabase start
+
+      - name: Rehearse the cutover
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: bash scripts/rehearse-cutover.sh
