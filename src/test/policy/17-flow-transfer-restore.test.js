@@ -40,8 +40,8 @@ beforeAll(async () => {
         svc()
             .from("flow_stages")
             .insert([
-                { flow_id: sourceFlow.id, name: `${MARKER} Canvass`, sort_order: 0 },
-                { flow_id: sourceFlow.id, name: `${MARKER} Bid`, sort_order: 1 },
+                { flow_id: sourceFlow.id, name: `${MARKER} Canvass`, sort_order: 0, is_terminal: false },
+                { flow_id: sourceFlow.id, name: `${MARKER} Bid`, sort_order: 1, is_terminal: false },
                 { flow_id: sourceFlow.id, name: `${MARKER} Won`, sort_order: 2, is_terminal: true },
             ])
             .select("*"),
