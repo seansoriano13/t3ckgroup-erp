@@ -1,5 +1,5 @@
 DEMO - STAGE-SCOPED ACCESS (FLOW CANVAS + SORS)
-Staging only. Two logins side by side. ~12 min.
+Staging only. Two logins side by side. ~15 min.
 
 
 === 0. BEFORE THE ROOM ===
@@ -24,6 +24,10 @@ WHAT IS SEEDED
 - Costing is RESTRICTED. Shut out: Deal Owner role,
   plus group ZZ Demo — Costing Excluded (Mary Grace)
 - Won Stage = Awarded. Terminal = Closed Lost
+- Stage Actions: Technical Review fires an INDIVIDUAL TASK to Sean (only this Stage).
+  Bid Submitted fires a GROUP TASK to Sean + Raquel (rest of the deal).
+  Costing has no action on purpose - one there would hand Sean back
+  the Stage that Beat 3 shuts him out of.
 - S99001 / Demo A - EMPLOYEE is Deal Owner. At Technical Review.
 - S99002 / Demo B - EMPLOYEE not on team. At Registered. Call-in not yet made.
 - S99003 / Demo C - EMPLOYEE was called in, window already closed. At Bid Submitted.
@@ -83,29 +87,44 @@ BEAT 4 - CALLING SOMEONE IN, LIVE (3 min)
     A participant window carries no role shut-out. Different rule, deliberately.
     Costing hides the Deal Team, not the people called in to do the work.
 
+BEAT 4B - TASKS, THE OTHER WAY IN (3 min)
+
+35. LEFT: Demo B is still at Registered, Sean now called in.
+    Board view, move it to Technical Review.
+36. A Stage Action fires ON ENTRY: an Individual Task, assigned to Sean.
+37. RIGHT: refresh. The task is on his task list.
+    Opening the task does NOT open the SOR. A task is work. Access is separate.
+38. Say: the task also called him in. Action or Assignment condition -
+    same window, two different triggers.
+39. LEFT: move Demo B on to Costing, then to Bid Submitted.
+40. Entering Bid Submitted fires a GROUP TASK: Sean plus Raquel Galacgac,
+    window "the rest of the deal". Two people, one action, two windows.
+41. Say: Actions HAPPEN on entry. Conditions BLOCK the exit.
+    Each fires once per stage, permanently - re-entering creates nothing new.
+
 BEAT 5 - THE WINDOW CLOSES (2 min)
 
-35. RIGHT: open S99003 / Demo C from the notification list. There is no other way in.
-36. RIGHT: it opens LOCKED. Sales Reference, project, current stage. Nothing else.
-37. Say: he worked this deal. Called in at Technical Review on an "Only this Stage" window.
+42. RIGHT: open S99003 / Demo C from the notification list. There is no other way in.
+43. RIGHT: it opens LOCKED. Sales Reference, project, current stage. Nothing else.
+44. Say: he worked this deal. Called in at Technical Review on an "Only this Stage" window.
     The deal moved twice. The window shut behind him.
-38. Say: nobody revoked it. No admin action. The rule did it.
+45. Say: nobody revoked it. No admin action. The rule did it.
 
 BEAT 6 - THE CLOSING MOVE (2 min)
 
-39. LEFT: Flow Canvas > toolbar > Access settings (icon next to "Tidy layout").
-40. LEFT: under "Always sees", add team IT. Save.
-41. RIGHT: refresh the register.
-42. RIGHT: all 3 demo SORs appear, full access.
-43. Say: one setting. No code, no deploy. Operations owns this.
-44. LEFT: remove team IT again. RIGHT: refresh. Back to 1 row.
+46. LEFT: Flow Canvas > toolbar > Access settings (icon next to "Tidy layout").
+47. LEFT: under "Always sees", add team IT. Save.
+48. RIGHT: refresh the register.
+49. RIGHT: all 3 demo SORs appear, full access.
+50. Say: one setting. No code, no deploy. Operations owns this.
+51. LEFT: remove team IT again. RIGHT: refresh. Back to 1 row.
 
 
 === 2. FILLING IN AN SOR (if asked to register one live) ===
 
-45. SORS > Register SOR.
-46. Sale Type: ZZ Demo — Stage Access. PICK THIS FIRST - it chooses the form.
-47. Fields in order:
+52. SORS > Register SOR.
+53. Sale Type: ZZ Demo — Stage Access. PICK THIS FIRST - it chooses the form.
+54. Fields in order:
     Sales Reference   optional, but must look like S12345. Use S99010.
                       Letters or dashes are rejected.
     Lead Source       required. Pick LGU.
@@ -114,63 +133,63 @@ BEAT 6 - THE CLOSING MOVE (2 min)
     Project           required. Live demo registration
     Expected Award Date  optional. Any date.
     Referral          optional. Leave blank.
-48. Items: add one line, any product, any price.
+55. Items: add one line, any product, any price.
     Expected Value is computed from the lines. You cannot type it.
-49. Deal Owner: leave yourself, or pick someone else to change who sees it.
-50. Save. It lands on Registered, the flow's first stage.
-51. Sale Type can still be changed while it sits on the first stage. After its first move it locks.
-52. If registration is refused, the Sales Reference is the usual cause. S + digits only.
+56. Deal Owner: leave yourself, or pick someone else to change who sees it.
+57. Save. It lands on Registered, the flow's first stage.
+58. Sale Type can still be changed while it sits on the first stage. After its first move it locks.
+59. If registration is refused, the Sales Reference is the usual cause. S + digits only.
 
 
 === 3. IF IT BREAKS ===
 
 Most of these you can fix from the browser. The two that cannot are marked.
 
-53. RIGHT register shows many rows, not 1.
+60. RIGHT register shows many rows, not 1.
     Beat 6 was left on from a previous run.
     LEFT: Flow Canvas > Access settings > remove team IT from "Always sees". Save.
-54. RIGHT register shows 0 rows.
+61. RIGHT register shows 0 rows.
     S99001 lost its Deal Owner. LEFT: open S99001 > Details >
     set Deal Owner to Sean Dominic J. Soriano. Save.
-55. S99001 is not at Technical Review.
+62. S99001 is not at Technical Review.
     LEFT: Board view, drag it back to Technical Review. Beats 1-3 assume it starts there.
-56. Cannot drag a card on the Board.
+63. Cannot drag a card on the Board.
     Check you are on LEFT (admin). A restricted stage refuses the move.
-57. Notification does not arrive.
+64. Notification does not arrive.
     Refresh. It is written on save, not pushed.
-58. Beat 4's condition is already answered (Demo B call-in already made).
+65. Beat 4's condition is already answered (Demo B call-in already made).
     NO BROWSER FIX - a call-in cannot be undone on screen.
     Go straight to Beat 5; Demo C shows the same window, already closed.
-59. Costing still readable by the employee in Beat 3.
+66. Costing still readable by the employee in Beat 3.
     He holds a participant window on S99001 from a stray call-in.
     NO BROWSER FIX - there is no remove-participant control yet.
     Skip Beat 3's Journey point, say the rule instead, reseed afterwards.
-60. Clicking the notification does nothing (Beat 4 step 31, Beat 5 step 35).
+67. Clicking the notification does nothing (Beat 4 step 31, Beat 5 step 35).
     The fix is committed but needs a staging deploy. If staging was NOT
     redeployed, the employee has NO way to open Demo B or Demo C -
     they are not in his register and the notification is dead.
     Fallback: run Beats 4 and 5 from LEFT only. Show the Access tab roster
     naming him and his window, and say what he would see. Beats 1, 2, 3 and 6
     are unaffected and still carry the demo.
-61. Anything genuinely broken - skip that beat. The others stand alone.
+68. Anything genuinely broken - skip that beat. The others stand alone.
     Reseed needs the dev machine: node scripts/seed-stage-access-demo.mjs --apply
 
 
 === 4. KNOWN GAP - do not volunteer, but have the answer ===
 
-62. The tasks table on staging is still readable by anyone signed in.
-63. Stage Actions that create tasks put the Sales Reference and Company in the task text.
-64. This demo calls people in with an Assignment condition, not a task, so it does not touch that.
-65. If asked: yes it is known, it is ADR 0021's own listed consequence, and it is a separate ticket.
+69. The tasks table on staging is still readable by anyone signed in.
+70. Stage Actions that create tasks put the Sales Reference and Company in the task text.
+71. This demo calls people in with an Assignment condition, not a task, so it does not touch that.
+72. If asked: yes it is known, it is ADR 0021's own listed consequence, and it is a separate ticket.
 
 
 === 5. AFTER ===
 
-66. Leave it. The Sale Type is a permanent fixture, named "ZZ ..." so it sorts last.
-67. If you changed anything in Beat 6, undo it: remove team IT from "Always sees".
-68. Back at the dev machine, reset the three SORs before the next demo:
+73. Leave it. The Sale Type is a permanent fixture, named "ZZ ..." so it sorts last.
+74. If you changed anything in Beat 6, undo it: remove team IT from "Always sees".
+75. Back at the dev machine, reset the three SORs before the next demo:
     node scripts/seed-stage-access-demo.mjs --apply
-69. To remove the whole fixture:
+76. To remove the whole fixture:
     node scripts/seed-stage-access-demo.mjs --teardown --apply
 
 

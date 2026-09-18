@@ -42,6 +42,7 @@ const EMPLOYEE_EMAIL = "tggroup.itdept@gmail.com"
 /** Scenery: real people, named on the canvas roster so each department recognises itself. */
 const OWNER_EMAIL = "lesolvnow@gmail.com" // Maey Zausa, SALES HEAD — Deal Owner on B and C
 const EXCLUDED_EMAIL = "tggroup.sales3@gmail.com" // Mary Grace Malazarte — in the excluded group
+const PURCHASING_EMAIL = "tggroup.global@gmail.com" // Raquel Galacgac — second member on the Group Task
 
 /**
  * Six Stages, Government-shaped but short enough to fit one screen.
@@ -101,6 +102,7 @@ async function teardown(client) {
     const oppIds = opps.map((r) => r.id)
     if (oppIds.length > 0) {
       for (const table of [
+        "sor_action_runs",
         "sor_stage_participants",
         "sor_stage_visits",
         "sor_condition_status",
@@ -196,6 +198,7 @@ async function main() {
     const employee = await employeeIdByEmail(client, EMPLOYEE_EMAIL)
     const owner = await employeeIdByEmail(client, OWNER_EMAIL)
     const excluded = await employeeIdByEmail(client, EXCLUDED_EMAIL)
+    const purchasing = await employeeIdByEmail(client, PURCHASING_EMAIL)
 
     // ── The excluded Employee Group ───────────────────────────────────────
     // Holds someone other than the demo's employee account on purpose: the
@@ -295,6 +298,61 @@ async function main() {
       `insert into stage_conditions (stage_id, kind, label, is_required, sort_order, config)
        values ($1, 'tickbox', $2, true, 1, '{}'::jsonb)`,
       [stageId.costing, "Costing sheet approved"],
+    )
+
+    // ── Stage Actions — the other way someone is called in ────────────────
+    // An Action *happens* on entering a Stage; a Condition *blocks* leaving
+    // it. Both open a Stage Participant window, so these two are the task
+    // half of the same story the Assignment conditions tell.
+    //
+    // Deliberately NOT on Costing: an action there would call the employee
+    // in as a Participant, and a Participant window carries no role shut-out
+    // — which would hand him back the very Stage Beat 3 shuts him out of.
+    await client.query(
+      `insert into flow_stage_actions (stage_id, kind, config, sort_order)
+       values ($1, 'create_individual_task', $2::jsonb, 0)`,
+      [
+        stageId.technical,
+        JSON.stringify({
+          projectTitle: "Technical review — {{salesReference}}",
+          description: "Check the specifications on this deal and note anything non-compliant.",
+          categoryId: "DOCUMENTS CREATED / FOR SUBMISSION / APPROVAL",
+          priority: "MEDIUM",
+          dueOffsetDays: "3",
+          loggedById: employee.id,
+          access: { until: "stage_left" },
+        }),
+      ],
+    )
+    await client.query(
+      `insert into flow_stage_actions (stage_id, kind, config, sort_order)
+       values ($1, 'create_group_task', $2::jsonb, 0)`,
+      [
+        stageId.bid,
+        JSON.stringify({
+          title: "Bid pack — {{salesReference}}",
+          description: "Assemble and submit the bid documents.",
+          dueDateOffsetDays: "5",
+          createdBy: admin.id,
+          members: [
+            {
+              employeeId: employee.id,
+              role: "HELPER",
+              customRole: "",
+              checklist: null,
+              taskDescription: "Compile the technical annexes.",
+            },
+            {
+              employeeId: purchasing.id,
+              role: "HELPER",
+              customRole: "",
+              checklist: null,
+              taskDescription: "Attach the supplier quotations.",
+            },
+          ],
+          access: { until: "terminal" },
+        }),
+      ],
     )
 
     // ── The three SORs ────────────────────────────────────────────────────
@@ -416,6 +474,8 @@ async function main() {
     console.log(`Restricted  Costing — shut out: deal_owner, group "${GROUP_NAME}" (${excluded.name})`)
     console.log(`Call-ins    Registered → ${employee.name}, through Bid Submitted`)
     console.log(`            Technical Review → ${employee.name}, only this Stage`)
+    console.log(`Actions     Technical Review — Individual Task → ${employee.name}, only this Stage`)
+    console.log(`            Bid Submitted — Group Task → ${employee.name} + ${purchasing.name}, rest of the deal`)
     console.log(`SORs        S99001 / Demo A ${sorA}  (${employee.name} is Deal Owner, at Technical Review)`)
     console.log(`            S99002 / Demo B ${sorB}  (at Registered, call-in not yet made)`)
     console.log(`            S99003 / Demo C ${sorC}  (at Bid Submitted, window already closed)`)
