@@ -17,6 +17,59 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Prod was never built from the baseline, only marked as having it. This
+  # prints every difference between what prod's ledger claims (migrations up
+  # to its post-repair tip 20260904173500) and prod's live schema, read-only.
+  baseline-gap:
+    name: Baseline vs live prod schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Keep only the migrations prod's ledger claims
+        run: |
+          mkdir -p /tmp/later
+          for f in supabase/migrations/2*.sql; do
+            v=$(basename "$f" | cut -c1-14)
+            if [ "$v" \> 20260904173500 ]; then mv "$f" /tmp/later/; fi
+          done
+          ls supabase/migrations
+
+      - name: Build that schema locally
+        run: supabase start
+
+      - name: Snapshot live prod (read-only)
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: node scripts/db-snapshot.mjs prod
+
+      # The claimed schema is written into the staging mirror's slot (on the
+      # runner only), so both files come from the same generator.
+      - name: Snapshot the claimed schema
+        env:
+          STAGING_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: node scripts/db-snapshot.mjs staging
+
+      - name: Diff (- claimed by prod's ledger, + actually in prod)
+        run: diff -u supabase/schema/staging.sql supabase/schema/prod.sql | grep -v '^[-+]-- ' || true
+
   rehearse:
     name: Rehearsal run ${{ matrix.run }}
     runs-on: ubuntu-latest
