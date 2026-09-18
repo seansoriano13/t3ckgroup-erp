@@ -128,6 +128,15 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated, app
       }),
     )
 
+    // Same remainder rule as the SQL: the last day absorbs rounding.
+    if (approvedHours && approved != null && updated.length) {
+      const sum = updated.reduce((acc, row) => acc + row.approved_hours, 0)
+      const last = updated.length - 1
+      updated[last] = updateRow(table, findRow(table, updated[last].id), {
+        approved_hours: Math.round((updated[last].approved_hours + approved - sum) * 100) / 100,
+      })
+    }
+
     return {
       rows: updated,
       ...describe(employee),

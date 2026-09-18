@@ -40,9 +40,14 @@ jobs:
     name: supabase functions deploy (${{ github.event.inputs.environment }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    if: github.event.inputs.environment == 'staging' || github.event.inputs.confirm == 'deploy' || github.event.inputs.dry_run == 'true'
-
     steps:
+      # Fail, not skip: a skipped job shows green and reads as "deployed".
+      - name: Require confirmation for prod
+        if: github.event.inputs.environment == 'prod' && github.event.inputs.confirm != 'deploy' && github.event.inputs.dry_run != 'true'
+        run: |
+          echo '::error::Deploying to prod needs confirm = "deploy" (or dry_run).'
+          exit 1
+
       - uses: actions/checkout@v4
 
       - uses: supabase/setup-cli@v1
