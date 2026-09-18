@@ -15,6 +15,7 @@ import TabGroup from '../../../components/ui/TabGroup';
 import Spinner from '@/components/ui/Spinner';
 import NotionLeaveCalendar from '../../../components/hr/NotionLeaveCalendar';
 import ApproveOvertimeModal from '../../../components/offsets/ApproveOvertimeModal';
+import ApproveOffsetModal from '../../../components/offsets/ApproveOffsetModal';
 import ApproveUndertimeModal from '../../../components/offsets/ApproveUndertimeModal';
 import ApplyLeaveModal from '../../../components/offsets/ApplyLeaveModal';
 import FloatingMonthPicker from '../../../components/FloatingMonthPicker';
@@ -47,6 +48,7 @@ export default function HrLeavesManagerPage() {
   });
 
   const [overtimeApproval, setOvertimeApproval] = useState(null); // { request, status }
+  const [offsetApproval, setOffsetApproval] = useState(null); // { request }
   const [undertimeApproval, setUndertimeApproval] = useState(null); // { request, status }
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
   const [previewToken, setPreviewToken] = useState(null);
@@ -180,6 +182,12 @@ export default function HrLeavesManagerPage() {
       return;
     }
 
+    // Offset leave too: HR can approve fewer hours than requested (#328).
+    if (isOffset && actionType !== 'reject') {
+      setOffsetApproval({ request });
+      return;
+    }
+
     let actionLabel = actionType === 'reject' ? 'Reject' : 'Approve';
 
     const rangeNote = request.dayCount > 1 ? ` (${request.dayCount} days, ${request.startDate} to ${request.endDate})` : '';
@@ -191,8 +199,7 @@ export default function HrLeavesManagerPage() {
         if (isOT) {
           await offsetService.handleOvertimeDecision({ requestId: request.id, status: 'REJECTED', hrId: user?.id });
         } else if (isOffset) {
-          const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
-          await offsetService.handleOffsetLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
+          await offsetService.handleOffsetLeaveDecision({ groupId: request.leave_group_id, status: 'REJECTED', hrId: user?.id });
         } else if (isSIL) {
           const status = actionType === 'approve' ? 'APPROVED' : 'REJECTED';
           await silService.handleSilLeaveDecision({ groupId: request.leave_group_id, status, hrId: user?.id });
@@ -351,6 +358,14 @@ export default function HrLeavesManagerPage() {
   return (
     <ProtectedRoute requireHr={true} allowLeaveManagers={true}>
     <PageContainer className="pt-4 space-y-6 relative">
+
+      <ApproveOffsetModal
+        isOpen={!!offsetApproval}
+        onClose={() => setOffsetApproval(null)}
+        request={offsetApproval?.request}
+        hrId={user?.id}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['hrLeaves'] })}
+      />
 
       <ApproveOvertimeModal
         isOpen={!!overtimeApproval}
@@ -723,7 +738,7 @@ export default function HrLeavesManagerPage() {
                             <td className="p-4">
                               <div className="flex flex-col gap-0.5">
                                 <span className="font-black text-sm text-foreground">
-                                  {req.type === 'OVERTIME' && req.approved_hours != null && req.approved_hours !== req.hours ? (
+                                  {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
                                     <>
                                       <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
                                       {req.approved_hours} hrs

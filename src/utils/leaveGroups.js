@@ -24,6 +24,12 @@ export function groupLeaveRows(rows) {
     const first = groupRows[0];
     const dates = groupRows.map((row) => row.date);
     const totalHours = groupRows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0);
+    // Offset decisions spread HR's approved total across the day-rows (#328);
+    // null until decided, and for types that never set it.
+    const approvedRows = groupRows.filter((row) => row.approved_hours != null);
+    const approvedHours = approvedRows.length
+      ? Math.round(approvedRows.reduce((sum, row) => sum + parseFloat(row.approved_hours), 0) * 100) / 100
+      : null;
     const updatedAt = groupRows.reduce(
       (latest, row) => (row.updated_at && (!latest || row.updated_at > latest) ? row.updated_at : latest),
       first.updated_at ?? null,
@@ -38,6 +44,7 @@ export function groupLeaveRows(rows) {
       dayCount: dates.length,
       date: dates[0],
       hours: totalHours,
+      approved_hours: approvedHours,
       updated_at: updatedAt,
     };
   });

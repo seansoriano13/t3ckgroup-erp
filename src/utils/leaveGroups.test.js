@@ -23,6 +23,19 @@ describe("groupLeaveRows", () => {
     expect(group.hours).toBe(12)
   })
 
+  it("sums approved_hours across the group, and leaves it null when no row has one (#328)", () => {
+    const decided = groupLeaveRows([
+      { id: "r1", leave_group_id: "g1", date: "2026-03-16", hours: 8, approved_hours: 6, status: "APPROVED" },
+      { id: "r2", leave_group_id: "g1", date: "2026-03-17", hours: 4, approved_hours: 3, status: "APPROVED" },
+    ])
+    expect(decided[0].approved_hours).toBe(9)
+
+    const pending = groupLeaveRows([
+      { id: "r3", leave_group_id: "g2", date: "2026-03-18", hours: 8, approved_hours: null, status: "PENDING" },
+    ])
+    expect(pending[0].approved_hours).toBeNull()
+  })
+
   it("treats a row with no leave_group_id as a group of one, keyed by its own id", () => {
     const rows = [{ id: "r1", date: "2026-03-10", hours: 4, status: "PENDING" }]
 

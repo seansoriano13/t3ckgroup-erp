@@ -768,6 +768,111 @@ describe("deciding a multi-day Offset leave", () => {
     })
 })
 
+describe("approving Offset leave with edited hours (#328)", () => {
+    it("spends the hours HR approved, spread across the days, and saves them", async () => {
+        await setBalances(ids.ordinary, { offset: 20 })
+        const group = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-05-04", "2026-05-05"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(() => svc().from("offset_leaves").delete().eq("leave_group_id", group))
+
+        await rpcAs(hr, "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 6,
+            p_hr_notes: null,
+            p_hr_id: ids.hr,
+        })
+
+        await expectOffsetBalance(ids.ordinary, 14)
+        const { data } = await svc()
+            .from("offset_leaves")
+            .select("hours, approved_hours")
+            .eq("leave_group_id", group)
+        expect(data.map((r) => Number(r.approved_hours))).toEqual([3, 3])
+        expect(data.map((r) => Number(r.hours))).toEqual([4, 4])
+
+        // Undo refunds what was spent, not what was asked for.
+        await rpcAs(hr, "undo_offset_leave_decision", { p_group_id: group, p_hr_id: ids.hr })
+        await expectOffsetBalance(ids.ordinary, 20)
+    })
+
+    it("refuses more hours than were requested", async () => {
+        await setBalances(ids.ordinary, { offset: 20 })
+        const group = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-05-11"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(() => svc().from("offset_leaves").delete().eq("leave_group_id", group))
+
+        const message = await rpcExpectingFailure(hr, "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 5,
+            p_hr_notes: null,
+            p_hr_id: ids.hr,
+        })
+        expect(message).toMatch(/cannot exceed/i)
+        await expectOffsetBalance(ids.ordinary, 20)
+    })
+
+    it("still refuses an applicant approving their own leave, even with hours", async () => {
+        await setBalances(ids.ordinary, { offset: 16 })
+        const group = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-05-18"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(async () => {
+            await svc().from("offset_leaves").delete().eq("leave_group_id", group)
+            await setBalances(ids.ordinary, { offset: 0 })
+        })
+
+        await rpcExpectingFailure("ordinary", "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 2,
+            p_hr_notes: null,
+            p_hr_id: ids.ordinary,
+        })
+        await expectOffsetBalance(ids.ordinary, 16)
+    })
+
+    it("refuses while the department head has not approved, unless HR overrides", async () => {
+        await setBalances(ids.ordinary, { offset: 16 })
+        const group = await makeLeaveGroup("offset_leaves", {
+            employeeId: ids.ordinary,
+            dates: ["2026-05-25"],
+            hoursPerDay: 4,
+        })
+        cleanup.push(() => svc().from("offset_leaves").delete().eq("leave_group_id", group))
+        await svc().from("offset_leaves").update({ head_status: "PENDING" }).eq("leave_group_id", group)
+
+        const message = await rpcExpectingFailure(hr, "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 4,
+            p_hr_notes: null,
+            p_hr_id: ids.hr,
+        })
+        expect(message).toMatch(/department head has not approved/i)
+        await expectOffsetBalance(ids.ordinary, 16)
+
+        await svc().from("offset_leaves").update({ hr_override: true }).eq("leave_group_id", group)
+        await rpcAs(hr, "decide_offset_leave_decision", {
+            p_group_id: group,
+            p_status: "APPROVED",
+            p_approved_hours: 4,
+            p_hr_notes: null,
+            p_hr_id: ids.hr,
+        })
+        await expectOffsetBalance(ids.ordinary, 12)
+    })
+})
+
 describe("undoing an Offset leave decision", () => {
     it("returns the exact hours the application had spent", async () => {
         await setBalances(ids.ordinary, { offset: 20 })
@@ -921,6 +1026,9 @@ describe("the functions the decisions rely on", () => {
             "undo_overtime_decision",
             "undo_sil_leave_decision",
         ])
+        expect(rows.find((r) => r.proname === "decide_offset_leave_decision").args).toBe(
+            "p_group_id uuid, p_status text, p_hr_notes text, p_hr_id uuid, p_approved_hours numeric",
+        )
         expect(rows.find((r) => r.proname === "decide_overtime_request").args).toBe(
             "p_request_id uuid, p_status text, p_approved_hours numeric, p_hr_notes text, p_hr_id uuid",
         )
