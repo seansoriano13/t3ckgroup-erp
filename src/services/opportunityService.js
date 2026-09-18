@@ -1353,9 +1353,14 @@ export const opportunityService = {
       .from("sales_opportunities")
       .select(PARTICIPANT_SELECT)
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    // A row that isn't there (or isn't readable) is a fact worth stating, not
+    // a PGRST116 coercion error to decode (main's 0b73ff6 hotfix).
+    if (!data) {
+      throw new Error("This opportunity could not be found — it may have been deleted.");
+    }
     return data;
   },
 
@@ -1515,8 +1520,14 @@ export const opportunityService = {
         .update(patch)
         .eq("id", id)
         .select(PARTICIPANT_SELECT)
-        .single();
+        .maybeSingle();
       if (result.error) throw result.error;
+      // No row back means the UPDATE matched nothing: a refused write (the
+      // caller isn't on the Deal Team), not a broken one. `.single()` turned
+      // that into PGRST116, which reads as a bug (main's 0b73ff6 hotfix).
+      if (!result.data) {
+        throw new Error("You can't save this opportunity: only its Deal Team can edit it.");
+      }
       data = result.data;
     }
 
