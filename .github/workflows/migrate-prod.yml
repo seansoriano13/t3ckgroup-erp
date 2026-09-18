@@ -27,6 +27,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Hard pre-flight gate (#332). Fails the job, before anything is pushed,
+      # on any ledger orphan (push would refuse everything) or any pending
+      # migration that sorts before the remote tip (push would skip it or apply
+      # around it). The output names each offender. Fix the ledger with the
+      # repair workflow; never rename a migration file to match it.
+      - name: Ledger check (must pass before push)
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: pnpm db:ledger:check prod
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
