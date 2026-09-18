@@ -6,7 +6,10 @@
  *  activeTab  - currently active value (string)
  *  onChange   - (value: string) => void
  *  variant    - "pill" | "primary" | "underline"  (default: "pill")
- *  size       - "sm" | "md"                       (default: "sm")
+ *  size       - "xs" | "sm" | "md"                (default: "sm")
+ *               xs is for dense panels that must fit 5+ labels without
+ *               scrolling — the wrapper hides its scrollbar, so a clipped
+ *               tab is invisible rather than merely cut off.
  *  className  - optional extra class on the wrapper
  *
  * Variants:
@@ -55,6 +58,7 @@ export default function TabGroup({
   // Per-button classes
   const btnBase = cn(
     "relative flex items-center justify-center gap-1.5 font-bold whitespace-nowrap transition-all outline-none",
+    size === "xs" && "px-2 py-1.5 text-[11px]",
     size === "sm" && "px-4 py-1.5 text-xs",
     size === "md" && "px-4 py-2 text-xs",
     fullWidth && "flex-1",

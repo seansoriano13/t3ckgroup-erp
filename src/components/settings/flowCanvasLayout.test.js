@@ -241,10 +241,14 @@ describe("flowCanvasLayout", () => {
 
   describe("midpointStagePosition (issue #196)", () => {
     it("places the new Stage halfway between the move's two ends", () => {
+      // The two ends are a clear STAGE_H apart vertically: the midpoint of a
+      // shallower move lands inside the source's own box once a Stage is tall
+      // enough, and then the nudge below — not the halving — decides where it
+      // goes, which is a different rule than the one under test here.
       const source = { pos_x: 0, pos_y: 0 }
-      const target = { pos_x: 400, pos_y: 200 }
+      const target = { pos_x: 400, pos_y: 600 }
       const pos = midpointStagePosition(source, target, [source, target])
-      expect(pos).toEqual({ x: 200, y: 100 })
+      expect(pos).toEqual({ x: 200, y: 300 })
     })
 
     it("nudges down until it overlaps no existing Stage", () => {

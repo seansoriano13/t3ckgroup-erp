@@ -189,11 +189,15 @@ creates, by an Assignment condition, or as a purchasing member of a Purchase
 Request opened there. Sees every Stage Visit inside their access window, which
 opens when they are called and closes when the calling Stage is left, when a
 chosen later Stage is entered or left, or at a Terminal Stage, as the Sales Flow
-set it; a Terminal Stage always closes it. An Assignment on the entry Stage makes
-someone a participant from the SOR's first day. Afterwards they get a locked
-view plus a read-only look at the visits they worked on. A Mention never makes
-someone a Stage Participant.
-_Avoid_: Collaborator, Guest, Member
+set it; a Terminal Stage always closes it. Each call-in opens its own window, so
+one person named by two actions on the same Stage holds two at once and sees the
+union of them. A window only ever reaches forward: someone called in at a Stage
+never sees the visits before it. An Assignment on the entry Stage makes someone a
+participant from the SOR's first day. Afterwards they get a locked view plus a
+read-only look at the visits they worked on. A Mention never makes someone a
+Stage Participant.
+_Avoid_: Collaborator, Guest, Member, Lifeline (a window belongs to one call-in
+on one SOR, not to a person)
 
 **Restricted Stage**:
 A Stage its Sales Flow closes to part of the Deal Team — by role, by an

@@ -25,6 +25,69 @@ describe("FlowCanvasNode", () => {
     )
   }
 
+  // The chip these replace said the word "Access" and named nobody, so a
+  // Stage calling eleven people in looked identical to one calling nobody.
+  describe("audience strip", () => {
+    const AUDIENCE = {
+      calledIn: [
+        { employeeId: "e1", name: "Maria Daniella C. Duran", calls: [] },
+        { employeeId: "e2", name: "Raquel Galacgac", calls: [] },
+      ],
+      shutOutGroups: [],
+      counts: { calledIn: 2, shutOutRoles: 0, shutOutPeople: 0 },
+    }
+
+    it("names how many people are called in, and lists them on hover", () => {
+      renderNode({ audience: AUDIENCE })
+      expect(screen.getByText("2")).toBeInTheDocument()
+      expect(screen.getByText("called in")).toBeInTheDocument()
+      expect(
+        screen.getByRole("button", {
+          name: "Called in here: Maria Daniella C. Duran, Raquel Galacgac",
+        }),
+      ).toBeInTheDocument()
+    })
+
+    // A Stage nobody is called into must still answer the question. Showing
+    // nothing is what made the whole feature invisible.
+    it("says Deal Team only rather than staying blank", () => {
+      renderNode({
+        audience: { calledIn: [], shutOutGroups: [], counts: { calledIn: 0, shutOutRoles: 0 } },
+      })
+      expect(screen.getByText("Deal Team only")).toBeInTheDocument()
+    })
+
+    it("counts shut-out roles and groups together", () => {
+      renderNode({
+        audience: {
+          calledIn: [],
+          shutOutGroups: [{ id: "g1", name: "Purchasing", memberCount: 4 }],
+          counts: { calledIn: 0, shutOutRoles: 2, shutOutPeople: 4 },
+        },
+      })
+      expect(screen.getByText("3")).toBeInTheDocument()
+    })
+
+    it("gives the View as verdict a reason instead of only dimming", () => {
+      renderNode({
+        audience: AUDIENCE,
+        accessLensState: "hidden",
+        viewAsLabel: "Sales Director",
+      })
+      expect(screen.getByText("Hidden from Sales Director")).toBeInTheDocument()
+      expect(screen.queryByText("called in")).not.toBeInTheDocument()
+    })
+
+    it("says when the Stage is what calls the previewed identity in", () => {
+      renderNode({
+        audience: AUDIENCE,
+        accessLensState: "calls-in",
+        viewAsLabel: "Raquel Galacgac",
+      })
+      expect(screen.getByText("Calls Raquel Galacgac in")).toBeInTheDocument()
+    })
+  })
+
   it("renders the stage name", () => {
     renderNode()
     expect(screen.getByText("Qualification")).toBeInTheDocument()

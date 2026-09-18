@@ -18,7 +18,9 @@
  */
 
 export const STAGE_W = 264
-export const STAGE_H = 96
+// Tall enough for the header row plus the audience strip every Stage now
+// carries (FlowCanvasNode), so a Stage never overlaps its own satellites.
+export const STAGE_H = 112
 
 export const SAT_W = 184
 export const SAT_H = 56

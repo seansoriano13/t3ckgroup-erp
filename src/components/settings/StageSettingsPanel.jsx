@@ -1,19 +1,5 @@
 import { useState } from "react";
-import {
-  ArrowUpCircle,
-  Check,
-  Flag,
-  ListChecks,
-  ListTodo,
-  Lock,
-  Octagon,
-  Pencil,
-  Settings2,
-  Tag,
-  Trash2,
-  Wand2,
-  X,
-} from "lucide-react";
+import { ArrowUpCircle, Check, Flag, Octagon, Pencil, Tag, Trash2, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -92,12 +78,16 @@ export default function StageSettingsPanel({
     setBracketDraft(null);
   };
 
+  // No icons, and the dense size: five labelled tabs have to fit 26rem
+  // without scrolling. They did not before, and because TabGroup hides its
+  // scrollbar, "Access" simply vanished off the right edge — the per-Stage
+  // access settings looked like they did not exist.
   const tabs = [
-    { value: "settings", label: "General", icon: Settings2 },
-    { value: "fields", label: "Fields", icon: ListChecks },
-    { value: "conditions", label: "Conditions", icon: ListTodo },
-    { value: "actions", label: "Actions", icon: Wand2 },
-    { value: "access", label: "Access", icon: Lock },
+    { value: "settings", label: "General" },
+    { value: "fields", label: "Fields" },
+    { value: "conditions", label: "Conditions" },
+    { value: "actions", label: "Actions" },
+    { value: "access", label: "Access" },
   ];
 
   return (
@@ -157,7 +147,7 @@ export default function StageSettingsPanel({
           activeTab={activeTab}
           onChange={onTabChange}
           variant="pill"
-          size="sm"
+          size="xs"
           fullWidth
         />
       </div>
@@ -317,7 +307,7 @@ export default function StageSettingsPanel({
         )}
 
         {activeTab === "access" && (
-          <StageAccessManager stageId={stage.id} disabled={disabled} />
+          <StageAccessManager stageId={stage.id} flowId={stage.flow_id} disabled={disabled} />
         )}
       </div>
     </aside>

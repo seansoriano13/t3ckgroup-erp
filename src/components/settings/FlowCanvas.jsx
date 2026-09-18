@@ -48,7 +48,9 @@ import { employeeService } from "../../services/employeeService";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import { flowAccessService } from "../../services/flowAccessService";
 import { formatVersionNumber, formatSnapshotVersion } from "../../constants/flowVersion";
-import { canvasAccessLens, stageCalledInSelectors, stageHasAccessNote } from "../../utils/canvasAccessLens";
+import { canvasAccessLens, stageCalledInSelectors } from "../../utils/canvasAccessLens";
+import { describeSelector, stageAudience } from "../../utils/stageAudience";
+import { actionTitle } from "./flowStageKinds";
 
 import { useFlowData, FlowDataContext, FlowDataProvider } from "./FlowDataContext";
 import { useFlowPresence } from "../../hooks/useFlowPresence";
@@ -280,8 +282,61 @@ function FlowCanvasInner() {
     [stages, conditionsByStage, actionsByStage],
   );
 
+  const groupsById = useMemo(
+    () => Object.fromEntries(allGroups.map((g) => [g.id, g])),
+    [allGroups],
+  );
+
+  const stageNameById = useMemo(
+    () => Object.fromEntries(stages.map((s) => [s.id, s.name])),
+    [stages],
+  );
+
+  // Who can see each Stage, by name — what the node's audience strip reads,
+  // and the same shape the Stage's Access tab builds for itself. Flow-level
+  // "Always sees" is deliberately left out here: the canvas would have to
+  // fetch it on every render to show a line that is identical on every node.
+  const audienceByStage = useMemo(
+    () =>
+      Object.fromEntries(
+        stages.map((s) => [
+          s.id,
+          stageAudience({
+            stageAccess: stageAccessByStage[s.id],
+            conditions: conditionsByStage[s.id],
+            actions: actionsByStage[s.id],
+            employees: allEmployees,
+            groupMembersById,
+            groupsById,
+            stageNameById,
+            actionLabel: actionTitle,
+          }),
+        ]),
+      ),
+    [
+      stages,
+      stageAccessByStage,
+      conditionsByStage,
+      actionsByStage,
+      allEmployees,
+      groupMembersById,
+      groupsById,
+      stageNameById,
+    ],
+  );
+
+  // The identity "View as" is previewing, named the way the roster names it,
+  // so a Stage can say "Hidden from Sales Director" rather than only dimming.
+  const viewAsLabel = useMemo(
+    () =>
+      viewAsSelector
+        ? describeSelector(viewAsSelector, { employees: allEmployees, groupsById })
+        : null,
+    [viewAsSelector, allEmployees, groupsById],
+  );
+
   // canvasAccessLens is pure: this is the one place its input snapshot is
-  // assembled, from the same access rows the eye chip below reads.
+  // assembled, from the same access rows the strip above reads.
   const accessLens = useMemo(
     () =>
       canvasAccessLens({
@@ -601,13 +656,13 @@ function FlowCanvasInner() {
             [...(conditionsByStage[stage.id] ?? []), ...(actionsByStage[stage.id] ?? [])].some(
               (item) => item.config?.accessFallbackWarning,
             ),
-          // Issue #296: the eye chip (this Stage restricts or calls someone
-          // in) and the "View as" verdict for whoever is currently selected.
-          hasAccessNote: stageHasAccessNote({
-            ...stageAccessByStage[stage.id],
-            calledIn: calledInByStage[stage.id],
-          }),
+          // Who can see this Stage, named on the node itself, plus the
+          // "View as" verdict for whoever is currently being previewed.
+          audience: audienceByStage[stage.id],
           accessLensState: viewAsSelector ? accessLens[stage.id] : null,
+          viewAsLabel: viewAsSelector ? viewAsLabel : null,
+          onOpenAccess: () =>
+            setSelection({ nodeId: stage.id, stageId: stage.id, tab: "access" }),
         },
         draggable: !isLocked,
       });
@@ -714,9 +769,10 @@ function FlowCanvasInner() {
     conditionsByStage,
     actionsByStage,
     stageAccessByStage,
-    calledInByStage,
+    audienceByStage,
     accessLens,
     viewAsSelector,
+    viewAsLabel,
     selection,
     isLocked,
     viewingSnapshot,

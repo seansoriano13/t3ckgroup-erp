@@ -1,11 +1,22 @@
 import { memo, useState } from "react";
 import { Handle, Position } from "@xyflow/react";
-import { AlertTriangle, CircleDot, Eye, Flag, Octagon, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  CircleDot,
+  Eye,
+  EyeOff,
+  Flag,
+  Octagon,
+  Plus,
+  ShieldOff,
+  Users,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import Dropdown from "@/components/ui/Dropdown";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
+import { initialsOf } from "@/utils/stageAudience";
 
 /**
  * A Stage on the Flow Canvas.
@@ -145,6 +156,141 @@ const SubHandle = ({ id, left, tone, count, label }) => (
   </>
 );
 
+
+/**
+ * How a Stage answers "who can see this?" while the "View as" lens is on:
+ * the verdict for that one identity, and why.
+ */
+const LENS_COPY = {
+  hidden: {
+    icon: EyeOff,
+    tone: "text-mauve-11",
+    text: (who) => `Hidden from ${who}`,
+    title: (who) => `${who} cannot see this Stage — shut out here.`,
+  },
+  "calls-in": {
+    icon: Eye,
+    tone: "text-amber-11",
+    text: (who) => `Calls ${who} in`,
+    title: (who) => `This Stage calls ${who} in, which is what opens their access window.`,
+  },
+  visible: {
+    icon: Eye,
+    tone: "text-mauve-11",
+    text: (who) => `${who} can see this`,
+    title: (who) => `Nothing on this Stage shuts ${who} out.`,
+  },
+};
+
+const LensLine = ({ state, viewAsLabel }) => {
+  const copy = LENS_COPY[state] || LENS_COPY.visible;
+  const Icon = copy.icon;
+  return (
+    <>
+      <Icon size={12} strokeWidth={2.5} className={cn("shrink-0", copy.tone)} />
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-[10.5px] font-bold leading-none",
+          copy.tone,
+        )}
+      >
+        {copy.text(viewAsLabel)}
+      </span>
+    </>
+  );
+};
+
+/** Faces before the count takes over. Four fit the node; the number carries the rest. */
+const FACE_LIMIT = 4;
+
+/**
+ * What a Stage says about its own audience — always, on the canvas.
+ *
+ * The chip this replaces said the word "Access" and nothing more, so a Stage
+ * calling eleven people in looked identical to one calling nobody, and a
+ * Stage that restricted its own Deal Team looked identical to both. This
+ * names them instead: the faces of who is called in here, how many, and
+ * whether anyone is shut out. It never hides, because "Deal Team only" is an
+ * answer and an empty node is not.
+ *
+ * Clicking it opens the Stage's Access tab, which is the only place the
+ * roster can actually be changed.
+ */
+const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
+  const calledIn = audience?.calledIn ?? [];
+  const faces = calledIn.slice(0, FACE_LIMIT);
+  const shutOutCount =
+    (audience?.counts?.shutOutRoles ?? 0) + (audience?.shutOutGroups?.length ?? 0);
+
+  const roster = calledIn.map((person) => person.name).join(", ");
+  const title = viewAsLabel
+    ? (LENS_COPY[lensState] || LENS_COPY.visible).title(viewAsLabel)
+    : calledIn.length > 0
+      ? `Called in here: ${roster}`
+      : "Nobody is called in here. Only the Deal Team sees this Stage.";
+
+  return (
+    <div className="mt-0.5 border-t border-mauve-a4 pt-2">
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen?.();
+        }}
+        title={title}
+        aria-label={title}
+        className={cn(
+          "nodrag nopan -my-0.5 flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left",
+          "outline-none transition-colors hover:bg-mauve-a3",
+          "focus-visible:ring-2 focus-visible:ring-ring/60",
+        )}
+      >
+        {viewAsLabel ? (
+          <LensLine state={lensState} viewAsLabel={viewAsLabel} />
+        ) : (
+          <>
+            {faces.length > 0 ? (
+              <span className="flex shrink-0 items-center">
+                {faces.map((person, index) => (
+                  <span
+                    key={person.employeeId}
+                    className="flex size-[18px] items-center justify-center rounded-full bg-mauve-a3 text-[8px] font-black text-mauve-11 ring-1 ring-mauve-2"
+                    style={{ marginLeft: index === 0 ? 0 : -5 }}
+                  >
+                    {initialsOf(person.name)}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <Users size={12} className="shrink-0 text-muted-foreground" />
+            )}
+
+            <span className="min-w-0 flex-1 truncate text-[10.5px] leading-none">
+              {calledIn.length > 0 ? (
+                <>
+                  <span className="font-black tabular-nums text-foreground">
+                    {calledIn.length}
+                  </span>
+                  <span className="font-semibold text-muted-foreground"> called in</span>
+                </>
+              ) : (
+                <span className="font-semibold text-muted-foreground">Deal Team only</span>
+              )}
+            </span>
+
+            {shutOutCount > 0 && (
+              <span className="flex shrink-0 items-center gap-0.5 text-[10.5px] font-black leading-none tabular-nums text-amber-11">
+                <ShieldOff size={10} strokeWidth={2.75} />
+                {shutOutCount}
+              </span>
+            )}
+          </>
+        )}
+      </button>
+    </div>
+  );
+};
+
 function FlowCanvasNode({ data, isConnectable, selected }) {
   const {
     stage,
@@ -157,8 +303,10 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
     canAddStage = false,
     onAddStage,
     hasAccessFallbackWarning = false,
-    hasAccessNote = false,
+    audience = null,
     accessLensState = null,
+    viewAsLabel = null,
+    onOpenAccess,
   } = data;
   const [addOpen, setAddOpen] = useState(false);
   const role = roleOf({ isEntry, isWon, isTerminal: stage.is_terminal });
@@ -195,7 +343,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         "transition-[box-shadow,outline-color,opacity] duration-150",
         "-outline-offset-1",
         outlineClass,
-        isHiddenForViewer && "opacity-35 grayscale",
+        isHiddenForViewer && "opacity-50",
         callsViewerIn && "outline-2 outline-amber-9 shadow-[0_0_0_4px_var(--amber-a4)]",
       )}
     >
@@ -254,18 +402,16 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
                 Access fallback
               </Chip>
             )}
-            {hasAccessNote && (
-              <Chip
-                className="bg-mauve-a4 text-mauve-11"
-                icon={Eye}
-                title="This Stage restricts who can see it, or calls someone in."
-              >
-                Access
-              </Chip>
-            )}
           </div>
         </div>
       </div>
+
+      <AudienceStrip
+        audience={audience}
+        lensState={accessLensState}
+        viewAsLabel={viewAsLabel}
+        onOpen={onOpenAccess}
+      />
 
       <SubHandle
         id="gate"

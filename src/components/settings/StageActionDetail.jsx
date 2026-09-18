@@ -1,6 +1,8 @@
 import { CalendarClock, ListChecks, User } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import AccessWindowConfig from "./AccessWindowConfig";
+import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { taskTagService } from "../../services/taskTagService";
 import { TagPill } from "../ui/TagPill";
@@ -54,7 +56,13 @@ const deciderLabel = (selector, nameOf) => {
   return "someone";
 };
 
-export default function StageActionDetail({ action, employees = [] }) {
+export default function StageActionDetail({
+  action,
+  employees = [],
+  stageId,
+  disabled = false,
+  onAccessChange,
+}) {
   const config = action?.config ?? {};
   const nameOf = (id) =>
     employees.find((e) => e.id === id)?.name ?? "Someone no longer listed";
@@ -69,6 +77,17 @@ export default function StageActionDetail({ action, employees = [] }) {
   const configuredTags = (config.tagIds || [])
     .map((id) => allTags.find((t) => t.id === id))
     .filter(Boolean);
+
+  const assigneeNames = (config.members || [])
+    .map((member) => member?.employeeId)
+    .filter(Boolean)
+    .map(nameOf);
+  const subjectLabel =
+    assigneeNames.length === 0
+      ? null
+      : assigneeNames.length <= 2
+        ? assigneeNames.join(" and ")
+        : `${assigneeNames[0]} and ${assigneeNames.length - 1} others`;
 
   return (
     <div className="space-y-3 border-t border-mauve-5 px-3 py-3">
@@ -168,10 +187,19 @@ export default function StageActionDetail({ action, employees = [] }) {
         </>
       )}
 
-      <p className="text-[11px] leading-relaxed text-muted-foreground">
-        Saved when the automation was written. To change it, archive this action and add a new
-        one — an archived action stops firing, and the tasks it already created stay put.
-      </p>
+      {/* The access window lives here, after the automation it applies to,
+          rather than in a step that had to be cleared before the automation
+          could be read at all. Editable in place: nothing about changing who
+          can see the SOR requires re-opening the task modal. */}
+      {onAccessChange && (
+        <AccessWindowConfig
+          stageId={stageId}
+          value={config.access || DEFAULT_ACCESS}
+          onChange={onAccessChange}
+          disabled={disabled}
+          subjectLabel={subjectLabel}
+        />
+      )}
     </div>
   );
 }

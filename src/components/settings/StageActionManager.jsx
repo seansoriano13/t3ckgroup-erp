@@ -9,10 +9,10 @@ import Dropdown from "@/components/ui/Dropdown";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import TemplateTokenText from "@/components/ui/TemplateTokenText";
 
-import AccessWindowConfig from "./AccessWindowConfig";
 import { useFlowData } from "./FlowDataContext";
 import { employeeService } from "../../services/employeeService";
 import { ACTION_KIND_META, actionSummary, actionTitle } from "./flowStageKinds";
+import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import StageActionDetail from "./StageActionDetail";
 import { useAuth } from "../../context/AuthContext";
 
@@ -34,14 +34,6 @@ export default function StageActionManager({ stageId, disabled = false }) {
   const [editingAction, setEditingAction] = useState(null);
   const [pendingArchive, setPendingArchive] = useState(null);
   const [expandedId, setExpandedId] = useState(null);
-  // Issue #294: the access window this action's call-in opens, chosen in its
-  // own step — held here rather than inside CreateGroupTaskModal/LogTaskModal,
-  // because those are the shared, ordinary task modals (not automation-only
-  // forms), so the window picker runs before either opens rather than inside
-  // one. `accessStep` is `{ kind }` while adding or `{ action }` while
-  // editing, and holds the modal open until "Continue" confirms the window.
-  const [accessStep, setAccessStep] = useState(null);
-  const [draftAccess, setDraftAccess] = useState({ until: "stage_left" });
 
   const { data: employees } = useQuery({
     queryKey: ["employees"],
@@ -116,10 +108,25 @@ export default function StageActionManager({ stageId, disabled = false }) {
     reorderMutation.mutate(updates);
   };
 
+  // Issue #294's access window no longer gates the modal. It defaults to the
+  // rule that matches what a call-in means to everyone who described it —
+  // "this Stage only" — and is changed afterwards, in the action's own
+  // expanded detail, where the assignees it applies to are on screen. The
+  // step it replaces sat in front of the task modal and had to be dismissed
+  // before the automation could even be read.
   const handleAdd = (kind, config) =>
-    addMutation.mutate({ stageId, kind, config: { ...config, access: draftAccess } });
+    addMutation.mutate({ stageId, kind, config: { ...config, access: DEFAULT_ACCESS } });
+
+  // Editing the task keeps whatever window the action already had: the modal
+  // never asks about it, so it must never silently reset it.
   const handleUpdate = (config) =>
-    updateMutation.mutate({ id: editingAction.id, config: { ...config, access: draftAccess } });
+    updateMutation.mutate({
+      id: editingAction.id,
+      config: { ...config, access: editingAction.config?.access || DEFAULT_ACCESS },
+    });
+
+  const handleAccessChange = (action, access) =>
+    updateMutation.mutate({ id: action.id, config: { ...action.config, access } });
 
   if (isLoading) {
     return <div className="m-5 h-20 animate-pulse rounded-2xl bg-mauve-a2" />;
@@ -199,10 +206,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                     <Button
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => {
-                        setDraftAccess(action.config?.access?.until ? action.config.access : { until: "stage_left" });
-                        setAccessStep({ action });
-                      }}
+                      onClick={() => setEditingAction(action)}
                       aria-label={`Edit ${title}`}
                       className="text-muted-foreground hover:text-foreground"
                     >
@@ -223,7 +227,13 @@ export default function StageActionManager({ stageId, disabled = false }) {
               </div>
 
               {isExpanded && (
-                <StageActionDetail action={action} employees={employees || []} />
+                <StageActionDetail
+                  action={action}
+                  employees={employees || []}
+                  stageId={stageId}
+                  disabled={disabled}
+                  onAccessChange={(access) => handleAccessChange(action, access)}
+                />
               )}
             </div>
           );
@@ -266,8 +276,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                     key={value}
                     type="button"
                     onClick={() => {
-                      setDraftAccess({ until: "stage_left" });
-                      setAccessStep({ kind: value });
+                      setAddingKind(value);
                       close();
                     }}
                     className="flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-mauve-a2"
@@ -290,32 +299,6 @@ export default function StageActionManager({ stageId, disabled = false }) {
           </Dropdown>
         )}
       </div>
-
-      {accessStep && (
-        <div className="mx-5 mb-3 space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            How long the person this calls in can see the deal, before {accessStep.action ? "changing" : "building"}{" "}
-            {accessStep.action ? "the rest of the automation" : "the rest of it"}.
-          </p>
-          <AccessWindowConfig stageId={stageId} value={draftAccess} onChange={setDraftAccess} />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setAccessStep(null)}>
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => {
-                if (accessStep.kind) setAddingKind(accessStep.kind);
-                else setEditingAction(accessStep.action);
-                setAccessStep(null);
-              }}
-            >
-              Continue
-            </Button>
-          </div>
-        </div>
-      )}
 
       {addingKind === "create_group_task" && (
         <CreateGroupTaskModal
