@@ -1,0 +1,109 @@
+name: Deploy edge functions
+
+# #333 (release/2026-09, #325): no workflow deployed edge functions, so what
+# ran in each environment depended on who remembered to deploy what (prod ran
+# 8, staging 7, and three the app calls ran nowhere). This deploys the
+# repository's functions to a chosen environment, the same way the migration
+# workflows push schema: from CI, never a developer machine, always naming the
+# target project explicitly.
+#
+# Manual only. Press the button in the Actions tab.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        options: [staging, prod]
+      functions:
+        description: "Functions to deploy, space-separated. Blank = every function in supabase/functions (except sor-follow-up-reminders)"
+        required: false
+        default: ""
+      dry_run:
+        description: "List what would deploy, deploy nothing"
+        required: false
+        type: boolean
+        default: false
+      confirm:
+        description: 'For prod: type "deploy" to confirm'
+        required: false
+        default: ""
+
+concurrency:
+  group: deploy-edge-functions-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: supabase functions deploy (${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event.inputs.environment == 'staging' || github.event.inputs.confirm == 'deploy' || github.event.inputs.dry_run == 'true'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Resolve target project and function list
+        id: plan
+        env:
+          TARGET: ${{ github.event.inputs.environment }}
+          REQUESTED: ${{ github.event.inputs.functions }}
+        run: |
+          set -euo pipefail
+          # Same project refs as migrate-staging.yml / migrate-prod.yml.
+          case "$TARGET" in
+            staging) ref=fpjxdyowngpnovotbzqi ;;
+            prod)    ref=epqmberwewztzbrkhhss ;;
+            *) echo "Unknown environment: $TARGET" >&2; exit 1 ;;
+          esac
+
+          # Every function directory in the repo. _shared is imported code,
+          # not a function. sor-follow-up-reminders stays out of the default
+          # until the follow-up sender ships (out of scope for #325); name it
+          # explicitly to deploy it anyway.
+          available=$(find supabase/functions -mindepth 1 -maxdepth 1 -type d ! -name '_*' -printf '%f\n' | sort)
+
+          if [ -n "${REQUESTED// /}" ]; then
+            list=""
+            for fn in $REQUESTED; do
+              if ! grep -qx "$fn" <<< "$available"; then
+                echo "::error::No function named '$fn' in supabase/functions"
+                exit 1
+              fi
+              list="$list $fn"
+            done
+          else
+            list=$(grep -vx 'sor-follow-up-reminders' <<< "$available" | tr '\n' ' ')
+          fi
+
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "list=$list" >> "$GITHUB_OUTPUT"
+          echo "Target: $TARGET ($ref)"
+          echo "Functions:"; for fn in $list; do echo "  - $fn"; done
+
+      - name: Deploy
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          REF: ${{ steps.plan.outputs.ref }}
+          LIST: ${{ steps.plan.outputs.list }}
+        # One call per function so a failure names the function. Per-function
+        # settings (verify_jwt etc.) come from supabase/config.toml.
+        run: |
+          set -euo pipefail
+          for fn in $LIST; do
+            echo "::group::$fn"
+            supabase functions deploy "$fn" --project-ref "$REF" --use-api
+            echo "::endgroup::"
+          done
+
+      - name: Deployed functions on the target
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: supabase functions list --project-ref ${{ steps.plan.outputs.ref }}
