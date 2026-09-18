@@ -726,6 +726,23 @@ describe("offsetService", () => {
       expect(balanceOf(employee.id)).toBe(8)
     })
 
+    it("spends the hours HR approved, not the hours requested, and refunds that on undo (#328)", async () => {
+      const leave = makeOffsetLeave({ employee_id: employee.id, startTime: '09:00', endTime: '17:00' })
+
+      const [row] = await offsetService.handleOffsetLeaveDecision({
+        groupId: leave.leave_group_id,
+        status: "APPROVED",
+        approvedHours: 6,
+        hrId: hr.id,
+      })
+
+      expect(row.approved_hours).toBe(6)
+      expect(balanceOf(employee.id)).toBe(10)
+
+      await offsetService.undoOffsetLeaveDecision({ groupId: leave.leave_group_id, hrId: hr.id })
+      expect(balanceOf(employee.id)).toBe(16)
+    })
+
     it("refuses to approve a leave the balance can no longer cover", async () => {
       const leave = makeOffsetLeave({ employee_id: employee.id, hours: 16 })
       await setOffsetBalance(employee.id, 4)

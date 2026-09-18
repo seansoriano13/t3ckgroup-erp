@@ -693,13 +693,14 @@ export const offsetService = {
    * employee row locked while it works, so the group can never be observed
    * half-decided and two officers deciding for one employee cannot race each
    * other into losing a balance movement.
+   *
+   * `approvedHours` (#328) is the group total HR approves — defaults to the
+   * requested total, may not exceed it. The function spreads it across the
+   * day-rows' `approved_hours` and spends exactly that.
    */
-  async handleOffsetLeaveDecision({ groupId, status, hrNotes, hrId }) {
-    // The head-status gate is not yet folded into decide_offset_leave_decision
-    // itself (unlike decide_overtime_request, see ADR 0013 and the
-    // gate-overtime-decision migration) — this pre-read/assertHeadCleared call
-    // is the same accepted interim pattern handleSilLeaveDecision uses below,
-    // with the same narrow race window a future migration should close.
+  async handleOffsetLeaveDecision({ groupId, status, approvedHours, hrNotes, hrId }) {
+    // decide_offset_leave_decision enforces the head-status gate under its
+    // own lock (#328); this pre-read just fails fast with the same message.
     if (status === 'APPROVED') {
       const { data: gateRow, error: gateErr } = await supabase
         .from('offset_leaves')
@@ -718,11 +719,13 @@ export const offsetService = {
       p_status: status,
       p_hr_notes: hrNotes || null,
       p_hr_id: hrId || null,
+      p_approved_hours: status === 'APPROVED' && approvedHours != null ? approvedHours : null,
     });
 
     if (error) throw new Error(error.message);
 
-    const { rows: updatedRows, employee_id: employeeId, total_hours: totalHours } = result;
+    const { rows: updatedRows, employee_id: employeeId, total_hours: requestedHours, approved_hours: approvedTotal } = result;
+    const totalHours = approvedTotal ?? requestedHours;
     const rangeLabel = describeLeaveRange(result.dates, { withDayCount: true });
 
     notificationService.createNotification({

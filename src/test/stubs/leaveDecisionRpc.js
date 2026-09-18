@@ -21,7 +21,7 @@ const findRow = (table, id) => db.internal.rowsOf(table).find((row) => row.id ==
  * same atomicity the real functions get from locking the group's day-rows and
  * the employee row with `FOR UPDATE`.
  */
-function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
+function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated, approvedHours = false }) {
   const groupRows = (groupId) =>
     db.internal
       .rowsOf(table)
@@ -29,6 +29,13 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
       .sort((a, b) => String(a.date).localeCompare(String(b.date)))
 
   const totalHours = (rows) => rows.reduce((sum, row) => sum + parseFloat(row.hours || 0), 0)
+
+  // #328: Offset spends, and refunds, what HR approved (and gates on the head
+  // under its own lock); SIL has neither.
+  const spentHours = (rows) =>
+    approvedHours
+      ? rows.reduce((sum, row) => sum + parseFloat(row.approved_hours ?? row.hours ?? 0), 0)
+      : totalHours(rows)
 
   const balanceOf = (employee) => parseFloat(employee[balanceColumn] || 0)
 
@@ -80,16 +87,28 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
     const employee = findRow("employees", rows[0].employee_id)
     const hours = totalHours(rows)
     let creditsSnapshot = null
+    let approved = null
+
+    if (args.p_status === "APPROVED" && approvedHours && rows[0].head_status && rows[0].head_status !== "APPROVED" && !rows[0].hr_override) {
+      throw new Error(
+        `Cannot approve this offset leave: the department head has not approved this request yet (head_status=${rows[0].head_status}). Use the HR override if this needs to proceed anyway.`,
+      )
+    }
 
     if (args.p_status === "APPROVED") {
+      approved = approvedHours ? parseFloat(args.p_approved_hours ?? hours) : hours
+      if (approvedHours) {
+        if (!(approved > 0)) throw new Error("Approved hours must be greater than zero.")
+        if (approved > hours) throw new Error("Approved hours cannot exceed the requested hours.")
+      }
       if (refundIsGated && employee.employment_status !== SIL_ELIGIBLE_STATUS) {
         throw new Error("Only Regular employees are eligible for SIL leave.")
       }
       const balance = balanceOf(employee)
-      if (balance < hours) {
+      if (balance < approved) {
         throw new Error(`Cannot approve leave. Employee currently only has ${balance} hrs balance.`)
       }
-      creditsSnapshot = balance - hours
+      creditsSnapshot = balance - approved
       updateRow("employees", employee, { [balanceColumn]: creditsSnapshot })
     }
 
@@ -103,6 +122,9 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
         hr_signature_version: null,
         hr_signature_timestamp: null,
         approval_credits_snapshot: creditsSnapshot,
+        ...(!approvedHours
+          ? {}
+          : { approved_hours: approved == null ? null : Math.round((parseFloat(row.hours || 0) * approved * 100) / hours) / 100 }),
       }),
     )
 
@@ -110,6 +132,7 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
       rows: updated,
       ...describe(employee),
       total_hours: hours,
+      ...(approvedHours ? { approved_hours: approved } : {}),
       dates: updated.map((row) => row.date),
     }
   })
@@ -122,11 +145,12 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
     if (previousStatus === "PENDING") throw new Error("Leave is already pending.")
 
     const employee = findRow("employees", rows[0].employee_id)
-    const hours = totalHours(rows)
+    const hours = spentHours(rows)
     const refundWithheld = previousStatus === "APPROVED" ? refund(employee, hours) : false
 
     const updated = rows.map((row) =>
       updateRow(table, row, {
+        ...(approvedHours ? { approved_hours: null } : {}),
         status: "PENDING",
         hr_notes: null,
         hr_processed_by: null,
@@ -161,7 +185,7 @@ function stubLeaveDecisionRpcs({ table, balanceColumn, names, refundIsGated }) {
     assertNotAlreadyTaken(previousStatus, rows)
 
     const employee = findRow("employees", clicked.employee_id)
-    const hours = totalHours(rows)
+    const hours = spentHours(rows)
 
     const updated = rows.map((row) => updateRow(table, row, { status: "CANCELLED" }))
     const refundWithheld = previousStatus === "APPROVED" ? refund(employee, hours) : false
@@ -184,6 +208,7 @@ export function stubOffsetLeaveDecisionRpcs() {
     table: "offset_leaves",
     balanceColumn: "offset_hours_balance",
     refundIsGated: false,
+    approvedHours: true,
     names: {
       decide: "decide_offset_leave_decision",
       undo: "undo_offset_leave_decision",

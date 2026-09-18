@@ -296,7 +296,14 @@ export default function EmployeeLeavesPage() {
                           <td className="p-4">
                             <div className="flex flex-col gap-0.5">
                               <span className="font-black text-sm text-foreground">
-                                {req.hours} hrs
+                                {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
+                                  <>
+                                    <span className="line-through text-muted-foreground mr-1.5">{req.hours}</span>
+                                    {req.approved_hours} hrs
+                                  </>
+                                ) : (
+                                  `${req.hours} hrs`
+                                )}
                               </span>
                               {req.start_time && req.end_time && (
                                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
