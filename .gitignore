@@ -46,6 +46,9 @@ coverage
 # committed before.
 !supabase/**/*.sql
 *.txt
+# ...and the same for docs/: a demo run sheet is plain text so it reads on a
+# phone, but it is a deliverable, not a scratch dump.
+!docs/**/*.txt
 
 # TestSprite
 .testsprite/
