@@ -52,13 +52,13 @@ describe("SorModal — each tab fetches once, when first opened", () => {
     await waitForNetworkIdle()
     expect(spy).not.toHaveBeenCalled()
 
-    fireEvent.click(screen.getByRole("button", { name: tab }))
+    fireEvent.click(screen.getByRole("tab", { name: tab }))
     expect(await screen.findByText(shown)).toBeInTheDocument()
     await waitForNetworkIdle()
     expect(spy).toHaveBeenCalledTimes(1)
 
-    fireEvent.click(screen.getByRole("button", { name: "Now" }))
-    fireEvent.click(screen.getByRole("button", { name: tab }))
+    fireEvent.click(screen.getByRole("tab", { name: "Now" }))
+    fireEvent.click(screen.getByRole("tab", { name: tab }))
     // Still there synchronously, with no skeleton flash and no second read.
     expect(screen.getByText(shown)).toBeInTheDocument()
     await waitForNetworkIdle()
@@ -140,7 +140,7 @@ describe("SorModal — narrow layout", () => {
     renderModal(deal)
     await screen.findByText("What blocks this stage")
 
-    expect(screen.queryByRole("button", { name: "Chat" })).not.toBeInTheDocument()
+    expect(screen.queryByRole("tab", { name: "Chat" })).not.toBeInTheDocument()
     expect(screen.getByText("Activity & Log Notes")).toBeInTheDocument()
   })
 
@@ -151,7 +151,7 @@ describe("SorModal — narrow layout", () => {
     await screen.findByText("What blocks this stage")
 
     expect(screen.queryByText("Activity & Log Notes")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Chat" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Chat" }))
     expect(await screen.findByText("Activity & Log Notes")).toBeInTheDocument()
   })
 })

@@ -28,7 +28,7 @@ async function openItems(opportunity) {
   const owner = makeEmployee()
   authUser = { id: owner.id, isSuperAdmin: true }
   renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={opportunity} />)
-  fireEvent.click(await screen.findByRole("button", { name: "Items" }))
+  fireEvent.click(await screen.findByRole("tab", { name: "Items" }))
 }
 
 describe("ItemsTab (#301)", () => {

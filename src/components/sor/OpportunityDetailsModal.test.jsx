@@ -48,7 +48,7 @@ function renderModal(opportunity) {
 // The Product List now lives behind its own tab (#301) rather than the
 // modal's default view, so a test after its items must open Items first.
 async function openItemsTab() {
-  fireEvent.click(await screen.findByRole("button", { name: "Items" }))
+  fireEvent.click(await screen.findByRole("tab", { name: "Items" }))
 }
 
 const found = (items, extra = {}) => ({
@@ -188,8 +188,8 @@ describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
 
     // "Fetch Items" (#53's manual edit-form fetch) lives on Details, not
     // Items — Items' own empty-state fetch (#301) is a separate action.
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
-    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }))
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
+    fireEvent.click(screen.getByRole("button", { name: /^edit( opportunity)?$/i }))
 
     const fetchButton = await screen.findByRole("button", { name: /fetch items/i })
     fireEvent.click(fetchButton)

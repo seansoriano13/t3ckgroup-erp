@@ -595,11 +595,9 @@ describe("FlowCanvas", () => {
       expect(await screen.findByText("Show archived (1)")).toBeInTheDocument()
 
       // Restore via the manage dropdown in the toolbar
-      const trashSvg = container.querySelector("svg.lucide-trash-2")
-      expect(trashSvg).toBeInTheDocument()
-      await setupUser().click(trashSvg.closest("button"))
+      await setupUser().click(screen.getByRole("button", { name: "Restore or delete archived Sale Type" }))
 
-      const restoreMenuItem = await screen.findByRole("button", { name: /Restore/i })
+      const restoreMenuItem = await screen.findByRole("button", { name: "Restore" })
       await setupUser().click(restoreMenuItem)
 
       const restoreDialog = await screen.findByRole("dialog")

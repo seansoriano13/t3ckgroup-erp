@@ -4,6 +4,7 @@ import {
   ChevronRight as ChevronRightIcon,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
   Pencil,
   Target,
   Trash2,
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
+import Dropdown from "../../ui/Dropdown";
 import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
@@ -59,6 +61,7 @@ export default function SorModalHeader({
   onNext,
   accessLevel = "full",
   moveDisabled = false,
+  moveDisabledReason,
 }) {
   const canEdit = accessLevel === "full";
   const scrollRef = useRef(null);
@@ -91,7 +94,7 @@ export default function SorModalHeader({
   const legacyRibbon = (
     <div className="relative w-full">
       <div ref={scrollRef} className="overflow-x-auto pb-2">
-        <ul className="flex h-11 min-w-full w-max gap-[2px] mb-2">
+        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px] mb-2">
           {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -103,14 +106,21 @@ export default function SorModalHeader({
               <li
                 key={s.code}
                 ref={isCurrent ? activeChevronRef : undefined}
+                className="flex flex-none"
+              >
+              <button
+                type="button"
+                aria-current={isCurrent ? "step" : undefined}
+                aria-disabled={moveDisabled || stageMutation.isPending || isCurrent || undefined}
+                aria-label={isCurrent ? `${s.label || s.code} (current stage)` : moveDisabled ? `${s.label || s.code}, you can't move this deal` : `Move to ${s.label || s.code}`}
                 onClick={() => {
                   if (!moveDisabled && !stageMutation.isPending && s.code !== opportunity.status) {
                     handleStageChange(s.code);
                   }
                 }}
-                title={moveDisabled ? "You do not have access to move this stage." : undefined}
+                title={moveDisabled ? moveDisabledReason : undefined}
                 className={cn(
-                  "relative flex flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                  "relative flex h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
                   moveDisabled ? "cursor-default" : "cursor-pointer",
                   isCompleted && classes.completed,
                   isCurrent && cn(classes.current, "shadow-inner"),
@@ -136,11 +146,17 @@ export default function SorModalHeader({
                   {isCurrent && <div className="size-1.5 shrink-0 animate-pulse rounded-full bg-white" />}
                   {s.label}
                 </span>
+              </button>
               </li>
             );
           })}
-        </ul>
+        </ol>
       </div>
+      {moveDisabled && moveDisabledReason && (
+        <p className="-mt-1 mb-1 text-[11px] font-medium text-muted-foreground">
+          {moveDisabledReason}
+        </p>
+      )}
       {stageMutation.isPending && (
         <div className="absolute inset-0 flex items-center justify-center rounded-md bg-background/50 backdrop-blur-[1px]">
           <Spinner size="sm" />
@@ -202,6 +218,7 @@ export default function SorModalHeader({
                 onClick={onPrev}
                 disabled={!hasPrev}
                 title="Previous"
+                aria-label="Previous opportunity"
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
               >
                 <ChevronLeft size={15} />
@@ -210,6 +227,7 @@ export default function SorModalHeader({
                 onClick={onNext}
                 disabled={!hasNext}
                 title="Next"
+                aria-label="Next opportunity"
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
               >
                 <ChevronRightIcon size={15} />
@@ -239,35 +257,65 @@ export default function SorModalHeader({
                 <button
                   onClick={handleEditToggle}
                   title="Edit"
+                  aria-label="Edit opportunity"
                   className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
                 >
                   <Pencil size={14} />
                 </button>
               )}
-              {canEdit && (
-                <button
-                  onClick={() =>
-                    confirmDeleteToast(
-                      `Delete ${opportunity.opportunity_no}?`,
-                      "The record is archived, not erased.",
-                      () => deleteMutation.mutate(),
-                    )
-                  }
-                  title="Delete"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-red-500"
-                >
-                  <Trash2 size={14} />
-                </button>
-              )}
-              <button
-                onClick={() => setIsExpanded((v) => !v)}
-                title={isExpanded ? "Collapse" : "Expand"}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              {/* Rarely-used actions live behind one menu so the header keeps a single row of intent. */}
+              <Dropdown
+                usePortal
+                placement="bottom-end"
+                popoverClassName="popover-enter z-[10001] w-44 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
+                trigger={
+                  <button
+                    type="button"
+                    title="More actions"
+                    aria-label="More actions"
+                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                  >
+                    <MoreHorizontal size={15} />
+                  </button>
+                }
               >
-                {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </button>
+                {({ close }) => (
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        close();
+                        setIsExpanded((v) => !v);
+                      }}
+                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                    >
+                      {isExpanded ? <Minimize2 size={14} className="text-muted-foreground" /> : <Maximize2 size={14} className="text-muted-foreground" />}
+                      {isExpanded ? "Collapse" : "Expand to full screen"}
+                    </button>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          close();
+                          confirmDeleteToast(
+                            `Delete ${opportunity.opportunity_no}?`,
+                            "The record is archived, not erased.",
+                            () => deleteMutation.mutate(),
+                          );
+                        }}
+                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-red-9/10 hover:text-red-11"
+                      >
+                        <Trash2 size={14} className="text-red-11" />
+                        Delete opportunity
+                      </button>
+                    )}
+                  </div>
+                )}
+              </Dropdown>
               <button
                 onClick={onClose}
+                title="Close"
+                aria-label="Close"
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
               >
                 <X size={15} />
@@ -278,7 +326,7 @@ export default function SorModalHeader({
       </div>
 
       <div className="w-full">
-        <div className="flex-between align-center">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
             Pipeline Stage
             {isFlowDeal && flowCanvas && (
@@ -300,7 +348,7 @@ export default function SorModalHeader({
                 blockedCount > 0 ? "bg-red-9/15 text-red-11" : "bg-green-9/15 text-green-11",
               )}
             >
-              Blocked: {blockedCount}
+              {blockedCount > 0 ? `Blocked: ${blockedCount}` : "Clear to move"}
             </span>
           </p>
           {isFlowDeal && (

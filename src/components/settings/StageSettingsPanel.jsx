@@ -50,6 +50,10 @@ export default function StageSettingsPanel({
   onToggleTerminal,
   onSetEntry,
   onSetWon,
+  outgoingMoves = [],
+  moveTargets = [],
+  onAddMove,
+  onRemoveMove,
 }) {
   // `{ stageId, value }` while the name is being edited, null otherwise. Tying
   // the draft to the Stage it belongs to is what makes selecting a different
@@ -213,6 +217,56 @@ export default function StageSettingsPanel({
                 </button>
               </div>
             </section>
+
+            {/* The form twin of dragging a connection on the canvas, so a move can be
+                made (and read back) without a pointer. */}
+            {onAddMove && (
+              <section className="space-y-2.5">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+                  Deals can move to
+                </h3>
+                {outgoingMoves.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    No moves yet{stage.is_terminal ? ", and none are needed: deals end here." : ". Deals here have nowhere to go."}
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {outgoingMoves.map((move) => (
+                      <li
+                        key={move.id}
+                        className="flex items-center justify-between gap-2 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-foreground outline outline-1 -outline-offset-1 outline-mauve-6"
+                      >
+                        <span className="truncate">{move.name}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={disabled}
+                          onClick={() => onRemoveMove(move)}
+                          aria-label={`Remove move to ${move.name}`}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!disabled && moveTargets.length > 0 && (
+                  <select
+                    aria-label="Add a move to another Stage"
+                    value=""
+                    onChange={(e) => e.target.value && onAddMove(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground"
+                  >
+                    <option value="">Add a move to…</option>
+                    {moveTargets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </section>
+            )}
 
             <section className="space-y-2.5">
               <h3 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">

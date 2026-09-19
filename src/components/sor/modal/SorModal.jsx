@@ -437,9 +437,13 @@ export default function SorModal({
   useEffect(() => {
     if (!isOpen || !siblingIds?.length || !onNavigate) return;
     const handleKeyDown = (e) => {
-      const tag = document.activeElement?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || document.activeElement?.isContentEditable) return;
       if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+      // Anything that owns its own arrow keys (fields, selects, tabs, menus, the stage ribbon) keeps them.
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el?.isContentEditable) return;
+      if (el?.closest?.('[role="tab"],[role="tablist"],[role="menu"],[role="menuitem"],[role="listbox"],[role="option"],[role="slider"],[data-stage-ribbon]')) return;
       const index = siblingIds.indexOf(id);
       if (index === -1) return;
       const nextIndex = e.key === "ArrowLeft" ? index - 1 : index + 1;
@@ -740,6 +744,8 @@ export default function SorModal({
     if (!next || next === opportunity.status) return;
     if (isLostCode(next) || (requiresSalesReference(opportunity.status, next) && !opportunity.sales_reference)) {
       setPendingStage(next);
+      // The confirm step lives on Now — bring it into view, wherever the Move was started.
+      handleTabChange("now");
       return;
     }
     const stillOpen = openRequests(procurementRequests);
@@ -844,12 +850,24 @@ export default function SorModal({
   const tabsWithChat = isWide ? visibleTabs : [...visibleTabs, { value: "chat", label: "Chat" }];
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      open={isOpen}
+      onOpenChange={(open, details) => {
+        if (open) return;
+        // In edit mode Esc backs out of the edit (unsaved fields dropped) instead of closing the whole record.
+        if (isEditing && details?.reason === "escape-key") {
+          details.cancel?.();
+          handleEditToggle();
+          return;
+        }
+        onClose();
+      }}
+    >
       <DialogContent
         showCloseButton={false}
         style={isExpanded ? { width: "100vw", height: "100vh" } : undefined}
         className={cn(
-          "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.15)] outline-none transition-all duration-300",
+          "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)] outline-none transition-all duration-300",
           isExpanded ? "!max-w-none !max-h-none !rounded-none !border-0" : "w-full max-w-[95vw] md:max-w-[1200px] max-h-[90vh] rounded-2xl",
         )}
       >
@@ -879,6 +897,11 @@ export default function SorModal({
           onNext={goNext}
           accessLevel={accessLevel}
           moveDisabled={moveDisabled}
+          moveDisabledReason={
+            isRestricted
+              ? "This stage is restricted, so the deal can't be moved from here."
+              : "You can view this deal's stages but not move it. Ask the deal owner or a manager to move it."
+          }
         />
 
         <div className="flex min-h-0 flex-1">

@@ -125,7 +125,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
 
   it('still shows the shared approved-leave calendar tab', async () => {
     renderWithProviders(<EmployeeLeavesPage />);
-    const calendarTab = await screen.findByRole('button', { name: /^Calendar$/i });
+    const calendarTab = await screen.findByRole('tab', { name: /^Calendar$/i });
     await setupUser().click(calendarTab);
     expect(screen.queryByText('No requests found')).not.toBeInTheDocument();
   });

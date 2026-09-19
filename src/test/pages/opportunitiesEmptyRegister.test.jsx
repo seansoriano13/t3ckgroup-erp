@@ -46,7 +46,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
     );
     await screen.findByText(/No opportunities registered yet/i);
 
-    await user.click(screen.getByRole("button", { name: /Board/i }));
+    await user.click(screen.getByRole("tab", { name: /Board/i }));
 
     expect(screen.getByText(/No opportunities registered yet/i)).toBeInTheDocument();
   });
@@ -60,7 +60,7 @@ describe("OpportunitiesPage with nothing the caller may see", () => {
     );
     await screen.findByText(/No opportunities registered yet/i);
 
-    await user.click(screen.getByRole("button", { name: /Overview/i }));
+    await user.click(screen.getByRole("tab", { name: /Overview/i }));
 
     expect(await screen.findByText(/Nothing to show yet/i)).toBeInTheDocument();
   });

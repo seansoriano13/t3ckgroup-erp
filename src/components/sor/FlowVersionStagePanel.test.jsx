@@ -63,7 +63,7 @@ describe("FlowVersionStagePanel", () => {
             ],
         })
 
-        await setupUser().click(screen.getByRole("button", { name: /Conditions/ }))
+        await setupUser().click(screen.getByRole("tab", { name: /Conditions/ }))
 
         // Issue #203: field is a removed kind — its label still shows (an
         // archived-history row on an old version), but conditionDetail no
@@ -85,7 +85,7 @@ describe("FlowVersionStagePanel", () => {
             ],
         })
 
-        await setupUser().click(screen.getByRole("button", { name: /Actions/ }))
+        await setupUser().click(screen.getByRole("tab", { name: /Actions/ }))
 
         expect(screen.getByText("Prepare bid docs")).toBeInTheDocument()
     })
@@ -105,7 +105,7 @@ describe("FlowVersionStagePanel", () => {
             ],
         })
 
-        await setupUser().click(screen.getByRole("button", { name: /Actions/ }))
+        await setupUser().click(screen.getByRole("tab", { name: /Actions/ }))
         expect(screen.queryByText("Check the spec.")).not.toBeInTheDocument()
 
         await setupUser().click(screen.getByRole("button", { name: /Evaluation of Specification/ }))
@@ -117,7 +117,7 @@ describe("FlowVersionStagePanel", () => {
     it("says plainly when this Stage has no conditions saved", async () => {
         renderPanel({ conditions: [] })
 
-        await setupUser().click(screen.getByRole("button", { name: /Conditions/ }))
+        await setupUser().click(screen.getByRole("tab", { name: /Conditions/ }))
 
         expect(
             screen.getByText("This version saved no Stage Conditions on this Stage."),
@@ -129,7 +129,7 @@ describe("FlowVersionStagePanel", () => {
         // a single Condition or Action was drawn.
         renderPanel({ conditions: [], actions: [], versionHasNoRules: true })
 
-        await setupUser().click(screen.getByRole("button", { name: /Actions/ }))
+        await setupUser().click(screen.getByRole("tab", { name: /Actions/ }))
 
         expect(
             screen.getByText("This version saved no Stage Conditions or Stage Actions"),

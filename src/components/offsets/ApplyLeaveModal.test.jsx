@@ -106,7 +106,7 @@ describe("ApplyLeaveModal", () => {
   it("opens on the overtime tab", () => {
     open()
 
-    expect(screen.getByRole("button", { name: "Overtime" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Overtime" })).toBeInTheDocument()
     expect(screen.getByPlaceholderText("Reason for the overtime request")).toBeInTheDocument()
   })
 
@@ -183,7 +183,7 @@ describe("ApplyLeaveModal", () => {
   describe("spending offset leave", () => {
     const goToOffset = async () => {
       const user = setupUser()
-      await user.click(screen.getByRole("button", { name: "Offset" }))
+      await user.click(screen.getByRole("tab", { name: "Offset" }))
       return user
     }
 
@@ -240,7 +240,7 @@ describe("ApplyLeaveModal", () => {
   describe("taking SIL", () => {
     const goToSil = async () => {
       const user = setupUser()
-      await user.click(screen.getByRole("button", { name: "SIL" }))
+      await user.click(screen.getByRole("tab", { name: "SIL" }))
       return user
     }
 

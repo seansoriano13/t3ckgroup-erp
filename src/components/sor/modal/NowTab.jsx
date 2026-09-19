@@ -128,7 +128,7 @@ export default function NowTab({ ctx }) {
         <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
           <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
             <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              Sales Reference<span className="ml-0.5 text-red-500">*</span>
+              Sales Reference<span className="ml-0.5 text-red-11">*</span>
             </label>
             <input
               autoFocus
@@ -137,7 +137,7 @@ export default function NowTab({ ctx }) {
               placeholder="e.g. S01237"
               className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
             />
-            <p className={cn("mt-1.5 text-[11px] leading-relaxed", salesRef && !salesRefValid ? "font-semibold text-red-500" : "text-muted-foreground")}>
+            <p className={cn("mt-1.5 text-[11px] leading-relaxed", salesRef && !salesRefValid ? "font-semibold text-red-11" : "text-muted-foreground")}>
               {salesRef && !salesRefValid ? SALES_REFERENCE_HINT : "Enter the Odoo sales quotation number to confirm a quotation exists."}
             </p>
           </div>
@@ -164,8 +164,8 @@ export default function NowTab({ ctx }) {
       )}
 
       {opportunity.lost_reason && (
-        <div className="rounded-xl border border-red-400/40 bg-red-500/5 px-3 py-2.5">
-          <p className="mb-1 text-[10px] font-bold tracking-widest text-red-500 uppercase">Lost Reason</p>
+        <div className="rounded-xl border border-red-7 bg-red-9/5 px-3 py-2.5">
+          <p className="mb-1 text-[10px] font-bold tracking-widest text-red-11 uppercase">Lost Reason</p>
           <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
         </div>
       )}

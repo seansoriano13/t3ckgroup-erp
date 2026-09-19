@@ -13,13 +13,30 @@ import {
   Pencil,
   Plus,
   RotateCcw,
-  Sparkles,
+  LayoutGrid,
   Workflow,
   Trash2,
   Check,
   X,
 } from "lucide-react";
 import toast from "react-hot-toast";
+
+// The service's own Errors and our SQL RAISEs are written for people; only the
+// database's generic constraint/permission failures and network drops get translated.
+const TECHNICAL_ERRORS = {
+  23505: "That name is already used in this Sales Flow. Pick another.",
+  23503: "Something else still depends on this, so it can't be changed yet.",
+  42501: "You don't have permission to change this Sales Flow.",
+};
+function flowErrorMessage(err) {
+  const friendly = TECHNICAL_ERRORS[err?.code] ||
+    (/failed to fetch|network/i.test(err?.message || "") && "Couldn't reach the server. Check your connection and try again.");
+  if (friendly) {
+    console.error(err);
+    return friendly;
+  }
+  return err?.message || "Something went wrong. Try again.";
+}
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -224,6 +241,15 @@ function FlowCanvasInner() {
     enabled: Boolean(flow?.id) && !isLocked,
   });
   const publishLabel = versionPreview ? `Publish ${versionPreview.label}` : "Publish";
+
+  // Said before Publish, not only after: a minor publish offers every deal on this
+  // major a move up, and the person publishing should know how many that is.
+  const isMinorPublish = Boolean(versionPreview && versionPreview.minor > 0);
+  const { data: dealsOfferedMove } = useQuery({
+    queryKey: ["flowDealsOnMajor", flow?.id, versionPreview?.major],
+    queryFn: () => opportunityService.countOpportunitiesOnFlowMajor(flow.id, versionPreview.major),
+    enabled: publishOpen && Boolean(flow?.id) && isMinorPublish,
+  });
   const stageNameFor = useCallback(
     (stageId) => stages.find((s) => s.id === stageId)?.name || stageId,
     [stages],
@@ -438,7 +464,7 @@ function FlowCanvasInner() {
       refresh();
       toast.success("Sale Type created.");
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(flowErrorMessage(err)),
   });
 
   const { mutate: doRun } = useMutation({
@@ -447,7 +473,7 @@ function FlowCanvasInner() {
       refresh();
       if (variables.message) toast.success(variables.message);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(flowErrorMessage(err)),
   });
 
   const run = useCallback((fn, message) => doRun({ run: fn, message }), [doRun]);
@@ -485,7 +511,7 @@ function FlowCanvasInner() {
         });
       }
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(flowErrorMessage(err)),
   });
 
   // Restore into draft (issue #187's all-or-nothing, id-keeping RPC), fired
@@ -501,7 +527,7 @@ function FlowCanvasInner() {
     },
     onError: (err) => {
       setRestoreConfirmOpen(false);
-      toast.error(err.message);
+      toast.error(flowErrorMessage(err));
     },
   });
 
@@ -512,7 +538,7 @@ function FlowCanvasInner() {
       setMoveResult(result);
       setMoveOffer(null);
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => toast.error(flowErrorMessage(err)),
   });
 
   /** Opens the one dialog, seeded for whichever question is being asked. */
@@ -820,11 +846,34 @@ function FlowCanvasInner() {
   const onEdgesDelete = useCallback(
     (edgesToDelete) => {
       if (isLocked) return;
+      // Backspace deletes instantly, so every removal offers an Undo that re-adds the move.
       edgesToDelete
         .filter((edge) => !edge.id.startsWith("satedge:"))
-        .forEach((edge) => run(() => salesFlowService.removeEdge(edge.id, user?.id)));
+        .forEach((edge) =>
+          run(async () => {
+            await salesFlowService.removeEdge(edge.id, user?.id);
+            toast(
+              (t) => (
+                <span className="flex items-center gap-3 text-sm">
+                  Move removed.
+                  <button
+                    type="button"
+                    className="font-bold underline underline-offset-2"
+                    onClick={() => {
+                      toast.dismiss(t.id);
+                      run(() => salesFlowService.addEdge(flow.id, edge.source, edge.target, user?.id), "Move restored.");
+                    }}
+                  >
+                    Undo
+                  </button>
+                </span>
+              ),
+              { duration: 6000 },
+            );
+          }),
+        );
     },
-    [isLocked, user?.id, run]
+    [isLocked, flow, user?.id, run]
   );
 
   /**
@@ -1024,7 +1073,7 @@ function FlowCanvasInner() {
 
       {/* ── Version-viewing banner (issue #193) ────────────────────────── */}
       {flow && viewingSnapshot && (
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center p-3">
+        <div className="pointer-events-none absolute inset-x-0 top-[4.25rem] z-30 flex justify-center px-3">
           <div className="pointer-events-auto flex items-center gap-2.5 rounded-2xl bg-card/95 px-4 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400">
@@ -1039,8 +1088,7 @@ function FlowCanvasInner() {
               variant="secondary"
               size="sm"
               onClick={() => setViewingSnapshot(null)}
-              aria-label="Back to draft"
-              className="gap-1.5 font-medium shadow-sm"
+                            className="gap-1.5 font-medium shadow-sm"
             >
               <ArrowLeft size={14} />
               {isLocked ? "Back to live flow" : "Back to draft"}
@@ -1060,15 +1108,6 @@ function FlowCanvasInner() {
                 </Button>
               </span>
             </Tooltip>
-            <button
-              type="button"
-              onClick={() => setViewingSnapshot(null)}
-              className="ml-0.5 rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              aria-label="Exit preview"
-              title={isLocked ? "Exit preview (back to live flow)" : "Exit preview (back to draft)"}
-            >
-              <X size={15} />
-            </button>
           </div>
         </div>
       )}
@@ -1110,14 +1149,21 @@ function FlowCanvasInner() {
               >
                 <Input
                   autoFocus
+                  aria-label="Sale Type name"
                   value={inlineValue}
                   onChange={e => setInlineValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Escape") {
+                      e.preventDefault();
+                      setToolbarMode("select");
+                    }
+                  }}
                   className="h-8 w-40 text-xs font-bold"
                 />
-                <Button type="submit" size="icon-sm" variant="ghost" className="text-green-600 hover:text-green-700 hover:bg-green-100 dark:hover:bg-green-900/30">
+                <Button type="submit" size="icon-sm" variant="ghost" aria-label="Save name" className="text-green-11 hover:text-green-12 hover:bg-green-3">
                   <Check size={14} />
                 </Button>
-                <Button type="button" size="icon-sm" variant="ghost" onClick={() => setToolbarMode("select")}>
+                <Button type="button" size="icon-sm" variant="ghost" aria-label="Cancel rename" onClick={() => setToolbarMode("select")}>
                   <X size={14} />
                 </Button>
               </form>
@@ -1212,6 +1258,7 @@ function FlowCanvasInner() {
                       <Button
                         variant="ghost"
                         size="icon-sm"
+                        aria-label="Rename Sale Type"
                         onClick={() => {
                           setInlineValue(selectedSaleType.name);
                           setToolbarMode("rename");
@@ -1227,8 +1274,8 @@ function FlowCanvasInner() {
                         placement="bottom-start"
                         popoverClassName="popover-enter z-[10001] w-48 rounded-2xl bg-popover p-2 shadow-2xl ring-1 ring-mauve-6"
                         trigger={
-                          <Button variant="ghost" size="icon-sm" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
-                            <Trash2 size={14} />
+                          <Button variant="ghost" size="icon-sm" aria-label="Restore or delete archived Sale Type" title="Restore or delete">
+                            <ArchiveRestore size={14} className="text-muted-foreground" />
                           </Button>
                         }
                       >
@@ -1279,6 +1326,7 @@ function FlowCanvasInner() {
                         <Button
                           variant="ghost"
                           size="icon-sm"
+                          aria-label="Archive Sale Type"
                           onClick={() => {
                             ask({
                               title: `Archive “${selectedSaleType.name}”?`,
@@ -1376,7 +1424,7 @@ function FlowCanvasInner() {
                   onClick={handleAutoLayout}
                   disabled={stages.length === 0 || isLocked}
                 >
-                  <Sparkles /> Tidy layout
+                  <LayoutGrid /> Tidy layout
                 </Button>
 
                 <SorFormBuilder flow={flow} />
@@ -1538,6 +1586,20 @@ function FlowCanvasInner() {
             run(() => salesFlowService.updateStageBracket(selectedStage.id, label, user?.id))
           }
           onDelete={() => handleDeleteStage(selectedStage)}
+          outgoingMoves={edges
+            .filter((e) => e.from_stage_id === selectedStage.id)
+            .map((e) => ({ id: e.id, to: e.to_stage_id, name: stageNameFor(e.to_stage_id) }))}
+          moveTargets={stages.filter(
+            (s) =>
+              s.id !== selectedStage.id &&
+              !edges.some((e) => e.from_stage_id === selectedStage.id && e.to_stage_id === s.id),
+          )}
+          onAddMove={(toId) =>
+            run(() => salesFlowService.addEdge(flow.id, selectedStage.id, toId, user?.id), `Move to ${stageNameFor(toId)} added.`)
+          }
+          onRemoveMove={(move) =>
+            onEdgesDelete([{ id: move.id, source: selectedStage.id, target: move.to }])
+          }
           onToggleTerminal={() => handleToggleTerminal(selectedStage)}
           onSetEntry={() => setAsEntryStage(selectedStage.id)}
           onSetWon={() =>
@@ -1581,7 +1643,13 @@ function FlowCanvasInner() {
           if (!open) setPublishNote("");
         }}
         title={publishLabel}
-        description="Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
+        description={
+          isMinorPublish && dealsOfferedMove > 0
+            ? `Publishing freezes this draft as a new Flow Snapshot. ${dealsOfferedMove} deal${dealsOfferedMove === 1 ? "" : "s"} on v${versionPreview.major}.x will be offered a move up afterwards. Nothing moves unless you accept.`
+            : versionPreview && !isMinorPublish
+              ? "Publishing freezes this draft as a new major Flow Snapshot. Deals already running an older version stay on it and are not offered a move."
+              : "Publishing freezes this draft as a new Flow Snapshot. Deals already running an older version keep using it."
+        }
         confirmLabel="Publish"
         confirmDisabled={!versionPreview || versionPreview.hasChanges === false}
         onConfirm={() => publishFlow.mutate(publishNote.trim() || null)}

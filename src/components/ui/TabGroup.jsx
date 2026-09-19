@@ -40,6 +40,8 @@ export default function TabGroup({
     typeof t === "string" ? { value: t, label: t } : t,
   );
 
+  const hasActive = normalised.some((t) => t.value === activeTab);
+
   // Wrapper classes
   const wrapperCls = cn(
     "flex overflow-x-auto shrink-0 relative [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]",
@@ -102,7 +104,22 @@ export default function TabGroup({
   };
 
   return (
-    <div className={wrapperCls}>
+    <div
+      className={wrapperCls}
+      role="tablist"
+      onKeyDown={(e) => {
+        // Roving focus: ←/→ (and Home/End) move between tabs and select, as ARIA tabs expect.
+        const keys = { ArrowLeft: -1, ArrowRight: 1, Home: "first", End: "last" };
+        if (!(e.key in keys)) return;
+        const i = normalised.findIndex((t) => t.value === activeTab);
+        const step = keys[e.key];
+        const next =
+          step === "first" ? 0 : step === "last" ? normalised.length - 1 : (i + step + normalised.length) % normalised.length;
+        e.preventDefault();
+        onChange(normalised[next].value);
+        e.currentTarget.querySelectorAll('[role="tab"]')[next]?.focus();
+      }}
+    >
       {normalised.map(
         ({
           value,
@@ -118,12 +135,16 @@ export default function TabGroup({
             <button
               key={value}
               type="button"
+              role="tab"
+              aria-selected={isActive}
+              tabIndex={isActive || (!hasActive && value === normalised[0]?.value) ? 0 : -1}
               onClick={(e) => {
                 e.preventDefault();
                 onChange(value);
               }}
               className={cn(
                 btnBase,
+                "focus-visible:ring-2 focus-visible:ring-mauve-8 focus-visible:ring-offset-1",
                 isActive
                   ? activeClass || btnActive[currentVariant]
                   : btnInactive[currentVariant],

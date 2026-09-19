@@ -2004,6 +2004,30 @@ export const opportunityService = {
    * How many SORs a "Move up to vX.Y" offer would move, without moving them
    * (issue #190) — the offer states N before anyone accepts it.
    */
+  /**
+   * Before a publish exists: how many live SORs sit on any Flow Snapshot of
+   * `major` for this flow. Those are the deals a minor publish of that major
+   * will offer to move up — the same set eligibleOpportunityIdsForVersionMove
+   * finds afterwards, counted ahead of time for the Publish dialog.
+   */
+  async countOpportunitiesOnFlowMajor(flowId, major) {
+    const { data: snapshots, error: snapshotError } = await supabase
+      .from("flow_snapshots")
+      .select("id")
+      .eq("flow_id", flowId)
+      .eq("version", major);
+    if (snapshotError) throw snapshotError;
+    const ids = (snapshots || []).map((s) => s.id);
+    if (ids.length === 0) return 0;
+    const { data: deals, error } = await supabase
+      .from("sales_opportunities")
+      .select("id")
+      .in("flow_snapshot_id", ids)
+      .neq("is_deleted", true);
+    if (error) throw error;
+    return (deals || []).length;
+  },
+
   async countOpportunitiesEligibleForVersionMove(targetSnapshotId) {
     const ids = await eligibleOpportunityIdsForVersionMove(targetSnapshotId);
     return ids.length;

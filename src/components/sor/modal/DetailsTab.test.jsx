@@ -58,7 +58,7 @@ describe("DetailsTab (#302)", () => {
       expect(screen.queryByText(moved)).not.toBeInTheDocument()
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
 
     expect(await screen.findByText("Deal Details")).toBeInTheDocument()
     expect(screen.getByText("Juan Dela Cruz")).toBeInTheDocument()
@@ -81,7 +81,7 @@ describe("DetailsTab (#302)", () => {
     expect(screen.queryByText("Aerial ladder, 30m")).not.toBeInTheDocument()
     expect(screen.queryByText("Procurement Requests")).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
 
     const grid = await screen.findByText("Deal Details")
     const inclusions = await screen.findByText("Inclusions")
@@ -95,14 +95,14 @@ describe("DetailsTab (#302)", () => {
     renderModal(sor)
     await screen.findByText("What blocks this stage")
 
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
     await screen.findByText("Deal Details")
     fireEvent.click(screen.getByTitle("Edit"))
     const contact = await screen.findByPlaceholderText("e.g. Juan Dela Cruz")
     fireEvent.change(contact, { target: { value: "Maria Santos" } })
 
-    fireEvent.click(screen.getByRole("button", { name: "Now" }))
-    fireEvent.click(screen.getByRole("button", { name: "Details" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Now" }))
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
 
     expect(screen.getByPlaceholderText("e.g. Juan Dela Cruz")).toHaveValue("Maria Santos")
   })

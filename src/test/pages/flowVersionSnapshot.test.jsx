@@ -125,7 +125,7 @@ describe("FlowVersionPage", () => {
     expect(screen.queryByRole("button", { name: /Delete Stage/ })).not.toBeInTheDocument()
 
     // Switch to Actions tab
-    fireEvent.click(screen.getByRole("button", { name: /Actions/ }))
+    fireEvent.click(screen.getByRole("tab", { name: /Actions/ }))
     expect((await screen.findAllByText("Send Notification")).length).toBe(2)
   })
 

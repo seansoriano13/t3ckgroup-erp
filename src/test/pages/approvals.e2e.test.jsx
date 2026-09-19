@@ -224,7 +224,7 @@ describe("approval journeys", () => {
             expect(screen.getAllByText("Archive the 2025 tickets").length).toBeGreaterThan(0)
         })
 
-        await user.click(screen.getByRole("button", { name: /stale backlog/i }))
+        await user.click(screen.getByRole("tab", { name: /stale backlog/i }))
 
         await waitFor(() => {
             expect(screen.queryAllByText("Patch the firewall")).toHaveLength(0)
@@ -344,7 +344,7 @@ describe("approval journeys", () => {
 
         await renderPage(TaskApprovals, reviewer)
 
-        await user.click(screen.getByRole("button", { name: /recently approved/i }))
+        await user.click(screen.getByRole("tab", { name: /recently approved/i }))
 
         const edit = await screen.findByRole("button", { name: /edit evaluation/i })
         await user.click(edit)
@@ -396,10 +396,10 @@ describe("approval journeys", () => {
         await waitForNetworkIdle()
 
         // 1. Check Tabs (measures staleness from evaluated_at)
-        expect(screen.getByRole("button", { name: /Active.*graded.*2/i })).toBeInTheDocument()
+        expect(screen.getByRole("tab", { name: /Active.*graded.*2/i })).toBeInTheDocument()
         
         // Using .* for >= to avoid encoding issues when editing files via shell/API
-        expect(screen.getByRole("button", { name: /Stale Backlog \(.*48h graded\)/i })).toBeInTheDocument()
+        expect(screen.getByRole("tab", { name: /Stale Backlog \(.*48h graded\)/i })).toBeInTheDocument()
 
         // 2. The Quick Filter Chips (queueEmployees) SHOULD show Bruce Admin, since he has a pending task
         // We use getAllByRole because there is 1 Quick Filter Chip AND 1 Task Card for Bruce Admin!

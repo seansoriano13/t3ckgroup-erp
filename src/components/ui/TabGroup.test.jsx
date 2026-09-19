@@ -20,7 +20,7 @@ describe("TabGroup", () => {
       />,
     );
 
-    const buttons = screen.getAllByRole("button");
+    const buttons = screen.getAllByRole("tab");
     expect(buttons).toHaveLength(2);
 
     // Ensure buttons have type="button" to prevent unwanted form submit or scroll resets
@@ -45,7 +45,7 @@ describe("TabGroup", () => {
       />,
     );
 
-    const detailsTab = screen.getByRole("button", { name: "Details" });
+    const detailsTab = screen.getByRole("tab", { name: "Details" });
     fireEvent.click(detailsTab);
     expect(handleChange).toHaveBeenCalledWith("Details");
   });

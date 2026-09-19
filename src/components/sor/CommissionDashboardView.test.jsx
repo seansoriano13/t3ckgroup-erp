@@ -161,7 +161,7 @@ describe("CommissionDashboardView", () => {
     });
 
     // Switch to Transaction Ledger tab
-    const ledgerTab = screen.getByRole("button", { name: /Transaction Ledger/i });
+    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
     fireEvent.click(ledgerTab);
 
     expect(screen.getByText("SOR-001")).toBeInTheDocument();
@@ -169,14 +169,14 @@ describe("CommissionDashboardView", () => {
     expect(screen.getByText("SOR-002")).toBeInTheDocument();
 
     // Switch to Department Allocations tab
-    const deptsTab = screen.getByRole("button", { name: /Department Allocations/i });
+    const deptsTab = screen.getByRole("tab", { name: /Department Allocations/i });
     fireEvent.click(deptsTab);
 
     expect(screen.getAllByText("Operations").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("Administration").length).toBeGreaterThanOrEqual(1);
 
     // Switch to Commission Formula & Split Rules tab
-    const rulesTab = screen.getByRole("button", { name: /Split Rules/i });
+    const rulesTab = screen.getByRole("tab", { name: /Split Rules/i });
     fireEvent.click(rulesTab);
 
     expect(screen.getByText(/Commission Formula & Allocation Rules/i)).toBeInTheDocument();
@@ -239,7 +239,7 @@ describe("CommissionDashboardView", () => {
       expect(screen.getByText("Alice Rep")).toBeInTheDocument();
     });
 
-    const ledgerTab = screen.getByRole("button", { name: /Transaction Ledger/i });
+    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
     fireEvent.click(ledgerTab);
 
     expect(screen.getByText("Alpha Corp Solution")).toBeInTheDocument();
@@ -325,7 +325,7 @@ describe("CommissionDashboardView", () => {
       expect(screen.getByText("Alice Rep")).toBeInTheDocument();
     });
 
-    const ledgerTab = screen.getByRole("button", { name: /Transaction Ledger/i });
+    const ledgerTab = screen.getByRole("tab", { name: /Transaction Ledger/i });
     fireEvent.click(ledgerTab);
 
     const dealRow = screen.getByText("SOR-001").closest("tr");
