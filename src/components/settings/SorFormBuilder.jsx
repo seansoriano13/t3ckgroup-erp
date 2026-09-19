@@ -30,6 +30,8 @@ import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 import { FORM_FIELD_TYPES, isCoreFormField, resolveFormFields } from "../../constants/sorFormBuilder";
 import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
+import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
+import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -48,7 +50,7 @@ import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
 export default function SorFormBuilder({ flow }) {
   const [open, setOpen] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
-  const [draft, setDraft] = useState({ label: "", help: "", fieldType: "text", optionsText: "", isRequired: false });
+  const [draft, setDraft] = useState({ label: "", help: "", fieldType: "text", options: ["", ""], isRequired: false });
   const [renaming, setRenaming] = useState(null);
   const [pendingRestore, setPendingRestore] = useState(false);
   const [pendingRemove, setPendingRemove] = useState(null);
@@ -137,7 +139,7 @@ export default function SorFormBuilder({ flow }) {
           fieldType: draft.fieldType,
           options:
             draft.fieldType === "choice"
-              ? draft.optionsText.split(",").map((o) => o.trim()).filter(Boolean)
+              ? cleanChoiceOptions(draft.options)
               : [],
           isRequired: draft.isRequired,
         },
@@ -147,7 +149,7 @@ export default function SorFormBuilder({ flow }) {
       invalidate();
       toast.success("Field added.");
       setIsAdding(false);
-      setDraft({ label: "", help: "", fieldType: "text", optionsText: "", isRequired: false });
+      setDraft({ label: "", help: "", fieldType: "text", options: ["", ""], isRequired: false });
     },
     onError: (err) => toast.error(err.message),
   });
@@ -200,7 +202,10 @@ export default function SorFormBuilder({ flow }) {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (draft.label.trim()) addMutation.mutate();
+                  if (!draft.label.trim()) return;
+                  const error = draft.fieldType === "choice" && choiceOptionsError(draft.options);
+                  if (error) return toast.error(error);
+                  addMutation.mutate();
                 }}
                 className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
               >
@@ -239,11 +244,9 @@ export default function SorFormBuilder({ flow }) {
                   ))}
                 </select>
                 {draft.fieldType === "choice" && (
-                  <Input
-                    label="Options (comma-separated)"
-                    value={draft.optionsText}
-                    onChange={(e) => setDraft((d) => ({ ...d, optionsText: e.target.value }))}
-                    placeholder="e.g. Yes, No, Pending"
+                  <ChoiceOptionsEditor
+                    options={draft.options}
+                    onChange={(options) => setDraft((d) => ({ ...d, options }))}
                   />
                 )}
                 <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
+import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
+import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
@@ -19,7 +21,7 @@ const emptyDraft = () => ({
   source: "sor",
   sorField: SOR_STAGE_FIELD_KEYS[0],
   fieldType: "text",
-  optionsText: "",
+  options: ["", ""],
 });
 
 function draftFromField(field) {
@@ -30,7 +32,7 @@ function draftFromField(field) {
     source: field.source,
     sorField: field.sor_field || SOR_STAGE_FIELD_KEYS[0],
     fieldType: field.field_type || "text",
-    optionsText: (field.options || []).join(", "),
+    options: field.options?.length ? field.options : ["", ""],
   };
 }
 
@@ -43,10 +45,7 @@ function payloadFrom(draft) {
     fieldType: draft.source === "custom" ? draft.fieldType : null,
     options:
       draft.source === "custom" && draft.fieldType === "choice"
-        ? draft.optionsText
-            .split(",")
-            .map((o) => o.trim())
-            .filter(Boolean)
+        ? cleanChoiceOptions(draft.options)
         : [],
     isRequired: draft.isRequired,
   };
@@ -184,6 +183,10 @@ export default function StageFieldManager({ stageId, disabled = false }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!draft.label.trim() || !stageId) return;
+    if (draft.source === "custom" && draft.fieldType === "choice") {
+      const error = choiceOptionsError(draft.options);
+      if (error) return toast.error(error);
+    }
     const payload = payloadFrom(draft);
     if (editingId) {
       updateMutation.mutate({ id: editingId, payload, field: editingField });
@@ -295,12 +298,9 @@ export default function StageFieldManager({ stageId, disabled = false }) {
                     ))}
                   </select>
                   {draft.fieldType === "choice" && (
-                    <Input
-                      className="mt-2"
-                      label="Options (comma-separated)"
-                      value={draft.optionsText}
-                      onChange={(e) => setDraft((d) => ({ ...d, optionsText: e.target.value }))}
-                      placeholder="e.g. Yes, No, Pending"
+                    <ChoiceOptionsEditor
+                      options={draft.options}
+                      onChange={(options) => setDraft((d) => ({ ...d, options }))}
                     />
                   )}
                 </>

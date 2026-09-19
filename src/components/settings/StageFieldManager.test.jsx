@@ -66,6 +66,34 @@ describe("StageFieldManager", () => {
     expect(screen.getByText("Expected Award Date")).toBeInTheDocument();
   });
 
+  it("builds a custom choice field's options row by row", async () => {
+    const stage = makeFlowStage();
+
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageFieldManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Award amount/i), { target: { value: "Bid result" } });
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }));
+    fireEvent.change(screen.getByLabelText("Field type"), { target: { value: "choice" } });
+    fireEvent.change(screen.getByLabelText("Option 1"), { target: { value: "Won" } });
+
+    // One option is refused
+    fireEvent.click(screen.getByRole("button", { name: /Save field/i }));
+    expect(screen.queryByText("Bid result")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Option 2"), { target: { value: "Lost" } });
+    fireEvent.click(screen.getByRole("button", { name: /Save field/i }));
+    await waitFor(() => expect(screen.getByText("Bid result")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Bid result" }));
+    expect(screen.getByLabelText("Option 1")).toHaveValue("Won");
+    expect(screen.getByLabelText("Option 2")).toHaveValue("Lost");
+  });
+
   it("edits a saved field's label without changing its source", async () => {
     const stage = makeFlowStage();
     makeStageField({ stage_id: stage.id, label: "Old label", source: "custom", field_type: "number" });
