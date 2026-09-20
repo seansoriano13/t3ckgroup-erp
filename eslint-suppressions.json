@@ -211,32 +211,22 @@
   },
   "src/components/hr/DeptSubDeptSelector.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 4
     }
   },
   "src/components/hr/EmployeeForm.jsx": {
     "local/no-raw-html": {
-      "count": 15
-    }
-  },
-  "src/components/hr/HRFormModal.jsx": {
-    "local/no-raw-html": {
-      "count": 3
+      "count": 9
     }
   },
   "src/components/hr/HrLogsPanel.jsx": {
-    "local/no-raw-html": {
-      "count": 10
-    }
-  },
-  "src/components/hr/LeaveCategoriesConfig.jsx": {
     "local/no-raw-html": {
       "count": 6
     }
   },
   "src/components/hr/NotionLeaveCalendar.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 2
     }
   },
   "src/components/log-task/DictateButton.jsx": {
@@ -271,22 +261,22 @@
   },
   "src/components/offsets/ApplyLeaveModal.jsx": {
     "local/no-raw-html": {
-      "count": 49
+      "count": 48
     }
   },
   "src/components/offsets/ApproveOffsetModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 3
     }
   },
   "src/components/offsets/ApproveOvertimeModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 3
     }
   },
   "src/components/offsets/ApproveUndertimeModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 3
     }
   },
   "src/components/offsets/HeadSelectField.jsx": {
@@ -606,17 +596,17 @@
   },
   "src/pages/hr/management/index.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/pages/hr/offsets/_components/DocumentCenterTab.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/pages/hr/offsets/index.jsx": {
     "local/no-raw-html": {
-      "count": 16
+      "count": 7
     }
   },
   "src/pages/login/index.jsx": {
@@ -626,7 +616,7 @@
   },
   "src/pages/offsets/index.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/profile/index.jsx": {

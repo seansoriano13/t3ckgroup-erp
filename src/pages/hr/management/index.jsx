@@ -398,28 +398,28 @@ export default function EmployeeManagement() {
                         </td>
                         <td className="p-4 text-right space-x-2">
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
-                            <button
+                            <Button
                               onClick={() => handleReissuePassword(emp)}
-                              className="p-2 bg-amber-2 hover:bg-amber-3 text-amber-11 rounded-xl transition-all inline-block border border-transparent hover:border-amber-6"
+                              variant="outline" className="inline-block"
                               title="Reissue Password"
                             >
                               <KeyRound size={15} />
-                            </button>
+                            </Button>
                           )}
-                          <button
+                          <Button
                             onClick={() => handleEdit(emp)}
-                            className="p-2 bg-muted hover:bg-muted/70 text-foreground rounded-xl transition-all inline-block hover:border-mauve-5 border border-transparent"
+                            variant="outline" className="inline-block"
                             title="Edit Employee"
                           >
                             <Edit size={15} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
                             onClick={() => handleDelete(emp.id)}
-                            className="p-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-xl transition-all inline-block border border-transparent hover:border-destructive/20"
+                            variant="destructive" className="inline-block"
                             title="Delete Employee"
                           >
                             <Trash2 size={15} />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))

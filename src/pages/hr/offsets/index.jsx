@@ -30,6 +30,7 @@ import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPrev
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
+import { Button } from "@/components/ui/button";
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -395,13 +396,13 @@ export default function HrLeavesManagerPage() {
           title="Leaves Manager"
           description="Review leave applications, approve overtime, and manage employee balances."
         />
-        <button
+        <Button
           onClick={() => setIsApplyModalOpen(true)}
-          className="flex-none bg-foreground text-background font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-foreground/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
+          variant="ghost" className="h-auto"
         >
           <Plus size={16} />
           File for Employee
-        </button>
+        </Button>
       </div>
 
       <ApplyLeaveModal
@@ -492,20 +493,20 @@ export default function HrLeavesManagerPage() {
               
               {activeTab === 'balances' && (
                 <div className="flex items-center bg-card border border-border rounded-xl p-1 shrink-0">
-                  <button
+                  <Button
                     onClick={() => setBalancesLayout('table')}
-                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    variant="ghost" className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
                     title="Table View"
                   >
                     <List size={16} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     onClick={() => setBalancesLayout('grid')}
-                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    variant="ghost" className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
                     title="Grid View"
                   >
                     <LayoutGrid size={16} />
-                  </button>
+                  </Button>
                 </div>
               )}
            </div>
@@ -633,21 +634,21 @@ export default function HrLeavesManagerPage() {
                               <td className="p-4 text-right space-x-2">
                                  {req.type === 'OVERTIME' ? (
                                     <>
-                                      <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                      <Button onClick={() => handleAction(req, 'approve')} variant="outline">
                                         Approve (Offset)
-                                      </button>
-                                      <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                      </Button>
+                                      <Button onClick={() => handleAction(req, 'approve_paid')} variant="outline">
                                         Approve (Paid)
-                                      </button>
+                                      </Button>
                                     </>
                                  ) : (
-                                    <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                    <Button onClick={() => handleAction(req, 'approve')} variant="outline">
                                         Approve
-                                    </button>
+                                    </Button>
                                  )}
-                                 <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
+                                 <Button onClick={() => handleAction(req, 'reject')} variant="destructive">
                                     Reject
-                                 </button>
+                                 </Button>
                               </td>
                            </tr>
                         ))}
@@ -769,19 +770,19 @@ export default function HrLeavesManagerPage() {
                             </td>
                             <td className="p-4 text-right flex items-center justify-end">
                               {req.verification_token && (
-                                <button
+                                <Button
                                   onClick={() => setPreviewToken(req.verification_token)}
-                                  className="text-xs font-bold text-blue-11 bg-blue-2 hover:bg-blue-3 border border-blue-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2"
+                                  variant="outline" className="mr-2"
                                 >
                                   Preview
-                                </button>
+                                </Button>
                               )}
-                              <button
+                              <Button
                                 onClick={() => handleUndo(req)}
-                                className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+                                variant="outline"
                               >
                                 Undo
-                              </button>
+                              </Button>
                             </td>
                           </tr>
                         );

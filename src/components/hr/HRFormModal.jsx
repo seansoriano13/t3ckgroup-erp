@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from "../ui/dialog";
 import { X, ChevronDown } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
 
 /**
  * A reusable modal wrapper for HR management forms (Employees, Categories, etc.)
@@ -57,12 +58,12 @@ export default function HRFormModal({
               </>
             )}
           </div>
-          <button
+          <Button
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            variant="ghost" size="icon-xs"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* Scrollable Body */}
@@ -77,22 +78,22 @@ export default function HRFormModal({
             <span>to close</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <button
+            <Button
               type="button"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4 transition-colors"
+              variant="ghost" className="h-auto"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               form={formId}
               disabled={isPending}
-              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary-hover text-primary-foreground font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2 text-[13px]"
+              variant="default"
             >
               {isPending ? <Spinner size="sm" /> : null}
               {isPending ? "Saving..." : submitLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

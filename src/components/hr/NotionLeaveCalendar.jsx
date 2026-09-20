@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { compareByStartTime, formatWindow, formatWindowCompact } from '../../utils/time';
+import { Button } from "@/components/ui/button";
 
 export default function NotionLeaveCalendar({
   approvedLeaves = [], // Should be an array of objects with a 'type' property ('SIL' or 'OFFSET')
@@ -200,16 +201,16 @@ export default function NotionLeaveCalendar({
 
                 {/* Stacked Overflow Button */}
                 {overflowCount > 0 && (
-                  <button
+                  <Button
                     onClick={() => {
                       const dateStr = new Date(year, month, day).toISOString().split('T')[0];
                       setSelectedDayLeaves({ dateStr, leaves, dayNum: day });
                     }}
-                    className="w-full py-1 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                    variant="outline" className="w-full"
                   >
                     <Users size={11} />
                     <span>+{overflowCount} more...</span>
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -235,12 +236,12 @@ export default function NotionLeaveCalendar({
                   Approved Leaves on {new Date(selectedDayLeaves.dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
                 </h3>
               </div>
-              <button
+              <Button
                 onClick={() => setSelectedDayLeaves(null)}
-                className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors cursor-pointer"
+                variant="ghost" size="icon-xs"
               >
                 <X size={16} />
-              </button>
+              </Button>
             </div>
 
             <div className="max-h-[60vh] overflow-y-auto space-y-2 pr-1 custom-scrollbar">
@@ -287,12 +288,12 @@ export default function NotionLeaveCalendar({
           <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-150 overflow-hidden">
             <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/30">
               <h3 className="font-black text-sm uppercase text-foreground">Leave Details</h3>
-              <button
+              <Button
                 onClick={() => setSelectedLeave(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                variant="ghost" className="h-auto"
               >
                 <X size={18} />
-              </button>
+              </Button>
             </div>
 
             <div className="p-5 space-y-5">
@@ -341,15 +342,15 @@ export default function NotionLeaveCalendar({
               {currentUserId === selectedLeave.employee_id &&
                 !hasAlreadyBeenTaken(selectedLeave) &&
                 onWithdrawLeave && (
-                  <button
+                  <Button
                     onClick={() => {
                       onWithdrawLeave(selectedLeave.id, selectedLeave.status, selectedLeave.type);
                       setSelectedLeave(null);
                     }}
-                    className="w-full py-2.5 mt-2 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 rounded-xl text-sm font-bold transition-colors cursor-pointer"
+                    variant="destructive" className="w-full mt-2"
                   >
                     Withdraw Leave
-                  </button>
+                  </Button>
                 )}
             </div>
           </div>

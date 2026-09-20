@@ -57,12 +57,12 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             Approve Offset Leave
           </h2>
-          <button
+          <Button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost" size="icon-xs"
           >
             <X size={18} strokeWidth={2.5} />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">

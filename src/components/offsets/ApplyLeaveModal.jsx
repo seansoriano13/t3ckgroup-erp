@@ -488,12 +488,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             Leaves & Overtime
           </h2>
-          <button
+          <Button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost" size="icon-xs"
           >
             <X size={18} strokeWidth={2.5} />
-          </button>
+          </Button>
         </div>
 
         {/* Content */}
