@@ -11,6 +11,7 @@ import TemplateVariableChips from "@/components/ui/TemplateVariableChips"
 import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Image } from "@/components/ui/Image";
 
 export default function LogTaskDetailsSection({
   formData,
@@ -252,7 +253,7 @@ export default function LogTaskDetailsSection({
                   key={url}
                   className="relative group w-14 h-14 rounded-lg overflow-hidden border border-mauve-4 bg-mauve-2 shrink-0"
                 >
-                  <img
+                  <Image
                     src={url}
                     alt={`Attachment ${i + 1}`}
                     className="object-cover w-full h-full cursor-pointer"
@@ -328,7 +329,7 @@ export default function LogTaskDetailsSection({
               >
                 <X size={24} />
               </Button>
-              <img
+              <Image
                 src={fullscreenImage}
                 alt="Fullscreen Attachment"
                 className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"

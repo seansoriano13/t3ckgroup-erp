@@ -14,6 +14,7 @@ import Avatar from "./Avatar"
 import ChecklistTaskRenderer from "./ChecklistTaskRenderer"
 import { cn } from "@/lib/utils"
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { Image } from "@/components/ui/Image";
 
 const formatTime = (isoString) => {
   if (!isoString) return ""
@@ -185,7 +186,7 @@ function HistoryItem({ log, type = "TASK" }) {
                         
                         className="block w-12 h-12 rounded-md overflow-hidden border border-border hover:opacity-80 transition-opacity no-underline"
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"
@@ -215,7 +216,7 @@ function HistoryItem({ log, type = "TASK" }) {
                         
                         className="block w-12 h-12 rounded-md overflow-hidden border border-blue-500/30 hover:opacity-80 transition-opacity no-underline"
                       >
-                        <img
+                        <Image
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { aiService } from "../services/aiService";
+import { Image } from "@/components/ui/Image";
 
 const DEFAULT_QUOTE = "Begin each day with a Grateful Heart.";
 
@@ -38,7 +39,7 @@ export default function PersonalizedHeroBanner() {
       style={{ minHeight: "110px", maxHeight: "120px", height: "110px" }}
     >
       {/* Background image */}
-      <img
+      <Image
         className="absolute inset-0 w-full h-full object-cover"
         src={user?.dashboardBannerUrl || "/leaf-background.jpg"}
         alt=""

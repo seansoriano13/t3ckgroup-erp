@@ -314,7 +314,10 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/ExternalLink.jsx`. Replaces raw `<a>` to another site. Always `target="_blank"` with `rel="noopener noreferrer"`. Props: `href`, `className`, `children`, plus native anchor props. Underlined by default; add `no-underline` for chip or thumbnail links. Internal links use the router `Link` (`to`), never `<a>`.
 
 #### Avatar
-`Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
+`Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person. Fixed size scale only; use `Image` when you need another size.
+
+#### Image
+`ui/Image.jsx`. Thin `<img>` for anything that is neither a person nor an upload (banners, logos, previews, thumbnails inside an upload UI). No transforms, no URL rewriting. Props: `src`, `alt` (always set; `""` if decorative), `className`, plus native img props.
 
 #### ImageAttachment
 `ImageAttachment.jsx` (root). The Primitive for uploaded images. Props: `taskId`, `userId`, `attachments`, `onChange`, `readOnly`. Replaces raw `<img>` and file input for uploads.

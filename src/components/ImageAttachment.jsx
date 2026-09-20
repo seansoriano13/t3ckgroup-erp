@@ -5,6 +5,7 @@ import Spinner from "@/components/ui/Spinner";
 import { storageService } from "../services/storageService";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { Image } from "@/components/ui/Image";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -148,7 +149,7 @@ export default function ImageAttachment({
                     <Spinner size="sm" />
                  ) : (
                    <>
-                     <img 
+                     <Image 
                        src={item.signedUrl} 
                        alt={`Attachment ${index + 1}`} 
                        className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
@@ -222,7 +223,7 @@ export default function ImageAttachment({
             >
               <X size={24} />
             </Button>
-            <img 
+            <Image 
               src={fullscreenImage} 
               alt="Fullscreen Attachment" 
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
