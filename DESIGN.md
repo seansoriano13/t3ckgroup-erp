@@ -257,7 +257,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
 
 #### Dialog
-`ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals and **ModalOverlay** (legacy, to be deleted). Parts: `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`.
+`ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals. Parts: `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`.
 
 #### ConfirmDialog
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
