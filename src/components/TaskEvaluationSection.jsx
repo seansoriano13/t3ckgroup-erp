@@ -2,6 +2,7 @@ import React from "react"
 import { MessageCircle } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
 import GradeSelector from "./GradeSelector"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function TaskEvaluationSection({
   isEditing,
@@ -25,18 +26,19 @@ export default function TaskEvaluationSection({
       {/* --- GRADE EDIT (Re-evaluation during edit mode) --- */}
       {canReEvalGrade && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 flex items-center gap-1.5">
+          <FieldBox bare label={<>
             Performance Grade
             <span className="font-normal normal-case tracking-normal text-muted-foreground/70">
               (editing)
             </span>
-          </label>
-          <GradeSelector
+          </>}>
+<GradeSelector
             grade={editGrade}
             onSelect={setEditGrade}
             canEvaluate={true}
             finalized={false}
           />
+</FieldBox>
         </div>
       )}
 
@@ -87,14 +89,14 @@ export default function TaskEvaluationSection({
           {/* --- APPROVAL REMARKS (only shown to evaluators before finalization) --- */}
           {canEvaluate && !isFinalized && (
             <div className="flex flex-col gap-1.5 mt-4">
-              <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <FieldBox bare label={<>
                 <MessageCircle size={11} />
                 Remarks
                 <span className="font-normal normal-case tracking-normal text-muted-foreground/60">
                   (required to reject)
                 </span>
-              </label>
-              <Textarea
+              </>}>
+<Textarea
                 value={approvalRemarks}
                 onChange={(e) => {
                   setApprovalRemarks(e.target.value)
@@ -105,6 +107,7 @@ export default function TaskEvaluationSection({
                 placeholder="Leave feedback for the employee..."
                 className="w-full bg-card border border-border text-foreground rounded-xl p-3 outline-none transition-all h-20 resize-none text-[13px] shadow-sm"
               />
+</FieldBox>
             </div>
           )}
         </div>

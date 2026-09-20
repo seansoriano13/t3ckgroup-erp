@@ -38,6 +38,7 @@ import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
 import { STAGE_LABELS } from "../constants/sor";
 import { canEditSor } from "../utils/sorPermissions";
 import { Button } from "@/components/ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * The deal a requisition was raised from, for the buyer working the task.
@@ -375,10 +376,11 @@ function ProcurementEditForm({
       )}
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-foreground">
+        <FieldBox bare label={<>
           Status / Outcome <span className="text-destructive">*</span>
-        </label>
-        <OutcomeDropdown value={outcome} onChange={handleOutcomeChange} />
+        </>}>
+<OutcomeDropdown value={outcome} onChange={handleOutcomeChange} />
+</FieldBox>
       </div>
 
       {outcome && (
@@ -493,10 +495,8 @@ function ProcurementEditForm({
 
           {/* Remarks */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Purchasing Remarks (Optional)
-            </label>
-            <Textarea
+            <FieldBox bare label="Purchasing Remarks (Optional)">
+<Textarea
               aria-label="Purchasing remarks"
               value={note}
               onChange={(e) => setNote(e.target.value)}
@@ -504,6 +504,7 @@ function ProcurementEditForm({
               placeholder="Notes, supplier lead times, or remarks for sales team..."
               className="px-3.5 py-2.5 text-sm min-h-[90px]"
             />
+</FieldBox>
           </div>
 
           <div className="flex items-center gap-2 pt-2">

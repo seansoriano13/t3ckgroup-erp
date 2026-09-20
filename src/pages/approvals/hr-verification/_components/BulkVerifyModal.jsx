@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function BulkVerifyModal({
   isOpen,
@@ -104,16 +105,15 @@ export default function BulkVerifyModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
-              HR Verification Notes (Optional)
-            </label>
-            <Input
+            <FieldBox bare label="HR Verification Notes (Optional)">
+<Input
               type="text"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="e.g. Verified for April payroll cycle"
               className="w-full bg-card mt-1 focus:ring-primary/50"
             />
+</FieldBox>
           </div>
         </form>
 

@@ -22,6 +22,7 @@ import {
   formatDateToYMD,
 } from "../utils/dateUtils"
 import { Button } from "@/components/ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const MODES = ["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]
 const MODE_LABELS = {
@@ -455,10 +456,8 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 ) : (
                   <div className="flex flex-col gap-4 flex-1 justify-center rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
-                        Start Date
-                      </label>
-                      <DatePicker
+                      <FieldBox bare label="Start Date">
+<DatePicker
                         selected={parseYMD(customStart)}
                         onChange={(date) => {
                           if (!date) return
@@ -472,12 +471,11 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                         popperClassName="!z-[100001]"
                         className="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all h-[38px] cursor-pointer"
                       />
+</FieldBox>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
-                        End Date
-                      </label>
-                      <DatePicker
+                      <FieldBox bare label="End Date">
+<DatePicker
                         selected={parseYMD(customEnd)}
                         onChange={(date) => {
                           if (!date) return
@@ -491,6 +489,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                         popperClassName="!z-[100001]"
                         className="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all h-[38px] cursor-pointer"
                       />
+</FieldBox>
                     </div>
                   </div>
                 )}

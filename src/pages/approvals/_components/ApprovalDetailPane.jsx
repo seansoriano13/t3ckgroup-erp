@@ -33,6 +33,7 @@ import {
 } from "../../../utils/approvalQueue.js";
 import toast from "react-hot-toast";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const QUICK_REMARKS_HEAD = [
   "Completed as specified.",
@@ -358,13 +359,14 @@ export function ApprovalDetailPane({
         <div className="space-y-2 pb-5 border-b border-border/70">
           {task.projectTitle && (
             <div className="mb-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1.5">
+              <FieldBox bare label={<>
                 <Tag className="w-3.5 h-3.5" />
                 Project Title
-              </label>
-              <h4 className="text-sm font-bold text-foreground">
+              </>}>
+<h4 className="text-sm font-bold text-foreground">
                 <HighlightText text={task.projectTitle} search={searchTerm} />
               </h4>
+</FieldBox>
             </div>
           )}
 
@@ -395,11 +397,11 @@ export function ApprovalDetailPane({
         {/* SECTION 3: SCREENSHOTS / ATTACHMENTS (if present) */}
         {task.attachments && task.attachments.length > 0 && (
           <div className="space-y-2 pb-5 border-b border-border/70">
-            <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+            <FieldBox bare label={<>
               <Sparkles className="w-3.5 h-3.5" />
               Attachments ({task.attachments.length})
-            </label>
-            <div className="pt-1">
+            </>}>
+<div className="pt-1">
               <ImageAttachment
                 taskId={task.id}
                 userId={currentUserId}
@@ -408,6 +410,7 @@ export function ApprovalDetailPane({
                 onChange={() => {}}
               />
             </div>
+</FieldBox>
           </div>
         )}
 
@@ -453,10 +456,8 @@ export function ApprovalDetailPane({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
-                  Evaluation Remarks / Feedback
-                </label>
-                <Textarea
+                <FieldBox bare label="Evaluation Remarks / Feedback">
+<Textarea
                   ref={textareaRef}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
@@ -469,6 +470,7 @@ export function ApprovalDetailPane({
                   rows={3}
                   className="resize-none min-h-0"
                 />
+</FieldBox>
 
                 {/* Quick Feedback Presets */}
                 {!isReadOnly && (
@@ -556,10 +558,8 @@ export function ApprovalDetailPane({
 
               {/* HR Verification Notes */}
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
-                  HR Verification / Audit Notes
-                </label>
-                <Textarea
+                <FieldBox bare label="HR Verification / Audit Notes">
+<Textarea
                   ref={textareaRef}
                   value={hrRemarks}
                   onChange={(e) => setHrRemarks(e.target.value)}
@@ -572,6 +572,7 @@ export function ApprovalDetailPane({
                   rows={3}
                   className="resize-none min-h-0"
                 />
+</FieldBox>
 
                 {/* Quick HR Presets */}
                 {!isReadOnly && (

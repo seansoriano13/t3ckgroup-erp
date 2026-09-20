@@ -10,6 +10,7 @@ import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -134,10 +135,8 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-                Email Address
-              </label>
-              <Input
+              <FieldBox bare label="Email Address">
+<Input
                 className={`${INPUT_STYLE} cursor-text`}
                 type="email"
                 autoComplete="username"
@@ -145,6 +144,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
+</FieldBox>
             </div>
 
             <div className="grid gap-2">

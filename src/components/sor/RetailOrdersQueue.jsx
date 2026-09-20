@@ -27,6 +27,7 @@ import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { TableRow, TableCell, Table, TableHeader, TableHead, TableBody } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 // ---------------------------------------------------------------------------
 // Approve / Edit Modal
@@ -65,52 +66,48 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
         <div className="px-6 py-5 space-y-4">
           {/* Company / Client */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Company / Client
-            </label>
-            <Input
+            <FieldBox bare label="Company / Client">
+<Input
               value={fields.client_name}
               onChange={set("client_name")}
               containerClassName="mt-1.5 w-full"
               placeholder="Company or client name"
             />
+</FieldBox>
           </div>
           {/* Contact Person */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Contact Person
-            </label>
-            <Input
+            <FieldBox bare label="Contact Person">
+<Input
               value={fields.contact_person}
               onChange={set("contact_person")}
               containerClassName="mt-1.5 w-full"
               placeholder="Buyer's name"
             />
+</FieldBox>
           </div>
           {/* Project Title */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Project Title
-            </label>
-            <Input
+            <FieldBox bare label="Project Title">
+<Input
               value={fields.project_title}
               onChange={set("project_title")}
               containerClassName="mt-1.5 w-full"
               placeholder="Project title"
             />
+</FieldBox>
           </div>
           {/* Value */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Amount (₱)
-            </label>
-            <Input
+            <FieldBox bare label="Amount (₱)">
+<Input
               type="number"
               value={fields.expected_value}
               onChange={set("expected_value")}
               containerClassName="mt-1.5 w-full"
               min={0}
             />
+</FieldBox>
           </div>
           {/* Odoo data readonly summary */}
           <div className="rounded-xl bg-muted/20 border border-border p-3 space-y-1.5">

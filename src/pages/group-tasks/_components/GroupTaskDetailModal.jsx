@@ -75,6 +75,7 @@ import {
 } from "@/utils/attachments";
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -684,31 +685,34 @@ export default function GroupTaskDetailModal({
             {isEditingTask ? (
               <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2 w-full pr-4">
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title</label>
-                  <Input 
+                  <FieldBox bare label="Title">
+<Input 
                     value={taskEditDraft.title}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, title: e.target.value }))}
                     className="h-9 text-base font-bold bg-background/50 border-border/50 w-full"
                     placeholder="Task Title"
                   />
+</FieldBox>
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
-                  <Textarea
+                  <FieldBox bare label="Description">
+<Textarea
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
                     className="h-20 resize-y"
                     placeholder="Task Description..."
                   />
+</FieldBox>
                 </div>
                 <div className="w-48">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
-                  <Input 
+                  <FieldBox bare label="Due Date">
+<Input 
                     type="date"
                     value={taskEditDraft.dueDate}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
                     className="h-9 bg-background/50 border-border/50 text-sm"
                   />
+</FieldBox>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">

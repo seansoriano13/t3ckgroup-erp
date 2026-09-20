@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Where the password-reset email link lands.
@@ -292,10 +293,8 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            New Password
-          </label>
-          <Input
+          <FieldBox bare label="New Password" htmlFor="new-password">
+<Input
             id="new-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"
@@ -303,13 +302,12 @@ export default function ResetPassword() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
+</FieldBox>
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            Confirm Password
-          </label>
-          <Input
+          <FieldBox bare label="Confirm Password" htmlFor="confirm-password">
+<Input
             id="confirm-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"
@@ -317,6 +315,7 @@ export default function ResetPassword() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
+</FieldBox>
         </div>
 
         <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">

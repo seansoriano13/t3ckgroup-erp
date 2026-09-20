@@ -7,6 +7,7 @@ import { parseChecklist } from "@/utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function RateEmployeesModal({
   isOpen,
@@ -201,22 +202,19 @@ export default function RateEmployeesModal({
                   {/* Rating Controls */}
                   <div className="flex flex-col gap-4 lg:w-[280px] shrink-0 bg-muted/10 p-4 rounded-xl border border-border/50">
                     <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                        Performance Grade
-                      </label>
-                      <GradeSelector
+                      <FieldBox bare label="Performance Grade">
+<GradeSelector
                         grade={rating.grade}
                         onSelect={(g) =>
                           handleRatingChange(rating.memberId, "grade", g)
                         }
                         canEvaluate={true}
                       />
+</FieldBox>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-                        Remarks (Optional)
-                      </label>
-                      <Textarea
+                      <FieldBox bare label="Remarks (Optional)">
+<Textarea
                         value={rating.gradeRemarks}
                         onChange={(e) =>
                           handleRatingChange(
@@ -228,6 +226,7 @@ export default function RateEmployeesModal({
                         placeholder="Add feedback for this member..."
                         className="h-20 resize-none"
                       />
+</FieldBox>
                     </div>
                   </div>
                 </div>

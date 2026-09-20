@@ -10,6 +10,7 @@ import { confirmActionToast } from "../ui/CustomToast";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -173,15 +174,16 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               {purgeTarget.client_name} — {purgeTarget.project_title}. This cannot be undone. Its
               tasks are kept, unlinked — only the SOR itself and its own records are removed.
             </p>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            <FieldBox bare label={<>
               Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm
-            </label>
-            <Input
+            </>}>
+<Input
               autoFocus
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
               containerClassName="mb-3 w-full"
             />
+</FieldBox>
             {purgeMutation.isError && (
               <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">
                 {purgeMutation.error.message}

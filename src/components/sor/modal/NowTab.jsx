@@ -12,6 +12,7 @@ import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function Section({ title, count, children }) {
   return (
@@ -104,14 +105,15 @@ export default function NowTab({ ctx }) {
       {isLostPending && (
         <div className="flex items-end gap-2">
           <div className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
-            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Reason for loss</label>
-            <Input
+            <FieldBox bare label="Reason for loss">
+<Input
               autoFocus
               value={lostReason}
               onChange={(e) => setLostReason(e.target.value)}
               placeholder="e.g. Lost to lower bid"
               className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm font-medium text-foreground" containerClassName="w-full"
             />
+</FieldBox>
           </div>
           <Button
             disabled={!lostReason.trim() || stageMutation.isPending}
@@ -129,16 +131,17 @@ export default function NowTab({ ctx }) {
       {needsSalesRef && (
         <div>
           <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
-            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
+            <FieldBox bare label={<>
               Sales Reference<span className="ml-0.5 text-red-11">*</span>
-            </label>
-            <Input
+            </>}>
+<Input
               autoFocus
               value={salesRef}
               onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
               placeholder="e.g. S01237"
               className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 font-mono text-sm font-medium text-foreground uppercase" containerClassName="w-full"
             />
+</FieldBox>
             <p className={cn("mt-1.5 text-[11px] leading-relaxed", salesRef && !salesRefValid ? "font-semibold text-red-11" : "text-muted-foreground")}>
               {salesRef && !salesRefValid ? SALES_REFERENCE_HINT : "Enter the Odoo sales quotation number to confirm a quotation exists."}
             </p>

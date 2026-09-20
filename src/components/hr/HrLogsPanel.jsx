@@ -28,6 +28,7 @@ import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const PAGE_SIZE = 30;
 
@@ -174,10 +175,8 @@ export default function HrLogsPanel() {
 
         <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
           <div className="lg:col-span-2">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Search
-            </label>
-            <div className="relative flex items-center">
+            <FieldBox bare label="Search">
+<div className="relative flex items-center">
               <Search size={13} className="absolute left-3 text-muted-foreground pointer-events-none shrink-0" />
               <Input
                 value={filters.search}
@@ -186,13 +185,12 @@ export default function HrLogsPanel() {
                 className="h-[40px]" containerClassName="w-full"
               />
             </div>
+</FieldBox>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Category
-            </label>
-            <Dropdown
+            <FieldBox bare label="Category">
+<Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -219,13 +217,12 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
+</FieldBox>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Action Type
-            </label>
-            <Dropdown
+            <FieldBox bare label="Action Type">
+<Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -253,13 +250,12 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
+</FieldBox>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Actor
-            </label>
-            <Dropdown
+            <FieldBox bare label="Actor">
+<Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -291,13 +287,12 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
+</FieldBox>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Employee Involved
-            </label>
-            <Dropdown
+            <FieldBox bare label="Employee Involved">
+<Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -329,6 +324,7 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
+</FieldBox>
           </div>
         </div>
       </div>

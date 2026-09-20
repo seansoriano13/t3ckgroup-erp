@@ -17,18 +17,7 @@ import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-// ── FieldBox — mirrors LogTaskAssignmentBar's label+container pattern ────────
-function FieldBox({ label, children }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function ActivityLogFilters({
   filters,
@@ -126,7 +115,7 @@ export default function ActivityLogFilters({
       <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
         {/* Search — spans 2 cols */}
         <div className="lg:col-span-2">
-          <FieldBox label="Search">
+          <FieldBox bare label="Search">
             <div className="relative flex items-center">
               <Search
                 size={13}
@@ -144,7 +133,7 @@ export default function ActivityLogFilters({
           </FieldBox>
         </div>
 
-        <FieldBox label="Type">
+        <FieldBox bare label="Type">
           <Dropdown
             usePortal
             className="w-full"
@@ -177,7 +166,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Task Status">
+        <FieldBox bare label="Task Status">
           <Dropdown
             usePortal
             className="w-full"
@@ -218,7 +207,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Author (Actor)">
+        <FieldBox bare label="Author (Actor)">
           <Dropdown
             usePortal
             className="w-full"
@@ -262,7 +251,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Task Owner">
+        <FieldBox bare label="Task Owner">
           <Dropdown
             usePortal
             className="w-full"
@@ -301,7 +290,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Department">
+        <FieldBox bare label="Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -337,7 +326,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Sub-Department">
+        <FieldBox bare label="Sub-Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -373,7 +362,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Date From">
+        <FieldBox bare label="Date From">
           <Dropdown
             usePortal
             placement="bottom-start"
@@ -417,7 +406,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox label="Date To">
+        <FieldBox bare label="Date To">
           <Dropdown
             usePortal
             placement="bottom-start"

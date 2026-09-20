@@ -7,6 +7,7 @@ import { resolveAssignment } from "@/utils/checklist";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
@@ -144,16 +145,15 @@ export default function GroupTaskMemberPanel({
 
       {/* Description */}
       <div className="flex flex-col gap-1.5">
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          Specific Task
-        </label>
-        <Textarea
+        <FieldBox bare label="Specific Task">
+<Textarea
           value={description}
           onChange={(e) => onChange("taskDescription", e.target.value)}
           disabled={!canEditDescription}
           placeholder="What exactly are they responsible for?"
           className="h-28 resize-y"
         />
+</FieldBox>
       </div>
 
       {/* Checklist */}

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { employeeService } from '../../services/employeeService';
 import { headResolver } from '../../services/headResolver';
 import { Select } from "@/components/ui/select";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Lets the applicant confirm (or override) which department head this
@@ -37,10 +38,8 @@ export default function HeadSelectField({ employee, value, onChange, required = 
 
   return (
     <div>
-      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-        Department Head
-      </label>
-      <Select
+      <FieldBox bare label="Department Head">
+<Select
   options={[...heads.map((h) => ({ value: h.id, label: h.name }))]}
   value={value || ''}
   onChange={(next) => onChange(next)}
@@ -48,6 +47,7 @@ export default function HeadSelectField({ employee, value, onChange, required = 
   required={required}
   className="w-full"
 />
+</FieldBox>
       {suggested && value === suggested.id && (
         <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-1">
           Auto-routed to your department head based on your department/sub-department.

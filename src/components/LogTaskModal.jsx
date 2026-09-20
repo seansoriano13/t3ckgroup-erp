@@ -16,6 +16,7 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
@@ -307,10 +308,8 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
 
               {isCommittee && (
                 <div className="bg-mauve-4/80 /40 p-4 rounded-xl border border-mauve-5/60 /50 mb-3">
-                  <label className="block text-[10px] font-extrabold text-foreground  uppercase tracking-widest mb-3">
-                    SELECT COMMITTEE ROLE
-                  </label>
-                  <div className="flex flex-wrap gap-2">
+                  <FieldBox bare label="SELECT COMMITTEE ROLE">
+<div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
                         <Button
@@ -331,6 +330,7 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
                       ),
                     )}
                   </div>
+</FieldBox>
                 </div>
               )}
 

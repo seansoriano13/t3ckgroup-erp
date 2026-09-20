@@ -5,6 +5,7 @@ import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * HR approves an offset leave request, editing the hours actually debited
@@ -74,13 +75,8 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
           </p>
 
           <div>
-            <label
-              htmlFor="approved-offset-hours"
-              className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
-            >
-              Approved Hours
-            </label>
-            <Input
+            <FieldBox bare label="Approved Hours" htmlFor="approved-offset-hours">
+<Input
               id="approved-offset-hours"
               type="number"
               step="0.5"
@@ -91,6 +87,7 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
               containerClassName="w-full"
               required
             />
+</FieldBox>
             <p className="text-[11px] font-semibold text-muted-foreground mt-1.5">
               This many hours will be deducted from the employee's offset balance. Cannot exceed the {request.hours} hrs requested.
             </p>

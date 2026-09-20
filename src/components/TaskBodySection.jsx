@@ -9,6 +9,7 @@ import HighlightText from "./HighlightText"
 import ImageAttachment from "./ImageAttachment"
 import { useProjectTitles } from "../hooks/useProjectTitles"
 import { Button } from "@/components/ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function TaskBodySection({
   isEditing,
@@ -106,16 +107,15 @@ export default function TaskBodySection({
       {/* --- OTHERS DETAILS --- */}
       {isEditing && isOthersGlobal && (
         <div className="flex flex-col gap-1.5 pt-2 animate-slide-down">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            Others Details
-          </label>
-          <Textarea
+          <FieldBox bare label="Others Details">
+<Textarea
             name="remarks"
             value={formData.remarks || ""}
             onChange={handleChange}
             placeholder="Specify details..."
             className="w-full bg-card border border-border text-foreground rounded-xl p-3 outline-none transition-all h-20 resize-none text-[13px] shadow-sm"
           />
+</FieldBox>
         </div>
       )}
 
@@ -125,15 +125,14 @@ export default function TaskBodySection({
           <div className="flex flex-col gap-4">
             {/* Description is always visible in edit mode */}
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1">
-                Description
-              </label>
-              <Textarea
+              <FieldBox bare label="Description">
+<Textarea
                 name="taskDescription"
                 value={formData.taskDescription || ""}
                 onChange={handleChange}
                 className="w-full bg-card border border-border text-foreground rounded-xl p-4 outline-none transition-all h-32 resize-none text-[14px] shadow-sm"
               />
+</FieldBox>
             </div>
 
             {/* Checklist is collapsible in edit mode */}
@@ -182,24 +181,25 @@ export default function TaskBodySection({
             {/* Show description if it exists */}
             {formData.taskDescription?.trim() && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
+                <FieldBox bare label={<>
                   <Dot />
                   Description
-                </label>
-                <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
+                </>}>
+<div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
                   <HighlightText text={formData.taskDescription} search={searchTerm} />
                 </div>
+</FieldBox>
               </div>
             )}
 
             {/* Show checklist if it exists */}
             {hasChecklist && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
+                <FieldBox bare label={<>
                   <Dot />
                   Checklist
-                </label>
-                <ChecklistTaskRenderer
+                </>}>
+<ChecklistTaskRenderer
                   description={formData.checklist}
                   isOwner={isOwner}
                   disabled={!canEdit || !isOwner}
@@ -219,6 +219,7 @@ export default function TaskBodySection({
                     )
                   }}
                 />
+</FieldBox>
               </div>
             )}
             
@@ -234,10 +235,8 @@ export default function TaskBodySection({
 
       {/* --- ATTACHMENTS (all tasks, owner only) --- */}
       <div className="flex flex-col gap-1.5 pt-2 border-t border-border mt-2">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-          Attachments
-        </label>
-        <ImageAttachment
+        <FieldBox bare label="Attachments">
+<ImageAttachment
           taskId={task.id}
           userId={user.id}
           attachments={formData.attachments || []}
@@ -254,6 +253,7 @@ export default function TaskBodySection({
           }}
           readOnly={!canEdit || !isOwner}
         />
+</FieldBox>
       </div>
     </>
   )

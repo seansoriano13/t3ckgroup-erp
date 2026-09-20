@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -69,16 +70,17 @@ export default function CommissionRatesManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20 flex-wrap"
           >
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Type</label>
-              <Select
+              <FieldBox bare label="Type">
+<Select
   options={[...Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value: value, label: label }))]}
   value={rateType}
   onChange={(next) => setRateType(next)}
 />
+</FieldBox>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Percent</label>
-              <Input
+              <FieldBox bare label="Percent">
+<Input
                 type="number"
                 step="0.001"
                 value={percent}
@@ -87,16 +89,18 @@ export default function CommissionRatesManager() {
                 className="h-9" containerClassName="w-28"
                 required
               />
+</FieldBox>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Effective From</label>
-              <Input
+              <FieldBox bare label="Effective From">
+<Input
                 type="date"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
                 className="h-9"
                 required
               />
+</FieldBox>
             </div>
             <div className="flex items-center gap-2">
               <Button

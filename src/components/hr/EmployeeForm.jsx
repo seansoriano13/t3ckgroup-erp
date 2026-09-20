@@ -7,6 +7,7 @@ import Dropdown from "../ui/Dropdown"
 import { getAllOverridableEntries } from "@/constants/navigation"
 import { getPermissionContext } from "@/utils/permissions"
 import { Button } from "@/components/ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function EmployeeForm({
   initialData,
@@ -189,10 +190,8 @@ export default function EmployeeForm({
       {/* Company (issue #142) — nullable; a blank entry is filed as a blank
           on the printed forms rather than guessed. */}
       <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-          Name of Company
-        </label>
-        <Dropdown
+        <FieldBox bare label="Name of Company">
+<Dropdown
           usePortal={true}
           placement="bottom-start"
           trigger={({ isOpen }) => (
@@ -239,15 +238,14 @@ export default function EmployeeForm({
             </div>
           )}
         </Dropdown>
+</FieldBox>
       </div>
 
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Employment Status
-          </label>
-          <Dropdown
+          <FieldBox bare label="Employment Status">
+<Dropdown
             usePortal={true}
             placement="bottom-start"
             trigger={({ isOpen }) => (
@@ -301,16 +299,17 @@ export default function EmployeeForm({
               </div>
             )}
           </Dropdown>
+</FieldBox>
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label htmlFor="sil-balance" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
+          <FieldBox bare label={<>
             <span>SIL Hours Balance</span>
             {hasAutoGranted && (
               <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
             )}
-          </label>
-          <Input
+          </>} htmlFor="sil-balance">
+<Input
             id="sil-balance"
             type="number"
             step="0.5"
@@ -320,13 +319,12 @@ export default function EmployeeForm({
             }
             className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
           />
+</FieldBox>
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Offset Hours Balance
-          </label>
-          <Input
+          <FieldBox bare label="Offset Hours Balance">
+<Input
             type="number"
             step="0.5"
             value={formData.offset_hours_balance}
@@ -335,14 +333,15 @@ export default function EmployeeForm({
             }
             className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
           />
+</FieldBox>
         </div>
       </div>
 
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+        <FieldBox bare label={<>
           <Shield size={12} /> System Access Rights
-        </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        </>}>
+<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* Dept Head */}
           <AccessSwitch
             label="Department Head"
@@ -437,6 +436,7 @@ export default function EmployeeForm({
             hoverColor="group-hover:bg-fuchsia-50"
           />
         </div>
+</FieldBox>
       </div>
 
       {/* Hidden-from-navigation override (#133-135). Presentation only: this

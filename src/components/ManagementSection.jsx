@@ -2,7 +2,7 @@ import { ClipboardList, Building2, Users } from "lucide-react";
 import Dot from "./ui/Dot";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
-import { FieldBox } from "./FieldBox";
+import { FieldBox } from "./ui/FieldBox";
 
 const ManagementSection = ({
   isEditing,

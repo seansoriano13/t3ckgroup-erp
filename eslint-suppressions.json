@@ -1,22 +1,7 @@
 {
-  "src/components/ActivityLogFilters.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/ComprehensiveChatModal.jsx": {
     "local/no-raw-html": {
       "count": 1
-    }
-  },
-  "src/components/FieldBox.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/FloatingMonthPicker.jsx": {
-    "local/no-raw-html": {
-      "count": 2
     }
   },
   "src/components/ImageAttachment.jsx": {
@@ -31,17 +16,12 @@
   },
   "src/components/LogTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/ProcurementResolutionPanel.jsx": {
     "local/no-raw-html": {
-      "count": 5
-    }
-  },
-  "src/components/RoleSwitcher.jsx": {
-    "local/no-raw-html": {
-      "count": 2
+      "count": 3
     }
   },
   "src/components/TaskActivityTimeline.jsx": {
@@ -51,32 +31,12 @@
   },
   "src/components/TaskBodySection.jsx": {
     "local/no-raw-html": {
-      "count": 8
-    }
-  },
-  "src/components/TaskEvaluationSection.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/hr/CategoryForm.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/hr/DeptSubDeptSelector.jsx": {
-    "local/no-raw-html": {
-      "count": 2
+      "count": 3
     }
   },
   "src/components/hr/EmployeeForm.jsx": {
     "local/no-raw-html": {
-      "count": 6
-    }
-  },
-  "src/components/hr/HrLogsPanel.jsx": {
-    "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/hr/NotionLeaveCalendar.jsx": {
@@ -86,7 +46,7 @@
   },
   "src/components/log-task/LogTaskAssignmentBar.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/log-task/LogTaskDetailsSection.jsx": {
@@ -106,25 +66,20 @@
   },
   "src/components/offsets/ApplyLeaveModal.jsx": {
     "local/no-raw-html": {
-      "count": 24
+      "count": 1
     }
   },
   "src/components/offsets/ApproveOffsetModal.jsx": {
     "local/no-raw-html": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/offsets/ApproveOvertimeModal.jsx": {
     "local/no-raw-html": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/offsets/ApproveUndertimeModal.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/offsets/HeadSelectField.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
@@ -134,19 +89,9 @@
       "count": 1
     }
   },
-  "src/components/settings/CommissionRatesManager.jsx": {
-    "local/no-raw-html": {
-      "count": 3
-    }
-  },
   "src/components/settings/EmployeeGroupManager.jsx": {
     "local/no-raw-html": {
       "count": 4
-    }
-  },
-  "src/components/settings/LeadSourceManager.jsx": {
-    "local/no-raw-html": {
-      "count": 2
     }
   },
   "src/components/settings/SorFormBuilder.jsx": {
@@ -171,15 +116,10 @@
   },
   "src/components/sor/DeletedOpportunitiesView.jsx": {
     "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/sor/FollowUpPanel.jsx": {
-    "local/no-raw-html": {
       "count": 1
     }
   },
-  "src/components/sor/MoveConfirmDialog.jsx": {
+  "src/components/sor/FollowUpPanel.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
@@ -201,12 +141,12 @@
   },
   "src/components/sor/RetailOrdersQueue.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/sor/SorField.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 2
     }
   },
   "src/components/sor/StageChecklistRow.jsx": {
@@ -224,11 +164,6 @@
       "count": 1
     }
   },
-  "src/components/sor/modal/NowTab.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
   "src/components/sor/modal/SorChatColumn.jsx": {
     "local/no-raw-html": {
       "count": 1
@@ -236,55 +171,25 @@
   },
   "src/pages/approvals/_components/ApprovalDetailPane.jsx": {
     "local/no-raw-html": {
-      "count": 6
-    }
-  },
-  "src/pages/approvals/_components/BulkDeclineModal.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/pages/approvals/_components/BulkGradeModal.jsx": {
-    "local/no-raw-html": {
       "count": 2
-    }
-  },
-  "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
-    "local/no-raw-html": {
-      "count": 1
     }
   },
   "src/pages/group-tasks/_components/GroupTaskDetailModal.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 5
     }
   },
   "src/pages/group-tasks/_components/GroupTaskMemberPanel.jsx": {
     "local/no-raw-html": {
-      "count": 4
-    }
-  },
-  "src/pages/group-tasks/_components/RateEmployeesModal.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/pages/group-tasks/_components/SaveGroupTaskTemplateModal.jsx": {
-    "local/no-raw-html": {
-      "count": 1
+      "count": 3
     }
   },
   "src/pages/login/index.jsx": {
     "local/no-raw-html": {
-      "count": 2
+      "count": 1
     }
   },
   "src/pages/profile/index.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/pages/reset-password/index.jsx": {
     "local/no-raw-html": {
       "count": 2
     }

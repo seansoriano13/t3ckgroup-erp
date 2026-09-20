@@ -5,6 +5,7 @@ import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * HR approves an overtime request, editing the hours actually rendered
@@ -72,13 +73,8 @@ export default function ApproveOvertimeModal({ isOpen, onClose, request, status,
           </p>
 
           <div>
-            <label
-              htmlFor="approved-hours"
-              className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
-            >
-              Approved Hours
-            </label>
-            <Input
+            <FieldBox bare label="Approved Hours" htmlFor="approved-hours">
+<Input
               id="approved-hours"
               type="number"
               step="0.5"
@@ -88,6 +84,7 @@ export default function ApproveOvertimeModal({ isOpen, onClose, request, status,
               containerClassName="w-full"
               required
             />
+</FieldBox>
             {isOffset && (
               <p className="text-[11px] font-semibold text-muted-foreground mt-1.5">
                 This many hours will be credited to the employee's offset balance.
