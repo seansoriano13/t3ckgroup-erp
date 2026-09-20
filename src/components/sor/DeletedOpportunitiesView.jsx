@@ -8,6 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
 import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -99,26 +100,26 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
-              <th className="px-3 py-2.5 text-left">Company</th>
-              <th className="px-3 py-2.5 text-left">Project</th>
-              <th className="px-3 py-2.5 text-right">Expected Value</th>
-              <th className="px-3 py-2.5 text-left">Deleted By</th>
-              <th className="px-3 py-2.5 text-left">Deleted At</th>
-              <th className="px-3 py-2.5 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table >
+          <TableHeader>
+            <TableRow >
+              <TableHead >Company</TableHead>
+              <TableHead >Project</TableHead>
+              <TableHead className="text-right">Expected Value</TableHead>
+              <TableHead >Deleted By</TableHead>
+              <TableHead >Deleted At</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((row) => {
               const canRestore = isSuperAdmin || row.deal_owner_id === currentUserId;
               return (
-                <tr key={row.id} className="border-b border-border/50 last:border-0">
-                  <td className="px-3 py-2.5 font-semibold">{row.client_name}</td>
-                  <td className="px-3 py-2.5 text-muted-foreground">{row.project_title}</td>
-                  <td className="px-3 py-2.5 text-right font-bold">{formatPHP(row.expected_value)}</td>
-                  <td className="px-3 py-2.5">
+                <TableRow key={row.id} >
+                  <TableCell >{row.client_name}</TableCell>
+                  <TableCell >{row.project_title}</TableCell>
+                  <TableCell className="text-right">{formatPHP(row.expected_value)}</TableCell>
+                  <TableCell >
                     {row.deleted_by_employee ? (
                       <span className="inline-flex items-center gap-1.5">
                         <Avatar name={row.deleted_by_employee.name} src={row.deleted_by_employee.avatar_path} size="xs" />
@@ -127,9 +128,9 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                     ) : (
                       <span className="text-xs italic text-muted-foreground/60">Unknown</span>
                     )}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{formatWhen(row.deleted_at)}</td>
-                  <td className="px-3 py-2.5">
+                  </TableCell>
+                  <TableCell >{formatWhen(row.deleted_at)}</TableCell>
+                  <TableCell >
                     <div className="flex items-center justify-end gap-1.5">
                       {canRestore && (
                         <Button
@@ -153,12 +154,12 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                         </Button>
                       )}
                     </div>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       {purgeTarget && (
