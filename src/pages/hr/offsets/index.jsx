@@ -33,6 +33,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -434,12 +435,12 @@ export default function HrLeavesManagerPage() {
            <div className="flex flex-col sm:flex-row gap-3">
              <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <input
+                <Input
                   type="text"
                   placeholder="Search employees..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-foreground/30 text-foreground"
+                  containerClassName="w-full"
                 />
               </div>
 

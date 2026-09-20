@@ -26,6 +26,7 @@ import { formatPHP } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { TableRow, TableCell, Table, TableHeader, TableHead, TableBody } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 // ---------------------------------------------------------------------------
 // Approve / Edit Modal
@@ -67,10 +68,10 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Company / Client
             </label>
-            <input
+            <Input
               value={fields.client_name}
               onChange={set("client_name")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-mauve-7 transition-colors"
+              containerClassName="mt-1.5 w-full"
               placeholder="Company or client name"
             />
           </div>
@@ -79,10 +80,10 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Contact Person
             </label>
-            <input
+            <Input
               value={fields.contact_person}
               onChange={set("contact_person")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-mauve-7 transition-colors"
+              containerClassName="mt-1.5 w-full"
               placeholder="Buyer's name"
             />
           </div>
@@ -91,10 +92,10 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Project Title
             </label>
-            <input
+            <Input
               value={fields.project_title}
               onChange={set("project_title")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-mauve-7 transition-colors"
+              containerClassName="mt-1.5 w-full"
               placeholder="Project title"
             />
           </div>
@@ -103,11 +104,11 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
             <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
               Amount (₱)
             </label>
-            <input
+            <Input
               type="number"
               value={fields.expected_value}
               onChange={set("expected_value")}
-              className="mt-1.5 w-full bg-muted/30 border border-border rounded-xl px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-mauve-7 transition-colors"
+              containerClassName="mt-1.5 w-full"
               min={0}
             />
           </div>

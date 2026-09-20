@@ -4,6 +4,7 @@ import { leadSourceService } from "../../services/leadSourceService";
 import { Plus, Check, X, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function LeadSourceManager() {
   const queryClient = useQueryClient();
@@ -76,12 +77,12 @@ export default function LeadSourceManager() {
               <label className="text-xs font-bold text-muted-foreground">
                 Value (ID)
               </label>
-              <input
+              <Input
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value.toUpperCase())}
                 placeholder="e.g. LINKEDIN"
-                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 uppercase"
+                className="h-9 uppercase" containerClassName="w-full"
                 required
               />
             </div>
@@ -89,12 +90,12 @@ export default function LeadSourceManager() {
               <label className="text-xs font-bold text-muted-foreground">
                 Display Label
               </label>
-              <input
+              <Input
                 type="text"
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder="e.g. LinkedIn"
-                className="w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="h-9" containerClassName="w-full"
                 required
               />
             </div>

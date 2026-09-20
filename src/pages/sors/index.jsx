@@ -52,6 +52,7 @@ import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableHead, Table, TableHeader, TableRow, TableBody, TableCell } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -601,11 +602,11 @@ export default function OpportunitiesPage() {
 
             <div className="flex min-w-[160px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 focus-within:border-mauve-7">
               <Search size={15} className="shrink-0 text-muted-foreground" />
-              <input
+              <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search number, client, project, deal owner…"
-                className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+                className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm font-medium text-foreground placeholder:text-muted-foreground/50" containerClassName="w-full"
               />
             </div>
 

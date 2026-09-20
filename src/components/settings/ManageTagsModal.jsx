@@ -94,14 +94,14 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
               className={`flex items-center gap-2 rounded-lg border px-3 py-2 ${tag.archived_at ? "opacity-50" : ""}`}
             >
               <span className={`h-3 w-3 rounded-full shrink-0 ${taskTagClasses(tag.color)}`} />
-              <input
+              <Input
                 defaultValue={tag.name}
                 disabled={!!tag.archived_at}
                 onBlur={(e) => {
                   const name = e.target.value.trim();
                   if (name && name !== tag.name) renameMutation.mutate({ id: tag.id, name });
                 }}
-                className="flex-1 bg-transparent text-sm font-semibold outline-none"
+                className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm font-semibold" containerClassName="flex-1"
               />
               <Select
   options={[...TASK_TAG_COLORS.map((c) => ({ value: c, label: c }))]}

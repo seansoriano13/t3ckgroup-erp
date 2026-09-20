@@ -8,6 +8,7 @@ import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -77,23 +78,23 @@ export default function CommissionRatesManager() {
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-muted-foreground">Percent</label>
-              <input
+              <Input
                 type="number"
                 step="0.001"
                 value={percent}
                 onChange={(e) => setPercent(e.target.value)}
                 placeholder="e.g. 12"
-                className="w-28 h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="h-9" containerClassName="w-28"
                 required
               />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-muted-foreground">Effective From</label>
-              <input
+              <Input
                 type="date"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                className="h-9"
                 required
               />
             </div>

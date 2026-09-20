@@ -373,7 +373,7 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
 
         <div className="min-w-0 flex-1">
           {renaming ? (
-            <input
+            <Input
               autoFocus
               defaultValue={field.label}
               onBlur={(e) => onCommitRename(e.target.value)}
@@ -382,7 +382,7 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
                 if (e.key === "Escape") onCommitRename(field.label);
               }}
               aria-label={`Rename ${field.label}`}
-              className="mb-1 w-full rounded-md border border-mauve-7 bg-background px-2 py-1 text-sm font-bold outline-none"
+              containerClassName="mb-1 w-full"
             />
           ) : null}
           <RegistrationField field={field} ctx={SAMPLE_FIELD_CTX} disabled />

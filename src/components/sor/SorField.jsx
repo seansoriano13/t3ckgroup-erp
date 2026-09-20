@@ -7,6 +7,7 @@ import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 // Split so a field can swap its resting border colour out. Two border-colour
 // utilities on one element resolve by stylesheet order rather than by the
@@ -51,7 +52,7 @@ export function TextField({
         </label>
         {action}
       </div>
-      <input className={CONTROL} required={required} {...props} />
+      <Input className={CONTROL} required={required} {...props} />
     </div>
   );
 }

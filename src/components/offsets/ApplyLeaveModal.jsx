@@ -20,6 +20,7 @@ import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShi
 import HeadSelectField from './HeadSelectField';
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 const DEFAULT_DAY_HOURS = 8;
 
@@ -39,11 +40,11 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
           <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
             From
           </label>
-          <input
+          <Input
             type="date"
             value={startDate}
             onChange={(e) => onStartDateChange(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+            containerClassName="w-full"
             required
           />
         </div>
@@ -51,12 +52,12 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
           <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
             To
           </label>
-          <input
+          <Input
             type="date"
             value={endDate}
             min={startDate || undefined}
             onChange={(e) => onEndDateChange(e.target.value)}
-            className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+            containerClassName="w-full"
             required
           />
         </div>
@@ -73,7 +74,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
                   {new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                 </span>
                 <div className="flex items-center gap-1.5">
-                  <input
+                  <Input
                     type="number"
                     min="0.5"
                     step="0.5"
@@ -540,11 +541,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Date Worked</label>
-                  <input
+                  <Input
                     type="date"
                     value={otDate}
                     onChange={(e) => setOtDate(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                    containerClassName="w-full"
                     required
                   />
                 </div>
@@ -554,11 +555,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                     Start Time
                   </label>
-                  <input
+                  <Input
                     type="time"
                     value={otStartTime}
                     onChange={(e) => setOtStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                    containerClassName="w-full"
                     required
                   />
                 </div>
@@ -566,11 +567,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                     End Time
                   </label>
-                  <input
+                  <Input
                     type="time"
                     value={otEndTime}
                     onChange={(e) => setOtEndTime(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                    containerClassName="w-full"
                     required
                   />
                 </div>
@@ -669,11 +670,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                       Leave Date (Mon-Fri)
                     </label>
-                    <input
+                    <Input
                       type="date"
                       value={offsetDate}
                       onChange={(e) => setOffsetDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>
@@ -682,11 +683,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                         Start Time
                       </label>
-                      <input
+                      <Input
                         type="time"
                         value={offsetStartTime}
                         onChange={(e) => setOffsetStartTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                        containerClassName="w-full"
                         required
                       />
                     </div>
@@ -694,11 +695,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                         End Time
                       </label>
-                      <input
+                      <Input
                         type="time"
                         value={offsetEndTime}
                         onChange={(e) => setOffsetEndTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                        containerClassName="w-full"
                         required
                       />
                     </div>
@@ -800,11 +801,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                       Leave Date
                     </label>
-                    <input
+                    <Input
                       type="date"
                       value={silDate}
                       onChange={(e) => setSilDate(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>
@@ -813,11 +814,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                         Start Time
                       </label>
-                      <input
+                      <Input
                         type="time"
                         value={silStartTime}
                         onChange={(e) => setSilStartTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                        containerClassName="w-full"
                         required
                       />
                     </div>
@@ -825,11 +826,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                         End Time
                       </label>
-                      <input
+                      <Input
                         type="time"
                         value={silEndTime}
                         onChange={(e) => setSilEndTime(e.target.value)}
-                        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                        containerClassName="w-full"
                         required
                       />
                     </div>
@@ -888,11 +889,11 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Date
                 </label>
-                <input
+                <Input
                   type="date"
                   value={utDate}
                   onChange={(e) => setUtDate(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                  containerClassName="w-full"
                   required
                 />
               </div>
@@ -903,21 +904,21 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
-                    <input
+                    <Input
                       type="time"
                       value={utOriginalStart}
                       onChange={(e) => setUtOriginalStart(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
-                    <input
+                    <Input
                       type="time"
                       value={utOriginalEnd}
                       onChange={(e) => setUtOriginalEnd(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>
@@ -930,21 +931,21 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
-                    <input
+                    <Input
                       type="time"
                       value={utActualStart}
                       onChange={(e) => setUtActualStart(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>
                   <div>
                     <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
-                    <input
+                    <Input
                       type="time"
                       value={utActualEnd}
                       onChange={(e) => setUtActualEnd(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30"
+                      containerClassName="w-full"
                       required
                     />
                   </div>

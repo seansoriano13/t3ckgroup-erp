@@ -43,6 +43,7 @@ import { useAuth } from "../../context/AuthContext";
 import { canEditSor } from "../../utils/sorPermissions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 let draftSeq = 0;
 const blankDraft = (seed = {}) => ({
@@ -107,11 +108,11 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         </Button>
       </div>
 
-      <input
+      <Input
         value={productName}
         onChange={(e) => setProductName(e.target.value)}
         placeholder="Product name"
-        className="w-full border-b border-border/80 bg-transparent pb-1.5 text-[14px] font-semibold text-foreground outline-none transition-colors focus:border-mauve-9"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 pb-1.5 text-[14px] font-semibold text-foreground transition-colors focus:border-mauve-9" containerClassName="w-full"
       />
 
       <div className="flex items-center gap-2">
@@ -388,7 +389,7 @@ function QuantityStepper({ value, onChange, label }) {
       >
         <Minus size={12} />
       </Button>
-      <input
+      <Input
         aria-label={label}
         inputMode="numeric"
         value={n}
@@ -396,7 +397,7 @@ function QuantityStepper({ value, onChange, label }) {
           const next = parseInt(e.target.value.replace(/\D/g, ""), 10);
           onChange(Number.isNaN(next) ? 1 : Math.max(1, next));
         }}
-        className="h-full w-6 bg-transparent text-center text-[12.5px] font-semibold text-foreground outline-none"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 h-full text-center text-[12.5px] font-semibold text-foreground" containerClassName="w-6"
       />
       <Button
         type="button"
@@ -422,13 +423,13 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
       className="group/row py-3 first:pt-0"
     >
       <div className="flex items-start gap-2">
-        <input
+        <Input
           ref={nameRef}
           aria-label={`Product name ${index + 1}`}
           value={draft.product_name}
           onChange={(e) => onChange({ ...draft, product_name: e.target.value })}
           placeholder="What does the client need?"
-          className="min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground/40"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[14px] font-semibold text-foreground placeholder:font-medium placeholder:text-muted-foreground/40" containerClassName="min-w-0 flex-1"
         />
         {canRemove && (
           <Button
@@ -557,7 +558,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
     <div ref={boxRef} className="relative">
       <div className="flex h-9 items-center gap-2 rounded-md bg-mauve-2 px-2.5 transition-colors focus-within:bg-mauve-3">
         <AtSign size={13} className="shrink-0 text-muted-foreground" />
-        <input
+        <Input
           aria-label="Send to"
           value={query}
           onChange={(e) => {
@@ -585,7 +586,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
             }
           }}
           placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-[12.5px] font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[12.5px] font-medium text-foreground placeholder:text-muted-foreground/50" containerClassName="min-w-0 flex-1"
         />
       </div>
 

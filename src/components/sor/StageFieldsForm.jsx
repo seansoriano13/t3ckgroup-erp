@@ -7,6 +7,7 @@ import { stageFieldService } from "../../services/stageFieldService";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -130,7 +131,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
   className="w-full"
 />
                     ) : (
-                      <input
+                      <Input
                         aria-label={field.label}
                         type={
                           isSor
@@ -144,7 +145,7 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         value={value}
                         onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
                         placeholder={`Enter ${field.label.toLowerCase()}`}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
+                        className="h-8" containerClassName="w-full"
                       />
                     )}
                     <Button

@@ -20,6 +20,7 @@ import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 // One 32px target for every icon action in the header, so the cluster reads as a row.
 const ICON_BTN =
@@ -196,17 +197,17 @@ export default function SorModalHeader({
           </div>
           {isEditing ? (
             <div className="space-y-2 mt-2 max-w-xl">
-              <input
+              <Input
                 value={editForm.project_title}
                 onChange={(e) => setEditForm((f) => ({ ...f, project_title: e.target.value }))}
-                className="w-full text-lg font-black text-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-lg font-black text-foreground focus:border-primary focus:outline-none placeholder:text-muted-foreground/30" containerClassName="w-full"
                 placeholder="Project Title"
                 autoFocus
               />
-              <input
+              <Input
                 value={editForm.client_name}
                 onChange={(e) => setEditForm((f) => ({ ...f, client_name: e.target.value }))}
-                className="w-full text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs font-medium text-muted-foreground focus:border-primary focus:outline-none placeholder:text-muted-foreground/30" containerClassName="w-full"
                 placeholder="Company"
               />
             </div>

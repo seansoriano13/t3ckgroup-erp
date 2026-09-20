@@ -27,6 +27,7 @@ import Dot from "../ui/Dot";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 const PAGE_SIZE = 30;
 
@@ -178,11 +179,11 @@ export default function HrLogsPanel() {
             </label>
             <div className="relative flex items-center">
               <Search size={13} className="absolute left-3 text-muted-foreground pointer-events-none shrink-0" />
-              <input
+              <Input
                 value={filters.search}
                 onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
                 placeholder="Search log content..."
-                className="w-full bg-card border border-border rounded-lg pl-8 pr-3 h-[40px] md:h-[46px] text-[13px] text-foreground outline-none focus:ring-1 focus:ring-mauve-4 hover:border-border/80 transition-all placeholder:text-muted-foreground"
+                className="h-[40px]" containerClassName="w-full"
               />
             </div>
           </div>
