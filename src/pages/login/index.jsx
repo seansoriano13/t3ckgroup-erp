@@ -3,7 +3,6 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import PrimaryButton from "../../components/PrimaryButton";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
@@ -177,10 +176,9 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <PrimaryButton
-                  label={isSubmitting ? "Logging in..." : "Log In"}
-                  className={`w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-                />
+                <Button type="submit" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
+                  {isSubmitting ? "Logging in..." : "Log In"}
+                </Button>
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
                   <GoogleLogin

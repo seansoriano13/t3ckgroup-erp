@@ -6,7 +6,7 @@ import { redeemRecoveryToken } from "../../lib/recoveryToken";
 import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag";
 import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
-import PrimaryButton from "../../components/PrimaryButton";
+import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 
@@ -318,10 +318,9 @@ export default function ResetPassword() {
           />
         </div>
 
-        <PrimaryButton
-          label={isSubmitting ? "Saving..." : "Save Password"}
-          className={`w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-        />
+        <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
+          {isSubmitting ? "Saving..." : "Save Password"}
+        </Button>
       </form>
     </div>
   );
