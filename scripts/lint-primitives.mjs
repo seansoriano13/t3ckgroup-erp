@@ -3,10 +3,9 @@
 //   node scripts/lint-primitives.mjs          fail on any new raw covered HTML
 //   node scripts/lint-primitives.mjs --count  remaining (frozen) violations per element type
 //
-// The gate runs the real CLI, so eslint-suppressions.json is applied and only
-// violations outside the baseline fail. It looks at this rule alone: the
-// unrelated lint backlog stays non-blocking. The count reads the baseline
-// through the API, which applies no suppressions, so it sees everything.
+// It looks at this rule alone: the unrelated lint backlog stays non-blocking. The
+// rule has no baseline any more, so any violation fails. --count remains for
+// spot checks and lists violations per element type (expected: zero).
 import { spawnSync } from 'node:child_process'
 import { ESLint } from 'eslint'
 

@@ -25,6 +25,7 @@ const REPLACEMENTS = {
 const INPUT_REPLACEMENTS = {
   checkbox: ['inputCheckbox', 'Checkbox (ui/checkbox.jsx)', 'checkbox'],
   file: ['inputFile', 'FileInput (ui/FileInput.jsx)', 'fileinput'],
+  range: ['inputRange', 'Slider (ui/slider.jsx)', 'slider'],
   default: ['input', 'Input (ui/input.jsx)', 'input'],
 }
 
@@ -49,7 +50,9 @@ const DISABLE_MESSAGE =
   `If no Primitive fits, stop and ask the maintainer. See ${CATALOG}.`
 
 function rawTag(id) {
-  if (id === 'inputCheckbox' || id === 'inputFile') return 'input type="' + (id === 'inputFile' ? 'file' : 'checkbox') + '"'
+  if (id === 'inputCheckbox') return 'input type="checkbox"'
+  if (id === 'inputFile') return 'input type="file"'
+  if (id === 'inputRange') return 'input type="range"'
   return id
 }
 

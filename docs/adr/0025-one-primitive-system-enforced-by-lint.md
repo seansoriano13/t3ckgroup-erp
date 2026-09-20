@@ -1,6 +1,6 @@
 # One Primitive system in the shared UI folder, enforced by lint
 
-**Status:** accepted (2026-09-20)
+**Status:** accepted and complete (2026-09-20). The migration finished with no baseline left; the suppression file is gone.
 
 A **Primitive** is anything in `src/components/ui/`. For a defined set of HTML
 elements, raw HTML is banned everywhere except inside that folder, and a lint
@@ -57,9 +57,13 @@ the same custom look appears in three or more places.
 - Migrated screens adopt the Primitive's look rather than keeping each raw
   element's one-off styling. The maintainer reviews visual change per slice on
   staging.
-- Not moved: root-level shared components (Avatar, StatusBadge, StatCard,
-  FieldBox, ImageAttachment) stay where they are for now, and the folder keeps
-  its mixed base-ui and custom files and mixed case. Neither is a covered
-  element, and relocating them is churn with no consistency gain.
+- Moved: FieldBox now lives in the UI folder, because its own <label> would otherwise
+  need a permanent suppression. Avatar, StatusBadge, StatCard and ImageAttachment stay at
+  the root: they contain no covered raw element. The folder keeps its mixed base-ui and
+  custom files and mixed case.
+- Added during the migration: Drawer, Checkbox, Slider, FileInput, Image, ExternalLink,
+  Table, SwitchField and CheckboxField, each because no existing Primitive expressed a
+  covered element. Category, Priority and Role pickers stay Dropdown-based (they need
+  search), so they were not moved onto Select.
 - Hard to reverse: once agents and CI rely on the ban, loosening it means
   re-opening the drift it removed.

@@ -15,10 +15,7 @@ Anything in `src/components/ui/` is a **Primitive**. Never write raw `<button>`,
 modal outside that folder — use the Primitive. The catalog is DESIGN.md → Components →
 "Primitive catalog" (what to use, its props, what it replaces). If no Primitive fits,
 **stop and ask the maintainer**; don't hand-roll a workaround. **Never disable the lint rule**
-(`eslint-disable`) for this. Existing violations are frozen in `eslint-suppressions.json`;
-`pnpm lint:primitives` fails on new ones (CI blocks on it) and `pnpm lint:primitives:count`
-shows what remains per element type. Delete suppressions as you migrate
-(`pnpm exec eslint . --prune-suppressions`). See `docs/adr/0025-one-primitive-system-enforced-by-lint.md`.
+(`eslint-disable`) for this. The rule has no baseline: `pnpm lint:primitives` (CI blocks on it) fails on any raw covered element. See `docs/adr/0025-one-primitive-system-enforced-by-lint.md`.
 
 ### Branch topology
 

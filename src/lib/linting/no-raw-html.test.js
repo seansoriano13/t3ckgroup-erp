@@ -21,6 +21,7 @@ describe('local/no-raw-html', () => {
     ['<input type="number" />', /Input/],
     ['<input type="checkbox" />', /Checkbox/],
     ['<input type="file" />', /FileInput/],
+    ['<input type="range" />', /Slider.*DESIGN.md#slider/],
     ['<textarea />', /Textarea.*DESIGN\.md#textarea/],
     ['<select />', /Select.*DESIGN\.md#select/],
     ['<label>x</label>', /FieldBox.*DESIGN\.md#fieldbox/],

@@ -277,6 +277,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### MentionTextarea
 `ui/MentionTextarea.jsx`. Textarea with `@` people suggestions; `mentions` ride beside plain-text `value`. Also exports `NoteText` to render a note with mentions.
 
+#### Slider
+`ui/slider.jsx` (base-ui). Replaces `<input type="range">`. Props: `value`, `onValueChange(number)`, `min`, `max`, `step`, `disabled`, `aria-label`, `className`.
+
 #### Switch
 `ui/switch.jsx`. On/off toggle. Props: `size`, plus base-ui switch props (`checked`, `onCheckedChange`, `disabled`).
 
@@ -346,8 +349,17 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### Page structure
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
 
-#### Not built yet
-Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Checkbox, FileInput (`accept`, `onFiles`), Image, ExternalLink (internal links use the router `Link`), simple Select. Until each lands, ask the maintainer.
+#### Chat and reply parts
+`ui/ReplyPreviewBar.jsx` (`replyingTo`, `onCancel`): bar above a composer naming the message being replied to. `ui/ReplyQuote.jsx` (`replyTo`): the quoted snippet inside a reply bubble. `ui/SwipeToReplyWrapper.jsx` (`children`, `onReply`, `onReact`, `isMe`): swipe-to-reply and reaction affordance around one message bubble. `ui/EmojiPicker.jsx` (`onSelect`, `align`, `disabled`): emoji popover.
+
+#### Template text
+`ui/TemplateTokenText.jsx` (`text`, `chipClassName`): shows saved template text with `{{token}}` masked as colored chips. `ui/TemplateVariableChips.jsx` (`value`, `onInsert`): chips that insert a token at the caret. `ui/HighlightedTemplateField.jsx`: editable field that highlights tokens inline.
+
+#### SorLinkChip
+`ui/SorLinkChip.jsx` (`opportunityId`, `opportunity`): the pill a task shows when linked to an SOR; opens it through the global entity-details event.
+
+#### CustomToast
+`ui/CustomToast.jsx`: toast body for react-hot-toast, plus `confirmDeleteToast(title, description, onConfirm)` for a confirm-before-delete toast.
 
 ## Do's and Don'ts
 

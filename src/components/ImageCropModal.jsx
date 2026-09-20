@@ -3,6 +3,7 @@ import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONSTANTS
@@ -316,21 +317,15 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
             </Button>
 
             {/* Zoom slider */}
-            <div className="flex-1 relative h-1.5 rounded-full bg-mauve-4 overflow-visible">
-              <div
-                className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all"
-                style={{ width: `${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%` }}
-              />
-              <input
-                type="range"
-                min={MIN_ZOOM}
-                max={MAX_ZOOM}
-                step={ZOOM_STEP}
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-            </div>
+            <Slider
+              aria-label="Zoom"
+              className="flex-1"
+              min={MIN_ZOOM}
+              max={MAX_ZOOM}
+              step={ZOOM_STEP}
+              value={zoom}
+              onValueChange={(next) => setZoom(next)}
+            />
 
             <Button
               type="button"
