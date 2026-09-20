@@ -2,7 +2,7 @@ import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
-import ModalOverlay from "@/components/ui/ModalOverlay";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,10 +247,8 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
   const CANVAS_LOGICAL = 280;
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={onCancel} zIndex="z-[90]" className="[&]:cursor-default" >
-      {/* Panel — LogTaskModal design language */}
-      <div
-        className="relative w-[340px] max-w-[95vw] rounded-2xl bg-popover ring-1 ring-foreground/10 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.18)] flex flex-col overflow-hidden animate-slide-down"
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
+      <DialogContent showCloseButton={false} className="w-[340px] max-w-[95vw] gap-0 p-0 flex flex-col overflow-hidden sm:max-w-[340px]"
         onMouseUp={onPointerUp}
         onTouchEnd={onPointerUp}
       >
@@ -392,7 +390,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
             </Button>
           </div>
         </div>
-      </div>
-    </ModalOverlay>
+      </DialogContent>
+    </Dialog>
   );
 }

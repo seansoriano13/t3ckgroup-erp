@@ -2,7 +2,7 @@ import { FileInput } from "@/components/ui/FileInput";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { X, PenLine, UploadCloud, Eraser, Check } from "lucide-react";
-import ModalOverlay from "@/components/ui/ModalOverlay";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import Spinner from "@/components/ui/Spinner";
 import TabGroup from "@/components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
@@ -140,8 +140,8 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
   const canSave = activeTab === "draw" ? hasDrawn : uploadCanvasReady;
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={onClose}>
-      <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent showCloseButton={false} className="gap-0 p-0 flex flex-col overflow-hidden">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">Your Signature</h2>
           <Button
@@ -246,7 +246,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
             {saving ? "Saving..." : "Save Signature"}
           </Button>
         </div>
-      </div>
-    </ModalOverlay>
+      </DialogContent>
+    </Dialog>
   );
 }

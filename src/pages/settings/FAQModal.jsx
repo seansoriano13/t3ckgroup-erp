@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import ModalOverlay from "../../components/ui/ModalOverlay";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   X,
   ChevronDown,
@@ -205,10 +205,8 @@ export default function FAQModal({ isOpen, onClose }) {
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
 
   return (
-    <ModalOverlay isOpen={isOpen} onClose={onClose}>
-
-      {/* Panel */}
-      <div className="relative z-10 w-full max-w-4xl h-[82vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden modal-enter">
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent showCloseButton={false} className="h-[82vh] max-w-4xl gap-0 p-0 flex flex-col overflow-hidden sm:max-w-4xl">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-center gap-2.5">
@@ -425,7 +423,7 @@ export default function FAQModal({ isOpen, onClose }) {
             </p>
           </div>
         </div>
-      </div>
-    </ModalOverlay>
+      </DialogContent>
+    </Dialog>
   );
 }
