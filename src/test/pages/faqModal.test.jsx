@@ -3,14 +3,14 @@ import { render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { setupUser } from "@/test/support"
 
-vi.mock("../../services/faqService", () => ({
+vi.mock("@/services/faqService", () => ({
   loadFAQFromDB: () => Promise.resolve([]),
 }))
-vi.mock("../../context/AuthContext", () => ({
+vi.mock("@/context/AuthContext", () => ({
   useAuth: () => ({ user: { role: "employee" } }),
 }))
 
-import FAQModal from "./FAQModal"
+import FAQModal from "@/pages/settings/FAQModal"
 
 const renderModal = (props) =>
   render(
