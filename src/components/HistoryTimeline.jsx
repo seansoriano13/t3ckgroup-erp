@@ -13,8 +13,6 @@ import {
 import Avatar from "./Avatar"
 import ChecklistTaskRenderer from "./ChecklistTaskRenderer"
 import { cn } from "@/lib/utils"
-import { ExternalLink } from "@/components/ui/ExternalLink";
-import { Image } from "@/components/ui/Image";
 
 const formatTime = (isoString) => {
   if (!isoString) return ""
@@ -179,19 +177,19 @@ function HistoryItem({ log, type = "TASK" }) {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {details.old.map((url, i) => (
-                      <ExternalLink
+                      <a
                         key={i}
                         href={url}
-                        
-                        
-                        className="block w-12 h-12 rounded-md overflow-hidden border border-border hover:opacity-80 transition-opacity no-underline"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-12 h-12 rounded-md overflow-hidden border border-border hover:opacity-80 transition-opacity"
                       >
-                        <Image
+                        <img
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"
                         />
-                      </ExternalLink>
+                      </a>
                     ))}
                   </div>
                 )}
@@ -209,19 +207,19 @@ function HistoryItem({ log, type = "TASK" }) {
                 ) : (
                   <div className="flex flex-wrap gap-2">
                     {details.new.map((url, i) => (
-                      <ExternalLink
+                      <a
                         key={i}
                         href={url}
-                        
-                        
-                        className="block w-12 h-12 rounded-md overflow-hidden border border-blue-500/30 hover:opacity-80 transition-opacity no-underline"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block w-12 h-12 rounded-md overflow-hidden border border-blue-500/30 hover:opacity-80 transition-opacity"
                       >
-                        <Image
+                        <img
                           src={url}
                           alt={`Attachment ${i}`}
                           className="w-full h-full object-cover"
                         />
-                      </ExternalLink>
+                      </a>
                     ))}
                   </div>
                 )}

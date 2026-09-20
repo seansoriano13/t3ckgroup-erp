@@ -2,8 +2,6 @@ import React, { useState, useMemo } from "react";
 import Dropdown from "../ui/Dropdown";
 import { UserCog, Search, Check, Settings2, X } from "lucide-react";
 import { FilterTrigger } from "../ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 /**
  * RoleDropdown — picks a group task member's role from the DB-backed
@@ -58,12 +56,12 @@ export default function RoleDropdown({
             <div className="px-2 pt-2 pb-1 border-b border-border shrink-0">
               <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 rounded-md border border-border focus-within:border-mauve-4 focus-within:ring-1 focus-within:ring-mauve-4 transition-all">
                 <Search size={14} className="text-muted-foreground shrink-0" />
-                <Input
+                <input
                   type="text"
                   placeholder="Search roles..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[13px] font-medium text-foreground placeholder:text-muted-foreground" containerClassName="flex-1"
+                  className="flex-1 bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -78,14 +76,14 @@ export default function RoleDropdown({
               </p>
             ) : (
               <>
-                <Button
+                <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onChange("");
                     close();
                   }}
-                  variant="ghost" className={`h-auto w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${!value
+                  className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${!value
                     ? "bg-muted/80 text-foreground font-bold"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
@@ -95,7 +93,7 @@ export default function RoleDropdown({
                   {!value && (
                     <Check size={14} className="text-muted-foreground/80 shrink-0" />
                   )}
-                </Button>
+                </button>
 
                 {searchedRoles.length === 0 ? (
                   <p className="text-[13px] text-mauve-7 text-center py-4 font-medium">
@@ -103,7 +101,7 @@ export default function RoleDropdown({
                   </p>
                 ) : (
                   searchedRoles.map((r) => (
-                    <Button
+                    <button
                       key={r.id ?? r.role_name}
                       type="button"
                       onClick={(e) => {
@@ -111,7 +109,7 @@ export default function RoleDropdown({
                         onChange(r.role_name);
                         close();
                       }}
-                      variant="ghost" className={`h-auto w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${value === r.role_name
+                      className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${value === r.role_name
                         ? "bg-muted/80 text-foreground font-bold"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
@@ -123,7 +121,7 @@ export default function RoleDropdown({
                           className="text-muted-foreground/80 shrink-0"
                         />
                       )}
-                    </Button>
+                    </button>
                   ))
                 )}
               </>
@@ -132,18 +130,18 @@ export default function RoleDropdown({
 
           {onManage && (
             <div className="border-t border-border p-1 shrink-0 bg-muted/40">
-              <Button
+              <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   close();
                   onManage();
                 }}
-                variant="ghost" className="w-full h-auto justify-start"
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-[12px] font-bold uppercase tracking-wide text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
               >
                 <Settings2 size={13} className="shrink-0" />
                 Manage roles
-              </Button>
+              </button>
             </div>
           )}
         </div>

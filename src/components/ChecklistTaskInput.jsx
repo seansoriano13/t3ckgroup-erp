@@ -1,8 +1,6 @@
 import React, { useState, useRef } from "react";
 import { Plus, X, GripVertical, FolderPlus, Trash2 } from "lucide-react";
 import { parseChecklistGroups } from "../utils/checklist";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 let idCounter = 0;
 function createLocalId(prefix) {
@@ -280,7 +278,7 @@ export default function ChecklistTaskInput({
                 <span className="w-5 h-5 rounded-md bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
                   {gIdx + 1}
                 </span>
-                <Input
+                <input
                   type="text"
                   data-section-title="true"
                   value={group.title}
@@ -297,19 +295,19 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder={`Section title (e.g. Phase ${gIdx + 1})...`}
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs font-bold text-foreground placeholder:text-muted-foreground/60" containerClassName="w-full"
+                  className="bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60 w-full"
                 />
               </div>
 
               {groups.length > 1 && (
-                <Button
+                <button
                   type="button"
                   onClick={() => removeSection(gIdx)}
                   title="Remove section"
-                  variant="ghost" size="icon-xs"
+                  className="text-muted-foreground/60 hover:text-destructive p-1 rounded hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 size={13} />
-                </Button>
+                </button>
               )}
             </div>
           )}
@@ -335,7 +333,7 @@ export default function ChecklistTaskInput({
 
                 <div className="w-4 h-4 border border-border rounded shrink-0 bg-background/80" />
 
-                <Input
+                <input
                   type="text"
                   data-item-input="true"
                   value={item.text}
@@ -386,16 +384,16 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder="List detailed condition..."
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all" containerClassName="flex-1 min-w-0"
+                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
                 />
 
-                <Button
+                <button
                   type="button"
                   onClick={() => removeItem(gIdx, iIdx)}
-                  variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 shrink-0"
+                  className="text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-all shrink-0 p-1 rounded hover:bg-destructive/10"
                 >
                   <X size={14} />
-                </Button>
+                </button>
               </div>
             ))}
           </div>
@@ -403,13 +401,13 @@ export default function ChecklistTaskInput({
           {/* Add item button for this section */}
           {isMultiGroup && (
             <div className="pt-1">
-              <Button
+              <button
                 type="button"
                 onClick={() => addItem(gIdx)}
-                variant="ghost" className="h-auto"
+                className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-all py-1 px-2 rounded-lg hover:bg-muted/60"
               >
                 <Plus size={13} /> Add item to this section
-              </Button>
+              </button>
             </div>
           )}
         </div>
@@ -418,25 +416,25 @@ export default function ChecklistTaskInput({
       {/* Footer Controls: Add Item (for flat) & Add Section */}
       <div className="pt-2 flex items-center justify-between gap-2 border-t border-border/30">
         {!isMultiGroup ? (
-          <Button
+          <button
             type="button"
             onClick={() => addItem(0)}
-            variant="ghost" className="h-auto"
+            className="flex items-center gap-1.5 text-xs font-bold text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
           >
             <Plus size={15} /> Add Item
-          </Button>
+          </button>
         ) : (
           <div />
         )}
 
-        <Button
+        <button
           type="button"
           onClick={addSection}
-          variant="ghost" className="h-auto"
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-all py-1.5 px-3 rounded-lg hover:bg-muted"
         >
           <FolderPlus size={14} />
           <span>{isMultiGroup ? "Add Another Section" : "Add Section / Steps"}</span>
-        </Button>
+        </button>
       </div>
     </div>
   );

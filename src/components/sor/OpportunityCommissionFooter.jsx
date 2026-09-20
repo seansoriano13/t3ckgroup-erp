@@ -5,7 +5,6 @@ import { commissionService } from "../../services/commissionService";
 import { useAuth } from "../../context/AuthContext";
 import { formatPHP } from "../../constants/sor";
 import Spinner from "../ui/Spinner";
-import { Button } from "@/components/ui/button";
 
 function useSafeNavigate() {
   try {
@@ -71,14 +70,14 @@ export default function OpportunityCommissionFooter({ opportunity, onClose }) {
           </div>
         </div>
 
-        <Button
+        <button
           type="button"
           onClick={handleOpenDashboard}
-          variant="outline" className="inline-flex self-end sm:self-center shrink-0"
+          className="inline-flex items-center gap-1.5 self-end sm:self-center shrink-0 px-3 py-1.5 rounded-xl border border-border bg-background hover:bg-muted text-foreground font-bold text-xs transition-all shadow-2xs"
         >
           <span>View in Commission Dashboard</span>
           <ArrowRight size={13} className="text-muted-foreground" />
-        </Button>
+        </button>
       </div>
 
       {/* 3-Column Metrics Layout with Role-Based Privacy Masking */}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
@@ -445,12 +445,12 @@ export default function TaskApprovalsPage() {
           <p className="text-foreground font-bold text-xl">Manager Queue</p>
           <p className="text-muted-foreground mt-2">
             Looking for HR verification? Go to{" "}
-            <Link
-              to="/approvals/hr-verification"
+            <a
+              href="/approvals/hr-verification"
               className="text-primary underline font-semibold"
             >
               /approvals/hr-verification
-            </Link>
+            </a>
           </p>
         </div>
       </ProtectedRoute>
@@ -557,20 +557,20 @@ export default function TaskApprovalsPage() {
             <span className="text-muted-foreground font-bold text-[10px] uppercase tracking-wider shrink-0 flex items-center gap-1">
               <UserCheck className="w-3 h-3" /> Quick Filter:
             </span>
-            <Button
+            <button
               onClick={() => setEmployeeFilter("ALL")}
-              variant="ghost" className={`h-auto px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 transition-all border ${employeeFilter === "ALL"
+              className={`px-2.5 py-1 rounded-full text-xs font-semibold shrink-0 transition-all border ${employeeFilter === "ALL"
                   ? "bg-foreground text-background border-foreground shadow-xs"
                   : "bg-card hover:bg-muted text-muted-foreground border-border"
                 }`}
             >
               All ({activeRawData.length})
-            </Button>
+            </button>
             {queueEmployees.map((emp) => (
-              <Button
+              <button
                 key={emp.id}
                 onClick={() => setEmployeeFilter(emp.id === employeeFilter ? "ALL" : emp.id)}
-                variant="ghost" className={`h-auto flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border ${emp.id === employeeFilter
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium shrink-0 transition-all border ${emp.id === employeeFilter
                     ? "bg-foreground text-background border-foreground shadow-xs font-bold"
                     : "bg-card hover:bg-muted text-foreground border-border"
                   }`}
@@ -582,7 +582,7 @@ export default function TaskApprovalsPage() {
                   }`}>
                   {emp.count}
                 </span>
-              </Button>
+              </button>
             ))}
           </div>
         )}

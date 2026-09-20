@@ -23,7 +23,6 @@ import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button";
 
 export default function TaskDetails({
   isOpen,
@@ -510,7 +509,7 @@ export default function TaskDetails({
               }
               extraButtons={
                 <>
-                  <Button
+                  <button
                     type="button"
                     onClick={() => {
                       setIsSplitScreen((prev) => !prev)
@@ -520,7 +519,7 @@ export default function TaskDetails({
                         ? "Exit Split Screen"
                         : "Split Screen (Task + Chat)"
                     }
-                    variant="ghost" className={cn(
+                    className={cn(
                       "h-9 w-9 flex items-center justify-center rounded-xl transition-all active:scale-95 border",
                       isSplitScreen
                         ? "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
@@ -528,17 +527,17 @@ export default function TaskDetails({
                     )}
                   >
                     <Columns2 size={16} />
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
                       setIsExpanded((prev) => !prev)
                     }}
                     title={isExpanded ? "Collapse" : "Expand"}
-                    variant="outline" className="w-9"
+                    className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border border-transparent hover:border-border"
                   >
                     <Maximize2 size={16} />
-                  </Button>
+                  </button>
                 </>
               }
             />

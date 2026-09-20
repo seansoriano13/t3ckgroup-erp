@@ -1,7 +1,7 @@
 import { screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EmployeeLeavesPage from '@/pages/offsets/index';
-import { renderWithProviders, setupUser, chooseOption } from '@/test/support';
+import { renderWithProviders, setupUser } from '@/test/support';
 import { within } from '@testing-library/react';
 import { makeEmployee, makeOffsetLeave, makeOvertimeRequest, makeUndertimeRequest } from '@/test/factories';
 
@@ -86,7 +86,7 @@ describe('EmployeeLeavesPage ("My Requests")', () => {
     expect(within(table).getByText('Overtime')).toBeInTheDocument();
 
     const filterSelect = screen.getByRole('combobox');
-    await chooseOption(setupUser(), filterSelect, 'Offset');
+    await setupUser().selectOptions(filterSelect, 'OFFSET');
 
     expect(within(table).getByText('Offset')).toBeInTheDocument();
     expect(within(table).queryByText('Overtime')).not.toBeInTheDocument();

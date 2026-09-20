@@ -21,9 +21,6 @@ import { TASK_STATUS } from "../constants/status";
 import { ArrowUpRight } from "lucide-react";
 
 import { getChecklistProgress } from "../utils/checklist";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -180,54 +177,54 @@ export default function TaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <Table className="min-w-[900px]">
-            <TableHeader>
-              <TableRow >
-                <TableHead
+          <table className="w-full text-left text-xs border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold tracking-wider uppercase text-[11px] select-none">
+                <th
                   onClick={() => handleSort("title")}
-                  className="cursor-pointer hover:text-foreground transition-colors"
+                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     Task / Description {renderSortIcon("title")}
                   </div>
-                </TableHead>
-                <TableHead
+                </th>
+                <th
                   onClick={() => handleSort("assignee")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
+                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors w-[180px]"
                 >
                   <div className="flex items-center gap-1">
                     Assignee {renderSortIcon("assignee")}
                   </div>
-                </TableHead>
-                <TableHead
+                </th>
+                <th
                   onClick={() => handleSort("status")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
                   <div className="flex items-center gap-1">
                     Status {renderSortIcon("status")}
                   </div>
-                </TableHead>
-                <TableHead
+                </th>
+                <th
                   onClick={() => handleSort("priority")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[110px]"
+                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
                 >
                   <div className="flex items-center gap-1">
                     Priority {renderSortIcon("priority")}
                   </div>
-                </TableHead>
-                <TableHead
+                </th>
+                <th
                   onClick={() => handleSort("dueDate")}
-                  className="cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
-                </TableHead>
-                <TableHead className="w-[140px]">Progress</TableHead>
-                <TableHead className="text-right w-[80px]">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody >
+                </th>
+                <th className="py-3.5 px-3 w-[140px]">Progress</th>
+                <th className="py-3.5 px-4 text-right w-[80px]">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
               {paginatedTasks.map((task) => {
                 const isOwner = user?.id === task.loggedById;
                 const isOverdue =
@@ -240,14 +237,14 @@ export default function TaskTableView({
                 const progress = getTaskProgress(task);
 
                 return (
-                  <TableRow
+                  <tr
                     key={task.id}
                     onClick={() => onView && onView(task)}
                     className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
                       }`}
                   >
                     {/* Task Title & Category */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="flex flex-col gap-1 max-w-[340px] sm:max-w-[420px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           {task.categoryName && (
@@ -270,10 +267,10 @@ export default function TaskTableView({
                           </p>
                         )}
                       </div>
-                    </TableCell>
+                    </td>
 
                     {/* Assignee & Dept */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-4 align-middle">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.loggedByName || "User"}
@@ -292,10 +289,10 @@ export default function TaskTableView({
                           )}
                         </div>
                       </div>
-                    </TableCell>
+                    </td>
 
                     {/* Status Badge */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-3 align-middle">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge status={task.status} />
                         {task.status === TASK_STATUS.COMPLETE && (
@@ -315,10 +312,10 @@ export default function TaskTableView({
                           </div>
                         )}
                       </div>
-                    </TableCell>
+                    </td>
 
                     {/* Priority */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-3 align-middle">
                       {task.priority ? (
                         <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider">
                           {task.priority === "HIGH" && (
@@ -349,10 +346,10 @@ export default function TaskTableView({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </TableCell>
+                    </td>
 
                     {/* Due Date & Overdue */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-3 align-middle">
                       <div className="flex flex-col">
                         <span
                           className={`text-[12px] font-medium ${isOverdue
@@ -368,10 +365,10 @@ export default function TaskTableView({
                           </span>
                         )}
                       </div>
-                    </TableCell>
+                    </td>
 
                     {/* Progress / Checklist */}
-                    <TableCell className="align-middle">
+                    <td className="py-3.5 px-3 align-middle">
                       {progress.isChecklist ? (
                         <div
                           className="flex items-center gap-2 w-full max-w-[130px]"
@@ -400,27 +397,27 @@ export default function TaskTableView({
                             : "1 item"}
                         </span>
                       )}
-                    </TableCell>
+                    </td>
 
                     {/* Actions */}
-                    <TableCell className="text-right align-middle">
-                      <Button
+                    <td className="py-3.5 px-4 text-right align-middle">
+                      <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        variant="outline"
+                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                         title="View details"
                       >
                         <ArrowUpRight size={13} />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      </button>
+                    </td>
+                  </tr>
                 );
               })}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         </div>
       </div>
 
@@ -445,41 +442,45 @@ export default function TaskTableView({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <span>Rows:</span>
-            <Select
-  options={[{ value: 10, label: "10" }, { value: 25, label: "25" }, { value: 50, label: "50" }]}
-  value={pageSize}
-  onChange={(next) => {
-                setPageSize(Number(next));
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
                 setCurrentPage(1);
               }}
-/>
+              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:border-foreground/30 cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
           </div>
         </div>
 
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <Button
+            <button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              variant="outline"
+              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Previous Page"
             >
               <ChevronLeft size={14} />
-            </Button>
+            </button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <Button
+            <button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              variant="outline"
+              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Next Page"
             >
               <ChevronRight size={14} />
-            </Button>
+            </button>
           </div>
         )}
       </div>

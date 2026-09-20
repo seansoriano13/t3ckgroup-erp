@@ -1,13 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { X, PenLine, UploadCloud, Eraser, Check } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import ModalOverlay from "@/components/ui/ModalOverlay";
 import Spinner from "@/components/ui/Spinner";
 import TabGroup from "@/components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
 import { signatureService } from "@/services/signatureService";
 import { keyOutNearWhite } from "@/utils/signatureImage";
-import { FileInput } from "@/components/ui/FileInput";
 
 const CANVAS_WIDTH = 480;
 const CANVAS_HEIGHT = 180;
@@ -90,8 +89,9 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
     setHasDrawn(false);
   };
 
-  const handleFileSelected = (files) => {
-    const file = files[0];
+  const handleFileSelected = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
     if (!file) return;
 
     const objectUrl = URL.createObjectURL(file);
@@ -142,16 +142,16 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
   const canSave = activeTab === "draw" ? hasDrawn : uploadCanvasReady;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="gap-0 p-0 flex flex-col overflow-hidden">
+    <ModalOverlay isOpen={isOpen} onClose={onClose}>
+      <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">Your Signature</h2>
-          <Button
+          <button
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
           >
             <X size={18} strokeWidth={2.5} />
-          </Button>
+          </button>
         </div>
 
         <div className="p-6 space-y-4">
@@ -172,14 +172,14 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <PenLine size={13} /> Draw with your mouse or finger
                 </p>
-                <Button
+                <button
                   type="button"
                   onClick={clearDrawing}
                   disabled={!hasDrawn}
-                  variant="ghost" className="h-auto"
+                  className="text-[11px] font-bold text-muted-foreground hover:text-foreground disabled:opacity-40 flex items-center gap-1 cursor-pointer"
                 >
                   <Eraser size={13} /> Clear
-                </Button>
+                </button>
               </div>
               <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)]">
                 <canvas
@@ -205,13 +205,13 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                   A photo of your written signature
                 </p>
-                <Button
+                <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  variant="link"
+                  className="text-[11px] font-bold text-primary hover:opacity-80 flex items-center gap-1 cursor-pointer"
                 >
                   <UploadCloud size={13} /> Choose Photo
-                </Button>
+                </button>
               </div>
               <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)] flex items-center justify-center min-h-[180px]">
                 {uploadCanvasReady ? (
@@ -225,7 +225,13 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                   </>
                 )}
               </div>
-              <FileInput ref={fileInputRef} accept="image/*" onFiles={handleFileSelected} />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelected}
+              />
               {uploadCanvasReady && (
                 <p className="text-[11px] font-semibold text-muted-foreground">
                   The background was removed automatically — check the ink still looks right.
@@ -244,7 +250,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
             {saving ? "Saving..." : "Save Signature"}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalOverlay>
   );
 }

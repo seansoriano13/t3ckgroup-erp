@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { ArrowRight, Check, ChevronDown, ChevronRight, CircleDashed, History, PackageSearch, ShieldOff } from "lucide-react";
+import { ArrowRight, CalendarClock, Check, ChevronDown, ChevronRight, CircleDashed, History, PackageSearch, ShieldOff } from "lucide-react";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
 import TabSkeleton from "./TabSkeleton";
@@ -10,109 +10,74 @@ import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../con
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
 import { formatDueDate as formatWhen } from "../../../utils/formatDate";
-import { Button } from "@/components/ui/button";
 
 const notDeleted = (task) => !isTaskDeleted(task);
 
 function Person({ person }) {
   if (!person) return <span className="text-muted-foreground/60">someone</span>;
   return (
-    <span className="inline-flex max-w-full items-center gap-1 align-middle">
+    <span className="inline-flex items-center gap-1 align-middle">
       <Avatar name={person.name} src={person.avatar_path} size="xs" />
-      <span className="truncate font-semibold text-foreground">{person.name}</span>
+      <span className="font-semibold text-foreground">{person.name}</span>
     </span>
   );
 }
-
-// Same hand-off TaskRow uses on Now: the GlobalDetailManager opens the task's own modal.
-function openTask(row) {
-  window.dispatchEvent(new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: row.id, type: row.entityType } }));
-}
-
-// One grid template per ledger so a section's column labels and its rows share
-// the same columns. The first column takes the slack; the rest are fixed.
-const CONDITION_COLS = "grid-cols-[minmax(0,1fr)_9rem_10rem]";
-const TASK_COLS = "grid-cols-[minmax(0,1fr)_6rem_9rem_10rem]";
-const ROW = "grid items-center gap-3 px-4 py-2.5 text-xs transition-colors hover:bg-muted/30";
 
 function ConditionLine({ row }) {
   const met = row.status === CONDITION_STATUS.SATISFIED;
   const when = formatWhen(row.satisfiedAt);
 
   return (
-    <div className={cn(ROW, CONDITION_COLS)}>
-      <span className="flex min-w-0 items-center gap-2">
-        {met ? (
-          <Check size={13} className="shrink-0 text-green-11" />
-        ) : (
-          <CircleDashed size={13} className="shrink-0 text-amber-11" />
-        )}
-        <span className="font-medium text-foreground">{row.condition.label}</span>
-      </span>
-      <span className="min-w-0 text-muted-foreground">
-        {met ? <Person person={row.satisfiedBy} /> : <span className="font-bold text-amber-11">Not met</span>}
-      </span>
-      <span className="whitespace-nowrap tabular-nums text-muted-foreground">{met && when ? when : "—"}</span>
+    <div className="flex items-start gap-2 text-[11px] leading-5">
+      {met ? (
+        <Check size={12} className="mt-1 shrink-0 text-green-11" />
+      ) : (
+        <CircleDashed size={12} className="mt-1 shrink-0 text-amber-11" />
+      )}
+      <span className="min-w-0 flex-1 font-medium text-foreground">{row.condition.label}</span>
+      {met ? (
+        <span className="shrink-0 text-muted-foreground">
+          Met by <Person person={row.satisfiedBy} />
+          {when && ` on ${when}`}
+        </span>
+      ) : (
+        <span className="shrink-0 font-bold text-amber-11">Not met</span>
+      )}
     </div>
   );
 }
 
-/**
- * A long title wraps to a second line rather than being cut. `onOpen` makes the
- * title the way into the task itself.
- */
-function TaskLine({ title, status, owner, date, onOpen }) {
+function TaskLine({ title, status, owner, date }) {
   const when = formatWhen(date);
 
   return (
-    <div className={cn(ROW, TASK_COLS)}>
-      {onOpen ? (
-        <Button
-          type="button"
-          onClick={onOpen}
-          title={title}
-          variant="ghost" className="min-w-0 text-left h-auto justify-start"
-        >
-          {title}
-        </Button>
-      ) : (
-        <span className="line-clamp-2 min-w-0 font-medium text-foreground">{title}</span>
-      )}
-      <span className="flex items-center">
-        <StatusBadge status={status} />
-      </span>
-      <span className="min-w-0 text-muted-foreground">
+    <div className="flex items-center gap-2 text-[11px] leading-5">
+      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{title}</span>
+      <StatusBadge status={status} />
+      <span className="flex w-[130px] shrink-0 items-center justify-end gap-1 text-muted-foreground">
         <Person person={owner} />
       </span>
-      <span className="whitespace-nowrap tabular-nums text-muted-foreground">{when || "—"}</span>
+      <span className="flex w-[110px] shrink-0 items-center justify-end gap-1 tabular-nums text-muted-foreground">
+        {when && (
+          <>
+            <CalendarClock size={11} className="shrink-0" />
+            {when}
+          </>
+        )}
+      </span>
     </div>
   );
 }
 
-/**
- * A ledger section: a full-width header band that names the section and each
- * column, then rows ruled edge to edge. Bands and rules are what let the eye
- * follow a row across the card; there are no boxes inside the visit's box.
- */
-function VisitGroup({ label, count, columns, heads, children }) {
+function VisitGroup({ label, children, count }) {
   if (count === 0) return null;
   return (
-    <section>
-      <div
-        className={cn(
-          "grid items-center gap-3 border-y border-border bg-muted/60 px-4 py-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase",
-          columns,
-        )}
-      >
-        <span>
-          {label} ({count})
-        </span>
-        {heads.map((head) => (
-          <span key={head}>{head}</span>
-        ))}
-      </div>
-      <div className="divide-y divide-border/70">{children}</div>
-    </section>
+    <div className="space-y-1.5">
+      <p className="text-[9px] font-bold tracking-widest text-muted-foreground uppercase">
+        {label} ({count})
+      </p>
+      {children}
+    </div>
   );
 }
 
@@ -134,10 +99,10 @@ function RestrictedVisit({ visit }) {
   const left = formatWhen(visit.leftAt);
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-background px-4 py-3">
+    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-card/50 px-3 py-2">
       <ShieldOff size={14} className="shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">
-        <span className="text-sm font-bold text-foreground">{visit.stage.name}</span>
+        <span className="text-xs font-bold text-foreground">{visit.stage.name}</span>
         {visit.stage.bracket && (
           <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
             {visit.stage.bracket}
@@ -168,12 +133,12 @@ function PastVisit({ row, onToggle }) {
   const taskCount = tasks.length + groupTasks.length;
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-background">
-      <Button
+    <div className="rounded-lg border border-border/70 bg-card/50">
+      <button
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        variant="ghost" className="w-full text-left h-auto justify-start"
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
       >
         {isExpanded ? (
           <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
@@ -181,14 +146,14 @@ function PastVisit({ row, onToggle }) {
           <ChevronRight size={14} className="shrink-0 text-muted-foreground" />
         )}
         <span className="min-w-0 flex-1 truncate">
-          <span className="text-sm font-bold text-foreground">{visit.stage.name}</span>
+          <span className="text-xs font-bold text-foreground">{visit.stage.name}</span>
           {visit.stage.bracket && (
             <span className="ml-1.5 text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">
               {visit.stage.bracket}
             </span>
           )}
         </span>
-        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+        <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
           {entered} → {left || "open"}
         </span>
         <span
@@ -199,14 +164,14 @@ function PastVisit({ row, onToggle }) {
         >
           {unmet > 0 ? `${unmet} unmet` : "All met"}
         </span>
-        <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+        <span className="w-[70px] shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
           {taskCount} task{taskCount === 1 ? "" : "s"}
         </span>
-      </Button>
+      </button>
 
       {isExpanded && (
-        <div className="border-t border-border">
-          <p className="px-4 py-3 text-xs text-muted-foreground">
+        <div className="space-y-4 border-t border-border/50 px-3 py-3">
+          <p className="text-[11px] text-muted-foreground">
             Entered by <Person person={visit.enteredBy} />
             {entered && ` on ${entered}`}
             {visit.leftAt && (
@@ -217,56 +182,45 @@ function PastVisit({ row, onToggle }) {
             )}
           </p>
 
-          <VisitGroup label="Conditions" count={visit.conditions.length} columns={CONDITION_COLS} heads={["Met by", "When"]}>
+          <VisitGroup label="Conditions" count={visit.conditions.length}>
             {visit.conditions.map((c) => (
               <ConditionLine key={c.condition.id} row={c} />
             ))}
           </VisitGroup>
 
-          <VisitGroup label="Tasks" count={taskCount} columns={TASK_COLS} heads={["Status", "Owner", "Due"]}>
-            {groupTasks.map((t) => {
-              const row = groupTaskRow(t);
-              return (
-                <TaskLine
-                  key={t.id}
-                  title={row.title}
-                  status={t.status}
-                  // A group task's owner is whoever set it up, not whichever
-                  // member happens to be listed first.
-                  owner={t.creator || null}
-                  date={t.due_date || t.created_at}
-                  onOpen={() => openTask(row)}
-                />
-              );
-            })}
-            {tasks.map((t) => {
-              const row = individualTaskRow(t);
-              return (
-                <TaskLine
-                  key={t.id}
-                  title={row.title}
-                  status={t.status}
-                  owner={t.assignee || null}
-                  date={t.end_at || t.created_at}
-                  onOpen={() => openTask(row)}
-                />
-              );
-            })}
-          </VisitGroup>
-
-          <VisitGroup
-            label="Requested items"
-            count={visit.requestedItems.length}
-            columns={TASK_COLS}
-            heads={["Status", "Requested by", "Requested"]}
-          >
-            {visit.requestedItems.map((item) => (
-              <TaskLine key={item.id} title={item.description} status={item.status} owner={item.requestedBy} date={item.requestedAt} />
+          <VisitGroup label="Tasks" count={taskCount}>
+            {groupTasks.map((t) => (
+              <TaskLine
+                key={t.id}
+                title={groupTaskRow(t).title}
+                status={t.status}
+                // A group task's owner is whoever set it up, not whichever
+                // member happens to be listed first.
+                owner={t.creator || null}
+                date={t.due_date || t.created_at}
+              />
+            ))}
+            {tasks.map((t) => (
+              <TaskLine
+                key={t.id}
+                title={individualTaskRow(t).title}
+                status={t.status}
+                owner={t.assignee || null}
+                date={t.end_at || t.created_at}
+              />
             ))}
           </VisitGroup>
 
+          {visit.requestedItems.length > 0 && (
+            <VisitGroup label="Requested items" count={visit.requestedItems.length}>
+              {visit.requestedItems.map((item) => (
+                <TaskLine key={item.id} title={item.description} status={item.status} owner={item.requestedBy} date={item.requestedAt} />
+              ))}
+            </VisitGroup>
+          )}
+
           {visit.conditions.length === 0 && taskCount === 0 && visit.requestedItems.length === 0 && (
-            <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">Nothing was recorded on this visit.</p>
+            <p className="text-[11px] text-muted-foreground">Nothing was recorded on this visit.</p>
           )}
         </div>
       )}
@@ -320,12 +274,12 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
   const past = rows.filter((r) => !r.isCurrent);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-4 p-6">
       {current && (
-        <Button
+        <button
           type="button"
           onClick={onGoToNow}
-          variant="outline" className="w-full text-left"
+          className="flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-left transition-colors hover:border-mauve-7 hover:bg-muted/30"
         >
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
@@ -342,19 +296,17 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
             Open Now
             <ArrowRight size={12} />
           </span>
-        </Button>
+        </button>
       )}
 
       {past.length > 0 ? (
-        <div className="space-y-3">
+        <div className="space-y-2">
           <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
             Earlier stages ({past.length})
           </p>
-          <div className="space-y-2">
-            {past.map((row) => (
-              <PastVisit key={row.visit.id} row={row} onToggle={() => toggle(row.visit.id)} />
-            ))}
-          </div>
+          {past.map((row) => (
+            <PastVisit key={row.visit.id} row={row} onToggle={() => toggle(row.visit.id)} />
+          ))}
         </div>
       ) : (
         <p className="flex items-center gap-2 px-1 text-[11px] text-muted-foreground">

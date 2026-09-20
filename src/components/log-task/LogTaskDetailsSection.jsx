@@ -1,5 +1,6 @@
 import { Receipt, ImagePlus, X, Maximize2, ClipboardPaste } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
+import { createPortal } from "react-dom"
 import ChecklistTaskInput from "../ChecklistTaskInput"
 import DictateButton from "./DictateButton"
 import Spinner from "@/components/ui/Spinner"
@@ -8,12 +9,6 @@ import toast from "react-hot-toast"
 import { useProjectTitles } from "../../hooks/useProjectTitles"
 import TemplateVariableChips from "@/components/ui/TemplateVariableChips"
 import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Image } from "@/components/ui/Image";
-import { Input } from "@/components/ui/input";
-import { FileInput } from "@/components/ui/FileInput";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function LogTaskDetailsSection({
   formData,
@@ -73,7 +68,7 @@ export default function LogTaskDetailsSection({
     [onAttachmentsChange],
   )
 
-  const handleFileChange = (files) => uploadFiles(files)
+  const handleFileChange = (e) => uploadFiles(Array.from(e.target.files))
   const handleRemove = (url) =>
     onAttachmentsChange((formData.attachments || []).filter((u) => u !== url))
 
@@ -114,14 +109,14 @@ export default function LogTaskDetailsSection({
             autoComplete="off"
           />
         ) : (
-          <Input
+          <input
             ref={titleRef}
             type="text"
             name="projectTitle"
             value={formData.projectTitle}
             onChange={handleChange}
             placeholder="Project / Campaign Title"
-            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-lg font-semibold text-foreground placeholder:text-mauve-6 pb-1" containerClassName="w-full mb-1"
+            className="w-full text-lg font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-1"
             autoComplete="on"
             list="project-titles-list"
           />
@@ -144,13 +139,13 @@ export default function LogTaskDetailsSection({
       {selectedEmployeeInfo.department?.toUpperCase() === "ADMIN" && (
         <div className="flex items-center gap-2.5 mb-3 px-3 py-2 bg-muted border border-mauve-3 rounded-lg animate-slide-down">
           <Receipt size={14} className="text-mauve-7 shrink-0" />
-          <Input
+          <input
             type="text"
             name="paymentVoucher"
             value={formData.paymentVoucher}
             onChange={handleChange}
             placeholder="Payment Voucher (e.g. PV001-2024)"
-            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-mauve-7" containerClassName="flex-1"
+            className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-mauve-7"
             autoComplete="off"
           />
         </div>
@@ -170,13 +165,13 @@ export default function LogTaskDetailsSection({
             className={`text-sm placeholder:text-mauve-6 ${isExpanded ? "h-48" : "h-24"}`}
           />
         ) : (
-          <Textarea
+          <textarea
             ref={descriptionRef}
             name="taskDescription"
             value={formData.taskDescription || ""}
             onChange={handleChange}
             placeholder="Add description…"
-            className={`min-h-0 rounded-none p-0 w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
+            className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
               isExpanded ? "h-48" : "h-24"
             }`}
           />
@@ -199,13 +194,13 @@ export default function LogTaskDetailsSection({
             }
           />
           {!showChecklist && (
-            <Button
+            <button
               type="button"
               onClick={onToggleChecklist}
-              variant="ghost" className="mt-1 h-auto"
+              className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
             >
               <span className="text-base leading-none">+</span> Add checklist
-            </Button>
+            </button>
           )}
         </div>
 
@@ -216,13 +211,13 @@ export default function LogTaskDetailsSection({
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 Checklist
               </span>
-              <Button
+              <button
                 type="button"
                 onClick={onToggleChecklist}
-                variant="ghost" className="h-auto"
+                className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
               >
                 Hide
-              </Button>
+              </button>
             </div>
             <div className="bg-card rounded-xl border border-mauve-3 p-4">
               <ChecklistTaskInput
@@ -236,7 +231,14 @@ export default function LogTaskDetailsSection({
       </div>
       {/* 3. IMAGE ATTACHMENTS */}
       <div className="mb-3 animate-content-in stagger-3">
-        <FileInput ref={fileInputRef} accept="image/jpeg,image/png,image/webp" multiple onFiles={handleFileChange} />
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+        />
 
         {/* Upload zone */}
         <div className="border-2 border-dashed border-mauve-12/20 rounded-xl hover:border-mauve-12/40 hover:bg-mauve-3 transition-all">
@@ -248,30 +250,30 @@ export default function LogTaskDetailsSection({
                   key={url}
                   className="relative group w-14 h-14 rounded-lg overflow-hidden border border-mauve-4 bg-mauve-2 shrink-0"
                 >
-                  <Image
+                  <img
                     src={url}
                     alt={`Attachment ${i + 1}`}
                     className="object-cover w-full h-full cursor-pointer"
                     onClick={() => setFullscreenImage(url)}
                   />
                   <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Button
+                    <button
                       type="button"
                       onClick={() => setFullscreenImage(url)}
-                      variant="ghost" size="icon-xs"
+                      className="p-1 text-white"
                     >
                       <Maximize2 size={11} />
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemove(url)
                       }}
-                      variant="ghost" size="icon-xs"
+                      className="p-1 text-white"
                     >
                       <X size={11} />
-                    </Button>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -279,11 +281,11 @@ export default function LogTaskDetailsSection({
           )}
 
           {/* Button row */}
-          <Button
+          <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || attachments.length >= 5}
-            variant="ghost" className="w-full h-auto justify-start"
+            className="w-full flex items-center justify-center gap-2 px-3 py-3 text-[11px] font-semibold text-mauve-12/70 hover:text-mauve-12 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUploading ? (
               <>
@@ -307,28 +309,32 @@ export default function LogTaskDetailsSection({
                 </span>
               </>
             )}
-          </Button>
+          </button>
         </div>
 
         {/* Fullscreen lightbox */}
         {fullscreenImage &&
           typeof document !== "undefined" &&
-          <Dialog open onOpenChange={(open) => !open && ((() => setFullscreenImage(null))())}>
-<DialogContent showCloseButton={false} className="max-w-[95vw] sm:max-w-[95vw] bg-transparent p-0 ring-0 shadow-none">
-              <Button
-                variant="ghost" className="absolute h-auto"
+          createPortal(
+            <div
+              className="fixed inset-0 z-[9999999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
+              onClick={() => setFullscreenImage(null)}
+            >
+              <button
+                className="absolute top-6 right-6 text-white hover:text-destructive transition-colors bg-black/50 p-2 rounded-full"
                 onClick={() => setFullscreenImage(null)}
               >
                 <X size={24} />
-              </Button>
-              <Image
+              </button>
+              <img
                 src={fullscreenImage}
                 alt="Fullscreen Attachment"
                 className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
               />
-            </DialogContent>
-</Dialog>}
+            </div>,
+            document.body
+          )}
       </div>
     </>
   )

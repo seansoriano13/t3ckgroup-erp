@@ -20,7 +20,6 @@ import { ATTACHMENT_ACCEPT_GROUPS } from "../../utils/attachments";
 import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 import StageChecklistRow from "../sor/StageChecklistRow";
-import { SwitchField } from "@/components/ui/ToggleField";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
@@ -257,15 +256,15 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 placement="bottom-start"
                 popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <Button
+                  <button
                     type="button"
                     disabled={Boolean(editingId)}
-                    variant="ghost" className="w-full text-left h-auto justify-start"
+                    className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
                   >
                     <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
                     <span className="flex-1">{activeKind.label}</span>
                     {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
-                  </Button>
+                  </button>
                 }
               >
                 {({ close }) => (
@@ -273,14 +272,14 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                     {NEW_CONDITION_KINDS.map((value) => {
                       const meta = CONDITION_KIND_META[value]
                       return (
-                      <Button
+                      <button
                         key={value}
                         type="button"
                         onClick={() => {
                           handleKindChange(value);
                           close();
                         }}
-                        variant="ghost" className={cn("h-auto", 
+                        className={cn(
                           "flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
                           value === kind ? "bg-mauve-a3" : "hover:bg-mauve-a2",
                         )}
@@ -296,7 +295,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                             {meta.hint}
                           </span>
                         </span>
-                      </Button>
+                      </button>
                     )})}
                   </div>
                 )}
@@ -326,7 +325,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                     const accepts = config.accepts || [];
                     const active = accepts.includes(key);
                     return (
-                      <Button
+                      <button
                         key={key}
                         type="button"
                         onClick={() =>
@@ -334,7 +333,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                             accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
                           })
                         }
-                        variant="ghost" className={cn("h-auto", 
+                        className={cn(
                           "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
                           active
                             ? "bg-mauve-12 text-mauve-1"
@@ -342,7 +341,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                         )}
                       >
                         {group.label}
-                      </Button>
+                      </button>
                     );
                   })}
                 </div>
@@ -384,16 +383,19 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               />
             )}
 
-            <SwitchField
-              label="Blocks the way out"
-              description={
-                isRequired
-                  ? "A deal cannot leave this Stage until it is satisfied."
-                  : "Tracked and shown, but never in the way."
-              }
-              checked={isRequired}
-              onCheckedChange={setIsRequired}
-            />
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-foreground">
+                  Blocks the way out
+                </span>
+                <span className="block text-xs leading-snug text-muted-foreground">
+                  {isRequired
+                    ? "A deal cannot leave this Stage until it is satisfied."
+                    : "Tracked and shown, but never in the way."}
+                </span>
+              </span>
+              <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+            </label>
 
             {/* Story 3: a live preview of the exact row the SOR's checklist
                 will show, fed a sample opportunity matching the draft. */}
@@ -445,22 +447,22 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               >
                 {!disabled && (
                   <div className="flex shrink-0 flex-col">
-                    <Button
+                    <button
                       onClick={() => moveCondition(index, "up")}
                       disabled={index === 0 || reorderMutation.isPending}
                       aria-label={`Move ${condition.label} earlier`}
-                      variant="ghost" size="icon-xs"
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
                     >
                       <ArrowUp size={13} />
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       onClick={() => moveCondition(index, "down")}
                       disabled={index === conditions.length - 1 || reorderMutation.isPending}
                       aria-label={`Move ${condition.label} later`}
-                      variant="ghost" size="icon-xs"
+                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
                     >
                       <ArrowDown size={13} />
-                    </Button>
+                    </button>
                   </div>
                 )}
 

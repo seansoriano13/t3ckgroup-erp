@@ -2,7 +2,7 @@ import { AlertCircle, Tag } from "lucide-react";
 import Dot from "./ui/Dot";
 import { formatDate } from "../utils/formatDate";
 import { extractOthersDetailsFromRemarks } from "../utils/taskFormatters";
-import { FieldBox } from "./ui/FieldBox";
+import { FieldBox } from "./FieldBox";
 import StatusBadge from "./StatusBadge";
 import { TASK_STATUS } from "../constants/status";
 import { Input } from "@/components/ui/input";

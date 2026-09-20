@@ -1,7 +1,6 @@
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
 import { resolveAssignment } from "@/utils/checklist";
-import { Button } from "@/components/ui/button";
 
 /**
  * GroupTaskMemberRail — the master half of the group task master/detail layout.
@@ -60,11 +59,11 @@ export default function GroupTaskMemberRail({
           const status = member.status;
 
           return (
-            <Button
+            <button
               key={member.id}
               type="button"
               onClick={() => onSelect(member.id)}
-              variant="ghost" className={`h-auto w-full text-left px-2.5 py-2.5 rounded-xl mb-1 flex items-start gap-2.5 transition-all group relative ${
+              className={`w-full text-left px-2.5 py-2.5 rounded-xl mb-1 flex items-start gap-2.5 transition-all group relative ${
                 isSelected
                   ? "bg-card shadow-sm ring-1 ring-mauve-4"
                   : "hover:bg-muted/60"
@@ -130,20 +129,20 @@ export default function GroupTaskMemberRail({
                   <Trash2 size={13} />
                 </span>
               )}
-            </Button>
+            </button>
           );
         })}
       </div>
 
       {onAdd && (
         <div className="p-2 border-t border-border shrink-0">
-          <Button
+          <button
             type="button"
             onClick={onAdd}
-            variant="link" className="w-full"
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-primary/25 text-primary font-bold text-[11px] hover:bg-primary/5 hover:border-primary/40 transition-colors"
           >
             <Plus size={15} /> Add member
-          </Button>
+          </button>
         </div>
       )}
     </div>

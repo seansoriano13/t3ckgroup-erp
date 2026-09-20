@@ -41,10 +41,6 @@ import {
 import { outstandingInclusions } from "../../constants/projectEvaluation";
 import { useAuth } from "../../context/AuthContext";
 import { canEditSor } from "../../utils/sorPermissions";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { FileInput } from "@/components/ui/FileInput";
 
 let draftSeq = 0;
 const blankDraft = (seed = {}) => ({
@@ -99,21 +95,21 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         <span className="text-[12px] font-semibold uppercase tracking-wider text-foreground">
           Edit request
         </span>
-        <Button
+        <button
           type="button"
           onClick={onCancel}
-          variant="ghost" size="icon-xs"
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
           aria-label="Cancel editing"
         >
           <X size={13} />
-        </Button>
+        </button>
       </div>
 
-      <Input
+      <input
         value={productName}
         onChange={(e) => setProductName(e.target.value)}
         placeholder="Product name"
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 pb-1.5 text-[14px] font-semibold text-foreground transition-colors focus:border-mauve-9" containerClassName="w-full"
+        className="w-full border-b border-border/80 bg-transparent pb-1.5 text-[14px] font-semibold text-foreground outline-none transition-colors focus:border-mauve-9"
       />
 
       <div className="flex items-center gap-2">
@@ -133,12 +129,12 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         </Dropdown>
       </div>
 
-      <Textarea
+      <textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Specs, brand, client notes..."
-        className="w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50 min-h-0 border-0 rounded-none p-0"
+        className="w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
       />
 
       {existingImages.length > 0 && (
@@ -149,14 +145,14 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
               className="group flex items-center gap-1.5 rounded-md bg-mauve-3 px-2 py-1 text-[11px] text-foreground"
             >
               <span className="max-w-[110px] truncate">{img.name || `Image ${i + 1}`}</span>
-              <Button
+              <button
                 type="button"
                 onClick={() => removeExistingImage(i)}
-                variant="ghost" className="h-auto"
+                className="text-muted-foreground hover:text-red-9"
                 title="Remove image"
               >
                 <X size={11} />
-              </Button>
+              </button>
             </div>
           ))}
         </div>
@@ -167,31 +163,33 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-        <FileInput
-          accept={ALLOWED_EXTENSIONS_STRING}
-          multiple
-          variant="ghost"
-          onFiles={(files) => attachments.addFiles(files)}
-        >
+        <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground">
           <Paperclip size={13} />
-          Attach file
-        </FileInput>
+          <span>Attach file</span>
+          <input
+            type="file"
+            multiple
+            accept={ALLOWED_EXTENSIONS_STRING}
+            className="sr-only"
+            onChange={(e) => attachments.addFromInput(e)}
+          />
+        </label>
 
         <div className="flex items-center gap-2">
-          <Button
+          <button
             type="button"
             onClick={onCancel}
-            variant="ghost" className="h-auto"
+            className="rounded-md px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
             type="submit"
             disabled={isPending || !productName.trim()}
-            variant="default"
+            className="rounded-md bg-mauve-12 px-3 py-1.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
           >
             {isPending ? "Saving…" : "Save"}
-          </Button>
+          </button>
         </div>
       </div>
     </form>
@@ -242,13 +240,13 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
           hasDetail && "cursor-pointer hover:bg-mauve-3/40",
         )}
       >
-        <Button
+        <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             if (hasDetail) setIsOpen((v) => !v);
           }}
-          variant="ghost" className="min-w-0 flex-1 text-left h-auto justify-start"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           aria-expanded={hasDetail ? isOpen : undefined}
         >
           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
@@ -260,14 +258,14 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
           <span className="shrink-0 rounded-md bg-mauve-3 px-2 py-0.5 text-[11.5px] font-medium text-foreground">
             {qty} {unit}
           </span>
-        </Button>
+        </button>
 
         <div
           onClick={(e) => e.stopPropagation()}
           className="flex shrink-0 items-center gap-1.5"
         >
           {request.task_id && (
-            <Button
+            <button
               type="button"
               onClick={() =>
                 window.dispatchEvent(
@@ -276,26 +274,26 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
                   }),
                 )
               }
-              variant="outline" className="inline-flex"
+              className="inline-flex items-center gap-1 rounded-md border border-mauve-6 bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
               title="Open purchasing task"
             >
               <ExternalLink size={11} />
               <span>View Task</span>
-            </Button>
+            </button>
           )}
 
           {canEdit && (
             <div className="flex items-center gap-0.5">
-              <Button
+              <button
                 type="button"
                 onClick={() => setIsEditing(true)}
                 aria-label={`Edit ${request.requested_name}`}
-                variant="ghost" size="icon-xs"
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
                 title="Edit request"
               >
                 <Pencil size={12} />
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
                 onClick={() =>
                   confirmDeleteToast(
@@ -305,26 +303,26 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
                   )
                 }
                 aria-label={`Delete ${request.requested_name}`}
-                variant="ghost" size="icon-xs"
+                className="rounded p-1 text-muted-foreground transition-colors hover:bg-red-a4 hover:text-red-9"
                 title="Cancel request"
               >
                 <Trash2 size={12} />
-              </Button>
+              </button>
             </div>
           )}
 
           {hasDetail && (
-            <Button
+            <button
               type="button"
               onClick={() => setIsOpen((v) => !v)}
               aria-label={isOpen ? "Collapse" : "Expand"}
-              variant="ghost" size="icon-xs" className="shrink-0"
+              className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
             >
               <ChevronDown
                 size={13}
                 className={cn("transition-transform duration-150", isOpen && "rotate-180")}
               />
-            </Button>
+            </button>
           )}
         </div>
       </div>
@@ -379,16 +377,16 @@ function QuantityStepper({ value, onChange, label }) {
 
   return (
     <div className="inline-flex h-7 items-center gap-0.5 rounded-md bg-mauve-3 px-0.5">
-      <Button
+      <button
         type="button"
         aria-label={`Decrease ${label}`}
         disabled={n <= 1}
         onClick={() => step(-1)}
-        variant="ghost" size="icon-xs"
+        className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
       >
         <Minus size={12} />
-      </Button>
-      <Input
+      </button>
+      <input
         aria-label={label}
         inputMode="numeric"
         value={n}
@@ -396,16 +394,16 @@ function QuantityStepper({ value, onChange, label }) {
           const next = parseInt(e.target.value.replace(/\D/g, ""), 10);
           onChange(Number.isNaN(next) ? 1 : Math.max(1, next));
         }}
-        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 h-full text-center text-[12.5px] font-semibold text-foreground" containerClassName="w-6"
+        className="h-full w-6 bg-transparent text-center text-[12.5px] font-semibold text-foreground outline-none"
       />
-      <Button
+      <button
         type="button"
         aria-label={`Increase ${label}`}
         onClick={() => step(1)}
-        variant="ghost" size="icon-xs"
+        className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
       >
         <Plus size={12} />
-      </Button>
+      </button>
     </div>
   );
 }
@@ -422,23 +420,23 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
       className="group/row py-3 first:pt-0"
     >
       <div className="flex items-start gap-2">
-        <Input
+        <input
           ref={nameRef}
           aria-label={`Product name ${index + 1}`}
           value={draft.product_name}
           onChange={(e) => onChange({ ...draft, product_name: e.target.value })}
           placeholder="What does the client need?"
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[14px] font-semibold text-foreground placeholder:font-medium placeholder:text-muted-foreground/40" containerClassName="min-w-0 flex-1"
+          className="min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground/40"
         />
         {canRemove && (
-          <Button
+          <button
             type="button"
             aria-label={`Remove product ${index + 1}`}
             onClick={onRemove}
-            variant="ghost" size="icon-xs" className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
+            className="shrink-0 rounded p-0.5 text-muted-foreground/50 opacity-0 transition-all hover:text-red-9 focus-visible:opacity-100 group-hover/row:opacity-100"
           >
             <Trash2 size={13} />
-          </Button>
+          </button>
         )}
       </div>
 
@@ -463,13 +461,13 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </Dropdown>
       </div>
 
-      <Textarea
+      <textarea
         aria-label={`Description ${index + 1}`}
         value={draft.description}
         onChange={(e) => onChange({ ...draft, description: e.target.value })}
         rows={2}
         placeholder="Specs, brand, the wording the client used — paste a screenshot straight in"
-        className="mt-2 w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50 min-h-0 border-0 rounded-none p-0"
+        className="mt-2 w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
       />
 
       {attachments.files.length > 0 && (
@@ -478,18 +476,25 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </div>
       )}
 
-      <FileInput ref={fileRef} accept={ALLOWED_EXTENSIONS_STRING} multiple onFiles={(files) => {
-          attachments.addFiles(files);
-          
-        }} />
-      <Button
+      <input
+        ref={fileRef}
+        type="file"
+        multiple
+        accept={ALLOWED_EXTENSIONS_STRING}
+        className="hidden"
+        onChange={(e) => {
+          attachments.addFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <button
         type="button"
         onClick={() => fileRef.current?.click()}
-        variant="ghost" className="mt-1.5 h-auto"
+        className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <ImagePlus size={12} />
         Attach a screenshot
-      </Button>
+      </button>
     </div>
   );
 }
@@ -534,14 +539,14 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-foreground">
           {value.label}
         </span>
-        <Button
+        <button
           type="button"
           aria-label="Clear recipient"
           onClick={() => onChange(null)}
-          variant="ghost" size="icon-xs" className="shrink-0"
+          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
         >
           <X size={13} />
-        </Button>
+        </button>
       </div>
     );
   }
@@ -550,7 +555,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
     <div ref={boxRef} className="relative">
       <div className="flex h-9 items-center gap-2 rounded-md bg-mauve-2 px-2.5 transition-colors focus-within:bg-mauve-3">
         <AtSign size={13} className="shrink-0 text-muted-foreground" />
-        <Input
+        <input
           aria-label="Send to"
           value={query}
           onChange={(e) => {
@@ -578,7 +583,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
             }
           }}
           placeholder={placeholder}
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[12.5px] font-medium text-foreground placeholder:text-muted-foreground/50" containerClassName="min-w-0 flex-1"
+          className="min-w-0 flex-1 bg-transparent text-[12.5px] font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
         />
       </div>
 
@@ -595,13 +600,13 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
           ) : (
             matches.map((o, i) => (
               <li key={o.id}>
-                <Button
+                <button
                   type="button"
                   role="option"
                   aria-selected={i === active}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => choose(o)}
-                  variant="ghost" className={cn(
+                  className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] font-medium transition-colors",
                     i === active ? "bg-mauve-4 text-foreground" : "text-muted-foreground hover:bg-mauve-3",
                   )}
@@ -612,7 +617,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
                     <UserPlus size={13} className="shrink-0" />
                   )}
                   <span className="truncate">{o.label}</span>
-                </Button>
+                </button>
               </li>
             ))
           )}
@@ -895,17 +900,17 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
     <div className="rounded-xl border border-border/50 p-6 space-y-3">
       {requests.length > 0 && (
         <div className="flex items-center justify-between">
-          <Button
+          <button
             type="button"
             onClick={() => setFoldOverride(!isFolded)}
-            variant="ghost" className="h-auto"
+            className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronDown
               size={12}
               className={cn("transition-transform duration-150", isFolded && "-rotate-90")}
             />
             Procurement Requests
-          </Button>
+          </button>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
             {resolvedCount}/{requests.length} Resolved
           </span>
@@ -955,27 +960,27 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                     placeholder="Assign to a buyer"
                   />
                 </div>
-                <Button
+                <button
                   type="button"
                   disabled={!assignTo || assignMutation.isPending}
                   onClick={() => assignMutation.mutate()}
-                  variant="default" className="shrink-0"
+                  className="h-9 shrink-0 rounded-md bg-mauve-12 px-3.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity disabled:opacity-40"
                 >
                   Assign
-                </Button>
+                </button>
               </div>
             </div>
           )}
 
           {!isComposing && (
-            <Button
+            <button
               type="button"
               onClick={openComposer}
-              variant="ghost" className="h-auto"
+              className="flex items-center gap-1.5 rounded-md px-1 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
             >
               <Plus size={13} />
               Request a product
-            </Button>
+            </button>
           )}
 
           <div
@@ -1004,12 +1009,12 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       From the breakdown
                     </span>
                     {unsourced.map((inclusion) => (
-                      <Button
+                      <button
                         key={inclusion.id}
                         type="button"
                         onClick={() => startFromInclusion(inclusion)}
                         disabled={isComposerFull}
-                        variant="ghost" className="max-w-[14rem] truncate h-auto"
+                        className="max-w-[14rem] truncate rounded-full border border-dashed border-amber-7 bg-amber-a2 px-2 py-0.5 text-[11px] font-semibold text-amber-11 transition-colors hover:bg-amber-a3 disabled:cursor-not-allowed disabled:opacity-40"
                         title={
                           isComposerFull
                             ? `Send these ${MAX_DRAFTS} first — the composer takes ${MAX_DRAFTS} products at a time.`
@@ -1017,7 +1022,7 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                         }
                       >
                         + {inclusion.description}
-                      </Button>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1043,13 +1048,13 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                 </div>
 
                 {drafts.length < MAX_DRAFTS && (
-                  <Button
+                  <button
                     type="button"
                     onClick={() => setDrafts((prev) => [...prev, blankDraft()])}
-                    variant="ghost" className="mt-2 h-auto"
+                    className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-foreground transition-opacity hover:opacity-70"
                   >
                     <Plus size={13} /> Add another product
-                  </Button>
+                  </button>
                 )}
 
                 <div className="sticky bottom-0 z-10 mt-4 flex items-center gap-2 border-t border-border/70 bg-card pt-3 pb-1">
@@ -1060,18 +1065,18 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       onChange={setRecipient}
                     />
                   </div>
-                  <Button
+                  <button
                     type="button"
                     onClick={resetComposer}
-                    variant="ghost" className="shrink-0 h-auto"
+                    className="h-9 shrink-0 rounded-md px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
                   >
                     Cancel
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     disabled={!canSend}
                     onClick={() => createMutation.mutate()}
-                    variant="default" className="shrink-0"
+                    className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-mauve-12 px-3.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity disabled:opacity-40"
                   >
                     <Send size={12} />
                     {isSending
@@ -1079,7 +1084,7 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       : named.length === 0
                         ? "Name a product"
                         : `Send ${named.length}`}
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>

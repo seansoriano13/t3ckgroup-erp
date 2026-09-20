@@ -4,7 +4,6 @@ import toast from "react-hot-toast";
 import { Clock } from "lucide-react";
 import { dayShiftService } from "../../services/dayShiftService";
 import { useAuth } from "../../context/AuthContext";
-import { Input } from "@/components/ui/input";
 
 const WEEKDAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -33,24 +32,24 @@ function DayShiftRow({ day, onSave, isPending }) {
         <p className="font-bold text-foreground text-sm">{WEEKDAY_LABELS[day.weekday]}</p>
       </div>
       <div className="flex items-center gap-2 flex-1 justify-center">
-        <Input
+        <input
           type="time"
           aria-label={`${WEEKDAY_LABELS[day.weekday]} start time`}
           value={startTime}
           disabled={!day.isWorkingDay || isPending}
           onChange={(e) => setStartTime(e.target.value)}
           onBlur={commitTimes}
-          
+          className="px-2.5 py-1.5 bg-muted border border-border rounded-lg text-sm font-semibold text-foreground disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
         <span className="text-xs text-muted-foreground">to</span>
-        <Input
+        <input
           type="time"
           aria-label={`${WEEKDAY_LABELS[day.weekday]} end time`}
           value={endTime}
           disabled={!day.isWorkingDay || isPending}
           onChange={(e) => setEndTime(e.target.value)}
           onBlur={commitTimes}
-          
+          className="px-2.5 py-1.5 bg-muted border border-border rounded-lg text-sm font-semibold text-foreground disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
       </div>
       <div

@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
 import { DEMOS } from "./demoRegistry"
-import { Button } from "@/components/ui/button";
-import { ExternalLink } from "@/components/ui/ExternalLink";
 
 /**
  * The Release Notes deck.
@@ -53,13 +51,13 @@ function HeadlineSlide({ row }) {
       {Demo && <Demo />}
 
       <div>
-        <Button
+        <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          variant="outline"
+          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
         >
           {open ? "Hide the detail" : `What changed exactly (${row.changes.length})`}
-        </Button>
+        </button>
         {open && (
           <ul className="mt-3 max-w-4xl space-y-2">
             {row.changes.map((c) => (
@@ -96,13 +94,13 @@ function UnderTheHoodSlide({ data }) {
         </p>
       </div>
       <div>
-        <Button
+        <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          variant="outline"
+          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
         >
           {open ? "Hide the list" : "Show the list"}
-        </Button>
+        </button>
         {open && (
           <ul className="mt-4 grid max-w-6xl gap-2.5 lg:grid-cols-2">
             {data.items.map((item) => (
@@ -131,10 +129,10 @@ function EpicRow({ epic }) {
 
   return (
     <li className="rounded-xl border border-border bg-card p-4">
-      <Button
+      <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        variant="ghost" className="w-full text-left h-auto justify-start"
+        className="flex w-full items-start justify-between gap-4 text-left"
       >
         <span className="min-w-0">
           <span className="block text-[17px] font-bold text-foreground">
@@ -152,7 +150,7 @@ function EpicRow({ epic }) {
             #{epic.number}
           </span>
         </span>
-      </Button>
+      </button>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-emerald-500/70"
@@ -229,27 +227,27 @@ function PrototypeSlide({ prototype }) {
         </div>
         <div className="flex items-center gap-1.5">
           {prototype.variants.map((v) => (
-            <Button
+            <button
               key={v}
               type="button"
               onClick={() => setVariant(v)}
-              variant="ghost" className={`h-10 w-10 rounded-xl border text-[15px] font-bold transition-colors ${
+              className={`h-10 w-10 rounded-xl border text-[15px] font-bold transition-colors ${
                 variant === v
                   ? "border-foreground bg-muted text-foreground"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               {v}
-            </Button>
+            </button>
           ))}
-          <ExternalLink
+          <a
             href={`${prototype.file}?variant=${variant}`}
-            
-            
-            className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted no-underline"
+            target="_blank"
+            rel="noreferrer"
+            className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted"
           >
             Full screen →
-          </ExternalLink>
+          </a>
         </div>
       </div>
       <iframe
@@ -284,13 +282,13 @@ function Overview({ data, sizes, onPick }) {
                       : data.prototypes[ii].title
               return (
                 <li key={`${section.key}-${ii}`}>
-                  <Button
+                  <button
                     type="button"
                     onClick={() => onPick({ section: si, item: ii })}
-                    variant="ghost" className="w-full text-left h-auto justify-start"
+                    className="w-full rounded-lg px-2.5 py-1.5 text-left text-[15px] font-medium text-foreground hover:bg-muted"
                   >
                     {label}
-                  </Button>
+                  </button>
                 </li>
               )
             })}
@@ -387,13 +385,13 @@ export default function PresentationDeck({ data }) {
           <span className="text-[14px] font-bold tabular-nums text-foreground">
             {positionLabel(pos, sizes)}
           </span>
-          <Button
+          <button
             type="button"
             onClick={() => setOverview((v) => !v)}
-            variant="outline"
+            className="rounded-xl border border-border bg-card px-3 py-1.5 text-[13px] font-semibold hover:bg-muted"
           >
             {overview ? "Close" : "Overview"}
-          </Button>
+          </button>
         </div>
       </header>
 

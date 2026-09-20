@@ -4,10 +4,6 @@ import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown"
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
 import { resolveAssignment } from "@/utils/checklist";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
@@ -55,9 +51,9 @@ export default function GroupTaskMemberPanel({
     <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar px-6 py-5 flex flex-col gap-5">
       {/* Assignee */}
       <div className="flex flex-col gap-1.5">
-        <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Assignee
-        </span>
+        </label>
         {canEditAssignment ? (
           <Dropdown
             usePortal
@@ -96,18 +92,18 @@ export default function GroupTaskMemberPanel({
       {/* Role */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between max-w-sm">
-          <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             Role (optional)
-          </span>
+          </label>
           {canEditAssignment && onManageRoles && (
-            <Button
+            <button
               type="button"
               onClick={onManageRoles}
-              variant="ghost" className="h-auto"
+              className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-md hover:bg-muted transition-colors flex items-center gap-1 text-[9px] font-bold uppercase cursor-pointer"
               title="Manage Roles"
             >
               <Settings2 size={11} /> Manage
-            </Button>
+            </button>
           )}
         </div>
         {canEditAssignment ? (
@@ -126,12 +122,12 @@ export default function GroupTaskMemberPanel({
             />
             {role === "OTHERS" && (
               <div className="animate-slide-down mt-1 max-w-sm">
-                <Input
+                <input
                   type="text"
                   value={customRole}
                   onChange={(e) => onChange("customRole", e.target.value)}
                   placeholder="Specify custom role…"
-                  containerClassName="w-full"
+                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
                 />
               </div>
             )}
@@ -145,15 +141,16 @@ export default function GroupTaskMemberPanel({
 
       {/* Description */}
       <div className="flex flex-col gap-1.5">
-        <FieldBox bare label="Specific Task">
-<Textarea
+        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          Specific Task
+        </label>
+        <textarea
           value={description}
           onChange={(e) => onChange("taskDescription", e.target.value)}
           disabled={!canEditDescription}
           placeholder="What exactly are they responsible for?"
-          className="h-28 resize-y"
+          className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-28 resize-y disabled:opacity-70 disabled:cursor-not-allowed"
         />
-</FieldBox>
       </div>
 
       {/* Checklist */}
@@ -161,9 +158,9 @@ export default function GroupTaskMemberPanel({
         {showChecklist ? (
           <>
             <div className="flex items-center justify-between">
-              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 Checklist
-              </span>
+              </label>
               {!canEditChecklist && lockedReason && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
                   <Lock size={10} /> {lockedReason}
@@ -194,13 +191,13 @@ export default function GroupTaskMemberPanel({
           </>
         ) : (
           canEditChecklist && (
-            <Button
+            <button
               type="button"
               onClick={() => onChange("showChecklist", true)}
-              variant="ghost" className="self-start h-auto"
+              className="self-start flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
             >
               <span className="text-base leading-none">+</span> Add checklist
-            </Button>
+            </button>
           )
         )}
       </div>

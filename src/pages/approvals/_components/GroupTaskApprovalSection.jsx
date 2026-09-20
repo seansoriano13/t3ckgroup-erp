@@ -4,9 +4,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useState } from "react";
 import { Users, CheckCircle2, XCircle, Search, Star } from "lucide-react";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 
 export default function GroupTaskApprovalSection() {
   const { user } = useAuth();
@@ -67,12 +64,12 @@ export default function GroupTaskApprovalSection() {
     <div className="space-y-6">
       <div className="relative w-full max-w-md">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <Input
+        <input
           type="text"
           placeholder="Search by title or creator..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          containerClassName="w-full"
+          className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-2 text-sm text-foreground outline-none focus:border-primary/50 transition-colors shadow-sm"
         />
       </div>
 
@@ -86,21 +83,21 @@ export default function GroupTaskApprovalSection() {
                   {task.description && <p className="text-sm text-muted-foreground mt-2">{task.description}</p>}
                </div>
                <div className="shrink-0 flex flex-col gap-2 min-w-[250px]">
-                  <Textarea 
+                  <textarea 
                     placeholder="HR Remarks (required for rejection)"
                     value={actionRemarks[task.id] || ""}
                     onChange={(e) => setActionRemarks(prev => ({ ...prev, [task.id]: e.target.value }))}
-                    className="resize-none h-16"
+                    className="w-full text-xs p-2 bg-muted/50 border border-border rounded-lg outline-none focus:border-primary resize-none h-16"
                   />
                   <div className="flex gap-2">
-                    <Button 
+                    <button 
                       onClick={() => verifyMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] })}
                       disabled={verifyMutation.isPending}
-                      variant="ghost" className="flex-1 h-auto"
+                      className="flex-1 flex items-center justify-center gap-1 bg-green-9 hover:bg-green-9 text-primary-foreground py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                     >
                       <CheckCircle2 size={14} /> Verify
-                    </Button>
-                    <Button 
+                    </button>
+                    <button 
                       onClick={() => {
                         if (!actionRemarks[task.id]?.trim()) {
                           toast.error("Remarks are required to reject.");
@@ -109,10 +106,10 @@ export default function GroupTaskApprovalSection() {
                         rejectMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] });
                       }}
                       disabled={rejectMutation.isPending}
-                      variant="destructive" className="flex-1"
+                      className="flex-1 flex items-center justify-center gap-1 bg-destructive hover:bg-destructive text-primary-foreground py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
                     >
                       <XCircle size={14} /> Reject
-                    </Button>
+                    </button>
                   </div>
                </div>
             </div>

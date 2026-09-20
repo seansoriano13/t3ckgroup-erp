@@ -8,9 +8,6 @@ import { useAuth } from "../context/AuthContext"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import HRFormModal from "./hr/HRFormModal"
 import CategoryForm from "./hr/CategoryForm"
-import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 
 export default function HRCategoriesConfig() {
   const queryClient = useQueryClient()
@@ -89,22 +86,22 @@ export default function HRCategoriesConfig() {
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
-          <Input
+          <input
             type="text"
             placeholder="Search categories..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            containerClassName="w-full"
+            className="w-full bg-mauve-1 border border-mauve-4 text-foreground rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-mauve-6 transition-colors text-sm"
           />
         </div>
 
-        <Button
+        <button
           type="button"
           onClick={openAdd}
-          variant="default"
+          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2.5 rounded-lg font-bold transition-colors text-sm shadow-sm active:scale-95"
         >
           <Plus size={18} /> Add Category
-        </Button>
+        </button>
       </div>
 
       <div className="bg-mauve-2 border border-mauve-4 rounded-xl shadow-lg overflow-x-auto">
@@ -124,46 +121,46 @@ export default function HRCategoriesConfig() {
             No categories found. Add the first one.
           </div>
         ) : (
-          <Table >
-            <TableHeader>
-              <TableRow >
-                <TableHead >Category ID</TableHead>
-                <TableHead className="w-1/3">Description</TableHead>
-                <TableHead >Department</TableHead>
-                <TableHead >Sub-Department</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody >
+          <table className="w-full text-left border-collapse whitespace-nowrap">
+            <thead>
+              <tr className="bg-mauve-1 border-b border-mauve-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                <th className="p-4">Category ID</th>
+                <th className="p-4 w-1/3">Description</th>
+                <th className="p-4">Department</th>
+                <th className="p-4">Sub-Department</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-4">
               {filteredCategories.length > 0 ? (
                 filteredCategories.map((cat) => (
-                  <TableRow
+                  <tr
                     key={cat.id}
-                    className="hover:bg-mauve-3/30"
+                    className="hover:bg-mauve-3/30 transition-colors"
                   >
-                    <TableCell >
+                    <td className="p-4">
                       <span className="text-xs font-bold text-foreground bg-mauve-3 px-2 py-1 rounded border border-mauve-4">
                         {cat.categoryId}
                       </span>
-                    </TableCell>
-                    <TableCell className="max-w-xs">
+                    </td>
+                    <td className="p-4 text-sm text-mauve-11 truncate max-w-xs">
                       {cat.description}
-                    </TableCell>
-                    <TableCell >
+                    </td>
+                    <td className="p-4 text-sm text-mauve-11">
                       {cat.department || "-"}
-                    </TableCell>
-                    <TableCell >
+                    </td>
+                    <td className="p-4 text-sm text-mauve-11">
                       {cat.subDepartment || "-"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
+                    </td>
+                    <td className="p-4 text-right space-x-2">
+                      <button
                         onClick={() => openEdit(cat)}
-                        variant="ghost" className="inline-block h-auto"
+                        className="p-2 bg-mauve-3 hover:bg-mauve-4 text-foreground rounded-lg transition-colors inline-block"
                         title="Edit Category"
                       >
                         <Edit size={16} />
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         onClick={() => {
                           confirmDeleteToast(
                             `Delete Category?`,
@@ -171,27 +168,27 @@ export default function HRCategoriesConfig() {
                             () => deleteMutation.mutate(cat),
                           )
                         }}
-                        variant="destructive" className="inline-block"
+                        className="p-2 bg-red-3 hover:bg-red-6 text-destructive rounded-lg transition-colors inline-block"
                         title="Delete Category"
                         disabled={deleteMutation.isPending}
                       >
                         <Trash2 size={16} />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
+                      </button>
+                    </td>
+                  </tr>
                 ))
               ) : (
-                <TableRow>
-                  <TableCell
+                <tr>
+                  <td
                     colSpan="5"
-                    className="text-center"
+                    className="p-8 text-center text-muted-foreground font-bold"
                   >
                     No categories found matching your search.
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               )}
-            </TableBody>
-          </Table>
+            </tbody>
+          </table>
         )}
       </div>
 

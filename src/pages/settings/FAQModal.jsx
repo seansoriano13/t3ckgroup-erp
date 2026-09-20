@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import ModalOverlay from "../../components/ui/ModalOverlay";
 import {
   X,
   ChevronDown,
@@ -15,8 +15,6 @@ import { useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import HighlightText from "../../components/HighlightText";
 import { canEditFAQ as canEditFAQPredicate } from "../../utils/faqAccess";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 // ─── Role helpers ──────────────────────────────────────────────────────────────
 const ROLE_LABELS = {
@@ -52,9 +50,9 @@ function FAQItem({ question, answer, isOpen, onToggle, hasRoleCustom, searchTerm
         isOpen ? "bg-card shadow-sm" : "bg-card hover:bg-muted/40"
       }`}
     >
-      <Button
+      <button
         onClick={onToggle}
-        variant="ghost" className="w-full text-left h-auto justify-start"
+        className="w-full flex items-start gap-3 px-4 py-3.5 text-left cursor-pointer"
         id={`faq-q-${question.slice(0, 20).replace(/\s+/g, "-").toLowerCase()}`}
       >
         <span
@@ -76,7 +74,7 @@ function FAQItem({ question, answer, isOpen, onToggle, hasRoleCustom, searchTerm
             For you
           </span>
         )}
-      </Button>
+      </button>
 
       {isOpen && (
         <div className="px-4 pb-4 pl-10 animate-content-in">
@@ -104,10 +102,10 @@ function CategorySidebar({ categories, activeId, onSelect }) {
         const Icon = ICON_MAP[cat.icon] ?? BookOpen;
         const isActive = activeId === cat.id;
         return (
-          <Button
+          <button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            variant="ghost" className={`h-auto w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
+            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
               isActive
                 ? "bg-muted text-foreground font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -120,7 +118,7 @@ function CategorySidebar({ categories, activeId, onSelect }) {
               <Icon size={15} strokeWidth={isActive ? 2.5 : 2} />
             </span>
             <span className="truncate">{cat.label}</span>
-          </Button>
+          </button>
         );
       })}
     </div>
@@ -203,8 +201,10 @@ export default function FAQModal({ isOpen, onClose }) {
   const totalItems = categories.reduce((acc, c) => acc + c.items.length, 0);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent showCloseButton={false} className="h-[82vh] max-w-4xl gap-0 p-0 flex flex-col overflow-hidden sm:max-w-4xl">
+    <ModalOverlay isOpen={isOpen} onClose={onClose}>
+
+      {/* Panel */}
+      <div className="relative z-10 w-full max-w-4xl h-[82vh] bg-card border border-border rounded-2xl shadow-2xl flex flex-col overflow-hidden modal-enter">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-center gap-2.5">
@@ -224,26 +224,26 @@ export default function FAQModal({ isOpen, onClose }) {
           <div className="flex items-center gap-1.5">
             {/* Navigate to FAQ Editor page */}
             {canEditFAQ && (
-              <Button
+              <button
                 id="open-faq-editor-btn"
                 onClick={() => {
                   onClose();
                   navigate("/settings/FAQEditor");
                 }}
-                variant="outline"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
                 title="Open FAQ Editor"
               >
                 <Maximize2 size={13} />
                 Edit
-              </Button>
+              </button>
             )}
 
-            <Button
+            <button
               onClick={onClose}
-              variant="ghost" className="w-7 h-auto"
+              className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
             >
               <X size={15} strokeWidth={2.5} />
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -254,12 +254,12 @@ export default function FAQModal({ isOpen, onClose }) {
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
             />
-            <Input
+            <input
               type="text"
               placeholder="Search questions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              containerClassName="w-full"
+              className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 transition-all"
             />
           </div>
         </div>
@@ -296,16 +296,16 @@ export default function FAQModal({ isOpen, onClose }) {
                     <p className="text-xs mt-1 opacity-70">
                       Click Edit to add categories and questions
                     </p>
-                    <Button
+                    <button
                       onClick={() => {
                         onClose();
                         navigate("/settings/FAQEditor");
                       }}
-                      variant="default" className="mt-4"
+                      className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
                     >
                       <Maximize2 size={12} />
                       Open Editor
-                    </Button>
+                    </button>
                   </>
                 ) : (
                   <p className="text-xs mt-1 opacity-70">
@@ -417,7 +417,7 @@ export default function FAQModal({ isOpen, onClose }) {
             </p>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalOverlay>
   );
 }

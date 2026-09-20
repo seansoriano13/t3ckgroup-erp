@@ -15,9 +15,18 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
+
+// ── FieldBox — mirrors LogTaskAssignmentBar's label+container pattern ────────
+function FieldBox({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
 
 export default function ActivityLogFilters({
   filters,
@@ -101,13 +110,13 @@ export default function ActivityLogFilters({
           )}
         </div>
         {hasActiveFilters && (
-          <Button
+          <button
             type="button"
             onClick={clearFilters}
-            variant="ghost" className="h-auto"
+            className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
           >
             <X size={12} /> Clear
-          </Button>
+          </button>
         )}
       </div>
 
@@ -115,25 +124,25 @@ export default function ActivityLogFilters({
       <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
         {/* Search — spans 2 cols */}
         <div className="lg:col-span-2">
-          <FieldBox bare label="Search">
+          <FieldBox label="Search">
             <div className="relative flex items-center">
               <Search
                 size={13}
                 className="absolute left-3 text-muted-foreground pointer-events-none shrink-0"
               />
-              <Input
+              <input
                 value={filters.search}
                 onChange={(e) =>
                   setFilters((p) => ({ ...p, search: e.target.value }))
                 }
                 placeholder="Search content or task description…"
-                className="h-[40px]" containerClassName="w-full"
+                className="w-full bg-card border border-border rounded-lg pl-8 pr-3 h-[40px] md:h-[46px] text-[13px] text-foreground outline-none focus:ring-1 focus:ring-mauve-4 hover:border-border/80 transition-all placeholder:text-muted-foreground"
               />
             </div>
           </FieldBox>
         </div>
 
-        <FieldBox bare label="Type">
+        <FieldBox label="Type">
           <Dropdown
             usePortal
             className="w-full"
@@ -166,7 +175,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Task Status">
+        <FieldBox label="Task Status">
           <Dropdown
             usePortal
             className="w-full"
@@ -207,7 +216,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Author (Actor)">
+        <FieldBox label="Author (Actor)">
           <Dropdown
             usePortal
             className="w-full"
@@ -251,7 +260,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Task Owner">
+        <FieldBox label="Task Owner">
           <Dropdown
             usePortal
             className="w-full"
@@ -290,7 +299,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Department">
+        <FieldBox label="Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -326,7 +335,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Sub-Department">
+        <FieldBox label="Sub-Department">
           <Dropdown
             usePortal
             className="w-full"
@@ -362,7 +371,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Date From">
+        <FieldBox label="Date From">
           <Dropdown
             usePortal
             placement="bottom-start"
@@ -373,15 +382,15 @@ export default function ActivityLogFilters({
                     {filters.dateFrom ? new Date(filters.dateFrom).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select start date"}
                   </span>
                   {filters.dateFrom && (
-                    <Button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateFrom: null }));
                       }}
-                      variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
+                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </Button>
+                    </button>
                   )}
                 </div>
                 <Calendar
@@ -406,7 +415,7 @@ export default function ActivityLogFilters({
           </Dropdown>
         </FieldBox>
 
-        <FieldBox bare label="Date To">
+        <FieldBox label="Date To">
           <Dropdown
             usePortal
             placement="bottom-start"
@@ -417,15 +426,15 @@ export default function ActivityLogFilters({
                     {filters.dateTo ? new Date(filters.dateTo).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select end date"}
                   </span>
                   {filters.dateTo && (
-                    <Button
+                    <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateTo: null }));
                       }}
-                      variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
+                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </Button>
+                    </button>
                   )}
                 </div>
                 <Calendar

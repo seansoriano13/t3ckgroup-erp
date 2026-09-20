@@ -13,8 +13,6 @@ import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
-import { Select } from "@/components/ui/select";
-import { SwitchField } from "@/components/ui/ToggleField";
 
 const emptyDraft = () => ({
   label: "",
@@ -248,47 +246,57 @@ export default function StageFieldManager({ stageId, disabled = false }) {
                 Source
               </span>
               <div className="flex gap-2">
-                <Button
+                <button
                   type="button"
                   disabled={Boolean(editingId)}
                   onClick={() => setDraft((d) => ({ ...d, source: "sor" }))}
-                  variant="ghost" className={`h-auto flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
                     draft.source === "sor" ? "bg-mauve-12 text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4"
                   }`}
                 >
                   SOR field
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
                   disabled={Boolean(editingId)}
                   onClick={() => setDraft((d) => ({ ...d, source: "custom" }))}
-                  variant="ghost" className={`h-auto flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                  className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
                     draft.source === "custom" ? "bg-mauve-12 text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4"
                   }`}
                 >
                   Custom
-                </Button>
+                </button>
               </div>
 
               {draft.source === "sor" ? (
-                <Select
-  options={[...SOR_STAGE_FIELD_KEYS.map((key) => ({ value: key, label: SOR_STAGE_FIELDS[key].label }))]}
-  value={draft.sorField}
-  onChange={(next) => setDraft((d) => ({ ...d, sorField: next }))}
-  disabled={Boolean(editingId)}
-  aria-label="SOR field"
-  className="mt-2 w-full"
-/>
+                <select
+                  aria-label="SOR field"
+                  disabled={Boolean(editingId)}
+                  value={draft.sorField}
+                  onChange={(e) => setDraft((d) => ({ ...d, sorField: e.target.value }))}
+                  className="mt-2 flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm disabled:opacity-50"
+                >
+                  {SOR_STAGE_FIELD_KEYS.map((key) => (
+                    <option key={key} value={key}>
+                      {SOR_STAGE_FIELDS[key].label}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <>
-                  <Select
-  options={[...CUSTOM_FIELD_TYPE_VALUES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))]}
-  value={draft.fieldType}
-  onChange={(next) => setDraft((d) => ({ ...d, fieldType: next }))}
-  disabled={Boolean(editingId)}
-  aria-label="Field type"
-  className="mt-2 w-full"
-/>
+                  <select
+                    aria-label="Field type"
+                    disabled={Boolean(editingId)}
+                    value={draft.fieldType}
+                    onChange={(e) => setDraft((d) => ({ ...d, fieldType: e.target.value }))}
+                    className="mt-2 flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm disabled:opacity-50"
+                  >
+                    {CUSTOM_FIELD_TYPE_VALUES.map((type) => (
+                      <option key={type} value={type}>
+                        {type[0].toUpperCase() + type.slice(1)}
+                      </option>
+                    ))}
+                  </select>
                   {draft.fieldType === "choice" && (
                     <ChoiceOptionsEditor
                       options={draft.options}
@@ -299,12 +307,18 @@ export default function StageFieldManager({ stageId, disabled = false }) {
               )}
             </div>
 
-            <SwitchField
-              label="Required to leave"
-              description={<>An empty required field blocks the move with "Fill in: {draft.label || "…"}".</>}
-              checked={draft.isRequired}
-              onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
-            />
+            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold text-foreground">Required to leave</span>
+                <span className="block text-xs leading-snug text-muted-foreground">
+                  An empty required field blocks the move with "Fill in: {draft.label || "…"}".
+                </span>
+              </span>
+              <Switch
+                checked={draft.isRequired}
+                onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
+              />
+            </label>
 
             <div className="flex items-center justify-end gap-2">
               <Button type="button" variant="ghost" size="lg" onClick={resetForm}>
@@ -335,22 +349,22 @@ export default function StageFieldManager({ stageId, disabled = false }) {
             >
               {!disabled && (
                 <div className="flex shrink-0 flex-col">
-                  <Button
+                  <button
                     onClick={() => moveField(index, "up")}
                     disabled={index === 0 || reorderMutation.isPending}
                     aria-label={`Move ${field.label} earlier`}
-                    variant="ghost" size="icon-xs"
+                    className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20"
                   >
                     <ArrowUp size={13} />
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     onClick={() => moveField(index, "down")}
                     disabled={index === fields.length - 1 || reorderMutation.isPending}
                     aria-label={`Move ${field.label} later`}
-                    variant="ghost" size="icon-xs"
+                    className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20"
                   >
                     <ArrowDown size={13} />
-                  </Button>
+                  </button>
                 </div>
               )}
 
@@ -401,13 +415,13 @@ export default function StageFieldManager({ stageId, disabled = false }) {
 
         {stageId && !disabled && (
           <div className="pt-1">
-            <Button
+            <button
               type="button"
               onClick={() => setShowArchived((v) => !v)}
-              variant="ghost" className="h-auto"
+              className="text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
             >
               {showArchived ? "Hide archived fields" : "Show archived fields"}
-            </Button>
+            </button>
 
             {showArchived && (
               <div className="mt-2 space-y-2">

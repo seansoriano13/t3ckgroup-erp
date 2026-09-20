@@ -694,12 +694,6 @@ judged whether a deal was worth chasing before anything was costed; this judges
 one priced offer.
 _Avoid_: Approval, Go/No-go (as the record's name), Project Evaluation, Sign-off
 
-### UI
-
-**Primitive**:
-Anything in the shared UI folder (`src/components/ui/`): one shared building block per job — Button, Dialog, Input, Select, Dropdown and so on. Raw HTML for a covered element (button, input, textarea, select, label, table, img, a, hand-rolled modal) is banned outside that folder, enforced by lint; feature code uses the Primitive. If none fits, ask the maintainer rather than hand-rolling. Catalogued in DESIGN.md.
-_Avoid_: Component (already means a Costing Matrix row), Widget, Shared component
-
 ### Chat & Mentions
 
 One vocabulary for a thing the code currently spells four ways. A Chat is the

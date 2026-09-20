@@ -1,7 +1,5 @@
 import { useState, useMemo } from "react"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function CategoryForm({
   initialData,
@@ -53,8 +51,10 @@ export default function CategoryForm({
     <form id={formId} onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-4">
         <div className="group">
-          <FieldBox bare label="Category ID">
-<Input
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block ml-1">
+            Category ID
+          </label>
+          <input
             required
             type="text"
             value={formData.categoryId}
@@ -62,23 +62,23 @@ export default function CategoryForm({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, categoryId: e.target.value }))
             }
-            containerClassName="w-full"
+            className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:border-mauve-8 focus:ring-4 focus:ring-mauve-8/10 transition-all text-foreground font-medium disabled:opacity-60 disabled:cursor-not-allowed"
           />
-</FieldBox>
         </div>
 
         <div className="group">
-          <FieldBox bare label="Description">
-<Input
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block ml-1">
+            Description
+          </label>
+          <input
             required
             type="text"
             value={formData.description}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, description: e.target.value }))
             }
-            containerClassName="w-full"
+            className="w-full bg-muted/40 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:border-mauve-8 focus:ring-4 focus:ring-mauve-8/10 transition-all text-foreground font-medium"
           />
-</FieldBox>
         </div>
       </div>
 

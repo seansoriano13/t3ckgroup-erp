@@ -1,7 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
 import { formatPHP } from "../../constants/sor";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 const emptyRow = () => ({ product_name: "", unit: "", quantity: 1, unit_price: "" });
 
@@ -29,16 +27,16 @@ export default function OpportunityItemsEditor({ items, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Product List
-        </span>
-        <Button
+        </label>
+        <button
           type="button"
           onClick={addRow}
-          variant="link"
+          className="text-[12px] font-bold text-primary hover:text-primary-hover flex items-center gap-1"
         >
           <Plus size={13} /> Add Item
-        </Button>
+        </button>
       </div>
 
       {items.length === 0 ? (
@@ -60,45 +58,45 @@ export default function OpportunityItemsEditor({ items, onChange }) {
                 key={idx}
                 className="grid grid-cols-12 gap-2 px-3 py-2 items-center bg-muted/10"
               >
-                <Input
+                <input
                   value={item.product_name}
                   onChange={(e) => updateRow(idx, "product_name", e.target.value)}
                   placeholder="e.g. Boom Lift"
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="col-span-5 min-w-0"
+                  className="col-span-5 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
                 />
-                <Input
+                <input
                   value={item.unit}
                   onChange={(e) => updateRow(idx, "unit", e.target.value)}
                   placeholder="Units"
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="col-span-2 min-w-0"
+                  className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
                 />
-                <Input
+                <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={item.quantity}
                   onChange={(e) => updateRow(idx, "quantity", e.target.value)}
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground font-medium" containerClassName="col-span-1 min-w-0"
+                  className="col-span-1 bg-transparent text-sm text-foreground outline-none font-medium min-w-0"
                 />
-                <Input
+                <input
                   type="number"
                   min="0"
                   step="0.01"
                   value={item.unit_price}
                   onChange={(e) => updateRow(idx, "unit_price", e.target.value)}
                   placeholder="0.00"
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="col-span-2 min-w-0"
+                  className="col-span-2 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium min-w-0"
                 />
                 <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
                   {formatPHP(lineTotal(item))}
                 </div>
-                <Button
+                <button
                   type="button"
                   onClick={() => removeRow(idx)}
-                  variant="ghost" className="col-span-1 h-auto"
+                  className="col-span-1 flex justify-end text-muted-foreground hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={14} />
-                </Button>
+                </button>
               </div>
             ))}
           </div>

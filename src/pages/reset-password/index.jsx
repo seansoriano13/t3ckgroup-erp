@@ -6,11 +6,9 @@ import { redeemRecoveryToken } from "../../lib/recoveryToken";
 import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag";
 import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
-import { Button } from "@/components/ui/button";
+import PrimaryButton from "../../components/PrimaryButton";
 import Spinner from "@/components/ui/Spinner";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Where the password-reset email link lands.
@@ -293,8 +291,10 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <FieldBox bare label="New Password" htmlFor="new-password">
-<Input
+          <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+            New Password
+          </label>
+          <input
             id="new-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"
@@ -302,12 +302,13 @@ export default function ResetPassword() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-</FieldBox>
         </div>
 
         <div className="grid gap-2">
-          <FieldBox bare label="Confirm Password" htmlFor="confirm-password">
-<Input
+          <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+            Confirm Password
+          </label>
+          <input
             id="confirm-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"
@@ -315,12 +316,12 @@ export default function ResetPassword() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
           />
-</FieldBox>
         </div>
 
-        <Button type="submit" size="lg" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? "Saving..." : "Save Password"}
-        </Button>
+        <PrimaryButton
+          label={isSubmitting ? "Saving..." : "Save Password"}
+          className={`w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
+        />
       </form>
     </div>
   );

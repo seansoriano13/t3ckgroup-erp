@@ -5,9 +5,6 @@ import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { parseChecklist } from "@/utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function RateEmployeesModal({
   isOpen,
@@ -105,13 +102,13 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-1">
-            <Button
+            <button
               type="button"
               onClick={onClose}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <X size={15} />
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -202,19 +199,22 @@ export default function RateEmployeesModal({
                   {/* Rating Controls */}
                   <div className="flex flex-col gap-4 lg:w-[280px] shrink-0 bg-muted/10 p-4 rounded-xl border border-border/50">
                     <div>
-                      <FieldBox bare label="Performance Grade">
-<GradeSelector
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                        Performance Grade
+                      </label>
+                      <GradeSelector
                         grade={rating.grade}
                         onSelect={(g) =>
                           handleRatingChange(rating.memberId, "grade", g)
                         }
                         canEvaluate={true}
                       />
-</FieldBox>
                     </div>
                     <div>
-                      <FieldBox bare label="Remarks (Optional)">
-<Textarea
+                      <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                        Remarks (Optional)
+                      </label>
+                      <textarea
                         value={rating.gradeRemarks}
                         onChange={(e) =>
                           handleRatingChange(
@@ -224,9 +224,8 @@ export default function RateEmployeesModal({
                           )
                         }
                         placeholder="Add feedback for this member..."
-                        className="h-20 resize-none"
+                        className="w-full bg-card border border-border rounded-xl px-4 py-3 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-none shadow-sm"
                       />
-</FieldBox>
                     </div>
                   </div>
                 </div>
@@ -252,20 +251,20 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <Button
+            <button
               onClick={onClose}
-              variant="ghost" className="h-auto"
+              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4 transition-colors"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={handleSubmit}
               disabled={isSubmitting || !allMembersDone}
-              variant="default"
+              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 font-bold transition-colors disabled:opacity-50"
             >
               <Star size={14} fill="currentColor" />
               {isSubmitting ? "Submitting..." : "Submit Ratings & Complete"}
-            </Button>
+            </button>
           </div>
         </div>
       </DialogContent>

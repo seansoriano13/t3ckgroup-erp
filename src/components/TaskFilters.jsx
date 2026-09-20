@@ -269,15 +269,15 @@ export default function TaskFilters({
                               : "Select Date"}
                       </span>
                       {selectedDateFilter && (
-                        <Button
+                        <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedDateFilter("");
                           }}
-                          variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
+                          className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </Button>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -368,12 +368,12 @@ export default function TaskFilters({
 
           {/* CLEAR ALL ESCAPE HATCH */}
           {isAnyFilterActive && (
-            <Button
+            <button
               onClick={handleClearAll}
-              variant="ghost" className="ml-auto xl:ml-2 shrink-0 h-auto"
+              className="ml-auto xl:ml-2 text-sm text-muted-foreground hover:text-black font-semibold px-3 py-2 shrink-0 transition-colors"
             >
               Clear All
-            </Button>
+            </button>
           )}
         </div>
       </div>

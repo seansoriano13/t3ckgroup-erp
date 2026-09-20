@@ -8,9 +8,6 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useAuth } from "@/context/AuthContext";
 import { employeeGroupService } from "@/services/employeeGroupService";
 import { SELECTOR_TYPES } from "@/utils/resolvePeople";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 const inputClass =
   "w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -83,13 +80,13 @@ export default function EmployeeGroupManager() {
           hand-picked people plus everyone on its Teams.
         </p>
         {!isAdding && (
-          <Button
+          <button
             type="button"
             onClick={() => setIsAdding(true)}
-            variant="ghost" className="shrink-0 h-auto"
+            className="shrink-0 text-xs font-bold text-foreground flex items-center gap-1 hover:bg-muted px-2.5 py-1.5 rounded-lg transition-colors"
           >
             <Plus size={14} /> New Group
-          </Button>
+          </button>
         )}
       </div>
 
@@ -101,27 +98,29 @@ export default function EmployeeGroupManager() {
           }}
           className="mb-5 grid gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end"
         >
-          <FieldBox bare label="Name">
-<Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" className={inputClass} required />
-</FieldBox>
-          <FieldBox bare label="Description (optional)">
-<Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
-</FieldBox>
+          <label className="space-y-1">
+            <span className="text-xs font-bold text-muted-foreground">Name</span>
+            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" className={inputClass} required />
+          </label>
+          <label className="space-y-1">
+            <span className="text-xs font-bold text-muted-foreground">Description (optional)</span>
+            <input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
+          </label>
           <div className="flex items-center gap-2">
-            <Button
+            <button
               type="button"
               onClick={() => setIsAdding(false)}
-              variant="outline"
+              className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={createMutation.isPending}
-              variant="default"
+              className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               Create
-            </Button>
+            </button>
           </div>
         </form>
       )}
@@ -173,7 +172,7 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
 
   return (
     <div className={`rounded-xl border border-border ${isArchived ? "bg-muted/20 opacity-70" : "bg-card"}`}>
-      <Button type="button" onClick={onToggle} variant="ghost" className="w-full text-left h-auto justify-start">
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-3 text-left">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <Users size={15} />
@@ -190,25 +189,27 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
           </div>
         </div>
         {isOpen ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
-      </Button>
+      </button>
 
       {isOpen && (
         <div className="space-y-4 border-t border-border p-4">
           <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
-            <FieldBox bare label="Name">
-<Input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-</FieldBox>
-            <FieldBox bare label="Description">
-<Input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
-</FieldBox>
-            <Button
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-muted-foreground">Name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+            </label>
+            <label className="space-y-1">
+              <span className="text-xs font-bold text-muted-foreground">Description</span>
+              <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+            </label>
+            <button
               type="button"
               disabled={!detailsChanged || busy}
               onClick={() => onRename({ name, description })}
-              variant="default"
+              className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
             >
               Save
-            </Button>
+            </button>
           </div>
 
           <div className="space-y-1.5">
@@ -252,22 +253,22 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
             {isArchived ? (
-              <Button type="button" disabled={busy} onClick={onRestore} variant="outline">
+              <button type="button" disabled={busy} onClick={onRestore} className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-muted flex items-center gap-1.5">
                 <ArchiveRestore size={14} /> Restore
-              </Button>
+              </button>
             ) : (
-              <Button type="button" disabled={busy} onClick={onArchive} variant="outline">
+              <button type="button" disabled={busy} onClick={onArchive} className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-muted flex items-center gap-1.5">
                 <Archive size={14} /> Archive
-              </Button>
+              </button>
             )}
-            <Button
+            <button
               type="button"
               disabled={busy}
               onClick={onDelete}
-              variant="destructive"
+              className="h-8 px-3 rounded-lg border border-destructive/30 text-xs font-semibold text-destructive hover:bg-destructive/10 flex items-center gap-1.5"
             >
               <Trash2 size={14} /> Delete
-            </Button>
+            </button>
           </div>
         </div>
       )}

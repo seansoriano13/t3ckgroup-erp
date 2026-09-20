@@ -2,8 +2,6 @@ import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { employeeService } from '../../services/employeeService';
 import { headResolver } from '../../services/headResolver';
-import { Select } from "@/components/ui/select";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Lets the applicant confirm (or override) which department head this
@@ -38,16 +36,20 @@ export default function HeadSelectField({ employee, value, onChange, required = 
 
   return (
     <div>
-      <FieldBox bare label="Department Head">
-<Select
-  options={[...heads.map((h) => ({ value: h.id, label: h.name }))]}
-  value={value || ''}
-  onChange={(next) => onChange(next)}
-  placeholder="Select head..."
-  required={required}
-  className="w-full"
-/>
-</FieldBox>
+      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
+        Department Head
+      </label>
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
+        required={required}
+      >
+        <option value="" disabled>Select head...</option>
+        {heads.map((h) => (
+          <option key={h.id} value={h.id}>{h.name}</option>
+        ))}
+      </select>
       {suggested && value === suggested.id && (
         <p className="text-[10px] font-semibold text-muted-foreground px-1 pt-1">
           Auto-routed to your department head based on your department/sub-department.

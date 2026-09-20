@@ -10,9 +10,6 @@ import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 function Section({ title, count, children }) {
   return (
@@ -95,63 +92,61 @@ export default function NowTab({ ctx }) {
   const rows = visitPending ? [] : currentVisitTaskRows(automationTasks, currentVisit);
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-7 p-6">
       {isRestricted && (
-        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-sm font-semibold text-amber-11">
+        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-sm font-semibold text-amber-11">
           This stage is restricted — Move is disabled.
         </div>
       )}
 
       {isLostPending && (
         <div className="flex items-end gap-2">
-          <div className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
-            <FieldBox bare label="Reason for loss">
-<Input
+          <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Reason for loss</label>
+            <input
               autoFocus
               value={lostReason}
               onChange={(e) => setLostReason(e.target.value)}
               placeholder="e.g. Lost to lower bid"
-              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm font-medium text-foreground" containerClassName="w-full"
+              className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
             />
-</FieldBox>
           </div>
-          <Button
+          <button
             disabled={!lostReason.trim() || stageMutation.isPending}
             onClick={() => stageMutation.mutate({ next: pendingStage, reason: lostReason.trim(), salesReference: null })}
-            variant="default"
+            className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
           >
             Confirm
-          </Button>
-          <Button onClick={cancelPendingStage} variant="ghost" className="h-auto">
+          </button>
+          <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
             Cancel
-          </Button>
+          </button>
         </div>
       )}
 
       {needsSalesRef && (
-        <div>
-          <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
-            <FieldBox bare label={<>
+        <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
+          <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
               Sales Reference<span className="ml-0.5 text-red-11">*</span>
-            </>}>
-<Input
+            </label>
+            <input
               autoFocus
               value={salesRef}
               onChange={(e) => setSalesRef(e.target.value.toUpperCase())}
               placeholder="e.g. S01237"
-              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 font-mono text-sm font-medium text-foreground uppercase" containerClassName="w-full"
+              className="w-full bg-transparent font-mono text-sm font-medium text-foreground uppercase outline-none"
             />
-</FieldBox>
             <p className={cn("mt-1.5 text-[11px] leading-relaxed", salesRef && !salesRefValid ? "font-semibold text-red-11" : "text-muted-foreground")}>
               {salesRef && !salesRefValid ? SALES_REFERENCE_HINT : "Enter the Odoo sales quotation number to confirm a quotation exists."}
             </p>
           </div>
 
           <div className="mt-3 flex items-center justify-end gap-2">
-            <Button onClick={cancelPendingStage} variant="ghost" className="h-auto">
+            <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               disabled={(needsSalesRef && !salesRefValid) || stageMutation.isPending}
               onClick={() =>
                 stageMutation.mutate({
@@ -160,16 +155,16 @@ export default function NowTab({ ctx }) {
                   salesReference: needsSalesRef ? normalizeSalesReference(salesRef) : null,
                 })
               }
-              variant="default"
+              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               Confirm {stageLabel(pendingStage) || pendingStage}
-            </Button>
+            </button>
           </div>
         </div>
       )}
 
       {opportunity.lost_reason && (
-        <div className="rounded-xl border border-red-7 bg-red-9/5 px-4 py-3">
+        <div className="rounded-xl border border-red-7 bg-red-9/5 px-3 py-2.5">
           <p className="mb-1 text-[10px] font-bold tracking-widest text-red-11 uppercase">Lost Reason</p>
           <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
         </div>

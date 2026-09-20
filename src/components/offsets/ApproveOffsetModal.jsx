@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 /**
  * HR approves an offset leave request, editing the hours actually debited
@@ -52,18 +50,19 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
     }
   };
 
-  return <Dialog open onOpenChange={(open) => !open && (onClose())}>
-<DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col relative overflow-hidden p-0 gap-0">
+  return createPortal(
+    <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             Approve Offset Leave
           </h2>
-          <Button
+          <button
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
           >
             <X size={18} strokeWidth={2.5} />
-          </Button>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
@@ -74,8 +73,13 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
           </p>
 
           <div>
-            <FieldBox bare label="Approved Hours" htmlFor="approved-offset-hours">
-<Input
+            <label
+              htmlFor="approved-offset-hours"
+              className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
+            >
+              Approved Hours
+            </label>
+            <input
               id="approved-offset-hours"
               type="number"
               step="0.5"
@@ -83,10 +87,9 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
               max={request.hours}
               value={approvedHours}
               onChange={(e) => setApprovedHours(e.target.value)}
-              containerClassName="w-full"
+              className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
               required
             />
-</FieldBox>
             <p className="text-[11px] font-semibold text-muted-foreground mt-1.5">
               This many hours will be deducted from the employee's offset balance. Cannot exceed the {request.hours} hrs requested.
             </p>
@@ -101,6 +104,8 @@ export default function ApproveOffsetModal({ isOpen, onClose, request, hrId, onS
             {submitting ? 'Approving...' : 'Confirm Approval'}
           </Button>
         </form>
-      </DialogContent>
-</Dialog>;
+      </div>
+    </div>,
+    document.body,
+  );
 }

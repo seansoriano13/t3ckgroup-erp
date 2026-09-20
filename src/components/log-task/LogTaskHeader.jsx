@@ -1,5 +1,4 @@
 ﻿import { Maximize2, X, ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
 export default function LogTaskHeader({ user, isExpanded, onToggleExpand, onClose }) {
   return (
@@ -12,21 +11,21 @@ export default function LogTaskHeader({ user, isExpanded, onToggleExpand, onClos
         <span className="font-medium text-muted-foreground/80">New Task</span>
       </div>
       <div className="flex items-center gap-1">
-        <Button
+        <button
           type="button"
           onClick={onToggleExpand}
-          variant="ghost" size="icon-xs"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           title={isExpanded ? "Collapse" : "Expand"}
         >
           <Maximize2 size={14} />
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
           onClick={onClose}
-          variant="ghost" size="icon-xs"
+          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
         >
           <X size={15} />
-        </Button>
+        </button>
       </div>
     </div>
   );

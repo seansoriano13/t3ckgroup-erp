@@ -1,7 +1,17 @@
 import { Users, ClipboardList, Building2 } from "lucide-react"
 import Dropdown from "../ui/Dropdown"
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown"
-import { FieldBox } from "../ui/FieldBox"
+
+const FieldBox = ({ label, children }) => (
+  <div className="flex flex-col gap-1.5">
+    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+      {label}
+    </label>
+    <div className="min-h-[44px] flex items-center w-full bg-card border border-border rounded-lg px-2 shadow-sm transition-all">
+      {children}
+    </div>
+  </div>
+)
 
 export default function LogTaskAssignmentBar({
   formData,
@@ -46,8 +56,10 @@ export default function LogTaskAssignmentBar({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <FieldBox bare label="Dept">
-<Dropdown
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+                Dept
+              </label>
+              <Dropdown
                 usePortal
                 isOpen={openPopover === "hrDept"}
                 onToggle={() => onTogglePopover("hrDept")}
@@ -76,11 +88,12 @@ export default function LogTaskAssignmentBar({
                   />
                 )}
               </Dropdown>
-</FieldBox>
             </div>
             <div className="space-y-1.5">
-              <FieldBox bare label="Sub-Dept">
-<Dropdown
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+                Sub-Dept
+              </label>
+              <Dropdown
                 usePortal
                 isOpen={openPopover === "hrSubDept"}
                 onToggle={() => onTogglePopover("hrSubDept")}
@@ -113,7 +126,6 @@ export default function LogTaskAssignmentBar({
                   />
                 )}
               </Dropdown>
-</FieldBox>
             </div>
           </div>
         </div>
@@ -123,9 +135,9 @@ export default function LogTaskAssignmentBar({
       {canAssignOthers && (
         <div className="space-y-1.5">
           {!isHr && (
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
               <Users size={12} /> Assign To
-            </span>
+            </label>
           )}
           <Dropdown
             usePortal
@@ -173,10 +185,10 @@ export default function LogTaskAssignmentBar({
 
       {/* REPORTED TO SECTION */}
       <div className="space-y-1.5 pt-1">
-        <FieldBox bare label={<>
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
           <ClipboardList size={12} /> Report To (Head)
-        </>}>
-<Dropdown
+        </label>
+        <Dropdown
           usePortal
           isOpen={openPopover === "reportedTo"}
           onToggle={() => onTogglePopover("reportedTo")}
@@ -210,7 +222,6 @@ export default function LogTaskAssignmentBar({
             />
           )}
         </Dropdown>
-</FieldBox>
       </div>
     </div>
   )

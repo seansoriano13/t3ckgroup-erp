@@ -12,7 +12,6 @@ import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { LayoutTemplate, Plus, Pencil, Archive, RotateCcw, Users, Trash2 } from "lucide-react";
 import TemplateEditorModal from "./_components/TemplateEditorModal";
-import { Button } from "@/components/ui/button";
 
 export default function GroupTaskTemplatesPage() {
   const { user } = useAuth();
@@ -86,13 +85,13 @@ export default function GroupTaskTemplatesPage() {
         title="Group Task Templates"
         description="Reusable rosters and task structures for creating group tasks."
       >
-        <Button
+        <button
           type="button"
           onClick={() => setEditingTemplateId(null)}
-          variant="default"
+          className="flex items-center gap-2 bg-primary text-primary-foreground px-4 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-primary/20 hover:opacity-90 transition-opacity"
         >
           <Plus size={15} /> New Template
-        </Button>
+        </button>
       </PageHeader>
 
       <div className="my-6">
@@ -148,25 +147,25 @@ export default function GroupTaskTemplatesPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
-                  <Button
+                  <button
                     type="button"
                     onClick={() => setEditingTemplateId(t.id)}
-                    variant="ghost" className="h-auto"
+                    className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     title="Edit"
                   >
                     <Pencil size={14} />
-                  </Button>
+                  </button>
                   {t.archived_at ? (
                     <>
-                      <Button
+                      <button
                         type="button"
                         onClick={() => restoreMutation.mutate(t.id)}
-                        variant="ghost" className="h-auto"
+                        className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                         title="Restore"
                       >
                         <RotateCcw size={14} />
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         type="button"
                         onClick={() =>
                           confirmDeleteToast(
@@ -175,14 +174,14 @@ export default function GroupTaskTemplatesPage() {
                             () => deleteMutation.mutate(t.id),
                           )
                         }
-                        variant="ghost" className="h-auto"
+                        className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                         title="Delete permanently"
                       >
                         <Trash2 size={14} />
-                      </Button>
+                      </button>
                     </>
                   ) : (
-                    <Button
+                    <button
                       type="button"
                       onClick={() =>
                         confirmActionToast(
@@ -193,11 +192,11 @@ export default function GroupTaskTemplatesPage() {
                           () => archiveMutation.mutate(t.id),
                         )
                       }
-                      variant="ghost" className="h-auto"
+                      className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                       title="Archive"
                     >
                       <Archive size={14} />
-                    </Button>
+                    </button>
                   )}
                 </div>
               </div>

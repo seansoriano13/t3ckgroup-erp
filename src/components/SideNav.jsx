@@ -50,8 +50,6 @@ import {
   getFilteredQuickActions,
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
-import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -225,27 +223,55 @@ export default function SideNav() {
     }
   };
 
-  const sidebarContent = (
+  return (
     <>
+      {/* Mobile Drawer Trigger (PanelRight) */}
+      <div className="md:hidden fixed top-3 left-3 z-40">
+        <button
+          onClick={() => setIsMobileOpen(true)}
+          className="text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-r border-sidebar-border backdrop-blur-md border p-1.5 rounded-lg shadow-sm transition-colors"
+        >
+          <PanelRight size={18} strokeWidth={2} />
+        </button>
+      </div>
+
+      {/* Mobile Backdrop Overlay */}
+      {isMobileOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 z-40 md:hidden transition-opacity"
+          onClick={() => setIsMobileOpen(false)}
+        />
+      )}
+
+      {/* Merged Single-Pane Sidebar Container */}
+      <aside
+        className={`
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+          fixed md:sticky top-0 left-0 h-screen z-50 flex flex-col
+          bg-sidebar   text-sm font-sans
+          transition-[transform,width] duration-300 ease-in-out
+          w-[240px] ${isCollapsed ? "md:w-[68px]" : "md:w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
+        `}
+      >
         {/* Mobile Close Action (PanelLeft) */}
         <div className="md:hidden absolute top-4 right-4 z-50">
-          <Button
+          <button
             onClick={() => setIsMobileOpen(false)}
-            variant="ghost" size="icon-xs"
+            className="text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 bg-sidebar border-r border-sidebar-border rounded-md shadow-sm border border-sidebar-border"
           >
             <PanelLeft size={18} strokeWidth={2} />
-          </Button>
+          </button>
         </div>
 
         {/* Desktop collapse toggle — a rail is icons-only, so this is the one
             control that survives collapsing to it. */}
-        <Button
+        <button
           onClick={toggleCollapsed}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          variant="ghost" className="hidden md:flex absolute w-6 h-auto"
+          className="hidden md:flex absolute top-4 right-2 z-50 items-center justify-center h-6 w-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         >
           {isCollapsed ? <PanelRight size={13} strokeWidth={2} /> : <PanelLeft size={13} strokeWidth={2} />}
-        </Button>
+        </button>
 
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
@@ -279,16 +305,16 @@ export default function SideNav() {
               {({ close }) => (
                 <div className="p-1.5 min-w-[215px] flex flex-col gap-0.5 bg-muted rounded-xl ">
                   {profileOptions.map((option) => (
-                    <Button
+                    <button
                       key={option.value}
                       onClick={() => {
                         handleProfileSelect(option);
                         close();
                       }}
-                      variant="ghost" className="text-left h-auto justify-start"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-foreground text-sm font-semibold hover:bg-sidebar-accent transition-colors text-left"
                     >
                       <span>{option.label}</span>
-                    </Button>
+                    </button>
                   ))}
                 </div>
               )}
@@ -300,25 +326,25 @@ export default function SideNav() {
           <div className={`flex items-center gap-1.5 ${isCollapsed ? "md:flex-col" : ""}`}>
             {/* Broadcast — super admins only */}
             {user?.isSuperAdmin && (
-              <Button
+              <button
                 onClick={() => {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                variant="ghost" className={`h-auto flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
+                className={`flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
-              </Button>
+              </button>
             )}
 
             {/* Notifications */}
-            <Button
+            <button
               onClick={() => {
                 setIsNotifOpen(true);
                 setIsMobileOpen(false);
               }}
-              variant="ghost" className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Notifications"
             >
               <Bell size={15} strokeWidth={2.2} />
@@ -327,15 +353,15 @@ export default function SideNav() {
                   {unreadCount}
                 </span>
               )}
-            </Button>
+            </button>
 
             {/* Chats */}
-            <Button
+            <button
               onClick={() => {
                 setIsChatsOpen(true);
                 setIsMobileOpen(false);
               }}
-              variant="ghost" className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Chats"
             >
               <MessageCircle size={15} strokeWidth={2.2} />
@@ -344,7 +370,7 @@ export default function SideNav() {
                   {unreadChatsCount}
                 </span>
               )}
-            </Button>
+            </button>
 
             {/* Quick Action (+) Button */}
             {quickActionGroups.length > 0 && (
@@ -353,8 +379,8 @@ export default function SideNav() {
                 className={isCollapsed ? "md:w-full" : "flex-1"}
                 usePortal={true}
                 trigger={({ isOpen }) => (
-                  <Button
-                    variant="ghost" className={`h-auto w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
+                  <button
+                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
                       isOpen
                         ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
                         : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
@@ -362,7 +388,7 @@ export default function SideNav() {
                     title="Create new..."
                   >
                     <Plus size={15} strokeWidth={2.5} />
-                  </Button>
+                  </button>
                 )}
               >
                 {({ close }) => (
@@ -378,17 +404,17 @@ export default function SideNav() {
                         {catGroup.items.map((item) => {
                           const Icon = item.icon;
                           return (
-                            <Button
+                            <button
                               key={item.id}
                               onClick={() => {
                                 close();
                                 handleQuickAction(item.id);
                               }}
-                              variant="ghost" className="text-left h-auto justify-start"
+                              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
                             >
                               <Icon size={14} className="text-sidebar-foreground/70" />
                               <span>{item.label}</span>
-                            </Button>
+                            </button>
                           );
                         })}
                       </div>
@@ -498,42 +524,7 @@ export default function SideNav() {
             <RoleSwitcher />
           </div>
         </div>
-    </>
-  );
-
-  return (
-    <>
-      {/* Mobile Drawer Trigger (PanelRight) */}
-      <div className="md:hidden fixed top-3 left-3 z-40">
-        <Button
-          onClick={() => setIsMobileOpen(true)}
-          variant="ghost" size="icon-xs"
-        >
-          <PanelRight size={18} strokeWidth={2} />
-        </Button>
-      </div>
-
-      {/* Desktop sidebar */}
-      <aside
-        className={`
-          hidden md:sticky md:flex top-0 left-0 h-screen z-50 flex-col
-          bg-sidebar   text-sm font-sans
-          transition-[width] duration-300 ease-in-out
-          ${isCollapsed ? "md:w-[68px]" : "md:w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
-        `}
-      >
-        {sidebarContent}
       </aside>
-
-      {/* Mobile drawer: the same content, opened from the trigger above */}
-      <Drawer
-        open={isMobileOpen}
-        onOpenChange={setIsMobileOpen}
-        side="left"
-        className="md:hidden w-[240px] max-w-[240px] border-r-0 bg-sidebar text-sm font-sans overflow-y-auto scrollbar-hide"
-      >
-        {sidebarContent}
-      </Drawer>
 
       {/* Drawers */}
       <NotificationDrawer

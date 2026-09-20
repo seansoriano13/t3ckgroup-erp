@@ -14,9 +14,6 @@ import LogTaskFooter from "./log-task/LogTaskFooter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
@@ -301,51 +298,52 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
           {(isCommittee || isOthersGlobal) && (
             <div className="py-3 animate-slide-down">
               {!isCommittee && (
-                <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                   Others Details
-                </span>
+                </label>
               )}
 
               {isCommittee && (
                 <div className="bg-mauve-4/80 /40 p-4 rounded-xl border border-mauve-5/60 /50 mb-3">
-                  <FieldBox bare label="SELECT COMMITTEE ROLE">
-<div className="flex flex-wrap gap-2">
+                  <label className="block text-[10px] font-extrabold text-foreground  uppercase tracking-widest mb-3">
+                    SELECT COMMITTEE ROLE
+                  </label>
+                  <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
-                        <Button
+                        <button
                           key={role}
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             setCommitteeRole(role);
                           }}
-                          variant="ghost" className={`h-auto px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
+                          className={`px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
                             committeeRole === role
                               ? "bg-primary text-primary-foreground border-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
                               : "bg-card text-mauve-11 border-mauve-5 hover:border-mauve-5 hover:bg-mauve-2   dark:text-muted-foreground dark:hover:bg-muted shadow-sm"
                           }`}
                         >
                           {role}
-                        </Button>
+                        </button>
                       ),
                     )}
                   </div>
-</FieldBox>
                 </div>
               )}
 
               {(isOthersGlobal || committeeRole === "OTHERS") && (
                 <div className="animate-slide-down">
                   {isCommittee && committeeRole === "OTHERS" && (
-                    <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                       Others Details
-                    </span>
+                    </label>
                   )}
-                  <Textarea
+                  <textarea
                     placeholder="Specify details..."
                     value={othersRemarks}
                     onChange={(e) => setOthersRemarks(e.target.value)}
-                    className="h-20 resize-none"
+                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none h-20 resize-none transition-colors focus:border-primary/50"
                   />
                 </div>
               )}

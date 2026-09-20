@@ -41,8 +41,6 @@ import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import FilterBar from "../ui/FilterBar";
 import { Button } from "../ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 
 const DATE_PRESETS = [
   { value: "ALL", label: "All Time" },
@@ -587,10 +585,10 @@ export default function CommissionDashboardView() {
           <div className="flex items-center gap-2">
             {/* Scope Toggle (Realized vs Forecast) */}
             <div className="flex items-center rounded-xl bg-muted p-1 text-xs font-bold shrink-0">
-              <Button
+              <button
                 type="button"
                 onClick={() => setScope("REALIZED")}
-                variant="ghost" className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
                   scope === "REALIZED"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -598,11 +596,11 @@ export default function CommissionDashboardView() {
               >
                 <CheckCircle2 size={13} className={scope === "REALIZED" ? "text-foreground" : ""} />
                 <span>Realized Pool</span>
-              </Button>
-              <Button
+              </button>
+              <button
                 type="button"
                 onClick={() => setScope("FORECAST")}
-                variant="ghost" className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
                   scope === "FORECAST"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -610,7 +608,7 @@ export default function CommissionDashboardView() {
               >
                 <TrendingUp size={13} className={scope === "FORECAST" ? "text-foreground" : ""} />
                 <span>Pipeline Forecast</span>
-              </Button>
+              </button>
             </div>
 
             {canViewAllFinancials && (
@@ -681,12 +679,12 @@ export default function CommissionDashboardView() {
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
-          <Input
+          <input
             type="text"
             placeholder="Search deals, clients, reps…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-[46px]" containerClassName="w-full"
+            className="h-[46px] w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-border transition-all"
           />
         </div>
 
@@ -744,32 +742,32 @@ export default function CommissionDashboardView() {
       {activeTab === "sales-roster" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
-            <Table >
-              <TableHeader>
-                <TableRow >
-                  <TableHead >Salesperson</TableHead>
-                  <TableHead className="text-center">Won Deals</TableHead>
-                  <TableHead className="text-right">Credited Volume</TableHead>
-                  <TableHead className="text-right">Deal Owner Share</TableHead>
-                  <TableHead className="text-right">Support Share</TableHead>
-                  <TableHead className="text-right">Director Share</TableHead>
-                  <TableHead className="text-right">Total Commission</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <th className="font-bold px-3.5 py-3">Salesperson</th>
+                  <th className="font-bold px-3.5 py-3 text-center">Won Deals</th>
+                  <th className="font-bold px-3.5 py-3 text-right">Credited Volume</th>
+                  <th className="font-bold px-3.5 py-3 text-right">Deal Owner Share</th>
+                  <th className="font-bold px-3.5 py-3 text-right">Support Share</th>
+                  <th className="font-bold px-3.5 py-3 text-right">Director Share</th>
+                  <th className="font-bold px-3.5 py-3 text-right">Total Commission</th>
+                </tr>
+              </thead>
+              <tbody>
                 {salesEmployees.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-muted-foreground">
                       No sales employee records found for the selected filter.
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   salesEmployees.map((emp) => {
                     const isCurrentUser = emp.employeeId === user?.id;
                     const canSeeEmpAmounts = canViewAllFinancials || isHead || isCurrentUser;
 
                     return (
-                      <TableRow
+                      <tr
                         key={emp.employeeId}
                         onClick={() =>
                           navigate("/sors", {
@@ -780,7 +778,7 @@ export default function CommissionDashboardView() {
                           isCurrentUser ? "bg-muted/20 font-semibold" : ""
                         }`}
                       >
-                        <TableCell >
+                        <td className="px-3.5 py-3">
                           <div className="flex items-center gap-2.5">
                             <Avatar name={emp.name} src={emp.avatarPath} size="sm" />
                             <div className="min-w-0">
@@ -797,27 +795,27 @@ export default function CommissionDashboardView() {
                               </p>
                             </div>
                           </div>
-                        </TableCell>
-                        <TableCell className="text-center">
+                        </td>
+                        <td className="px-3.5 py-3 text-center font-bold tabular-nums text-foreground">
                           {emp.wonDealsCount}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="px-3.5 py-3 text-right font-medium tabular-nums text-muted-foreground">
                           {formatPHP(emp.totalContractValue)}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="px-3.5 py-3 text-right tabular-nums text-muted-foreground">
                           {canSeeEmpAmounts ? formatPHP(emp.roleBreakdown.deal_owner) : "••••••"}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="px-3.5 py-3 text-right tabular-nums text-muted-foreground">
                           {canSeeEmpAmounts
                             ? formatPHP(emp.roleBreakdown.supporting_salesperson)
                             : "••••••"}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="px-3.5 py-3 text-right tabular-nums text-muted-foreground">
                           {canSeeEmpAmounts
                             ? formatPHP(emp.roleBreakdown.sales_director)
                             : "••••••"}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="px-3.5 py-3 text-right">
                           <span className="font-extrabold tabular-nums text-foreground">
                             {canSeeEmpAmounts
                               ? formatPHP(emp.totalCommissionShare)
@@ -826,13 +824,13 @@ export default function CommissionDashboardView() {
                                   100
                                 ).toFixed(1)}% Share`}
                           </span>
-                        </TableCell>
-                      </TableRow>
+                        </td>
+                      </tr>
                     );
                   })
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -841,30 +839,30 @@ export default function CommissionDashboardView() {
       {activeTab === "transaction-ledger" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
-            <Table >
-              <TableHeader>
-                <TableRow >
-                  <TableHead className="w-[28px]"></TableHead>
-                  <TableHead className="w-[84px]">SOR #</TableHead>
-                  <TableHead className="min-w-[160px]">Company & Project</TableHead>
-                  <TableHead >Stage</TableHead>
-                  <TableHead className="text-center">Type</TableHead>
-                  <TableHead >Contract Date</TableHead>
-                  <TableHead className="text-right">Contract Value</TableHead>
-                  <TableHead className="text-right">Commissionable</TableHead>
-                  <TableHead className="text-right">Pool (1%)</TableHead>
-                  <TableHead className="min-w-[140px]">Deal Owner</TableHead>
-                  <TableHead className="min-w-[140px]">Support Sales</TableHead>
-                  <TableHead className="min-w-[140px]">Sales Director</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <th className="font-bold px-3 py-3 w-[28px]"></th>
+                  <th className="font-bold px-3 py-3 w-[84px]">SOR #</th>
+                  <th className="font-bold px-3 py-3 min-w-[160px]">Company & Project</th>
+                  <th className="font-bold px-3 py-3">Stage</th>
+                  <th className="font-bold px-3 py-3 text-center">Type</th>
+                  <th className="font-bold px-3 py-3">Contract Date</th>
+                  <th className="font-bold px-3 py-3 text-right">Contract Value</th>
+                  <th className="font-bold px-3 py-3 text-right">Commissionable</th>
+                  <th className="font-bold px-3 py-3 text-right">Pool (1%)</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Deal Owner</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Support Sales</th>
+                  <th className="font-bold px-3 py-3 min-w-[140px]">Sales Director</th>
+                </tr>
+              </thead>
+              <tbody>
                 {filteredLedger.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={12} className="text-center">
+                  <tr>
+                    <td colSpan={12} className="py-8 text-center text-muted-foreground">
                       No transactions match the selected filters.
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ) : (
                   filteredLedger.map((deal) => {
                     const isHighlighted = highlightedDealId === deal.id;
@@ -879,7 +877,7 @@ export default function CommissionDashboardView() {
 
                     return (
                       <Fragment key={deal.id}>
-                        <TableRow
+                        <tr
                           onClick={() =>
                             navigate("/sors", {
                               state: { openOpportunityId: deal.id },
@@ -889,8 +887,8 @@ export default function CommissionDashboardView() {
                             isHighlighted ? "bg-muted/30" : ""
                           }`}
                         >
-                          <TableCell
-                            className="text-center"
+                          <td
+                            className="px-2 py-3 text-center text-muted-foreground hover:text-foreground"
                             onClick={(e) => {
                               e.stopPropagation();
                               toggleExpandDeal(deal.id);
@@ -898,22 +896,22 @@ export default function CommissionDashboardView() {
                             title="Toggle calculation sheet"
                           >
                             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 font-mono font-bold text-foreground whitespace-nowrap">
                             <HighlightText text={deal.opportunityNo} query={search} />
-                          </TableCell>
-                          <TableCell >
+                          </td>
+                          <td className="px-3 py-3">
                             <p className="font-semibold text-foreground">
                               <HighlightText text={deal.clientName} query={search} />
                             </p>
                             <p className="text-[10.5px] text-muted-foreground">
                               <HighlightText text={deal.projectTitle} query={search} />
                             </p>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 whitespace-nowrap">
                             <StatusBadge status={deal.status} />
-                          </TableCell>
-                          <TableCell className="text-center whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 text-center whitespace-nowrap">
                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-muted text-muted-foreground">
                               {deal.projectType}
                               {deal.hasMissingParticipants && (
@@ -922,21 +920,21 @@ export default function CommissionDashboardView() {
                                 </span>
                               )}
                             </span>
-                          </TableCell>
-                          <TableCell className="whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
                             {deal.contractDate || "—"}
-                          </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-foreground whitespace-nowrap">
                             {formatPHP(deal.contractValue)}
-                          </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 text-right font-medium tabular-nums text-muted-foreground whitespace-nowrap">
                             {formatPHP(deal.commissionableRevenue)}
-                          </TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
+                          </td>
+                          <td className="px-3 py-3 text-right font-bold tabular-nums text-foreground whitespace-nowrap">
                             {canViewAllFinancials ? formatPHP(deal.commissionPool) : "••••••"}
-                          </TableCell>
+                          </td>
                           {/* Deal Owner Column */}
-                          <TableCell >
+                          <td className="px-3 py-3">
                             {ownerShareObj?.employee ? (
                               <div>
                                 <p className="font-bold text-foreground">
@@ -950,9 +948,9 @@ export default function CommissionDashboardView() {
                             ) : (
                               <span className="text-muted-foreground/60">—</span>
                             )}
-                          </TableCell>
+                          </td>
                           {/* Support Sales Column */}
-                          <TableCell >
+                          <td className="px-3 py-3">
                             {supportShares.length > 0 ? (
                               <div className="space-y-0.5">
                                 {supportShares.map((s, idx) => (
@@ -970,9 +968,9 @@ export default function CommissionDashboardView() {
                             ) : (
                               <span className="text-muted-foreground/60">—</span>
                             )}
-                          </TableCell>
+                          </td>
                           {/* Sales Director Column */}
-                          <TableCell >
+                          <td className="px-3 py-3">
                             {directorShareObj?.employee ? (
                               <div>
                                 <p className="font-bold text-foreground">
@@ -988,13 +986,13 @@ export default function CommissionDashboardView() {
                             ) : (
                               <span className="text-muted-foreground/60">—</span>
                             )}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
 
                         {/* Inline Detailed Sheet Expansion */}
                         {isExpanded && (
-                          <TableRow className="bg-muted/20">
-                            <TableCell colSpan={12} className="sm:p-5">
+                          <tr className="bg-muted/20 border-b border-border/60">
+                            <td colSpan={12} className="p-4 sm:p-5">
                               <div className="rounded-xl border border-border/80 bg-card p-4 space-y-3">
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border/60 pb-2.5">
                                   <div>
@@ -1005,17 +1003,17 @@ export default function CommissionDashboardView() {
                                       Anchored on Contract Date rates ({deal.contractDate || "Effective live"})
                                     </p>
                                   </div>
-                                  <Button
+                                  <button
                                     type="button"
                                     onClick={() =>
                                       navigate("/sors", {
                                         state: { openOpportunityId: deal.id },
                                       })
                                     }
-                                    variant="ghost" className="self-start sm:self-center h-auto"
+                                    className="text-xs font-bold text-foreground hover:underline self-start sm:self-center"
                                   >
                                     Open in SOR Register →
-                                  </Button>
+                                  </button>
                                 </div>
 
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -1047,15 +1045,15 @@ export default function CommissionDashboardView() {
                                   )}
                                 </div>
                               </div>
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         )}
                       </Fragment>
                     );
                   })
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
       )}
@@ -1064,18 +1062,18 @@ export default function CommissionDashboardView() {
       {activeTab === "department-breakdown" && (
         <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-sm min-h-[400px]">
           <div className="overflow-x-auto">
-            <Table >
-              <TableHeader>
-                <TableRow >
-                  <TableHead >Commission Department</TableHead>
-                  <TableHead className="text-center">Fixed Allocation</TableHead>
-                  <TableHead className="text-right">Accumulated Pool Reserve</TableHead>
-                  <TableHead >Notes</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
+                  <th className="font-bold px-4 py-3">Commission Department</th>
+                  <th className="font-bold px-4 py-3 text-center">Fixed Allocation</th>
+                  <th className="font-bold px-4 py-3 text-right">Accumulated Pool Reserve</th>
+                  <th className="font-bold px-4 py-3">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
                 {departmentTotals.map((dept) => (
-                  <TableRow
+                  <tr
                     key={dept.name}
                     onClick={() =>
                       dept.isSales &&
@@ -1087,24 +1085,24 @@ export default function CommissionDashboardView() {
                       dept.isSales ? "cursor-pointer" : ""
                     }`}
                   >
-                    <TableCell >{dept.name}</TableCell>
-                    <TableCell className="text-center">
+                    <td className="px-4 py-3 font-bold text-foreground">{dept.name}</td>
+                    <td className="px-4 py-3 text-center font-bold tabular-nums text-foreground">
                       {dept.allocationPercent}%
-                    </TableCell>
-                    <TableCell className="text-right">
+                    </td>
+                    <td className="px-4 py-3 text-right font-extrabold tabular-nums text-foreground">
                       {canViewAllFinancials || (dept.isSales && isHead)
                         ? formatPHP(dept.amount)
                         : "Restricted"}
-                    </TableCell>
-                    <TableCell >
+                    </td>
+                    <td className="px-4 py-3 text-[11px] text-muted-foreground">
                       {dept.isSales
                         ? "Distributed directly to Deal Owners, Supporters, and Sales Directors. (Click to view deals)"
                         : "Company reserve split per Commission Pool configuration."}
-                    </TableCell>
-                  </TableRow>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </div>
       )}

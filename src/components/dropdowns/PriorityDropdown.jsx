@@ -3,7 +3,6 @@ import { ChevronDown } from "lucide-react";
 import Dot from "../ui/Dot";
 import { PRIORITY_OPTIONS } from "../../constants/task";
 import { FilterTrigger } from "../ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
 
 export default function PriorityDropdown({
   value,
@@ -32,16 +31,16 @@ export default function PriorityDropdown({
         if (customTrigger) return customTrigger({ isOpen, currentPriority });
 
         return triggerClassName ? (
-          <Button
+          <button
             type="button"
-            variant="ghost" className={triggerClassName}
+            className={triggerClassName}
           >
             <Dot size="w-2 h-2" color={currentPriority.dot} />
             <span className="text-muted-foreground font-medium">
               {currentPriority.label}
             </span>
             <ChevronDown size={12} className="text-mauve-7 ml-auto" />
-          </Button>
+          </button>
         ) : (
           <FilterTrigger
             label={currentPriority.label}
@@ -56,14 +55,14 @@ export default function PriorityDropdown({
       {({ close }) => (
         <>
           {hasAll && (
-            <Button
+            <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 if (onChange) onChange("ALL");
                 close();
               }}
-              variant="ghost" className={`h-auto w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
                 value === "ALL" || !value
                   ? "bg-muted/80 text-foreground font-bold"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -71,10 +70,10 @@ export default function PriorityDropdown({
             >
               <Dot size="w-2 h-2" color="bg-mauve-8" />
               All
-            </Button>
+            </button>
           )}
           {PRIORITY_OPTIONS.map((opt) => (
-            <Button
+            <button
               key={opt.value}
               type="button"
               onClick={(e) => {
@@ -82,7 +81,7 @@ export default function PriorityDropdown({
                 if (onChange) onChange(opt.value);
                 close();
               }}
-              variant="ghost" className={`h-auto w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
                 value === opt.value
                   ? "bg-muted/80 text-foreground font-bold"
                   : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -90,7 +89,7 @@ export default function PriorityDropdown({
             >
               <Dot size="w-2 h-2" color={opt.dot} />
               {opt.label}
-            </Button>
+            </button>
           ))}
         </>
       )}

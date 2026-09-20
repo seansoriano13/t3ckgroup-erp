@@ -5,8 +5,6 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
 import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 const ROLE_LABELS_BY_PROJECT_TYPE = {
   SSP: {
@@ -86,12 +84,12 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
               <span className="text-[12.5px] text-foreground">{roleLabel}</span>
               {canEdit ? (
                 <div className="flex items-center gap-1">
-                  <Input
+                  <input
                     type="number"
                     step="0.001"
                     value={row?.percent ?? 0}
                     onChange={(e) => updateRow(shareRole, Number(e.target.value))}
-                    className="h-7 tabular-nums" containerClassName="w-20"
+                    className="h-7 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>
@@ -108,14 +106,14 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
           <span className={total !== 100 ? "text-xs font-semibold text-destructive" : "text-xs text-muted-foreground"}>
             Total {total.toFixed(2)}%
           </span>
-          <Button
+          <button
             type="button"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft.filter((row) => roleLabels[row.shareRole]))}
-            variant="default"
+            className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Save
-          </Button>
+          </button>
         </div>
       )}
     </div>

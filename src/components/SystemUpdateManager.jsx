@@ -27,8 +27,6 @@ import toast from "react-hot-toast";
 import ReactMarkdown from "react-markdown";
 import { confirmDeleteToast } from "./ui/CustomToast.jsx";
 import TabGroup from "./ui/TabGroup";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 const MAX_CONTENT_LENGTH = 2000;
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 30];
@@ -211,9 +209,9 @@ export default function SystemUpdateManager() {
             Manage the "What's New" banner shown on the dashboard.
           </p>
         </div>
-        <Button
+        <button
           onClick={() => setIsOpen(!isOpen)}
-          variant="outline"
+          className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground bg-muted/40 hover:bg-muted/80 border border-border px-3 py-1.5 rounded-lg transition-colors"
         >
           {isOpen ? (
             <>
@@ -226,7 +224,7 @@ export default function SystemUpdateManager() {
               Manage Updates
             </>
           )}
-        </Button>
+        </button>
       </div>
 
       {isOpen && (
@@ -238,11 +236,11 @@ export default function SystemUpdateManager() {
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 {editingId ? "Editing Broadcast" : "New Broadcast"}
               </p>
-              <Button
+              <button
                 type="button"
                 onClick={generateAIContent}
                 disabled={isGenerating}
-                variant="ghost" className="h-auto"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-mauve-9 hover:text-mauve-11 bg-mauve-9/10 hover:bg-mauve-9/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
               >
                 {isGenerating ? (
                   <Spinner size="sm" />
@@ -253,7 +251,7 @@ export default function SystemUpdateManager() {
                   </>
                 )}
                 {isGenerating ? "Analyzing commits…" : "AI via GitHub"}
-              </Button>
+              </button>
             </div>
 
             {/* Textarea */}
@@ -278,11 +276,11 @@ export default function SystemUpdateManager() {
                 const Icon = opt.icon;
                 const isSelected = type === opt.value;
                 return (
-                  <Button
+                  <button
                     key={opt.value}
                     type="button"
                     onClick={() => setType(opt.value)}
-                    variant="ghost" className={`h-auto flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
+                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                       isSelected
                         ? `${opt.bg}`
                         : "bg-muted/20 border-border hover:bg-muted/40"
@@ -302,7 +300,7 @@ export default function SystemUpdateManager() {
                     <span className="text-[10px] text-muted-foreground leading-tight">
                       {opt.description}
                     </span>
-                  </Button>
+                  </button>
                 );
               })}
             </div>
@@ -310,20 +308,20 @@ export default function SystemUpdateManager() {
             {/* Actions */}
             <div className="flex items-center justify-end gap-2.5 mt-4">
               {editingId && (
-                <Button
+                <button
                   onClick={() => {
                     setEditingId(null);
                     setContent("");
                   }}
-                  variant="ghost" className="h-auto"
+                  className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground px-4 py-2 rounded-xl hover:bg-muted/50 transition-all"
                 >
                   Cancel Edit
-                </Button>
+                </button>
               )}
-              <Button
+              <button
                 onClick={handlePost}
                 disabled={!content.trim() || isPosting}
-                variant="default"
+                className="h-9 px-6 rounded-xl bg-primary text-primary-foreground text-[13px] font-black shadow-lg shadow-mauve-4 flex items-center gap-2 hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
                 {isPosting ? (
                   <>
@@ -336,7 +334,7 @@ export default function SystemUpdateManager() {
                     <span>{editingId ? "Save Edit" : "Send Broadcast"}</span>
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>
 
@@ -364,20 +362,20 @@ export default function SystemUpdateManager() {
                 {/* Page size pills */}
                 <div className="flex items-center gap-1">
                   {HISTORY_PAGE_SIZE_OPTIONS.map((size) => (
-                    <Button
+                    <button
                       key={size}
                       onClick={() => {
                         setHistoryPageSize(size);
                         setHistoryPage(1);
                       }}
-                      variant="ghost" className={`h-auto px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
                         historyPageSize === size
                           ? "bg-muted border-border text-foreground"
                           : "border-transparent text-muted-foreground hover:bg-muted/60"
                       }`}
                     >
                       {size}
-                    </Button>
+                    </button>
                   ))}
                   <span className="text-[10px] text-muted-foreground/60 pl-0.5">
                     /page
@@ -414,14 +412,14 @@ export default function SystemUpdateManager() {
                       className="flex gap-3 bg-muted/20 border border-border/60 rounded-xl p-3 group/item hover:bg-muted/30 transition-colors"
                     >
                       {/* Toggle */}
-                      <Button
+                      <button
                         onClick={() =>
                           toggleMutation.mutate({
                             id: update.id,
                             isActive: !update.is_active,
                           })
                         }
-                        variant="ghost" className={`mt-0.5 w-9 h-5 rounded-full shrink-0 relative transition-colors ${
+                        className={`mt-0.5 w-9 h-5 rounded-full shrink-0 relative transition-colors ${
                           update.is_active
                             ? "bg-green-9"
                             : "bg-muted-foreground/30"
@@ -433,7 +431,7 @@ export default function SystemUpdateManager() {
                             update.is_active ? "left-[18px]" : "left-[3px]"
                           }`}
                         />
-                      </Button>
+                      </button>
 
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -457,7 +455,7 @@ export default function SystemUpdateManager() {
                             </span>
                           </div>
                           <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                            <Button
+                            <button
                               onClick={() => {
                                 if (inlineEditId === update.id) {
                                   setInlineEditId(null);
@@ -467,7 +465,7 @@ export default function SystemUpdateManager() {
                                   setInlineEditType(update.type);
                                 }
                               }}
-                              variant="ghost" className={`h-auto transition-colors ${
+                              className={`transition-colors ${
                                 inlineEditId === update.id
                                   ? "text-mauve-12"
                                   : "text-mauve-7 hover:text-mauve-12"
@@ -479,8 +477,8 @@ export default function SystemUpdateManager() {
                               }
                             >
                               <Edit3 size={13} />
-                            </Button>
-                            <Button
+                            </button>
+                            <button
                               onClick={() => {
                                 confirmDeleteToast(
                                   "Delete Update?",
@@ -488,19 +486,19 @@ export default function SystemUpdateManager() {
                                   () => deleteMutation.mutate(update.id),
                                 );
                               }}
-                              variant="ghost" className="h-auto"
+                              className="text-muted-foreground hover:text-red-500 transition-colors"
                               title="Delete"
                             >
                               <Trash2 size={13} />
-                            </Button>
+                            </button>
                           </div>
                         </div>
 
                         {/* Inline edit form */}
                         {inlineEditId === update.id ? (
                           <div className="mt-2 flex flex-col gap-2 animate-slide-down">
-                            <Textarea
-                              className="min-h-[72px] resize-none"
+                            <textarea
+                              className="w-full bg-background border border-border rounded-lg p-2.5 text-xs text-foreground focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[72px] resize-none transition-all"
                               value={inlineEditContent}
                               onChange={(e) =>
                                 setInlineEditContent(e.target.value)
@@ -511,13 +509,13 @@ export default function SystemUpdateManager() {
                               {TYPE_OPTIONS.map((opt) => {
                                 const Ico = opt.icon;
                                 return (
-                                  <Button
+                                  <button
                                     key={opt.value}
                                     type="button"
                                     onClick={() =>
                                       setInlineEditType(opt.value)
                                     }
-                                    variant="ghost" className={`h-auto flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
                                       inlineEditType === opt.value
                                         ? `${opt.bg} ${opt.color}`
                                         : "bg-muted/20 border-border text-muted-foreground hover:bg-muted/40"
@@ -532,17 +530,17 @@ export default function SystemUpdateManager() {
                                       }
                                     />
                                     {opt.label}
-                                  </Button>
+                                  </button>
                                 );
                               })}
                               <div className="ml-auto flex items-center gap-1.5">
-                                <Button
+                                <button
                                   onClick={() => setInlineEditId(null)}
-                                  variant="ghost" className="h-auto"
+                                  className="px-3 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/80 transition-all"
                                 >
                                   Cancel
-                                </Button>
-                                <Button
+                                </button>
+                                <button
                                   disabled={
                                     !inlineEditContent.trim() ||
                                     editMutation.isPending
@@ -562,7 +560,7 @@ export default function SystemUpdateManager() {
                                       },
                                     );
                                   }}
-                                  variant="default"
+                                  className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-primary text-white hover:bg-primary/90 transition-all flex items-center gap-1 disabled:opacity-50"
                                 >
                                   {editMutation.isPending ? (
                                     <Spinner size="sm" />
@@ -570,7 +568,7 @@ export default function SystemUpdateManager() {
                                     <Check size={10} />
                                   )}
                                   Save
-                                </Button>
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -613,24 +611,24 @@ export default function SystemUpdateManager() {
                     {totalCount} total • Page {historyPage} of {totalPages}
                   </p>
                   <div className="flex items-center gap-1.5">
-                    <Button
+                    <button
                       onClick={() =>
                         setHistoryPage((p) => Math.max(1, p - 1))
                       }
                       disabled={historyPage <= 1 || isLoading}
-                      variant="outline"
+                      className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                     >
                       <ChevronLeft size={12} /> Prev
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       onClick={() =>
                         setHistoryPage((p) => Math.min(totalPages, p + 1))
                       }
                       disabled={historyPage >= totalPages || isLoading}
-                      variant="outline"
+                      className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                     >
                       Next <ChevronRight size={12} />
-                    </Button>
+                    </button>
                   </div>
                 </div>
               )}

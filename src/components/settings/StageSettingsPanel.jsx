@@ -10,7 +10,6 @@ import StageActionManager from "./StageActionManager";
 import StageFieldManager from "./StageFieldManager";
 import StageAccessManager from "./StageAccessManager";
 import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
-import { Select } from "@/components/ui/select";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -122,11 +121,11 @@ export default function StageSettingsPanel({
               className="mt-1 h-9 text-base font-bold"
             />
           ) : (
-            <Button
+            <button
               type="button"
               disabled={disabled}
               onClick={() => setDraft({ stageId: stage.id, value: stage.name })}
-              variant="ghost" className="mt-0.5 w-full text-left h-auto justify-start"
+              className="group mt-0.5 flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
             >
               <h2 className="truncate text-lg font-bold tracking-[-0.015em] text-foreground">
                 {stage.name}
@@ -137,7 +136,7 @@ export default function StageSettingsPanel({
                   className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 />
               )}
-            </Button>
+            </button>
           )}
         </div>
 
@@ -165,10 +164,10 @@ export default function StageSettingsPanel({
                 Role in the flow
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <Button
+                <button
                   onClick={onSetEntry}
                   disabled={disabled}
-                  variant="ghost" className={cn("h-auto", 
+                  className={cn(
                     ROLE_BUTTON,
                     isEntry
                       ? "bg-blue-a3 text-blue-11 outline-blue-a6"
@@ -176,12 +175,12 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <ArrowUpCircle size={14} /> {isEntry ? "Deals enter here" : "Make it the entry"}
-                </Button>
+                </button>
 
-                <Button
+                <button
                   onClick={onSetWon}
                   disabled={disabled}
-                  variant="ghost" className={cn("h-auto", 
+                  className={cn(
                     ROLE_BUTTON,
                     isWon
                       ? "bg-green-a3 text-green-11 outline-green-a6"
@@ -189,12 +188,12 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <Flag size={14} /> {isWon ? "Deals are won here" : "Make it the win"}
-                </Button>
+                </button>
 
-                <Button
+                <button
                   onClick={onToggleTerminal}
                   disabled={disabled}
-                  variant="ghost" className={cn("h-auto", 
+                  className={cn(
                     ROLE_BUTTON,
                     stage.is_terminal
                       ? "bg-amber-a3 text-amber-11 outline-amber-a6"
@@ -203,19 +202,19 @@ export default function StageSettingsPanel({
                 >
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
-                </Button>
+                </button>
 
-                <Button
+                <button
                   onClick={onDelete}
                   disabled={disabled}
                   aria-label="Delete Stage"
-                  variant="ghost" className={cn("h-auto", 
+                  className={cn(
                     ROLE_BUTTON,
                     "text-destructive outline-destructive/30 hover:bg-destructive/10",
                   )}
                 >
                   <Trash2 size={14} /> Delete Stage
-                </Button>
+                </button>
               </div>
             </section>
 
@@ -252,13 +251,19 @@ export default function StageSettingsPanel({
                   </ul>
                 )}
                 {!disabled && moveTargets.length > 0 && (
-                  <Select
-  options={[{ value: "", label: "Add a move to…" }, ...moveTargets.map((target) => ({ value: target.id, label: target.name }))]}
-  value=""
-  onChange={(next) => next && onAddMove(next)}
-  aria-label="Add a move to another Stage"
-  className="w-full"
-/>
+                  <select
+                    aria-label="Add a move to another Stage"
+                    value=""
+                    onChange={(e) => e.target.value && onAddMove(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground"
+                  >
+                    <option value="">Add a move to…</option>
+                    {moveTargets.map((target) => (
+                      <option key={target.id} value={target.id}>
+                        {target.name}
+                      </option>
+                    ))}
+                  </select>
                 )}
               </section>
             )}
@@ -269,21 +274,21 @@ export default function StageSettingsPanel({
               </h3>
               <div className="flex flex-wrap gap-2">
                 {COLOR_SWATCHES.map((swatch) => (
-                  <Button
+                  <button
                     key={swatch.value ?? "default"}
                     type="button"
                     disabled={disabled}
                     onClick={() => onColorChange(swatch.value)}
                     aria-label={swatch.label}
                     title={swatch.label}
-                    variant="ghost" className={cn(
+                    className={cn(
                       "flex size-7 items-center justify-center rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform disabled:cursor-not-allowed disabled:opacity-50",
                       "hover:scale-110",
                       (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
                     )}
                   >
                     <span className={cn("size-4 rounded-full", swatch.dot)} />
-                  </Button>
+                  </button>
                 ))}
               </div>
             </section>

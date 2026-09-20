@@ -8,15 +8,13 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 import { defaultSelectStyles } from "../styles/selectStyles";
 import { getPermissionContext } from "../utils/permissions";
-import { Button } from "@/components/ui/button";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 // Custom sleek toggle switch
 const Toggle = ({ checked, onChange }) => (
-  <Button
+  <button
     type="button"
     onClick={() => onChange(!checked)}
-    variant="ghost" className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
       checked ? "bg-mauve-12" : "bg-mauve-4"
     }`}
   >
@@ -25,7 +23,7 @@ const Toggle = ({ checked, onChange }) => (
         checked ? "translate-x-4" : "translate-x-0"
       }`}
     />
-  </Button>
+  </button>
 );
 
 export default function RoleSwitcher() {
@@ -254,20 +252,22 @@ export default function RoleSwitcher() {
                   Role Simulator
                 </h3>
               </div>
-              <Button
+              <button
                 onClick={handleReset}
-                variant="outline"
+                className="text-[10px] text-muted-foreground hover:text-foreground font-bold transition-colors uppercase border border-mauve-4 px-2 py-1 rounded-md hover:border-mauve-12"
               >
                 Reset
-              </Button>
+              </button>
             </div>
 
             <div className="p-5 space-y-6">
               {/* Field Sets */}
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <FieldBox bare label="Department">
-<div className="relative">
+                  <label className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest pl-1">
+                    Department
+                  </label>
+                  <div className="relative">
                     <Select
                       instanceId="role-switcher-dept"
                       options={deptOptions}
@@ -290,11 +290,12 @@ export default function RoleSwitcher() {
                       isLoading={loadingData}
                     />
                   </div>
-</FieldBox>
                 </div>
                 <div className="space-y-1.5">
-                  <FieldBox bare label="Sub-Department">
-<div className="relative">
+                  <label className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest pl-1">
+                    Sub-Department
+                  </label>
+                  <div className="relative">
                     <Select
                       instanceId="role-switcher-subdept"
                       options={subDeptOptions}
@@ -314,7 +315,6 @@ export default function RoleSwitcher() {
                       isLoading={loadingData}
                     />
                   </div>
-</FieldBox>
                 </div>
               </div>
 
@@ -362,10 +362,10 @@ export default function RoleSwitcher() {
               </div>
 
               {/* Action */}
-              <Button
+              <button
                 onClick={() => handleApply()}
                 disabled={switching}
-                variant="ghost" className="w-full h-auto justify-start"
+                className="w-full h-11 bg-[#111827] flex items-center justify-center gap-2 hover:bg-mauve-12 text-primary-foreground text-[13px] font-bold rounded-lg transition-all shadow-lg active:scale-[0.97] disabled:opacity-50"
               >
                 {switching ? (
                   <Spinner size="sm" />
@@ -375,14 +375,14 @@ export default function RoleSwitcher() {
                     <span>Update Configuration</span>
                   </>
                 )}
-              </Button>
+              </button>
             </div>
           </div>,
           document.body
         )}
 
       {/* Trigger */}
-      <Button
+      <button
         ref={triggerRef}
         onClick={() => {
           if (!isOpen) {
@@ -391,7 +391,7 @@ export default function RoleSwitcher() {
           setIsOpen(!isOpen);
         }}
         disabled={switching}
-        variant="ghost" className="w-full h-auto justify-start"
+        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 bg-[#111827] hover:bg-mauve-12 text-primary-foreground border border-white/5 group"
       >
         <div
           className={`p-1.5 rounded-md bg-card/10 group-hover:bg-card/20 transition-colors`}
@@ -406,7 +406,7 @@ export default function RoleSwitcher() {
         >
           <ChevronUp size={14} className="opacity-40" />
         </div>
-      </Button>
+      </button>
     </div>
   );
 }

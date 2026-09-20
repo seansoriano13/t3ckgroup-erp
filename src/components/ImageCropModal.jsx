@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
+import ModalOverlay from "@/components/ui/ModalOverlay";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONSTANTS
@@ -247,8 +245,10 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
   const CANVAS_LOGICAL = 280;
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent showCloseButton={false} className="w-[340px] max-w-[95vw] gap-0 p-0 flex flex-col overflow-hidden sm:max-w-[340px]"
+    <ModalOverlay isOpen={isOpen} onClose={onCancel} zIndex="z-[90]" className="[&]:cursor-default" >
+      {/* Panel — LogTaskModal design language */}
+      <div
+        className="relative w-[340px] max-w-[95vw] rounded-2xl bg-popover ring-1 ring-foreground/10 shadow-[0_10px_40px_-10px_rgba(79,70,229,0.18)] flex flex-col overflow-hidden animate-slide-down"
         onMouseUp={onPointerUp}
         onTouchEnd={onPointerUp}
       >
@@ -263,13 +263,13 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
               Crop Profile Photo
             </span>
           </div>
-          <Button
+          <button
             type="button"
             onClick={onCancel}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </Button>
+          </button>
         </div>
 
         {/* ── Canvas area ────────────────────────────────────────────────── */}
@@ -308,32 +308,38 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
 
           {/* ── Zoom controls ──────────────────────────────────────────── */}
           <div className="flex items-center gap-3 w-full">
-            <Button
+            <button
               type="button"
               onClick={() => setZoom((z) => clamp(z - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <ZoomOut size={14} />
-            </Button>
+            </button>
 
             {/* Zoom slider */}
-            <Slider
-              aria-label="Zoom"
-              className="flex-1"
-              min={MIN_ZOOM}
-              max={MAX_ZOOM}
-              step={ZOOM_STEP}
-              value={zoom}
-              onValueChange={(next) => setZoom(next)}
-            />
+            <div className="flex-1 relative h-1.5 rounded-full bg-mauve-4 overflow-visible">
+              <div
+                className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all"
+                style={{ width: `${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%` }}
+              />
+              <input
+                type="range"
+                min={MIN_ZOOM}
+                max={MAX_ZOOM}
+                step={ZOOM_STEP}
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+            </div>
 
-            <Button
+            <button
               type="button"
               onClick={() => setZoom((z) => clamp(z + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <ZoomIn size={14} />
-            </Button>
+            </button>
 
             <span className="text-[10px] font-black text-mauve-8 w-9 text-right tabular-nums">
               {Math.round(zoom * 100)}%
@@ -343,28 +349,28 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
-          <Button
+          <button
             type="button"
             onClick={handleReset}
-            variant="outline"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-[10px] font-black uppercase tracking-widest transition hover:bg-muted text-muted-foreground"
           >
             <RotateCcw size={12} />
             Reset
-          </Button>
+          </button>
 
           <div className="flex items-center gap-2">
-            <Button
+            <button
               type="button"
               onClick={onCancel}
-              variant="ghost" className="h-auto"
+              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
               onClick={handleConfirm}
               disabled={!imgLoaded || isCropping}
-              variant="default"
+              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-60"
             >
               {isCropping ? (
                 <Spinner size="sm" />
@@ -372,10 +378,10 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
                 <Check size={13} strokeWidth={3} />
               )}
               Apply
-            </Button>
+            </button>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </ModalOverlay>
   );
 }

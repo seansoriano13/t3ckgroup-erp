@@ -5,8 +5,6 @@ import Avatar from "../../Avatar";
 import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
-import { Button } from "@/components/ui/button";
-import { FileInput } from "@/components/ui/FileInput";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -56,7 +54,7 @@ export default function SorChatColumn({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-border/60 px-5">
+      <div className="flex items-center justify-between gap-2 border-b border-border/60 px-4 py-3">
         <p className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
           Activity & Log Notes
         </p>
@@ -67,14 +65,14 @@ export default function SorChatColumn({
 
       <div
         ref={notesContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-5 py-4"
+        className="min-h-0 flex-1 overflow-y-auto custom-scrollbar px-4 py-3"
       >
         {loadingNotes ? (
           <Spinner size="sm" />
         ) : notes.length === 0 ? (
           <p className="text-xs text-muted-foreground/70 italic py-4 text-center">No notes yet.</p>
         ) : (
-          <ul className="space-y-4">
+          <ul className="space-y-3">
             {notes.map((n) => (
               <li key={n.id} className="flex gap-2.5">
                 {n.type === "SYSTEM" ? (
@@ -87,14 +85,14 @@ export default function SorChatColumn({
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-muted-foreground">
                     {n.author?.name ? (
-                      <Button
+                      <button
                         type="button"
                         onClick={() => handleMentionClick(n.author)}
-                        variant="ghost" className="text-left inline-block h-auto justify-start"
+                        className="font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-left inline-block"
                         title={`Click to mention @${n.author.name}`}
                       >
                         {n.author.name}
-                      </Button>
+                      </button>
                     ) : (
                       <span>{n.type === "SYSTEM" ? "System" : "Unknown"}</span>
                     )}
@@ -137,17 +135,24 @@ export default function SorChatColumn({
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border/60 px-5 py-4">
+      <div className="shrink-0 border-t border-border/50 px-4 py-3">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             handlePostNote();
           }}
         >
-          <FileInput ref={fileInputRef} accept={ALLOWED_EXTENSIONS_STRING} multiple onFiles={(files) => {
-              attachments.addFiles(files);
-              
-            }} />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ALLOWED_EXTENSIONS_STRING}
+            className="hidden"
+            onChange={(e) => {
+              attachments.addFiles(e.target.files);
+              e.target.value = "";
+            }}
+          />
 
           {files.length > 0 && (
             <div className="mb-2">
@@ -159,41 +164,39 @@ export default function SorChatColumn({
             </div>
           )}
 
-          {/* The field takes the column's full width; attach and Post share the row under it. */}
-          <div className="rounded-xl border border-border/80 bg-muted/25 px-3 py-2.5 focus-within:border-mauve-7 focus-within:bg-card">
-            <MentionTextarea
-              rows={2}
-              value={note}
-              onChange={setNote}
-              people={employees}
-              mentions={noteMentions}
-              onMentionsChange={setNoteMentions}
-              onPaste={attachments.addFromPaste}
-              placeholder="Add a note — type @ to mention someone"
-              className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
-            />
-          </div>
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <Button
+          <div className="flex items-end gap-2">
+            <div className="flex-1 rounded-xl border border-border/80 bg-muted/25 p-3 focus-within:border-mauve-7 focus-within:bg-card">
+              <MentionTextarea
+                rows={2}
+                value={note}
+                onChange={setNote}
+                people={employees}
+                mentions={noteMentions}
+                onMentionsChange={setNoteMentions}
+                onPaste={attachments.addFromPaste}
+                placeholder="Add a note — type @ to mention someone"
+                className="w-full resize-none bg-transparent text-sm font-medium text-foreground placeholder:text-muted-foreground/50 outline-none"
+              />
+            </div>
+            <button
               type="button"
               title={`Attach files (max ${attachments.max})`}
-              aria-label="Attach files"
               disabled={isPosting || files.length >= attachments.max}
               onClick={() => fileInputRef.current?.click()}
-              variant="outline" className="shrink-0"
+              className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:opacity-50"
             >
               <Paperclip size={15} />
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={(!note.trim() && files.length === 0) || isPosting}
-              variant="default" className="shrink-0"
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
               {isUploading ? "Uploading" : "Post"}
-            </Button>
+            </button>
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground/70">
+          <p className="mt-1.5 text-[10px] text-muted-foreground/70">
             Type <span className="font-bold">@</span> to mention someone · attach or paste up to{" "}
             {attachments.max} files — {formatBytes(MAX_ATTACHMENT_BYTES)} each.
           </p>

@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react"
 import { toast } from "react-hot-toast"
 import { RefreshCw, Sparkles, X } from "lucide-react"
-import { Button } from "@/components/ui/button";
 
 const CHECK_INTERVAL_MS = 2 * 60 * 1000 // 2 minutes
 const TOAST_ID = "app-version-update"
@@ -52,13 +51,13 @@ export function VersionUpdateNotifier() {
                       <span className="font-extrabold text-[15px] text-foreground tracking-tight">
                         New Update Available
                       </span>
-                      <Button
+                      <button
                         onClick={() => toast.dismiss(t.id)}
-                        variant="ghost" size="icon-xs"
+                        className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted/60 transition-colors"
                         title="Dismiss"
                       >
                         <X size={16} />
-                      </Button>
+                      </button>
                     </div>
                     <div className="text-xs font-medium text-muted-foreground leading-relaxed mt-1.5 space-y-2">
                       <p>
@@ -81,19 +80,19 @@ export function VersionUpdateNotifier() {
                 </div>
 
                 <div className="flex items-center justify-end gap-2 pt-1">
-                  <Button
+                  <button
                     onClick={() => toast.dismiss(t.id)}
-                    variant="ghost" className="h-auto"
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted/80 transition-all"
                   >
                     Later
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     onClick={() => window.location.reload()}
-                    variant="default"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-xl text-xs font-extrabold transition-all shadow-[0_4px_12px_-2px_rgba(var(--primary-rgb),0.3)] flex items-center gap-1.5 cursor-pointer"
                   >
                     <RefreshCw size={14} />
                     Update Now
-                  </Button>
+                  </button>
                 </div>
               </div>
             ),

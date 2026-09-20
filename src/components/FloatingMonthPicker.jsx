@@ -21,8 +21,6 @@ import {
   getMonthKeysInRange,
   formatDateToYMD,
 } from "../utils/dateUtils"
-import { Button } from "@/components/ui/button";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 const MODES = ["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]
 const MODE_LABELS = {
@@ -277,9 +275,9 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
             </div>
 
             {/* CLICKABLE TRIGGER */}
-            <Button
+            <button
               onClick={() => setOpen((v) => !v)}
-              variant="ghost" className="flex-1 h-auto"
+              className="flex items-center gap-2.5 flex-1 outline-none group/btn active:scale-95 transition-transform"
             >
               <div
                 className={`p-1.5 rounded-lg transition-colors ${open ? "bg-primary/10" : "bg-muted group-hover/btn:bg-muted/80"}`}
@@ -308,7 +306,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 size={13}
                 className={`ml-1 transition-colors ${open ? "text-primary" : "text-muted-foreground/50"}`}
               />
-            </Button>
+            </button>
           </div>
 
           {/* EXPANDED PANEL — Absolutely positioned relative to the button */}
@@ -326,29 +324,29 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                   <Calendar size={13} className="text-muted-foreground" />
                   Time Range Analysis
                 </p>
-                <Button
+                <button
                   onClick={goToday}
-                  variant="ghost" size="icon-xs"
+                  className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1.5 rounded-md active:scale-95"
                 >
                   <RotateCcw size={11} />
                   Reset
-                </Button>
+                </button>
               </div>
 
               {/* Mode Switcher */}
               <div className="grid grid-cols-4 gap-1 bg-muted/40 p-1 rounded-lg border border-border/50">
                 {MODES.map((m) => (
-                  <Button
+                  <button
                     key={m}
                     onClick={() => setMode(m)}
-                    variant="ghost" className={`h-auto py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all duration-200 active:scale-95 ${
+                    className={`py-1.5 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all duration-200 active:scale-95 ${
                       mode === m
                         ? "bg-background text-foreground shadow-sm border border-border/50"
                         : "text-muted-foreground hover:text-foreground hover:bg-muted/80"
                     }`}
                   >
                     {MODE_LABELS[m]}
-                  </Button>
+                  </button>
                 ))}
               </div>
 
@@ -357,12 +355,12 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 {mode !== "CUSTOM" ? (
                   <>
                     <div className="flex items-center justify-between border border-border bg-card rounded-lg p-1.5 shadow-sm">
-                      <Button
+                      <button
                         onClick={navPrev}
-                        variant="ghost" size="icon-xs"
+                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                       >
                         <ChevronLeft size={16} />
-                      </Button>
+                      </button>
 
                       <div className="flex-1 text-center">
                         <span className="text-[13px] font-bold text-foreground tracking-wide">
@@ -370,12 +368,12 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                         </span>
                       </div>
 
-                      <Button
+                      <button
                         onClick={navNext}
-                        variant="ghost" size="icon-xs"
+                        className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                       >
                         <ChevronRight size={16} />
-                      </Button>
+                      </button>
                     </div>
 
                     {/* Monthly Grid Quick-Jump */}
@@ -392,7 +390,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                             { month: "short" },
                           )
                           return (
-                            <Button
+                            <button
                               key={i}
                               onClick={() =>
                                 setMonth(
@@ -401,7 +399,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                                   ).padStart(2, "0")}`,
                                 )
                               }
-                              variant="ghost" className={`relative w-full h-full flex flex-col items-center justify-center rounded-md text-[11px] font-semibold transition-all duration-200 active:scale-95 border ${
+                              className={`relative w-full h-full flex flex-col items-center justify-center rounded-md text-[11px] font-semibold transition-all duration-200 active:scale-95 border ${
                                 isSelected
                                   ? "bg-primary text-primary-foreground shadow-sm border-transparent"
                                   : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground border-transparent hover:border-border/50"
@@ -415,7 +413,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                                   className="absolute top-1.5 right-1.5 shadow-sm"
                                 />
                               )}
-                            </Button>
+                            </button>
                           )
                         })}
                       </div>
@@ -425,17 +423,17 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                     {mode === "QUARTERLY" && (
                       <div className="grid grid-cols-4 gap-2 flex-1">
                         {[1, 2, 3, 4].map((q) => (
-                          <Button
+                          <button
                             key={q}
                             onClick={() => setQuarter(q)}
-                            variant="ghost" className={`w-full h-full flex items-center justify-center rounded-md text-[13px] font-semibold transition-all duration-200 active:scale-95 border ${
+                            className={`w-full h-full flex items-center justify-center rounded-md text-[13px] font-semibold transition-all duration-200 active:scale-95 border ${
                               quarter === q
                                 ? "bg-primary text-primary-foreground shadow-md border-transparent"
                                 : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground border-transparent hover:border-border/50"
                             }`}
                           >
                             Q{q}
-                          </Button>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -456,8 +454,10 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 ) : (
                   <div className="flex flex-col gap-4 flex-1 justify-center rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-1.5">
-                      <FieldBox bare label="Start Date">
-<DatePicker
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
+                        Start Date
+                      </label>
+                      <DatePicker
                         selected={parseYMD(customStart)}
                         onChange={(date) => {
                           if (!date) return
@@ -471,11 +471,12 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                         popperClassName="!z-[100001]"
                         className="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all h-[38px] cursor-pointer"
                       />
-</FieldBox>
                     </div>
                     <div className="space-y-1.5">
-                      <FieldBox bare label="End Date">
-<DatePicker
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
+                        End Date
+                      </label>
+                      <DatePicker
                         selected={parseYMD(customEnd)}
                         onChange={(date) => {
                           if (!date) return
@@ -489,7 +490,6 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                         popperClassName="!z-[100001]"
                         className="w-full bg-background border border-border rounded-md px-3 py-2 text-[13px] text-foreground font-medium outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all h-[38px] cursor-pointer"
                       />
-</FieldBox>
                     </div>
                   </div>
                 )}

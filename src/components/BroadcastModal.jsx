@@ -31,7 +31,6 @@ import ReactMarkdown from "react-markdown";
 import { confirmDeleteToast } from "./ui/CustomToast";
 import TabGroup from "./ui/TabGroup";
 import Avatar from "./Avatar";
-import { Textarea } from "@/components/ui/textarea";
 
 const MAX_CONTENT_LENGTH = 2000;
 const HISTORY_PAGE_SIZE = 5;
@@ -238,12 +237,12 @@ export default function BroadcastModal({ isOpen, onClose }) {
               Broadcast
             </span>
           </div>
-          <Button
+          <button
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </Button>
+          </button>
         </div>
 
         {/* ── Scrollable Body ─────────────────────────────── */}
@@ -255,11 +254,11 @@ export default function BroadcastModal({ isOpen, onClose }) {
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 {editingId ? "Editing Broadcast" : "New Broadcast"}
               </p>
-              <Button
+              <button
                 type="button"
                 onClick={generateAIContent}
                 disabled={isGenerating}
-                variant="ghost" className="h-auto"
+                className="flex items-center gap-1.5 text-[11px] font-bold text-mauve-9 hover:text-mauve-11 bg-mauve-9/10 hover:bg-mauve-9/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
               >
                 {isGenerating ? (
                   <Spinner size="sm" />
@@ -270,7 +269,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                   </>
                 )}
                 {isGenerating ? "Analyzing commits…" : "AI via GitHub"}
-              </Button>
+              </button>
             </div>
 
             {/* Textarea */}
@@ -295,11 +294,11 @@ export default function BroadcastModal({ isOpen, onClose }) {
                 const Icon = opt.icon;
                 const isSelected = type === opt.value;
                 return (
-                  <Button
+                  <button
                     key={opt.value}
                     type="button"
                     onClick={() => setType(opt.value)}
-                    variant="ghost" className={`h-auto flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
+                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                       isSelected
                         ? `${opt.bg}`
                         : "bg-muted/20 border-border hover:bg-muted/40"
@@ -321,7 +320,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                     <span className="text-[10px] text-muted-foreground leading-tight">
                       {opt.description}
                     </span>
-                  </Button>
+                  </button>
                 );
               })}
             </div>
@@ -331,8 +330,8 @@ export default function BroadcastModal({ isOpen, onClose }) {
           <div className="px-5 py-4">
             {/* History Header */}
             <div className="flex items-center justify-between mb-3">
-              <Button
-                variant="ghost" className="h-auto"
+              <button
+                className="flex items-center gap-2 group"
                 onClick={() => setIsHistoryCollapsed((v) => !v)}
               >
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -343,7 +342,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                 ) : (
                   <ChevronUp size={12} className="text-muted-foreground/50" />
                 )}
-              </Button>
+              </button>
 
               {!isHistoryCollapsed && (
                 <TabGroup
@@ -390,14 +389,14 @@ export default function BroadcastModal({ isOpen, onClose }) {
                         className="flex gap-3 bg-muted/20 border border-border/60 rounded-xl p-3 group/item hover:bg-muted/30 transition-colors"
                       >
                         {/* Toggle */}
-                        <Button
+                        <button
                           onClick={() =>
                             toggleMutation.mutate({
                               id: update.id,
                               isActive: !update.is_active,
                             })
                           }
-                          variant="ghost" className={`mt-0.5 w-9 h-5 rounded-full shrink-0 relative transition-colors ${
+                          className={`mt-0.5 w-9 h-5 rounded-full shrink-0 relative transition-colors ${
                             update.is_active
                               ? "bg-green-9"
                               : "bg-muted-foreground/30"
@@ -409,7 +408,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                               update.is_active ? "left-[18px]" : "left-[3px]"
                             }`}
                           />
-                        </Button>
+                        </button>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -435,7 +434,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                               </span>
                             </div>
                             <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                              <Button
+                              <button
                                 onClick={() => {
                                   if (inlineEditId === update.id) {
                                     setInlineEditId(null);
@@ -445,7 +444,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                     setInlineEditType(update.type);
                                   }
                                 }}
-                                variant="ghost" className={`h-auto transition-colors ${
+                                className={`transition-colors ${
                                   inlineEditId === update.id
                                     ? "text-mauve-12"
                                     : "text-mauve-7 hover:text-mauve-12"
@@ -457,8 +456,8 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                 }
                               >
                                 <Edit3 size={13} />
-                              </Button>
-                              <Button
+                              </button>
+                              <button
                                 onClick={() => {
                                   confirmDeleteToast(
                                     "Delete Broadcast?",
@@ -466,18 +465,18 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                     () => deleteMutation.mutate(update.id),
                                   );
                                 }}
-                                variant="ghost" className="h-auto"
+                                className="text-muted-foreground hover:text-red-500 transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 size={13} />
-                              </Button>
+                              </button>
                             </div>
                           </div>
                           {/* Inline edit form */}
                           {inlineEditId === update.id ? (
                             <div className="mt-2 flex flex-col gap-2 animate-slide-down">
-                              <Textarea
-                                className="min-h-[72px] resize-none"
+                              <textarea
+                                className="w-full bg-background border border-border rounded-lg p-2.5 text-xs text-foreground focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[72px] resize-none transition-all"
                                 value={inlineEditContent}
                                 onChange={(e) =>
                                   setInlineEditContent(e.target.value)
@@ -488,13 +487,13 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                 {TYPE_OPTIONS.map((opt) => {
                                   const Icon = opt.icon;
                                   return (
-                                    <Button
+                                    <button
                                       key={opt.value}
                                       type="button"
                                       onClick={() =>
                                         setInlineEditType(opt.value)
                                       }
-                                      variant="ghost" className={`h-auto flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
+                                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
                                         inlineEditType === opt.value
                                           ? `${opt.bg} ${opt.color}`
                                           : "bg-muted/20 border-border text-muted-foreground hover:bg-muted/40"
@@ -509,17 +508,17 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                         }
                                       />
                                       {opt.label}
-                                    </Button>
+                                    </button>
                                   );
                                 })}
                                 <div className="ml-auto flex items-center gap-1.5">
-                                  <Button
+                                  <button
                                     onClick={() => setInlineEditId(null)}
-                                    variant="ghost" className="h-auto"
+                                    className="px-3 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/80 transition-all"
                                   >
                                     Cancel
-                                  </Button>
-                                  <Button
+                                  </button>
+                                  <button
                                     disabled={
                                       !inlineEditContent.trim() ||
                                       editMutation.isPending
@@ -539,7 +538,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                         },
                                       );
                                     }}
-                                    variant="default"
+                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-primary text-white hover:bg-primary/90 transition-all flex items-center gap-1 disabled:opacity-50"
                                   >
                                     {editMutation.isPending ? (
                                       <Spinner size="sm" />
@@ -547,7 +546,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                       <Check size={10} />
                                     )}
                                     Save
-                                  </Button>
+                                  </button>
                                 </div>
                               </div>
                             </div>
@@ -587,24 +586,24 @@ export default function BroadcastModal({ isOpen, onClose }) {
                       {totalCount} total • Page {historyPage} of {totalPages}
                     </p>
                     <div className="flex items-center gap-1.5">
-                      <Button
+                      <button
                         onClick={() =>
                           setHistoryPage((p) => Math.max(1, p - 1))
                         }
                         disabled={historyPage <= 1 || isLoading}
-                        variant="outline"
+                        className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                       >
                         <ChevronLeft size={12} /> Prev
-                      </Button>
-                      <Button
+                      </button>
+                      <button
                         onClick={() =>
                           setHistoryPage((p) => Math.min(totalPages, p + 1))
                         }
                         disabled={historyPage >= totalPages || isLoading}
-                        variant="outline"
+                        className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                       >
                         Next <ChevronRight size={12} />
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 )}

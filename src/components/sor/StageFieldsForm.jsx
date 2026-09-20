@@ -5,9 +5,6 @@ import { ListTodo } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -102,14 +99,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
 
           return (
             <div key={field.id} className="space-y-1">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 {field.label}
                 {field.is_required && (
                   <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
                     Required
                   </span>
                 )}
-              </span>
+              </label>
               {field.help && <p className="text-[11px] text-muted-foreground">{field.help}</p>}
 
               {savedThisVisit !== null && savedThisVisit !== undefined && savedThisVisit !== "" ? (
@@ -123,15 +120,21 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                   )}
                   <div className="flex items-center gap-2 max-w-sm">
                     {field.source === "custom" && field.field_type === "choice" ? (
-                      <Select
-  options={[{ value: "", label: "Select…" }, ...field.options || [].map((opt) => ({ value: opt, label: opt }))]}
-  value={value}
-  onChange={(next) => setDraft((p) => ({ ...p, [field.id]: next }))}
-  aria-label={field.label}
-  className="w-full"
-/>
+                      <select
+                        aria-label={field.label}
+                        value={value}
+                        onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
+                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
+                      >
+                        <option value="">Select…</option>
+                        {(field.options || []).map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
                     ) : (
-                      <Input
+                      <input
                         aria-label={field.label}
                         type={
                           isSor
@@ -145,17 +148,17 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         value={value}
                         onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
                         placeholder={`Enter ${field.label.toLowerCase()}`}
-                        className="h-8" containerClassName="w-full"
+                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                       />
                     )}
-                    <Button
+                    <button
                       type="button"
                       disabled={isSaving || !value}
                       onClick={() => handleSave(field)}
-                      variant="default" className="inline-flex shrink-0"
+                      className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 shadow hover:bg-mauve-12/90 disabled:opacity-50"
                     >
                       {isSaving ? "…" : "Save"}
-                    </Button>
+                    </button>
                   </div>
                 </>
               )}

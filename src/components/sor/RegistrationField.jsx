@@ -1,7 +1,6 @@
 import { Download, Loader2 } from "lucide-react";
 import { TextField, SelectField } from "./SorField";
 import { isValidSalesReference } from "../../constants/sor";
-import { Button } from "@/components/ui/button";
 
 /**
  * One field of the SOR registration form, rendered from its resolved
@@ -67,16 +66,16 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
               onChange={set("sales_reference")}
               className="flex-1"
             />
-            <Button
+            <button
               type="button"
               onClick={ctx.handleFetchFromOdoo}
               disabled={disabled || ctx.fetchingOdoo || !isValidSalesReference(form.sales_reference || "")}
               title="Pull the customer and the product list from this quotation in Odoo"
-              variant="outline" className="whitespace-nowrap"
+              className="px-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-1.5 text-xs font-bold text-foreground whitespace-nowrap"
             >
               {ctx.fetchingOdoo ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
               Fetch from Odoo
-            </Button>
+            </button>
           </div>
           <p className="text-[11px] text-muted-foreground leading-relaxed">
             Fetching fills the Company, the Contact Person and the Product List from the
@@ -126,14 +125,14 @@ export default function RegistrationField({ field, ctx, disabled = false }) {
           autofilled={!!odooFilled?.client_name}
           action={
             displacedCompany ? (
-              <Button
+              <button
                 type="button"
                 onClick={handleUndoCompany}
                 title={`Restore "${displacedCompany}"`}
-                variant="ghost" className="-my-1.5 -mr-1 h-auto"
+                className="-my-1.5 -mr-1 px-1.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-mauve-12 underline underline-offset-2 decoration-mauve-8 hover:decoration-mauve-11 rounded-md transition-colors"
               >
                 Undo
-              </Button>
+              </button>
             ) : null
           }
         />

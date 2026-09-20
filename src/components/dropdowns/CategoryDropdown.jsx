@@ -1,9 +1,7 @@
 import React, { useState, useMemo } from "react";
 import Dropdown from "../ui/Dropdown";
 import { Tag, ChevronDown, Search, Check } from "lucide-react";
-import { FilterTrigger } from "../ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";export default function CategoryDropdown({
+import { FilterTrigger } from "../ui/FilterDropdown";export default function CategoryDropdown({
   value,
   onChange,
   categories = [],
@@ -35,9 +33,9 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
       /* popoverClassName="absolute top-full left-0 mt-1.5 bg-muted border border-border rounded-xl shadow-2xl z-[110] w-[280px] popover-enter" */
       trigger={({ isOpen, disabled }) => 
         triggerClassName ? (
-          <Button
+          <button
             type="button"
-            variant="ghost" className={triggerClassName}
+            className={triggerClassName}
           >
             <Tag size={13} />
             <span className={value ? "text-foreground" : "text-mauve-7"}>
@@ -50,7 +48,7 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
                 className={value ? "text-violet-8" : "text-mauve-7"}
               />
             )}
-          </Button>
+          </button>
         ) : (
           <FilterTrigger
             label={value || "Category"}
@@ -70,12 +68,12 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
                 size={14}
                 className="text-muted-foreground shrink-0"
               />
-              <Input
+              <input
                 type="text"
                 placeholder="Search categories..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[13px] font-medium text-foreground placeholder:text-muted-foreground" containerClassName="flex-1"
+                className="flex-1 bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />
@@ -92,7 +90,7 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
               </p>
             ) : (
               searchedCategories.map((cat) => (
-                <Button
+                <button
                   key={cat.category_id}
                   type="button"
                   onClick={(e) => {
@@ -101,7 +99,7 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
                     if (onResetOthers) onResetOthers();
                     close();
                   }}
-                  variant="ghost" className={`h-auto w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
+                  className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
                     value === cat.category_id
                       ? "bg-muted/80 text-foreground font-bold"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -119,7 +117,7 @@ import { Input } from "@/components/ui/input";export default function CategoryDr
                       className="text-muted-foreground/80 shrink-0"
                     />
                   )}
-                </Button>
+                </button>
               ))
             )}
           </div>

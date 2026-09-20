@@ -19,8 +19,6 @@ import { TASK_STATUS } from "../constants/status";
 import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import HighlightText from "./HighlightText";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 export default function EmployeePipelineMatrix({ selectedRange }) {
   const navigate = useNavigate();
@@ -185,45 +183,45 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-[#9CA3AF]" />
-            <Input
+            <input
               type="text"
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs text-foreground placeholder-[#9CA3AF]" containerClassName="w-full"
+              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-[#9CA3AF] w-full"
             />
             {searchTerm && (
-              <Button
+              <button
                 onClick={() => setSearchTerm("")}
-                variant="ghost" className="h-auto"
+                className="text-[#9CA3AF] hover:text-foreground"
               >
                 <X size={12} />
-              </Button>
+              </button>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <Button
+            <button
               onClick={() => setLayoutMode("list")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "list" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "list" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="List View"
             >
               <List size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("leaderboard")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "leaderboard" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "leaderboard" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Leaderboard View"
             >
               <Trophy size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("grid")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </Button>
+            </button>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg h-full">

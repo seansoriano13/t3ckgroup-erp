@@ -32,8 +32,6 @@ import { FORM_FIELD_TYPES, isCoreFormField, resolveFormFields } from "../../cons
 import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
-import { Select } from "@/components/ui/select";
-import { SwitchField } from "@/components/ui/ToggleField";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -185,12 +183,12 @@ export default function SorFormBuilder({ flow }) {
                 {flow.name || "This Sale Type"}
               </span>
             </div>
-            <Button
+            <button
               onClick={() => setOpen(false)}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <X size={15} />
-            </Button>
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 min-h-0 space-y-4">
@@ -233,24 +231,31 @@ export default function SorFormBuilder({ flow }) {
                   onChange={(e) => setDraft((d) => ({ ...d, help: e.target.value }))}
                   placeholder="What should the salesperson enter?"
                 />
-                <Select
-  options={[...FORM_FIELD_TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))]}
-  value={draft.fieldType}
-  onChange={(next) => setDraft((d) => ({ ...d, fieldType: next }))}
-  aria-label="Field type"
-  className="w-full"
-/>
+                <select
+                  aria-label="Field type"
+                  value={draft.fieldType}
+                  onChange={(e) => setDraft((d) => ({ ...d, fieldType: e.target.value }))}
+                  className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
+                >
+                  {FORM_FIELD_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type[0].toUpperCase() + type.slice(1)}
+                    </option>
+                  ))}
+                </select>
                 {draft.fieldType === "choice" && (
                   <ChoiceOptionsEditor
                     options={draft.options}
                     onChange={(options) => setDraft((d) => ({ ...d, options }))}
                   />
                 )}
-                <SwitchField
-                  label="Required to register"
-                  checked={draft.isRequired}
-                  onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
-                />
+                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+                  <span className="text-sm font-semibold text-foreground">Required to register</span>
+                  <Switch
+                    checked={draft.isRequired}
+                    onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
+                  />
+                </label>
                 <div className="flex items-center justify-end gap-2">
                   <Button type="button" variant="ghost" size="lg" onClick={() => setIsAdding(false)}>
                     Cancel
@@ -360,19 +365,19 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
       )}
     >
       <div className="flex items-start gap-2">
-        <Button
+        <button
           type="button"
           {...attributes}
           {...listeners}
           aria-label={`Reorder ${field.label}`}
-          variant="ghost" size="icon-xs" className="mt-4 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+          className="mt-4 shrink-0 cursor-grab rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
         >
           <GripVertical size={15} />
-        </Button>
+        </button>
 
         <div className="min-w-0 flex-1">
           {renaming ? (
-            <Input
+            <input
               autoFocus
               defaultValue={field.label}
               onBlur={(e) => onCommitRename(e.target.value)}
@@ -381,42 +386,41 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
                 if (e.key === "Escape") onCommitRename(field.label);
               }}
               aria-label={`Rename ${field.label}`}
-              containerClassName="mb-1 w-full"
+              className="mb-1 w-full rounded-md border border-mauve-7 bg-background px-2 py-1 text-sm font-bold outline-none"
             />
           ) : null}
           <RegistrationField field={field} ctx={SAMPLE_FIELD_CTX} disabled />
         </div>
 
         <div className="mt-3 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <Button
+          <button
             type="button"
             onClick={onStartRename}
             aria-label={`Rename ${field.label}`}
             title="Rename"
-            variant="ghost" size="icon-xs"
+            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <Pencil size={14} />
-          </Button>
+          </button>
 
           {!core && (
             <>
-              <Button
+              <button
                 type="button"
                 onClick={onToggleHidden}
                 aria-label={field.isHidden ? `Show ${field.label}` : `Hide ${field.label}`}
                 title={field.isHidden ? "Show on the form" : "Hide from the form"}
-                variant="ghost" size="icon-xs"
+                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 {field.isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-              </Button>
-              <SwitchField
+              </button>
+              <label
+                className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                 title="Required to register"
-                label="Req"
-                labelClassName="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                className="gap-1 rounded border-0 bg-transparent p-0 px-1"
-                checked={field.isRequired}
-                onCheckedChange={onToggleRequired}
-              />
+              >
+                Req
+                <Switch checked={field.isRequired} onCheckedChange={onToggleRequired} />
+              </label>
             </>
           )}
 
@@ -430,15 +434,15 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
           )}
 
           {field.source === "custom" && (
-            <Button
+            <button
               type="button"
               onClick={onRemove}
               aria-label={`Remove ${field.label}`}
               title="Remove"
-              variant="ghost" size="icon-xs"
+              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
             >
               <Trash2 size={14} />
-            </Button>
+            </button>
           )}
         </div>
       </div>

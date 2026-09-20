@@ -73,10 +73,6 @@ import {
   isAllowedAttachment,
   formatBytes,
 } from "@/utils/attachments";
-import { Textarea } from "@/components/ui/textarea";
-import { ExternalLink } from "@/components/ui/ExternalLink";
-import { FieldBox } from "@/components/ui/FieldBox";
-import { FileInput } from "@/components/ui/FileInput";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -522,16 +518,16 @@ export default function GroupTaskDetailModal({
     return parts.map((part, i) => {
       if (urlRegex.test(part)) {
         return (
-          <ExternalLink
+          <a
             key={`url-${i}`}
             href={part}
-            
-            
-            className="break-all"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
             onClick={(e) => e.stopPropagation()}
           >
             {part}
-          </ExternalLink>
+          </a>
         );
       } else if (mentionRegex) {
         const mParts = part.split(mentionRegex);
@@ -686,34 +682,31 @@ export default function GroupTaskDetailModal({
             {isEditingTask ? (
               <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2 w-full pr-4">
                 <div>
-                  <FieldBox bare label="Title">
-<Input 
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title</label>
+                  <Input 
                     value={taskEditDraft.title}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, title: e.target.value }))}
                     className="h-9 text-base font-bold bg-background/50 border-border/50 w-full"
                     placeholder="Task Title"
                   />
-</FieldBox>
                 </div>
                 <div>
-                  <FieldBox bare label="Description">
-<Textarea
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
+                  <textarea
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
-                    className="h-20 resize-y"
+                    className="w-full bg-background/50 border border-border/50 rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-y"
                     placeholder="Task Description..."
                   />
-</FieldBox>
                 </div>
                 <div className="w-48">
-                  <FieldBox bare label="Due Date">
-<Input 
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
+                  <Input 
                     type="date"
                     value={taskEditDraft.dueDate}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
                     className="h-9 bg-background/50 border-border/50 text-sm"
                   />
-</FieldBox>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
@@ -748,7 +741,7 @@ export default function GroupTaskDetailModal({
 
           <div className="flex items-center gap-1">
             {!isSplitScreen && (
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   window.dispatchEvent(
@@ -758,17 +751,17 @@ export default function GroupTaskDetailModal({
                   );
                 }}
                 title="Open Conversation in Chat Modal"
-                variant="ghost" size="icon-xs" className="mr-1"
+                className="p-1.5 rounded-md text-mauve-9 hover:bg-mauve-3 hover:text-mauve-11 transition-colors mr-1"
               >
                 <MessageCircle size={15} />
-              </Button>
+              </button>
             )}
-            <Button
+            <button
               type="button"
               onClick={() => {
                 setIsSplitScreen((prev) => !prev);
               }}
-              variant="ghost" className={cn("h-auto", 
+              className={cn(
                 "p-1.5 rounded-md transition-colors",
                 isSplitScreen
                   ? "text-primary bg-primary/10 hover:bg-primary/20"
@@ -777,51 +770,51 @@ export default function GroupTaskDetailModal({
               title={isSplitScreen ? "Exit Split Screen" : "Split Screen (Task + Chat)"}
             >
               <Columns2 size={14} />
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
               onClick={() => {
                 setIsExpanded(!isExpanded);
               }}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
               title={isExpanded ? "Collapse" : "Expand"}
             >
               <Maximize2 size={14} />
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
               onClick={onClose}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <X size={15} />
-            </Button>
+            </button>
           </div>
         </div>
 
         {/* TABS (inside left panel) */}
         <div className="flex px-6 border-b border-border bg-card shrink-0 gap-6">
-          <Button
+          <button
             type="button"
             onClick={() => setActiveTab("overview")}
-            variant="ghost" className={`h-auto py-3 text-sm font-bold border-b-2 transition-colors ${
+            className={`py-3 text-sm font-bold border-b-2 transition-colors ${
               activeTab === "overview"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             Overview
-          </Button>
-          <Button
+          </button>
+          <button
             type="button"
             onClick={() => setActiveTab("history")}
-            variant="ghost" className={`h-auto py-3 text-sm font-bold border-b-2 transition-colors ${
+            className={`py-3 text-sm font-bold border-b-2 transition-colors ${
               activeTab === "history"
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             History
-          </Button>
+          </button>
         </div>
 
         {/* TASK CONTENT */}
@@ -962,24 +955,24 @@ export default function GroupTaskDetailModal({
 
                             {(isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
-                                <Button
+                                <button
                                   type="button"
                                   onClick={() => handleEditClick(member)}
-                                  variant="ghost" size="icon-xs"
+                                  className="p-1.5 text-muted-foreground hover:text-violet-10 hover:bg-violet-2 rounded-lg transition-colors"
                                   title="Edit Assignment"
                                 >
                                   <Edit3 size={14} />
-                                </Button>
+                                </button>
                                 {(isCreator || isSuperAdmin) && (
-                                  <Button
+                                  <button
                                     type="button"
                                     onClick={() => handleRemoveMember(member.id)}
                                     disabled={isRemovingMember}
-                                    variant="ghost" size="icon-xs"
+                                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
                                     title="Remove Member"
                                   >
                                     <Trash2 size={14} />
-                                  </Button>
+                                  </button>
                                 )}
                               </div>
                             )}
@@ -987,9 +980,9 @@ export default function GroupTaskDetailModal({
 
                           {/* Description */}
                           <div className="flex flex-col gap-1.5">
-                            <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                               Specific Task
-                            </span>
+                            </label>
                             {memberDescription?.trim() ? (
                               <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
                                 {memberDescription}
@@ -1008,9 +1001,9 @@ export default function GroupTaskDetailModal({
                           {checklistItems.length > 0 && (
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Checklist
-                                </span>
+                                </label>
                                 <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
                                   {checklistItems.filter((i) => i.checked).length}
                                   /{checklistItems.length}
@@ -1049,17 +1042,21 @@ export default function GroupTaskDetailModal({
                           {/* Attachments Section */}
                           <div className="flex flex-col gap-1.5 mt-2">
                             <div className="flex items-center justify-between">
-                              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                 Attachments
-                              </span>
+                              </label>
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
-                                <FileInput
-  variant="link"
-  multiple
-  accept={ALLOWED_EXTENSIONS_STRING}
-  disabled={isUploadingAttachment || isUploadingMemberFile}
-  title="Upload attachments"
-  onFiles={async (files) => {
+                                <div className="relative">
+                                  <input
+                                    type="file"
+                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                                    multiple
+                                    accept={ALLOWED_EXTENSIONS_STRING}
+                                    disabled={isUploadingAttachment || isUploadingMemberFile}
+                                    title="Upload attachments"
+                                    onChange={async (e) => {
+                                      const files = Array.from(e.target.files);
+                                      e.target.value = "";
                                       setIsUploadingMemberFile(true);
                                       try {
                                         for (const file of files) {
@@ -1085,10 +1082,16 @@ export default function GroupTaskDetailModal({
                                         setIsUploadingMemberFile(false);
                                       }
                                     }}
-                                >
-                                  <Paperclip size={10} />
-                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
-                                </FileInput>
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={isUploadingAttachment || isUploadingMemberFile}
+                                    className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    <Paperclip size={10} />
+                                    {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
+                                  </button>
+                                </div>
                               )}
                             </div>
 
@@ -1131,7 +1134,7 @@ export default function GroupTaskDetailModal({
                             {isMe &&
                               member.status === "PENDING" &&
                               task.status === "ACTIVE" && (
-                                <Button
+                                <button
                                   onClick={() => onMarkDone(member.id)}
                                   disabled={isMarkingDone || hasUncheckedItems}
                                   title={
@@ -1139,23 +1142,23 @@ export default function GroupTaskDetailModal({
                                       ? "Check all items first"
                                       : ""
                                   }
-                                  variant="ghost" className="ml-auto h-auto"
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-green-9 text-primary-foreground rounded-lg text-xs font-bold hover:bg-green-9 transition-colors shadow-sm disabled:opacity-50 ml-auto"
                                 >
                                   <CheckCircle2 size={16} />
                                   {isMarkingDone
                                     ? "Marking..."
                                     : "Submit for Review"}
-                                </Button>
+                                </button>
                               )}
 
                             {isDone && task.status === "ACTIVE" && (
-                              <Button
+                              <button
                                 onClick={() => onRevertDone(member.id)}
                                 disabled={isReverting}
-                                variant="ghost" className="ml-auto h-auto"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-warning/10 text-amber-10 border border-amber-500/20 rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-warning/20 transition-colors ml-auto"
                               >
                                 {isReverting ? "..." : "Revert"}
-                              </Button>
+                              </button>
                             )}
                           </div>
                         </div>
@@ -1362,11 +1365,16 @@ export default function GroupTaskDetailModal({
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">
-              <FileInput
+              <input
                 ref={fileInputRef}
+                type="file"
                 accept={ALLOWED_MIME_TYPES.join(",")}
                 multiple
-                onFiles={(picked) => addFiles(picked)}
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) addFiles(e.target.files);
+                  e.target.value = "";
+                }}
               />
 
               <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">
@@ -1402,15 +1410,15 @@ export default function GroupTaskDetailModal({
 
                 <div className="flex items-center justify-between px-2 pt-0.5 pb-0.5">
                   <div className="flex items-center gap-2">
-                    <Button
+                    <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={sendMessageMutation.isPending || isUploading}
-                      variant="ghost" className="h-auto"
+                      className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                       title="Attach photo"
                     >
                       <Paperclip size={14} />
-                    </Button>
+                    </button>
                     <EmojiPicker
                       onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
                       disabled={sendMessageMutation.isPending || isUploading}
@@ -1531,12 +1539,12 @@ export default function GroupTaskDetailModal({
               <>
                 {showRejectForm ? (
                   <div className="flex items-center gap-2 animate-in fade-in">
-                    <Input
+                    <input
                       type="text"
                       value={rejectRemarks}
                       onChange={(e) => setRejectRemarks(e.target.value)}
                       placeholder="Reason for rejection..."
-                      className="h-9" containerClassName="w-[220px]"
+                      className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors w-[220px]"
                     />
                     <Button
                       type="button"

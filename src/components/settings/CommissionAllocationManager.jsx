@@ -6,8 +6,6 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 function sumOf(rows) {
   return rows.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0);
@@ -56,51 +54,51 @@ function PositionsEditor({ department, actorId }) {
       {draft.length === 0 && <p className="text-xs text-muted-foreground">No positions yet.</p>}
       {draft.map((row, i) => (
         <div key={row.id ?? `new-${i}`} className="flex items-center gap-2">
-          <Input
+          <input
             value={row.name}
             onChange={(e) => updateRow(i, { name: e.target.value })}
             placeholder="Position name"
-            className="h-8" containerClassName="flex-1"
+            className="h-8 flex-1 rounded-md border border-border bg-card px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
-          <Input
+          <input
             type="number"
             step="0.001"
             value={row.allocationPercent}
             onChange={(e) => updateRow(i, { allocationPercent: Number(e.target.value) })}
-            className="h-8 tabular-nums" containerClassName="w-20"
+            className="h-8 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <span className="text-xs text-muted-foreground">%</span>
-          <Button
+          <button
             type="button"
             onClick={() => removeRow(i)}
-            variant="ghost" size="icon-xs"
+            className="rounded p-1 text-muted-foreground hover:bg-red-a4 hover:text-red-9"
             aria-label={`Remove ${row.name || "position"}`}
           >
             <Trash2 size={12} />
-          </Button>
+          </button>
         </div>
       ))}
 
       <div className="flex items-center justify-between pt-1">
-        <Button
+        <button
           type="button"
           onClick={addRow}
-          variant="ghost" className="h-auto"
+          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
         >
           <Plus size={12} /> Add Position
-        </Button>
+        </button>
         <div className="flex items-center gap-3">
           <span className={cn("text-xs font-semibold tabular-nums", Math.abs(total - 100) > 0.01 ? "text-red-9" : "text-muted-foreground")}>
             {total.toFixed(2)}%
           </span>
-          <Button
+          <button
             type="button"
             disabled={saveMutation.isPending || draft.length === 0}
             onClick={() => saveMutation.mutate(draft)}
-            variant="default"
+            className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Save
-          </Button>
+          </button>
         </div>
       </div>
     </div>
@@ -111,20 +109,20 @@ function DepartmentRow({ department, index, onChange, isOpen, onToggle, actorId 
   return (
     <div className="rounded-lg border border-border/60">
       <div className="flex items-center gap-2 px-3 py-2">
-        <Button
+        <button
           type="button"
           onClick={onToggle}
-          variant="ghost" className="flex-1 text-left h-auto justify-start"
+          className="flex flex-1 items-center gap-2 text-left"
         >
           <ChevronDown size={13} className={cn("shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
           <span className="text-sm font-semibold text-foreground">{department.name}</span>
-        </Button>
-        <Input
+        </button>
+        <input
           type="number"
           step="0.001"
           value={department.allocationPercent}
           onChange={(e) => onChange(index, { allocationPercent: Number(e.target.value) })}
-          className="h-8 tabular-nums" containerClassName="w-20"
+          className="h-8 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
         <span className="text-xs text-muted-foreground">%</span>
       </div>
@@ -194,14 +192,14 @@ export default function CommissionAllocationManager() {
           <span className={cn("text-xs font-semibold tabular-nums", Math.abs(total - 100) > 0.01 ? "text-red-9" : "text-muted-foreground")}>
             Total {total.toFixed(2)}%
           </span>
-          <Button
+          <button
             type="button"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft)}
-            variant="default"
+            className="h-8 rounded-md bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Save Departments
-          </Button>
+          </button>
         </div>
       </div>
     </div>

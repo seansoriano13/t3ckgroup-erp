@@ -3,14 +3,12 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
+import PrimaryButton from "../../components/PrimaryButton";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -135,8 +133,10 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <FieldBox bare label="Email Address">
-<Input
+              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+                Email Address
+              </label>
+              <input
                 className={`${INPUT_STYLE} cursor-text`}
                 type="email"
                 autoComplete="username"
@@ -144,23 +144,22 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
-</FieldBox>
             </div>
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+                <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                   Password
-                </span>
-                <Button
+                </label>
+                <button
                   type="button"
                   onClick={handleForgotPassword}
-                  variant="ghost" className="h-auto"
+                  className="text-xs text-mauve-11 font-medium hover:underline"
                 >
                   Forgot password?
-                </Button>
+                </button>
               </div>
-              <Input
+              <input
                 className={`${INPUT_STYLE} cursor-text`}
                 type="password"
                 autoComplete="current-password"
@@ -177,9 +176,10 @@ export default function Login() {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button type="submit" size="lg" disabled={isSubmitting} className="w-full sm:w-auto">
-                  {isSubmitting ? "Logging in..." : "Log In"}
-                </Button>
+                <PrimaryButton
+                  label={isSubmitting ? "Logging in..." : "Log In"}
+                  className={`w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
+                />
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
                   <GoogleLogin

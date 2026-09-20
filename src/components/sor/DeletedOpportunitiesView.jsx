@@ -7,11 +7,6 @@ import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
-import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -103,26 +98,26 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
   return (
     <div className="mt-4 overflow-hidden rounded-2xl border border-border bg-card">
       <div className="overflow-x-auto">
-        <Table >
-          <TableHeader>
-            <TableRow >
-              <TableHead >Company</TableHead>
-              <TableHead >Project</TableHead>
-              <TableHead className="text-right">Expected Value</TableHead>
-              <TableHead >Deleted By</TableHead>
-              <TableHead >Deleted At</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground">
+              <th className="px-3 py-2.5 text-left">Company</th>
+              <th className="px-3 py-2.5 text-left">Project</th>
+              <th className="px-3 py-2.5 text-right">Expected Value</th>
+              <th className="px-3 py-2.5 text-left">Deleted By</th>
+              <th className="px-3 py-2.5 text-left">Deleted At</th>
+              <th className="px-3 py-2.5 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
             {rows.map((row) => {
               const canRestore = isSuperAdmin || row.deal_owner_id === currentUserId;
               return (
-                <TableRow key={row.id} >
-                  <TableCell >{row.client_name}</TableCell>
-                  <TableCell >{row.project_title}</TableCell>
-                  <TableCell className="text-right">{formatPHP(row.expected_value)}</TableCell>
-                  <TableCell >
+                <tr key={row.id} className="border-b border-border/50 last:border-0">
+                  <td className="px-3 py-2.5 font-semibold">{row.client_name}</td>
+                  <td className="px-3 py-2.5 text-muted-foreground">{row.project_title}</td>
+                  <td className="px-3 py-2.5 text-right font-bold">{formatPHP(row.expected_value)}</td>
+                  <td className="px-3 py-2.5">
                     {row.deleted_by_employee ? (
                       <span className="inline-flex items-center gap-1.5">
                         <Avatar name={row.deleted_by_employee.name} src={row.deleted_by_employee.avatar_path} size="xs" />
@@ -131,43 +126,43 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                     ) : (
                       <span className="text-xs italic text-muted-foreground/60">Unknown</span>
                     )}
-                  </TableCell>
-                  <TableCell >{formatWhen(row.deleted_at)}</TableCell>
-                  <TableCell >
+                  </td>
+                  <td className="px-3 py-2.5 text-xs text-muted-foreground">{formatWhen(row.deleted_at)}</td>
+                  <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-1.5">
                       {canRestore && (
-                        <Button
+                        <button
                           onClick={() => handleRestore(row)}
                           title="Restore"
-                          variant="outline"
+                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
                         >
                           <RotateCcw size={12} /> Restore
-                        </Button>
+                        </button>
                       )}
                       {isSuperAdmin && (
-                        <Button
+                        <button
                           onClick={() => {
                             setPurgeTarget(row);
                             setConfirmText("");
                           }}
                           title="Permanently delete"
-                          variant="ghost"
+                          className="flex items-center gap-1 rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
                         >
                           <Trash2 size={12} /> Delete forever
-                        </Button>
+                        </button>
                       )}
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
 
       {purgeTarget && (
-        <Dialog open onOpenChange={(open) => !open && ((() => setPurgeTarget(null))())}>
-<DialogContent showCloseButton={false} className="max-w-md sm:max-w-md p-5 gap-0">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
             <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-red-600 dark:text-red-400">
               <AlertTriangle size={15} /> Permanently delete this SOR?
             </p>
@@ -175,41 +170,40 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               {purgeTarget.client_name} — {purgeTarget.project_title}. This cannot be undone. Its
               tasks are kept, unlinked — only the SOR itself and its own records are removed.
             </p>
-            <FieldBox bare label={<>
+            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm
-            </>}>
-<Input
+            </label>
+            <input
               autoFocus
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              containerClassName="mb-3 w-full"
+              className="mb-3 w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground outline-none focus:border-mauve-7"
             />
-</FieldBox>
             {purgeMutation.isError && (
               <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">
                 {purgeMutation.error.message}
               </p>
             )}
             <div className="flex items-center justify-end gap-2">
-              <Button
+              <button
                 onClick={() => {
                   setPurgeTarget(null);
                   setConfirmText("");
                 }}
-                variant="ghost" className="h-auto"
+                className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 disabled={confirmText.trim() !== expectedConfirmText || purgeMutation.isPending}
                 onClick={() => purgeMutation.mutate()}
-                variant="ghost" className="h-auto"
+                className="h-10 rounded-xl bg-red-600 px-4 text-[13px] font-bold text-white transition-all hover:bg-red-700 disabled:opacity-50"
               >
                 Delete forever
-              </Button>
+              </button>
             </div>
-          </DialogContent>
-</Dialog>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -15,7 +15,6 @@ import {
 import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
-import { Input } from "@/components/ui/input";
 
 export default function GroupRoleManagerModal({ isOpen, onClose }) {
   const queryClient = useQueryClient();
@@ -130,12 +129,12 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
               Manage Group Roles
             </span>
           </div>
-          <Button
+          <button
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </Button>
+          </button>
         </div>
 
         {/* BODY */}
@@ -166,23 +165,23 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                   >
                     {editingId === role.id ? (
                       <div className="flex-1 flex items-center gap-2">
-                        <Input
+                        <input
                           type="text"
                           value={editValue}
                           onChange={(e) =>
                             setEditValue(e.target.value.toUpperCase())
                           }
-                          containerClassName="flex-1"
+                          className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground outline-none focus:border-primary focus:ring-1 ring-mauve-6"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === "Enter") handleSaveEdit(role.id);
                             if (e.key === "Escape") setEditingId(null);
                           }}
                         />
-                        <Button
+                        <button
                           onClick={() => handleSaveEdit(role.id)}
                           disabled={editMutation.isPending}
-                          variant="ghost" size="icon-xs"
+                          className="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors"
                         >
                           {editMutation.isPending &&
                           editMutation.variables?.id === role.id ? (
@@ -190,13 +189,13 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                           ) : (
                             <Check size={15} />
                           )}
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                           onClick={() => setEditingId(null)}
-                          variant="ghost" size="icon-xs"
+                          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
                         >
                           <X size={15} />
-                        </Button>
+                        </button>
                       </div>
                     ) : (
                       <>
@@ -211,17 +210,17 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                           )}
                           {role.role_name !== "OTHERS" && (
                             <>
-                              <Button
+                              <button
                                 onClick={() => {
                                   setEditingId(role.id);
                                   setEditValue(role.role_name);
                                 }}
-                                variant="ghost" size="icon-xs"
+                                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
                                 title="Edit Role"
                               >
                                 <Edit3 size={13} />
-                              </Button>
-                              <Button
+                              </button>
+                              <button
                                 onClick={() => {
                                   confirmDeleteToast(
                                     "Delete Role?",
@@ -229,11 +228,11 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                                     () => deleteMutation.mutate(role.id),
                                   );
                                 }}
-                                variant="ghost" size="icon-xs"
+                                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
                                 title="Delete Role"
                               >
                                 <Trash2 size={13} />
-                              </Button>
+                              </button>
                             </>
                           )}
                         </div>
@@ -248,12 +247,12 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
           {/* ADD ROLE FORM */}
           <div className="p-4 border-t border-border bg-card">
             <form onSubmit={handleAdd} className="flex gap-2">
-              <Input
+              <input
                 type="text"
                 placeholder="New Role Name (e.g. MARKETING)"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value.toUpperCase())}
-                containerClassName="flex-1"
+                className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 ring-primary/20"
               />
               <Button
                 type="submit"

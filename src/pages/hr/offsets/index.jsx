@@ -30,10 +30,6 @@ import VerifiedRecordPreview from '../../../components/verify/VerifiedRecordPrev
 import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialog';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -399,13 +395,13 @@ export default function HrLeavesManagerPage() {
           title="Leaves Manager"
           description="Review leave applications, approve overtime, and manage employee balances."
         />
-        <Button
+        <button
           onClick={() => setIsApplyModalOpen(true)}
-          variant="ghost" className="h-auto"
+          className="flex-none bg-foreground text-background font-black px-5 py-2.5 rounded-xl shadow-sm border border-border/10 hover:bg-foreground/90 transition-colors uppercase tracking-widest text-xs flex items-center gap-2"
         >
           <Plus size={16} />
           File for Employee
-        </Button>
+        </button>
       </div>
 
       <ApplyLeaveModal
@@ -435,64 +431,81 @@ export default function HrLeavesManagerPage() {
            <div className="flex flex-col sm:flex-row gap-3">
              <div className="relative flex-1 max-w-sm">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-                <Input
+                <input
                   type="text"
                   placeholder="Search employees..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  containerClassName="w-full"
+                  className="w-full pl-9 pr-4 py-2 bg-card border border-border rounded-xl text-sm focus:outline-none focus:border-foreground/30 text-foreground"
                 />
               </div>
 
               {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history') && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Filter size={14} className="text-muted-foreground" />
-                  <Select
-  options={[{ value: "ALL", label: "All Types" }, { value: "OVERTIME", label: "Overtime" }, { value: "OFFSET", label: "Offset Leave" }, { value: "SIL", label: "SIL Leave" }, { value: "UNDERTIME", label: "Undertime" }]}
-  value={leaveTypeFilter}
-  onChange={(next) => setLeaveTypeFilter(next)}
-/>
+                  <select
+                    value={leaveTypeFilter}
+                    onChange={(e) => setLeaveTypeFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                  >
+                    <option value="ALL">All Types</option>
+                    <option value="OVERTIME">Overtime</option>
+                    <option value="OFFSET">Offset Leave</option>
+                    <option value="SIL">SIL Leave</option>
+                    <option value="UNDERTIME">Undertime</option>
+                  </select>
                 </div>
               )}
               
               {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
-                  <Select
-  options={[{ value: "ALL", label: "All companies" }, { value: "NONE", label: "No company set" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
-  value={companyFilter}
-  onChange={(next) => setCompanyFilter(next)}
-  title="Filter by company"
-/>
+                  <select
+                    value={companyFilter}
+                    onChange={(e) => setCompanyFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                    title="Filter by company"
+                  >
+                    <option value="ALL">All companies</option>
+                    <option value="NONE">No company set</option>
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
               {activeTab === 'pending' && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Clock size={14} className="text-muted-foreground" />
-                  <Select
-  options={[{ value: "ALL", label: "All time" }, { value: "THIS_MONTH", label: "This month" }, { value: "NEXT_MONTH", label: "Next month" }, { value: "OVERDUE", label: "Overdue" }]}
-  value={pendingPeriodFilter}
-  onChange={(next) => setPendingPeriodFilter(next)}
-/>
+                  <select
+                    value={pendingPeriodFilter}
+                    onChange={(e) => setPendingPeriodFilter(e.target.value)}
+                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                  >
+                    <option value="ALL">All time</option>
+                    <option value="THIS_MONTH">This month</option>
+                    <option value="NEXT_MONTH">Next month</option>
+                    <option value="OVERDUE">Overdue</option>
+                  </select>
                 </div>
               )}
               
               {activeTab === 'balances' && (
                 <div className="flex items-center bg-card border border-border rounded-xl p-1 shrink-0">
-                  <Button
+                  <button
                     onClick={() => setBalancesLayout('table')}
-                    variant="ghost" className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'table' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
                     title="Table View"
                   >
                     <List size={16} />
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     onClick={() => setBalancesLayout('grid')}
-                    variant="ghost" className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
+                    className={`p-1.5 rounded-lg transition-colors ${balancesLayout === 'grid' ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
                     title="Grid View"
                   >
                     <LayoutGrid size={16} />
-                  </Button>
+                  </button>
                 </div>
               )}
            </div>
@@ -532,30 +545,30 @@ export default function HrLeavesManagerPage() {
               </div>
             ) : (
                <div className="overflow-x-auto">
-                <Table >
-                  <TableHeader>
-                    <TableRow >
-                      <TableHead >Employee</TableHead>
-                      <TableHead >Type</TableHead>
-                      <TableHead >Category</TableHead>
-                      <TableHead >Date</TableHead>
-                      <TableHead >Hours</TableHead>
-                      <TableHead >Reason</TableHead>
-                      <TableHead >Files</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody >
+                <table className="w-full text-left border-collapse whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                      <th className="p-4">Employee</th>
+                      <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Hours</th>
+                      <th className="p-4">Reason</th>
+                      <th className="p-4">Files</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
                     {pendingByMonth.map(group => (
                       <React.Fragment key={group.label}>
-                        <TableRow>
-                          <TableCell colSpan="8" >
+                        <tr>
+                          <td colSpan="8" className="bg-muted/30 px-4 py-2 text-xs font-bold text-foreground border-y border-border/50">
                             {group.label}
-                          </TableCell>
-                        </TableRow>
+                          </td>
+                        </tr>
                         {group.requests.map(req => (
-                           <TableRow key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30">
-                              <TableCell >
+                           <tr key={req.type + '-' + (req.leave_group_id || req.id)} className="hover:bg-muted/30 transition-colors">
+                              <td className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
                                   <div>
@@ -563,8 +576,8 @@ export default function HrLeavesManagerPage() {
                                     <p className="text-xs text-muted-foreground font-medium">{req.employee?.department}</p>
                                   </div>
                                 </div>
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4">
                                 <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
                                   req.type === 'OVERTIME' ? 'bg-muted text-foreground border-border' :
                                   req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
@@ -572,11 +585,11 @@ export default function HrLeavesManagerPage() {
                                 }`}>
                                   {req.type}
                                 </span>
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-foreground">
                                 {req.category?.label || '-'}
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4 text-sm font-bold text-foreground">
                                 {req.dayCount > 1 ? (
                                   <>
                                     {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -589,8 +602,8 @@ export default function HrLeavesManagerPage() {
                                 ) : (
                                   new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                                 )}
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4">
                                 <div className="flex flex-col gap-0.5">
                                   <span className="font-black text-sm text-foreground">
                                     {req.hours} hrs
@@ -606,42 +619,42 @@ export default function HrLeavesManagerPage() {
                                     </span>
                                   )}
                                 </div>
-                              </TableCell>
-                              <TableCell className="max-w-[150px]" title={req.reason}>
+                              </td>
+                              <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[150px]" title={req.reason}>
                                  {req.reason || '-'}
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4">
                                  {req.attachments?.length ? (
                                    <AttachmentList attachments={req.attachments} compact />
                                  ) : (
                                    <span className="text-xs text-muted-foreground/50">-</span>
                                  )}
-                              </TableCell>
-                              <TableCell className="text-right">
+                              </td>
+                              <td className="p-4 text-right space-x-2">
                                  {req.type === 'OVERTIME' ? (
                                     <>
-                                      <Button onClick={() => handleAction(req, 'approve')} variant="outline">
+                                      <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
                                         Approve (Offset)
-                                      </Button>
-                                      <Button onClick={() => handleAction(req, 'approve_paid')} variant="outline">
+                                      </button>
+                                      <button onClick={() => handleAction(req, 'approve_paid')} className="px-3 py-1.5 bg-blue-2 text-blue-11 hover:bg-blue-3 border border-blue-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
                                         Approve (Paid)
-                                      </Button>
+                                      </button>
                                     </>
                                  ) : (
-                                    <Button onClick={() => handleAction(req, 'approve')} variant="outline">
+                                    <button onClick={() => handleAction(req, 'approve')} className="px-3 py-1.5 bg-green-2 text-green-11 hover:bg-green-3 border border-green-6 rounded-lg text-xs font-bold transition-colors cursor-pointer">
                                         Approve
-                                    </Button>
+                                    </button>
                                  )}
-                                 <Button onClick={() => handleAction(req, 'reject')} variant="destructive">
+                                 <button onClick={() => handleAction(req, 'reject')} className="px-3 py-1.5 bg-destructive/10 text-destructive hover:bg-destructive hover:text-white rounded-lg text-xs font-bold transition-colors cursor-pointer">
                                     Reject
-                                 </Button>
-                              </TableCell>
-                           </TableRow>
+                                 </button>
+                              </td>
+                           </tr>
                         ))}
                       </React.Fragment>
                     ))}
-                  </TableBody>
-                </Table>
+                  </tbody>
+                </table>
                </div>
             )}
           </div>
@@ -671,32 +684,32 @@ export default function HrLeavesManagerPage() {
                    <span className="text-sm font-bold text-foreground">{filteredProcessed.length} Records</span>
                  </div>
                  <div className="overflow-x-auto">
-                  <Table >
-                    <TableHeader>
-                      <TableRow >
-                        <TableHead >Employee</TableHead>
-                      <TableHead >Type</TableHead>
-                      <TableHead >Category</TableHead>
-                      <TableHead >Date</TableHead>
-                      <TableHead >Hours</TableHead>
-                      <TableHead >Files</TableHead>
-                      <TableHead >Status</TableHead>
-                      <TableHead >Processed Date</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody >
+                  <table className="w-full text-left border-collapse whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                        <th className="p-4">Employee</th>
+                      <th className="p-4">Type</th>
+                      <th className="p-4">Category</th>
+                      <th className="p-4">Date</th>
+                      <th className="p-4">Hours</th>
+                      <th className="p-4">Files</th>
+                      <th className="p-4">Status</th>
+                      <th className="p-4">Processed Date</th>
+                      <th className="p-4 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
                       {filteredProcessed.map(req => {
                         const key = req.type + '-' + (req.leave_group_id || req.id);
                         return (
-                          <TableRow key={key} className="hover:bg-muted/30">
-                            <TableCell >
+                          <tr key={key} className="hover:bg-muted/30 transition-colors">
+                            <td className="p-4">
                               <div className="flex items-center gap-3">
                                 <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
                                 <span className="text-sm font-bold text-foreground">{req.employee?.name}</span>
                               </div>
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4">
                               <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${
                                 req.type === 'OVERTIME' ? 'bg-primary/10 text-primary border-primary/20' :
                                 req.type === 'OFFSET' ? 'bg-blue-2 text-blue-11 border-blue-6' :
@@ -704,11 +717,11 @@ export default function HrLeavesManagerPage() {
                               }`}>
                                 {req.type}
                               </span>
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-foreground">
                               {req.category?.label || '-'}
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4 text-sm font-bold text-foreground">
                               {req.dayCount > 1 ? (
                                 <>
                                   {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -721,8 +734,8 @@ export default function HrLeavesManagerPage() {
                               ) : (
                                 new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                               )}
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4">
                               <div className="flex flex-col gap-0.5">
                                 <span className="font-black text-sm text-foreground">
                                   {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
@@ -740,41 +753,41 @@ export default function HrLeavesManagerPage() {
                                   </span>
                                 )}
                               </div>
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4">
                               {req.attachments?.length ? (
                                 <AttachmentList attachments={req.attachments} compact />
                               ) : (
                                 <span className="text-xs text-muted-foreground/50">-</span>
                               )}
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4">
                               {getStatusBadge(req.status)}
-                            </TableCell>
-                            <TableCell >
+                            </td>
+                            <td className="p-4 text-xs font-semibold text-muted-foreground">
                               {new Date(req.updated_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell className="text-right">
+                            </td>
+                            <td className="p-4 text-right flex items-center justify-end">
                               {req.verification_token && (
-                                <Button
+                                <button
                                   onClick={() => setPreviewToken(req.verification_token)}
-                                  variant="outline" className="mr-2"
+                                  className="text-xs font-bold text-blue-11 bg-blue-2 hover:bg-blue-3 border border-blue-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer mr-2"
                                 >
                                   Preview
-                                </Button>
+                                </button>
                               )}
-                              <Button
+                              <button
                                 onClick={() => handleUndo(req)}
-                                variant="outline"
+                                className="text-xs font-bold text-amber-11 bg-amber-2 hover:bg-amber-3 border border-amber-6 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                               >
                                 Undo
-                              </Button>
-                            </TableCell>
-                          </TableRow>
+                              </button>
+                            </td>
+                          </tr>
                         );
                       })}
-                    </TableBody>
-                  </Table>
+                    </tbody>
+                  </table>
                  </div>
                </div>
             )}
@@ -828,20 +841,20 @@ export default function HrLeavesManagerPage() {
              ) : (
                <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden animate-in fade-in duration-300">
                   <div className="overflow-x-auto">
-                    <Table >
-                      <TableHeader>
-                        <TableRow >
-                          <TableHead >Employee</TableHead>
-                          <TableHead >Company</TableHead>
-                          <TableHead >Offset Balance</TableHead>
-                          <TableHead >SIL Balance</TableHead>
-                          <TableHead >Undertime (this month)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody >
+                    <table className="w-full text-left border-collapse whitespace-nowrap">
+                      <thead>
+                        <tr className="bg-muted border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                          <th className="p-4">Employee</th>
+                          <th className="p-4">Company</th>
+                          <th className="p-4">Offset Balance</th>
+                          <th className="p-4">SIL Balance</th>
+                          <th className="p-4">Undertime (this month)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
                         {filteredBalances.map(emp => (
-                           <TableRow key={emp.id} className="hover:bg-muted/50">
-                              <TableCell >
+                           <tr key={emp.id} className="hover:bg-muted/50 transition-colors">
+                              <td className="p-4">
                                 <div className="flex items-center gap-3">
                                   <Avatar name={emp.name} src={emp.avatar_path} size="sm" />
                                   <div>
@@ -849,8 +862,8 @@ export default function HrLeavesManagerPage() {
                                     <p className="text-[12px] text-muted-foreground font-medium">{emp.department || 'No Department'}</p>
                                   </div>
                                 </div>
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4 text-sm">
                                 {emp.company?.name ? (
                                   <span className="text-muted-foreground">{emp.company.name}</span>
                                 ) : (
@@ -858,39 +871,39 @@ export default function HrLeavesManagerPage() {
                                     No company
                                   </span>
                                 )}
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4">
                                  <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
                                    emp.offset_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
                                  }`}>
                                    {emp.offset_hours_balance} hrs
                                  </span>
-                              </TableCell>
-                               <TableCell >
+                              </td>
+                               <td className="p-4">
                                  <span className={`font-black text-sm px-3 py-1.5 rounded-lg border ${
                                    emp.sil_hours_balance > 0 ? 'bg-green-2 text-green-11 border-green-6' : 'bg-muted text-muted-foreground border-border'
                                  }`}>
                                    {emp.sil_hours_balance} hrs
                                  </span>
-                              </TableCell>
-                              <TableCell >
+                              </td>
+                              <td className="p-4">
                                  {/* Derived from APPROVED undertime rows this calendar month — never a
                                      stored balance, so it is styled plainly rather than as a credit. */}
                                  <span className="font-bold text-sm px-3 py-1.5 rounded-lg border bg-muted text-muted-foreground border-border">
                                    {emp.undertime_this_month} hrs
                                  </span>
-                              </TableCell>
-                           </TableRow>
+                              </td>
+                           </tr>
                         ))}
                         {filteredBalances.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={3} className="text-center">
+                          <tr>
+                            <td colSpan={3} className="py-16 text-center text-muted-foreground bg-muted">
                               No employee balances found
-                            </TableCell>
-                          </TableRow>
+                            </td>
+                          </tr>
                         )}
-                      </TableBody>
-                    </Table>
+                      </tbody>
+                    </table>
                   </div>
                </div>
              )}

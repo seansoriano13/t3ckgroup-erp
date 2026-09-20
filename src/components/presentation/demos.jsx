@@ -1,7 +1,5 @@
 import { useState } from "react"
 import BeforeAfter, { Chrome } from "./BeforeAfter"
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 /**
  * The six before/after demos.
@@ -46,13 +44,13 @@ export function FlowVersioningDemo() {
       before={
         <Chrome title="Flow Canvas">
           <div className="space-y-3">
-            <Button
+            <button
               type="button"
               onClick={() => setPublishedOld(true)}
-              variant="outline"
+              className="rounded-lg border border-border bg-muted px-3 py-2 text-[13px] font-semibold"
             >
               Publish
-            </Button>
+            </button>
             {publishedOld ? (
               <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-700 dark:text-red-300">
                 Published. The previous rules are gone — changing your mind means
@@ -71,11 +69,11 @@ export function FlowVersioningDemo() {
           <div className="flex gap-3">
             <div className="w-36 shrink-0 space-y-1">
               {versions.map((v) => (
-                <Button
+                <button
                   key={v.id}
                   type="button"
                   onClick={() => setViewing(v.id)}
-                  variant="ghost" className={`h-auto block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${
+                  className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${
                     viewing === v.id
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:bg-muted/60"
@@ -87,7 +85,7 @@ export function FlowVersioningDemo() {
                       Editing
                     </span>
                   )}
-                </Button>
+                </button>
               ))}
             </div>
             <div className="min-w-0 flex-1 space-y-2">
@@ -101,19 +99,19 @@ export function FlowVersioningDemo() {
                     Viewing {viewing} — read only. {versions.find((v) => v.id === viewing)?.note}.
                   </p>
                   <div className="flex gap-2">
-                    <Button
+                    <button
                       type="button"
                       onClick={() => setViewing("draft")}
-                      variant="outline"
+                      className="rounded-lg border border-border px-3 py-1.5 text-[13px] font-semibold"
                     >
                       ← Back to draft
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       type="button"
-                      variant="outline"
+                      className="rounded-lg border border-border bg-muted px-3 py-1.5 text-[13px] font-semibold"
                     >
                       Revert to this version
-                    </Button>
+                    </button>
                   </div>
                 </div>
               )}
@@ -171,14 +169,14 @@ export function CrmBoardDemo() {
                   {stage}
                 </p>
                 {BOARD_SORS.filter((s) => s.stage === stage).map((s) => (
-                  <Button
+                  <button
                     key={s.id}
                     type="button"
                     onClick={() => setRefused(true)}
-                    variant="ghost" className={`h-auto ${cardClass} block w-full cursor-not-allowed text-left`}
+                    className={`${cardClass} block w-full cursor-not-allowed text-left`}
                   >
                     {s.id}
-                  </Button>
+                  </button>
                 ))}
               </div>
             ))}
@@ -194,18 +192,18 @@ export function CrmBoardDemo() {
         <Chrome title="SORS · Board">
           <div className="mb-2 flex items-center gap-1.5">
             {Object.keys(FLOWS).map((name) => (
-              <Button
+              <button
                 key={name}
                 type="button"
                 onClick={() => setFlow(name)}
-                variant="ghost" className={`h-auto rounded-lg px-2.5 py-1 text-[12px] font-bold transition-colors ${
+                className={`rounded-lg px-2.5 py-1 text-[12px] font-bold transition-colors ${
                   flow === name
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted/60"
                 }`}
               >
                 {name}
-              </Button>
+              </button>
             ))}
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -285,27 +283,27 @@ export function StageFieldsDemo() {
             {picking ? (
               <div className="flex flex-wrap gap-1.5">
                 {AVAILABLE_FIELDS.filter((f) => !fields.includes(f)).map((f) => (
-                  <Button
+                  <button
                     key={f}
                     type="button"
                     onClick={() => {
                       setFields((prev) => [...prev, f])
                       setPicking(false)
                     }}
-                    variant="outline"
+                    className="rounded-lg border border-border px-2.5 py-1.5 text-[13px] font-semibold hover:bg-muted"
                   >
                     {f}
-                  </Button>
+                  </button>
                 ))}
               </div>
             ) : (
-              <Button
+              <button
                 type="button"
                 onClick={() => setPicking(true)}
-                variant="outline"
+                className="rounded-lg border border-border bg-muted px-3 py-1.5 text-[13px] font-semibold"
               >
                 + Add a field
-              </Button>
+              </button>
             )}
           </div>
         </Chrome>
@@ -325,13 +323,13 @@ export function BlockedMoveDemo() {
       note="The same information, moved to before the click instead of after it."
       before={
         <Chrome title="SOR S07971">
-          <Button
+          <button
             type="button"
             onClick={() => setToast(true)}
-            variant="outline" className="w-full"
+            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold"
           >
             Move to Bidding
-          </Button>
+          </button>
           {toast && (
             <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-700 dark:text-red-300">
               Cannot move: ITB Number is required.
@@ -344,13 +342,13 @@ export function BlockedMoveDemo() {
       }
       after={
         <Chrome title="SOR S07971">
-          <Button
+          <button
             type="button"
             disabled
-            variant="outline" className="w-full opacity-60"
+            className="w-full cursor-not-allowed rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold opacity-60"
           >
             Move to Bidding
-          </Button>
+          </button>
           <p className="mt-2 text-[13px] font-semibold text-amber-800 dark:text-amber-200">
             Needs ITB Number — asked on this Stage.
           </p>
@@ -427,18 +425,18 @@ export function LoginDemo() {
       note="The magic link still works. It is no longer the only way in, and a reset link is no longer spent before the person clicks it."
       before={
         <Chrome title="Sign in">
-          <Input
+          <input
             readOnly
             value="sean@t3ckgroup.com"
-            containerClassName="mb-2 w-full"
+            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
           />
-          <Button
+          <button
             type="button"
             onClick={() => setSent(true)}
-            variant="outline" className="w-full"
+            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold"
           >
             Send magic link
-          </Button>
+          </button>
           <p className="pt-3 text-[13px] text-muted-foreground">
             {sent
               ? "Sent. If the email is slow or missing, nobody works."
@@ -448,23 +446,23 @@ export function LoginDemo() {
       }
       after={
         <Chrome title="Sign in">
-          <Input
+          <input
             readOnly
             value="sean@t3ckgroup.com"
-            containerClassName="mb-2 w-full"
+            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
           />
-          <Input
+          <input
             readOnly
             type="password"
             value="password"
-            containerClassName="mb-2 w-full"
+            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
           />
-          <Button
+          <button
             type="button"
-            variant="ghost" className="w-full h-auto justify-start"
+            className="w-full rounded-lg border-2 border-emerald-500/30 bg-muted px-3 py-2 text-[14px] font-bold"
           >
             Sign in
-          </Button>
+          </button>
           <p className="pt-3 text-[13px] text-muted-foreground">
             Or email me a link instead.
           </p>

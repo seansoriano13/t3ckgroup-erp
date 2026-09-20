@@ -6,10 +6,6 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -54,12 +50,12 @@ export default function CommissionRatesManager() {
           </h2>
         </div>
         {!isAdding && (
-          <Button
+          <button
             onClick={() => setIsAdding(true)}
-            variant="link"
+            className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors"
           >
             <Plus size={14} /> Add Rate
-          </Button>
+          </button>
         )}
       </div>
 
@@ -70,53 +66,56 @@ export default function CommissionRatesManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20 flex-wrap"
           >
             <div className="space-y-1">
-              <FieldBox bare label="Type">
-<Select
-  options={[...Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value: value, label: label }))]}
-  value={rateType}
-  onChange={(next) => setRateType(next)}
-/>
-</FieldBox>
+              <label className="text-xs font-bold text-muted-foreground">Type</label>
+              <select
+                value={rateType}
+                onChange={(e) => setRateType(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                {Object.entries(RATE_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
-              <FieldBox bare label="Percent">
-<Input
+              <label className="text-xs font-bold text-muted-foreground">Percent</label>
+              <input
                 type="number"
                 step="0.001"
                 value={percent}
                 onChange={(e) => setPercent(e.target.value)}
                 placeholder="e.g. 12"
-                className="h-9" containerClassName="w-28"
+                className="w-28 h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 required
               />
-</FieldBox>
             </div>
             <div className="space-y-1">
-              <FieldBox bare label="Effective From">
-<Input
+              <label className="text-xs font-bold text-muted-foreground">Effective From</label>
+              <input
                 type="date"
                 value={effectiveFrom}
                 onChange={(e) => setEffectiveFrom(e.target.value)}
-                className="h-9"
+                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                 required
               />
-</FieldBox>
             </div>
             <div className="flex items-center gap-2">
-              <Button
+              <button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                variant="outline"
+                className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
                 type="submit"
                 disabled={addMutation.isPending}
-                variant="default"
+                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 Save
-              </Button>
+              </button>
             </div>
           </form>
         )}

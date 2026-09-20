@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { salesFlowService } from "../../services/salesFlowService";
 import { stagesReachableFrom } from "../../utils/stageGraph";
 import { ACCESS_WINDOW_RULES, NEEDS_LATER_STAGE, accessWindowSummary } from "../../utils/stageAudience";
-import { Select } from "@/components/ui/select";
 
 /**
  * Issue #294 — the shared `access: {until, stageId}` sub-form used by both an
@@ -58,25 +57,40 @@ export default function AccessWindowConfig({
       <p className="mb-2 text-[11px] leading-snug text-foreground">
         <span className="font-bold">{subjectLabel || "Whoever this calls in"}</span> can read:
       </p>
-      <Select
-  options={[...Object.entries(ACCESS_WINDOW_RULES).map(([ruleValue, meta]) => ({ value: ruleValue, label: meta.label(meta.needsStage ? stageNameById[value?.stageId] : null) }))]}
-  value={until}
-  onChange={(next) => setUntil(next)}
-  disabled={disabled}
-  aria-label="Access window rule"
-  className="w-full"
-/>
+      <select
+        aria-label="Access window rule"
+        disabled={disabled}
+        value={until}
+        onChange={(e) => setUntil(e.target.value)}
+        className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-70"
+      >
+        {/* Both later-Stage options name the chosen Stage, so "until Delivery
+            begins" and "through Delivery" sit side by side and the difference
+            between them is impossible to miss. */}
+        {Object.entries(ACCESS_WINDOW_RULES).map(([ruleValue, meta]) => (
+          <option key={ruleValue} value={ruleValue}>
+            {meta.label(meta.needsStage ? stageNameById[value?.stageId] : null)}
+          </option>
+        ))}
+      </select>
 
       {NEEDS_LATER_STAGE.has(until) && (
-        <Select
-  options={[...laterStageOptions.map((stage) => ({ value: stage.id, label: stage.name }))]}
-  value={value?.stageId || ""}
-  onChange={(next) => onChange({ until, stageId: next || undefined })}
-  placeholder="Choose a later Stage…"
-  disabled={disabled}
-  aria-label="Later Stage"
-  className="mt-2 w-full"
-/>
+        <select
+          aria-label="Later Stage"
+          disabled={disabled}
+          value={value?.stageId || ""}
+          onChange={(e) => onChange({ until, stageId: e.target.value || undefined })}
+          className="mt-2 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          <option value="" disabled>
+            Choose a later Stage…
+          </option>
+          {laterStageOptions.map((stage) => (
+            <option key={stage.id} value={stage.id}>
+              {stage.name}
+            </option>
+          ))}
+        </select>
       )}
 
       {/* What the label cannot say: which Stages in between come with it.

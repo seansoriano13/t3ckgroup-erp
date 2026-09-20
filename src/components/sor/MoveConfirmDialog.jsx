@@ -8,9 +8,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Issue #206 — the confirmation a Board drag opens before it commits.
@@ -96,19 +93,18 @@ export default function MoveConfirmDialog({
 
           {isLostTarget && (
             <div className="rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-              <FieldBox bare label={<>
+              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                 Reason
                 <span className="ml-0.5 text-red-500">*</span>
-              </>}>
-<Textarea
+              </label>
+              <textarea
                 autoFocus
                 rows={2}
                 value={lostReason}
                 onChange={(e) => setLostReason(e.target.value)}
                 placeholder="Why was this deal lost?"
-                className="w-full resize-none bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50 min-h-0 border-0 rounded-none p-0"
+                className="w-full resize-none bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
               />
-</FieldBox>
             </div>
           )}
 
@@ -119,19 +115,19 @@ export default function MoveConfirmDialog({
           )}
 
           <div className="mt-1 flex items-center justify-end gap-2">
-            <Button
+            <button
               onClick={handleClose}
-              variant="ghost" className="h-auto"
+              className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               disabled={confirmDisabled}
               onClick={() => moveMutation.mutate()}
-              variant="default"
+              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               Confirm move
-            </Button>
+            </button>
           </div>
         </div>
       </DialogContent>

@@ -32,8 +32,6 @@ import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import Dot from "./ui/Dot";
 import { handleNotificationRoute } from "../utils/notificationRouter";
 import { showNotificationPopup } from "../utils/notificationPopup";
-import { Button } from "@/components/ui/button";
-import { Drawer } from "@/components/ui/drawer";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
 function getRelativeTime(dateStr) {
@@ -245,7 +243,19 @@ export default function NotificationDrawer({ isOpen, onClose }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} side="right" className="max-w-[500px]">
+    <>
+      {/* Backdrop */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-99"
+          onClick={onClose}
+        />
+      )}
+
+      {/* Drawer */}
+      <div
+        className={`fixed top-0 right-0 h-full w-[500px] max-w-full bg-card border-l border-border shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`}
+      >
         {/* Header */}
         <div className="p-6 border-b border-border flex justify-between items-center bg-card shrink-0">
           <div>
@@ -257,24 +267,24 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button
+            <button
               onClick={() => markAllReadMutation.mutate()}
-              variant="outline"
+              className="text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border px-2 py-1 rounded-md uppercase tracking-tight"
             >
               Mark All Read
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => markAllUnreadMutation.mutate()}
-              variant="outline"
+              className="text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-border px-2 py-1 rounded-md uppercase tracking-tight"
             >
               Mark All Unread
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={onClose}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-full transition-colors"
             >
               <X size={20} />
-            </Button>
+            </button>
           </div>
         </div>
 
@@ -323,7 +333,8 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             ))
           )}
         </div>
-    </Drawer>
+      </div>
+    </>
   );
 }
 
@@ -408,11 +419,11 @@ function NotifItem({
             usePortal={true}
             popoverClassName="bg-card border border-border rounded-xl shadow-2xl z-[10001] popover-enter"
             trigger={({ isOpen }) => (
-              <Button
-                variant="ghost" className={`h-auto p-1.5 rounded-full hover:bg-muted transition-colors ${isOpen ? "bg-muted text-foreground" : "text-muted-foreground"}`}
+              <button
+                className={`p-1.5 rounded-full hover:bg-muted transition-colors ${isOpen ? "bg-muted text-foreground" : "text-muted-foreground"}`}
               >
                 <MoreHorizontal size={16} />
-              </Button>
+              </button>
             )}
           >
             {({ close }) => (
@@ -421,39 +432,39 @@ function NotifItem({
                 onClick={(e) => e.stopPropagation()}
               >
                 {!notif.is_read ? (
-                  <Button
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onMarkRead();
                       close();
                     }}
-                    variant="ghost" className="text-left h-auto justify-start"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-foreground hover:bg-muted transition-colors text-left"
                   >
                     <MailOpen size={14} /> Mark as read
-                  </Button>
+                  </button>
                 ) : (
-                  <Button
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onMarkUnread();
                       close();
                     }}
-                    variant="ghost" className="text-left h-auto justify-start"
+                    className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-foreground hover:bg-muted transition-colors text-left"
                   >
                     <MailWarning size={14} /> Mark as unread
-                  </Button>
+                  </button>
                 )}
                 <div className="h-px bg-border my-1" />
-                <Button
+                <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onDelete();
                     close();
                   }}
-                  variant="ghost" className="text-left"
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-red-500 hover:bg-red-500/10 transition-colors text-left"
                 >
                   <Trash2 size={14} /> Delete
-                </Button>
+                </button>
               </div>
             )}
           </Dropdown>

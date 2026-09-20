@@ -16,16 +16,14 @@ import {
   ITB_EXEMPT_LABEL,
 } from "../../../constants/sor";
 import { deriveProjectType } from "../../../utils/commission";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }) {
   if (isEditing) {
     return (
       <div className={`bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all ${wrapperClass}`}>
-        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
           {label}
-        </span>
+        </label>
         {control}
       </div>
     );
@@ -97,27 +95,6 @@ function PeopleRoster({ opportunity }) {
   );
 }
 
-const QUOTE_BTN =
-  "flex items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background text-[12px] font-semibold shadow-xs transition-colors enabled:hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
-
-/**
- * One line, never cut: the figure scales to the card it sits in (container
- * query units, not viewport breakpoints), from 36px down to 18px. 0.6em is a
- * safe per-character width for this face at black weight with tabular digits.
- */
-function EstimatedValue({ text, dimmed }) {
-  return (
-    <div className="@container">
-      <p
-        className={cn("whitespace-nowrap font-black leading-tight tracking-tight text-foreground tabular-nums", dimmed && "opacity-80")}
-        style={{ fontSize: `clamp(1.125rem, calc(100cqw / ${(text.length * 0.6).toFixed(2)}), 2.25rem)` }}
-      >
-        {text}
-      </p>
-    </div>
-  );
-}
-
 function formatLongDate(dateString) {
   if (!dateString) return "";
   return new Date(dateString).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -150,6 +127,7 @@ export default function DetailsTab({ ctx }) {
     requiresInclusions,
     requiresPurchasing,
     estimatedValueDisplay,
+    estimatedValueSize,
     buildingLink,
     handlePreviewQuotation,
     handleCopyQuotationLink,
@@ -167,12 +145,9 @@ export default function DetailsTab({ ctx }) {
   // card, no Quotation Document actions (a priced document), and no
   // commission footer at all, not one with its figures hidden.
   const showMoney = accessLevel !== "participant";
-  const hasSalesReference = !!opportunity.sales_reference;
-  // Whole-peso values drop ".00": it is the widest, least informative part of the figure.
-  const valueText = estimatedValueDisplay.replace(/\.00$/, "");
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-7 p-6">
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-4">
           <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden divide-y divide-border/60">
@@ -182,55 +157,56 @@ export default function DetailsTab({ ctx }) {
                   <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
                   {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
-                <EstimatedValue text={valueText} dimmed={isEditing} />
-                {isEditing && <p className="mt-1.5 text-[10px] font-medium italic text-muted-foreground/70">Auto-calculated from Product List</p>}
+                {isEditing ? (
+                  <div>
+                    <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums opacity-80", estimatedValueSize)}>
+                      {estimatedValueDisplay}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground/70 mt-1 font-medium italic">Auto-calculated from Product List</p>
+                  </div>
+                ) : (
+                  <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>{estimatedValueDisplay}</p>
+                )}
               </div>
             )}
 
-            {showMoney && !isEditing && (
-              <div className="space-y-2 bg-muted/15 p-5">
-                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
+            {showMoney && !isEditing && opportunity.sales_reference && (
+              <div className="p-4 bg-muted/15 space-y-2">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground mb-1">
                   <span>Quotation Document</span>
-                  {hasSalesReference ? (
-                    <span className="font-mono text-primary">{opportunity.sales_reference}</span>
-                  ) : (
-                    <span className="font-medium text-muted-foreground/70">No Sales Reference</span>
-                  )}
+                  <span className="font-mono text-primary">{opportunity.sales_reference}</span>
                 </div>
                 <div className="flex gap-2">
-                  <Button
+                  <button
                     type="button"
-                    disabled={buildingLink || !hasSalesReference}
+                    disabled={buildingLink}
                     onClick={handlePreviewQuotation}
-                    variant="ghost" className={cn(QUOTE_BTN, "flex-1 px-3 py-2 text-foreground")}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
                   >
                     {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={13} />}
                     <span>Preview Quote</span>
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
-                    disabled={buildingLink || !hasSalesReference}
+                    disabled={buildingLink}
                     onClick={handleCopyQuotationLink}
                     title="Copy customer quotation link"
                     aria-label="Copy customer quotation link"
-                    variant="ghost" className={cn(QUOTE_BTN, "px-2.5 text-muted-foreground enabled:hover:text-foreground")}
+                    className="flex items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                   >
                     <Link2 size={13} />
-                  </Button>
+                  </button>
                 </div>
-                <Button
+                <button
                   type="button"
-                  disabled={!!downloadStep || !hasSalesReference}
+                  disabled={!!downloadStep}
                   onClick={handleDownloadQuotation}
-                  variant="ghost" className={cn(QUOTE_BTN, "w-full px-3 py-2 text-foreground")}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
                 >
                   {downloadStep ? <Spinner size="sm" /> : <FileDown size={13} />}
                   <span>Download Full PDF</span>
-                </Button>
+                </button>
                 {downloadStep && <p className="truncate text-center text-[10.5px] font-medium text-muted-foreground">{downloadStep}</p>}
-                {!hasSalesReference && (
-                  <p className="pt-1 text-[11px] leading-snug text-muted-foreground">Add a Sales Reference to preview, copy or download the quotation.</p>
-                )}
               </div>
             )}
 
@@ -399,7 +375,7 @@ export default function DetailsTab({ ctx }) {
         </div>
 
         <div className="flex flex-col gap-6 lg:col-span-8">
-          <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
+          <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
             <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
             <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3", isExpanded && "xl:grid-cols-4")}>
               <Detail
@@ -436,11 +412,11 @@ export default function DetailsTab({ ctx }) {
                   label="Referral"
                   isEditing={isEditing}
                   control={
-                    <Input
+                    <input
                       type="text"
                       value={editForm.lead_source_detail}
                       onChange={(e) => setEditForm((f) => ({ ...f, lead_source_detail: e.target.value }))}
-                      className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
+                      className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                       placeholder="Specify..."
                     />
                   }
@@ -464,7 +440,7 @@ export default function DetailsTab({ ctx }) {
                     >
                       {PROJECT_TYPE_LABELS[editForm.project_type] || editForm.project_type}
                     </span>
-                    <Button
+                    <button
                       type="button"
                       onClick={() =>
                         setEditForm((prev) => ({
@@ -475,7 +451,7 @@ export default function DetailsTab({ ctx }) {
                               : "STRATEGIC",
                         }))
                       }
-                      variant="ghost" className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${
                         editForm.project_type === "STRATEGIC"
                           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                           : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
@@ -483,7 +459,7 @@ export default function DetailsTab({ ctx }) {
                       title="Toggle Strategic project override"
                     >
                       {editForm.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
-                    </Button>
+                    </button>
                   </div>
                 }
               >
@@ -578,12 +554,12 @@ export default function DetailsTab({ ctx }) {
                 label="Contact Person"
                 isEditing={isEditing}
                 control={
-                  <Input
+                  <input
                     type="text"
                     required
                     value={editForm.contact_person}
                     onChange={(e) => setEditForm((f) => ({ ...f, contact_person: e.target.value }))}
-                    className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
+                    className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                     placeholder="e.g. Juan Dela Cruz"
                   />
                 }
@@ -598,24 +574,24 @@ export default function DetailsTab({ ctx }) {
                     isEditing={true}
                     wrapperClass="flex-1"
                     control={
-                      <Input
+                      <input
                         type="text"
                         value={editForm.sales_reference}
                         onChange={(e) => setEditForm((f) => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
-                        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm font-mono text-foreground placeholder:text-muted-foreground/50 font-medium uppercase" containerClassName="w-full"
+                        className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
                         placeholder="e.g. S01237"
                       />
                     }
                   />
-                  <Button
+                  <button
                     type="button"
                     disabled={fetchingOdoo || !editForm.sales_reference}
                     onClick={handleFetchFromOdoo}
-                    variant="outline" className="h-full min-h-[66px] shrink-0"
+                    className="h-full min-h-[66px] px-4 rounded-xl border border-border flex items-center gap-2 text-[13px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
                   >
                     {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
                     <span className="hidden sm:inline">Fetch Items</span>
-                  </Button>
+                  </button>
                 </div>
               ) : (
                 <Detail label="Sales Reference">

@@ -24,8 +24,6 @@ import HRFilters from "../../../components/HRFilters";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
-import { Select } from "@/components/ui/select";
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -243,48 +241,54 @@ export default function EmployeeManagement() {
                   uniqueStatuses={uniqueStatuses}
                 />
               </div>
-              <Select
-  options={[{ value: "ALL", label: "All companies" }, { value: "NONE", label: "No company set" }, ...companies.map((c) => ({ value: c.id, label: c.name }))]}
-  value={companyFilter}
-  onChange={(next) => setCompanyFilter(next)}
-  title="Filter by company"
-/>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="h-[46px] px-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
+                title="Filter by company"
+              >
+                <option value="ALL">All companies</option>
+                <option value="NONE">No company set</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
-              <Table >
-                <TableHeader>
-                  <TableRow >
-                    <TableHead >Name</TableHead>
-                    <TableHead >Email</TableHead>
-                    <TableHead >Department</TableHead>
-                    <TableHead >Sub-Dept</TableHead>
-                    <TableHead >Role</TableHead>
-                    <TableHead >Status</TableHead>
-                    <TableHead >Company</TableHead>
-                    <TableHead >Balances</TableHead>
-                    <TableHead >Role Flags</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody >
+              <table className="w-full text-left border-collapse whitespace-nowrap">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
+                    <th className="p-4">Name</th>
+                    <th className="p-4">Email</th>
+                    <th className="p-4">Department</th>
+                    <th className="p-4">Sub-Dept</th>
+                    <th className="p-4">Role</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Company</th>
+                    <th className="p-4">Balances</th>
+                    <th className="p-4">Role Flags</th>
+                    <th className="p-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
                   {isLoading ? (
-                    <TableRow>
-                      <TableCell
+                    <tr>
+                      <td
                         colSpan="7"
-                        className="text-center"
+                        className="p-10 text-center text-muted-foreground font-bold"
                       >
                         <Spinner size="md" />
                         Loading employees...
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ) : filteredEmployees.length > 0 ? (
                     filteredEmployees.map((emp) => (
-                      <TableRow
+                      <tr
                         key={emp.id}
-                        className="hover:bg-muted/30"
+                        className="hover:bg-muted/30 transition-colors"
                       >
-                        <TableCell >
+                        <td className="p-4 text-sm font-bold text-foreground flex items-center gap-3">
                           <Avatar
                             src={resolvedAvatars[emp.id]}
                             name={emp.name}
@@ -303,30 +307,30 @@ export default function EmployeeManagement() {
                               {emp.id?.slice(0, 8)}...
                             </p>
                           </div>
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-sm text-muted-foreground">
                           <HighlightText text={emp.email} search={searchTerm} />
-                        </TableCell>
+                        </td>
 
-                        <TableCell >
+                        <td className="p-4 text-sm text-muted-foreground">
                           <HighlightText
                             text={emp.department || "-"}
                             search={searchTerm}
                           />
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-sm text-muted-foreground">
                           <HighlightText
                             text={emp.subDepartment || "-"}
                             search={searchTerm}
                           />
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-sm text-foreground font-semibold">
                           <HighlightText
                             text={emp.role || "-"}
                             search={searchTerm}
                           />
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-sm">
                           {emp.employment_status ? (
                             <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
                                 emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
@@ -337,8 +341,8 @@ export default function EmployeeManagement() {
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
                           )}
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-sm">
                           {emp.company?.name ? (
                             <span className="text-muted-foreground">{emp.company.name}</span>
                           ) : (
@@ -346,8 +350,8 @@ export default function EmployeeManagement() {
                               No company
                             </span>
                           )}
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4">
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                               SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
@@ -356,8 +360,8 @@ export default function EmployeeManagement() {
                               OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
                             </span>
                           </div>
-                        </TableCell>
-                        <TableCell >
+                        </td>
+                        <td className="p-4 text-xs flex gap-1">
                           {emp.isSuperAdmin && (
                             <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider">
                               <Shield size={11} /> Super Admin
@@ -391,46 +395,46 @@ export default function EmployeeManagement() {
                               <KeyRound size={11} /> Issued Password
                             </span>
                           )}
-                        </TableCell>
-                        <TableCell className="text-right">
+                        </td>
+                        <td className="p-4 text-right space-x-2">
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
-                            <Button
+                            <button
                               onClick={() => handleReissuePassword(emp)}
-                              variant="outline" className="inline-block"
+                              className="p-2 bg-amber-2 hover:bg-amber-3 text-amber-11 rounded-xl transition-all inline-block border border-transparent hover:border-amber-6"
                               title="Reissue Password"
                             >
                               <KeyRound size={15} />
-                            </Button>
+                            </button>
                           )}
-                          <Button
+                          <button
                             onClick={() => handleEdit(emp)}
-                            variant="outline" className="inline-block"
+                            className="p-2 bg-muted hover:bg-muted/70 text-foreground rounded-xl transition-all inline-block hover:border-mauve-5 border border-transparent"
                             title="Edit Employee"
                           >
                             <Edit size={15} />
-                          </Button>
-                          <Button
+                          </button>
+                          <button
                             onClick={() => handleDelete(emp.id)}
-                            variant="destructive" className="inline-block"
+                            className="p-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-xl transition-all inline-block border border-transparent hover:border-destructive/20"
                             title="Delete Employee"
                           >
                             <Trash2 size={15} />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
+                          </button>
+                        </td>
+                      </tr>
                     ))
                   ) : (
-                    <TableRow>
-                      <TableCell
+                    <tr>
+                      <td
                         colSpan="7"
-                        className="text-center"
+                        className="p-10 text-center text-muted-foreground font-bold italic text-sm"
                       >
                         No employees found.
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   )}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           </div>
         ) : activeTab === "categories" ? (

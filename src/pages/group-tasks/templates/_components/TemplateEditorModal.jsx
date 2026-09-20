@@ -12,8 +12,6 @@ import GroupTaskMemberRail from "../../_components/GroupTaskMemberRail";
 import GroupTaskMemberPanel from "../../_components/GroupTaskMemberPanel";
 import { makeMemberDraft } from "../../utils/templateApply";
 import { cleanChecklistForSave } from "@/utils/checklist";
-import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 
 /**
  * TemplateEditorModal — create/edit a Group Task Template.
@@ -199,13 +197,13 @@ export default function TemplateEditorModal({
                 {isEditing ? "Edit Template" : "New Template"}
               </span>
             </div>
-            <Button
+            <button
               type="button"
               onClick={onClose}
-              variant="ghost" size="icon-xs"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <X size={15} />
-            </Button>
+            </button>
           </div>
 
           {isLoadingExisting ? (
@@ -220,30 +218,30 @@ export default function TemplateEditorModal({
             >
               {/* TEMPLATE-LEVEL FIELDS */}
               <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border/60">
-                <Input
+                <input
                   ref={nameRef}
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Template Name (e.g. Monthly Safety Audit)"
-                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xl font-semibold text-foreground placeholder:text-mauve-6 pb-1" containerClassName="w-full mb-2"
+                  className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
                   autoComplete="off"
                 />
 
                 <div className="flex items-start gap-6 flex-wrap">
                   <div className="flex-1 min-w-[260px] flex flex-col gap-3">
-                    <Input
+                    <input
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Default group task title (optional — leave blank to type it fresh each time)"
-                      containerClassName="w-full"
+                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors"
                     />
-                    <Textarea
+                    <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Default description (optional)…"
-                      className="h-16 resize-y"
+                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-16 resize-y"
                     />
                   </div>
 
@@ -251,12 +249,12 @@ export default function TemplateEditorModal({
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                       Due In (Days)
                     </span>
-                    <Input
+                    <input
                       type="number"
                       value={dueDateOffsetDays}
                       onChange={(e) => setDueDateOffsetDays(e.target.value)}
                       placeholder="Optional — e.g. 3"
-                      containerClassName="w-40"
+                      className="bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-40"
                     />
                   </div>
                 </div>

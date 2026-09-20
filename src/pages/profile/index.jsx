@@ -25,12 +25,6 @@ import SignatureCaptureModal from "../../components/profile/SignatureCaptureModa
 import { TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import Avatar from "@/components/Avatar";
-import { Image } from "@/components/ui/Image";
-import { Input } from "@/components/ui/input";
-import { FileInput } from "@/components/ui/FileInput";
 
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
@@ -334,15 +328,15 @@ export default function ProfilePage() {
         title="My Profile"
         description="Manage your employee information and access levels."
       >
-        <Button
+        <button
           type="button"
           onClick={() => savePreferencesMutation.mutate()}
           disabled={isSaving || !hasChanges}
-          variant="default" className="inline-flex"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-[11px] font-black uppercase tracking-widest shadow-sm transition disabled:opacity-70"
         >
           {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
           Save Settings
-        </Button>
+        </button>
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -350,7 +344,7 @@ export default function ProfilePage() {
         <div className="lg:col-span-1 h-full">
           <div className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3 items-center text-center shadow-sm h-full justify-center">
             <div className="relative">
-              <Image
+              <img
                 src={user?.picture || "/default-avatar.png"}
                 alt="Profile"
                 className="w-24 h-24 rounded-full border border-border shadow-sm mb-3 object-cover"
@@ -380,14 +374,14 @@ export default function ProfilePage() {
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
                 <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
               </p>
-              <Button
+              <button
                 type="button"
                 onClick={handleChangePassword}
                 disabled={isSendingPasswordReset}
-                variant="ghost" className="mt-3 h-auto"
+                className="mt-3 text-xs font-bold text-foreground hover:underline disabled:opacity-60"
               >
                 {isSendingPasswordReset ? "Sending..." : "Change Password"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -451,19 +445,19 @@ export default function ProfilePage() {
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
                 Signature
               </h3>
-              <Button
+              <button
                 type="button"
                 onClick={() => setSignatureModalOpen(true)}
-                variant="outline" className="inline-flex"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border cursor-pointer"
               >
                 <PenLine size={14} /> {user?.signaturePath ? "Replace" : "Add Signature"}
-              </Button>
+              </button>
             </div>
             <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)] min-h-[100px] flex items-center justify-center">
               {isSignatureLoading ? (
                 <Spinner size="sm" />
               ) : signatureUrl ? (
-                <Image src={signatureUrl} alt="Your signature" className="max-h-24 max-w-[80%] object-contain" />
+                <img src={signatureUrl} alt="Your signature" className="max-h-24 max-w-[80%] object-contain" />
               ) : (
                 <p className="text-xs text-muted-foreground font-medium">No signature on file yet.</p>
               )}
@@ -531,7 +525,7 @@ export default function ProfilePage() {
                 Live Preview
               </p>
               <div className="relative rounded-lg overflow-hidden h-28 border border-border">
-                <Image
+                <img
                   src={bannerPreviewUrl || "/leaf-background.jpg"}
                   alt="Banner preview"
                   className="absolute inset-0 w-full h-full object-cover"
@@ -561,43 +555,53 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button
+                  <button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
-                    variant="outline" className="inline-flex"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 text-[10px] font-black transition border border-border uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
                       setAvatarFile(null);
                       setRemoveAvatar(true);
                     }}
                     disabled={isUsingDefaultAvatar}
-                    variant="outline" className="inline-flex"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
-                  </Button>
+                  </button>
                 </div>
               </div>
 
               <div className="flex items-center gap-3">
-                <Avatar size="lg" name={user?.name} src={avatarPreviewUrl || "/default-avatar.png"} />
+                <img
+                  src={avatarPreviewUrl || "/default-avatar.png"}
+                  alt="Avatar preview"
+                  className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"
+                />
                 <span className="text-xs text-muted-foreground font-medium">
                   Profile photo preview (
                   {isUsingDefaultAvatar ? "Default" : "Custom"})
                 </span>
               </div>
-              <FileInput ref={avatarInputRef} accept="image/*" onFiles={(files) => {
-                  const selected = files?.[0];
+              <input
+                ref={avatarInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const selected = e.target.files?.[0];
                   if (!selected) return;
                   // Reset input so same file can be re-selected after cancel
-                  
+                  e.target.value = "";
                   setPendingAvatarFile(selected);
                   setCropModalOpen(true);
                   setRemoveAvatar(false);
-                }} />
+                }}
+              />
             </div>
 
             <div className="space-y-4 rounded-xl border border-border bg-card p-5">
@@ -611,14 +615,14 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <Button
+                  <button
                     type="button"
                     onClick={() => bannerInputRef.current?.click()}
-                    variant="outline" className="inline-flex"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border"
                   >
                     <UploadCloud size={14} /> Upload
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
                       const randomBanner =
@@ -631,11 +635,11 @@ export default function ProfilePage() {
                       setBannerFile(null);
                       setRemoveBanner(false);
                     }}
-                    variant="outline" className="inline-flex"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border"
                   >
                     Random
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     type="button"
                     onClick={() => {
                       setBannerFile(null);
@@ -643,18 +647,24 @@ export default function ProfilePage() {
                       setRemoveBanner(true);
                     }}
                     disabled={isUsingDefaultBanner}
-                    variant="outline" className="inline-flex"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
                   >
                     Reset
-                  </Button>
+                  </button>
                 </div>
               </div>
-              <FileInput ref={bannerInputRef} accept="image/*" onFiles={(files) => {
-                  setBannerFile(files?.[0] || null);
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  setBannerFile(e.target.files?.[0] || null);
                   setBannerUrlInput("");
                   setRemoveBanner(false);
-                }} />
-              <Input
+                }}
+              />
+              <input
                 type="url"
                 value={bannerUrlInput}
                 onChange={(e) => {
@@ -662,7 +672,7 @@ export default function ProfilePage() {
                   setBannerFile(null);
                   setRemoveBanner(false);
                 }}
-                containerClassName="w-full"
+                className="w-full rounded-full border border-border bg-muted/20 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-mauve-8/40 transition-all"
                 placeholder="Paste Unsplash image URL"
               />
             </div>
@@ -682,11 +692,11 @@ export default function ProfilePage() {
                 <span className="text-[11px] text-mauve-8 mr-1 font-semibold">
                   {quoteLength}/100
                 </span>
-                <Button
+                <button
                   type="button"
                   onClick={() => generateQuoteMutation.mutate()}
                   disabled={generateQuoteMutation.isPending}
-                  variant="outline" className="inline-flex"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-foreground text-[10px] font-black uppercase tracking-widest transition border border-border disabled:opacity-70"
                 >
                   {generateQuoteMutation.isPending ? (
                     <Spinner size="sm" />
@@ -694,28 +704,28 @@ export default function ProfilePage() {
                     <Sparkles size={14} />
                   )}
                   Random
-                </Button>
-                <Button
+                </button>
+                <button
                   type="button"
                   onClick={() => {
                     setCustomQuote("");
                     setRemoveQuote(true);
                   }}
                   disabled={isUsingDefaultQuote}
-                  variant="outline" className="inline-flex"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
                 >
                   Reset
-                </Button>
+                </button>
               </div>
             </div>
-            <Textarea
+            <textarea
               value={customQuote}
               maxLength={100}
               onChange={(e) => {
                 setCustomQuote(e.target.value);
                 setRemoveQuote(false);
               }}
-              className="min-h-[70px] resize-none"
+              className="w-full min-h-[70px] rounded-xl border border-border bg-muted/20 p-4 text-sm outline-none focus:ring-2 focus:ring-mauve-8/40 transition-all resize-none"
               placeholder="Write your 7-word motivational quote (all users)..."
             />
           </div>

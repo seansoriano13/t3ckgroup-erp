@@ -16,8 +16,6 @@ import HighlightText from "../HighlightText";
 import { getStatusTheme } from "../../constants/status";
 import { formatPHP, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -154,54 +152,54 @@ export default function EmployeeOpportunityMatrix({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <Input
+            <input
               type="text"
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs text-foreground placeholder-muted-foreground" containerClassName="w-full"
+              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
             />
             {searchTerm && (
-              <Button
+              <button
                 onClick={() => setSearchTerm("")}
-                variant="ghost" className="h-auto"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X size={12} />
-              </Button>
+              </button>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <Button
+            <button
               onClick={() => setLayoutMode("list")}
-              variant="ghost" className={`p-1 rounded transition-all ${layoutMode === "list"
+              className={`p-1 rounded transition-all ${layoutMode === "list"
                 ? "bg-card shadow-sm text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="List View"
             >
               <List size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("leaderboard")}
-              variant="ghost" className={`p-1 rounded transition-all ${layoutMode === "leaderboard"
+              className={`p-1 rounded transition-all ${layoutMode === "leaderboard"
                 ? "bg-card shadow-sm text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="Leaderboard View"
             >
               <Trophy size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("grid")}
-              variant="ghost" className={`p-1 rounded transition-all ${layoutMode === "grid"
+              className={`p-1 rounded transition-all ${layoutMode === "grid"
                 ? "bg-card shadow-sm text-red-9"
                 : "text-muted-foreground hover:text-mauve-11"
                 }`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </Button>
+            </button>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg">

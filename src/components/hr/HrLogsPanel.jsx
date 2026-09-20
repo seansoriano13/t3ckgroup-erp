@@ -26,9 +26,6 @@ import HighlightText from "../HighlightText";
 import Dot from "../ui/Dot";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 const PAGE_SIZE = 30;
 
@@ -162,35 +159,38 @@ export default function HrLogsPanel() {
               </span>
             </div>
             {hasActiveFilters && (
-              <Button
+              <button
                 type="button"
                 onClick={clearFilters}
-                variant="ghost" className="h-auto"
+                className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
               >
                 <X size={12} /> Clear
-              </Button>
+              </button>
             )}
           </div>
         </div>
 
         <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
           <div className="lg:col-span-2">
-            <FieldBox bare label="Search">
-<div className="relative flex items-center">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
+              Search
+            </label>
+            <div className="relative flex items-center">
               <Search size={13} className="absolute left-3 text-muted-foreground pointer-events-none shrink-0" />
-              <Input
+              <input
                 value={filters.search}
                 onChange={(e) => setFilters((p) => ({ ...p, search: e.target.value }))}
                 placeholder="Search log content..."
-                className="h-[40px]" containerClassName="w-full"
+                className="w-full bg-card border border-border rounded-lg pl-8 pr-3 h-[40px] md:h-[46px] text-[13px] text-foreground outline-none focus:ring-1 focus:ring-mauve-4 hover:border-border/80 transition-all placeholder:text-muted-foreground"
               />
             </div>
-</FieldBox>
           </div>
 
           <div>
-            <FieldBox bare label="Category">
-<Dropdown
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
+              Category
+            </label>
+            <Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -217,12 +217,13 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
-</FieldBox>
           </div>
 
           <div>
-            <FieldBox bare label="Action Type">
-<Dropdown
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
+              Action Type
+            </label>
+            <Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -250,12 +251,13 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
-</FieldBox>
           </div>
 
           <div>
-            <FieldBox bare label="Actor">
-<Dropdown
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
+              Actor
+            </label>
+            <Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -287,12 +289,13 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
-</FieldBox>
           </div>
 
           <div>
-            <FieldBox bare label="Employee Involved">
-<Dropdown
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
+              Employee Involved
+            </label>
+            <Dropdown
               usePortal
               className="w-full"
               trigger={({ isOpen }) => (
@@ -324,7 +327,6 @@ export default function HrLogsPanel() {
                 />
               )}
             </Dropdown>
-</FieldBox>
           </div>
         </div>
       </div>
@@ -372,9 +374,9 @@ export default function HrLogsPanel() {
             {hasActiveFilters ? "Try adjusting your filters." : "Employee, category, and leave/OT actions will show up here."}
           </p>
           {hasActiveFilters && (
-            <Button onClick={clearFilters} variant="link" className="mt-1">
+            <button onClick={clearFilters} className="text-xs font-semibold text-primary hover:underline mt-1 cursor-pointer">
               Clear filters
-            </Button>
+            </button>
           )}
         </div>
       ) : (
@@ -453,21 +455,21 @@ export default function HrLogsPanel() {
       {/* Pagination */}
       {entries.length > 0 && (
         <div className="flex items-center justify-center gap-3 pt-3 border-t border-border/40">
-          <Button
+          <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            variant="outline"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             <ChevronLeft size={14} /> Newer
-          </Button>
+          </button>
           <span className="text-[11px] font-bold text-muted-foreground">Page {page + 1}</span>
-          <Button
+          <button
             onClick={() => setPage((p) => p + 1)}
             disabled={entries.length < PAGE_SIZE}
-            variant="outline"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             Older <ChevronRight size={14} />
-          </Button>
+          </button>
         </div>
       )}
     </div>

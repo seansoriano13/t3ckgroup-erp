@@ -14,7 +14,6 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import GroupTaskCard from "../pages/group-tasks/_components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
-import { Input } from "@/components/ui/input";
 
 export default function GroupTasksList({ selectedRange }) {
   const { user } = useAuth();
@@ -64,46 +63,46 @@ export default function GroupTasksList({ selectedRange }) {
           {/* SEARCH */}
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <Input
+            <input
               type="text"
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs text-foreground placeholder-muted-foreground" containerClassName="w-full"
+              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
             />
             {searchTerm && (
-              <Button
+              <button
                 onClick={() => setSearchTerm("")}
-                variant="ghost" className="h-auto"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <X size={12} />
-              </Button>
+              </button>
             )}
           </div>
 
           {/* LAYOUT TOGGLE */}
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <Button
+            <button
               onClick={() => setLayoutMode("row")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Single Row"
             >
               <List size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("stack")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="3-Row Stack"
             >
               <Rows3 size={16} />
-            </Button>
-            <Button
+            </button>
+            <button
               onClick={() => setLayoutMode("grid")}
-              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              className={`p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </Button>
+            </button>
           </div>
 
           {/* VIEW ALL */}

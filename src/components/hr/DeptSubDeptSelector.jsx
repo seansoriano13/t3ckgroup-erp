@@ -2,9 +2,6 @@ import { useState } from "react";
 import { Building2, Info } from "lucide-react";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Reusable selection component for Department and Sub-Department with manual entry fallback.
@@ -82,16 +79,16 @@ export default function DeptSubDeptSelector({
                 }}
                 close={close}
               />
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   enableManualDept();
                   close();
                 }}
-                variant="ghost" className="w-full text-left h-auto justify-start"
+                className="w-full text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
               >
                 + Add New Department
-              </Button>
+              </button>
             </div>
           )}
         </Dropdown>
@@ -130,16 +127,16 @@ export default function DeptSubDeptSelector({
                 }}
                 close={close}
               />
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   enableManualSubDept();
                   close();
                 }}
-                variant="ghost" className="w-full text-left h-auto justify-start"
+                className="w-full text-left px-3 py-2 rounded-md text-[11px] font-bold text-mauve-10 hover:bg-mauve-2 transition-colors uppercase tracking-wider"
               >
                 + Add New Sub-Dept
-              </Button>
+              </button>
             </div>
           )}
         </Dropdown>
@@ -156,8 +153,10 @@ export default function DeptSubDeptSelector({
           </div>
           {isNewDept && (
             <div>
-              <FieldBox bare label="New Department">
-<Input
+              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
+                New Department
+              </label>
+              <input
                 required
                 type="text"
                 autoFocus
@@ -166,15 +165,16 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onDepartmentChange(e.target.value.toUpperCase())
                 }
-                containerClassName="w-full"
+                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
-</FieldBox>
             </div>
           )}
           {isNewSubDept && (
             <div>
-              <FieldBox bare label="New Sub-Department">
-<Input
+              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
+                New Sub-Department
+              </label>
+              <input
                 required
                 type="text"
                 autoFocus
@@ -183,18 +183,17 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onSubDepartmentChange(e.target.value.toUpperCase())
                 }
-                containerClassName="w-full"
+                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
-</FieldBox>
             </div>
           )}
-          <Button
+          <button
             type="button"
             onClick={cancelManual}
-            variant="ghost" className="h-auto"
+            className="text-[10px] font-bold text-mauve-10 hover:underline"
           >
             Cancel manual entry
-          </Button>
+          </button>
         </div>
       )}
     </div>

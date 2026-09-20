@@ -3,7 +3,6 @@ import { ChevronDown, ChevronRight, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Avatar from "../../Avatar";
 import { MAX_AVATARS } from "../../../constants/sorTasks";
-import { Button } from "@/components/ui/button";
 
 function formatDue(iso) {
   if (!iso) return null;
@@ -35,25 +34,25 @@ export default function TaskRow({ row }) {
   return (
     <div className="rounded-lg border border-border/60 bg-card/50">
       <div className="flex items-center gap-2 px-3 py-2">
-        <Button
+        <button
           type="button"
           onClick={() => canExpand && setExpanded((e) => !e)}
           disabled={!canExpand}
           aria-label={canExpand ? (expanded ? `Collapse ${row.title}` : `Expand ${row.title}`) : undefined}
           aria-expanded={canExpand ? expanded : undefined}
-          variant="ghost" className={cn("h-auto p-0 shrink-0 text-muted-foreground", canExpand ? "cursor-pointer hover:text-foreground" : "cursor-default opacity-0")}
+          className={cn("shrink-0 text-muted-foreground", canExpand ? "cursor-pointer hover:text-foreground" : "cursor-default opacity-0")}
         >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </Button>
+        </button>
 
-        <Button
+        <button
           type="button"
           onClick={() => openTask(row)}
           title={row.title}
-          variant="ghost" className="min-w-0 flex-1 truncate text-left h-auto justify-start"
+          className="min-w-0 flex-1 truncate text-left text-xs font-semibold text-foreground hover:text-primary hover:underline"
         >
           {row.title}
-        </Button>
+        </button>
 
         <div className="flex shrink-0 -space-x-1.5">
           {row.members.slice(0, MAX_AVATARS).map((m) => (

@@ -34,11 +34,6 @@ jobs:
       - name: Lint tests
         run: pnpm lint:tests
 
-      # ADR 0025: raw covered HTML outside src/components/ui/ blocks the merge.
-      # Only this rule is a gate; the baseline is eslint-suppressions.json.
-      - name: Lint Primitives
-        run: pnpm lint:primitives
-
       # The application has a pre-existing lint backlog (~38 errors) that
       # predates this workflow. Reported so it stays visible, but not yet a
       # merge blocker — flip this to a hard gate once the backlog is cleared.

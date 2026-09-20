@@ -140,22 +140,22 @@ export default function LeaveCategoriesConfig() {
             <div key={cat.id} className={`flex items-center justify-between p-3 rounded-xl border ${cat.is_active ? 'bg-card border-border' : 'bg-muted/30 border-dashed border-border/50 opacity-75'}`}>
               <div className="flex items-center gap-3 flex-1">
                 <div className="flex flex-col -my-1">
-                  <Button
+                  <button
                     onClick={() => moveCategory(index, -1)}
                     disabled={index === 0 || reorderMutation.isPending}
-                    variant="ghost" size="icon-xs"
+                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
                     title="Move up"
                   >
                     <ChevronUp size={14} />
-                  </Button>
-                  <Button
+                  </button>
+                  <button
                     onClick={() => moveCategory(index, 1)}
                     disabled={index === categories.length - 1 || reorderMutation.isPending}
-                    variant="ghost" size="icon-xs"
+                    className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-25 disabled:cursor-not-allowed"
                     title="Move down"
                   >
                     <ChevronDown size={14} />
-                  </Button>
+                  </button>
                 </div>
                 <div className={`w-2 h-2 rounded-full ${cat.is_active ? 'bg-green-10' : 'bg-muted-foreground'}`} />
                 {editingId === cat.id ? (
@@ -176,31 +176,31 @@ export default function LeaveCategoriesConfig() {
               <div className="flex items-center gap-2 ml-4 shrink-0">
                 {editingId === cat.id ? (
                   <>
-                    <Button onClick={() => handleSaveEdit(cat.id)} variant="ghost" size="icon-xs">
+                    <button onClick={() => handleSaveEdit(cat.id)} className="p-1.5 text-green-11 hover:bg-green-3 rounded-lg transition-colors">
                       <CheckCircle2 size={16} />
-                    </Button>
-                    <Button onClick={() => setEditingId(null)} variant="ghost" size="icon-xs">
+                    </button>
+                    <button onClick={() => setEditingId(null)} className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg transition-colors">
                       <XCircle size={16} />
-                    </Button>
+                    </button>
                   </>
                 ) : (
                   <>
-                    <Button
+                    <button
                       onClick={() => {
                         setEditingId(cat.id);
                         setEditLabel(cat.label);
                       }}
-                      variant="ghost" size="icon-xs"
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
                       title="Rename Category"
                     >
                       <Edit2 size={15} />
-                    </Button>
-                    <Button
+                    </button>
+                    <button
                       onClick={() => toggleActive(cat.id, cat.label, cat.is_active)}
-                      variant="ghost" className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${cat.is_active ? 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20' : 'bg-green-3 text-green-11 border-green-6 hover:bg-green-4'}`}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${cat.is_active ? 'bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20' : 'bg-green-3 text-green-11 border-green-6 hover:bg-green-4'}`}
                     >
                       {cat.is_active ? 'Deactivate' : 'Reactivate'}
-                    </Button>
+                    </button>
                   </>
                 )}
               </div>

@@ -6,8 +6,6 @@ import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
 import { getAllOverridableEntries } from "@/constants/navigation"
 import { getPermissionContext } from "@/utils/permissions"
-import { Button } from "@/components/ui/button";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function EmployeeForm({
   initialData,
@@ -137,7 +135,7 @@ export default function EmployeeForm({
     <form id={formId} onSubmit={handleSubmit} className="space-y-5">
       {/* 1. EMPLOYEE NAME */}
       <div className="mb-2">
-        <Input
+        <input
           required
           type="text"
           placeholder="Employee Full Name"
@@ -145,7 +143,7 @@ export default function EmployeeForm({
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, name: e.target.value }))
           }
-          className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-2xl font-semibold text-foreground placeholder:text-muted-foreground/40 pb-1" containerClassName="w-full"
+          className="w-full text-2xl font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 border-none pb-1"
           autoComplete="off"
         />
       </div>
@@ -190,78 +188,81 @@ export default function EmployeeForm({
       {/* Company (issue #142) — nullable; a blank entry is filed as a blank
           on the printed forms rather than guessed. */}
       <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
-        <FieldBox bare label="Name of Company">
-<Dropdown
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+          Name of Company
+        </label>
+        <Dropdown
           usePortal={true}
           placement="bottom-start"
           trigger={({ isOpen }) => (
-            <Button
+            <button
               type="button"
-              variant="ghost" className="w-full text-left h-auto justify-start"
+              className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
             >
               {rawCompanies.find((c) => c.id === formData.companyId)?.name || (
                 <span className="text-muted-foreground/50">-- No company set --</span>
               )}
               <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-            </Button>
+            </button>
           )}
         >
           {({ close }) => (
             <div className="p-1 flex flex-col min-w-[220px]">
-              <Button
+              <button
                 type="button"
                 onClick={() => {
                   setFormData((prev) => ({ ...prev, companyId: null }))
                   close()
                 }}
-                variant="ghost" className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
                   !formData.companyId ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
                 }`}
               >
                 -- No company set --
-              </Button>
+              </button>
               {rawCompanies.map((company) => (
-                <Button
+                <button
                   key={company.id}
                   type="button"
                   onClick={() => {
                     setFormData((prev) => ({ ...prev, companyId: company.id }))
                     close()
                   }}
-                  variant="ghost" className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                  className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
                     formData.companyId === company.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
                   }`}
                 >
                   {company.name}
-                </Button>
+                </button>
               ))}
             </div>
           )}
         </Dropdown>
-</FieldBox>
       </div>
 
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox bare label="Employment Status">
-<Dropdown
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+            Employment Status
+          </label>
+          <Dropdown
             usePortal={true}
             placement="bottom-start"
             trigger={({ isOpen }) => (
-              <Button
+              <button
                 type="button"
-                variant="ghost" className="w-full text-left h-auto justify-start"
+                className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
               >
                 {formData.employment_status || <span className="text-muted-foreground/50">-- Select Status --</span>}
                 <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-              </Button>
+              </button>
             )}
           >
             {({ close }) => (
               <div className="p-1 flex flex-col min-w-[150px]">
                 {["Regular", "Probationary", "OJT"].map(status => (
-                  <Button
+                  <button
                     key={status}
                     type="button"
                     onClick={() => {
@@ -289,27 +290,26 @@ export default function EmployeeForm({
                       });
                       close();
                     }}
-                    variant="ghost" className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                    className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
                       formData.employment_status === status ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
                     }`}
                   >
                     {status}
-                  </Button>
+                  </button>
                 ))}
               </div>
             )}
           </Dropdown>
-</FieldBox>
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox bare label={<>
+          <label htmlFor="sil-balance" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
             <span>SIL Hours Balance</span>
             {hasAutoGranted && (
               <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
             )}
-          </>} htmlFor="sil-balance">
-<Input
+          </label>
+          <input
             id="sil-balance"
             type="number"
             step="0.5"
@@ -317,31 +317,31 @@ export default function EmployeeForm({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, sil_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
-</FieldBox>
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <FieldBox bare label="Offset Hours Balance">
-<Input
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
+            Offset Hours Balance
+          </label>
+          <input
             type="number"
             step="0.5"
             value={formData.offset_hours_balance}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, offset_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-sm text-foreground placeholder:text-muted-foreground/50 font-medium" containerClassName="w-full"
+            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
-</FieldBox>
         </div>
       </div>
 
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
-        <FieldBox bare label={<>
+        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
           <Shield size={12} /> System Access Rights
-        </>}>
-<div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* Dept Head */}
           <AccessSwitch
             label="Department Head"
@@ -436,7 +436,6 @@ export default function EmployeeForm({
             hoverColor="group-hover:bg-fuchsia-50"
           />
         </div>
-</FieldBox>
       </div>
 
       {/* Hidden-from-navigation override (#133-135). Presentation only: this
@@ -445,17 +444,17 @@ export default function EmployeeForm({
           current toggle state, live. */}
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
             <EyeOff size={12} /> Hidden From Navigation
-          </span>
+          </label>
           {formData.hiddenNavKeys?.length > 0 && (
-            <Button
+            <button
               type="button"
               onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
-              variant="ghost" className="h-auto"
+              className="text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
             >
               <X size={11} /> Clear all
-            </Button>
+            </button>
           )}
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">

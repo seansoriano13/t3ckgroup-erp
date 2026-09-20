@@ -4,8 +4,6 @@ import { BookmarkPlus, X, Check, Users, Calendar, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
-import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function SaveGroupTaskTemplateModal({
   isOpen,
@@ -66,34 +64,33 @@ export default function SaveGroupTaskTemplateModal({
               </p>
             </div>
           </div>
-          <Button
+          <button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
             <X size={16} />
-          </Button>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           <div className="px-6 py-5 flex flex-col gap-4">
             {/* Template Name Field */}
             <div className="flex flex-col gap-1.5">
-              <FieldBox bare label={<>
+              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 Template Name <span className="text-primary">*</span>
-              </>}>
-<Input
+              </label>
+              <input
                 ref={inputRef}
                 type="text"
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
                 placeholder="e.g., Monthly Safety Audit, Project Kickoff"
                 disabled={isSaving}
-                containerClassName="w-full"
+                className="w-full bg-muted/60 border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/15 transition-all"
                 autoComplete="off"
               />
-</FieldBox>
             </div>
 
             {/* Snapshot Summary Preview */}

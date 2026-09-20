@@ -1,8 +1,8 @@
-import { screen, waitFor, within } from "@testing-library/react"
+import { screen, waitFor } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApplyLeaveModal from "./ApplyLeaveModal"
-import { renderWithProviders, setupUser, chooseOption } from "@/test/support"
+import { renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
@@ -61,9 +61,9 @@ describe("ApplyLeaveModal", () => {
     // now the required Department Head field (issue #137), so the category
     // select (offset/SIL only) is picked out by its own placeholder option
     // instead of by position.
-    const selectField = within(form)
-      .queryAllByRole("combobox")
-      .find((c) => c.textContent.includes("Select category..."))
+    const selectField = Array.from(form.querySelectorAll("select")).find(
+      (s) => s.querySelector('option[value=""]')?.textContent === "Select category...",
+    )
 
     await user.clear(dateField)
     await user.type(dateField, date)
@@ -80,8 +80,10 @@ describe("ApplyLeaveModal", () => {
     }
     
     if (selectField) {
-      const category = categoryId ? db.rows("leave_categories").find((c) => c.id === categoryId) : defaultCategory
-      await chooseOption(user, selectField, category.label)
+      await waitFor(() => {
+        expect(selectField.options.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(selectField, categoryId || defaultCategory.id)
     }
 
     await user.clear(reasonField)
@@ -384,8 +386,18 @@ describe("ApplyLeaveModal", () => {
       await waitFor(() => {
         expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
       })
-      await chooseOption(user, screen.getAllByRole("combobox")[0], targetEmployee.name)
-      await chooseOption(user, screen.getAllByRole("combobox")[1], targetHead.name)
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(employeeSelect, targetEmployee.id)
+
+      const headSelect = screen.getAllByRole("combobox")[1]
+      await waitFor(() => {
+        expect(headSelect.children.length).toBeGreaterThan(1)
+      })
+      await user.selectOptions(headSelect, targetHead.id)
 
       const form = screen.getByRole("button", { name: /submit/i }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
@@ -430,9 +442,15 @@ describe("ApplyLeaveModal", () => {
         expect(screen.getAllByRole("combobox").length).toBeGreaterThan(0)
       })
 
-      await setupUser().click(screen.getAllByRole("combobox")[0])
-      await screen.findByRole("option", { name: "Active Worker" })
-      expect(screen.queryByRole("option", { name: "Deactivated Worker" })).not.toBeInTheDocument()
+      const employeeSelect = screen.getAllByRole("combobox")[0]
+
+      await waitFor(() => {
+        expect(employeeSelect.children.length).toBeGreaterThan(1)
+      })
+
+      const options = Array.from(employeeSelect.options).map((opt) => opt.text)
+      expect(options).toContain("Active Worker")
+      expect(options).not.toContain("Deactivated Worker")
     })
 
     it("does not show the employee selector for the self-service variant", () => {

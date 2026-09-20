@@ -2,7 +2,6 @@ import { Mic, Square } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 import toast from "react-hot-toast"
 import { useDictation } from "@/hooks/useDictation"
-import { Button } from "@/components/ui/button";
 
 /**
  * Dictate a Transcript into the DTAR task description. All of the behaviour
@@ -81,11 +80,11 @@ export default function DictateButton({ employeeId, text, phrases, onCommit }) {
 
   return (
     <div className="flex items-center gap-2 min-w-0">
-      <Button
+      <button
         type="button"
         onClick={listening ? stop : start}
         aria-label={listening ? "Stop dictating" : "Dictate description"}
-        variant="ghost" className={`h-auto mt-1 flex items-center gap-1.5 text-[11px] font-bold transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted shrink-0 ${
+        className={`mt-1 flex items-center gap-1.5 text-[11px] font-bold transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted shrink-0 ${
           listening ? "text-foreground bg-muted" : "text-muted-foreground hover:text-foreground"
         }`}
       >
@@ -101,7 +100,7 @@ export default function DictateButton({ employeeId, text, phrases, onCommit }) {
             Dictate
           </>
         )}
-      </Button>
+      </button>
 
       {listening && (
         <span className="mt-1 flex items-center gap-1.5 min-w-0 text-[11px] text-muted-foreground">

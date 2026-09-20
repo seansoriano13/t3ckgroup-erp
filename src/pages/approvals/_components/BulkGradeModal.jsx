@@ -4,7 +4,6 @@ import { X, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GradeSelector from "../../../components/GradeSelector.jsx";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function BulkGradeModal({
   isOpen,
@@ -68,13 +67,13 @@ export default function BulkGradeModal({
             </div>
             <span className="font-bold text-muted-foreground">Bulk Evaluation</span>
           </div>
-          <Button
+          <button
             type="button"
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </Button>
+          </button>
         </div>
 
         {/* BODY */}
@@ -89,23 +88,25 @@ export default function BulkGradeModal({
           </div>
 
           <div>
-            <FieldBox bare label="Assign Grade (1-5)">
-<div className="mt-1">
+            <label className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 block">
+              Assign Grade (1-5)
+            </label>
+            <div className="mt-1">
               <GradeSelector grade={grade} onSelect={setGrade} canEvaluate={true} />
             </div>
-</FieldBox>
           </div>
 
           <div>
-            <FieldBox bare label="Evaluation Remarks">
-<Input
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+              Evaluation Remarks
+            </label>
+            <Input
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
               placeholder="e.g. Bulk approved via system bypass"
               className="w-full bg-card mt-1 focus:ring-primary/50"
             />
-</FieldBox>
           </div>
         </form>
 

@@ -1,16 +1,9 @@
 import {
-  ODOO_URL,
   authenticate,
   executeKw,
   isConfigured,
   jsonResponse
 } from "../_shared/odoo.ts";
-import {
-  PROOF_LOG_MARKER,
-  extractProofImages,
-  isPaymentNote,
-  salesReferenceFrom,
-} from "./payment.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -162,7 +155,6 @@ async function runSync() {
   // ---------------------------------------------------------------------------
   let newQueueCount = 0;
   let skippedCount = 0;
-  let proofAttachedCount = 0;
 
   for (const note of allNotes) {
     const rawText = typeof note.content === "string" ? note.content : "";
@@ -248,54 +240,16 @@ async function runSync() {
       }
     }
 
-    // -----------------------------------------------------------------------
-    // Payment note (issue #324): "MODE OF PAYMENT" + "AMOUNT". This used to
-    // close a deal as Won, and fell back to a fuzzy customer-name match that
-    // could pick the wrong one. Now it only ATTACHES the proof of payment, and
-    // only to the SOR whose sales_reference is exactly this Odoo order number:
-    // no name match, no "most recent open lead", no status or Stage change.
-    // Whether a deal counts as Paid, and what that does on a Sales Flow, is a
-    // person's decision. An order that matches nothing is counted as skipped.
-    // -----------------------------------------------------------------------
-    if (!isStorefrontCustomer(partnerName, storefronts) && isPaymentNote(cleanText)) {
-      const soNumber = salesReferenceFrom(note.res_name);
-      if (!soNumber) {
-        skippedCount++;
-        continue;
-      }
-
-      const { data: sor } = await supabase
-        .from("sales_opportunities")
-        .select("id")
-        .eq("sales_reference", soNumber)
-        .maybeSingle();
-
-      if (!sor) {
-        skippedCount++;
-        continue; // no SOR carries this exact reference: do nothing
-      }
-
-      const proofs = extractProofImages(rawText, ODOO_URL || "");
-      if (proofs.length === 0) continue;
-
-      // Once per SOR: the marker in the log says proof was already imported.
-      const { data: existingLogs } = await supabase
-        .from("sales_opportunity_logs")
-        .select("id")
-        .eq("opportunity_id", sor.id)
-        .ilike("content", `%${PROOF_LOG_MARKER}%`);
-
-      if (!existingLogs || existingLogs.length === 0) {
-        const { error } = await supabase.from("sales_opportunity_logs").insert({
-          opportunity_id: sor.id,
-          type: "SYSTEM",
-          content: `Odoo Sync: ${PROOF_LOG_MARKER}.`,
-          metadata: { attachments: proofs },
-        });
-        if (error) console.error(`[odoo-sor-sync] Could not attach proof for ${soNumber}:`, error);
-        else proofAttachedCount++;
-      }
-    }
+    // The other half of this loop used to live here: a "MODE OF PAYMENT" +
+    // "AMOUNT" note closed the matching SOR as Won, falling back to an
+    // ilike('%partner_name%') match against any open lead when the sales
+    // reference did not match — overwriting that lead's sales_reference on the
+    // way. Running hourly against production, that is a deal silently marked
+    // Won because two customers share a word in their name. Removed outright
+    // rather than disabled — a hazard one manual invocation away is worse than
+    // no feature. The goal is worth keeping, so it is written up as issue #324,
+    // to come back with an exact sales_reference match and no fuzzy fallback.
+    // This function syncs retail, and nothing else.
   }
 
   return {
@@ -303,7 +257,6 @@ async function runSync() {
     messagesRead: messages.length,
     newQueuedShopeeOrders: newQueueCount,
     skipped: skippedCount,
-    proofsAttached: proofAttachedCount,
   };
 }
 

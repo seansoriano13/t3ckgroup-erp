@@ -1,12 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { X, ImagePlus, Maximize2, ClipboardPaste } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { storageService } from "../services/storageService";
 import toast from "react-hot-toast";
-import { Button } from "@/components/ui/button";
-import { Image } from "@/components/ui/Image";
-import { FileInput } from "@/components/ui/FileInput";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -110,7 +107,8 @@ export default function ImageAttachment({
     return () => { isMounted = false; };
   }, [attachments]);
 
-  const handleFileChange = async (files) => {
+  const handleFileChange = async (e) => {
+    const files = Array.from(e.target.files);
     await uploadFiles(files);
   };
 
@@ -131,7 +129,14 @@ export default function ImageAttachment({
   return (
     <div className="space-y-3">
       {/* Hidden File Input */}
-      <FileInput ref={fileInputRef} accept="image/jpeg, image/png, image/webp" multiple onFiles={handleFileChange} />
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/jpeg, image/png, image/webp" 
+        multiple 
+        className="hidden" 
+      />
 
       {/* Gallery */}
       {signedUrls.length > 0 && (
@@ -142,7 +147,7 @@ export default function ImageAttachment({
                     <Spinner size="sm" />
                  ) : (
                    <>
-                     <Image 
+                     <img 
                        src={item.signedUrl} 
                        alt={`Attachment ${index + 1}`} 
                        className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
@@ -150,19 +155,19 @@ export default function ImageAttachment({
                      />
                      
                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
+                        <button 
                            onClick={(e) => { e.stopPropagation(); setFullscreenImage(item.signedUrl); }}
-                           variant="ghost" size="icon-xs"
+                           className="bg-black/60 hover:bg-mauve-12/80 text-primary-foreground p-1 rounded backdrop-blur-sm"
                         >
                            <Maximize2 size={12} />
-                        </Button>
+                        </button>
                         {!readOnly && (
-                          <Button 
+                          <button 
                              onClick={(e) => { e.stopPropagation(); handleDelete(item.path); }}
-                             variant="destructive"
+                             className="bg-destructive/80 hover:bg-destructive text-primary-foreground p-1 rounded backdrop-blur-sm"
                           >
                              <X size={12} />
-                          </Button>
+                          </button>
                         )}
                      </div>
                    </>
@@ -175,11 +180,11 @@ export default function ImageAttachment({
       {/* Upload Button */}
       {!readOnly && attachments.length < 5 && (
          <div className="space-y-2">
-           <Button 
+           <button 
              type="button"
              onClick={() => fileInputRef.current?.click()}
              disabled={isUploading || taskId === "NEW"}
-             variant="ghost" className="w-full h-auto justify-start"
+             className="w-full py-4 border-2 border-dashed border-mauve-4 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground hover:border-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50 disabled:cursor-not-allowed"
            >
              {isUploading ? (
                 <>
@@ -192,7 +197,7 @@ export default function ImageAttachment({
                    <ImagePlus size={18} /> Add Images (Max 5)
                 </>
              )}
-           </Button>
+           </button>
            {taskId !== "NEW" && !isUploading && (
              <p className="flex items-center justify-center gap-1.5 text-[11px] text-mauve-7 font-medium">
                <ClipboardPaste size={12} />
@@ -205,22 +210,26 @@ export default function ImageAttachment({
       {/* Fullscreen Lightbox */}
       {fullscreenImage &&
         typeof document !== "undefined" &&
-        <Dialog open onOpenChange={(open) => !open && ((() => setFullscreenImage(null))())}>
-<DialogContent showCloseButton={false} className="max-w-[95vw] sm:max-w-[95vw] bg-transparent p-0 ring-0 shadow-none">
-            <Button 
-              variant="ghost" className="absolute h-auto"
+        createPortal(
+          <div 
+            className="fixed inset-0 z-[9999999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <button 
+              className="absolute top-6 right-6 text-primary-foreground hover:text-destructive transition-colors bg-black/50 p-2 rounded-full"
               onClick={() => setFullscreenImage(null)}
             >
               <X size={24} />
-            </Button>
-            <Image 
+            </button>
+            <img 
               src={fullscreenImage} 
               alt="Fullscreen Attachment" 
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
               onClick={(e) => e.stopPropagation()} 
             />
-          </DialogContent>
-</Dialog>}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

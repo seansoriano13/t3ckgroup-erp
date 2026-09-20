@@ -3,7 +3,6 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, XSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function BulkDeclineModal({
   isOpen,
@@ -56,13 +55,13 @@ export default function BulkDeclineModal({
             </div>
             <span className="font-bold text-muted-foreground">Bulk Decline</span>
           </div>
-          <Button
+          <button
             type="button"
             onClick={onClose}
-            variant="ghost" size="icon-xs"
+            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </Button>
+          </button>
         </div>
 
         {/* BODY */}
@@ -77,8 +76,10 @@ export default function BulkDeclineModal({
           </div>
 
           <div>
-            <FieldBox bare label="Decline Remarks (Required)">
-<Input
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
+              Decline Remarks (Required)
+            </label>
+            <Input
               type="text"
               value={remarks}
               onChange={(e) => setRemarks(e.target.value)}
@@ -86,7 +87,6 @@ export default function BulkDeclineModal({
               className="w-full bg-card mt-1 focus:ring-primary/50"
               required
             />
-</FieldBox>
           </div>
         </form>
 

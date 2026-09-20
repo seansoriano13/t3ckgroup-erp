@@ -4,7 +4,6 @@ import { Plus, X } from "lucide-react";
 
 import Dropdown from "@/components/ui/Dropdown";
 import AddStagePopoverForm from "./AddStagePopoverForm";
-import { Button } from "@/components/ui/button";
 
 /**
  * A move between two Stages.
@@ -90,14 +89,14 @@ export default function FlowMoveEdge({
                 placement="bottom-start"
                 popoverClassName="popover-enter z-[10001] w-72 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <Button
+                  <button
                     type="button"
                     aria-label={insertLabel}
                     title={insertLabel}
-                    variant="ghost" size="icon-xs"
+                    className="flex size-6 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:bg-mauve-9 hover:text-white hover:outline-mauve-9"
                   >
                     <Plus size={13} strokeWidth={3} />
-                  </Button>
+                  </button>
                 }
               >
                 {({ close }) => (
@@ -109,7 +108,7 @@ export default function FlowMoveEdge({
               </Dropdown>
             )}
 
-            <Button
+            <button
               type="button"
               aria-label={deleteLabel}
               title={deleteLabel}
@@ -117,10 +116,10 @@ export default function FlowMoveEdge({
                 event.stopPropagation();
                 data?.onDelete?.(id);
               }}
-              variant="ghost" size="icon-xs"
+              className="flex size-6 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:bg-destructive hover:text-destructive-foreground hover:outline-destructive"
             >
               <X size={13} strokeWidth={3} />
-            </Button>
+            </button>
           </div>
         </EdgeLabelRenderer>
       )}

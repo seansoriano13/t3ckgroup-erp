@@ -17,7 +17,7 @@ import {
   Search,
   Send,
   ChevronLeft,
-  ExternalLink as ExternalLinkIcon,
+  ExternalLink,
   Target,
   ListCheck,
   Users,
@@ -48,9 +48,6 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { ExternalLink } from "@/components/ui/ExternalLink";
-import { FileInput } from "@/components/ui/FileInput";
 // -------------------------------------------------------------
 //  HELPERS
 // -------------------------------------------------------------
@@ -70,16 +67,16 @@ function renderContent(text, messageMentions = [], isMe = false) {
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
       return (
-        <ExternalLink
+        <a
           key={`url-${i}`}
           href={part}
-          
-          
-          className="break-all"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
           onClick={(e) => e.stopPropagation()}
         >
           {part}
-        </ExternalLink>
+        </a>
       );
     } else if (mentionRegex) {
       const mParts = part.split(mentionRegex);
@@ -251,13 +248,13 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               />
             </div>
             {/* Mobile explicit reply button */}
-            <Button
+            <button
               type="button"
               onClick={() => onReply?.(entry)}
-              variant="outline" className="md:hidden"
+              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
-            </Button>
+            </button>
           </div>
 
           <SwipeToReplyWrapper 
@@ -299,17 +296,17 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             {Object.entries(reactions).map(([emoji, users]) => {
               const iReacted = users.includes(currentUserId);
               return (
-                <Button
+                <button
                   key={emoji}
                   onClick={() => onReact && onReact(entry, emoji)}
-                  variant="ghost" className={cn("h-auto", 
+                  className={cn(
                     "flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors",
                     iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
                   )}
                 >
                   <span>{emoji}</span>
                   <span>{users.length}</span>
-                </Button>
+                </button>
               );
             })}
           </div>
@@ -1049,10 +1046,10 @@ export default function ComprehensiveChatModal({
                 const isChecked = selectedChatIds.has(chatKey);
 
                 return (
-                  <Button
+                  <button
                     key={chatKey}
                     onClick={() => handleChatSelect(chat)}
-                    variant="ghost" className={cn("h-auto", 
+                    className={cn(
                       "w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 group relative border",
                       selectionMode
                         ? "hover:bg-muted"
@@ -1064,7 +1061,12 @@ export default function ComprehensiveChatModal({
                   >
                     {selectionMode && (
                       <div className="mt-1">
-                        <Checkbox checked={isChecked} readOnly className="pointer-events-none" />
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          readOnly
+                          className="w-4 h-4 rounded-sm border-mauve-5 text-foreground focus:ring-mauve-8 pointer-events-none"
+                        />
                       </div>
                     )}
 
@@ -1140,7 +1142,7 @@ export default function ComprehensiveChatModal({
                         className="absolute top-1/2 -right-1 -translate-y-1/2 shadow-lg shadow-foreground/40"
                       />
                     )}
-                  </Button>
+                  </button>
                 );
               })
             )}
@@ -1207,7 +1209,7 @@ export default function ComprehensiveChatModal({
                       </>
                     ) : (
                       <>
-                        Details <ExternalLinkIcon size={12} />
+                        Details <ExternalLink size={12} />
                       </>
                     )}
                   </Button>
@@ -1288,10 +1290,17 @@ export default function ComprehensiveChatModal({
                 className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full overflow-hidden flex flex-col"
               >
                 {/* Hidden file input */}
-                <FileInput ref={fileInputRef} accept={ALLOWED_MIME_TYPES.join(",")} multiple onFiles={(files) => {
-                    if (files) addFiles(files);
-                    
-                  }} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={ALLOWED_MIME_TYPES.join(",")}
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files) addFiles(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
 
                 {isEntityDeleted ? (
                   <div className="bg-muted border border-border rounded-xl p-3 text-center text-xs font-bold text-muted-foreground opacity-70">
@@ -1330,7 +1339,7 @@ export default function ComprehensiveChatModal({
                     />
                     <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
                       <div className="flex items-center gap-2">
-                        <Button
+                        <button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={
@@ -1338,11 +1347,11 @@ export default function ComprehensiveChatModal({
                             isUploading ||
                             isEntityDeleted
                           }
-                          variant="ghost" className="h-auto"
+                          className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
                           title="Attach photo"
                         >
                           <Paperclip size={15} />
-                        </Button>
+                        </button>
                         <EmojiPicker
                           onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
                           disabled={

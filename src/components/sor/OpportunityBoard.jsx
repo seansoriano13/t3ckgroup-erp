@@ -9,7 +9,6 @@ import { outgoingStages, isLostFlowStage } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { getStatusTheme } from "../../constants/status";
 import HighlightText from "../HighlightText";
-import { Button } from "@/components/ui/button";
 
 const THEME_DOT = {
   green: "bg-green-9",
@@ -203,41 +202,41 @@ export default function OpportunityBoard({
           {({ close }) => (
             <div className="flex min-w-[200px] flex-col gap-0.5 rounded-xl border border-border bg-card p-1.5 shadow-lg">
               {saleTypes.map((st) => (
-                <Button
+                <button
                   key={st.id}
                   onClick={() => {
                     chooseSaleType(st.id);
                     close();
                   }}
-                  variant="ghost" className={`rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${selected === st.id ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60"
+                  className={`rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${selected === st.id ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60"
                     }`}
                 >
                   {st.name}
-                </Button>
+                </button>
               ))}
               {saleTypes.length > 0 && <div className="my-1 h-px bg-border" />}
-              <Button
+              <button
                 onClick={() => {
                   chooseSaleType(LEGACY_KEY);
                   close();
                 }}
-                variant="ghost" className={`rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${isLegacy ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60"
+                className={`rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${isLegacy ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60"
                   }`}
               >
                 Legacy pipeline
-              </Button>
+              </button>
             </div>
           )}
         </Dropdown>
 
-        <Button
+        <button
           onClick={toggleDensity}
           title={density === "compact" ? "Switch to detailed cards" : "Switch to compact cards"}
-          variant="outline"
+          className="flex h-9 items-center gap-1.5 rounded-xl border border-border bg-card px-3 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
         >
           {density === "compact" ? <LayoutGrid size={14} /> : <Rows3 size={14} />}
           {density === "compact" ? "Compact" : "Detailed"}
-        </Button>
+        </button>
       </div>
 
       <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto pb-2 items-start">
@@ -411,13 +410,13 @@ function BoardCard({
 }) {
   const compact = density === "compact";
   return (
-    <Button
+    <button
       type="button"
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      variant="ghost" className={`h-auto justify-start w-full text-left bg-card border border-border rounded-xl transition-all hover:border-gray-6 hover:shadow-md ${compact ? "p-2" : "p-3"
+      className={`w-full text-left bg-card border border-border rounded-xl transition-all hover:border-gray-6 hover:shadow-md ${compact ? "p-2" : "p-3"
         } ${draggable ? "cursor-grab active:cursor-grabbing" : ""} ${isBeingDragged ? "opacity-40" : ""}`}
     >
       <div className={`flex items-center justify-between gap-2 ${compact ? "mb-0.5" : "mb-1.5"}`}>
@@ -453,6 +452,6 @@ function BoardCard({
           />
         )}
       </div>
-    </Button>
+    </button>
   );
 }

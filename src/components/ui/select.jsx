@@ -2,10 +2,9 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
-import { useDropdownPopoverRegistration } from "@/components/ui/Dropdown"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
-const SelectRoot = SelectPrimitive.Root
+const Select = SelectPrimitive.Root
 
 function SelectGroup({
   className,
@@ -65,8 +64,6 @@ function SelectContent({
   alignItemWithTrigger = true,
   ...props
 }) {
-  // A Select inside a Dropdown popover: tell the Dropdown a pick is not an outside click.
-  const registerWithDropdown = useDropdownPopoverRegistration()
   return (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Positioner
@@ -77,7 +74,6 @@ function SelectContent({
         alignItemWithTrigger={alignItemWithTrigger}
         className="isolate z-50">
         <SelectPrimitive.Popup
-          ref={registerWithDropdown}
           data-slot="select-content"
           data-align-trigger={alignItemWithTrigger}
           className={cn(
@@ -179,57 +175,8 @@ function SelectScrollDownButton({
   );
 }
 
-// The simple form: pass options and a value, get a picker. Compose the parts
-// above (SelectRoot, SelectTrigger, ...) only when you need grouping or custom items.
-//
-//   <Select options={[{ value: "a", label: "Alpha" }]} value={v} onChange={setV} placeholder="Pick one" />
-//
-// onChange receives the chosen option's value. Options may set disabled: true.
-// "" and undefined mean "nothing chosen" unless an option really has that value.
-function isUnset(value, options) {
-  if (value === null || value === undefined) return true
-  return value === "" && !options.some((option) => option.value === "")
-}
-
-function Select({
-  options,
-  value,
-  onChange,
-  placeholder,
-  disabled,
-  size,
-  name,
-  id,
-  className,
-  contentClassName,
-  "aria-label": ariaLabel,
-  ...props
-}) {
-  return (
-    <SelectRoot
-      items={options}
-      value={isUnset(value, options) ? null : value}
-      onValueChange={(next) => onChange?.(next)}
-      disabled={disabled}
-      name={name}
-      {...props}>
-      <SelectTrigger id={id} size={size} aria-label={ariaLabel} className={className}>
-        <SelectValue placeholder={placeholder} />
-      </SelectTrigger>
-      <SelectContent className={contentClassName}>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value} disabled={option.disabled}>
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </SelectRoot>
-  );
-}
-
 export {
   Select,
-  SelectRoot,
   SelectContent,
   SelectGroup,
   SelectItem,
