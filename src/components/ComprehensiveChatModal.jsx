@@ -17,7 +17,7 @@ import {
   Search,
   Send,
   ChevronLeft,
-  ExternalLink,
+  ExternalLink as ExternalLinkIcon,
   Target,
   ListCheck,
   Users,
@@ -49,6 +49,7 @@ import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 // -------------------------------------------------------------
 //  HELPERS
 // -------------------------------------------------------------
@@ -68,16 +69,16 @@ function renderContent(text, messageMentions = [], isMe = false) {
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
       return (
-        <a
+        <ExternalLink
           key={`url-${i}`}
           href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+          
+          
+          className="break-all"
           onClick={(e) => e.stopPropagation()}
         >
           {part}
-        </a>
+        </ExternalLink>
       );
     } else if (mentionRegex) {
       const mParts = part.split(mentionRegex);
@@ -1205,7 +1206,7 @@ export default function ComprehensiveChatModal({
                       </>
                     ) : (
                       <>
-                        Details <ExternalLink size={12} />
+                        Details <ExternalLinkIcon size={12} />
                       </>
                     )}
                   </Button>

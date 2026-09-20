@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
 import { DEMOS } from "./demoRegistry"
 import { Button } from "@/components/ui/button";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 
 /**
  * The Release Notes deck.
@@ -241,14 +242,14 @@ function PrototypeSlide({ prototype }) {
               {v}
             </Button>
           ))}
-          <a
+          <ExternalLink
             href={`${prototype.file}?variant=${variant}`}
-            target="_blank"
-            rel="noreferrer"
-            className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted"
+            
+            
+            className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted no-underline"
           >
             Full screen →
-          </a>
+          </ExternalLink>
         </div>
       </div>
       <iframe

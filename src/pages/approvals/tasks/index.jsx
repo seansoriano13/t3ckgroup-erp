@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
@@ -445,12 +445,12 @@ export default function TaskApprovalsPage() {
           <p className="text-foreground font-bold text-xl">Manager Queue</p>
           <p className="text-muted-foreground mt-2">
             Looking for HR verification? Go to{" "}
-            <a
-              href="/approvals/hr-verification"
+            <Link
+              to="/approvals/hr-verification"
               className="text-primary underline font-semibold"
             >
               /approvals/hr-verification
-            </a>
+            </Link>
           </p>
         </div>
       </ProtectedRoute>

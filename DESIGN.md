@@ -310,6 +310,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### Dot
 `ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes).
 
+#### ExternalLink
+`ui/ExternalLink.jsx`. Replaces raw `<a>` to another site. Always `target="_blank"` with `rel="noopener noreferrer"`. Props: `href`, `className`, `children`, plus native anchor props. Underlined by default; add `no-underline` for chip or thumbnail links. Internal links use the router `Link` (`to`), never `<a>`.
+
 #### Avatar
 `Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
 

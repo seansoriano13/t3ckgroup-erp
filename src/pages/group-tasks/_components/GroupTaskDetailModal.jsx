@@ -74,6 +74,7 @@ import {
   formatBytes,
 } from "@/utils/attachments";
 import { Textarea } from "@/components/ui/textarea";
+import { ExternalLink } from "@/components/ui/ExternalLink";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -519,16 +520,16 @@ export default function GroupTaskDetailModal({
     return parts.map((part, i) => {
       if (urlRegex.test(part)) {
         return (
-          <a
+          <ExternalLink
             key={`url-${i}`}
             href={part}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline underline-offset-2 opacity-90 hover:opacity-100 break-all"
+            
+            
+            className="break-all"
             onClick={(e) => e.stopPropagation()}
           >
             {part}
-          </a>
+          </ExternalLink>
         );
       } else if (mentionRegex) {
         const mParts = part.split(mentionRegex);

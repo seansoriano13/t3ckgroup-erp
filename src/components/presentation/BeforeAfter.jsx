@@ -1,3 +1,5 @@
+import { ExternalLink } from "@/components/ui/ExternalLink";
+
 /**
  * Side-by-side shell for a before/after demo.
  *
@@ -48,14 +50,14 @@ export default function BeforeAfter({ before, after, liveHref, note }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         {note ? <p className="text-[15px] text-muted-foreground">{note}</p> : <span />}
         {liveHref && (
-          <a
+          <ExternalLink
             href={liveHref}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
+            
+            
+            className="shrink-0 rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted no-underline"
           >
             Open it live →
-          </a>
+          </ExternalLink>
         )}
       </div>
     </div>
