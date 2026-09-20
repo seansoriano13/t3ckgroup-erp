@@ -30,6 +30,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Avatar from "@/components/Avatar";
 import { Image } from "@/components/ui/Image";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/FileInput";
 
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
@@ -588,21 +589,15 @@ export default function ProfilePage() {
                   {isUsingDefaultAvatar ? "Default" : "Custom"})
                 </span>
               </div>
-              <input
-                ref={avatarInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const selected = e.target.files?.[0];
+              <FileInput ref={avatarInputRef} accept="image/*" onFiles={(files) => {
+                  const selected = files?.[0];
                   if (!selected) return;
                   // Reset input so same file can be re-selected after cancel
-                  e.target.value = "";
+                  
                   setPendingAvatarFile(selected);
                   setCropModalOpen(true);
                   setRemoveAvatar(false);
-                }}
-              />
+                }} />
             </div>
 
             <div className="space-y-4 rounded-xl border border-border bg-card p-5">
@@ -654,17 +649,11 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
-              <input
-                ref={bannerInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  setBannerFile(e.target.files?.[0] || null);
+              <FileInput ref={bannerInputRef} accept="image/*" onFiles={(files) => {
+                  setBannerFile(files?.[0] || null);
                   setBannerUrlInput("");
                   setRemoveBanner(false);
-                }}
-              />
+                }} />
               <Input
                 type="url"
                 value={bannerUrlInput}

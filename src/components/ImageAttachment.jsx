@@ -6,6 +6,7 @@ import { storageService } from "../services/storageService";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Image } from "@/components/ui/Image";
+import { FileInput } from "@/components/ui/FileInput";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -109,8 +110,7 @@ export default function ImageAttachment({
     return () => { isMounted = false; };
   }, [attachments]);
 
-  const handleFileChange = async (e) => {
-    const files = Array.from(e.target.files);
+  const handleFileChange = async (files) => {
     await uploadFiles(files);
   };
 
@@ -131,14 +131,7 @@ export default function ImageAttachment({
   return (
     <div className="space-y-3">
       {/* Hidden File Input */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        accept="image/jpeg, image/png, image/webp" 
-        multiple 
-        className="hidden" 
-      />
+      <FileInput ref={fileInputRef} accept="image/jpeg, image/png, image/webp" multiple onFiles={handleFileChange} />
 
       {/* Gallery */}
       {signedUrls.length > 0 && (

@@ -266,7 +266,10 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
 
 #### Input
-`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox has its own Primitive; file inputs have none yet.
+`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file pickers have their own Primitives (Checkbox, FileInput).
+
+#### FileInput
+`ui/FileInput.jsx`. Replaces raw `<input type="file">`. Owns the hidden input and, when given children, the trigger button. Props: `accept`, `multiple`, `disabled`, `title`, `onFiles(files: File[])`, `variant`/`size` (trigger Button), `className`, `ref`. With no children it renders only the hidden input: attach a `ref` and call `ref.current.click()` from a trigger elsewhere. The input clears after each pick, so choosing the same file again fires again.
 
 #### Textarea
 `ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props.

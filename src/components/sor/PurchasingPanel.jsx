@@ -44,6 +44,7 @@ import { canEditSor } from "../../utils/sorPermissions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/FileInput";
 
 let draftSeq = 0;
 const blankDraft = (seed = {}) => ({
@@ -166,17 +167,15 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-        <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground">
+        <FileInput
+          accept={ALLOWED_EXTENSIONS_STRING}
+          multiple
+          variant="ghost"
+          onFiles={(files) => attachments.addFiles(files)}
+        >
           <Paperclip size={13} />
-          <span>Attach file</span>
-          <input
-            type="file"
-            multiple
-            accept={ALLOWED_EXTENSIONS_STRING}
-            className="sr-only"
-            onChange={(e) => attachments.addFromInput(e)}
-          />
-        </label>
+          Attach file
+        </FileInput>
 
         <div className="flex items-center gap-2">
           <Button
@@ -479,17 +478,10 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </div>
       )}
 
-      <input
-        ref={fileRef}
-        type="file"
-        multiple
-        accept={ALLOWED_EXTENSIONS_STRING}
-        className="hidden"
-        onChange={(e) => {
-          attachments.addFiles(e.target.files);
-          e.target.value = "";
-        }}
-      />
+      <FileInput ref={fileRef} accept={ALLOWED_EXTENSIONS_STRING} multiple onFiles={(files) => {
+          attachments.addFiles(files);
+          
+        }} />
       <Button
         type="button"
         onClick={() => fileRef.current?.click()}

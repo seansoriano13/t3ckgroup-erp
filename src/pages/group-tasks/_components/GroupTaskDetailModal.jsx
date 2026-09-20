@@ -76,6 +76,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLink } from "@/components/ui/ExternalLink";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { FileInput } from "@/components/ui/FileInput";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -1052,17 +1053,13 @@ export default function GroupTaskDetailModal({
                                 Attachments
                               </span>
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
-                                <div className="relative">
-                                  <input
-                                    type="file"
-                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                    multiple
-                                    accept={ALLOWED_EXTENSIONS_STRING}
-                                    disabled={isUploadingAttachment || isUploadingMemberFile}
-                                    title="Upload attachments"
-                                    onChange={async (e) => {
-                                      const files = Array.from(e.target.files);
-                                      e.target.value = "";
+                                <FileInput
+  variant="link"
+  multiple
+  accept={ALLOWED_EXTENSIONS_STRING}
+  disabled={isUploadingAttachment || isUploadingMemberFile}
+  title="Upload attachments"
+  onFiles={async (files) => {
                                       setIsUploadingMemberFile(true);
                                       try {
                                         for (const file of files) {
@@ -1088,16 +1085,10 @@ export default function GroupTaskDetailModal({
                                         setIsUploadingMemberFile(false);
                                       }
                                     }}
-                                  />
-                                  <Button
-                                    type="button"
-                                    disabled={isUploadingAttachment || isUploadingMemberFile}
-                                    variant="link"
-                                  >
-                                    <Paperclip size={10} />
-                                    {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
-                                  </Button>
-                                </div>
+                                >
+                                  <Paperclip size={10} />
+                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
+                                </FileInput>
                               )}
                             </div>
 
@@ -1371,16 +1362,11 @@ export default function GroupTaskDetailModal({
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">
-              <input
+              <FileInput
                 ref={fileInputRef}
-                type="file"
                 accept={ALLOWED_MIME_TYPES.join(",")}
                 multiple
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files) addFiles(e.target.files);
-                  e.target.value = "";
-                }}
+                onFiles={(picked) => addFiles(picked)}
               />
 
               <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">

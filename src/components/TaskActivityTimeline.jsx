@@ -38,6 +38,7 @@ import ReplyQuote from "./ui/ReplyQuote";
 import SwipeToReplyWrapper from "./ui/SwipeToReplyWrapper";
 import { AttachmentList, AttachmentPreviews } from "./ui/Attachments";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { FileInput } from "@/components/ui/FileInput";
 
 /**
  * Splits text into plain-text segments and URL segments,
@@ -672,14 +673,7 @@ export default function TaskActivityTimeline({
             className="rounded-xl mb-2"
           />
           {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ALLOWED_MIME_TYPES.join(",")}
-            multiple
-            className="hidden"
-            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
-          />
+          <FileInput ref={fileInputRef} accept={ALLOWED_MIME_TYPES.join(",")} multiple onFiles={(files) => { if (files) addFiles(files);  }} />
 
           {/* Attachment preview strip */}
           {attachments.length > 0 && (

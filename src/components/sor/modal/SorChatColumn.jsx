@@ -6,6 +6,7 @@ import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
 import { Button } from "@/components/ui/button";
+import { FileInput } from "@/components/ui/FileInput";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -143,17 +144,10 @@ export default function SorChatColumn({
             handlePostNote();
           }}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept={ALLOWED_EXTENSIONS_STRING}
-            className="hidden"
-            onChange={(e) => {
-              attachments.addFiles(e.target.files);
-              e.target.value = "";
-            }}
-          />
+          <FileInput ref={fileInputRef} accept={ALLOWED_EXTENSIONS_STRING} multiple onFiles={(files) => {
+              attachments.addFiles(files);
+              
+            }} />
 
           {files.length > 0 && (
             <div className="mb-2">

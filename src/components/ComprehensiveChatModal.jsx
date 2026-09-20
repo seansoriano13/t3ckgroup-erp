@@ -50,6 +50,7 @@ import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { FileInput } from "@/components/ui/FileInput";
 // -------------------------------------------------------------
 //  HELPERS
 // -------------------------------------------------------------
@@ -1287,17 +1288,10 @@ export default function ComprehensiveChatModal({
                 className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full overflow-hidden flex flex-col"
               >
                 {/* Hidden file input */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept={ALLOWED_MIME_TYPES.join(",")}
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files) addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
+                <FileInput ref={fileInputRef} accept={ALLOWED_MIME_TYPES.join(",")} multiple onFiles={(files) => {
+                    if (files) addFiles(files);
+                    
+                  }} />
 
                 {isEntityDeleted ? (
                   <div className="bg-muted border border-border rounded-xl p-3 text-center text-xs font-bold text-muted-foreground opacity-70">

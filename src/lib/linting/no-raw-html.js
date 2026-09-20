@@ -23,8 +23,8 @@ const REPLACEMENTS = {
 }
 
 const INPUT_REPLACEMENTS = {
-  checkbox: ['inputCheckbox', 'Checkbox (not built yet: stop and ask the maintainer)', 'input'],
-  file: ['inputFile', 'FileInput (not built yet: stop and ask the maintainer)', 'input'],
+  checkbox: ['inputCheckbox', 'Checkbox (ui/checkbox.jsx)', 'checkbox'],
+  file: ['inputFile', 'FileInput (ui/FileInput.jsx)', 'fileinput'],
   default: ['input', 'Input (ui/input.jsx)', 'input'],
 }
 

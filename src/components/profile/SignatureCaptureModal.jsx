@@ -7,6 +7,7 @@ import TabGroup from "@/components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
 import { signatureService } from "@/services/signatureService";
 import { keyOutNearWhite } from "@/utils/signatureImage";
+import { FileInput } from "@/components/ui/FileInput";
 
 const CANVAS_WIDTH = 480;
 const CANVAS_HEIGHT = 180;
@@ -89,9 +90,8 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
     setHasDrawn(false);
   };
 
-  const handleFileSelected = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
+  const handleFileSelected = (files) => {
+    const file = files[0];
     if (!file) return;
 
     const objectUrl = URL.createObjectURL(file);
@@ -225,13 +225,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                   </>
                 )}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelected}
-              />
+              <FileInput ref={fileInputRef} accept="image/*" onFiles={handleFileSelected} />
               {uploadCanvasReady && (
                 <p className="text-[11px] font-semibold text-muted-foreground">
                   The background was removed automatically — check the ink still looks right.

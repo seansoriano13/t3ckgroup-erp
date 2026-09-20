@@ -8,6 +8,7 @@ import { acceptsLabel } from "../../utils/attachments";
 import { resolvePeople } from "../../utils/resolvePeople";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/FileInput";
 
 /** PO Date and Expected Award Date are dates; every other writable field is text. */
 const DATE_FIELDS = new Set(["po_date", "expected_award_date"]);
@@ -179,25 +180,17 @@ export default function StageChecklistRow({
 
             {condition.kind === CONDITION_KINDS.ATTACHMENT && (
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                <label
-                  className={`flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted ${
-                    isPreview || uploading ? "pointer-events-none opacity-50" : ""
-                  }`}
+                <FileInput
+                  disabled={isPreview || uploading}
+                  onFiles={(files) => {
+                    const file = files[0];
+                    if (!file || isPreview) return;
+                    onUpload?.(file);
+                  }}
                 >
                   <Paperclip size={13} />
                   {uploading ? "Uploading..." : "Attach File"}
-                  <input
-                    type="file"
-                    className="hidden"
-                    disabled={isPreview}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || isPreview) return;
-                      onUpload?.(file);
-                      e.target.value = "";
-                    }}
-                  />
-                </label>
+                </FileInput>
                 {onPickExisting && (
                   <Button
                     type="button"

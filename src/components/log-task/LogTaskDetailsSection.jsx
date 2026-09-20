@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Image } from "@/components/ui/Image";
 import { Input } from "@/components/ui/input";
+import { FileInput } from "@/components/ui/FileInput";
 
 export default function LogTaskDetailsSection({
   formData,
@@ -72,7 +73,7 @@ export default function LogTaskDetailsSection({
     [onAttachmentsChange],
   )
 
-  const handleFileChange = (e) => uploadFiles(Array.from(e.target.files))
+  const handleFileChange = (files) => uploadFiles(files)
   const handleRemove = (url) =>
     onAttachmentsChange((formData.attachments || []).filter((u) => u !== url))
 
@@ -235,14 +236,7 @@ export default function LogTaskDetailsSection({
       </div>
       {/* 3. IMAGE ATTACHMENTS */}
       <div className="mb-3 animate-content-in stagger-3">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          className="hidden"
-        />
+        <FileInput ref={fileInputRef} accept="image/jpeg,image/png,image/webp" multiple onFiles={handleFileChange} />
 
         {/* Upload zone */}
         <div className="border-2 border-dashed border-mauve-12/20 rounded-xl hover:border-mauve-12/40 hover:bg-mauve-3 transition-all">
