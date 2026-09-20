@@ -986,9 +986,9 @@ export default function GroupTaskDetailModal({
 
                           {/* Description */}
                           <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                            <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                               Specific Task
-                            </label>
+                            </span>
                             {memberDescription?.trim() ? (
                               <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
                                 {memberDescription}
@@ -1007,9 +1007,9 @@ export default function GroupTaskDetailModal({
                           {checklistItems.length > 0 && (
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                                <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                   Checklist
-                                </label>
+                                </span>
                                 <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
                                   {checklistItems.filter((i) => i.checked).length}
                                   /{checklistItems.length}
@@ -1048,9 +1048,9 @@ export default function GroupTaskDetailModal({
                           {/* Attachments Section */}
                           <div className="flex flex-col gap-1.5 mt-2">
                             <div className="flex items-center justify-between">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                                 Attachments
-                              </label>
+                              </span>
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
                                 <div className="relative">
                                   <input

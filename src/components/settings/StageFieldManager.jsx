@@ -14,6 +14,7 @@ import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
 import { Select } from "@/components/ui/select";
+import { SwitchField } from "@/components/ui/ToggleField";
 
 const emptyDraft = () => ({
   label: "",
@@ -298,18 +299,12 @@ export default function StageFieldManager({ stageId, disabled = false }) {
               )}
             </div>
 
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-foreground">Required to leave</span>
-                <span className="block text-xs leading-snug text-muted-foreground">
-                  An empty required field blocks the move with "Fill in: {draft.label || "…"}".
-                </span>
-              </span>
-              <Switch
-                checked={draft.isRequired}
-                onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
-              />
-            </label>
+            <SwitchField
+              label="Required to leave"
+              description={<>An empty required field blocks the move with "Fill in: {draft.label || "…"}".</>}
+              checked={draft.isRequired}
+              onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
+            />
 
             <div className="flex items-center justify-end gap-2">
               <Button type="button" variant="ghost" size="lg" onClick={resetForm}>

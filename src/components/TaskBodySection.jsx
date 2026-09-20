@@ -36,14 +36,14 @@ export default function TaskBodySection({
       {/* --- PROJECT / CAMPAIGN TITLE --- */}
       {(isEditing || formData.projectTitle) && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
             <FolderKanban size={12} /> Project / Campaign Title
             {isEditing && (
               <span className="font-normal text-muted-foreground normal-case tracking-normal">
                 (optional)
               </span>
             )}
-          </label>
+          </span>
           {isEditing ? (
             <div className="relative">
               <Input
@@ -78,14 +78,14 @@ export default function TaskBodySection({
       {((isEditing && taskDept?.toUpperCase() === "ADMIN") ||
         formData.paymentVoucher) && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+          <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
             <Receipt size={12} /> Payment Voucher
             {isEditing && (
               <span className="font-normal text-muted-foreground normal-case tracking-normal">
                 (optional)
               </span>
             )}
-          </label>
+          </span>
           {isEditing ? (
             <Input
               type="text"
@@ -140,9 +140,9 @@ export default function TaskBodySection({
               {showChecklist ? (
                 <div className="animate-slide-down">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
                       Checklist
-                    </label>
+                    </span>
                     <Button
                       type="button"
                       onClick={() => setShowChecklist(false)}

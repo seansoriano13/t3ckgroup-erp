@@ -388,9 +388,9 @@ function ProcurementEditForm({
           {/* PO Number Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
+              <span className="text-xs font-semibold text-foreground">
                 Odoo PO Number {needsPo && <span className="text-destructive">*</span>}
-              </label>
+              </span>
               {liveVerification.isChecking ? (
                 <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                   <Loader2 size={11} className="animate-spin" /> Checking PO in Odoo...
@@ -417,9 +417,9 @@ function ProcurementEditForm({
           {/* Odoo Product & Supplier Details Card */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
+              <span className="text-xs font-semibold text-foreground">
                 Odoo Product Reference
-              </label>
+              </span>
               {isOdooVerified && (
                 <Button
                   type="button"
@@ -471,9 +471,9 @@ function ProcurementEditForm({
           {/* ETA Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
+              <span className="text-xs font-semibold text-foreground">
                 Estimated Arrival (ETA)
-              </label>
+              </span>
               {isOdooVerified && liveVerification.eta ? (
                 <span className="text-[11px] font-normal text-muted-foreground">
                   Auto-populated: <span className="font-medium text-foreground">{formatDueDate(liveVerification.eta)}</span>

@@ -10,6 +10,7 @@ import { employeeGroupService } from "@/services/employeeGroupService";
 import { SELECTOR_TYPES } from "@/utils/resolvePeople";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const inputClass =
   "w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
@@ -100,14 +101,12 @@ export default function EmployeeGroupManager() {
           }}
           className="mb-5 grid gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end"
         >
-          <label className="space-y-1">
-            <span className="text-xs font-bold text-muted-foreground">Name</span>
-            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" className={inputClass} required />
-          </label>
-          <label className="space-y-1">
-            <span className="text-xs font-bold text-muted-foreground">Description (optional)</span>
-            <Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
-          </label>
+          <FieldBox bare label="Name">
+<Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" className={inputClass} required />
+</FieldBox>
+          <FieldBox bare label="Description (optional)">
+<Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
+</FieldBox>
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -196,14 +195,12 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
       {isOpen && (
         <div className="space-y-4 border-t border-border p-4">
           <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
-            <label className="space-y-1">
-              <span className="text-xs font-bold text-muted-foreground">Name</span>
-              <Input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
-            </label>
-            <label className="space-y-1">
-              <span className="text-xs font-bold text-muted-foreground">Description</span>
-              <Input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
-            </label>
+            <FieldBox bare label="Name">
+<Input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+</FieldBox>
+            <FieldBox bare label="Description">
+<Input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+</FieldBox>
             <Button
               type="button"
               disabled={!detailsChanged || busy}

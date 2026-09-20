@@ -47,10 +47,10 @@ export function TextField({
           form. Occupying the label's own line keeps the field's height and the
           grid's rhythm unchanged whether or not an action is present. */}
       <div className="flex items-baseline justify-between gap-2">
-        <label className={LABEL}>
+        <span className={LABEL}>
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+        </span>
         {action}
       </div>
       <Input className={CONTROL} required={required} {...props} />
@@ -88,10 +88,10 @@ export function SelectField({
   if (disabled) {
     return (
       <div className={`${BOX} ${className}`}>
-        <label className={LABEL}>
+        <span className={LABEL}>
           {label}
           {required && <span className="text-red-500 ml-0.5">*</span>}
-        </label>
+        </span>
         {control()}
       </div>
     );

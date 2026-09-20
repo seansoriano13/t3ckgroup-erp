@@ -301,9 +301,9 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
           {(isCommittee || isOthersGlobal) && (
             <div className="py-3 animate-slide-down">
               {!isCommittee && (
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                   Others Details
-                </label>
+                </span>
               )}
 
               {isCommittee && (
@@ -337,9 +337,9 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
               {(isOthersGlobal || committeeRole === "OTHERS") && (
                 <div className="animate-slide-down">
                   {isCommittee && committeeRole === "OTHERS" && (
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
+                    <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
                       Others Details
-                    </label>
+                    </span>
                   )}
                   <Textarea
                     placeholder="Specify details..."

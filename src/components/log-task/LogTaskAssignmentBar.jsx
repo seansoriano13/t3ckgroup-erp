@@ -123,9 +123,9 @@ export default function LogTaskAssignmentBar({
       {canAssignOthers && (
         <div className="space-y-1.5">
           {!isHr && (
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
               <Users size={12} /> Assign To
-            </label>
+            </span>
           )}
           <Dropdown
             usePortal

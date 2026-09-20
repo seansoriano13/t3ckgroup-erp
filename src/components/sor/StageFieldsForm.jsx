@@ -102,14 +102,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
 
           return (
             <div key={field.id} className="space-y-1">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                 {field.label}
                 {field.is_required && (
                   <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
                     Required
                   </span>
                 )}
-              </label>
+              </span>
               {field.help && <p className="text-[11px] text-muted-foreground">{field.help}</p>}
 
               {savedThisVisit !== null && savedThisVisit !== undefined && savedThisVisit !== "" ? (

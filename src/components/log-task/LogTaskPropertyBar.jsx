@@ -90,9 +90,9 @@ export default function LogTaskPropertyBar({
         >
           {({ close }) => (
             <>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">
+              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">
                 {mode === "automation" ? "Target Due Date" : "End Date & Time"}
-              </label>
+              </span>
               <div className="w-full py-1">
                 {mode === "automation" ? (
                   <div className="px-1">

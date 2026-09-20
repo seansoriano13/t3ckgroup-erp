@@ -33,6 +33,7 @@ import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { Select } from "@/components/ui/select";
+import { SwitchField } from "@/components/ui/ToggleField";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -245,13 +246,11 @@ export default function SorFormBuilder({ flow }) {
                     onChange={(options) => setDraft((d) => ({ ...d, options }))}
                   />
                 )}
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
-                  <span className="text-sm font-semibold text-foreground">Required to register</span>
-                  <Switch
-                    checked={draft.isRequired}
-                    onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
-                  />
-                </label>
+                <SwitchField
+                  label="Required to register"
+                  checked={draft.isRequired}
+                  onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
+                />
                 <div className="flex items-center justify-end gap-2">
                   <Button type="button" variant="ghost" size="lg" onClick={() => setIsAdding(false)}>
                     Cancel
@@ -410,13 +409,14 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
               >
                 {field.isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
               </Button>
-              <label
-                className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+              <SwitchField
                 title="Required to register"
-              >
-                Req
-                <Switch checked={field.isRequired} onCheckedChange={onToggleRequired} />
-              </label>
+                label="Req"
+                labelClassName="text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
+                className="gap-1 rounded border-0 bg-transparent p-0 px-1"
+                checked={field.isRequired}
+                onCheckedChange={onToggleRequired}
+              />
             </>
           )}
 

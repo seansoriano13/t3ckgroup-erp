@@ -149,9 +149,9 @@ export default function Login() {
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+                <span className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                   Password
-                </label>
+                </span>
                 <Button
                   type="button"
                   onClick={handleForgotPassword}

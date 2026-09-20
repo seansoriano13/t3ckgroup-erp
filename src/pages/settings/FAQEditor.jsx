@@ -30,6 +30,7 @@ import { canEditFAQ } from "../../utils/faqAccess";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { SwitchField } from "@/components/ui/ToggleField";
 
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
@@ -250,23 +251,13 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
               return (
                 <>
                   {/* Share toggle */}
-                  <label className="flex items-center gap-2 mb-3 cursor-pointer group/toggle">
-                    <div
-                      onClick={() => toggleShared(activeTab)}
-                      className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${
-                        shared ? "bg-muted-foreground/30" : "bg-primary"
-                      }`}
-                    >
-                      <div
-                        className={`absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all ${
-                          shared ? "left-0.5" : "left-4"
-                        }`}
-                      />
-                    </div>
-                    <span className="text-xs font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
-                      {shared ? "Using shared answer" : "Custom answer for " + role.label}
-                    </span>
-                  </label>
+                  <SwitchField
+                    variant="inline"
+                    className="mb-3"
+                    label={shared ? "Using shared answer" : "Custom answer for " + role.label}
+                    checked={!shared}
+                    onCheckedChange={() => toggleShared(activeTab)}
+                  />
 
                   {shared ? (
                     /* Preview of shared answer */

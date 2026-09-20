@@ -370,10 +370,10 @@ export function ApprovalDetailPane({
             </div>
           )}
 
-          <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
             Task Description
-          </label>
+          </span>
 
           {isChecklist ? (
             <div className="pt-1">
@@ -440,9 +440,9 @@ export function ApprovalDetailPane({
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-bold text-foreground uppercase tracking-wider">
+                  <span className="text-[11px] font-bold text-foreground uppercase tracking-wider">
                     Assign Grade (1-5)
-                  </label>
+                  </span>
                   <span className="text-[10px] text-muted-foreground font-mono">
                     Press keys 1 to 5
                   </span>

@@ -14,6 +14,7 @@ import { actionTitle } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 
 import { Checkbox } from "@/components/ui/checkbox";
+import { CheckboxField } from "@/components/ui/ToggleField";
 /**
  * A Stage's Access tab (issue #292, part of #208/ADR 0021) — and, since the
  * roster landed, the one screen that answers "who can see this Stage?".
@@ -266,19 +267,14 @@ function StageAccessForm({
         </p>
         <div className="space-y-1.5">
           {Object.entries(DEAL_TEAM_ROLES).map(([role, meta]) => (
-            <label
+            <CheckboxField
               key={role}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
-            >
-              <Checkbox
-                checked={!shutOutRoles.has(role)}
-                disabled={disabled}
-                onCheckedChange={() => toggleRole(role)}
-              />
-              <span className={shutOutRoles.has(role) ? "text-muted-foreground line-through" : ""}>
-                {meta.label}
-              </span>
-            </label>
+              label={meta.label}
+              labelClassName={shutOutRoles.has(role) ? "text-muted-foreground line-through" : ""}
+              checked={!shutOutRoles.has(role)}
+              disabled={disabled}
+              onCheckedChange={() => toggleRole(role)}
+            />
           ))}
         </div>
       </section>

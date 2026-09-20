@@ -29,9 +29,9 @@ export default function OpportunityItemsEditor({ items, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Product List
-        </label>
+        </span>
         <Button
           type="button"
           onClick={addRow}

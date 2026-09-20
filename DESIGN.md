@@ -284,7 +284,10 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/select.jsx`. Replaces raw `<select>`. Simple form: `<Select options={[{ value, label, disabled? }]} value onChange placeholder disabled size id name aria-label className />`; `onChange` gets the option's `value`. Works inside a Dropdown popover (picking does not close the outer popover). For grouping or custom items compose the base-ui parts: `SelectRoot`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`.
 
 #### FieldBox
-`FieldBox.jsx` (root, not in `ui/` yet). Form-field wrapper, label plus control box. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `children`.
+`ui/FieldBox.jsx`. The form-field Primitive: a caption plus its control. Replaces raw `<label>` for a caption above a field. The caption is a real label tied to the control (it sets the single child's `id`, or takes `htmlFor`). Props: `label`, `bare` (caption only, for controls that draw their own border like Input, Select, Textarea), `isEditing`, `noBorder` (boxed variant), `htmlFor`, `className`, `labelClassName`. A heading that names no control is not a label: use a `<p>` or `<span>`.
+
+#### SwitchField / CheckboxField
+`ui/ToggleField.jsx`. A setting row where the whole row is the click target and the text names the control. Replaces a raw `<label>` wrapping a Switch or Checkbox. `SwitchField`: `label`, `description`, `variant` (`card` | `inline`), plus Switch props. `CheckboxField`: `label`, `labelClassName`, plus Checkbox props.
 
 #### Dropdown
 `ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context.

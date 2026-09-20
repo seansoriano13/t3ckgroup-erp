@@ -55,9 +55,9 @@ export default function GroupTaskMemberPanel({
     <div className="flex-1 overflow-y-auto min-h-0 custom-scrollbar px-6 py-5 flex flex-col gap-5">
       {/* Assignee */}
       <div className="flex flex-col gap-1.5">
-        <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+        <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Assignee
-        </label>
+        </span>
         {canEditAssignment ? (
           <Dropdown
             usePortal
@@ -96,9 +96,9 @@ export default function GroupTaskMemberPanel({
       {/* Role */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between max-w-sm">
-          <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+          <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
             Role (optional)
-          </label>
+          </span>
           {canEditAssignment && onManageRoles && (
             <Button
               type="button"
@@ -161,9 +161,9 @@ export default function GroupTaskMemberPanel({
         {showChecklist ? (
           <>
             <div className="flex items-center justify-between">
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 Checklist
-              </label>
+              </span>
               {!canEditChecklist && lockedReason && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
                   <Lock size={10} /> {lockedReason}

@@ -445,9 +445,9 @@ export default function EmployeeForm({
           current toggle state, live. */}
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
             <EyeOff size={12} /> Hidden From Navigation
-          </label>
+          </span>
           {formData.hiddenNavKeys?.length > 0 && (
             <Button
               type="button"

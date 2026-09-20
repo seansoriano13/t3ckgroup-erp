@@ -20,6 +20,7 @@ import { ATTACHMENT_ACCEPT_GROUPS } from "../../utils/attachments";
 import { CONDITION_KIND_META, conditionDetail } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 import StageChecklistRow from "../sor/StageChecklistRow";
+import { SwitchField } from "@/components/ui/ToggleField";
 
 const emptyConfigFor = (kind) => {
   switch (kind) {
@@ -383,19 +384,16 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               />
             )}
 
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-foreground">
-                  Blocks the way out
-                </span>
-                <span className="block text-xs leading-snug text-muted-foreground">
-                  {isRequired
-                    ? "A deal cannot leave this Stage until it is satisfied."
-                    : "Tracked and shown, but never in the way."}
-                </span>
-              </span>
-              <Switch checked={isRequired} onCheckedChange={setIsRequired} />
-            </label>
+            <SwitchField
+              label="Blocks the way out"
+              description={
+                isRequired
+                  ? "A deal cannot leave this Stage until it is satisfied."
+                  : "Tracked and shown, but never in the way."
+              }
+              checked={isRequired}
+              onCheckedChange={setIsRequired}
+            />
 
             {/* Story 3: a live preview of the exact row the SOR's checklist
                 will show, fed a sample opportunity matching the draft. */}
