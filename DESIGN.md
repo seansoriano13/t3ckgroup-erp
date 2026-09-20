@@ -263,7 +263,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
 
 #### Input
-`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have no Primitive yet.
+`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox has its own Primitive; file inputs have none yet.
 
 #### Textarea
 `ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props.
@@ -273,6 +273,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 
 #### Switch
 `ui/switch.jsx`. On/off toggle. Props: `size`, plus base-ui switch props (`checked`, `onCheckedChange`, `disabled`).
+
+#### Checkbox
+`ui/checkbox.jsx` (base-ui). Replaces raw `<input type="checkbox">`. Props: `checked`, `onCheckedChange(checked)`, `disabled`, `readOnly`, `aria-label`, `className`. Wrap in a label (or set `aria-label`) to name it. Distinct from **Switch**, which is an on/off setting.
 
 #### Select (base-ui building blocks)
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Replaces raw `<select>` for now; a simple `options` / `value` / `onChange` Select is planned.

@@ -48,6 +48,7 @@ import { useFileAttachments } from "../hooks/useFileAttachments";
 import { AttachmentPreviews, AttachmentList } from "./ui/Attachments";
 import { ALLOWED_MIME_TYPES } from "../utils/attachments";
 
+import { Checkbox } from "@/components/ui/checkbox";
 // -------------------------------------------------------------
 //  HELPERS
 // -------------------------------------------------------------
@@ -1061,12 +1062,7 @@ export default function ComprehensiveChatModal({
                   >
                     {selectionMode && (
                       <div className="mt-1">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          readOnly
-                          className="w-4 h-4 rounded-sm border-mauve-5 text-foreground focus:ring-mauve-8 pointer-events-none"
-                        />
+                        <Checkbox checked={isChecked} readOnly className="pointer-events-none" />
                       </div>
                     )}
 
