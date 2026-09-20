@@ -247,12 +247,93 @@ Raised Desk panel with a Seam right border. Group names are 11px black uppercase
 ### Flow Canvas (signature)
 React Flow chrome is re-themed from the same tokens so the canvas belongs to the system in both themes. Controls and the minimap sit on Raised Desk with a mauve-6 outline and no shadow. An edge thickens to 2.5px mauve-11 on hover and turns Signal Red when selected. The connection line is dashed red. The selected edge is one of the sanctioned red objects, because Delete acts on it.
 
+### Primitive catalog
+
+A **Primitive** is anything in `src/components/ui/`. Raw `<button>`, `<input>`, `<textarea>`, `<select>`, `<label>`, `<table>`, `<img>`, `<a>` and hand-rolled full-screen modals are banned outside that folder (ADR 0025). One Primitive per job. `<form>`, layout tags, paragraphs and headings are not covered. **If nothing here fits, stop and ask the maintainer.** Never disable the lint rule.
+
+Each heading below is a stable anchor for lint messages. Paths are under `src/components/`.
+
+#### Button
+`ui/button.jsx`. Replaces raw `<button>` and **PrimaryButton** (legacy, to be deleted). Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
+
+#### Dialog
+`ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals and **ModalOverlay** (legacy, to be deleted). Parts: `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`.
+
+#### ConfirmDialog
+`ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
+
+#### Input
+`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have no Primitive yet.
+
+#### Textarea
+`ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props.
+
+#### MentionTextarea
+`ui/MentionTextarea.jsx`. Textarea with `@` people suggestions; `mentions` ride beside plain-text `value`. Also exports `NoteText` to render a note with mentions.
+
+#### Switch
+`ui/switch.jsx`. On/off toggle. Props: `size`, plus base-ui switch props (`checked`, `onCheckedChange`, `disabled`).
+
+#### Select (base-ui building blocks)
+`ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Replaces raw `<select>` for now; a simple `options` / `value` / `onChange` Select is planned.
+
+#### FieldBox
+`FieldBox.jsx` (root, not in `ui/` yet). Form-field wrapper, label plus control box. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `children`.
+
+#### Dropdown
+`ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context.
+
+#### FilterDropdown
+`ui/FilterDropdown.jsx`. Filter parts for use inside Dropdown: `FilterTrigger` (`label`, `isActive`, `isOpen`, `icon`), `FilterOptionList` (`options`, `value`, `onChange`, `close`), `MultiFilterOptionList` (`options`, `values`, `onChange`).
+
+#### PeoplePicker
+`ui/PeoplePicker.jsx`. Multi-select of groups, teams, employees. Props: `value`, `onChange`, `types`, `allowRoles`, `placeholder`, `disabled`.
+
+#### TabGroup
+`ui/TabGroup.jsx`. Tabs. Props: `tabs`, `activeTab`, `onChange`, `variant` (`pill` | `primary` | colored | `underline`), `size`, `fullWidth`.
+
+#### Card
+`ui/card.jsx`. Parts: `Card` (`size`), `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`.
+
+#### PropertyPill
+`ui/PropertyPill.jsx`. Round pill button for a property or filter. Props: `children`, `onClick`, `isActive`, `isOpen`, `icon`, `disabled`.
+
+#### StatusBadge
+`StatusBadge.jsx` (root). Status pill. Props: `status`, `label`, `theme`, `children`.
+
+#### TagPill
+`ui/TagPill.jsx`. Tag chip. Props: `tag` (`name`, `color`, `archived_at`).
+
+#### Dot
+`ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes).
+
+#### Avatar
+`Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
+
+#### ImageAttachment
+`ImageAttachment.jsx` (root). The Primitive for uploaded images. Props: `taskId`, `userId`, `attachments`, `onChange`, `readOnly`. Replaces raw `<img>` and file input for uploads.
+
+#### Attachments
+`ui/Attachments.jsx`. Attachment picking and display: `AttachmentField` (`label`, `hint`, `attachments`, `disabled`), `AttachmentPreviews`, `AttachmentList`. `AttachmentEvidence` in `ui/AttachmentEvidence.jsx` shows attached evidence.
+
+#### Tooltip
+`ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `children`.
+
+#### Spinner
+`ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`.
+
+#### Page structure
+`ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
+
+#### Not built yet
+Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Checkbox, FileInput (`accept`, `onFiles`), Image, ExternalLink (internal links use the router `Link`), simple Select. Until each lands, ask the maintainer.
+
 ## Do's and Don'ts
 
 ### Do:
 - **Do** write color as Radix steps or semantic tokens (`bg-muted`, `border-mauve-6`, `text-muted-foreground`) so dark mode follows for free.
 - **Do** reserve Signal Red for the primary or destructive action on a surface and for the selected canvas edge (ADR 0009, `no-primary-decoration`).
-- **Do** use the shared primitives (`Button`, `PageHeader`, `StatusBadge`, `TabGroup`, `PropertyPill`) before hand-rolling a variant.
+- **Do** use a Primitive from the catalog above, never raw HTML for a covered element. If none fits, stop and ask.
 - **Do** label record fields with the 10–11px bold uppercase tracked label, and set audited figures (amounts, record numbers, `vX.Y`) in monospace.
 - **Do** keep motion between 150 and 400ms on `cubic-bezier(0.16, 1, 0.3, 1)`, and keep the global reduced-motion guard intact.
 
