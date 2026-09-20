@@ -585,10 +585,10 @@ export default function CommissionDashboardView() {
           <div className="flex items-center gap-2">
             {/* Scope Toggle (Realized vs Forecast) */}
             <div className="flex items-center rounded-xl bg-muted p-1 text-xs font-bold shrink-0">
-              <button
+              <Button
                 type="button"
                 onClick={() => setScope("REALIZED")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
+                variant="ghost" className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
                   scope === "REALIZED"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -596,11 +596,11 @@ export default function CommissionDashboardView() {
               >
                 <CheckCircle2 size={13} className={scope === "REALIZED" ? "text-foreground" : ""} />
                 <span>Realized Pool</span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() => setScope("FORECAST")}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
+                variant="ghost" className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 transition-all ${
                   scope === "FORECAST"
                     ? "bg-card text-foreground shadow-xs font-bold"
                     : "text-muted-foreground hover:text-foreground"
@@ -608,7 +608,7 @@ export default function CommissionDashboardView() {
               >
                 <TrendingUp size={13} className={scope === "FORECAST" ? "text-foreground" : ""} />
                 <span>Pipeline Forecast</span>
-              </button>
+              </Button>
             </div>
 
             {canViewAllFinancials && (
@@ -1003,17 +1003,17 @@ export default function CommissionDashboardView() {
                                       Anchored on Contract Date rates ({deal.contractDate || "Effective live"})
                                     </p>
                                   </div>
-                                  <button
+                                  <Button
                                     type="button"
                                     onClick={() =>
                                       navigate("/sors", {
                                         state: { openOpportunityId: deal.id },
                                       })
                                     }
-                                    className="text-xs font-bold text-foreground hover:underline self-start sm:self-center"
+                                    variant="ghost" className="self-start sm:self-center h-auto"
                                   >
                                     Open in SOR Register →
-                                  </button>
+                                  </Button>
                                 </div>
 
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">

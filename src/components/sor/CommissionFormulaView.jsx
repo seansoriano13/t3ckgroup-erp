@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
 import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
+import { Button } from "@/components/ui/button";
 
 const ROLE_LABELS_BY_PROJECT_TYPE = {
   SSP: {
@@ -106,14 +107,14 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
           <span className={total !== 100 ? "text-xs font-semibold text-destructive" : "text-xs text-muted-foreground"}>
             Total {total.toFixed(2)}%
           </span>
-          <button
+          <Button
             type="button"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft.filter((row) => roleLabels[row.shareRole]))}
-            className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            variant="default"
           >
             Save
-          </button>
+          </Button>
         </div>
       )}
     </div>

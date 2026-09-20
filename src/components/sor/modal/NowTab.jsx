@@ -10,6 +10,7 @@ import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
+import { Button } from "@/components/ui/button";
 
 function Section({ title, count, children }) {
   return (
@@ -111,16 +112,16 @@ export default function NowTab({ ctx }) {
               className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
             />
           </div>
-          <button
+          <Button
             disabled={!lostReason.trim() || stageMutation.isPending}
             onClick={() => stageMutation.mutate({ next: pendingStage, reason: lostReason.trim(), salesReference: null })}
-            className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+            variant="default"
           >
             Confirm
-          </button>
-          <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
+          </Button>
+          <Button onClick={cancelPendingStage} variant="ghost" className="h-auto">
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 
@@ -143,10 +144,10 @@ export default function NowTab({ ctx }) {
           </div>
 
           <div className="mt-3 flex items-center justify-end gap-2">
-            <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
+            <Button onClick={cancelPendingStage} variant="ghost" className="h-auto">
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               disabled={(needsSalesRef && !salesRefValid) || stageMutation.isPending}
               onClick={() =>
                 stageMutation.mutate({
@@ -155,10 +156,10 @@ export default function NowTab({ ctx }) {
                   salesReference: needsSalesRef ? normalizeSalesReference(salesRef) : null,
                 })
               }
-              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+              variant="default"
             >
               Confirm {stageLabel(pendingStage) || pendingStage}
-            </button>
+            </Button>
           </div>
         </div>
       )}

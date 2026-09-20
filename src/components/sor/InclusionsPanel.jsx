@@ -22,6 +22,7 @@ import {
   summariseCompleteness,
 } from "../../constants/projectEvaluation";
 import { REQUEST_UNITS } from "../../constants/procurement";
+import { Button } from "@/components/ui/button";
 
 /**
  * Inclusions (issue #43) — the client's specification, broken out.
@@ -152,38 +153,38 @@ function InclusionRow({
               placeholder="Manual cost"
               className="w-28 rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
             />
-            <button type="submit" className="text-[11px] font-bold text-primary hover:underline">
+            <Button type="submit" variant="link">
               Save
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={() => setIsEditingCost(false)}
-              className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+              variant="ghost" className="h-auto"
             >
               Cancel
-            </button>
+            </Button>
           </form>
         ) : (
           <p className="mt-1 flex items-center gap-1.5 text-[11px] font-semibold text-foreground">
             <CostLine inclusion={inclusion} />
             {canEditCanvass && (
               <>
-                <button
+                <Button
                   type="button"
                   onClick={() => onRefreshCost(inclusion.id)}
                   title="Refresh cost"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
                 >
                   <RefreshCw size={11} />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setIsEditingCost(true)}
                   title="Set manual cost"
-                  className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
                 >
                   <Pencil size={11} />
-                </button>
+                </Button>
               </>
             )}
           </p>
@@ -222,15 +223,15 @@ function InclusionRow({
         />
 
         {canEdit && (
-          <button
+          <Button
             type="button"
             onClick={() => onRemove(inclusion)}
             disabled={isPending}
             aria-label={`Remove ${inclusion.description}`}
-            className="rounded-lg p-1 text-muted-foreground opacity-0 transition-all hover:bg-red-a3 hover:text-red-11 group-hover:opacity-100 focus-visible:opacity-100 disabled:opacity-30"
+            variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
           >
             <Trash2 size={13} />
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -284,21 +285,21 @@ function Composer({ onAdd, onCancel, isPending }) {
         ))}
       </select>
 
-      <button
+      <Button
         type="submit"
         disabled={!description.trim() || isPending}
-        className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+        variant="default"
       >
         Add
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
         onClick={onCancel}
         aria-label="Close"
-        className="rounded-lg p-1 text-muted-foreground transition-colors hover:text-foreground"
+        variant="ghost" size="icon-xs"
       >
         <X size={14} />
-      </button>
+      </Button>
     </form>
   );
 }
@@ -326,15 +327,15 @@ function DraftRow({ draft, onChange, onDiscard, isPending }) {
         aria-label="Imported quantity"
         className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
-      <button
+      <Button
         type="button"
         onClick={onDiscard}
         disabled={isPending}
         aria-label={`Discard ${draft.description}`}
-        className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-red-a3 hover:text-red-11 disabled:opacity-30"
+        variant="ghost" size="icon-xs"
       >
         <X size={14} />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -509,20 +510,20 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
   return (
     <div className="rounded-xl border border-border/50 p-6 space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <button
+        <Button
           type="button"
           onClick={() => setIsFolded(!isFolded)}
-          className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          variant="ghost" className="h-auto"
         >
           <ChevronDown
             size={12}
             className={cn("transition-transform duration-150", isFolded && "-rotate-90")}
           />
           Inclusions
-        </button>
+        </Button>
 
         {canEdit && (
-          <button
+          <Button
             type="button"
             onClick={handleImport}
             disabled={!salesReference || isImporting}
@@ -531,11 +532,11 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
                 ? "Import the order line description(s) from Odoo"
                 : "Bind a Sales Reference first to import from Odoo"
             }
-            className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11px] font-bold text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-40 disabled:hover:border-border disabled:hover:text-muted-foreground"
+            variant="outline"
           >
             <Download size={12} />
             {isImporting ? "Importing…" : "Import from Odoo"}
-          </button>
+          </Button>
         )}
 
         {/* An untouched breakdown has no percentage, deliberately — "0%" would
@@ -594,22 +595,22 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
                 />
               ))}
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
                   onClick={() => saveDraftsMutation.mutate()}
                   disabled={saveDraftsMutation.isPending}
-                  className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+                  variant="default"
                 >
                   Save imported ({drafts.length})
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => setDrafts([])}
                   disabled={saveDraftsMutation.isPending}
-                  className="text-[11px] font-semibold text-muted-foreground hover:text-foreground"
+                  variant="ghost" className="h-auto"
                 >
                   Discard all
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -661,13 +662,13 @@ export default function InclusionsPanel({ opportunity, isRequired = false }) {
           )}
 
           {canEdit && !isComposing && (
-            <button
+            <Button
               type="button"
               onClick={() => setIsComposing(true)}
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+              variant="outline" className="w-full"
             >
               <Plus size={14} /> Add Inclusion
-            </button>
+            </Button>
           )}
         </>
       )}

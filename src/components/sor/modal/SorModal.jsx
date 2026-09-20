@@ -36,6 +36,7 @@ import ItemsTab from "./ItemsTab";
 import DetailsTab from "./DetailsTab";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
+import { Button } from "@/components/ui/button";
 
 const TABS = [
   { value: "now", label: "Now" },
@@ -663,13 +664,13 @@ export default function SorModal({
               )}
               <h2 className="truncate text-lg font-black text-foreground">{lockedSummary?.project_title || "This SOR"}</h2>
             </div>
-            <button
+            <Button
               onClick={onClose}
               aria-label="Close"
-              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              variant="ghost" size="icon-xs" className="shrink-0"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-6 overflow-y-auto p-6">

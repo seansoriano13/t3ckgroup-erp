@@ -24,6 +24,7 @@ import {
 } from "../../services/retailQueueService";
 import { formatPHP } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 // ---------------------------------------------------------------------------
 // Approve / Edit Modal
@@ -135,17 +136,17 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
 
         {/* Footer */}
         <div className="px-6 pb-6 flex items-center justify-end gap-2.5">
-          <button
+          <Button
             onClick={onClose}
             disabled={isPending}
-            className="px-4 py-2 rounded-xl bg-muted/50 border border-border text-sm font-bold text-muted-foreground hover:text-foreground transition-colors"
+            variant="outline"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={() => onConfirm(fields)}
             disabled={isPending}
-            className="px-5 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white text-sm font-bold transition-colors flex items-center gap-1.5 shadow-lg shadow-green-500/20"
+            variant="ghost" className="h-auto"
           >
             {isPending ? (
               <Spinner size="xs" />
@@ -153,7 +154,7 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
               <CheckCircle size={14} />
             )}
             Approve & Add to SOR
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -227,22 +228,22 @@ function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
             </span>
           ) : (
             <div className="flex items-center gap-1.5">
-              <button
+              <Button
                 onClick={() => setApproveOpen(true)}
                 disabled={isBusy}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-green-600/10 border border-green-500/30 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-600/20 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                variant="ghost" className="h-auto"
               >
                 <CheckCircle size={11} />
                 Approve
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => onDismiss(item.id)}
                 disabled={isBusy}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-muted/40 border border-border text-muted-foreground text-xs font-bold hover:text-foreground hover:bg-muted/60 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+                variant="outline"
               >
                 <XCircle size={11} />
                 Dismiss
-              </button>
+              </Button>
             </div>
           )}
         </td>
@@ -323,15 +324,15 @@ export default function RetailOrdersQueue() {
             Marketplace orders from Odoo waiting for review. Approve to create a SOR entry.
           </p>
         </div>
-        <button
+        <Button
           onClick={() => {
             queryClient.invalidateQueries({ queryKey: ["retailQueue"] });
           }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-muted/30 border border-border text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          variant="outline"
         >
           <RefreshCw size={12} />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {/* Pending table */}
@@ -381,16 +382,16 @@ export default function RetailOrdersQueue() {
 
       {/* Dismissed section (collapsible) */}
       <div className="mt-4">
-        <button
+        <Button
           onClick={() => setShowDismissed((v) => !v)}
-          className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground transition-colors"
+          variant="ghost" className="h-auto"
         >
           {showDismissed ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           Dismissed Orders
           {dismissed.length > 0 && showDismissed && (
             <span className="text-muted-foreground/60">({dismissed.length})</span>
           )}
-        </button>
+        </Button>
 
         {showDismissed && (
           <div className="mt-3 border border-border rounded-2xl overflow-hidden bg-card">

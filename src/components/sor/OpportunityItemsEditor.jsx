@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { formatPHP } from "../../constants/sor";
+import { Button } from "@/components/ui/button";
 
 const emptyRow = () => ({ product_name: "", unit: "", quantity: 1, unit_price: "" });
 
@@ -30,13 +31,13 @@ export default function OpportunityItemsEditor({ items, onChange }) {
         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Product List
         </label>
-        <button
+        <Button
           type="button"
           onClick={addRow}
-          className="text-[12px] font-bold text-primary hover:text-primary-hover flex items-center gap-1"
+          variant="link"
         >
           <Plus size={13} /> Add Item
-        </button>
+        </Button>
       </div>
 
       {items.length === 0 ? (
@@ -90,13 +91,13 @@ export default function OpportunityItemsEditor({ items, onChange }) {
                 <div className="col-span-1 text-xs font-bold text-foreground text-right truncate">
                   {formatPHP(lineTotal(item))}
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={() => removeRow(idx)}
-                  className="col-span-1 flex justify-end text-muted-foreground hover:text-red-500 transition-colors"
+                  variant="ghost" className="col-span-1 h-auto"
                 >
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </div>
             ))}
           </div>

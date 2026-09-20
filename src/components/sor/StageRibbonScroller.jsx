@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 // Both ribbons draw 44px tiles (`h-11`) flush with the bottom of this strip, so
 // the arrows are the same height and sit on the tiles, not on a bracket label above them.
@@ -52,16 +53,16 @@ export default function StageRibbonScroller({ children, className }) {
       </div>
       {edges.left && (
         <div className={cn(ARROW_FADE, "left-0 justify-start bg-linear-to-r")}>
-          <button type="button" aria-label="Scroll stages left" onClick={() => page(-1)} className={ARROW_BTN}>
+          <Button type="button" aria-label="Scroll stages left" onClick={() => page(-1)} variant="ghost" className={ARROW_BTN}>
             <ChevronLeft size={15} />
-          </button>
+          </Button>
         </div>
       )}
       {edges.right && (
         <div className={cn(ARROW_FADE, "right-0 justify-end bg-linear-to-l")}>
-          <button type="button" aria-label="Scroll stages right" onClick={() => page(1)} className={ARROW_BTN}>
+          <Button type="button" aria-label="Scroll stages right" onClick={() => page(1)} variant="ghost" className={ARROW_BTN}>
             <ChevronRight size={15} />
-          </button>
+          </Button>
         </div>
       )}
     </div>

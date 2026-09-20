@@ -19,6 +19,7 @@ import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
+import { Button } from "@/components/ui/button";
 
 // One 32px target for every icon action in the header, so the cluster reads as a row.
 const ICON_BTN =
@@ -113,7 +114,7 @@ export default function SorModalHeader({
                 ref={isCurrent ? activeChevronRef : undefined}
                 className="flex flex-none"
               >
-              <button
+              <Button
                 type="button"
                 aria-current={isCurrent ? "step" : undefined}
                 aria-disabled={moveDisabled || stageMutation.isPending || isCurrent || undefined}
@@ -124,7 +125,7 @@ export default function SorModalHeader({
                   }
                 }}
                 title={moveDisabled ? moveDisabledReason : undefined}
-                className={cn(
+                variant="ghost" className={cn(
                   "relative flex h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
                   moveDisabled ? "cursor-default" : "cursor-pointer",
                   isCompleted && classes.completed,
@@ -151,7 +152,7 @@ export default function SorModalHeader({
                   {isCurrent && <div className="size-1.5 shrink-0 animate-pulse rounded-full bg-white" />}
                   {s.label}
                 </span>
-              </button>
+              </Button>
               </li>
             );
           })}
@@ -219,54 +220,54 @@ export default function SorModalHeader({
         <div className="flex shrink-0 items-center gap-1">
           {(hasPrev || hasNext) && (
             <>
-              <button
+              <Button
                 onClick={onPrev}
                 disabled={!hasPrev}
                 title="Previous"
                 aria-label="Previous opportunity"
-                className={ICON_BTN}
+                variant="ghost" className={ICON_BTN}
               >
                 <ChevronLeft size={15} />
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={onNext}
                 disabled={!hasNext}
                 title="Next"
                 aria-label="Next opportunity"
-                className={ICON_BTN}
+                variant="ghost" className={ICON_BTN}
               >
                 <ChevronRightIcon size={15} />
-              </button>
+              </Button>
               <div className="mx-1.5 h-5 w-px bg-border/60" />
             </>
           )}
           {isEditing ? (
             <>
-              <button
+              <Button
                 onClick={handleEditToggle}
-                className={cn(TEXT_BTN, "text-muted-foreground hover:bg-muted/80 hover:text-foreground")}
+                variant="ghost" className={cn(TEXT_BTN, "text-muted-foreground hover:bg-muted/80 hover:text-foreground")}
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => updateMutation.mutate(editForm)}
                 disabled={updateMutation.isPending}
-                className={cn(TEXT_BTN, "bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50")}
+                variant="ghost" className={cn(TEXT_BTN, "bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50")}
               >
                 {updateMutation.isPending ? "Saving..." : "Save"}
-              </button>
+              </Button>
             </>
           ) : (
             <>
               {canEdit && (
-                <button
+                <Button
                   onClick={handleEditToggle}
                   title="Edit"
                   aria-label="Edit opportunity"
-                  className={ICON_BTN}
+                  variant="ghost" className={ICON_BTN}
                 >
                   <Pencil size={15} />
-                </button>
+                </Button>
               )}
               {/* Rarely-used actions live behind one menu so the header keeps a single row of intent. */}
               <Dropdown
@@ -274,31 +275,31 @@ export default function SorModalHeader({
                 placement="bottom-end"
                 popoverClassName="popover-enter z-[10001] w-44 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <button
+                  <Button
                     type="button"
                     title="More actions"
                     aria-label="More actions"
-                    className={ICON_BTN}
+                    variant="ghost" className={ICON_BTN}
                   >
                     <MoreHorizontal size={15} />
-                  </button>
+                  </Button>
                 }
               >
                 {({ close }) => (
                   <div className="flex flex-col gap-0.5">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => {
                         close();
                         setIsExpanded((v) => !v);
                       }}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                      variant="ghost" className="text-left h-auto justify-start"
                     >
                       {isExpanded ? <Minimize2 size={14} className="text-muted-foreground" /> : <Maximize2 size={14} className="text-muted-foreground" />}
                       {isExpanded ? "Collapse" : "Expand to full screen"}
-                    </button>
+                    </Button>
                     {canEdit && (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => {
                           close();
@@ -308,23 +309,23 @@ export default function SorModalHeader({
                             () => deleteMutation.mutate(),
                           );
                         }}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-red-9/10 hover:text-red-11"
+                        variant="ghost" className="text-left h-auto justify-start"
                       >
                         <Trash2 size={14} className="text-red-11" />
                         Delete opportunity
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
               </Dropdown>
-              <button
+              <Button
                 onClick={onClose}
                 title="Close"
                 aria-label="Close"
-                className={ICON_BTN}
+                variant="ghost" className={ICON_BTN}
               >
                 <X size={15} />
-              </button>
+              </Button>
             </>
           )}
         </div>

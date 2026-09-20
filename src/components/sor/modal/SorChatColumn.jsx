@@ -5,6 +5,7 @@ import Avatar from "../../Avatar";
 import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
+import { Button } from "@/components/ui/button";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -85,14 +86,14 @@ export default function SorChatColumn({
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-muted-foreground">
                     {n.author?.name ? (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => handleMentionClick(n.author)}
-                        className="font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer text-left inline-block"
+                        variant="ghost" className="text-left inline-block h-auto justify-start"
                         title={`Click to mention @${n.author.name}`}
                       >
                         {n.author.name}
-                      </button>
+                      </Button>
                     ) : (
                       <span>{n.type === "SYSTEM" ? "System" : "Unknown"}</span>
                     )}
@@ -179,24 +180,24 @@ export default function SorChatColumn({
             />
           </div>
           <div className="mt-2 flex items-center justify-between gap-2">
-            <button
+            <Button
               type="button"
               title={`Attach files (max ${attachments.max})`}
               aria-label="Attach files"
               disabled={isPosting || files.length >= attachments.max}
               onClick={() => fileInputRef.current?.click()}
-              className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:opacity-50"
+              variant="outline" className="shrink-0"
             >
               <Paperclip size={15} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={(!note.trim() && files.length === 0) || isPosting}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+              variant="default" className="shrink-0"
             >
               {isPosting ? <Spinner size="sm" /> : <Send size={13} />}
               {isUploading ? "Uploading" : "Post"}
-            </button>
+            </Button>
           </div>
           <p className="mt-2 text-[10px] text-muted-foreground/70">
             Type <span className="font-bold">@</span> to mention someone · attach or paste up to{" "}

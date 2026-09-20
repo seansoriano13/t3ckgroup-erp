@@ -41,6 +41,7 @@ import {
 import { outstandingInclusions } from "../../constants/projectEvaluation";
 import { useAuth } from "../../context/AuthContext";
 import { canEditSor } from "../../utils/sorPermissions";
+import { Button } from "@/components/ui/button";
 
 let draftSeq = 0;
 const blankDraft = (seed = {}) => ({
@@ -95,14 +96,14 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         <span className="text-[12px] font-semibold uppercase tracking-wider text-foreground">
           Edit request
         </span>
-        <button
+        <Button
           type="button"
           onClick={onCancel}
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
+          variant="ghost" size="icon-xs"
           aria-label="Cancel editing"
         >
           <X size={13} />
-        </button>
+        </Button>
       </div>
 
       <input
@@ -145,14 +146,14 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
               className="group flex items-center gap-1.5 rounded-md bg-mauve-3 px-2 py-1 text-[11px] text-foreground"
             >
               <span className="max-w-[110px] truncate">{img.name || `Image ${i + 1}`}</span>
-              <button
+              <Button
                 type="button"
                 onClick={() => removeExistingImage(i)}
-                className="text-muted-foreground hover:text-red-9"
+                variant="ghost" className="h-auto"
                 title="Remove image"
               >
                 <X size={11} />
-              </button>
+              </Button>
             </div>
           ))}
         </div>
@@ -176,20 +177,20 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         </label>
 
         <div className="flex items-center gap-2">
-          <button
+          <Button
             type="button"
             onClick={onCancel}
-            className="rounded-md px-2.5 py-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
+            variant="ghost" className="h-auto"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={isPending || !productName.trim()}
-            className="rounded-md bg-mauve-12 px-3 py-1.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity hover:opacity-90 disabled:opacity-40"
+            variant="default"
           >
             {isPending ? "Saving…" : "Save"}
-          </button>
+          </Button>
         </div>
       </div>
     </form>
@@ -240,13 +241,13 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
           hasDetail && "cursor-pointer hover:bg-mauve-3/40",
         )}
       >
-        <button
+        <Button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             if (hasDetail) setIsOpen((v) => !v);
           }}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+          variant="ghost" className="min-w-0 flex-1 text-left h-auto justify-start"
           aria-expanded={hasDetail ? isOpen : undefined}
         >
           <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
@@ -258,14 +259,14 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
           <span className="shrink-0 rounded-md bg-mauve-3 px-2 py-0.5 text-[11.5px] font-medium text-foreground">
             {qty} {unit}
           </span>
-        </button>
+        </Button>
 
         <div
           onClick={(e) => e.stopPropagation()}
           className="flex shrink-0 items-center gap-1.5"
         >
           {request.task_id && (
-            <button
+            <Button
               type="button"
               onClick={() =>
                 window.dispatchEvent(
@@ -274,26 +275,26 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
                   }),
                 )
               }
-              className="inline-flex items-center gap-1 rounded-md border border-mauve-6 bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
+              variant="outline" className="inline-flex"
               title="Open purchasing task"
             >
               <ExternalLink size={11} />
               <span>View Task</span>
-            </button>
+            </Button>
           )}
 
           {canEdit && (
             <div className="flex items-center gap-0.5">
-              <button
+              <Button
                 type="button"
                 onClick={() => setIsEditing(true)}
                 aria-label={`Edit ${request.requested_name}`}
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
+                variant="ghost" size="icon-xs"
                 title="Edit request"
               >
                 <Pencil size={12} />
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={() =>
                   confirmDeleteToast(
@@ -303,26 +304,26 @@ function RequestRow({ request, onEdit, onDelete, canEdit, isPending }) {
                   )
                 }
                 aria-label={`Delete ${request.requested_name}`}
-                className="rounded p-1 text-muted-foreground transition-colors hover:bg-red-a4 hover:text-red-9"
+                variant="ghost" size="icon-xs"
                 title="Cancel request"
               >
                 <Trash2 size={12} />
-              </button>
+              </Button>
             </div>
           )}
 
           {hasDetail && (
-            <button
+            <Button
               type="button"
               onClick={() => setIsOpen((v) => !v)}
               aria-label={isOpen ? "Collapse" : "Expand"}
-              className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
+              variant="ghost" size="icon-xs" className="shrink-0"
             >
               <ChevronDown
                 size={13}
                 className={cn("transition-transform duration-150", isOpen && "rotate-180")}
               />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -377,15 +378,15 @@ function QuantityStepper({ value, onChange, label }) {
 
   return (
     <div className="inline-flex h-7 items-center gap-0.5 rounded-md bg-mauve-3 px-0.5">
-      <button
+      <Button
         type="button"
         aria-label={`Decrease ${label}`}
         disabled={n <= 1}
         onClick={() => step(-1)}
-        className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground disabled:opacity-30 disabled:hover:bg-transparent"
+        variant="ghost" size="icon-xs"
       >
         <Minus size={12} />
-      </button>
+      </Button>
       <input
         aria-label={label}
         inputMode="numeric"
@@ -396,14 +397,14 @@ function QuantityStepper({ value, onChange, label }) {
         }}
         className="h-full w-6 bg-transparent text-center text-[12.5px] font-semibold text-foreground outline-none"
       />
-      <button
+      <Button
         type="button"
         aria-label={`Increase ${label}`}
         onClick={() => step(1)}
-        className="grid size-6 place-items-center rounded text-muted-foreground transition-colors hover:bg-mauve-4 hover:text-foreground"
+        variant="ghost" size="icon-xs"
       >
         <Plus size={12} />
-      </button>
+      </Button>
     </div>
   );
 }
@@ -429,14 +430,14 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
           className="min-w-0 flex-1 bg-transparent text-[14px] font-semibold text-foreground outline-none placeholder:font-medium placeholder:text-muted-foreground/40"
         />
         {canRemove && (
-          <button
+          <Button
             type="button"
             aria-label={`Remove product ${index + 1}`}
             onClick={onRemove}
-            className="shrink-0 rounded p-0.5 text-muted-foreground/50 opacity-0 transition-all hover:text-red-9 focus-visible:opacity-100 group-hover/row:opacity-100"
+            variant="ghost" size="icon-xs" className="shrink-0 opacity-0 focus-visible:opacity-100 group-hover/row:opacity-100"
           >
             <Trash2 size={13} />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -487,14 +488,14 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
           e.target.value = "";
         }}
       />
-      <button
+      <Button
         type="button"
         onClick={() => fileRef.current?.click()}
-        className="mt-1.5 flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground"
+        variant="ghost" className="mt-1.5 h-auto"
       >
         <ImagePlus size={12} />
         Attach a screenshot
-      </button>
+      </Button>
     </div>
   );
 }
@@ -539,14 +540,14 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
         <span className="min-w-0 flex-1 truncate text-[12.5px] font-semibold text-foreground">
           {value.label}
         </span>
-        <button
+        <Button
           type="button"
           aria-label="Clear recipient"
           onClick={() => onChange(null)}
-          className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+          variant="ghost" size="icon-xs" className="shrink-0"
         >
           <X size={13} />
-        </button>
+        </Button>
       </div>
     );
   }
@@ -600,13 +601,13 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
           ) : (
             matches.map((o, i) => (
               <li key={o.id}>
-                <button
+                <Button
                   type="button"
                   role="option"
                   aria-selected={i === active}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => choose(o)}
-                  className={cn(
+                  variant="ghost" className={cn(
                     "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-[12.5px] font-medium transition-colors",
                     i === active ? "bg-mauve-4 text-foreground" : "text-muted-foreground hover:bg-mauve-3",
                   )}
@@ -617,7 +618,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
                     <UserPlus size={13} className="shrink-0" />
                   )}
                   <span className="truncate">{o.label}</span>
-                </button>
+                </Button>
               </li>
             ))
           )}
@@ -900,17 +901,17 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
     <div className="rounded-xl border border-border/50 p-6 space-y-3">
       {requests.length > 0 && (
         <div className="flex items-center justify-between">
-          <button
+          <Button
             type="button"
             onClick={() => setFoldOverride(!isFolded)}
-            className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+            variant="ghost" className="h-auto"
           >
             <ChevronDown
               size={12}
               className={cn("transition-transform duration-150", isFolded && "-rotate-90")}
             />
             Procurement Requests
-          </button>
+          </Button>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">
             {resolvedCount}/{requests.length} Resolved
           </span>
@@ -960,27 +961,27 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                     placeholder="Assign to a buyer"
                   />
                 </div>
-                <button
+                <Button
                   type="button"
                   disabled={!assignTo || assignMutation.isPending}
                   onClick={() => assignMutation.mutate()}
-                  className="h-9 shrink-0 rounded-md bg-mauve-12 px-3.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity disabled:opacity-40"
+                  variant="default" className="shrink-0"
                 >
                   Assign
-                </button>
+                </Button>
               </div>
             </div>
           )}
 
           {!isComposing && (
-            <button
+            <Button
               type="button"
               onClick={openComposer}
-              className="flex items-center gap-1.5 rounded-md px-1 py-1 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+              variant="ghost" className="h-auto"
             >
               <Plus size={13} />
               Request a product
-            </button>
+            </Button>
           )}
 
           <div
@@ -1009,12 +1010,12 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       From the breakdown
                     </span>
                     {unsourced.map((inclusion) => (
-                      <button
+                      <Button
                         key={inclusion.id}
                         type="button"
                         onClick={() => startFromInclusion(inclusion)}
                         disabled={isComposerFull}
-                        className="max-w-[14rem] truncate rounded-full border border-dashed border-amber-7 bg-amber-a2 px-2 py-0.5 text-[11px] font-semibold text-amber-11 transition-colors hover:bg-amber-a3 disabled:cursor-not-allowed disabled:opacity-40"
+                        variant="ghost" className="max-w-[14rem] truncate h-auto"
                         title={
                           isComposerFull
                             ? `Send these ${MAX_DRAFTS} first — the composer takes ${MAX_DRAFTS} products at a time.`
@@ -1022,7 +1023,7 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                         }
                       >
                         + {inclusion.description}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -1048,13 +1049,13 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                 </div>
 
                 {drafts.length < MAX_DRAFTS && (
-                  <button
+                  <Button
                     type="button"
                     onClick={() => setDrafts((prev) => [...prev, blankDraft()])}
-                    className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-foreground transition-opacity hover:opacity-70"
+                    variant="ghost" className="mt-2 h-auto"
                   >
                     <Plus size={13} /> Add another product
-                  </button>
+                  </Button>
                 )}
 
                 <div className="sticky bottom-0 z-10 mt-4 flex items-center gap-2 border-t border-border/70 bg-card pt-3 pb-1">
@@ -1065,18 +1066,18 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       onChange={setRecipient}
                     />
                   </div>
-                  <button
+                  <Button
                     type="button"
                     onClick={resetComposer}
-                    className="h-9 shrink-0 rounded-md px-3 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-mauve-3 hover:text-foreground"
+                    variant="ghost" className="shrink-0 h-auto"
                   >
                     Cancel
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     disabled={!canSend}
                     onClick={() => createMutation.mutate()}
-                    className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-md bg-mauve-12 px-3.5 text-[12px] font-semibold text-mauve-1 shadow-sm transition-opacity disabled:opacity-40"
+                    variant="default" className="shrink-0"
                   >
                     <Send size={12} />
                     {isSending
@@ -1084,7 +1085,7 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                       : named.length === 0
                         ? "Name a product"
                         : `Send ${named.length}`}
-                  </button>
+                  </Button>
                 </div>
               </div>
             </div>

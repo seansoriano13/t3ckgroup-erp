@@ -50,6 +50,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -782,40 +783,40 @@ export default function OpportunitiesPage() {
                       )}
                     </Dropdown>
 
-                    <button
+                    <Button
                       onClick={() => setMineOnly((v) => !v)}
-                      className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${mineOnly
+                      variant="ghost" className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${mineOnly
                         ? "bg-primary/10 border-primary/40 text-primary"
                         : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       My Deals
-                    </button>
+                    </Button>
                     {/* Sales Director visibility (Stage Gate Engine ticket 6,
                         story 25) — which deals are stuck on their own Stage,
                         without hunting for it deal by deal. */}
-                    <button
+                    <Button
                       onClick={() => setBlockedOnly((v) => !v)}
-                      className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${blockedOnly
+                      variant="ghost" className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${blockedOnly
                         ? "bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400"
                         : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
                         }`}
                     >
                       <AlertTriangle size={13} />
                       Blocked
-                    </button>
+                    </Button>
                   </div>
 
                   {hasActiveFilters && (
-                    <button
+                    <Button
                       onClick={() => {
                         handleClearAll();
                         close();
                       }}
-                      className="self-start text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                      variant="ghost" className="self-start h-auto"
                     >
                       Clear All
-                    </button>
+                    </Button>
                   )}
                 </div>
               )}
@@ -832,22 +833,22 @@ export default function OpportunitiesPage() {
               </span>
             </div>
 
-            <button
+            <Button
               onClick={() => setFormOpen(true)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary-hover"
+              variant="default" className="shrink-0"
             >
               <Plus size={15} /> Register SOR
-            </button>
+            </Button>
           </div>
 
           {employeeFilter && employeeFilter !== "ALL" && (
-            <button
+            <Button
               onClick={() => setEmployeeFilter("ALL")}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/15"
+              variant="ghost" className="mt-2 inline-flex h-auto"
             >
               Filtered to {employeeFilterName || "employee"}
               <X size={12} />
-            </button>
+            </Button>
           )}
         </div>
 

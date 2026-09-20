@@ -10,6 +10,7 @@ import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../con
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
 import { formatDueDate as formatWhen } from "../../../utils/formatDate";
+import { Button } from "@/components/ui/button";
 
 const notDeleted = (task) => !isTaskDeleted(task);
 
@@ -66,14 +67,14 @@ function TaskLine({ title, status, owner, date, onOpen }) {
   return (
     <div className={cn(ROW, TASK_COLS)}>
       {onOpen ? (
-        <button
+        <Button
           type="button"
           onClick={onOpen}
           title={title}
-          className="line-clamp-2 min-w-0 cursor-pointer text-left font-semibold text-foreground underline-offset-2 hover:underline"
+          variant="ghost" className="min-w-0 text-left h-auto justify-start"
         >
           {title}
-        </button>
+        </Button>
       ) : (
         <span className="line-clamp-2 min-w-0 font-medium text-foreground">{title}</span>
       )}
@@ -168,11 +169,11 @@ function PastVisit({ row, onToggle }) {
 
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-background">
-      <button
+      <Button
         type="button"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+        variant="ghost" className="w-full text-left h-auto justify-start"
       >
         {isExpanded ? (
           <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
@@ -201,7 +202,7 @@ function PastVisit({ row, onToggle }) {
         <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
           {taskCount} task{taskCount === 1 ? "" : "s"}
         </span>
-      </button>
+      </Button>
 
       {isExpanded && (
         <div className="border-t border-border">
@@ -321,10 +322,10 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
   return (
     <div className="space-y-6 p-6">
       {current && (
-        <button
+        <Button
           type="button"
           onClick={onGoToNow}
-          className="flex w-full items-center gap-3 rounded-xl border border-border bg-background px-4 py-3 text-left transition-colors hover:border-mauve-7 hover:bg-muted/30"
+          variant="outline" className="w-full text-left"
         >
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
@@ -341,7 +342,7 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
             Open Now
             <ArrowRight size={12} />
           </span>
-        </button>
+        </Button>
       )}
 
       {past.length > 0 ? (

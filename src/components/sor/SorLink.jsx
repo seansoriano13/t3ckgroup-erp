@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Briefcase } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
+import { Button } from "@/components/ui/button";
 
 /**
  * The link from a task back to the SOR it was created for (issue #199), shared
@@ -31,16 +32,16 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   if (variant === "inline") {
     return (
-      <button
+      <Button
         type="button"
         onClick={open}
-        className="ml-2 flex items-center gap-1.5 transition-colors hover:text-foreground"
+        variant="ghost" className="ml-2 h-auto"
       >
         <Briefcase size={14} className="text-muted-foreground" />
         <span className="max-w-[200px] truncate" title={label}>
           Deal: {label}
         </span>
-      </button>
+      </Button>
     );
   }
 
@@ -49,14 +50,14 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       <span className="flex items-center gap-1.5 pl-1 text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
         <Briefcase size={12} /> Sales Opportunity
       </span>
-      <button
+      <Button
         type="button"
         onClick={open}
-        className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
+        variant="outline" className="text-left"
       >
         <Briefcase size={14} />
         {label}
-      </button>
+      </Button>
     </div>
   );
 }
