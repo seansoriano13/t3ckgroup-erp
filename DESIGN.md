@@ -298,6 +298,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### TabGroup
 `ui/TabGroup.jsx`. Tabs. Props: `tabs`, `activeTab`, `onChange`, `variant` (`pill` | `primary` | colored | `underline`), `size`, `fullWidth`.
 
+#### Table
+`ui/table.jsx`. Replaces raw `<table>`. Styling only: `Table` (wrapper scrolls horizontally; `className` goes to the table, `containerClassName` to the wrapper), `TableHeader`, `TableBody`, `TableRow`, `TableHead`, `TableCell`. Every other prop passes through, so screens keep their own sorting (`onClick` on `TableHead`), row clicks, pagination and selection (`data-state="selected"` on `TableRow`). Keep only width, alignment and interaction classes; the Primitive owns padding, header type and dividers.
+
 #### Card
 `ui/card.jsx`. Parts: `Card` (`size`), `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`.
 

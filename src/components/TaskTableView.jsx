@@ -23,6 +23,7 @@ import { ArrowUpRight } from "lucide-react";
 import { getChecklistProgress } from "../utils/checklist";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -179,54 +180,54 @@ export default function TaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold tracking-wider uppercase text-[11px] select-none">
-                <th
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow >
+                <TableHead
                   onClick={() => handleSort("title")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors"
+                  className="cursor-pointer hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     Task / Description {renderSortIcon("title")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("assignee")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors w-[180px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[180px]"
                 >
                   <div className="flex items-center gap-1">
                     Assignee {renderSortIcon("assignee")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("status")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
                   <div className="flex items-center gap-1">
                     Status {renderSortIcon("status")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("priority")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[110px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[110px]"
                 >
                   <div className="flex items-center gap-1">
                     Priority {renderSortIcon("priority")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("dueDate")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
-                </th>
-                <th className="py-3.5 px-3 w-[140px]">Progress</th>
-                <th className="py-3.5 px-4 text-right w-[80px]">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+                </TableHead>
+                <TableHead className="w-[140px]">Progress</TableHead>
+                <TableHead className="text-right w-[80px]">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody >
               {paginatedTasks.map((task) => {
                 const isOwner = user?.id === task.loggedById;
                 const isOverdue =
@@ -239,14 +240,14 @@ export default function TaskTableView({
                 const progress = getTaskProgress(task);
 
                 return (
-                  <tr
+                  <TableRow
                     key={task.id}
                     onClick={() => onView && onView(task)}
                     className={`hover:bg-muted/40 transition-colors cursor-pointer group ${isOwnerOverdue ? "bg-amber-500/[0.03]" : ""
                       }`}
                   >
                     {/* Task Title & Category */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex flex-col gap-1 max-w-[340px] sm:max-w-[420px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           {task.categoryName && (
@@ -269,10 +270,10 @@ export default function TaskTableView({
                           </p>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Assignee & Dept */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.loggedByName || "User"}
@@ -291,10 +292,10 @@ export default function TaskTableView({
                           )}
                         </div>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Status Badge */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge status={task.status} />
                         {task.status === TASK_STATUS.COMPLETE && (
@@ -314,10 +315,10 @@ export default function TaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Priority */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {task.priority ? (
                         <div className="flex items-center gap-1.5 font-bold text-[10px] uppercase tracking-wider">
                           {task.priority === "HIGH" && (
@@ -348,10 +349,10 @@ export default function TaskTableView({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Due Date & Overdue */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex flex-col">
                         <span
                           className={`text-[12px] font-medium ${isOverdue
@@ -367,10 +368,10 @@ export default function TaskTableView({
                           </span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Progress / Checklist */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {progress.isChecklist ? (
                         <div
                           className="flex items-center gap-2 w-full max-w-[130px]"
@@ -399,10 +400,10 @@ export default function TaskTableView({
                             : "1 item"}
                         </span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right align-middle">
+                    <TableCell className="text-right align-middle">
                       <Button
                         type="button"
                         onClick={(e) => {
@@ -414,12 +415,12 @@ export default function TaskTableView({
                       >
                         <ArrowUpRight size={13} />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 
