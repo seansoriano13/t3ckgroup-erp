@@ -13,6 +13,7 @@ import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
 import { SOR_STAGE_FIELDS, SOR_STAGE_FIELD_KEYS, CUSTOM_FIELD_TYPE_VALUES } from "../../constants/stageFields";
+import { Select } from "@/components/ui/select";
 
 const emptyDraft = () => ({
   label: "",
@@ -269,34 +270,24 @@ export default function StageFieldManager({ stageId, disabled = false }) {
               </div>
 
               {draft.source === "sor" ? (
-                <select
-                  aria-label="SOR field"
-                  disabled={Boolean(editingId)}
-                  value={draft.sorField}
-                  onChange={(e) => setDraft((d) => ({ ...d, sorField: e.target.value }))}
-                  className="mt-2 flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm disabled:opacity-50"
-                >
-                  {SOR_STAGE_FIELD_KEYS.map((key) => (
-                    <option key={key} value={key}>
-                      {SOR_STAGE_FIELDS[key].label}
-                    </option>
-                  ))}
-                </select>
+                <Select
+  options={[...SOR_STAGE_FIELD_KEYS.map((key) => ({ value: key, label: SOR_STAGE_FIELDS[key].label }))]}
+  value={draft.sorField}
+  onChange={(next) => setDraft((d) => ({ ...d, sorField: next }))}
+  disabled={Boolean(editingId)}
+  aria-label="SOR field"
+  className="mt-2 w-full"
+/>
               ) : (
                 <>
-                  <select
-                    aria-label="Field type"
-                    disabled={Boolean(editingId)}
-                    value={draft.fieldType}
-                    onChange={(e) => setDraft((d) => ({ ...d, fieldType: e.target.value }))}
-                    className="mt-2 flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm disabled:opacity-50"
-                  >
-                    {CUSTOM_FIELD_TYPE_VALUES.map((type) => (
-                      <option key={type} value={type}>
-                        {type[0].toUpperCase() + type.slice(1)}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+  options={[...CUSTOM_FIELD_TYPE_VALUES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))]}
+  value={draft.fieldType}
+  onChange={(next) => setDraft((d) => ({ ...d, fieldType: next }))}
+  disabled={Boolean(editingId)}
+  aria-label="Field type"
+  className="mt-2 w-full"
+/>
                   {draft.fieldType === "choice" && (
                     <ChoiceOptionsEditor
                       options={draft.options}

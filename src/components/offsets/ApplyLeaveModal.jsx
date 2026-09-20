@@ -19,6 +19,7 @@ import { dayShiftService } from '../../services/dayShiftService';
 import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShift';
 import HeadSelectField from './HeadSelectField';
 import { Textarea } from "@/components/ui/textarea";
+import { Select } from "@/components/ui/select";
 
 const DEFAULT_DAY_HOURS = 8;
 
@@ -517,17 +518,14 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                 Employee
               </label>
-              <select
-                value={selectedEmployeeId}
-                onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                required
-              >
-                <option value="" disabled>Select employee...</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+              <Select
+  options={[...employees.map((emp) => ({ value: emp.id, label: emp.name }))]}
+  value={selectedEmployeeId}
+  onChange={(next) => setSelectedEmployeeId(next)}
+  placeholder="Select employee..."
+  required
+  className="w-full"
+/>
             </div>
           )}
 
@@ -646,17 +644,14 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Category
                 </label>
-                <select
-                  value={offsetCategoryId}
-                  onChange={(e) => setOffsetCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select category...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                <Select
+  options={[...categories.map((c) => ({ value: c.id, label: c.label }))]}
+  value={offsetCategoryId}
+  onChange={(next) => setOffsetCategoryId(next)}
+  placeholder="Select category..."
+  required
+  className="w-full"
+/>
               </div>
               {offsetApplyMode === 'range' ? (
                 <RangeDayEditor
@@ -780,17 +775,14 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Category
                 </label>
-                <select
-                  value={silCategoryId}
-                  onChange={(e) => setSilCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select category...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                <Select
+  options={[...categories.map((c) => ({ value: c.id, label: c.label }))]}
+  value={silCategoryId}
+  onChange={(next) => setSilCategoryId(next)}
+  placeholder="Select category..."
+  required
+  className="w-full"
+/>
               </div>
               {silApplyMode === 'range' ? (
                 <RangeDayEditor

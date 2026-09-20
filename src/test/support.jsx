@@ -8,7 +8,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { render, renderHook } from "@testing-library/react"
+import { render, renderHook, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
 export function createTestQueryClient() {
@@ -66,4 +66,13 @@ export function renderWithProviders(ui, { client = createTestQueryClient(), ...o
  */
 export function setupUser(options = {}) {
   return userEvent.setup({ delay: null, ...options })
+}
+
+/**
+ * Picks an option in the shared Select (a base-ui combobox, not a native
+ * <select>): open it, then click the option by its visible label.
+ */
+export async function chooseOption(user, combobox, optionName) {
+  await user.click(combobox)
+  await user.click(await screen.findByRole("option", { name: optionName }))
 }

@@ -7,6 +7,7 @@ import { commissionService } from "../../services/commissionService";
 import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -68,17 +69,11 @@ export default function CommissionRatesManager() {
           >
             <div className="space-y-1">
               <label className="text-xs font-bold text-muted-foreground">Type</label>
-              <select
-                value={rateType}
-                onChange={(e) => setRateType(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                {Object.entries(RATE_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              <Select
+  options={[...Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value: value, label: label }))]}
+  value={rateType}
+  onChange={(next) => setRateType(next)}
+/>
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-muted-foreground">Percent</label>

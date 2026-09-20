@@ -22,6 +22,7 @@ import { ArrowUpRight } from "lucide-react";
 
 import { getChecklistProgress } from "../utils/checklist";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -443,18 +444,14 @@ export default function TaskTableView({
           <span className="text-border">|</span>
           <div className="flex items-center gap-1.5">
             <span>Rows:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
+            <Select
+  options={[{ value: 10, label: "10" }, { value: 25, label: "25" }, { value: 50, label: "50" }]}
+  value={pageSize}
+  onChange={(next) => {
+                setPageSize(Number(next));
                 setCurrentPage(1);
               }}
-              className="bg-card border border-border rounded-md px-2 py-1 text-foreground text-xs font-semibold focus:outline-none focus:ring-1 focus:border-foreground/30 cursor-pointer"
-            >
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
+/>
           </div>
         </div>
 

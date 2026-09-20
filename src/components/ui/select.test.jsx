@@ -104,3 +104,22 @@ describe("Select", () => {
     })
   })
 })
+
+describe("Select with an empty-string value", () => {
+  it("treats '' as nothing chosen and shows the placeholder", () => {
+    render(<Select aria-label="Priority" options={OPTIONS} value="" onChange={() => {}} placeholder="Pick one" />)
+    expect(screen.getByRole("combobox", { name: "Priority" })).toHaveTextContent("Pick one")
+  })
+
+  it("still shows an option that really has the '' value", () => {
+    render(
+      <Select
+        aria-label="Move"
+        options={[{ value: "", label: "Add a move to…" }, { value: "a", label: "Alpha" }]}
+        value=""
+        onChange={() => {}}
+      />
+    )
+    expect(screen.getByRole("combobox", { name: "Move" })).toHaveTextContent("Add a move to…")
+  })
+})

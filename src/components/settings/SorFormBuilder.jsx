@@ -32,6 +32,7 @@ import { FORM_FIELD_TYPES, isCoreFormField, resolveFormFields } from "../../cons
 import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
+import { Select } from "@/components/ui/select";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -231,18 +232,13 @@ export default function SorFormBuilder({ flow }) {
                   onChange={(e) => setDraft((d) => ({ ...d, help: e.target.value }))}
                   placeholder="What should the salesperson enter?"
                 />
-                <select
-                  aria-label="Field type"
-                  value={draft.fieldType}
-                  onChange={(e) => setDraft((d) => ({ ...d, fieldType: e.target.value }))}
-                  className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
-                >
-                  {FORM_FIELD_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type[0].toUpperCase() + type.slice(1)}
-                    </option>
-                  ))}
-                </select>
+                <Select
+  options={[...FORM_FIELD_TYPES.map((type) => ({ value: type, label: type[0].toUpperCase() + type.slice(1) }))]}
+  value={draft.fieldType}
+  onChange={(next) => setDraft((d) => ({ ...d, fieldType: next }))}
+  aria-label="Field type"
+  className="w-full"
+/>
                 {draft.fieldType === "choice" && (
                   <ChoiceOptionsEditor
                     options={draft.options}

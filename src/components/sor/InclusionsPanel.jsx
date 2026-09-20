@@ -23,6 +23,7 @@ import {
 } from "../../constants/projectEvaluation";
 import { REQUEST_UNITS } from "../../constants/procurement";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 
 /**
  * Inclusions (issue #43) — the client's specification, broken out.
@@ -272,18 +273,12 @@ function Composer({ onAdd, onCancel, isPending }) {
         aria-label="Quantity"
         className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
-      <select
-        value={unit}
-        onChange={(e) => setUnit(e.target.value)}
-        aria-label="Unit"
-        className="rounded-md border border-border bg-card px-2 py-1 text-[13px] font-semibold text-foreground outline-none focus:border-mauve-4"
-      >
-        {REQUEST_UNITS.map((u) => (
-          <option key={u} value={u}>
-            {u}
-          </option>
-        ))}
-      </select>
+      <Select
+  options={[...REQUEST_UNITS.map((u) => ({ value: u, label: u }))]}
+  value={unit}
+  onChange={(next) => setUnit(next)}
+  aria-label="Unit"
+/>
 
       <Button
         type="submit"

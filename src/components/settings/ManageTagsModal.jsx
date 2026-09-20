@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Archive, RotateCcw, Plus } from "lucide-react";
+import { Select } from "@/components/ui/select";
 
 // Super Admins and heads manage the one shared vocabulary Group Tasks tag
 // from (issue #205). Archiving, not deleting, so history on already-tagged
@@ -72,17 +73,11 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
             placeholder="New tag name"
             className="flex-1"
           />
-          <select
-            value={newColor}
-            onChange={(e) => setNewColor(e.target.value)}
-            className="border border-border rounded-md px-2 text-sm"
-          >
-            {TASK_TAG_COLORS.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
+          <Select
+  options={[...TASK_TAG_COLORS.map((c) => ({ value: c, label: c }))]}
+  value={newColor}
+  onChange={(next) => setNewColor(next)}
+/>
           <Button
             type="button"
             disabled={!newName.trim() || createMutation.isPending}
@@ -108,18 +103,12 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
                 }}
                 className="flex-1 bg-transparent text-sm font-semibold outline-none"
               />
-              <select
-                value={tag.color}
-                disabled={!!tag.archived_at}
-                onChange={(e) => recolorMutation.mutate({ id: tag.id, color: e.target.value })}
-                className="border border-border rounded-md px-1 text-xs"
-              >
-                {TASK_TAG_COLORS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
+              <Select
+  options={[...TASK_TAG_COLORS.map((c) => ({ value: c, label: c }))]}
+  value={tag.color}
+  onChange={(next) => recolorMutation.mutate({ id: tag.id, color: next })}
+  disabled={!!tag.archived_at}
+/>
               {tag.archived_at ? (
                 <Button
                   type="button"

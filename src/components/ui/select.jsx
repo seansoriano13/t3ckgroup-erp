@@ -185,6 +185,12 @@ function SelectScrollDownButton({
 //   <Select options={[{ value: "a", label: "Alpha" }]} value={v} onChange={setV} placeholder="Pick one" />
 //
 // onChange receives the chosen option's value. Options may set disabled: true.
+// "" and undefined mean "nothing chosen" unless an option really has that value.
+function isUnset(value, options) {
+  if (value === null || value === undefined) return true
+  return value === "" && !options.some((option) => option.value === "")
+}
+
 function Select({
   options,
   value,
@@ -202,7 +208,7 @@ function Select({
   return (
     <SelectRoot
       items={options}
-      value={value ?? null}
+      value={isUnset(value, options) ? null : value}
       onValueChange={(next) => onChange?.(next)}
       disabled={disabled}
       name={name}

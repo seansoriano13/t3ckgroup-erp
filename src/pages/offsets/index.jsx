@@ -23,6 +23,7 @@ import { formatWindow } from '../../utils/time';
 import { mergeRequestRows } from '../../utils/mergeRequests';
 import { deriveRequestStage } from '../../utils/requestStage';
 import { getRequestStageTheme } from '../../constants/status';
+import { Select } from "@/components/ui/select";
 
 // One entry per request type instead of parallel label/class/withdraw maps —
 // adding a fifth type (or changing how one withdraws) touches this table only.
@@ -222,17 +223,11 @@ export default function EmployeeLeavesPage() {
               <h3 className="font-black text-sm text-foreground">All Requests</h3>
               <div className="flex items-center space-x-2">
                 <Filter size={14} className="text-muted-foreground" />
-                <select
-                  value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value)}
-                  className="bg-card border border-border rounded-lg text-xs font-bold px-2 py-1 outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer text-foreground"
-                >
-                  <option value="ALL">All Types</option>
-                  <option value="OFFSET">Offset</option>
-                  <option value="SIL">SIL</option>
-                  <option value="OVERTIME">Overtime</option>
-                  <option value="UNDERTIME">Undertime</option>
-                </select>
+                <Select
+  options={[{ value: "ALL", label: "All Types" }, { value: "OFFSET", label: "Offset" }, { value: "SIL", label: "SIL" }, { value: "OVERTIME", label: "Overtime" }, { value: "UNDERTIME", label: "Undertime" }]}
+  value={typeFilter}
+  onChange={(next) => setTypeFilter(next)}
+/>
               </div>
             </div>
 
