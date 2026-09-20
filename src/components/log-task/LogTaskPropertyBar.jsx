@@ -7,6 +7,7 @@ import CategoryDropdown from "../dropdowns/CategoryDropdown";
 import PriorityDropdown from "../dropdowns/PriorityDropdown";
 import PropertyPill from "../ui/PropertyPill";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function LogTaskPropertyBar({
   formData,
@@ -98,14 +99,14 @@ export default function LogTaskPropertyBar({
                     <p className="text-xs text-muted-foreground mb-3">
                       How many days after the deal enters this stage should this task be due?
                     </p>
-                    <input
+                    <Input
                       type="number"
                       min="0"
                       value={formData.dueOffsetDays || ""}
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, dueOffsetDays: e.target.value }))
                       }
-                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/50"
+                      containerClassName="w-full"
                       placeholder="e.g. 3"
                     />
                   </div>

@@ -1,6 +1,7 @@
 import { useState } from "react"
 import BeforeAfter, { Chrome } from "./BeforeAfter"
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * The six before/after demos.
@@ -426,10 +427,10 @@ export function LoginDemo() {
       note="The magic link still works. It is no longer the only way in, and a reset link is no longer spent before the person clicks it."
       before={
         <Chrome title="Sign in">
-          <input
+          <Input
             readOnly
             value="sean@t3ckgroup.com"
-            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
+            containerClassName="mb-2 w-full"
           />
           <Button
             type="button"
@@ -447,16 +448,16 @@ export function LoginDemo() {
       }
       after={
         <Chrome title="Sign in">
-          <input
+          <Input
             readOnly
             value="sean@t3ckgroup.com"
-            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
+            containerClassName="mb-2 w-full"
           />
-          <input
+          <Input
             readOnly
             type="password"
             value="password"
-            className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
+            containerClassName="mb-2 w-full"
           />
           <Button
             type="button"

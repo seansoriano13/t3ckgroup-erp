@@ -43,6 +43,7 @@ import {
   computeDueDateOffsetDays,
 } from "../utils/templateApply";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 const makeMember = () => ({
   id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -409,13 +410,13 @@ export default function CreateGroupTaskModal({
                   autoComplete="off"
                 />
               ) : (
-                <input
+                <Input
                   ref={titleRef}
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Group Task Title"
-                  className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
+                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xl font-semibold text-foreground placeholder:text-mauve-6 pb-1" containerClassName="w-full mb-2"
                   autoComplete="off"
                 />
               )}
@@ -493,13 +494,13 @@ export default function CreateGroupTaskModal({
                   <div className="relative">
                     {mode === "automation" ? (
                       <>
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           value={dueOffsetDays || ""}
                           onChange={(e) => setDueOffsetDays(e.target.value)}
                           placeholder="Offset Days (e.g. 3)"
-                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-60"
+                          containerClassName="w-60"
                         />
                         <Calendar
                           size={13}

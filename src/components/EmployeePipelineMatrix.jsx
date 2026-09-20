@@ -20,6 +20,7 @@ import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import HighlightText from "./HighlightText";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function EmployeePipelineMatrix({ selectedRange }) {
   const navigate = useNavigate();
@@ -184,12 +185,12 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-[#9CA3AF]" />
-            <input
+            <Input
               type="text"
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-[#9CA3AF] w-full"
+              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs text-foreground placeholder-[#9CA3AF]" containerClassName="w-full"
             />
             {searchTerm && (
               <Button

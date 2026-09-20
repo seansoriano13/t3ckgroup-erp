@@ -15,6 +15,7 @@ import {
 import Spinner from "@/components/ui/Spinner";
 import toast from "react-hot-toast";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
+import { Input } from "@/components/ui/input";
 
 export default function GroupRoleManagerModal({ isOpen, onClose }) {
   const queryClient = useQueryClient();
@@ -165,13 +166,13 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                   >
                     {editingId === role.id ? (
                       <div className="flex-1 flex items-center gap-2">
-                        <input
+                        <Input
                           type="text"
                           value={editValue}
                           onChange={(e) =>
                             setEditValue(e.target.value.toUpperCase())
                           }
-                          className="flex-1 bg-background border border-border rounded-lg px-3 py-1.5 text-xs text-foreground outline-none focus:border-primary focus:ring-1 ring-mauve-6"
+                          containerClassName="flex-1"
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === "Enter") handleSaveEdit(role.id);
@@ -247,12 +248,12 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
           {/* ADD ROLE FORM */}
           <div className="p-4 border-t border-border bg-card">
             <form onSubmit={handleAdd} className="flex gap-2">
-              <input
+              <Input
                 type="text"
                 placeholder="New Role Name (e.g. MARKETING)"
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value.toUpperCase())}
-                className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground outline-none focus:border-primary focus:ring-1 ring-primary/20"
+                containerClassName="flex-1"
               />
               <Button
                 type="submit"

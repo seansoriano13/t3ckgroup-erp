@@ -9,6 +9,7 @@ import { passwordService } from "../../services/passwordService";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
+import { Input } from "@/components/ui/input";
 
 /**
  * Where the password-reset email link lands.
@@ -294,7 +295,7 @@ export default function ResetPassword() {
           <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
             New Password
           </label>
-          <input
+          <Input
             id="new-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"
@@ -308,7 +309,7 @@ export default function ResetPassword() {
           <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
             Confirm Password
           </label>
-          <input
+          <Input
             id="confirm-password"
             className={`${INPUT_STYLE} cursor-text`}
             type="password"

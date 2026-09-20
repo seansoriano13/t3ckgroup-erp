@@ -3,6 +3,7 @@ import Dropdown from "../ui/Dropdown";
 import { UserCog, Search, Check, Settings2, X } from "lucide-react";
 import { FilterTrigger } from "../ui/FilterDropdown";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * RoleDropdown — picks a group task member's role from the DB-backed
@@ -57,12 +58,12 @@ export default function RoleDropdown({
             <div className="px-2 pt-2 pb-1 border-b border-border shrink-0">
               <div className="flex items-center gap-2 px-2.5 py-1.5 bg-muted/50 rounded-md border border-border focus-within:border-mauve-4 focus-within:ring-1 focus-within:ring-mauve-4 transition-all">
                 <Search size={14} className="text-muted-foreground shrink-0" />
-                <input
+                <Input
                   type="text"
                   placeholder="Search roles..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="flex-1 bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
+                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-[13px] font-medium text-foreground placeholder:text-muted-foreground" containerClassName="flex-1"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />

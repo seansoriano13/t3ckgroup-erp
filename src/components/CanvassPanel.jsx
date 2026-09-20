@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ExternalLink } from "@/components/ui/ExternalLink";
+import { Input } from "@/components/ui/input";
 
 /**
  * Canvass (issue #46, Inclusion side #47) — the three-or-more supplier
@@ -73,18 +74,18 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
       className="space-y-2.5 rounded-xl border border-dashed border-mauve-7 bg-muted/20 p-3"
     >
       <div className="grid grid-cols-2 gap-2">
-        <input
+        <Input
           autoFocus
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
           placeholder="Brand / supplier"
-          className="min-w-0 rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] font-semibold text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
         />
-        <input
+        <Input
           value={sourceLink}
           onChange={(e) => setSourceLink(e.target.value)}
           placeholder="Source link (optional)"
-          className="min-w-0 rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
         />
       </div>
 
@@ -97,26 +98,26 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
       />
 
       <div className="grid grid-cols-3 gap-2">
-        <input
+        <Input
           type="number"
           min="0"
           step="any"
           value={unitPrice}
           onChange={(e) => setUnitPrice(e.target.value)}
           placeholder="Unit price"
-          className="min-w-0 rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
         />
-        <input
+        <Input
           value={leadTime}
           onChange={(e) => setLeadTime(e.target.value)}
           placeholder="Lead time"
-          className="min-w-0 rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
         />
-        <input
+        <Input
           value={qualityNote}
           onChange={(e) => setQualityNote(e.target.value)}
           placeholder="Quality note"
-          className="min-w-0 rounded-md border border-border bg-card px-2.5 py-1.5 text-[13px] text-foreground outline-none focus:border-mauve-8"
+          containerClassName="min-w-0"
         />
       </div>
 

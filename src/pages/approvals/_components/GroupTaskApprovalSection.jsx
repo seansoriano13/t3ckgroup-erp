@@ -6,6 +6,7 @@ import { Users, CheckCircle2, XCircle, Search, Star } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 export default function GroupTaskApprovalSection() {
   const { user } = useAuth();
@@ -66,12 +67,12 @@ export default function GroupTaskApprovalSection() {
     <div className="space-y-6">
       <div className="relative w-full max-w-md">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input
+        <Input
           type="text"
           placeholder="Search by title or creator..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full bg-card border border-border rounded-xl pl-9 pr-4 py-2 text-sm text-foreground outline-none focus:border-primary/50 transition-colors shadow-sm"
+          containerClassName="w-full"
         />
       </div>
 

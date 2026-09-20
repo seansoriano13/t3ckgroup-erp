@@ -9,6 +9,7 @@ import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -136,7 +137,7 @@ export default function Login() {
               <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                 Email Address
               </label>
-              <input
+              <Input
                 className={`${INPUT_STYLE} cursor-text`}
                 type="email"
                 autoComplete="username"
@@ -159,7 +160,7 @@ export default function Login() {
                   Forgot password?
                 </Button>
               </div>
-              <input
+              <Input
                 className={`${INPUT_STYLE} cursor-text`}
                 type="password"
                 autoComplete="current-password"

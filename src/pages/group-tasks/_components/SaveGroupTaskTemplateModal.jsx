@@ -4,6 +4,7 @@ import { BookmarkPlus, X, Check, Users, Calendar, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
+import { Input } from "@/components/ui/input";
 
 export default function SaveGroupTaskTemplateModal({
   isOpen,
@@ -81,14 +82,14 @@ export default function SaveGroupTaskTemplateModal({
               <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                 Template Name <span className="text-primary">*</span>
               </label>
-              <input
+              <Input
                 ref={inputRef}
                 type="text"
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
                 placeholder="e.g., Monthly Safety Audit, Project Kickoff"
                 disabled={isSaving}
-                className="w-full bg-muted/60 border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary focus:bg-background focus:ring-2 focus:ring-primary/15 transition-all"
+                containerClassName="w-full"
                 autoComplete="off"
               />
             </div>

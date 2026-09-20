@@ -14,6 +14,7 @@ import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import GroupTaskCard from "../pages/group-tasks/_components/GroupTaskCard";
 import SectionHeader from "./ui/SectionHeader";
+import { Input } from "@/components/ui/input";
 
 export default function GroupTasksList({ selectedRange }) {
   const { user } = useAuth();
@@ -63,12 +64,12 @@ export default function GroupTasksList({ selectedRange }) {
           {/* SEARCH */}
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
+              className="h-auto rounded-none border-0 bg-transparent px-0 py-0 focus-visible:ring-0 focus-visible:border-0 text-xs text-foreground placeholder-muted-foreground" containerClassName="w-full"
             />
             {searchTerm && (
               <Button
