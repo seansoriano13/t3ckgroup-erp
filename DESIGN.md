@@ -280,8 +280,8 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### Checkbox
 `ui/checkbox.jsx` (base-ui). Replaces raw `<input type="checkbox">`. Props: `checked`, `onCheckedChange(checked)`, `disabled`, `readOnly`, `aria-label`, `className`. Wrap in a label (or set `aria-label`) to name it. Distinct from **Switch**, which is an on/off setting.
 
-#### Select (base-ui building blocks)
-`ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Replaces raw `<select>` for now; a simple `options` / `value` / `onChange` Select is planned.
+#### Select
+`ui/select.jsx`. Replaces raw `<select>`. Simple form: `<Select options={[{ value, label, disabled? }]} value onChange placeholder disabled size id name aria-label className />`; `onChange` gets the option's `value`. Works inside a Dropdown popover (picking does not close the outer popover). For grouping or custom items compose the base-ui parts: `SelectRoot`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`.
 
 #### FieldBox
 `FieldBox.jsx` (root, not in `ui/` yet). Form-field wrapper, label plus control box. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `children`.

@@ -333,4 +333,23 @@ const Dropdown = forwardRef(
 
 Dropdown.displayName = "Dropdown";
 
+/**
+ * For a popover that is not a Dropdown but still portals out of one (a Select's
+ * option list). Returns a ref callback: attach it to the popover's root node and
+ * an enclosing Dropdown counts clicks inside that node as clicks inside itself.
+ * Outside any Dropdown it does nothing.
+ */
+export function useDropdownPopoverRegistration() {
+  const nesting = useContext(DropdownNestingContext);
+  const current = useRef(null);
+  return useCallback(
+    (node) => {
+      if (current.current && current.current !== node) nesting?.unregister(current.current);
+      current.current = node;
+      if (node) nesting?.register(node);
+    },
+    [nesting],
+  );
+}
+
 export default Dropdown;

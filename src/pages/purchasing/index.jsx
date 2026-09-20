@@ -11,7 +11,7 @@ import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import FilterBar from "../../components/ui/FilterBar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { SelectRoot as Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
 import { purchasingService } from "../../services/purchasingService";
 import { employeeService } from "../../services/employeeService";
 import { daysWaiting, displayOutcome, procurementAffinity, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";

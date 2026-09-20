@@ -15,7 +15,7 @@ const CATALOG_URL = (anchor) => `DESIGN.md#${anchor}`
 const REPLACEMENTS = {
   button: ['button', 'Button (ui/button.jsx)', 'button'],
   textarea: ['textarea', 'Textarea (ui/textarea.jsx)', 'textarea'],
-  select: ['select', 'Select (ui/select.jsx)', 'select-base-ui-building-blocks'],
+  select: ['select', 'Select (ui/select.jsx)', 'select'],
   label: ['label', 'FieldBox (FieldBox.jsx)', 'fieldbox'],
   table: ['table', 'the Table Primitive set (not built yet: stop and ask the maintainer)', 'primitive-catalog'],
   img: ['img', 'Avatar (people) or ImageAttachment (uploads)', 'avatar'],
