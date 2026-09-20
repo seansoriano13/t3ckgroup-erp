@@ -71,6 +71,36 @@ describe("DetailsTab (#302)", () => {
     expect(screen.getByText("Commission Estimate & Sales Attribution")).toBeInTheDocument()
   })
 
+  it("keeps the quotation actions on show but disabled until the SOR has a Sales Reference", async () => {
+    // A Lead is the one Stage allowed without a Sales Reference.
+    renderModal(deal({ status: "LEAD", sales_reference: null }))
+    await screen.findByText("What blocks this stage")
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
+
+    expect(await screen.findByText("Quotation Document")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Preview Quote/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Copy customer quotation link" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Download Full PDF/ })).toBeDisabled()
+  })
+
+  it("enables the quotation actions once a Sales Reference exists", async () => {
+    renderModal(deal())
+    await screen.findByText("What blocks this stage")
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
+
+    expect(await screen.findByRole("button", { name: /Preview Quote/ })).toBeEnabled()
+    expect(screen.getByRole("button", { name: "Copy customer quotation link" })).toBeEnabled()
+    expect(screen.getByRole("button", { name: /Download Full PDF/ })).toBeEnabled()
+  })
+
+  it("shows a whole-peso Estimated Value without the .00", async () => {
+    renderModal(deal({ expected_value: 4490000 }))
+    await screen.findByText("What blocks this stage")
+    fireEvent.click(screen.getByRole("tab", { name: "Details" }))
+
+    expect(await screen.findByText("₱4,490,000")).toBeInTheDocument()
+  })
+
   it("puts Inclusions and Purchasing at the bottom, under the fields grid", async () => {
     const sor = deal()
     db.seed("sor_inclusions", { opportunity_id: sor.id, description: "Aerial ladder, 30m" })

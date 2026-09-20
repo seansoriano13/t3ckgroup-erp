@@ -1,8 +1,10 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
 import { bracketRuns } from "../settings/flowCanvasLayout";
+import StageRibbonScroller from "./StageRibbonScroller";
 
 /**
  * The stage control for a deal that runs a Sales Flow (issue #36, ADR 0006).
@@ -26,6 +28,19 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
     queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
     enabled: Boolean(opportunity.sale_type_id),
   });
+
+  // A long flow overflows the ribbon; bring the current Stage into view rather
+  // than leaving it past the edge. Two frames, so the modal's open animation has
+  // settled before it measures (same reason as the legacy ribbon in the header).
+  const currentRef = useRef(null);
+  useEffect(() => {
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        currentRef.current?.scrollIntoView?.({ inline: "center", block: "nearest" });
+      });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [canvas, opportunity.flow_stage_id]);
 
   if (!canvas) return null;
 
@@ -52,6 +67,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
   // bracketed and bare Stages never merges them under a heading neither drew.
   const runs = bracketRuns(stages);
   const sortedStages = runs.flatMap((run) => run.stages);
+  const hasBrackets = runs.some((run) => run.label);
 
   const currentIndex = current ? sortedStages.findIndex((s) => s.id === current.id) : -1;
   const lastIndex = sortedStages.length - 1;
@@ -74,9 +90,8 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
 
   return (
     <div className="w-full space-y-3">
-      <div className="relative w-full">
-        <div className="overflow-x-auto pb-2">
-          <div className="flex w-max min-w-full items-end gap-[2px] mb-2">
+      <StageRibbonScroller className="w-full">
+        <div className="flex w-max min-w-full items-end gap-[2px]">
             {runs.map((run) => (
               <div key={run.stages[0].id} className="flex flex-col">
                 {run.label ? (
@@ -89,7 +104,8 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                     </span>
                   </div>
                 ) : (
-                  <div className="mb-1.5 h-[19px]" />
+                  // Only reserve the brace row when a sibling run draws one, so the tiles stay level.
+                  hasBrackets && <div className="mb-1.5 h-[19px]" />
                 )}
 
                 <ul
@@ -114,6 +130,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                     return (
                       <li
                         key={s.id}
+                        ref={isCurrent ? currentRef : undefined}
                         title={isBlockedDestination || (isDestination && disabled) ? blockedTitle : undefined}
                         onClick={() => {
                           if (!isMoving && isClickable) {
@@ -157,9 +174,8 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                 </ul>
               </div>
             ))}
-          </div>
         </div>
-      </div>
+      </StageRibbonScroller>
 
       {/* Sale Type name and the Won/terminal indicator moved up to sit next
           to the "Pipeline Stage" label in OpportunityDetailsModal, beside the

@@ -37,13 +37,6 @@ import DetailsTab from "./DetailsTab";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
 
-function estimatedValueSizeClass(displayText) {
-  const len = (displayText || "").length;
-  if (len >= 17) return "text-xl lg:text-2xl";
-  if (len >= 14) return "text-2xl lg:text-3xl";
-  return "text-3xl lg:text-4xl";
-}
-
 const TABS = [
   { value: "now", label: "Now" },
   { value: "journey", label: "Journey" },
@@ -663,7 +656,7 @@ export default function SorModal({
           showCloseButton={false}
           className="flex w-full max-w-[95vw] flex-col gap-0 overflow-hidden rounded-2xl p-0 md:max-w-[560px]"
         >
-          <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-4">
+          <div className="flex items-center justify-between gap-4 border-b border-border/60 px-6 py-4">
             <div className="min-w-0">
               {lockedSummary?.sales_reference && (
                 <p className="truncate font-mono text-xs font-bold text-primary">{lockedSummary.sales_reference}</p>
@@ -672,15 +665,16 @@ export default function SorModal({
             </div>
             <button
               onClick={onClose}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              aria-label="Close"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
             >
               <X size={15} />
             </button>
           </div>
 
-          <div className="space-y-5 overflow-y-auto p-6">
+          <div className="space-y-6 overflow-y-auto p-6">
             {isRestricted && (
-              <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-[13px] font-semibold text-amber-11">
+              <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-[13px] font-semibold text-amber-11">
                 This stage is restricted.
               </div>
             )}
@@ -699,7 +693,7 @@ export default function SorModal({
                   {myVisits.map((v) => (
                     <li
                       key={v.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-sm"
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border/60 bg-muted/20 px-3 py-2.5 text-sm"
                     >
                       <span className="font-medium text-foreground">{v.flow_stages?.name || "Stage"}</span>
                       <span className="text-[11px] text-muted-foreground">
@@ -728,7 +722,6 @@ export default function SorModal({
 
   const editItemsSum = (editForm.items || []).reduce((sum, it) => sum + (Number(it.quantity) || 0) * (Number(it.unit_price) || 0), 0);
   const estimatedValueDisplay = isEditing ? formatPHP(editItemsSum) : formatPHP(opportunity.expected_value);
-  const estimatedValueSize = estimatedValueSizeClass(estimatedValueDisplay);
 
   const isLostPending = isLostCode(pendingStage);
   const needsSalesRef = !!pendingStage && requiresSalesReference(opportunity.status, pendingStage) && !opportunity.sales_reference;
@@ -808,7 +801,6 @@ export default function SorModal({
     cancelPendingStage,
     stageMutation,
     estimatedValueDisplay,
-    estimatedValueSize,
     buildingLink,
     handlePreviewQuotation,
     handleCopyQuotationLink,
@@ -906,8 +898,20 @@ export default function SorModal({
 
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-border/60 px-6 pt-3">
-              <TabGroup tabs={tabsWithChat} activeTab={activeTab} onChange={handleTabChange} variant="underline" />
+            {/*
+              Same 48px as the chat column's header so the rule under both runs
+              level across the modal. The rail's own rule is the full-width one:
+              TabGroup's inset border is dropped and its first label is pulled
+              back over the tab padding so it lines up with the header text.
+            */}
+            <div className="flex h-12 shrink-0 items-end border-b border-border/60 px-6">
+              <TabGroup
+                tabs={tabsWithChat}
+                activeTab={activeTab}
+                onChange={handleTabChange}
+                variant="underline"
+                className="-ml-4 min-w-0 gap-1 border-b-0"
+              />
             </div>
             {/*
               Each opened tab stays mounted and is hidden rather than

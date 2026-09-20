@@ -92,16 +92,16 @@ export default function NowTab({ ctx }) {
   const rows = visitPending ? [] : currentVisitTaskRows(automationTasks, currentVisit);
 
   return (
-    <div className="space-y-7 p-6">
+    <div className="space-y-6 p-6">
       {isRestricted && (
-        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-3 py-2.5 text-sm font-semibold text-amber-11">
+        <div className="rounded-xl border border-amber-400/40 bg-amber-500/5 px-4 py-3 text-sm font-semibold text-amber-11">
           This stage is restricted — Move is disabled.
         </div>
       )}
 
       {isLostPending && (
         <div className="flex items-end gap-2">
-          <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+          <div className="flex-1 rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
             <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Reason for loss</label>
             <input
               autoFocus
@@ -125,8 +125,8 @@ export default function NowTab({ ctx }) {
       )}
 
       {needsSalesRef && (
-        <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
-          <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
+        <div>
+          <div className="rounded-xl border border-border bg-muted/30 px-4 py-3 focus-within:border-mauve-7">
             <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
               Sales Reference<span className="ml-0.5 text-red-11">*</span>
             </label>
@@ -164,7 +164,7 @@ export default function NowTab({ ctx }) {
       )}
 
       {opportunity.lost_reason && (
-        <div className="rounded-xl border border-red-7 bg-red-9/5 px-3 py-2.5">
+        <div className="rounded-xl border border-red-7 bg-red-9/5 px-4 py-3">
           <p className="mb-1 text-[10px] font-bold tracking-widest text-red-11 uppercase">Lost Reason</p>
           <p className="text-sm text-foreground">{opportunity.lost_reason}</p>
         </div>

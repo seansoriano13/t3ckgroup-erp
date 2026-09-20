@@ -95,6 +95,27 @@ function PeopleRoster({ opportunity }) {
   );
 }
 
+const QUOTE_BTN =
+  "flex items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background text-[12px] font-semibold shadow-xs transition-colors enabled:hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50";
+
+/**
+ * One line, never cut: the figure scales to the card it sits in (container
+ * query units, not viewport breakpoints), from 36px down to 18px. 0.6em is a
+ * safe per-character width for this face at black weight with tabular digits.
+ */
+function EstimatedValue({ text, dimmed }) {
+  return (
+    <div className="@container">
+      <p
+        className={cn("whitespace-nowrap font-black leading-tight tracking-tight text-foreground tabular-nums", dimmed && "opacity-80")}
+        style={{ fontSize: `clamp(1.125rem, calc(100cqw / ${(text.length * 0.6).toFixed(2)}), 2.25rem)` }}
+      >
+        {text}
+      </p>
+    </div>
+  );
+}
+
 function formatLongDate(dateString) {
   if (!dateString) return "";
   return new Date(dateString).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
@@ -127,7 +148,6 @@ export default function DetailsTab({ ctx }) {
     requiresInclusions,
     requiresPurchasing,
     estimatedValueDisplay,
-    estimatedValueSize,
     buildingLink,
     handlePreviewQuotation,
     handleCopyQuotationLink,
@@ -145,9 +165,12 @@ export default function DetailsTab({ ctx }) {
   // card, no Quotation Document actions (a priced document), and no
   // commission footer at all, not one with its figures hidden.
   const showMoney = accessLevel !== "participant";
+  const hasSalesReference = !!opportunity.sales_reference;
+  // Whole-peso values drop ".00": it is the widest, least informative part of the figure.
+  const valueText = estimatedValueDisplay.replace(/\.00$/, "");
 
   return (
-    <div className="space-y-7 p-6">
+    <div className="space-y-6 p-6">
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="flex flex-col gap-6 lg:col-span-4">
           <div className="rounded-2xl border border-border/70 bg-card shadow-xs overflow-hidden divide-y divide-border/60">
@@ -157,56 +180,55 @@ export default function DetailsTab({ ctx }) {
                   <span className="text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Estimated Value</span>
                   {opportunity.status && <StatusBadge status={opportunity.status} />}
                 </div>
-                {isEditing ? (
-                  <div>
-                    <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums opacity-80", estimatedValueSize)}>
-                      {estimatedValueDisplay}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/70 mt-1 font-medium italic">Auto-calculated from Product List</p>
-                  </div>
-                ) : (
-                  <p className={cn("font-black tracking-tight break-words text-foreground tabular-nums", estimatedValueSize)}>{estimatedValueDisplay}</p>
-                )}
+                <EstimatedValue text={valueText} dimmed={isEditing} />
+                {isEditing && <p className="mt-1.5 text-[10px] font-medium italic text-muted-foreground/70">Auto-calculated from Product List</p>}
               </div>
             )}
 
-            {showMoney && !isEditing && opportunity.sales_reference && (
-              <div className="p-4 bg-muted/15 space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground mb-1">
+            {showMoney && !isEditing && (
+              <div className="space-y-2 bg-muted/15 p-5">
+                <div className="mb-2 flex items-center justify-between gap-2 text-[11px] font-semibold text-muted-foreground">
                   <span>Quotation Document</span>
-                  <span className="font-mono text-primary">{opportunity.sales_reference}</span>
+                  {hasSalesReference ? (
+                    <span className="font-mono text-primary">{opportunity.sales_reference}</span>
+                  ) : (
+                    <span className="font-medium text-muted-foreground/70">No Sales Reference</span>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    disabled={buildingLink}
+                    disabled={buildingLink || !hasSalesReference}
                     onClick={handlePreviewQuotation}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                    className={cn(QUOTE_BTN, "flex-1 px-3 py-2 text-foreground")}
                   >
                     {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={13} />}
                     <span>Preview Quote</span>
                   </button>
                   <button
                     type="button"
-                    disabled={buildingLink}
+                    disabled={buildingLink || !hasSalesReference}
                     onClick={handleCopyQuotationLink}
                     title="Copy customer quotation link"
                     aria-label="Copy customer quotation link"
-                    className="flex items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    className={cn(QUOTE_BTN, "px-2.5 text-muted-foreground enabled:hover:text-foreground")}
                   >
                     <Link2 size={13} />
                   </button>
                 </div>
                 <button
                   type="button"
-                  disabled={!!downloadStep}
+                  disabled={!!downloadStep || !hasSalesReference}
                   onClick={handleDownloadQuotation}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                  className={cn(QUOTE_BTN, "w-full px-3 py-2 text-foreground")}
                 >
                   {downloadStep ? <Spinner size="sm" /> : <FileDown size={13} />}
                   <span>Download Full PDF</span>
                 </button>
                 {downloadStep && <p className="truncate text-center text-[10.5px] font-medium text-muted-foreground">{downloadStep}</p>}
+                {!hasSalesReference && (
+                  <p className="pt-1 text-[11px] leading-snug text-muted-foreground">Add a Sales Reference to preview, copy or download the quotation.</p>
+                )}
               </div>
             )}
 
@@ -375,7 +397,7 @@ export default function DetailsTab({ ctx }) {
         </div>
 
         <div className="flex flex-col gap-6 lg:col-span-8">
-          <div className="rounded-2xl border border-border/70 bg-card p-6 shadow-xs">
+          <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
             <p className="mb-4 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Deal Details</p>
             <div className={cn("grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3", isExpanded && "xl:grid-cols-4")}>
               <Detail

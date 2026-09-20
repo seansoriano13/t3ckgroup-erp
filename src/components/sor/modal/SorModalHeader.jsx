@@ -18,6 +18,12 @@ import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
+import StageRibbonScroller from "../StageRibbonScroller";
+
+// One 32px target for every icon action in the header, so the cluster reads as a row.
+const ICON_BTN =
+  "flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30";
+const TEXT_BTN = "flex h-8 items-center rounded-md px-3 text-xs font-bold transition-colors";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -64,7 +70,6 @@ export default function SorModalHeader({
   moveDisabledReason,
 }) {
   const canEdit = accessLevel === "full";
-  const scrollRef = useRef(null);
   const activeChevronRef = useRef(null);
 
   useEffect(() => {
@@ -93,8 +98,8 @@ export default function SorModalHeader({
 
   const legacyRibbon = (
     <div className="relative w-full">
-      <div ref={scrollRef} className="overflow-x-auto pb-2">
-        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px] mb-2">
+      <StageRibbonScroller>
+        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px]">
           {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -151,9 +156,9 @@ export default function SorModalHeader({
             );
           })}
         </ol>
-      </div>
+      </StageRibbonScroller>
       {moveDisabled && moveDisabledReason && (
-        <p className="-mt-1 mb-1 text-[11px] font-medium text-muted-foreground">
+        <p className="mt-2 text-[11px] font-medium text-muted-foreground">
           {moveDisabledReason}
         </p>
       )}
@@ -166,7 +171,7 @@ export default function SorModalHeader({
   );
 
   return (
-    <div className="flex shrink-0 flex-col gap-3 border-b border-border/60 px-6 pt-5 pb-4">
+    <div className="flex shrink-0 flex-col gap-4 border-b border-border/60 px-6 pt-5 pb-4">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="mb-1.5 flex items-center gap-2">
@@ -219,7 +224,7 @@ export default function SorModalHeader({
                 disabled={!hasPrev}
                 title="Previous"
                 aria-label="Previous opportunity"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
+                className={ICON_BTN}
               >
                 <ChevronLeft size={15} />
               </button>
@@ -228,25 +233,25 @@ export default function SorModalHeader({
                 disabled={!hasNext}
                 title="Next"
                 aria-label="Next opportunity"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
+                className={ICON_BTN}
               >
                 <ChevronRightIcon size={15} />
               </button>
-              <div className="mx-1 h-4 w-px bg-border/60" />
+              <div className="mx-1.5 h-5 w-px bg-border/60" />
             </>
           )}
           {isEditing ? (
             <>
               <button
                 onClick={handleEditToggle}
-                className="rounded-md px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                className={cn(TEXT_BTN, "text-muted-foreground hover:bg-muted/80 hover:text-foreground")}
               >
                 Cancel
               </button>
               <button
                 onClick={() => updateMutation.mutate(editForm)}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
+                className={cn(TEXT_BTN, "bg-primary text-primary-foreground hover:bg-primary-hover disabled:opacity-50")}
               >
                 {updateMutation.isPending ? "Saving..." : "Save"}
               </button>
@@ -258,9 +263,9 @@ export default function SorModalHeader({
                   onClick={handleEditToggle}
                   title="Edit"
                   aria-label="Edit opportunity"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                  className={ICON_BTN}
                 >
-                  <Pencil size={14} />
+                  <Pencil size={15} />
                 </button>
               )}
               {/* Rarely-used actions live behind one menu so the header keeps a single row of intent. */}
@@ -273,7 +278,7 @@ export default function SorModalHeader({
                     type="button"
                     title="More actions"
                     aria-label="More actions"
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                    className={ICON_BTN}
                   >
                     <MoreHorizontal size={15} />
                   </button>
@@ -316,7 +321,7 @@ export default function SorModalHeader({
                 onClick={onClose}
                 title="Close"
                 aria-label="Close"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                className={ICON_BTN}
               >
                 <X size={15} />
               </button>
@@ -325,7 +330,7 @@ export default function SorModalHeader({
         </div>
       </div>
 
-      <div className="w-full">
+      <div className="w-full space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="flex flex-wrap items-center gap-2 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
             Pipeline Stage
