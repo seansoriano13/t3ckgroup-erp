@@ -33,6 +33,7 @@ import Dot from "./ui/Dot";
 import { handleNotificationRoute } from "../utils/notificationRouter";
 import { showNotificationPopup } from "../utils/notificationPopup";
 import { Button } from "@/components/ui/button";
+import { Drawer } from "@/components/ui/drawer";
 
 // ─── Relative Timestamp ───────────────────────────────────────────────────────
 function getRelativeTime(dateStr) {
@@ -244,19 +245,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-99"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Drawer */}
-      <div
-        className={`fixed top-0 right-0 h-full w-[500px] max-w-full bg-card border-l border-border shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`}
-      >
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()} side="right" className="max-w-[500px]">
         {/* Header */}
         <div className="p-6 border-b border-border flex justify-between items-center bg-card shrink-0">
           <div>
@@ -334,8 +323,7 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             ))
           )}
         </div>
-      </div>
-    </>
+    </Drawer>
   );
 }
 

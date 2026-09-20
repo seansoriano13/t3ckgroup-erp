@@ -51,6 +51,7 @@ import {
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
 import { Button } from "@/components/ui/button";
+import { Drawer } from "@/components/ui/drawer";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -224,36 +225,8 @@ export default function SideNav() {
     }
   };
 
-  return (
+  const sidebarContent = (
     <>
-      {/* Mobile Drawer Trigger (PanelRight) */}
-      <div className="md:hidden fixed top-3 left-3 z-40">
-        <Button
-          onClick={() => setIsMobileOpen(true)}
-          variant="ghost" size="icon-xs"
-        >
-          <PanelRight size={18} strokeWidth={2} />
-        </Button>
-      </div>
-
-      {/* Mobile Backdrop Overlay */}
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden transition-opacity"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      {/* Merged Single-Pane Sidebar Container */}
-      <aside
-        className={`
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
-          fixed md:sticky top-0 left-0 h-screen z-50 flex flex-col
-          bg-sidebar   text-sm font-sans
-          transition-[transform,width] duration-300 ease-in-out
-          w-[240px] ${isCollapsed ? "md:w-[68px]" : "md:w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
-        `}
-      >
         {/* Mobile Close Action (PanelLeft) */}
         <div className="md:hidden absolute top-4 right-4 z-50">
           <Button
@@ -525,7 +498,42 @@ export default function SideNav() {
             <RoleSwitcher />
           </div>
         </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile Drawer Trigger (PanelRight) */}
+      <div className="md:hidden fixed top-3 left-3 z-40">
+        <Button
+          onClick={() => setIsMobileOpen(true)}
+          variant="ghost" size="icon-xs"
+        >
+          <PanelRight size={18} strokeWidth={2} />
+        </Button>
+      </div>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={`
+          hidden md:sticky md:flex top-0 left-0 h-screen z-50 flex-col
+          bg-sidebar   text-sm font-sans
+          transition-[width] duration-300 ease-in-out
+          ${isCollapsed ? "md:w-[68px]" : "md:w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
+        `}
+      >
+        {sidebarContent}
       </aside>
+
+      {/* Mobile drawer: the same content, opened from the trigger above */}
+      <Drawer
+        open={isMobileOpen}
+        onOpenChange={setIsMobileOpen}
+        side="left"
+        className="md:hidden w-[240px] max-w-[240px] border-r-0 bg-sidebar text-sm font-sans overflow-y-auto scrollbar-hide"
+      >
+        {sidebarContent}
+      </Drawer>
 
       {/* Drawers */}
       <NotificationDrawer
