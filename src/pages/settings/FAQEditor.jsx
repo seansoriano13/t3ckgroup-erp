@@ -28,6 +28,7 @@ import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
@@ -39,13 +40,13 @@ function AutoTextarea({ value, onChange, placeholder, className }) {
     }
   }, [value]);
   return (
-    <textarea
+    <Textarea
       ref={ref}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       rows={1}
-      className={`resize-none overflow-hidden ${className}`}
+      className={`min-h-0 resize-none overflow-hidden ${className}`}
     />
   );
 }

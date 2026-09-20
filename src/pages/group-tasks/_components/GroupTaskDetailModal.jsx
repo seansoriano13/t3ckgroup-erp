@@ -73,6 +73,7 @@ import {
   isAllowedAttachment,
   formatBytes,
 } from "@/utils/attachments";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function GroupTaskDetailModal({
   isOpen,
@@ -692,10 +693,10 @@ export default function GroupTaskDetailModal({
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
-                  <textarea
+                  <Textarea
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
-                    className="w-full bg-background/50 border border-border/50 rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-y"
+                    className="h-20 resize-y"
                     placeholder="Task Description..."
                   />
                 </div>

@@ -15,6 +15,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
@@ -340,11 +341,11 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
                       Others Details
                     </label>
                   )}
-                  <textarea
+                  <Textarea
                     placeholder="Specify details..."
                     value={othersRemarks}
                     onChange={(e) => setOthersRemarks(e.target.value)}
-                    className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none h-20 resize-none transition-colors focus:border-primary/50"
+                    className="h-20 resize-none"
                   />
                 </div>
               )}

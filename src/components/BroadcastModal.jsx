@@ -31,6 +31,7 @@ import ReactMarkdown from "react-markdown";
 import { confirmDeleteToast } from "./ui/CustomToast";
 import TabGroup from "./ui/TabGroup";
 import Avatar from "./Avatar";
+import { Textarea } from "@/components/ui/textarea";
 
 const MAX_CONTENT_LENGTH = 2000;
 const HISTORY_PAGE_SIZE = 5;
@@ -475,8 +476,8 @@ export default function BroadcastModal({ isOpen, onClose }) {
                           {/* Inline edit form */}
                           {inlineEditId === update.id ? (
                             <div className="mt-2 flex flex-col gap-2 animate-slide-down">
-                              <textarea
-                                className="w-full bg-background border border-border rounded-lg p-2.5 text-xs text-foreground focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[72px] resize-none transition-all"
+                              <Textarea
+                                className="min-h-[72px] resize-none"
                                 value={inlineEditContent}
                                 onChange={(e) =>
                                   setInlineEditContent(e.target.value)

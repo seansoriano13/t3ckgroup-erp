@@ -9,14 +9,9 @@
       "count": 1
     }
   },
-  "src/components/BroadcastModal.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/CanvassPanel.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 6
     }
   },
   "src/components/ChecklistTaskInput.jsx": {
@@ -71,7 +66,7 @@
   },
   "src/components/LogTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 3
     }
   },
   "src/components/NotificationDrawer.jsx": {
@@ -95,11 +90,6 @@
     }
   },
   "src/components/SideNav.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/SystemUpdateManager.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
@@ -166,7 +156,7 @@
   },
   "src/components/log-task/LogTaskDetailsSection.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 6
     }
   },
   "src/components/log-task/LogTaskFooter.jsx": {
@@ -181,7 +171,7 @@
   },
   "src/components/offsets/ApplyLeaveModal.jsx": {
     "local/no-raw-html": {
-      "count": 48
+      "count": 44
     }
   },
   "src/components/offsets/ApproveOffsetModal.jsx": {
@@ -316,7 +306,7 @@
   },
   "src/components/sor/MoveConfirmDialog.jsx": {
     "local/no-raw-html": {
-      "count": 2
+      "count": 1
     }
   },
   "src/components/sor/OpportunityFormModal.jsx": {
@@ -331,7 +321,7 @@
   },
   "src/components/sor/PurchasingPanel.jsx": {
     "local/no-raw-html": {
-      "count": 9
+      "count": 7
     }
   },
   "src/components/sor/RetailOrdersQueue.jsx": {
@@ -346,7 +336,7 @@
   },
   "src/components/sor/SorField.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 5
     }
   },
   "src/components/sor/StageChecklistRow.jsx": {
@@ -386,7 +376,7 @@
   },
   "src/pages/approvals/_components/ApprovalDetailPane.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 6
     }
   },
   "src/pages/approvals/_components/BulkDeclineModal.jsx": {
@@ -401,15 +391,10 @@
   },
   "src/pages/approvals/_components/GroupTaskApprovalSection.jsx": {
     "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
-    "local/no-raw-html": {
       "count": 1
     }
   },
-  "src/pages/approvals/leaves/index.jsx": {
+  "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
@@ -421,7 +406,7 @@
   },
   "src/pages/group-tasks/_components/CreateGroupTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/group-tasks/_components/GroupRoleManagerModal.jsx": {
@@ -431,12 +416,12 @@
   },
   "src/pages/group-tasks/_components/GroupTaskDetailModal.jsx": {
     "local/no-raw-html": {
-      "count": 11
+      "count": 10
     }
   },
   "src/pages/group-tasks/_components/GroupTaskMemberPanel.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 5
     }
   },
   "src/pages/group-tasks/_components/GroupTaskTableView.jsx": {
@@ -446,7 +431,7 @@
   },
   "src/pages/group-tasks/_components/RateEmployeesModal.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/group-tasks/_components/SaveGroupTaskTemplateModal.jsx": {
@@ -456,7 +441,7 @@
   },
   "src/pages/group-tasks/templates/_components/TemplateEditorModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 3
     }
   },
   "src/pages/hr/management/index.jsx": {
@@ -486,7 +471,7 @@
   },
   "src/pages/profile/index.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 7
     }
   },
   "src/pages/purchasing/index.jsx": {
@@ -501,7 +486,7 @@
   },
   "src/pages/settings/FAQEditor.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/settings/FAQModal.jsx": {

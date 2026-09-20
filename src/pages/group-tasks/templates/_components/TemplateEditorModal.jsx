@@ -12,6 +12,7 @@ import GroupTaskMemberRail from "../../_components/GroupTaskMemberRail";
 import GroupTaskMemberPanel from "../../_components/GroupTaskMemberPanel";
 import { makeMemberDraft } from "../../utils/templateApply";
 import { cleanChecklistForSave } from "@/utils/checklist";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * TemplateEditorModal — create/edit a Group Task Template.
@@ -237,11 +238,11 @@ export default function TemplateEditorModal({
                       placeholder="Default group task title (optional — leave blank to type it fresh each time)"
                       className="w-full bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors"
                     />
-                    <textarea
+                    <Textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Default description (optional)…"
-                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-16 resize-y"
+                      className="h-16 resize-y"
                     />
                   </div>
 

@@ -8,6 +8,7 @@ import { Button } from '../../../components/ui/button';
 import { Check, X, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 import Spinner from '@/components/ui/Spinner';
+import { Textarea } from "@/components/ui/textarea";
 
 const REQUEST_LABEL = { SIL: 'SIL Leave', OFFSET: 'Offset Leave', OVERTIME: 'Overtime', UNDERTIME: 'Undertime' };
 
@@ -78,12 +79,12 @@ function LeaveApprovalsPage() {
                   {item.reason && <p className="text-xs text-foreground/80 mt-1">{item.reason}</p>}
                 </div>
               </div>
-              <textarea
+              <Textarea
                 placeholder="Optional note..."
                 value={noteDraft[item.matchValue] || ''}
                 onChange={(e) => setNoteDraft((prev) => ({ ...prev, [item.matchValue]: e.target.value }))}
                 rows={2}
-                className="w-full px-3 py-2 bg-muted border border-border rounded-lg text-xs font-medium text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                className="resize-none min-h-0"
               />
               <div className="flex gap-2 justify-end">
                 <Button

@@ -6,6 +6,7 @@
 import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
+import { Textarea } from "@/components/ui/textarea";
 
 // Split so a field can swap its resting border colour out. Two border-colour
 // utilities on one element resolve by stylesheet order rather than by the
@@ -131,7 +132,7 @@ export function TextAreaField({ label, required, className = "", ...props }) {
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
-      <textarea className={`${CONTROL} resize-none`} required={required} {...props} />
+      <Textarea className={`${CONTROL} min-h-0 border-0 rounded-none p-0 resize-none`} required={required} {...props} />
     </div>
   );
 }
