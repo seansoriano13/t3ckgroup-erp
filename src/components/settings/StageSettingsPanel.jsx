@@ -121,11 +121,11 @@ export default function StageSettingsPanel({
               className="mt-1 h-9 text-base font-bold"
             />
           ) : (
-            <button
+            <Button
               type="button"
               disabled={disabled}
               onClick={() => setDraft({ stageId: stage.id, value: stage.name })}
-              className="group mt-0.5 flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
+              variant="ghost" className="mt-0.5 w-full text-left h-auto justify-start"
             >
               <h2 className="truncate text-lg font-bold tracking-[-0.015em] text-foreground">
                 {stage.name}
@@ -136,7 +136,7 @@ export default function StageSettingsPanel({
                   className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 />
               )}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -164,10 +164,10 @@ export default function StageSettingsPanel({
                 Role in the flow
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <button
+                <Button
                   onClick={onSetEntry}
                   disabled={disabled}
-                  className={cn(
+                  variant="ghost" className={cn("h-auto", 
                     ROLE_BUTTON,
                     isEntry
                       ? "bg-blue-a3 text-blue-11 outline-blue-a6"
@@ -175,12 +175,12 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <ArrowUpCircle size={14} /> {isEntry ? "Deals enter here" : "Make it the entry"}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={onSetWon}
                   disabled={disabled}
-                  className={cn(
+                  variant="ghost" className={cn("h-auto", 
                     ROLE_BUTTON,
                     isWon
                       ? "bg-green-a3 text-green-11 outline-green-a6"
@@ -188,12 +188,12 @@ export default function StageSettingsPanel({
                   )}
                 >
                   <Flag size={14} /> {isWon ? "Deals are won here" : "Make it the win"}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={onToggleTerminal}
                   disabled={disabled}
-                  className={cn(
+                  variant="ghost" className={cn("h-auto", 
                     ROLE_BUTTON,
                     stage.is_terminal
                       ? "bg-amber-a3 text-amber-11 outline-amber-a6"
@@ -202,19 +202,19 @@ export default function StageSettingsPanel({
                 >
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
-                </button>
+                </Button>
 
-                <button
+                <Button
                   onClick={onDelete}
                   disabled={disabled}
                   aria-label="Delete Stage"
-                  className={cn(
+                  variant="ghost" className={cn("h-auto", 
                     ROLE_BUTTON,
                     "text-destructive outline-destructive/30 hover:bg-destructive/10",
                   )}
                 >
                   <Trash2 size={14} /> Delete Stage
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -274,21 +274,21 @@ export default function StageSettingsPanel({
               </h3>
               <div className="flex flex-wrap gap-2">
                 {COLOR_SWATCHES.map((swatch) => (
-                  <button
+                  <Button
                     key={swatch.value ?? "default"}
                     type="button"
                     disabled={disabled}
                     onClick={() => onColorChange(swatch.value)}
                     aria-label={swatch.label}
                     title={swatch.label}
-                    className={cn(
+                    variant="ghost" className={cn(
                       "flex size-7 items-center justify-center rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform disabled:cursor-not-allowed disabled:opacity-50",
                       "hover:scale-110",
                       (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
                     )}
                   >
                     <span className={cn("size-4 rounded-full", swatch.dot)} />
-                  </button>
+                  </Button>
                 ))}
               </div>
             </section>

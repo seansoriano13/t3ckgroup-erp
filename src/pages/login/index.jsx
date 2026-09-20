@@ -9,6 +9,7 @@ import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
+import { Button } from "@/components/ui/button";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -151,13 +152,13 @@ export default function Login() {
                 <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                   Password
                 </label>
-                <button
+                <Button
                   type="button"
                   onClick={handleForgotPassword}
-                  className="text-xs text-mauve-11 font-medium hover:underline"
+                  variant="ghost" className="h-auto"
                 >
                   Forgot password?
-                </button>
+                </Button>
               </div>
               <input
                 className={`${INPUT_STYLE} cursor-text`}

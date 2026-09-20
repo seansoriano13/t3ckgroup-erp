@@ -18,6 +18,7 @@ import {
   isChecklistDescription,
   isStaleTask,
 } from "../../../utils/approvalQueue.js";
+import { Button } from "@/components/ui/button";
 
 export function ApprovalQueueItem({
   task,
@@ -67,13 +68,13 @@ export function ApprovalQueueItem({
       {/* Bulk Selection Checkbox & Avatar */}
       <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
         {enableBulkSelection && (
-          <button
+          <Button
             type="button"
             onClick={(e) => {
               e.stopPropagation();
               onToggleSelection?.(task.id);
             }}
-            className="text-muted-foreground/60 hover:text-foreground transition-colors p-0.5 rounded focus:outline-none"
+            variant="ghost" size="icon-xs"
             title={isSelected ? "Deselect task" : "Select for bulk action"}
           >
             {isSelected ? (
@@ -81,7 +82,7 @@ export function ApprovalQueueItem({
             ) : (
               <Square className="w-4 h-4 opacity-40 group-hover:opacity-100" />
             )}
-          </button>
+          </Button>
         )}
 
         <Avatar

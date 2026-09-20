@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { leadSourceService } from "../../services/leadSourceService";
 import { Plus, Check, X, Shield } from "lucide-react";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 export default function LeadSourceManager() {
   const queryClient = useQueryClient();
@@ -56,12 +57,12 @@ export default function LeadSourceManager() {
           </h2>
         </div>
         {!isAdding && (
-          <button
+          <Button
             onClick={() => setIsAdding(true)}
-            className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors"
+            variant="link"
           >
             <Plus size={14} /> Add New
-          </button>
+          </Button>
         )}
       </div>
 
@@ -98,20 +99,20 @@ export default function LeadSourceManager() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
                 onClick={() => setIsAdding(false)}
-                className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
+                variant="outline"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={addMutation.isPending}
-                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                variant="default"
               >
                 Save
-              </button>
+              </Button>
             </div>
           </form>
         )}
@@ -143,7 +144,7 @@ export default function LeadSourceManager() {
                     {source.value}
                   </p>
                 </div>
-                <button
+                <Button
                   onClick={() =>
                     toggleMutation.mutate({
                       value: source.value,
@@ -151,7 +152,7 @@ export default function LeadSourceManager() {
                     })
                   }
                   disabled={toggleMutation.isPending}
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                  variant="ghost" className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
                     source.is_active
                       ? "text-destructive hover:bg-destructive/10"
                       : "text-primary hover:bg-primary/10"
@@ -159,7 +160,7 @@ export default function LeadSourceManager() {
                   title={source.is_active ? "Deactivate" : "Activate"}
                 >
                   {source.is_active ? <X size={16} /> : <Check size={16} />}
-                </button>
+                </Button>
               </div>
             ))}
           </div>

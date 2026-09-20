@@ -16,6 +16,7 @@ import { purchasingService } from "../../services/purchasingService";
 import { employeeService } from "../../services/employeeService";
 import { daysWaiting, displayOutcome, procurementAffinity, PROCUREMENT_OUTCOME_LABELS } from "../../constants/procurement";
 import { useAuth } from "../../context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 /**
  * The Purchasing queue (issue #39).
@@ -67,10 +68,10 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
       </td>
 
       <td className="px-4 py-3">
-        <button
+        <Button
           type="button"
           onClick={() => onOpenSor(sor.id)}
-          className="group/sor flex items-center gap-1.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
+          variant="ghost" className="text-left h-auto justify-start"
         >
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground group-hover/sor:text-primary">
@@ -84,7 +85,7 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             size={13}
             className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
           />
-        </button>
+        </Button>
       </td>
 
       <td className="px-4 py-3">

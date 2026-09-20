@@ -473,14 +473,14 @@ export function ApprovalDetailPane({
                 {!isReadOnly && (
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     {QUICK_REMARKS_HEAD.map((preset, idx) => (
-                      <button
+                      <Button
                         key={idx}
                         type="button"
                         onClick={() => setRemarks((prev) => prev ? `${prev} ${preset}` : preset)}
-                        className="text-[10px] font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground px-2 py-1 rounded-md border border-border/50 transition-colors"
+                        variant="outline"
                       >
                         + {preset}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}
@@ -576,14 +576,14 @@ export function ApprovalDetailPane({
                 {!isReadOnly && (
                   <div className="flex flex-wrap gap-1.5 pt-0.5">
                     {QUICK_REMARKS_HR.map((preset, idx) => (
-                      <button
+                      <Button
                         key={idx}
                         type="button"
                         onClick={() => setHrRemarks((prev) => prev ? `${prev} ${preset}` : preset)}
-                        className="text-[10px] font-medium bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground px-2 py-1 rounded-md border border-border/50 transition-colors"
+                        variant="outline"
                       >
                         + {preset}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 )}

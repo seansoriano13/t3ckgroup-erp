@@ -25,6 +25,7 @@ import SignatureCaptureModal from "../../components/profile/SignatureCaptureModa
 import { TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
+import { Button } from "@/components/ui/button";
 
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
@@ -328,15 +329,15 @@ export default function ProfilePage() {
         title="My Profile"
         description="Manage your employee information and access levels."
       >
-        <button
+        <Button
           type="button"
           onClick={() => savePreferencesMutation.mutate()}
           disabled={isSaving || !hasChanges}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground text-[11px] font-black uppercase tracking-widest shadow-sm transition disabled:opacity-70"
+          variant="default" className="inline-flex"
         >
           {isSaving ? <Spinner size="sm" /> : <Save size={16} />}
           Save Settings
-        </button>
+        </Button>
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -374,14 +375,14 @@ export default function ProfilePage() {
               <p className="text-muted-foreground text-sm mt-1 flex items-center gap-2 justify-center">
                 <Mail size={13} /> {user?.email || "email@t3ckgroup.com"}
               </p>
-              <button
+              <Button
                 type="button"
                 onClick={handleChangePassword}
                 disabled={isSendingPasswordReset}
-                className="mt-3 text-xs font-bold text-foreground hover:underline disabled:opacity-60"
+                variant="ghost" className="mt-3 h-auto"
               >
                 {isSendingPasswordReset ? "Sending..." : "Change Password"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -445,13 +446,13 @@ export default function ProfilePage() {
               <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
                 Signature
               </h3>
-              <button
+              <Button
                 type="button"
                 onClick={() => setSignatureModalOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border cursor-pointer"
+                variant="outline" className="inline-flex"
               >
                 <PenLine size={14} /> {user?.signaturePath ? "Replace" : "Add Signature"}
-              </button>
+              </Button>
             </div>
             <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)] min-h-[100px] flex items-center justify-center">
               {isSignatureLoading ? (
@@ -555,24 +556,24 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => avatarInputRef.current?.click()}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 text-[10px] font-black transition border border-border uppercase tracking-widest hover:bg-muted"
+                    variant="outline" className="inline-flex"
                   >
                     <UploadCloud size={14} /> Upload
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => {
                       setAvatarFile(null);
                       setRemoveAvatar(true);
                     }}
                     disabled={isUsingDefaultAvatar}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
+                    variant="outline" className="inline-flex"
                   >
                     Reset
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -615,14 +616,14 @@ export default function ProfilePage() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <button
+                  <Button
                     type="button"
                     onClick={() => bannerInputRef.current?.click()}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border"
+                    variant="outline" className="inline-flex"
                   >
                     <UploadCloud size={14} /> Upload
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => {
                       const randomBanner =
@@ -635,11 +636,11 @@ export default function ProfilePage() {
                       setBannerFile(null);
                       setRemoveBanner(false);
                     }}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-[10px] font-black uppercase tracking-widest transition border border-border"
+                    variant="outline" className="inline-flex"
                   >
                     Random
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={() => {
                       setBannerFile(null);
@@ -647,10 +648,10 @@ export default function ProfilePage() {
                       setRemoveBanner(true);
                     }}
                     disabled={isUsingDefaultBanner}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
+                    variant="outline" className="inline-flex"
                   >
                     Reset
-                  </button>
+                  </Button>
                 </div>
               </div>
               <input
@@ -692,11 +693,11 @@ export default function ProfilePage() {
                 <span className="text-[11px] text-mauve-8 mr-1 font-semibold">
                   {quoteLength}/100
                 </span>
-                <button
+                <Button
                   type="button"
                   onClick={() => generateQuoteMutation.mutate()}
                   disabled={generateQuoteMutation.isPending}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 hover:bg-muted text-foreground text-[10px] font-black uppercase tracking-widest transition border border-border disabled:opacity-70"
+                  variant="outline" className="inline-flex"
                 >
                   {generateQuoteMutation.isPending ? (
                     <Spinner size="sm" />
@@ -704,18 +705,18 @@ export default function ProfilePage() {
                     <Sparkles size={14} />
                   )}
                   Random
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={() => {
                     setCustomQuote("");
                     setRemoveQuote(true);
                   }}
                   disabled={isUsingDefaultQuote}
-                  className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-full border border-border text-[10px] font-black uppercase tracking-widest transition enabled:hover:bg-muted/50 disabled:opacity-50"
+                  variant="outline" className="inline-flex"
                 >
                   Reset
-                </button>
+                </Button>
               </div>
             </div>
             <textarea

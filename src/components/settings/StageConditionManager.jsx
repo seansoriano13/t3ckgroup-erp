@@ -256,15 +256,15 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 placement="bottom-start"
                 popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <button
+                  <Button
                     type="button"
                     disabled={Boolean(editingId)}
-                    className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
+                    variant="ghost" className="w-full text-left h-auto justify-start"
                   >
                     <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
                     <span className="flex-1">{activeKind.label}</span>
                     {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
-                  </button>
+                  </Button>
                 }
               >
                 {({ close }) => (
@@ -272,14 +272,14 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                     {NEW_CONDITION_KINDS.map((value) => {
                       const meta = CONDITION_KIND_META[value]
                       return (
-                      <button
+                      <Button
                         key={value}
                         type="button"
                         onClick={() => {
                           handleKindChange(value);
                           close();
                         }}
-                        className={cn(
+                        variant="ghost" className={cn("h-auto", 
                           "flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
                           value === kind ? "bg-mauve-a3" : "hover:bg-mauve-a2",
                         )}
@@ -295,7 +295,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                             {meta.hint}
                           </span>
                         </span>
-                      </button>
+                      </Button>
                     )})}
                   </div>
                 )}
@@ -325,7 +325,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                     const accepts = config.accepts || [];
                     const active = accepts.includes(key);
                     return (
-                      <button
+                      <Button
                         key={key}
                         type="button"
                         onClick={() =>
@@ -333,7 +333,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                             accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
                           })
                         }
-                        className={cn(
+                        variant="ghost" className={cn("h-auto", 
                           "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
                           active
                             ? "bg-mauve-12 text-mauve-1"
@@ -341,7 +341,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                         )}
                       >
                         {group.label}
-                      </button>
+                      </Button>
                     );
                   })}
                 </div>
@@ -447,22 +447,22 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               >
                 {!disabled && (
                   <div className="flex shrink-0 flex-col">
-                    <button
+                    <Button
                       onClick={() => moveCondition(index, "up")}
                       disabled={index === 0 || reorderMutation.isPending}
                       aria-label={`Move ${condition.label} earlier`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      variant="ghost" size="icon-xs"
                     >
                       <ArrowUp size={13} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       onClick={() => moveCondition(index, "down")}
                       disabled={index === conditions.length - 1 || reorderMutation.isPending}
                       aria-label={`Move ${condition.label} later`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      variant="ghost" size="icon-xs"
                     >
                       <ArrowDown size={13} />
-                    </button>
+                    </Button>
                   </div>
                 )}
 

@@ -146,12 +146,12 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
       <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">Your Signature</h2>
-          <button
+          <Button
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted transition-colors cursor-pointer"
+            variant="ghost" size="icon-xs"
           >
             <X size={18} strokeWidth={2.5} />
-          </button>
+          </Button>
         </div>
 
         <div className="p-6 space-y-4">
@@ -172,14 +172,14 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                   <PenLine size={13} /> Draw with your mouse or finger
                 </p>
-                <button
+                <Button
                   type="button"
                   onClick={clearDrawing}
                   disabled={!hasDrawn}
-                  className="text-[11px] font-bold text-muted-foreground hover:text-foreground disabled:opacity-40 flex items-center gap-1 cursor-pointer"
+                  variant="ghost" className="h-auto"
                 >
                   <Eraser size={13} /> Clear
-                </button>
+                </Button>
               </div>
               <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)]">
                 <canvas
@@ -205,13 +205,13 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                 <p className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
                   A photo of your written signature
                 </p>
-                <button
+                <Button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-[11px] font-bold text-primary hover:opacity-80 flex items-center gap-1 cursor-pointer"
+                  variant="link"
                 >
                   <UploadCloud size={13} /> Choose Photo
-                </button>
+                </Button>
               </div>
               <div className="rounded-xl border-2 border-dashed border-border bg-[repeating-linear-gradient(45deg,var(--color-muted)_0,var(--color-muted)_10px,transparent_10px,transparent_20px)] flex items-center justify-center min-h-[180px]">
                 {uploadCanvasReady ? (

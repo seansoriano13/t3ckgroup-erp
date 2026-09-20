@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 function sumOf(rows) {
   return rows.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0);
@@ -68,37 +69,37 @@ function PositionsEditor({ department, actorId }) {
             className="h-8 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <span className="text-xs text-muted-foreground">%</span>
-          <button
+          <Button
             type="button"
             onClick={() => removeRow(i)}
-            className="rounded p-1 text-muted-foreground hover:bg-red-a4 hover:text-red-9"
+            variant="ghost" size="icon-xs"
             aria-label={`Remove ${row.name || "position"}`}
           >
             <Trash2 size={12} />
-          </button>
+          </Button>
         </div>
       ))}
 
       <div className="flex items-center justify-between pt-1">
-        <button
+        <Button
           type="button"
           onClick={addRow}
-          className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          variant="ghost" className="h-auto"
         >
           <Plus size={12} /> Add Position
-        </button>
+        </Button>
         <div className="flex items-center gap-3">
           <span className={cn("text-xs font-semibold tabular-nums", Math.abs(total - 100) > 0.01 ? "text-red-9" : "text-muted-foreground")}>
             {total.toFixed(2)}%
           </span>
-          <button
+          <Button
             type="button"
             disabled={saveMutation.isPending || draft.length === 0}
             onClick={() => saveMutation.mutate(draft)}
-            className="h-7 rounded-md bg-primary px-3 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            variant="default"
           >
             Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -109,14 +110,14 @@ function DepartmentRow({ department, index, onChange, isOpen, onToggle, actorId 
   return (
     <div className="rounded-lg border border-border/60">
       <div className="flex items-center gap-2 px-3 py-2">
-        <button
+        <Button
           type="button"
           onClick={onToggle}
-          className="flex flex-1 items-center gap-2 text-left"
+          variant="ghost" className="flex-1 text-left h-auto justify-start"
         >
           <ChevronDown size={13} className={cn("shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
           <span className="text-sm font-semibold text-foreground">{department.name}</span>
-        </button>
+        </Button>
         <input
           type="number"
           step="0.001"
@@ -192,14 +193,14 @@ export default function CommissionAllocationManager() {
           <span className={cn("text-xs font-semibold tabular-nums", Math.abs(total - 100) > 0.01 ? "text-red-9" : "text-muted-foreground")}>
             Total {total.toFixed(2)}%
           </span>
-          <button
+          <Button
             type="button"
             disabled={saveMutation.isPending}
             onClick={() => saveMutation.mutate(draft)}
-            className="h-8 rounded-md bg-primary px-3.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            variant="default"
           >
             Save Departments
-          </button>
+          </Button>
         </div>
       </div>
     </div>

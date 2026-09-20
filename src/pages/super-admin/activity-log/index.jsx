@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge.jsx";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 
 const PAGE_SIZE = 50;
 
@@ -426,16 +427,16 @@ export default function SuperAdminActivityLogPage() {
             {/* Tab bar */}
             <div className="flex items-center gap-1 bg-muted/50 p-1 rounded-xl shrink-0 mt-4 max-w-fit border border-border/40 flex-wrap">
               {visibleTabs.map((tab) => (
-                <button
+                <Button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === tab.id
+                  variant="ghost" className={`h-auto px-4 py-2 text-xs font-bold rounded-lg transition-all ${activeTab === tab.id
                       ? "bg-card text-foreground shadow-sm ring-1 ring-border"
                       : "text-muted-foreground hover:text-foreground"
                     }`}
                 >
                   {tab.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -460,25 +461,25 @@ export default function SuperAdminActivityLogPage() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   onClick={() => setPage((p) => Math.max(0, p - 1))}
                   disabled={page === 0}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+                  variant="outline"
                 >
                   <ChevronLeft size={14} /> Newer
-                </button>
+                </Button>
                 {page > 0 && (
                   <span className="text-[11px] font-bold text-muted-foreground px-1">
                     Page {page + 1}
                   </span>
                 )}
-                <button
+                <Button
                   onClick={() => setPage((p) => p + 1)}
                   disabled={entries.length < PAGE_SIZE}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+                  variant="outline"
                 >
                   Older <ChevronRight size={14} />
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -539,12 +540,12 @@ export default function SuperAdminActivityLogPage() {
                 : "No log entries yet."}
             </p>
             {hasActiveFilters && (
-              <button
+              <Button
                 onClick={clearFilters}
-                className="text-xs font-semibold text-primary hover:underline mt-1"
+                variant="link" className="mt-1"
               >
                 Clear filters
-              </button>
+              </Button>
             )}
           </div>
         ) : (
@@ -589,12 +590,12 @@ export default function SuperAdminActivityLogPage() {
               }
 
               return (
-                <button
+                <Button
                   key={e.id}
                   type="button"
                   onClick={() => handleEntryClick(e)}
                   disabled={!isClickable}
-                  className={`w-full text-left bg-card border border-border rounded-xl p-4 transition-all duration-150 animate-content-in group ${isClickable
+                  variant="ghost" className={`h-auto w-full text-left bg-card border border-border rounded-xl p-4 transition-all duration-150 animate-content-in group ${isClickable
                       ? "hover:border-mauve-6 hover:bg-muted/40 cursor-pointer"
                       : "cursor-default"
                     }`}
@@ -714,7 +715,7 @@ export default function SuperAdminActivityLogPage() {
                       </div>
                     </div>
                   </div>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -723,23 +724,23 @@ export default function SuperAdminActivityLogPage() {
         {/* ── Bottom pagination ─────────────────────────────────────── */}
         {filteredEntries.length > 0 && (
           <div className="flex items-center justify-center gap-3 pt-3 border-t border-border/40">
-            <button
+            <Button
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+              variant="outline"
             >
               <ChevronLeft size={14} /> Newer
-            </button>
+            </Button>
             <span className="text-[11px] font-bold text-muted-foreground">
               Page {page + 1}
             </span>
-            <button
+            <Button
               onClick={() => setPage((p) => p + 1)}
               disabled={entries.length < PAGE_SIZE}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors"
+              variant="outline"
             >
               Older <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
         </>

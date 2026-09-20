@@ -1,5 +1,6 @@
 import { useState } from "react"
 import BeforeAfter, { Chrome } from "./BeforeAfter"
+import { Button } from "@/components/ui/button";
 
 /**
  * The six before/after demos.
@@ -44,13 +45,13 @@ export function FlowVersioningDemo() {
       before={
         <Chrome title="Flow Canvas">
           <div className="space-y-3">
-            <button
+            <Button
               type="button"
               onClick={() => setPublishedOld(true)}
-              className="rounded-lg border border-border bg-muted px-3 py-2 text-[13px] font-semibold"
+              variant="outline"
             >
               Publish
-            </button>
+            </Button>
             {publishedOld ? (
               <p className="rounded-lg bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-700 dark:text-red-300">
                 Published. The previous rules are gone — changing your mind means
@@ -69,11 +70,11 @@ export function FlowVersioningDemo() {
           <div className="flex gap-3">
             <div className="w-36 shrink-0 space-y-1">
               {versions.map((v) => (
-                <button
+                <Button
                   key={v.id}
                   type="button"
                   onClick={() => setViewing(v.id)}
-                  className={`block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${
+                  variant="ghost" className={`h-auto block w-full rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${
                     viewing === v.id
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:bg-muted/60"
@@ -85,7 +86,7 @@ export function FlowVersioningDemo() {
                       Editing
                     </span>
                   )}
-                </button>
+                </Button>
               ))}
             </div>
             <div className="min-w-0 flex-1 space-y-2">
@@ -99,19 +100,19 @@ export function FlowVersioningDemo() {
                     Viewing {viewing} — read only. {versions.find((v) => v.id === viewing)?.note}.
                   </p>
                   <div className="flex gap-2">
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setViewing("draft")}
-                      className="rounded-lg border border-border px-3 py-1.5 text-[13px] font-semibold"
+                      variant="outline"
                     >
                       ← Back to draft
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="rounded-lg border border-border bg-muted px-3 py-1.5 text-[13px] font-semibold"
+                      variant="outline"
                     >
                       Revert to this version
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}
@@ -169,14 +170,14 @@ export function CrmBoardDemo() {
                   {stage}
                 </p>
                 {BOARD_SORS.filter((s) => s.stage === stage).map((s) => (
-                  <button
+                  <Button
                     key={s.id}
                     type="button"
                     onClick={() => setRefused(true)}
-                    className={`${cardClass} block w-full cursor-not-allowed text-left`}
+                    variant="ghost" className={`h-auto ${cardClass} block w-full cursor-not-allowed text-left`}
                   >
                     {s.id}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ))}
@@ -192,18 +193,18 @@ export function CrmBoardDemo() {
         <Chrome title="SORS · Board">
           <div className="mb-2 flex items-center gap-1.5">
             {Object.keys(FLOWS).map((name) => (
-              <button
+              <Button
                 key={name}
                 type="button"
                 onClick={() => setFlow(name)}
-                className={`rounded-lg px-2.5 py-1 text-[12px] font-bold transition-colors ${
+                variant="ghost" className={`h-auto rounded-lg px-2.5 py-1 text-[12px] font-bold transition-colors ${
                   flow === name
                     ? "bg-muted text-foreground"
                     : "text-muted-foreground hover:bg-muted/60"
                 }`}
               >
                 {name}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -283,27 +284,27 @@ export function StageFieldsDemo() {
             {picking ? (
               <div className="flex flex-wrap gap-1.5">
                 {AVAILABLE_FIELDS.filter((f) => !fields.includes(f)).map((f) => (
-                  <button
+                  <Button
                     key={f}
                     type="button"
                     onClick={() => {
                       setFields((prev) => [...prev, f])
                       setPicking(false)
                     }}
-                    className="rounded-lg border border-border px-2.5 py-1.5 text-[13px] font-semibold hover:bg-muted"
+                    variant="outline"
                   >
                     {f}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={() => setPicking(true)}
-                className="rounded-lg border border-border bg-muted px-3 py-1.5 text-[13px] font-semibold"
+                variant="outline"
               >
                 + Add a field
-              </button>
+              </Button>
             )}
           </div>
         </Chrome>
@@ -323,13 +324,13 @@ export function BlockedMoveDemo() {
       note="The same information, moved to before the click instead of after it."
       before={
         <Chrome title="SOR S07971">
-          <button
+          <Button
             type="button"
             onClick={() => setToast(true)}
-            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold"
+            variant="outline" className="w-full"
           >
             Move to Bidding
-          </button>
+          </Button>
           {toast && (
             <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-[13px] font-semibold text-red-700 dark:text-red-300">
               Cannot move: ITB Number is required.
@@ -342,13 +343,13 @@ export function BlockedMoveDemo() {
       }
       after={
         <Chrome title="SOR S07971">
-          <button
+          <Button
             type="button"
             disabled
-            className="w-full cursor-not-allowed rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold opacity-60"
+            variant="outline" className="w-full opacity-60"
           >
             Move to Bidding
-          </button>
+          </Button>
           <p className="mt-2 text-[13px] font-semibold text-amber-800 dark:text-amber-200">
             Needs ITB Number — asked on this Stage.
           </p>
@@ -430,13 +431,13 @@ export function LoginDemo() {
             value="sean@t3ckgroup.com"
             className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
           />
-          <button
+          <Button
             type="button"
             onClick={() => setSent(true)}
-            className="w-full rounded-lg border border-border bg-muted px-3 py-2 text-[14px] font-semibold"
+            variant="outline" className="w-full"
           >
             Send magic link
-          </button>
+          </Button>
           <p className="pt-3 text-[13px] text-muted-foreground">
             {sent
               ? "Sent. If the email is slow or missing, nobody works."
@@ -457,12 +458,12 @@ export function LoginDemo() {
             value="password"
             className="mb-2 w-full rounded-lg border border-border bg-card px-3 py-2 text-[14px]"
           />
-          <button
+          <Button
             type="button"
-            className="w-full rounded-lg border-2 border-emerald-500/30 bg-muted px-3 py-2 text-[14px] font-bold"
+            variant="ghost" className="w-full h-auto justify-start"
           >
             Sign in
-          </button>
+          </Button>
           <p className="pt-3 text-[13px] text-muted-foreground">
             Or email me a link instead.
           </p>

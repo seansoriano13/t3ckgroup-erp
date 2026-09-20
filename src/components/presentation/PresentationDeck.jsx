@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
 import { DEMOS } from "./demoRegistry"
+import { Button } from "@/components/ui/button";
 
 /**
  * The Release Notes deck.
@@ -51,13 +52,13 @@ function HeadlineSlide({ row }) {
       {Demo && <Demo />}
 
       <div>
-        <button
+        <Button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
+          variant="outline"
         >
           {open ? "Hide the detail" : `What changed exactly (${row.changes.length})`}
-        </button>
+        </Button>
         {open && (
           <ul className="mt-3 max-w-4xl space-y-2">
             {row.changes.map((c) => (
@@ -94,13 +95,13 @@ function UnderTheHoodSlide({ data }) {
         </p>
       </div>
       <div>
-        <button
+        <Button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
+          variant="outline"
         >
           {open ? "Hide the list" : "Show the list"}
-        </button>
+        </Button>
         {open && (
           <ul className="mt-4 grid max-w-6xl gap-2.5 lg:grid-cols-2">
             {data.items.map((item) => (
@@ -129,10 +130,10 @@ function EpicRow({ epic }) {
 
   return (
     <li className="rounded-xl border border-border bg-card p-4">
-      <button
+      <Button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start justify-between gap-4 text-left"
+        variant="ghost" className="w-full text-left h-auto justify-start"
       >
         <span className="min-w-0">
           <span className="block text-[17px] font-bold text-foreground">
@@ -150,7 +151,7 @@ function EpicRow({ epic }) {
             #{epic.number}
           </span>
         </span>
-      </button>
+      </Button>
       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
         <div
           className="h-full rounded-full bg-emerald-500/70"
@@ -227,18 +228,18 @@ function PrototypeSlide({ prototype }) {
         </div>
         <div className="flex items-center gap-1.5">
           {prototype.variants.map((v) => (
-            <button
+            <Button
               key={v}
               type="button"
               onClick={() => setVariant(v)}
-              className={`h-10 w-10 rounded-xl border text-[15px] font-bold transition-colors ${
+              variant="ghost" className={`h-10 w-10 rounded-xl border text-[15px] font-bold transition-colors ${
                 variant === v
                   ? "border-foreground bg-muted text-foreground"
                   : "border-border text-muted-foreground hover:bg-muted"
               }`}
             >
               {v}
-            </button>
+            </Button>
           ))}
           <a
             href={`${prototype.file}?variant=${variant}`}
@@ -282,13 +283,13 @@ function Overview({ data, sizes, onPick }) {
                       : data.prototypes[ii].title
               return (
                 <li key={`${section.key}-${ii}`}>
-                  <button
+                  <Button
                     type="button"
                     onClick={() => onPick({ section: si, item: ii })}
-                    className="w-full rounded-lg px-2.5 py-1.5 text-left text-[15px] font-medium text-foreground hover:bg-muted"
+                    variant="ghost" className="w-full text-left h-auto justify-start"
                   >
                     {label}
-                  </button>
+                  </Button>
                 </li>
               )
             })}
@@ -385,13 +386,13 @@ export default function PresentationDeck({ data }) {
           <span className="text-[14px] font-bold tabular-nums text-foreground">
             {positionLabel(pos, sizes)}
           </span>
-          <button
+          <Button
             type="button"
             onClick={() => setOverview((v) => !v)}
-            className="rounded-xl border border-border bg-card px-3 py-1.5 text-[13px] font-semibold hover:bg-muted"
+            variant="outline"
           >
             {overview ? "Close" : "Overview"}
-          </button>
+          </Button>
         </div>
       </header>
 

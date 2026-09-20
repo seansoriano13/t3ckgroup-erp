@@ -15,6 +15,7 @@ import { useNavigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import HighlightText from "../../components/HighlightText";
 import { canEditFAQ as canEditFAQPredicate } from "../../utils/faqAccess";
+import { Button } from "@/components/ui/button";
 
 // ─── Role helpers ──────────────────────────────────────────────────────────────
 const ROLE_LABELS = {
@@ -50,9 +51,9 @@ function FAQItem({ question, answer, isOpen, onToggle, hasRoleCustom, searchTerm
         isOpen ? "bg-card shadow-sm" : "bg-card hover:bg-muted/40"
       }`}
     >
-      <button
+      <Button
         onClick={onToggle}
-        className="w-full flex items-start gap-3 px-4 py-3.5 text-left cursor-pointer"
+        variant="ghost" className="w-full text-left h-auto justify-start"
         id={`faq-q-${question.slice(0, 20).replace(/\s+/g, "-").toLowerCase()}`}
       >
         <span
@@ -74,7 +75,7 @@ function FAQItem({ question, answer, isOpen, onToggle, hasRoleCustom, searchTerm
             For you
           </span>
         )}
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="px-4 pb-4 pl-10 animate-content-in">
@@ -102,10 +103,10 @@ function CategorySidebar({ categories, activeId, onSelect }) {
         const Icon = ICON_MAP[cat.icon] ?? BookOpen;
         const isActive = activeId === cat.id;
         return (
-          <button
+          <Button
             key={cat.id}
             onClick={() => onSelect(cat.id)}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
+            variant="ghost" className={`h-auto w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer text-left ${
               isActive
                 ? "bg-muted text-foreground font-semibold"
                 : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
@@ -118,7 +119,7 @@ function CategorySidebar({ categories, activeId, onSelect }) {
               <Icon size={15} strokeWidth={isActive ? 2.5 : 2} />
             </span>
             <span className="truncate">{cat.label}</span>
-          </button>
+          </Button>
         );
       })}
     </div>
@@ -224,26 +225,26 @@ export default function FAQModal({ isOpen, onClose }) {
           <div className="flex items-center gap-1.5">
             {/* Navigate to FAQ Editor page */}
             {canEditFAQ && (
-              <button
+              <Button
                 id="open-faq-editor-btn"
                 onClick={() => {
                   onClose();
                   navigate("/settings/FAQEditor");
                 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+                variant="outline"
                 title="Open FAQ Editor"
               >
                 <Maximize2 size={13} />
                 Edit
-              </button>
+              </Button>
             )}
 
-            <button
+            <Button
               onClick={onClose}
-              className="w-7 h-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all"
+              variant="ghost" className="w-7 h-auto"
             >
               <X size={15} strokeWidth={2.5} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -296,16 +297,16 @@ export default function FAQModal({ isOpen, onClose }) {
                     <p className="text-xs mt-1 opacity-70">
                       Click Edit to add categories and questions
                     </p>
-                    <button
+                    <Button
                       onClick={() => {
                         onClose();
                         navigate("/settings/FAQEditor");
                       }}
-                      className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                      variant="default" className="mt-4"
                     >
                       <Maximize2 size={12} />
                       Open Editor
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <p className="text-xs mt-1 opacity-70">

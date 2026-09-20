@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from "react";
 import Dropdown from "../ui/Dropdown";
 import { Tag, ChevronDown, Search, Check } from "lucide-react";
-import { FilterTrigger } from "../ui/FilterDropdown";export default function CategoryDropdown({
+import { FilterTrigger } from "../ui/FilterDropdown";
+import { Button } from "@/components/ui/button";export default function CategoryDropdown({
   value,
   onChange,
   categories = [],
@@ -33,9 +34,9 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
       /* popoverClassName="absolute top-full left-0 mt-1.5 bg-muted border border-border rounded-xl shadow-2xl z-[110] w-[280px] popover-enter" */
       trigger={({ isOpen, disabled }) => 
         triggerClassName ? (
-          <button
+          <Button
             type="button"
-            className={triggerClassName}
+            variant="ghost" className={triggerClassName}
           >
             <Tag size={13} />
             <span className={value ? "text-foreground" : "text-mauve-7"}>
@@ -48,7 +49,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                 className={value ? "text-violet-8" : "text-mauve-7"}
               />
             )}
-          </button>
+          </Button>
         ) : (
           <FilterTrigger
             label={value || "Category"}
@@ -90,7 +91,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
               </p>
             ) : (
               searchedCategories.map((cat) => (
-                <button
+                <Button
                   key={cat.category_id}
                   type="button"
                   onClick={(e) => {
@@ -99,7 +100,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                     if (onResetOthers) onResetOthers();
                     close();
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
+                  variant="ghost" className={`h-auto w-full text-left px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer flex items-center gap-2 ${
                     value === cat.category_id
                       ? "bg-muted/80 text-foreground font-bold"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -117,7 +118,7 @@ import { FilterTrigger } from "../ui/FilterDropdown";export default function Cat
                       className="text-muted-foreground/80 shrink-0"
                     />
                   )}
-                </button>
+                </Button>
               ))
             )}
           </div>

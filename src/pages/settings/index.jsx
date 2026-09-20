@@ -21,6 +21,7 @@ import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager
 import SystemUpdateBanner from "../../components/SystemUpdateBanner";
 import SystemUpdateManager from "../../components/SystemUpdateManager";
 import { isPushSupported, isPushEnabled, enablePushNotifications, disablePushNotifications } from "../../utils/pushNotifications";
+import { Button } from "@/components/ui/button";
 
 const appSemver = __APP_SEMVER__;
 const buildFingerprint = formatBuildFingerprint(__APP_VERSION__, __BUILD_TIME__);
@@ -120,14 +121,14 @@ export default function SettingsPage() {
           title="Settings"
           description="Configure your portal experience."
         />
-        <button
+        <Button
           id="open-faq-btn"
           onClick={() => setShowFAQ(true)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all shadow-sm"
+          variant="outline" className="shrink-0"
         >
           <HelpCircle size={15} />
           Help & FAQ
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-6">
@@ -350,26 +351,26 @@ export default function SettingsPage() {
               re-authenticate with your T3CKGROUP Google account to access the
               portal again.
             </p>
-            <button
+            <Button
               onClick={logout}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold bg-card text-destructive hover:bg-destructive hover:text-mauve-1 transition-all border border-destructive/30 hover:border-destructive shadow-sm"
+              variant="destructive"
             >
               <LogOut size={18} />
               Sign Out
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* FAQ floating hint */}
       <div className="mt-8 flex items-center justify-center">
-        <button
+        <Button
           onClick={() => setShowFAQ(true)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+          variant="ghost" className="h-auto"
         >
           <HelpCircle size={12} />
           Have questions? View the Help & FAQ
-        </button>
+        </Button>
       </div>
 
       {/* Build fingerprint — for support conversations, not the reader */}

@@ -67,13 +67,13 @@ export default function BulkGradeModal({
             </div>
             <span className="font-bold text-muted-foreground">Bulk Evaluation</span>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            variant="ghost" size="icon-xs"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* BODY */}
