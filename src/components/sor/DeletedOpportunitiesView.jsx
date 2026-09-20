@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -165,8 +166,8 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
       </div>
 
       {purgeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <Dialog open onOpenChange={(open) => !open && ((() => setPurgeTarget(null))())}>
+<DialogContent showCloseButton={false} className="max-w-md sm:max-w-md p-5 gap-0">
             <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-red-600 dark:text-red-400">
               <AlertTriangle size={15} /> Permanently delete this SOR?
             </p>
@@ -207,8 +208,8 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                 Delete forever
               </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+</Dialog>
       )}
     </div>
   );

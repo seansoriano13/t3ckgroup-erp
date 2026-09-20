@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 import { X, CheckCircle2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 /**
  * HR approves an overtime request, editing the hours actually rendered
@@ -51,9 +51,8 @@ export default function ApproveOvertimeModal({ isOpen, onClose, request, status,
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-card border border-border w-full max-w-sm rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
+  return <Dialog open onOpenChange={(open) => !open && (onClose())}>
+<DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm flex flex-col relative overflow-hidden p-0 gap-0">
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
           <h2 className="text-sm font-black text-foreground tracking-wide uppercase">
             {isOffset ? 'Approve as Offset' : 'Approve as Paid OT'}
@@ -101,8 +100,6 @@ export default function ApproveOvertimeModal({ isOpen, onClose, request, status,
             {submitting ? 'Approving...' : 'Confirm Approval'}
           </Button>
         </form>
-      </div>
-    </div>,
-    document.body,
-  );
+      </DialogContent>
+</Dialog>;
 }
