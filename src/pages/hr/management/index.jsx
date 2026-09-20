@@ -25,6 +25,7 @@ import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
 import { Select } from "@/components/ui/select";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -251,39 +252,39 @@ export default function EmployeeManagement() {
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
-              <table className="w-full text-left border-collapse whitespace-nowrap">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                    <th className="p-4">Name</th>
-                    <th className="p-4">Email</th>
-                    <th className="p-4">Department</th>
-                    <th className="p-4">Sub-Dept</th>
-                    <th className="p-4">Role</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Company</th>
-                    <th className="p-4">Balances</th>
-                    <th className="p-4">Role Flags</th>
-                    <th className="p-4 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+              <Table >
+                <TableHeader>
+                  <TableRow >
+                    <TableHead >Name</TableHead>
+                    <TableHead >Email</TableHead>
+                    <TableHead >Department</TableHead>
+                    <TableHead >Sub-Dept</TableHead>
+                    <TableHead >Role</TableHead>
+                    <TableHead >Status</TableHead>
+                    <TableHead >Company</TableHead>
+                    <TableHead >Balances</TableHead>
+                    <TableHead >Role Flags</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody >
                   {isLoading ? (
-                    <tr>
-                      <td
+                    <TableRow>
+                      <TableCell
                         colSpan="7"
-                        className="p-10 text-center text-muted-foreground font-bold"
+                        className="text-center"
                       >
                         <Spinner size="md" />
                         Loading employees...
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ) : filteredEmployees.length > 0 ? (
                     filteredEmployees.map((emp) => (
-                      <tr
+                      <TableRow
                         key={emp.id}
-                        className="hover:bg-muted/30 transition-colors"
+                        className="hover:bg-muted/30"
                       >
-                        <td className="p-4 text-sm font-bold text-foreground flex items-center gap-3">
+                        <TableCell >
                           <Avatar
                             src={resolvedAvatars[emp.id]}
                             name={emp.name}
@@ -302,30 +303,30 @@ export default function EmployeeManagement() {
                               {emp.id?.slice(0, 8)}...
                             </p>
                           </div>
-                        </td>
-                        <td className="p-4 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell >
                           <HighlightText text={emp.email} search={searchTerm} />
-                        </td>
+                        </TableCell>
 
-                        <td className="p-4 text-sm text-muted-foreground">
+                        <TableCell >
                           <HighlightText
                             text={emp.department || "-"}
                             search={searchTerm}
                           />
-                        </td>
-                        <td className="p-4 text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell >
                           <HighlightText
                             text={emp.subDepartment || "-"}
                             search={searchTerm}
                           />
-                        </td>
-                        <td className="p-4 text-sm text-foreground font-semibold">
+                        </TableCell>
+                        <TableCell >
                           <HighlightText
                             text={emp.role || "-"}
                             search={searchTerm}
                           />
-                        </td>
-                        <td className="p-4 text-sm">
+                        </TableCell>
+                        <TableCell >
                           {emp.employment_status ? (
                             <span className={`px-2 py-1 rounded text-xs font-bold ${emp.employment_status === 'Regular' ? 'bg-green-100 text-green-700' :
                                 emp.employment_status === 'Probationary' ? 'bg-amber-100 text-amber-700' :
@@ -336,8 +337,8 @@ export default function EmployeeManagement() {
                           ) : (
                             <span className="text-muted-foreground text-xs italic">-</span>
                           )}
-                        </td>
-                        <td className="p-4 text-sm">
+                        </TableCell>
+                        <TableCell >
                           {emp.company?.name ? (
                             <span className="text-muted-foreground">{emp.company.name}</span>
                           ) : (
@@ -345,8 +346,8 @@ export default function EmployeeManagement() {
                               No company
                             </span>
                           )}
-                        </td>
-                        <td className="p-4">
+                        </TableCell>
+                        <TableCell >
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
                               SIL: <span className="text-foreground">{emp.sil_hours_balance || 0}h</span>
@@ -355,8 +356,8 @@ export default function EmployeeManagement() {
                               OFFSET: <span className="text-foreground">{emp.offset_hours_balance || 0}h</span>
                             </span>
                           </div>
-                        </td>
-                        <td className="p-4 text-xs flex gap-1">
+                        </TableCell>
+                        <TableCell >
                           {emp.isSuperAdmin && (
                             <span className="bg-violet-2 text-violet-11 border border-mauve-5 px-2.5 py-1 rounded-lg font-black text-[10px] flex items-center gap-1 uppercase tracking-wider">
                               <Shield size={11} /> Super Admin
@@ -390,8 +391,8 @@ export default function EmployeeManagement() {
                               <KeyRound size={11} /> Issued Password
                             </span>
                           )}
-                        </td>
-                        <td className="p-4 text-right space-x-2">
+                        </TableCell>
+                        <TableCell className="text-right">
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
                             <Button
                               onClick={() => handleReissuePassword(emp)}
@@ -415,21 +416,21 @@ export default function EmployeeManagement() {
                           >
                             <Trash2 size={15} />
                           </Button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))
                   ) : (
-                    <tr>
-                      <td
+                    <TableRow>
+                      <TableCell
                         colSpan="7"
-                        className="p-10 text-center text-muted-foreground font-bold italic text-sm"
+                        className="text-center"
                       >
                         No employees found.
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         ) : activeTab === "categories" ? (

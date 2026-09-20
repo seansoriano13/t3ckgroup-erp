@@ -21,6 +21,7 @@ import { TagPill } from "../../../components/ui/TagPill";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 export default function GroupTaskTableView({
   tasks = [],
@@ -119,54 +120,54 @@ export default function GroupTaskTableView({
       {/* Table Container */}
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse min-w-[900px]">
-            <thead>
-              <tr className="bg-muted/50 border-b border-border text-muted-foreground font-bold tracking-wider uppercase text-[11px] select-none">
-                <th
+          <Table className="min-w-[900px]">
+            <TableHeader>
+              <TableRow >
+                <TableHead
                   onClick={() => handleSort("title")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors"
+                  className="cursor-pointer hover:text-foreground transition-colors"
                 >
                   <div className="flex items-center gap-1">
                     Group Task / Description {renderSortIcon("title")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("creator")}
-                  className="py-3.5 px-4 cursor-pointer hover:text-foreground transition-colors w-[170px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[170px]"
                 >
                   <div className="flex items-center gap-1">
                     Creator {renderSortIcon("creator")}
                   </div>
-                </th>
-                <th className="py-3.5 px-3 w-[160px]">Members</th>
-                <th
+                </TableHead>
+                <TableHead className="w-[160px]">Members</TableHead>
+                <TableHead
                   onClick={() => handleSort("status")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[150px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[150px]"
                 >
                   <div className="flex items-center gap-1">
                     Status {renderSortIcon("status")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("dueDate")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[130px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[130px]"
                 >
                   <div className="flex items-center gap-1">
                     Due Date {renderSortIcon("dueDate")}
                   </div>
-                </th>
-                <th
+                </TableHead>
+                <TableHead
                   onClick={() => handleSort("progress")}
-                  className="py-3.5 px-3 cursor-pointer hover:text-foreground transition-colors w-[140px]"
+                  className="cursor-pointer hover:text-foreground transition-colors w-[140px]"
                 >
                   <div className="flex items-center gap-1">
                     Progress {renderSortIcon("progress")}
                   </div>
-                </th>
-                <th className="py-3.5 px-4 text-right w-[80px]">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+                </TableHead>
+                <TableHead className="text-right w-[80px]">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody >
               {paginatedTasks.map((task) => {
                 const members = task.members || [];
                 const totalMembers = members.length;
@@ -192,7 +193,7 @@ export default function GroupTaskTableView({
                   task.status === "ACTIVE";
 
                 return (
-                  <tr
+                  <TableRow
                     key={task.id}
                     onClick={() => onView && onView(task)}
                     className={`hover:bg-muted/40 transition-colors cursor-pointer group ${
@@ -200,7 +201,7 @@ export default function GroupTaskTableView({
                     }`}
                   >
                     {/* Task Title & Description */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex flex-col gap-1 max-w-[340px] sm:max-w-[420px]">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-foreground group-hover:text-primary transition-colors text-[13px] line-clamp-1">
@@ -228,10 +229,10 @@ export default function GroupTaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Creator */}
-                    <td className="py-3.5 px-4 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-2">
                         <Avatar
                           name={task.creator?.name || "Unknown"}
@@ -243,10 +244,10 @@ export default function GroupTaskTableView({
                           {task.creator?.name || "Unknown"}
                         </span>
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Members Avatar Group */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         {memberPeople.length > 0 ? (
                           <div className="flex items-center gap-2">
@@ -261,10 +262,10 @@ export default function GroupTaskTableView({
                           </span>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Status Badge */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge
                           status={
@@ -294,10 +295,10 @@ export default function GroupTaskTableView({
                           </div>
                         )}
                       </div>
-                    </td>
+                    </TableCell>
 
                     {/* Due Date */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {task.due_date ? (
                         <div className="flex flex-col">
                           <span
@@ -319,10 +320,10 @@ export default function GroupTaskTableView({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Progress Bar */}
-                    <td className="py-3.5 px-3 align-middle">
+                    <TableCell className="align-middle">
                       {totalMembers > 0 ? (
                         <div className="flex items-center gap-2 w-full max-w-[120px]">
                           <div className="flex-1 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -338,10 +339,10 @@ export default function GroupTaskTableView({
                       ) : (
                         <span className="text-muted-foreground text-[11px]">—</span>
                       )}
-                    </td>
+                    </TableCell>
 
                     {/* Actions */}
-                    <td className="py-3.5 px-4 text-right align-middle">
+                    <TableCell className="text-right align-middle">
                       <Button
                         type="button"
                         onClick={(e) => {
@@ -353,12 +354,12 @@ export default function GroupTaskTableView({
                       >
                         <Eye size={13} />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       </div>
 

@@ -24,6 +24,7 @@ import { mergeRequestRows } from '../../utils/mergeRequests';
 import { deriveRequestStage } from '../../utils/requestStage';
 import { getRequestStageTheme } from '../../constants/status';
 import { Select } from "@/components/ui/select";
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 
 // One entry per request type instead of parallel label/class/withdraw maps —
 // adding a fifth type (or changing how one withdraws) touches this table only.
@@ -248,33 +249,33 @@ export default function EmployeeLeavesPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-muted/50 border-b border-border text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">
-                      <th className="p-4">Applied On</th>
-                      <th className="p-4">Type</th>
-                      <th className="p-4">Date</th>
-                      <th className="p-4">Hours</th>
-                      <th className="p-4">Files</th>
-                      <th className="p-4">Stage</th>
-                      <th className="p-4">Note</th>
-                      <th className="p-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
+                <Table >
+                  <TableHeader>
+                    <TableRow >
+                      <TableHead >Applied On</TableHead>
+                      <TableHead >Type</TableHead>
+                      <TableHead >Date</TableHead>
+                      <TableHead >Hours</TableHead>
+                      <TableHead >Files</TableHead>
+                      <TableHead >Stage</TableHead>
+                      <TableHead >Note</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody >
                     {filteredRequests.map((req) => {
                       const stage = deriveRequestStage(req);
                       return (
-                        <tr key={req.type + '-' + req.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="p-4 text-xs text-muted-foreground font-medium">
+                        <TableRow key={req.type + '-' + req.id} className="hover:bg-muted/30">
+                          <TableCell >
                             {new Date(req.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell >
                             <span className={`font-black uppercase tracking-wider px-2 py-0.5 rounded text-[10px] border ${REQUEST_TYPE_META[req.type].badgeClass}`}>
                               {REQUEST_TYPE_META[req.type].label}
                             </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-foreground">
+                          </TableCell>
+                          <TableCell >
                             {req.dayCount > 1 ? (
                               <>
                                 {new Date(req.startDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -287,8 +288,8 @@ export default function EmployeeLeavesPage() {
                             ) : (
                               new Date(req.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
                             )}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell >
                             <div className="flex flex-col gap-0.5">
                               <span className="font-black text-sm text-foreground">
                                 {(req.type === 'OVERTIME' || req.type === 'OFFSET') && req.approved_hours != null && req.approved_hours !== req.hours ? (
@@ -306,21 +307,21 @@ export default function EmployeeLeavesPage() {
                                 </span>
                               )}
                             </div>
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell >
                             {req.attachments?.length ? (
                               <AttachmentList attachments={req.attachments} compact />
                             ) : (
                               <span className="text-xs text-muted-foreground/50">-</span>
                             )}
-                          </td>
-                          <td className="p-4">
+                          </TableCell>
+                          <TableCell >
                             <StatusBadge theme={getRequestStageTheme(stage.tone)} label={stage.label} />
-                          </td>
-                          <td className="p-4 text-xs font-semibold text-muted-foreground truncate max-w-[200px]" title={stage.note || ''}>
+                          </TableCell>
+                          <TableCell className="max-w-[200px]" title={stage.note || ''}>
                             {stage.note || '-'}
-                          </td>
-                          <td className="p-4 text-right flex items-center justify-end gap-2">
+                          </TableCell>
+                          <TableCell className="text-right">
                             {req.verification_token && (
                               <Link
                                 to={`/verify/${req.verification_token}`}
@@ -340,12 +341,12 @@ export default function EmployeeLeavesPage() {
                                 <Trash2 size={14} />
                               </Button>
                             )}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>
