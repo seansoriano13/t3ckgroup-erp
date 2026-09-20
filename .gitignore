@@ -96,6 +96,7 @@ docs/*.pdf
 .agents/*
 
 .claude/*
+!.claude/settings.json
 
 # Generated lint report — regenerate with `npx eslint . -f json -o eslint.json`
 eslint.json
