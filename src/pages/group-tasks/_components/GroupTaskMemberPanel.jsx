@@ -4,6 +4,7 @@ import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown"
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
 import { resolveAssignment } from "@/utils/checklist";
+import { Button } from "@/components/ui/button";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
@@ -96,14 +97,14 @@ export default function GroupTaskMemberPanel({
             Role (optional)
           </label>
           {canEditAssignment && onManageRoles && (
-            <button
+            <Button
               type="button"
               onClick={onManageRoles}
-              className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-md hover:bg-muted transition-colors flex items-center gap-1 text-[9px] font-bold uppercase cursor-pointer"
+              variant="ghost" className="h-auto"
               title="Manage Roles"
             >
               <Settings2 size={11} /> Manage
-            </button>
+            </Button>
           )}
         </div>
         {canEditAssignment ? (
@@ -191,13 +192,13 @@ export default function GroupTaskMemberPanel({
           </>
         ) : (
           canEditChecklist && (
-            <button
+            <Button
               type="button"
               onClick={() => onChange("showChecklist", true)}
-              className="self-start flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+              variant="ghost" className="self-start h-auto"
             >
               <span className="text-base leading-none">+</span> Add checklist
-            </button>
+            </Button>
           )
         )}
       </div>

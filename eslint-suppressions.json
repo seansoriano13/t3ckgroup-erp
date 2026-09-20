@@ -1,7 +1,7 @@
 {
   "src/components/ActivityLogFilters.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/components/Avatar.jsx": {
@@ -11,32 +11,27 @@
   },
   "src/components/BroadcastModal.jsx": {
     "local/no-raw-html": {
-      "count": 13
+      "count": 1
     }
   },
   "src/components/CanvassPanel.jsx": {
     "local/no-raw-html": {
-      "count": 20
+      "count": 8
     }
   },
   "src/components/ChecklistTaskInput.jsx": {
-    "local/no-raw-html": {
-      "count": 7
-    }
-  },
-  "src/components/ChecklistTaskRenderer.jsx": {
     "local/no-raw-html": {
       "count": 2
     }
   },
   "src/components/ComprehensiveChatModal.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 3
     }
   },
   "src/components/EmployeePipelineMatrix.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/FieldBox.jsx": {
@@ -46,32 +41,17 @@
   },
   "src/components/FloatingMonthPicker.jsx": {
     "local/no-raw-html": {
-      "count": 9
-    }
-  },
-  "src/components/GradeSelector.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/GroupTaskFilters.jsx": {
-    "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/GroupTasksList.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/HRCategoriesConfig.jsx": {
     "local/no-raw-html": {
-      "count": 5
-    }
-  },
-  "src/components/HRFilters.jsx": {
-    "local/no-raw-html": {
-      "count": 1
+      "count": 2
     }
   },
   "src/components/HistoryTimeline.jsx": {
@@ -81,27 +61,22 @@
   },
   "src/components/ImageAttachment.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 4
     }
   },
   "src/components/ImageCropModal.jsx": {
-    "local/no-raw-html": {
-      "count": 7
-    }
-  },
-  "src/components/IssuedPasswordBanner.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
   },
   "src/components/LogTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 4
     }
   },
   "src/components/NotificationDrawer.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 1
     }
   },
   "src/components/PersonalizedHeroBanner.jsx": {
@@ -109,54 +84,34 @@
       "count": 1
     }
   },
-  "src/components/PrimaryButton.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/ProcurementResolutionPanel.jsx": {
     "local/no-raw-html": {
-      "count": 14
+      "count": 5
     }
   },
   "src/components/RoleSwitcher.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 2
     }
   },
   "src/components/SideNav.jsx": {
-    "local/no-raw-html": {
-      "count": 10
-    }
-  },
-  "src/components/SystemUpdateBanner.jsx": {
     "local/no-raw-html": {
       "count": 1
     }
   },
   "src/components/SystemUpdateManager.jsx": {
     "local/no-raw-html": {
-      "count": 15
+      "count": 1
     }
   },
   "src/components/TaskActivityTimeline.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 2
     }
   },
   "src/components/TaskBodySection.jsx": {
     "local/no-raw-html": {
-      "count": 10
-    }
-  },
-  "src/components/TaskCard.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/TaskDetails.jsx": {
-    "local/no-raw-html": {
-      "count": 2
+      "count": 8
     }
   },
   "src/components/TaskEvaluationSection.jsx": {
@@ -164,29 +119,9 @@
       "count": 2
     }
   },
-  "src/components/TaskFilters.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/TaskHeader.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
   "src/components/TaskTableView.jsx": {
     "local/no-raw-html": {
-      "count": 5
-    }
-  },
-  "src/components/ThemeToggle.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/VersionUpdateNotifier.jsx": {
-    "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/dropdowns/CategoryDropdown.jsx": {
@@ -229,11 +164,6 @@
       "count": 2
     }
   },
-  "src/components/log-task/DictateButton.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/log-task/LogTaskAssignmentBar.jsx": {
     "local/no-raw-html": {
       "count": 5
@@ -241,7 +171,7 @@
   },
   "src/components/log-task/LogTaskDetailsSection.jsx": {
     "local/no-raw-html": {
-      "count": 13
+      "count": 7
     }
   },
   "src/components/log-task/LogTaskFooter.jsx": {
@@ -249,14 +179,9 @@
       "count": 2
     }
   },
-  "src/components/log-task/LogTaskHeader.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
   "src/components/log-task/LogTaskPropertyBar.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/offsets/ApplyLeaveModal.jsx": {
@@ -326,7 +251,7 @@
   },
   "src/components/settings/EmployeeGroupManager.jsx": {
     "local/no-raw-html": {
-      "count": 16
+      "count": 8
     }
   },
   "src/components/settings/FlowCanvas.jsx": {
@@ -516,7 +441,7 @@
   },
   "src/pages/approvals/_components/GroupTaskApprovalSection.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 2
     }
   },
   "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
@@ -536,62 +461,47 @@
   },
   "src/pages/approvals/tasks/index.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 1
     }
   },
   "src/pages/group-tasks/_components/CreateGroupTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 9
+      "count": 3
     }
   },
   "src/pages/group-tasks/_components/GroupRoleManagerModal.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 2
     }
   },
   "src/pages/group-tasks/_components/GroupTaskDetailModal.jsx": {
     "local/no-raw-html": {
-      "count": 23
+      "count": 11
     }
   },
   "src/pages/group-tasks/_components/GroupTaskMemberPanel.jsx": {
     "local/no-raw-html": {
-      "count": 8
-    }
-  },
-  "src/pages/group-tasks/_components/GroupTaskMemberRail.jsx": {
-    "local/no-raw-html": {
-      "count": 2
+      "count": 6
     }
   },
   "src/pages/group-tasks/_components/GroupTaskTableView.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/pages/group-tasks/_components/RateEmployeesModal.jsx": {
     "local/no-raw-html": {
-      "count": 6
-    }
-  },
-  "src/pages/group-tasks/_components/SaveGroupTaskTemplateModal.jsx": {
-    "local/no-raw-html": {
       "count": 3
     }
   },
-  "src/pages/group-tasks/index.jsx": {
+  "src/pages/group-tasks/_components/SaveGroupTaskTemplateModal.jsx": {
     "local/no-raw-html": {
       "count": 2
     }
   },
   "src/pages/group-tasks/templates/_components/TemplateEditorModal.jsx": {
     "local/no-raw-html": {
-      "count": 5
-    }
-  },
-  "src/pages/group-tasks/templates/index.jsx": {
-    "local/no-raw-html": {
-      "count": 5
+      "count": 4
     }
   },
   "src/pages/hr/management/index.jsx": {
@@ -657,11 +567,6 @@
   "src/pages/super-admin/activity-log/index.jsx": {
     "local/no-raw-html": {
       "count": 7
-    }
-  },
-  "src/pages/tasks/index.jsx": {
-    "local/no-raw-html": {
-      "count": 5
     }
   }
 }

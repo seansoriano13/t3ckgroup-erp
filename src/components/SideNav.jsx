@@ -50,6 +50,7 @@ import {
   getFilteredQuickActions,
 } from "../constants/navigation";
 import { useNavBadges } from "../hooks/useNavBadges";
+import { Button } from "@/components/ui/button";
 
 export default function SideNav() {
   const { user } = useAuth();
@@ -227,12 +228,12 @@ export default function SideNav() {
     <>
       {/* Mobile Drawer Trigger (PanelRight) */}
       <div className="md:hidden fixed top-3 left-3 z-40">
-        <button
+        <Button
           onClick={() => setIsMobileOpen(true)}
-          className="text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-r border-sidebar-border backdrop-blur-md border p-1.5 rounded-lg shadow-sm transition-colors"
+          variant="ghost" size="icon-xs"
         >
           <PanelRight size={18} strokeWidth={2} />
-        </button>
+        </Button>
       </div>
 
       {/* Mobile Backdrop Overlay */}
@@ -255,23 +256,23 @@ export default function SideNav() {
       >
         {/* Mobile Close Action (PanelLeft) */}
         <div className="md:hidden absolute top-4 right-4 z-50">
-          <button
+          <Button
             onClick={() => setIsMobileOpen(false)}
-            className="text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 bg-sidebar border-r border-sidebar-border rounded-md shadow-sm border border-sidebar-border"
+            variant="ghost" size="icon-xs"
           >
             <PanelLeft size={18} strokeWidth={2} />
-          </button>
+          </Button>
         </div>
 
         {/* Desktop collapse toggle — a rail is icons-only, so this is the one
             control that survives collapsing to it. */}
-        <button
+        <Button
           onClick={toggleCollapsed}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden md:flex absolute top-4 right-2 z-50 items-center justify-center h-6 w-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          variant="ghost" className="hidden md:flex absolute w-6 h-auto"
         >
           {isCollapsed ? <PanelRight size={13} strokeWidth={2} /> : <PanelLeft size={13} strokeWidth={2} />}
-        </button>
+        </Button>
 
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
@@ -305,16 +306,16 @@ export default function SideNav() {
               {({ close }) => (
                 <div className="p-1.5 min-w-[215px] flex flex-col gap-0.5 bg-muted rounded-xl ">
                   {profileOptions.map((option) => (
-                    <button
+                    <Button
                       key={option.value}
                       onClick={() => {
                         handleProfileSelect(option);
                         close();
                       }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-foreground text-sm font-semibold hover:bg-sidebar-accent transition-colors text-left"
+                      variant="ghost" className="text-left h-auto justify-start"
                     >
                       <span>{option.label}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -326,25 +327,25 @@ export default function SideNav() {
           <div className={`flex items-center gap-1.5 ${isCollapsed ? "md:flex-col" : ""}`}>
             {/* Broadcast — super admins only */}
             {user?.isSuperAdmin && (
-              <button
+              <Button
                 onClick={() => {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                className={`flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
+                variant="ghost" className={`h-auto flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
-              </button>
+              </Button>
             )}
 
             {/* Notifications */}
-            <button
+            <Button
               onClick={() => {
                 setIsNotifOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              variant="ghost" className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Notifications"
             >
               <Bell size={15} strokeWidth={2.2} />
@@ -353,15 +354,15 @@ export default function SideNav() {
                   {unreadCount}
                 </span>
               )}
-            </button>
+            </Button>
 
             {/* Chats */}
-            <button
+            <Button
               onClick={() => {
                 setIsChatsOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              variant="ghost" className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Chats"
             >
               <MessageCircle size={15} strokeWidth={2.2} />
@@ -370,7 +371,7 @@ export default function SideNav() {
                   {unreadChatsCount}
                 </span>
               )}
-            </button>
+            </Button>
 
             {/* Quick Action (+) Button */}
             {quickActionGroups.length > 0 && (
@@ -379,8 +380,8 @@ export default function SideNav() {
                 className={isCollapsed ? "md:w-full" : "flex-1"}
                 usePortal={true}
                 trigger={({ isOpen }) => (
-                  <button
-                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
+                  <Button
+                    variant="ghost" className={`h-auto w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
                       isOpen
                         ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
                         : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
@@ -388,7 +389,7 @@ export default function SideNav() {
                     title="Create new..."
                   >
                     <Plus size={15} strokeWidth={2.5} />
-                  </button>
+                  </Button>
                 )}
               >
                 {({ close }) => (
@@ -404,17 +405,17 @@ export default function SideNav() {
                         {catGroup.items.map((item) => {
                           const Icon = item.icon;
                           return (
-                            <button
+                            <Button
                               key={item.id}
                               onClick={() => {
                                 close();
                                 handleQuickAction(item.id);
                               }}
-                              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                              variant="ghost" className="text-left h-auto justify-start"
                             >
                               <Icon size={14} className="text-sidebar-foreground/70" />
                               <span>{item.label}</span>
-                            </button>
+                            </Button>
                           );
                         })}
                       </div>

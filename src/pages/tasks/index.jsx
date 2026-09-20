@@ -23,6 +23,7 @@ import PageContainer from "../../components/ui/PageContainer";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "../../components/ui/Dot";
+import { Button } from "@/components/ui/button";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
@@ -437,21 +438,21 @@ export default function TasksPage() {
 
       <div className="flex justify-end -mt-2 mb-2">
         {hasSavedDefault ? (
-          <button
+          <Button
             type="button"
             onClick={clearDefault}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            variant="ghost" className="h-auto"
           >
             Clear saved default
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
             onClick={() => saveDefault({ crmOnly })}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            variant="ghost" className="h-auto"
           >
             Save as my default
-          </button>
+          </Button>
         )}
       </div>
 
@@ -563,7 +564,7 @@ export default function TasksPage() {
                     Page {currentGroupPage} / {totalGroupPages}
                   </span>
                   <div className="flex gap-1">
-                    <button
+                    <Button
                       disabled={currentGroupPage === 1}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage - 1);
@@ -574,10 +575,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      variant="outline"
                     >
                       ←
-                    </button>
+                    </Button>
                     {/* Page number pills */}
                     {(() => {
                       let startPage = Math.max(1, currentGroupPage - 2);
@@ -608,7 +609,7 @@ export default function TasksPage() {
                       }
 
                       return pages.map((p, idx) => (
-                        <button
+                        <Button
                           key={idx}
                           disabled={p === "..."}
                           onClick={(e) => {
@@ -622,7 +623,7 @@ export default function TasksPage() {
                                 });
                             }
                           }}
-                          className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${p === currentGroupPage
+                          variant="ghost" className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${p === currentGroupPage
                             ? "bg-primary text-primary-foreground border-primary"
                             : p === "..."
                               ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
@@ -630,10 +631,10 @@ export default function TasksPage() {
                             }`}
                         >
                           {p}
-                        </button>
+                        </Button>
                       ));
                     })()}
-                    <button
+                    <Button
                       disabled={currentGroupPage === totalGroupPages}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage + 1);
@@ -644,10 +645,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      variant="outline"
                     >
                       →
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

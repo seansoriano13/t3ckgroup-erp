@@ -19,6 +19,7 @@ import { TASK_STATUS } from "../constants/status";
 import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import HighlightText from "./HighlightText";
+import { Button } from "@/components/ui/button";
 
 export default function EmployeePipelineMatrix({ selectedRange }) {
   const navigate = useNavigate();
@@ -191,37 +192,37 @@ export default function EmployeePipelineMatrix({ selectedRange }) {
               className="bg-transparent border-none outline-none text-xs text-foreground placeholder-[#9CA3AF] w-full"
             />
             {searchTerm && (
-              <button
+              <Button
                 onClick={() => setSearchTerm("")}
-                className="text-[#9CA3AF] hover:text-foreground"
+                variant="ghost" className="h-auto"
               >
                 <X size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <button
+            <Button
               onClick={() => setLayoutMode("list")}
-              className={`p-1 rounded transition-all ${layoutMode === "list" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "list" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="List View"
             >
               <List size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setLayoutMode("leaderboard")}
-              className={`p-1 rounded transition-all ${layoutMode === "leaderboard" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "leaderboard" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Leaderboard View"
             >
               <Trophy size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setLayoutMode("grid")}
-              className={`p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </button>
+            </Button>
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 bg-card border border-border px-3 py-1.5 rounded-lg h-full">

@@ -180,12 +180,12 @@ export default function HRFilters({
 
           {/* Clear All */}
           {isAnyFilterActive && (
-            <button
+            <Button
               onClick={handleClearAll}
-              className="ml-auto xl:ml-2 text-sm text-muted-foreground hover:text-foreground font-semibold px-3 py-2 shrink-0 transition-colors"
+              variant="ghost" className="ml-auto xl:ml-2 shrink-0 h-auto"
             >
               Clear All
-            </button>
+            </Button>
           )}
         </div>
       </div>

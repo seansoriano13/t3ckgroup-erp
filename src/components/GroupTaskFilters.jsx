@@ -226,15 +226,15 @@ export default function GroupTaskFilters({
                               : "Select Date"}
                       </span>
                       {selectedDateFilter && (
-                        <button
+                        <Button
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedDateFilter("");
                           }}
-                          className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
                         >
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -296,12 +296,12 @@ export default function GroupTaskFilters({
           {actions}
 
           {isAnyFilterActive && (
-            <button
+            <Button
               onClick={handleClearAll}
-              className="ml-auto xl:ml-2 text-sm text-muted-foreground hover:text-black font-semibold px-3 py-2 shrink-0 transition-colors"
+              variant="ghost" className="ml-auto xl:ml-2 shrink-0 h-auto"
             >
               Clear All
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -445,15 +445,15 @@ export default function GroupTaskFilters({
                       : "Due Date"}
                   </span>
                   {dueDate && (
-                    <button
+                    <Button
                       onClick={(e) => {
                         e.stopPropagation();
                         setDueDate(null);
                       }}
-                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      variant="ghost" size="icon-xs" className="opacity-0 group-hover:opacity-100"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>

@@ -145,13 +145,13 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
                 align={isMe ? "start" : "end"}
               />
             </div>
-            <button
+            <Button
               type="button"
               onClick={() => onReply?.(entry)}
-              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+              variant="outline" className="md:hidden"
             >
               <Reply size={14} />
-            </button>
+            </Button>
           </div>
 
           <SwipeToReplyWrapper 
@@ -184,14 +184,14 @@ function ActivityEntry({ entry, currentUserId, avatarMap, onReply, onReact }) {
             {Object.entries(reactions).map(([emoji, users]) => {
               const iReacted = users.includes(currentUserId);
               return (
-                <button
+                <Button
                   key={emoji}
                   onClick={() => onReact && onReact(entry, emoji)}
-                  className={`flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors ${iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}
+                  variant="ghost" className={`h-auto flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors ${iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"}`}
                 >
                   <span>{emoji}</span>
                   <span>{users.length}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -684,13 +684,13 @@ export default function TaskActivityTimeline({
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-2">
               <AttachmentPreviews files={attachments} onRemove={removeAttachment} />
-              <button
+              <Button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-14 h-14 rounded-lg border border-dashed border-border flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+                variant="outline" className="w-14"
               >
                 <ImageIcon size={18} />
-              </button>
+              </Button>
             </div>
           )}
 
@@ -710,7 +710,7 @@ export default function TaskActivityTimeline({
               disabled={postCommentMutation.isPending || isUploading}
             />
             <div className="flex flex-col gap-1 shrink-0">
-              <Button
+              <Button type="submit"
                 onClick={handleSend}
                 disabled={(!message.trim() && attachments.length === 0) || postCommentMutation.isPending || isUploading}
                 className="w-11 h-11 rounded-xl bg-primary hover:bg-primary-hover text-primary-foreground flex items-center justify-center shadow-lg shadow-primary/20 active:scale-90 transition-all"
@@ -719,15 +719,15 @@ export default function TaskActivityTimeline({
                 {isUploading ? <Spinner size="sm" /> : <Send size={18} />}
               </Button>
               <div className="w-11 h-11 rounded-xl border border-border flex items-center justify-center gap-1.5">
-                <button
+                <Button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={postCommentMutation.isPending || isUploading}
-                  className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                  variant="ghost" className="h-auto"
                   title="Attach photo"
                 >
                   <Paperclip size={15} />
-                </button>
+                </Button>
                 <EmojiPicker
                   align="end"
                   onSelect={(emoji) => setMessage((prev) => prev + emoji)}

@@ -64,14 +64,14 @@ export default function SaveGroupTaskTemplateModal({
               </p>
             </div>
           </div>
-          <button
+          <Button
             type="button"
             onClick={onClose}
             disabled={isSaving}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            variant="ghost" size="icon-xs"
           >
             <X size={16} />
-          </button>
+          </Button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col">

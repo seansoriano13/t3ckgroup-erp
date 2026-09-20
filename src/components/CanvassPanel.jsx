@@ -21,6 +21,7 @@ import {
   MIN_CANVASS_OFFERS,
   canvassNeedsMoreOffers,
 } from "../constants/projectEvaluation";
+import { Button } from "@/components/ui/button";
 
 /**
  * Canvass (issue #46, Inclusion side #47) — the three-or-more supplier
@@ -129,14 +130,14 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         <div className="flex flex-wrap items-center gap-1.5">
           <AttachmentList attachments={existingBrochure} compact />
           {existingBrochure.map((file) => (
-            <button
+            <Button
               key={file.url}
               type="button"
               onClick={() => setExistingBrochure((prev) => prev.filter((f) => f.url !== file.url))}
-              className="text-[10px] font-semibold text-red-11 hover:underline"
+              variant="ghost"
             >
               remove
-            </button>
+            </Button>
           ))}
         </div>
       )}
@@ -144,20 +145,20 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
       <AttachmentField label="Brochure" attachments={attachments} hint="Optional — up to 3 files." />
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        <button
+        <Button
           type="button"
           onClick={onCancel}
-          className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-muted-foreground transition-colors hover:text-foreground"
+          variant="ghost" className="h-auto"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
           disabled={!canSubmit || isPending || attachments.isUploading}
-          className="rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground transition-opacity disabled:opacity-40"
+          variant="default"
         >
           {attachments.isUploading ? "Uploading…" : "Save offer"}
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -188,13 +189,13 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
           : "border-border/60 bg-card hover:border-mauve-8"
       }`}
     >
-      <button
+      <Button
         type="button"
         disabled={!canEdit || isPending || offer.is_winner}
         onClick={() => onMarkWinner(offer.id)}
         aria-label={offer.is_winner ? "Winning offer" : `Mark ${offer.brand || "this offer"} the winner`}
         title={offer.is_winner ? "Winning offer" : "Mark as winner"}
-        className="mt-0.5 shrink-0 rounded-full p-1 transition-colors disabled:cursor-default"
+        variant="ghost" size="icon-xs" className="mt-0.5 shrink-0"
       >
         {offer.is_winner ? (
           <Award size={16} className="text-amber-11" />
@@ -204,7 +205,7 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
             className="text-mauve-8 opacity-0 group-hover:opacity-100 hover:text-amber-9"
           />
         )}
-      </button>
+      </Button>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-1.5">
@@ -243,15 +244,15 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
 
       {canEdit && (
         <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-          <button
+          <Button
             type="button"
             onClick={() => setIsEditing(true)}
             aria-label={`Edit ${offer.brand || "offer"}`}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-mauve-a3 hover:text-foreground"
+            variant="ghost" size="icon-xs"
           >
             <Pencil size={13} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={() =>
               confirmDeleteToast(
@@ -261,10 +262,10 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
               )
             }
             disabled={isPending}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-red-a3 hover:text-red-11"
+            variant="ghost" size="icon-xs"
           >
             <Trash2 size={13} />
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -449,13 +450,13 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
               )}
 
               {canEdit && !isAdding && (
-                <button
+                <Button
                   type="button"
                   onClick={() => setIsAdding(true)}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-mauve-7 py-2 text-[12px] font-bold text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary"
+                  variant="outline" className="w-full"
                 >
                   <Plus size={14} /> Add offer
-                </button>
+                </Button>
               )}
 
               <div className="space-y-1.5 border-t border-border/60 pt-3">
@@ -467,14 +468,14 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                     <AttachmentList attachments={canvass.attachments} compact />
                     {canEdit &&
                       canvass.attachments.map((file) => (
-                        <button
+                        <Button
                           key={file.url}
                           type="button"
                           onClick={() => detachMutation.mutate(file.url)}
-                          className="text-[10px] font-semibold text-red-11 hover:underline"
+                          variant="ghost"
                         >
                           remove
-                        </button>
+                        </Button>
                       ))}
                   </div>
                 )}
@@ -486,14 +487,14 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
                   />
                 )}
                 {canEdit && attachments.files.length > 0 && (
-                  <button
+                  <Button
                     type="button"
                     onClick={handleAttach}
                     disabled={attachments.isUploading}
-                    className="rounded-lg bg-mauve-12 px-3 py-1.5 text-[11px] font-bold text-mauve-1 disabled:opacity-40"
+                    variant="default"
                   >
                     {attachments.isUploading ? "Uploading…" : "Attach"}
-                  </button>
+                  </Button>
                 )}
               </div>
             </>
@@ -502,21 +503,21 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
         {canEdit && (
           <div className="flex items-center justify-end gap-2 border-t border-border/60 pt-3">
-            <button
+            <Button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="rounded-lg px-3 py-1.5 text-[12px] font-semibold text-muted-foreground hover:text-foreground"
+              variant="ghost" className="h-auto"
             >
               Close
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleSignOff}
               disabled={signOffMutation.isPending || Boolean(canvass?.signed_off_at)}
-              className="rounded-lg bg-primary px-3.5 py-1.5 text-[12px] font-bold text-primary-foreground disabled:opacity-40"
+              variant="default"
             >
               {canvass?.signed_off_at ? "Signed off" : "Sign off"}
-            </button>
+            </Button>
           </div>
         )}
       </DialogContent>
@@ -526,14 +527,14 @@ export default function CanvassPanel({ open, onOpenChange, subject, subjectLabel
 
 export function CanvassTriggerButton({ onClick, offerCount }) {
   return (
-    <button
+    <Button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1 text-[11px] font-semibold text-foreground transition-colors hover:bg-mauve-3"
+      variant="outline" className="inline-flex"
       title="Compare suppliers"
     >
       <ShoppingCart size={11} />
       <span>{offerCount > 0 ? `Canvass (${offerCount})` : "Canvass"}</span>
-    </button>
+    </Button>
   );
 }

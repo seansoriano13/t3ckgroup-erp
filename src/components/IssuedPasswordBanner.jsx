@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { KeyRound, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 const DISMISS_KEY_PREFIX = "t3ck_dismissed_issued_password_banner:";
 
@@ -36,14 +37,14 @@ export default function IssuedPasswordBanner() {
         You're signed in with a password issued for you. Change it from your
         profile whenever you like.
       </p>
-      <button
+      <Button
         type="button"
         onClick={handleDismiss}
         aria-label="Dismiss"
-        className="p-1 rounded-md hover:bg-amber-4 transition-colors shrink-0"
+        variant="ghost" size="icon-xs" className="shrink-0"
       >
         <X size={14} />
-      </button>
+      </Button>
     </div>
   );
 }

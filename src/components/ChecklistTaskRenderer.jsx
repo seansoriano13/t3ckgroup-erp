@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { CheckCircle2, ChevronDown, ChevronRight, Check } from "lucide-react";
 import HighlightText from "./HighlightText";
 import { parseChecklistGroups, getChecklistProgress } from "../utils/checklist";
+import { Button } from "@/components/ui/button";
 
 export default function ChecklistTaskRenderer({
   description,
@@ -195,10 +196,10 @@ export default function ChecklistTaskRenderer({
               }`}
             >
               {/* Section Header Accordion Trigger */}
-              <button
+              <Button
                 type="button"
                 onClick={() => toggleSection(group.id)}
-                className="w-full px-3.5 py-2.5 flex items-center justify-between text-left hover:bg-muted/40 transition-colors"
+                variant="ghost" className="w-full text-left h-auto justify-start"
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   {/* Status Indicator Icon */}
@@ -237,7 +238,7 @@ export default function ChecklistTaskRenderer({
                   <span>{expanded ? "Hide" : "Show"}</span>
                   {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 </div>
-              </button>
+              </Button>
 
               {/* Section Items (Collapsible Content) */}
               {expanded && (
@@ -277,14 +278,14 @@ function ChecklistItemRow({ item, disabled, isOwner, searchTerm, onToggle }) {
           : "bg-card shadow-sm border-border/40 hover:border-border"
       }`}
     >
-      <button
+      <Button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
         disabled={disabled || !isOwner}
-        className="shrink-0 transition-all duration-300 active:scale-75 disabled:cursor-not-allowed flex items-center justify-center"
+        variant="ghost" className="shrink-0 h-auto"
       >
         {item.checked ? (
           <div className="w-5 h-5 rounded-full bg-green-600 flex items-center justify-center shadow-md">
@@ -293,7 +294,7 @@ function ChecklistItemRow({ item, disabled, isOwner, searchTerm, onToggle }) {
         ) : (
           <div className="w-5 h-5 rounded-full border-2 border-mauve-5 bg-card hover:border-mauve-8 hover:scale-110 transition-all" />
         )}
-      </button>
+      </Button>
       <span
         className={`flex-1 min-w-0 font-medium text-[13px] leading-tight ${
           item.checked

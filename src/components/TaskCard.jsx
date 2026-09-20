@@ -21,6 +21,7 @@ import {
   parseChecklist,
   parseChecklistGroups,
 } from "../utils/checklist"
+import { Button } from "@/components/ui/button";
 
 const getRelativeTime = (dateString) => {
   if (!dateString) return ""
@@ -431,12 +432,12 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
               }`}
             >
               {hiddenItems.length > 0 && (
-                <button
+                <Button
                   onClick={(e) => {
                     e.stopPropagation()
                     setIsExpanded(!isExpanded)
                   }}
-                  className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-all duration-300 uppercase tracking-wider shrink-0"
+                  variant="ghost" className="shrink-0 h-auto"
                 >
                   {isExpanded ? (
                     <>
@@ -447,7 +448,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                       <ChevronDown size={12} /> {hiddenItems.length} {previewItems.length > 0 ? "more item" : "item"}{hiddenItems.length !== 1 ? "s" : ""}
                     </>
                   )}
-                </button>
+                </Button>
               )}
 
               <div className="flex items-center gap-2 max-w-[170px]">

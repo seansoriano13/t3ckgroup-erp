@@ -327,9 +327,9 @@ export default function CreateGroupTaskModal({
               usePortal
               placement="bottom-start"
               trigger={({ isOpen: isTemplateDropdownOpen }) => (
-                <button
+                <Button
                   type="button"
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors ${
+                  variant="ghost" className={`h-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold transition-colors ${
                     isTemplateDropdownOpen
                       ? "bg-muted border-primary/30 text-foreground"
                       : "border-border text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -337,7 +337,7 @@ export default function CreateGroupTaskModal({
                 >
                   <LayoutTemplate size={12} />
                   <span>Use Template</span>
-                </button>
+                </Button>
               )}
             >
               {({ close }) => (
@@ -348,21 +348,21 @@ export default function CreateGroupTaskModal({
                     </p>
                   ) : (
                     templates.map((t) => (
-                      <button
+                      <Button
                         key={t.id}
                         type="button"
                         onClick={() => {
                           handleApplyTemplate(t);
                           close();
                         }}
-                        className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-[12px] font-semibold text-foreground hover:bg-sidebar-accent transition-colors text-left"
+                        variant="ghost" className="text-left h-auto justify-start"
                       >
                         <span className="truncate">{t.name}</span>
                         <span className="text-[10px] text-muted-foreground shrink-0">
                           {(t.members || []).length} slot
                           {(t.members || []).length === 1 ? "" : "s"}
                         </span>
-                      </button>
+                      </Button>
                     ))
                   )}
                 </div>
@@ -370,21 +370,21 @@ export default function CreateGroupTaskModal({
             </Dropdown>
 
             <div className="flex items-center gap-1">
-              <button
+              <Button
                 type="button"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                variant="ghost" size="icon-xs"
                 title={isExpanded ? "Exit full screen" : "Full screen"}
               >
                 {isExpanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+                variant="ghost" size="icon-xs"
               >
                 <X size={15} />
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -468,7 +468,7 @@ export default function CreateGroupTaskModal({
                     {allTags.map((tag) => {
                       const active = tagIds.includes(tag.id);
                       return (
-                        <button
+                        <Button
                           key={tag.id}
                           type="button"
                           onClick={() =>
@@ -476,10 +476,10 @@ export default function CreateGroupTaskModal({
                               active ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
                             )
                           }
-                          className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-bold transition-opacity ${taskTagClasses(tag.color)} ${active ? "" : "opacity-40 hover:opacity-70"}`}
+                          variant="ghost" className={`h-auto inline-flex items-center rounded-full border px-1.5 py-0.5 text-[10px] font-bold transition-opacity ${taskTagClasses(tag.color)} ${active ? "" : "opacity-40 hover:opacity-70"}`}
                         >
                           {tag.name}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -583,14 +583,14 @@ export default function CreateGroupTaskModal({
           {/* FOOTER */}
           <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
-              <button
+              <Button
                 type="button"
                 onClick={() => setIsSaveTemplateModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-foreground text-xs font-semibold hover:border-primary/40 transition-all shadow-sm"
+                variant="outline"
               >
                 <BookmarkPlus size={13} className="text-primary" />
                 <span>Save as Template</span>
-              </button>
+              </Button>
 
               <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground font-medium border-l border-border/80 pl-3">
                 <kbd className="px-1.5 py-0.5 bg-muted/80 border border-border rounded text-muted-foreground font-sans text-[9px]">

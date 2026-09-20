@@ -21,6 +21,7 @@ import { TASK_STATUS } from "../constants/status";
 import { ArrowUpRight } from "lucide-react";
 
 import { getChecklistProgress } from "../utils/checklist";
+import { Button } from "@/components/ui/button";
 
 const formatDate = (dateString) => {
   if (!dateString) return "—";
@@ -401,17 +402,17 @@ export default function TaskTableView({
 
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right align-middle">
-                      <button
+                      <Button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                        variant="outline"
                         title="View details"
                       >
                         <ArrowUpRight size={13} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -460,27 +461,27 @@ export default function TaskTableView({
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              variant="outline"
               title="Previous Page"
             >
               <ChevronLeft size={14} />
-            </button>
+            </Button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <button
+            <Button
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              variant="outline"
               title="Next Page"
             >
               <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
       </div>

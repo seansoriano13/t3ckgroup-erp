@@ -14,6 +14,7 @@ import LogTaskFooter from "./log-task/LogTaskFooter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
@@ -311,21 +312,21 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
                   <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
-                        <button
+                        <Button
                           key={role}
                           type="button"
                           onClick={(e) => {
                             e.preventDefault();
                             setCommitteeRole(role);
                           }}
-                          className={`px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
+                          variant="ghost" className={`h-auto px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
                             committeeRole === role
                               ? "bg-primary text-primary-foreground border-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
                               : "bg-card text-mauve-11 border-mauve-5 hover:border-mauve-5 hover:bg-mauve-2   dark:text-muted-foreground dark:hover:bg-muted shadow-sm"
                           }`}
                         >
                           {role}
-                        </button>
+                        </Button>
                       ),
                     )}
                   </div>

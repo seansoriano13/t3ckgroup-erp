@@ -248,13 +248,13 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               />
             </div>
             {/* Mobile explicit reply button */}
-            <button
+            <Button
               type="button"
               onClick={() => onReply?.(entry)}
-              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+              variant="outline" className="md:hidden"
             >
               <Reply size={14} />
-            </button>
+            </Button>
           </div>
 
           <SwipeToReplyWrapper 
@@ -296,17 +296,17 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             {Object.entries(reactions).map(([emoji, users]) => {
               const iReacted = users.includes(currentUserId);
               return (
-                <button
+                <Button
                   key={emoji}
                   onClick={() => onReact && onReact(entry, emoji)}
-                  className={cn(
+                  variant="ghost" className={cn("h-auto", 
                     "flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors",
                     iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
                   )}
                 >
                   <span>{emoji}</span>
                   <span>{users.length}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -1046,10 +1046,10 @@ export default function ComprehensiveChatModal({
                 const isChecked = selectedChatIds.has(chatKey);
 
                 return (
-                  <button
+                  <Button
                     key={chatKey}
                     onClick={() => handleChatSelect(chat)}
-                    className={cn(
+                    variant="ghost" className={cn("h-auto", 
                       "w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 group relative border",
                       selectionMode
                         ? "hover:bg-muted"
@@ -1142,7 +1142,7 @@ export default function ComprehensiveChatModal({
                         className="absolute top-1/2 -right-1 -translate-y-1/2 shadow-lg shadow-foreground/40"
                       />
                     )}
-                  </button>
+                  </Button>
                 );
               })
             )}
@@ -1339,7 +1339,7 @@ export default function ComprehensiveChatModal({
                     />
                     <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
                           type="button"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={
@@ -1347,11 +1347,11 @@ export default function ComprehensiveChatModal({
                             isUploading ||
                             isEntityDeleted
                           }
-                          className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                          variant="ghost" className="h-auto"
                           title="Attach photo"
                         >
                           <Paperclip size={15} />
-                        </button>
+                        </Button>
                         <EmojiPicker
                           onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
                           disabled={

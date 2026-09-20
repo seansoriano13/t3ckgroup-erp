@@ -4,6 +4,7 @@ import { X, ImagePlus, Maximize2, ClipboardPaste } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { storageService } from "../services/storageService";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 export default function ImageAttachment({ 
   taskId, 
@@ -155,19 +156,19 @@ export default function ImageAttachment({
                      />
                      
                      <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button 
+                        <Button 
                            onClick={(e) => { e.stopPropagation(); setFullscreenImage(item.signedUrl); }}
-                           className="bg-black/60 hover:bg-mauve-12/80 text-primary-foreground p-1 rounded backdrop-blur-sm"
+                           variant="ghost" size="icon-xs"
                         >
                            <Maximize2 size={12} />
-                        </button>
+                        </Button>
                         {!readOnly && (
-                          <button 
+                          <Button 
                              onClick={(e) => { e.stopPropagation(); handleDelete(item.path); }}
-                             className="bg-destructive/80 hover:bg-destructive text-primary-foreground p-1 rounded backdrop-blur-sm"
+                             variant="destructive"
                           >
                              <X size={12} />
-                          </button>
+                          </Button>
                         )}
                      </div>
                    </>
@@ -180,11 +181,11 @@ export default function ImageAttachment({
       {/* Upload Button */}
       {!readOnly && attachments.length < 5 && (
          <div className="space-y-2">
-           <button 
+           <Button 
              type="button"
              onClick={() => fileInputRef.current?.click()}
              disabled={isUploading || taskId === "NEW"}
-             className="w-full py-4 border-2 border-dashed border-mauve-4 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground hover:border-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+             variant="ghost" className="w-full h-auto justify-start"
            >
              {isUploading ? (
                 <>
@@ -197,7 +198,7 @@ export default function ImageAttachment({
                    <ImagePlus size={18} /> Add Images (Max 5)
                 </>
              )}
-           </button>
+           </Button>
            {taskId !== "NEW" && !isUploading && (
              <p className="flex items-center justify-center gap-1.5 text-[11px] text-mauve-7 font-medium">
                <ClipboardPaste size={12} />
@@ -215,12 +216,12 @@ export default function ImageAttachment({
             className="fixed inset-0 z-[9999999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
             onClick={() => setFullscreenImage(null)}
           >
-            <button 
-              className="absolute top-6 right-6 text-primary-foreground hover:text-destructive transition-colors bg-black/50 p-2 rounded-full"
+            <Button 
+              variant="ghost" className="absolute h-auto"
               onClick={() => setFullscreenImage(null)}
             >
               <X size={24} />
-            </button>
+            </Button>
             <img 
               src={fullscreenImage} 
               alt="Fullscreen Attachment" 

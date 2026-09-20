@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import HRFormModal from "./hr/HRFormModal"
 import CategoryForm from "./hr/CategoryForm"
+import { Button } from "@/components/ui/button";
 
 export default function HRCategoriesConfig() {
   const queryClient = useQueryClient()
@@ -95,13 +96,13 @@ export default function HRCategoriesConfig() {
           />
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={openAdd}
-          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2.5 rounded-lg font-bold transition-colors text-sm shadow-sm active:scale-95"
+          variant="default"
         >
           <Plus size={18} /> Add Category
-        </button>
+        </Button>
       </div>
 
       <div className="bg-mauve-2 border border-mauve-4 rounded-xl shadow-lg overflow-x-auto">
@@ -153,14 +154,14 @@ export default function HRCategoriesConfig() {
                       {cat.subDepartment || "-"}
                     </td>
                     <td className="p-4 text-right space-x-2">
-                      <button
+                      <Button
                         onClick={() => openEdit(cat)}
-                        className="p-2 bg-mauve-3 hover:bg-mauve-4 text-foreground rounded-lg transition-colors inline-block"
+                        variant="ghost" className="inline-block h-auto"
                         title="Edit Category"
                       >
                         <Edit size={16} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={() => {
                           confirmDeleteToast(
                             `Delete Category?`,
@@ -168,12 +169,12 @@ export default function HRCategoriesConfig() {
                             () => deleteMutation.mutate(cat),
                           )
                         }}
-                        className="p-2 bg-red-3 hover:bg-red-6 text-destructive rounded-lg transition-colors inline-block"
+                        variant="destructive" className="inline-block"
                         title="Delete Category"
                         disabled={deleteMutation.isPending}
                       >
                         <Trash2 size={16} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))

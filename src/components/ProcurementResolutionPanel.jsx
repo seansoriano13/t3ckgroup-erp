@@ -37,6 +37,7 @@ import {
 import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
 import { STAGE_LABELS } from "../constants/sor";
 import { canEditSor } from "../utils/sorPermissions";
+import { Button } from "@/components/ui/button";
 
 /**
  * The deal a requisition was raised from, for the buyer working the task.
@@ -85,7 +86,7 @@ function SorSummary({ sor, user }) {
         </span>
       )}
       {canEditSor(user, sor) && (
-        <button
+        <Button
           type="button"
           onClick={() =>
             window.dispatchEvent(
@@ -94,10 +95,10 @@ function SorSummary({ sor, user }) {
               }),
             )
           }
-          className="ml-auto inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline"
+          variant="link" className="ml-auto inline-flex"
         >
           View full SOR <ExternalLink size={11} />
-        </button>
+        </Button>
       )}
     </div>
   );
@@ -146,7 +147,7 @@ function OutcomeDropdown({
           {OUTCOME_OPTIONS.map((opt) => {
             const isSelected = value === opt.value;
             return (
-              <button
+              <Button
                 key={opt.value}
                 type="button"
                 onClick={(e) => {
@@ -154,7 +155,7 @@ function OutcomeDropdown({
                   if (onChange) onChange(opt.value);
                   close();
                 }}
-                className={`w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
+                variant="ghost" className={`h-auto w-full flex items-center justify-between gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold transition-all active:scale-95 cursor-pointer ${
                   isSelected
                     ? "bg-muted text-foreground font-bold"
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -172,7 +173,7 @@ function OutcomeDropdown({
                     <Check size={13} className="text-foreground" />
                   </div>
                 )}
-              </button>
+              </Button>
             );
           })}
         </div>
@@ -347,14 +348,14 @@ function ProcurementEditForm({
           </span>
         </div>
         {onCancel && (
-          <button
+          <Button
             type="button"
             onClick={onCancel}
-            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            variant="ghost" size="icon-xs"
             aria-label="Cancel editing"
           >
             <X size={14} />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -418,18 +419,18 @@ function ProcurementEditForm({
                 Odoo Product Reference
               </label>
               {isOdooVerified && (
-                <button
+                <Button
                   type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(liveVerification.productRef || "");
                     toast.success("Copied product name to clipboard!");
                   }}
-                  className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  variant="ghost" className="inline-flex h-auto"
                   title="Copy product name"
                 >
                   <Copy size={11} />
                   <span>Copy</span>
-                </button>
+                </Button>
               )}
             </div>
             {isOdooVerified ? (
@@ -506,10 +507,10 @@ function ProcurementEditForm({
           </div>
 
           <div className="flex items-center gap-2 pt-2">
-            <button
+            <Button
               type="submit"
               disabled={isPending || (needsPo && !poNumber.trim())}
-              className="flex-1 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground shadow-xs hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              variant="default" className="flex-1"
             >
               {needsPo && !poNumber.trim()
                 ? "Enter PO number to save"
@@ -518,15 +519,15 @@ function ProcurementEditForm({
                   : outcome === PROCUREMENT_OUTCOME.IN_PROGRESS
                     ? "Set to in progress"
                     : "Record outcome"}
-            </button>
+            </Button>
             {onCancel && (
-              <button
+              <Button
                 type="button"
                 onClick={onCancel}
-                className="rounded-lg border border-input bg-background px-4 py-2.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors"
+                variant="outline"
               >
                 Cancel
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -604,39 +605,39 @@ function ResolvedRow({ request, onResolve, isPending, userId, canEdit }) {
 
           {/* Prominent Action Button for In Progress */}
           {request.outcome === PROCUREMENT_OUTCOME.IN_PROGRESS && (
-            <button
+            <Button
               type="button"
               onClick={handleQuickMarkPurchased}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-blue-700 active:bg-blue-800 transition-colors"
+              variant="ghost" className="inline-flex h-auto"
             >
               <FileText size={13} />
               <span>Record PO</span>
-            </button>
+            </Button>
           )}
 
           {/* High-emphasis Action Button for Purchased -> Delivered */}
           {request.outcome === PROCUREMENT_OUTCOME.PURCHASED && (
-            <button
+            <Button
               type="button"
               disabled={isPending}
               onClick={handleQuickMarkDelivered}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1 text-xs font-semibold text-white shadow-xs hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 transition-colors"
+              variant="ghost" className="inline-flex h-auto"
             >
               <Truck size={13} />
               <span>Mark Delivered</span>
-            </button>
+            </Button>
           )}
 
           {/* Edit Button */}
-          <button
+          <Button
             type="button"
             onClick={handleOpenEdit}
             aria-label={`Edit outcome for ${request.requested_name}`}
-            className="inline-flex items-center gap-1 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            variant="ghost" size="icon-xs" className="inline-flex"
             title="Edit details"
           >
             <Pencil size={13} />
-          </button>
+          </Button>
         </div>
       </div>
 

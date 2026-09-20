@@ -8,6 +8,7 @@ import ChecklistTaskRenderer from "./ChecklistTaskRenderer"
 import HighlightText from "./HighlightText"
 import ImageAttachment from "./ImageAttachment"
 import { useProjectTitles } from "../hooks/useProjectTitles"
+import { Button } from "@/components/ui/button";
 
 export default function TaskBodySection({
   isEditing,
@@ -143,13 +144,13 @@ export default function TaskBodySection({
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
                       Checklist
                     </label>
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setShowChecklist(false)}
-                      className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+                      variant="ghost" className="h-auto"
                     >
                       Hide
-                    </button>
+                    </Button>
                   </div>
                   <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
                     <ChecklistTaskInput
@@ -165,13 +166,13 @@ export default function TaskBodySection({
                   </div>
                 </div>
               ) : (
-                <button
+                <Button
                   type="button"
                   onClick={() => setShowChecklist(true)}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+                  variant="ghost" className="h-auto"
                 >
                   <span className="text-base leading-none">+</span> Add checklist
-                </button>
+                </Button>
               )}
             </div>
           </div>

@@ -71,38 +71,38 @@ export default function GroupTasksList({ selectedRange }) {
               className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
             />
             {searchTerm && (
-              <button
+              <Button
                 onClick={() => setSearchTerm("")}
-                className="text-muted-foreground hover:text-foreground"
+                variant="ghost" className="h-auto"
               >
                 <X size={12} />
-              </button>
+              </Button>
             )}
           </div>
 
           {/* LAYOUT TOGGLE */}
           <div className="flex items-center gap-1.5 bg-mauve-2 border border-mauve-5 p-1 rounded-lg">
-            <button
+            <Button
               onClick={() => setLayoutMode("row")}
-              className={`p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "row" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Single Row"
             >
               <List size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setLayoutMode("stack")}
-              className={`p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "stack" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="3-Row Stack"
             >
               <Rows3 size={16} />
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => setLayoutMode("grid")}
-              className={`p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
+              variant="ghost" className={`h-auto p-1 rounded transition-all ${layoutMode === "grid" ? "bg-card shadow-sm text-red-9" : "text-muted-foreground hover:text-mauve-11"}`}
               title="Full Grid"
             >
               <LayoutGrid size={16} />
-            </button>
+            </Button>
           </div>
 
           {/* VIEW ALL */}
