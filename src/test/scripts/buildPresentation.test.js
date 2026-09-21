@@ -248,7 +248,8 @@ describe("buildPresentation", () => {
         impact: "A published flow can be rolled back without touching live SORs.",
         version: "1.7.12",
         issues: [188],
-        demo: "flow-versioning",
+        sample: "stock-badges",
+        link: { href: "/super-admin/flow-canvas", label: "Open the Flow Canvas" },
       },
       {
         id: "crm-board",
@@ -257,7 +258,7 @@ describe("buildPresentation", () => {
         impact: "Dragging was impossible before; the guard moved into the move.",
         changes: ["One column per Sale Type.", "Drag a deal to move it."],
         issues: [206, 288],
-        demo: "crm-board",
+
       },
     ],
     underTheHood: {

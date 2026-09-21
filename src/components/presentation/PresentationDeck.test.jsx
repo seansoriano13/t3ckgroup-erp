@@ -19,7 +19,8 @@ const data = {
       impact: "There used to be two places to edit a flow.",
       changes: ["The Sandbox is gone.", "One editing surface."],
       issues: [186],
-      demo: null,
+      sample: null,
+      link: null,
     },
     {
       id: "crm-board",
@@ -28,7 +29,8 @@ const data = {
       impact: "Dragging was impossible before.",
       changes: ["One column per Sale Type."],
       issues: [206],
-      demo: "crm-board",
+      sample: "stock-badges",
+      link: { href: "/sors", label: "Open SORS" },
     },
   ],
   underTheHood: {
@@ -162,13 +164,21 @@ describe("PresentationDeck", () => {
     expect(screen.getByText("The Sandbox is gone.")).toBeInTheDocument()
   })
 
-  it("mounts the demo a row names, and only that row", () => {
+  it("mounts the sample a row names, and only that row", () => {
     render(<PresentationDeck data={data} />)
-    expect(screen.queryByText(/Drag an SOR between Stages/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/The real component, with sample data/i)).not.toBeInTheDocument()
     press("ArrowRight")
-    expect(screen.getByText(/Drag an SOR between Stages/i)).toBeInTheDocument()
-    expect(screen.getByText("Before · Sep 9")).toBeInTheDocument()
-    expect(screen.getByText("Now · on staging")).toBeInTheDocument()
+    expect(screen.getByText(/The real component, with sample data/i)).toBeInTheDocument()
+    // The real Product List stock badges, fed made-up lines.
+    expect(screen.getByText("Out of stock")).toBeInTheDocument()
+    expect(screen.getByText(/Partial · 4 of 12/)).toBeInTheDocument()
+  })
+
+  it("links every row that names a screen to that screen, and no other", () => {
+    render(<PresentationDeck data={data} />)
+    expect(screen.queryByRole("link", { name: /Open SORS/ })).not.toBeInTheDocument()
+    press("ArrowRight")
+    expect(screen.getByRole("link", { name: /Open SORS/ })).toHaveAttribute("href", "/sors")
   })
 
   it("counts the under-the-hood work without spending a slide on each item", () => {

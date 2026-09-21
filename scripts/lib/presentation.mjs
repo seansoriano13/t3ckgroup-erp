@@ -151,7 +151,8 @@ export function buildPresentation({ changelog, supplement, issues, generatedAt }
     impact: enforceSorVocabulary(row.impact),
     changes: resolveChanges(row, windowed).map(enforceSorVocabulary),
     issues: row.issues ?? [],
-    demo: row.demo ?? null,
+    sample: row.sample ?? null,
+    link: row.link ?? null,
     source: row.version ? "changelog" : "supplement",
   }))
 

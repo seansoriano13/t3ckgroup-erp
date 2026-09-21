@@ -1,11 +1,12 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Handshake, Lock } from "lucide-react";
+import { Handshake } from "lucide-react";
 
 import ProtectedRoute from "../../components/ProtectedRoute";
 import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
+import MySorRow from "../../components/sor/MySorRow";
 import { useAuth } from "../../context/AuthContext";
 import { opportunityService } from "../../services/opportunityService";
 
@@ -29,53 +30,6 @@ import { opportunityService } from "../../services/opportunityService";
  * is the thing they are most likely to come here looking for, and dropping it
  * silently is the same disappearing act this screen exists to undo.
  */
-const SOURCE_LABEL = {
-  action: "a task on this Stage",
-  assignment: "an assignment on this Stage",
-  purchase_request: "a purchase request",
-};
-
-function SorRow({ row, onOpen }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(row.opportunityId)}
-      className="flex w-full flex-col gap-2 rounded-2xl border border-mauve-6 bg-mauve-2 p-4 text-left transition-colors hover:border-mauve-8"
-    >
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-        <span className="text-sm font-black tracking-tight text-foreground">
-          {row.salesReference || "No Sales Reference"}
-        </span>
-        <span className="min-w-0 truncate text-sm text-muted-foreground">
-          {row.projectTitle || "Untitled"}
-        </span>
-        {!row.isOpen && (
-          <span className="inline-flex items-center gap-1 rounded-md bg-mauve-4 px-1.5 py-0.5 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-            <Lock size={10} /> Closed
-          </span>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        Now on <span className="font-bold text-foreground">{row.currentStageName || "—"}</span>
-      </p>
-
-      {/* Q7: why they can see it, and how far it reaches — the same wording the
-          Flow Canvas uses for the identical setting, so the two cannot drift. */}
-      <ul className="space-y-1">
-        {row.windows.map((w) => (
-          <li key={w.id} className="text-xs leading-relaxed text-muted-foreground">
-            Called in at{" "}
-            <span className="font-bold text-foreground">{w.calledInAtStageName || "this deal"}</span>
-            {SOURCE_LABEL[w.source] ? ` by ${SOURCE_LABEL[w.source]}` : ""} — sees {w.reachLabel}
-            {w.closedAt ? " (window closed)" : ""}
-          </li>
-        ))}
-      </ul>
-    </button>
-  );
-}
-
 /**
  * The one way into an SOR from anywhere that is not the register.
  *
@@ -151,7 +105,7 @@ function MySorsScreen() {
           ) : (
             <div className="space-y-2">
               {open.map((row) => (
-                <SorRow key={row.opportunityId} row={row} onOpen={openSor} />
+                <MySorRow key={row.opportunityId} row={row} onOpen={openSor} />
               ))}
             </div>
           )}
@@ -164,7 +118,7 @@ function MySorsScreen() {
             </h2>
             <div className="space-y-2">
               {closed.map((row) => (
-                <SorRow key={row.opportunityId} row={row} onOpen={openSor} />
+                <MySorRow key={row.opportunityId} row={row} onOpen={openSor} />
               ))}
             </div>
           </section>

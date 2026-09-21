@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
-import { DEMOS } from "./demoRegistry"
+import { SAMPLES } from "./sampleRegistry"
 
 /**
  * The Release Notes deck.
@@ -32,7 +32,7 @@ function IssueRefs({ issues }) {
 
 function HeadlineSlide({ row }) {
   const [open, setOpen] = useState(false)
-  const Demo = row.demo ? DEMOS[row.demo] : null
+  const Sample = row.sample ? SAMPLES[row.sample] : null
 
   return (
     <div className="flex flex-col gap-6">
@@ -48,7 +48,27 @@ function HeadlineSlide({ row }) {
         </p>
       </div>
 
-      {Demo && <Demo />}
+      {Sample && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            The real component, with sample data
+          </p>
+          <div className="rounded-2xl border border-border bg-muted/30 p-5">
+            <Sample />
+          </div>
+        </div>
+      )}
+
+      {row.link && (
+        <a
+          href={row.link.href}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex w-fit items-center rounded-xl border border-border bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
+        >
+          {row.link.label} →
+        </a>
+      )}
 
       <div>
         <button

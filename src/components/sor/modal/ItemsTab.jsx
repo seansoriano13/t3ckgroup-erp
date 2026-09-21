@@ -14,7 +14,7 @@ import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERE
 import { formatDate } from "../../../utils/formatDate";
 import { pullOdooLines, saveOdooLines } from "./odooLines";
 
-function ItemStockRow({ item, snapshotData }) {
+export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
   const product = item.odoo_product_id ? snapshotData?.products?.[item.odoo_product_id] || null : null;
   const badge = stockBadge({ quantity: item.quantity, product });

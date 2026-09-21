@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
+import StageFieldPreview from "./StageFieldPreview";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
 import { useFlowData } from "./FlowDataContext";
 import { useAuth } from "../../context/AuthContext";
@@ -311,66 +312,7 @@ export default function StageFieldManager({ stageId, disabled = false }) {
         />
       </label>
 
-      {/* Live preview of how this field appears on the SOR */}
-      <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          Preview — how this looks on the SOR
-        </span>
-        <div className="space-y-1 rounded-lg bg-card/60 p-3 outline outline-1 -outline-offset-1 outline-mauve-5">
-          <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-            {draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "Untitled field")}
-            {draft.isRequired ? (
-              <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
-                Required
-              </span>
-            ) : (
-              <span className="rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
-                Optional
-              </span>
-            )}
-          </label>
-          {draft.help?.trim() && (
-            <p className="text-[11px] text-muted-foreground">{draft.help.trim()}</p>
-          )}
-          <div className="mt-1.5 flex max-w-sm items-center gap-2">
-            {draft.source === "custom" && draft.fieldType === "choice" ? (
-              <select
-                disabled
-                className="flex h-8 w-full cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
-              >
-                <option value="">Select…</option>
-                {cleanChoiceOptions(draft.options).map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <input
-                disabled
-                type={
-                  draft.source === "sor"
-                    ? SOR_STAGE_FIELDS[draft.sorField]?.inputType || "text"
-                    : draft.fieldType === "number"
-                      ? "number"
-                      : draft.fieldType === "date"
-                        ? "date"
-                        : "text"
-                }
-                placeholder={`Enter ${(draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "field") || "field").toLowerCase()}`}
-                className="flex h-8 w-full cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
-              />
-            )}
-            <button
-              type="button"
-              disabled
-              className="inline-flex h-8 shrink-0 cursor-not-allowed items-center justify-center rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 opacity-50 shadow"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      </div>
+      <StageFieldPreview draft={draft} />
 
       <div className="flex items-center justify-end gap-2">
         <Button type="button" variant="ghost" size="lg" onClick={resetForm}>
