@@ -226,6 +226,14 @@ export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
 // the policy seed.
 
 /**
+ * Whether an opportunity counts toward the Realized Commission Pool:
+ * requires a Contract Date to fix commission pricing, and is not lost.
+ */
+export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEED) => {
+  return Boolean(opp?.contract_date) && !isLostCode(opp?.status, stages);
+};
+
+/**
  * Aggregates commission metrics across a collection of opportunities.
  * Sums independent per-opportunity calculations based on each opportunity's
  * Contract Date (or currentDate if unawarded).
@@ -235,8 +243,8 @@ export function aggregateOpportunityCommissions({
   ratesResolver,
   departments = [],
   splitsByProjectType = {},
-  scope = "REALIZED", // "REALIZED" | "FORECAST" | "ALL"
   currentDate = new Date().toISOString().slice(0, 10),
+  scope = "ALL", // "ALL" | "REALIZED" | "FORECAST"
   dateFilter = null, // { startDate, endDate, dateField = "contract_date" }
   stages = PIPELINE_STAGE_SEED,
 } = {}) {
@@ -244,7 +252,7 @@ export function aggregateOpportunityCommissions({
     if (isLostCode(opp.status, stages)) return false;
 
     if (scope === "REALIZED") {
-      if (!isRealizedOpportunity(opp, stages)) return false;
+      if (!isRealizedCommissionOpportunity(opp, stages)) return false;
     }
 
     if (dateFilter?.startDate || dateFilter?.endDate) {
@@ -280,7 +288,7 @@ export function aggregateOpportunityCommissions({
   const dealLedger = [];
 
   for (const opp of filteredOpps) {
-    const isWon = isRealizedOpportunity(opp, stages);
+    const isWon = isRealizedCommissionOpportunity(opp, stages);
     if (isWon) wonDealsCount += 1;
 
     const contractValue = Number(opp.expected_value) || 0;

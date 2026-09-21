@@ -238,11 +238,11 @@ describe("realized is having a contract date", () => {
     expect(isRealizedOpportunity({ status: "NEGOTIATION" })).toBe(false)
   })
 
-  it("still counts a deal that has since moved backwards", () => {
-    // The case the positional rule got wrong and had a special case for: the
-    // Contract Date records that the deal was won, and a later move cannot
-    // unsay it. Under a graph there is no "backwards" to detect anyway.
-    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
+  it("dynamically counts a deal on a pre-award stage as open, not realized, if moved backwards", () => {
+    // Under the dynamic rule, a deal currently sitting on a pre-award
+    // stage (like NEGOTIATION) is in Open Pipeline, not Realized.
+    expect(isRealizedOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(false)
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
   })
 
   it("never counts a lost deal, whatever its contract date says", () => {
@@ -251,12 +251,10 @@ describe("realized is having a contract date", () => {
     expect(isRealizedOpportunity({ status: "CLOSED_LOST", contract_date: "2026-03-04" })).toBe(false)
   })
 
-  it("does not depend on where the deal's stage sorts", () => {
-    // Two deals on the same Stage, classified differently — impossible under
-    // the positional rule, and the whole point of the fact-based one.
+  it("judges legacy deals by stage anchor position regardless of contract date", () => {
     const stage = "PAYMENT_VERIFICATION"
     expect(isRealizedOpportunity({ status: stage, contract_date: "2026-03-04" })).toBe(true)
-    expect(isRealizedOpportunity({ status: stage, contract_date: null })).toBe(false)
+    expect(isRealizedOpportunity({ status: stage, contract_date: null })).toBe(true)
   })
 
   it("treats a missing opportunity as not realized", () => {
@@ -267,8 +265,8 @@ describe("realized is having a contract date", () => {
   })
 
   it("follows a caller's own stage list when deciding what lost means", () => {
-    const renamed = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_lost: s.code === "NEGOTIATION" }))
-    const deal = { status: "NEGOTIATION", contract_date: "2026-03-04" }
+    const renamed = PIPELINE_STAGE_SEED.map((s) => ({ ...s, is_lost: s.code === "AWARDED" }))
+    const deal = { status: "AWARDED", contract_date: "2026-03-04" }
     expect(isRealizedOpportunity(deal, renamed)).toBe(false)
     expect(isRealizedOpportunity(deal)).toBe(true)
   })
@@ -313,15 +311,22 @@ describe("realized is having a contract date", () => {
       expect(isRealizedOpportunity(won)).toBe(true)
     })
 
-    it("counts a deal on a non-terminal Stage — still in play, not lost", () => {
-      const inProgress = {
+    it("counts a deal on a post-won Stage downstream of Won", () => {
+      const postWon = {
         ...wonThenLost,
-        flow_stage_id: "s-mid",
+        flow_stage_id: "s-post",
         flow_snapshot: {
-          snapshot_data: { wonStageId: "s-won", stages: [{ id: "s-mid", is_terminal: false }] },
+          snapshot_data: {
+            wonStageId: "s-won",
+            stages: [
+              { id: "s-won", is_terminal: false },
+              { id: "s-post", is_terminal: false },
+            ],
+            edges: [{ from_stage_id: "s-won", to_stage_id: "s-post" }],
+          },
         },
       }
-      expect(isRealizedOpportunity(inProgress)).toBe(true)
+      expect(isRealizedOpportunity(postWon)).toBe(true)
     })
 
     it("does not count it when the flow_snapshot embed is missing", () => {
@@ -597,9 +602,9 @@ describe("open pipeline and still moving", () => {
     expect(isStillMovingOpportunity(deal, { snapshotsById })).toBe(false)
   })
 
-  it("judges a legacy SOR by its pipeline stage code and its Contract Date", () => {
+  it("judges a legacy SOR by its pipeline stage code", () => {
     expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: null })).toBe(true)
-    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(false)
+    expect(isOpenPipelineOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
     expect(isStillMovingOpportunity({ status: "NEGOTIATION", contract_date: "2026-03-04" })).toBe(true)
     expect(isStillMovingOpportunity({ status: "CLOSED_WON" })).toBe(false)
     expect(isOpenPipelineOpportunity({ status: "CLOSED_LOST" })).toBe(false)

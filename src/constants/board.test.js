@@ -48,13 +48,17 @@ describe("flowBoardColumns", () => {
     const snapshot = {
       id: "snap-1",
       snapshot_data: {
-        wonStageId: "won-stage",
-        stages: [{ id: "lead", is_terminal: false }],
+        wonStageId: "won",
+        stages: [
+          { id: "lead", is_terminal: false },
+          { id: "won", is_terminal: false },
+        ],
+        edges: [{ from_stage_id: "lead", to_stage_id: "won" }],
       },
     };
     const opportunities = [
       flowDeal({ id: "a", flow_stage_id: "lead", expected_value: 1000 }),
-      flowDeal({ id: "b", flow_stage_id: "lead", expected_value: 2500, contract_date: "2026-03-04" }),
+      flowDeal({ id: "b", flow_stage_id: "won", expected_value: 2500 }),
     ];
 
     const columns = flowBoardColumns({
@@ -63,12 +67,15 @@ describe("flowBoardColumns", () => {
       snapshotsById: { "snap-1": snapshot },
     });
     const lead = columns.find((c) => c.key === "lead");
+    const wonCol = columns.find((c) => c.key === "won");
 
-    expect(lead.count).toBe(2);
-    // "a" has no Contract Date and sits on a non-terminal Stage → Open pipeline.
+    expect(lead.count).toBe(1);
     expect(lead.openValue).toBe(1000);
-    // "b" has a Contract Date → Realized/Won, not Open.
-    expect(lead.wonValue).toBe(2500);
+    expect(lead.wonValue).toBe(0);
+
+    expect(wonCol.count).toBe(1);
+    expect(wonCol.openValue).toBe(0);
+    expect(wonCol.wonValue).toBe(2500);
   });
 
   it("returns an empty list for an empty flow", () => {
@@ -99,14 +106,19 @@ describe("legacyBoardColumns", () => {
   it("computes per-column count, Open pipeline and Won totals", () => {
     const opportunities = [
       { id: "a", status: "LEAD", expected_value: 500, contract_date: null },
-      { id: "b", status: "LEAD", expected_value: 300, contract_date: "2026-01-01" },
+      { id: "b", status: "CLOSED_WON", expected_value: 300, contract_date: "2026-01-01" },
     ];
 
     const columns = legacyBoardColumns({ stages, opportunities });
     const lead = columns.find((c) => c.key === "LEAD");
+    const closedWon = columns.find((c) => c.key === "CLOSED_WON");
 
-    expect(lead.count).toBe(2);
+    expect(lead.count).toBe(1);
     expect(lead.openValue).toBe(500);
-    expect(lead.wonValue).toBe(300);
+    expect(lead.wonValue).toBe(0);
+
+    expect(closedWon.count).toBe(1);
+    expect(closedWon.openValue).toBe(0);
+    expect(closedWon.wonValue).toBe(300);
   });
 });

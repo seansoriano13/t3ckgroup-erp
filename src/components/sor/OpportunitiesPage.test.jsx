@@ -260,7 +260,7 @@ describe("Open Pipeline value", () => {
     wonFlow = row("o-won-flow", "Won flow deal", 20000, { ...flow, flow_stage_id: "stage-delivery", contract_date: "2026-08-10" })
     lostFlow = row("o-lost-flow", "Lost flow deal", 300000, { ...flow, flow_stage_id: "stage-lost" })
     openLegacy = row("o-open-legacy", "Open legacy deal", 4000, { status: "NEGOTIATION" })
-    wonLegacy = row("o-won-legacy", "Won legacy deal", 50000, { status: "NEGOTIATION", contract_date: "2026-08-11" })
+    wonLegacy = row("o-won-legacy", "Won legacy deal", 50000, { status: "AWARDED", contract_date: "2026-08-11" })
     opportunityService.getOpportunities.mockResolvedValue([openFlow, wonFlow, lostFlow, openLegacy, wonLegacy])
   })
 

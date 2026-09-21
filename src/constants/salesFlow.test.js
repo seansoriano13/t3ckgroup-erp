@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   actionsForSnapshotStage,
   buildDraftSnapshotData,
+  classifyFlowStage,
   conditionsForSnapshotStage,
   countFlowSnapshotChanges,
   diffFlowSnapshots,
@@ -11,6 +12,8 @@ import {
   isAtEntryStage,
   isFlowLockable,
   isLegalMove,
+  isPreWonFlowStage,
+  isWonOrPostWonFlowStage,
   outgoingStages,
   snapshotRows,
   stageActionTaskTitle,
@@ -594,5 +597,96 @@ describe("countFlowSnapshotChanges", () => {
     // 1 changed stage + 1 added stage, 1 removed edge, 1 added action,
     // 1 added condition, 1 Won Stage change = 6.
     expect(countFlowSnapshotChanges(diffFlowSnapshots(before, after))).toBe(6)
+  })
+})
+
+describe("classifyFlowStage, isPreWonFlowStage, and isWonOrPostWonFlowStage", () => {
+  const stages = [
+    { id: "s-lead", name: "Lead", sort_order: 0, is_terminal: false },
+    { id: "s-prop", name: "Proposal", sort_order: 1, is_terminal: false },
+    { id: "s-won", name: "Won", sort_order: 2, is_terminal: false },
+    { id: "s-deliv", name: "Delivery", sort_order: 3, is_terminal: false },
+    { id: "s-close", name: "Closed Won", sort_order: 4, is_terminal: true },
+    { id: "s-lost", name: "Closed Lost", sort_order: 5, is_terminal: true },
+  ]
+  const edges = [
+    { from_stage_id: "s-lead", to_stage_id: "s-prop" },
+    { from_stage_id: "s-prop", to_stage_id: "s-won" },
+    { from_stage_id: "s-prop", to_stage_id: "s-lost" },
+    { from_stage_id: "s-won", to_stage_id: "s-deliv" },
+    { from_stage_id: "s-deliv", to_stage_id: "s-close" },
+  ]
+  const snapshotData = { stages, edges, wonStageId: "s-won" }
+
+  it("classifies pre-won stages as PRE_WON and Open Pipeline", () => {
+    const lead = stages.find((s) => s.id === "s-lead")
+    const prop = stages.find((s) => s.id === "s-prop")
+    expect(classifyFlowStage("s-lead", snapshotData)).toBe("PRE_WON")
+    expect(classifyFlowStage("s-prop", snapshotData)).toBe("PRE_WON")
+    expect(isPreWonFlowStage(lead, snapshotData)).toBe(true)
+    expect(isPreWonFlowStage(prop, snapshotData)).toBe(true)
+    expect(isWonOrPostWonFlowStage(lead, snapshotData)).toBe(false)
+    expect(isWonOrPostWonFlowStage(prop, snapshotData)).toBe(false)
+  })
+
+  it("classifies the won stage as WON", () => {
+    const won = stages.find((s) => s.id === "s-won")
+    expect(classifyFlowStage("s-won", snapshotData)).toBe("WON")
+    expect(isWonOrPostWonFlowStage(won, snapshotData)).toBe(true)
+    expect(isPreWonFlowStage(won, snapshotData)).toBe(false)
+  })
+
+  it("classifies downstream post-won stages as POST_WON", () => {
+    const deliv = stages.find((s) => s.id === "s-deliv")
+    expect(classifyFlowStage("s-deliv", snapshotData)).toBe("POST_WON")
+    expect(isWonOrPostWonFlowStage(deliv, snapshotData)).toBe(true)
+    expect(isPreWonFlowStage(deliv, snapshotData)).toBe(false)
+  })
+
+  it("classifies terminal non-won stages as LOST (neither pre-won nor won)", () => {
+    const lost = stages.find((s) => s.id === "s-lost")
+    const close = stages.find((s) => s.id === "s-close")
+    expect(classifyFlowStage("s-lost", snapshotData)).toBe("LOST")
+    expect(classifyFlowStage("s-close", snapshotData)).toBe("LOST")
+    expect(isPreWonFlowStage(lost, snapshotData)).toBe(false)
+    expect(isWonOrPostWonFlowStage(lost, snapshotData)).toBe(false)
+    expect(isPreWonFlowStage(close, snapshotData)).toBe(false)
+    expect(isWonOrPostWonFlowStage(close, snapshotData)).toBe(false)
+  })
+
+  it("classifies a terminal won stage as WON, not LOST", () => {
+    const termWon = { ...stages[2], is_terminal: true }
+    const customStages = stages.map((s) => (s.id === "s-won" ? termWon : s))
+    expect(classifyFlowStage("s-won", { ...snapshotData, stages: customStages })).toBe("WON")
+  })
+
+  it("evaluates stages dynamically in loops: a deal moved back to proposal is PRE_WON", () => {
+    const loopingEdges = [
+      ...edges,
+      { from_stage_id: "s-won", to_stage_id: "s-prop" },
+    ]
+    expect(classifyFlowStage("s-prop", { stages, edges: loopingEdges, wonStageId: "s-won" })).toBe("PRE_WON")
+  })
+
+  it("falls back to relative order when edges are empty", () => {
+    const noEdgesData = { stages, edges: [], wonStageId: "s-won" }
+    expect(classifyFlowStage("s-lead", noEdgesData)).toBe("PRE_WON")
+    expect(classifyFlowStage("s-won", noEdgesData)).toBe("WON")
+    expect(classifyFlowStage("s-deliv", noEdgesData)).toBe("POST_WON")
+  })
+
+  it("handles missing or unknown stages gracefully", () => {
+    expect(classifyFlowStage("non-existent", snapshotData)).toBe(null)
+    expect(classifyFlowStage(null, snapshotData)).toBe(null)
+    expect(isPreWonFlowStage(null, snapshotData)).toBe(false)
+    expect(isWonOrPostWonFlowStage(null, snapshotData)).toBe(false)
+  })
+
+  it("defaults to PRE_WON for all non-terminal stages when wonStageId is null", () => {
+    const draftData = { stages, edges, wonStageId: null }
+    expect(classifyFlowStage("s-lead", draftData)).toBe("PRE_WON")
+    expect(classifyFlowStage("s-won", draftData)).toBe("PRE_WON")
+    expect(classifyFlowStage("s-deliv", draftData)).toBe("PRE_WON")
+    expect(classifyFlowStage("s-lost", draftData)).toBe("LOST")
   })
 })

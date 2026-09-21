@@ -284,16 +284,12 @@ Exactly one per flow; a Sales Flow cannot be published without one. Set by the
 developer, never presented to Operations in commission vocabulary.
 _Avoid_: Anchor, Anchor Stage, Award Stage
 
-**Realized** (redefined):
-An SOR counts as booked money once it **has a Contract Date** — no longer a
-comparison of its position against an anchor's. Position ceased to mean
-anything when a Sales Flow became a graph, and the positional rule already
-misfired when a deal moved backwards. Its value is labelled **Won** on screen.
+**Won** (or **Realized**):
+An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage or any non-terminal post-won Stage downstream from it. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
 _Avoid_: Booked, Closed (when meaning the money pool)
 
 **Open Pipeline**:
-The value of SORs that are neither Realized nor on a Terminal Stage — what is
-still being worked. Shown beside Won; a lost SOR counts toward neither.
+The value of active SORs currently sitting on pre-won Stages (Stages preceding the Won Stage in the flow graph) that have not yet reached Won. Excludes terminal Stages; a lost SOR counts toward neither Open Pipeline nor Won.
 _Avoid_: Closed Pipeline, Total Pipeline
 
 **Registration Form**:

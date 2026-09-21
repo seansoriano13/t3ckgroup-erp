@@ -8,7 +8,7 @@
  */
 
 import { STATUS_THEME } from "./statusTheme";
-import { isLostFlowStage } from "./salesFlow";
+import { isLostFlowStage, isPreWonFlowStage, isWonOrPostWonFlowStage } from "./salesFlow";
 
 // Lead Sources are now managed dynamically in the database (`crm_lead_sources` table).
 // Previously, they were hardcoded here as LEAD_SOURCES.
@@ -121,26 +121,14 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * pipeline deals into booked money.
  */
 export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
-  if (!opportunity?.contract_date) return false;
+  if (!opportunity) return false;
 
-  // Second argument is either a bare stages array (the original, still
-  // supported shape) or `{ snapshotsById, stages }` like isOpenPipelineOpportunity
-  // and isStillMovingOpportunity take — a caller juggling many flow SORs at
-  // once (the register's totals, the Board's per-column totals) can pass a
-  // bulk snapshot index instead of relying on every row embedding its own.
   const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(stagesOrContext)
     ? { stages: stagesOrContext }
     : stagesOrContext || {};
 
-  // Issue #36/#83 — a flow-built deal carries a Sale Type and has no
-  // crm_pipeline_stages code, so `status` is stale on it and `isLostCode`
-  // cannot answer "is this lost". `isLostFlowStage` asks the same question
-  // of the deal's OWN Flow Snapshot, not the live flow: a later change to
-  // the live Won Stage must not retroactively alter which SORs are
-  // Realized. Resolved from `snapshotsById[flow_snapshot_id]` first, else an
-  // embedded `flow_snapshot` — either missing answers false rather than
-  // trusting an absence, the same under-reporting direction a deal with no
-  // Contract Date fails in.
+  // For a flow-built deal, evaluated dynamically against its Flow Snapshot graph:
+  // sitting on the designated Won Stage or any non-terminal post-won Stage downstream.
   if (opportunity.sale_type_id) {
     const snapshotData =
       snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
@@ -148,10 +136,17 @@ export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_ST
     if (!snapshotData) return false;
     const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
     if (!flowStage) return false;
-    return !isLostFlowStage(flowStage, snapshotData.wonStageId);
+    return isWonOrPostWonFlowStage(flowStage, snapshotData);
   }
 
-  return !isLostCode(opportunity.status, stages);
+  // Legacy SOR (no sale_type_id): sitting at or past the anchor (AWARDED) stage,
+  // excluding terminal lost.
+  const stage = stages.find((s) => s.code === opportunity.status);
+  if (!stage || isLostCode(opportunity.status, stages)) return false;
+  if (isWonCode(opportunity.status, stages)) return true;
+  const anchor = anchorStage(stages);
+  if (!anchor) return Boolean(opportunity.contract_date);
+  return stage.sort_order >= anchor.sort_order;
 };
 
 /**
@@ -174,15 +169,35 @@ const currentStageTerminality = (opportunity, { snapshotsById = {}, stages = PIP
 };
 
 /**
- * Open Pipeline (CONTEXT.md, issue #199): no Contract Date, and the current
- * Stage is not a Terminal Stage. Drives the register's Open pipeline value
- * and its Open filter, so the two always agree. An SOR whose Stage can't be
- * resolved is not counted — the same under-reporting direction Realized
- * fails in.
+ * Open Pipeline (CONTEXT.md):
+ * For Flow SORs: any active deal currently sitting on a pre-won Stage
+ * (a stage preceding the Won Stage in the flow graph).
+ * For Legacy SORs: any active deal on a stage before the anchor (AWARDED) stage.
+ * Excludes terminal stages; a lost SOR counts toward neither Open Pipeline nor Won.
  */
-export const isOpenPipelineOpportunity = (opportunity, context) => {
-  const stage = currentStageTerminality(opportunity, context);
-  return Boolean(stage) && !opportunity.contract_date && !stage.isTerminal;
+export const isOpenPipelineOpportunity = (opportunity, context = PIPELINE_STAGE_SEED) => {
+  if (!opportunity) return false;
+
+  const { snapshotsById = {}, stages = PIPELINE_STAGE_SEED } = Array.isArray(context)
+    ? { stages: context }
+    : context || {};
+
+  if (opportunity.sale_type_id) {
+    const snapshotData =
+      snapshotsById[opportunity.flow_snapshot_id]?.snapshot_data ??
+      opportunity.flow_snapshot?.snapshot_data;
+    if (!snapshotData) return false;
+    const flowStage = (snapshotData.stages || []).find((s) => s.id === opportunity.flow_stage_id);
+    if (!flowStage) return false;
+    return isPreWonFlowStage(flowStage, snapshotData);
+  }
+
+  // Legacy SOR (no sale_type_id)
+  const stage = stages.find((s) => s.code === opportunity.status);
+  if (!stage || isTerminalStage(stage)) return false;
+  const anchor = anchorStage(stages);
+  if (!anchor) return true;
+  return stage.sort_order < anchor.sort_order;
 };
 
 /**
