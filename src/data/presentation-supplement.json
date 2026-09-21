@@ -167,9 +167,11 @@
       "id": "blocked-move",
       "block": "SORS",
       "title": "Move button says why it is blocked",
-      "impact": "A Move button that cannot proceed is disabled and states the reason before you click it. A finished checklist shows as complete.",
+      "impact": "Stages you cannot move to yet are greyed out, and a line under the stage ribbon lists what is missing: each required field and open condition on the current Stage.",
       "changes": [
-        "A Stage move that cannot proceed is disabled and states why, on the button, before the click.",
+        "Destination Stages that are blocked cannot be clicked and are greyed out; hovering one shows why.",
+        "A line under the stage ribbon reads \"Can't move on yet - missing:\" followed by each required field or condition still open.",
+        "The header shows Blocked: N until everything required is answered, then Clear to move.",
         "A checklist with everything answered reads as complete instead of looking half-done.",
         "After a move, the tasks it created and the new Stage's checklist appear without reopening the SOR."
       ],

@@ -210,7 +210,9 @@ describe("PresentationDeck", () => {
       render(<PresentationDeck data={data} />)
       press("ArrowDown")
       press("ArrowDown")
-      expect(screen.getByText(/3 of 7 tickets still open/)).toBeInTheDocument()
+      expect(screen.getByText(/3 of 7 tickets still open across all 2 epics/)).toBeInTheDocument()
+      // The first phase has one open ticket, and says so rather than repeating the total.
+      expect(screen.getByText(/1 of 5 tickets in this phase are still open/)).toBeInTheDocument()
     })
 
     it("puts no dates on the screen", () => {

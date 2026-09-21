@@ -43,3 +43,9 @@ export const SAMPLES = {
   "offset-approved-hours": OffsetSample,
   "employee-groups": EmployeeGroupsSample,
 }
+
+/**
+ * Samples that show real records from the environment the deck is open in,
+ * not made-up data. The slide says so, because a Super Admin can act on them.
+ */
+export const LIVE_SAMPLES = new Set(["sor-window"])

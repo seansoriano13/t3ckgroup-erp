@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
-import { SAMPLES } from "./sampleRegistry"
+import { SAMPLES, LIVE_SAMPLES } from "./sampleRegistry"
 
 /**
  * The Release Notes deck.
@@ -51,7 +51,9 @@ function HeadlineSlide({ row }) {
       {Sample && (
         <div className="space-y-2">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-            The real component, with sample data
+            {LIVE_SAMPLES.has(row.sample)
+              ? "The real component, with real data from this environment"
+              : "The real component, with sample data"}
           </p>
           <div className="rounded-2xl border border-border bg-muted/30 p-5">
             <Sample />
@@ -194,6 +196,8 @@ function EpicRow({ epic }) {
 }
 
 function RoadmapSlide({ phase, index, total, roadmap }) {
+  const phaseTotal = phase.epics.reduce((sum, epic) => sum + epic.total, 0)
+  const phaseOpen = phase.epics.reduce((sum, epic) => sum + epic.open.length, 0)
   return (
     <div className="flex flex-col gap-6">
       <div className="space-y-2">
@@ -204,7 +208,10 @@ function RoadmapSlide({ phase, index, total, roadmap }) {
           {phase.name}
         </h2>
         <p className="text-lg text-muted-foreground">
-          {roadmap.openTicketCount} of {roadmap.ticketCount} tickets still open, across{" "}
+          {phaseOpen === 0
+            ? `All ${phaseTotal} tickets in this phase are closed.`
+            : `${phaseOpen} of ${phaseTotal} tickets in this phase are still open.`}{" "}
+          {roadmap.openTicketCount} of {roadmap.ticketCount} tickets still open across all{" "}
           {roadmap.epicCount} epics. No dates on this screen on purpose.
         </p>
       </div>

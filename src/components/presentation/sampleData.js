@@ -61,19 +61,18 @@ export const SAMPLE_OPPORTUNITY = {
   project_type: "SUPPLY",
   sale_type_id: SALE_TYPE_ID,
   flow_stage_id: "s-bid",
-  flow_snapshot_id: "sample-snapshot",
+  flow_snapshot_id: null,
   expected_value: 1250000,
   status: "BID_SUBMITTED",
   deal_owner: { id: "e1", name: "Maria Duran", avatar_path: null },
 }
 
-// The Board reads no snapshot here, so its SORs are not pinned to one.
 export const SAMPLE_BOARD_OPPORTUNITIES = [
-  { ...SAMPLE_OPPORTUNITY, flow_snapshot_id: null, id: "b1", sales_reference: "S99001", client_name: "Demo Hospital", flow_stage_id: "s-lead", expected_value: 480000 },
-  { ...SAMPLE_OPPORTUNITY, flow_snapshot_id: null, id: "b2", sales_reference: "S99002", flow_stage_id: "s-tech" },
-  { ...SAMPLE_OPPORTUNITY, flow_snapshot_id: null, id: "b3", sales_reference: "S99003", client_name: "Demo Province", flow_stage_id: "s-bid", expected_value: 3100000 },
-  { ...SAMPLE_OPPORTUNITY, flow_snapshot_id: null, id: "b4", sales_reference: "S99004", client_name: "Demo School", flow_stage_id: "s-bid", expected_value: 210000 },
-  { ...SAMPLE_OPPORTUNITY, flow_snapshot_id: null, id: "b5", sales_reference: "S99005", client_name: "Demo Clinic", flow_stage_id: "s-won", expected_value: 890000 },
+  { ...SAMPLE_OPPORTUNITY, id: "b1", sales_reference: "S99001", client_name: "Demo Hospital", flow_stage_id: "s-lead", expected_value: 480000 },
+  { ...SAMPLE_OPPORTUNITY, id: "b2", sales_reference: "S99002", flow_stage_id: "s-tech" },
+  { ...SAMPLE_OPPORTUNITY, id: "b3", sales_reference: "S99003", client_name: "Demo Province", flow_stage_id: "s-bid", expected_value: 3100000 },
+  { ...SAMPLE_OPPORTUNITY, id: "b4", sales_reference: "S99004", client_name: "Demo School", flow_stage_id: "s-bid", expected_value: 210000 },
+  { ...SAMPLE_OPPORTUNITY, id: "b5", sales_reference: "S99005", client_name: "Demo Clinic", flow_stage_id: "s-won", expected_value: 890000 },
 ]
 
 export const SAMPLE_FLOW_STAGES_INDEX = {
@@ -91,6 +90,3 @@ export const STOCK_SNAPSHOT = {
     3: { type: "product", free: 0, onHand: 0, forecast: 0, byWarehouse: { w1: { onHand: 0, free: 0, forecast: 0 } } },
   },
 }
-
-/** The published version the sample SOR is pinned to: v2.1. */
-export const SAMPLE_SNAPSHOT = { id: "sample-snapshot", version: 2, version_minor: 1, created_at: "2026-09-10T00:00:00Z" }

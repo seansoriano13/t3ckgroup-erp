@@ -39,7 +39,7 @@ import {
   isOnTerminalStage,
   isRealizedOpportunity,
   PROJECT_TYPE_SHORT,
-  NO_SALE_TYPE,
+  matchesSaleType,
   formatLeadSource,
   formatPHP,
   PROJECT_TYPES,
@@ -354,8 +354,7 @@ export default function OpportunitiesPage() {
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
-      if (effectiveSaleTypeFilter === NO_SALE_TYPE && o.sale_type_id) return false;
-      if (effectiveSaleTypeFilter !== "ALL" && effectiveSaleTypeFilter !== NO_SALE_TYPE && o.sale_type_id !== effectiveSaleTypeFilter) return false;
+      if (!matchesSaleType(o, effectiveSaleTypeFilter)) return false;
 
       const dealOwner = employees.find(e => e.id === o.deal_owner_id);
       if (departmentFilter !== "ALL" && dealOwner?.department !== departmentFilter) return false;

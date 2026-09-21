@@ -374,3 +374,10 @@ export const formatLeadSource = (source, detail, leadSources = []) => {
 
 /** Filter value for SORs registered before Sale Types existed (`sale_type_id` null). */
 export const NO_SALE_TYPE = "NONE";
+
+/** Whether an SOR passes the register's Sale Type filter ("ALL", a Sale Type id, or NO_SALE_TYPE). */
+export function matchesSaleType(opportunity, filter) {
+  if (filter === "ALL" || !filter) return true;
+  if (filter === NO_SALE_TYPE) return !opportunity.sale_type_id;
+  return opportunity.sale_type_id === filter;
+}

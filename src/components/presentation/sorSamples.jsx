@@ -1,8 +1,5 @@
 import { useState } from "react"
 import StageFieldPreview from "../settings/StageFieldPreview"
-import { ItemStockRow } from "../sor/modal/ItemsTab"
-import SorModalHeader from "../sor/modal/SorModalHeader"
-import ModalTaskRow from "../sor/modal/TaskRow"
 import OpportunityQuickView from "../sor/OpportunityQuickView"
 import OpportunityBoard from "../sor/OpportunityBoard"
 import RetailOrdersQueue from "../sor/RetailOrdersQueue"
@@ -16,9 +13,12 @@ import EmployeeGroupManager from "../settings/EmployeeGroupManager"
 import { FlowDataContext } from "../settings/FlowDataContext"
 import ApproveOffsetModal from "../offsets/ApproveOffsetModal"
 import TemplateTokenText from "../ui/TemplateTokenText"
-import TabGroup from "../ui/TabGroup"
 import { Button } from "../ui/button"
-import { Dialog, DialogContent, DialogTitle } from "../ui/dialog"
+import { useQuery } from "@tanstack/react-query"
+import OpportunityDetailsModal from "../sor/OpportunityDetailsModal"
+import StatusBadge from "../StatusBadge"
+import { opportunityService } from "../../services/opportunityService"
+import { formatPHP, matchesSaleType } from "../../constants/sor"
 import { CONDITION_STATUS } from "../../constants/stageGate"
 import SampleProvider, { ReadOnly } from "./SampleProvider"
 import {
@@ -28,9 +28,6 @@ import {
   SAMPLE_FLOW_STAGES_INDEX,
   SAMPLE_OPPORTUNITY,
   SAMPLE_SALE_TYPE,
-  SAMPLE_SNAPSHOT,
-  SAMPLE_STAGES,
-  STOCK_SNAPSHOT,
 } from "./sampleData"
 
 /**
@@ -57,7 +54,6 @@ function ClickMe({ children }) {
 }
 
 const SEED_CANVAS = [["salesFlow", SALE_TYPE_ID], SAMPLE_CANVAS]
-const SEED_SNAPSHOT = [["flowSnapshot", SAMPLE_SNAPSHOT.id], SAMPLE_SNAPSHOT]
 
 const PENDING_ACTIONS = [
   {
@@ -91,7 +87,7 @@ const QUICK_TASKS = [
 
 const QUICK_CHECKLIST = [
   { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c1", label: "Bid security attached" } },
-  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c2", label: "ITB Number filled in" } },
+  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c2", label: "Bid Deadline filled in" } },
   { status: CONDITION_STATUS.SATISFIED, condition: { id: "c3", label: "Client company confirmed" } },
 ]
 
@@ -163,16 +159,70 @@ export function ItbWonSample() {
   )
 }
 
+const FILTER_SALE_TYPES = [
+  SAMPLE_SALE_TYPE,
+  { id: "st-2", name: "Private", archived_at: null },
+  { id: "st-3", name: "Retail (old)", archived_at: "2026-08-01" },
+]
+
+const MOCK_SORS = [
+  { id: "m1", ref: "S99001", client: "Demo Hospital", sale_type_id: SALE_TYPE_ID, stage: "Lead", value: 480000 },
+  { id: "m2", ref: "S99002", client: "Demo City LGU", sale_type_id: SALE_TYPE_ID, stage: "Bid Submitted", value: 1250000 },
+  { id: "m3", ref: "S99003", client: "Demo Province", sale_type_id: SALE_TYPE_ID, stage: "Awarded", value: 3100000 },
+  { id: "m4", ref: "S99004", client: "Demo Trading Co.", sale_type_id: "st-2", stage: "Quotation Sent", value: 210000 },
+  { id: "m5", ref: "S99005", client: "Demo Clinic", sale_type_id: "st-2", stage: "Won", value: 89000 },
+  { id: "m6", ref: "S99006", client: "Demo Distributor", sale_type_id: "st-3", stage: "Closed", value: 64000 },
+  { id: "m7", ref: "S05512", client: "Demo School (old)", sale_type_id: null, stage: "PO Received", value: 520000 },
+  { id: "m8", ref: "S05530", client: "Demo LGU (old)", sale_type_id: null, stage: "Lead", value: 97000 },
+]
+
 export function SorsFiltersSample() {
   const [value, setValue] = useState("ALL")
-  const saleTypes = [
-    SAMPLE_SALE_TYPE,
-    { id: "st-2", name: "Private", archived_at: null },
-    { id: "st-3", name: "Retail (old)", archived_at: "2026-08-01" },
-  ]
+  const rows = MOCK_SORS.filter((o) => matchesSaleType(o, value))
+  const nameOf = (id) => FILTER_SALE_TYPES.find((s) => s.id === id)?.name ?? "No Sale Type (legacy)"
   return (
-    <div className="w-64">
-      <SaleTypeFilter saleTypes={saleTypes} value={value} onChange={setValue} className="w-full" />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="w-64">
+          <SaleTypeFilter saleTypes={FILTER_SALE_TYPES} value={value} onChange={setValue} className="w-full" />
+        </div>
+        <p className="text-[13px] font-semibold text-muted-foreground">
+          Showing {rows.length} of {MOCK_SORS.length} SORs
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-muted/30 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              <th className="px-3 py-2.5">Sales Ref.</th>
+              <th className="px-3 py-2.5">Company</th>
+              <th className="px-3 py-2.5">Sale Type</th>
+              <th className="px-3 py-2.5">Stage</th>
+              <th className="px-3 py-2.5 text-right">Expected value</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((o) => (
+              <tr key={o.id} className="border-b border-border last:border-0">
+                <td className="px-3 py-2.5 font-mono text-xs font-bold text-foreground">{o.ref}</td>
+                <td className="px-3 py-2.5 font-medium text-foreground">{o.client}</td>
+                <td className="px-3 py-2.5 text-muted-foreground">{nameOf(o.sale_type_id)}</td>
+                <td className="px-3 py-2.5">
+                  <StatusBadge label={o.stage} theme="mauve" />
+                </td>
+                <td className="px-3 py-2.5 text-right font-bold text-foreground">{formatPHP(o.value)}</td>
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  No SORs match this filter.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
@@ -240,126 +290,33 @@ export function RetailSample() {
 
 /* ── SOR window ─────────────────────────────────────────────────────────── */
 
-const WINDOW_CHECKLIST = [
-  { status: CONDITION_STATUS.UNSATISFIED, condition: { id: "c1", label: "Bid security attached", is_required: true } },
-]
-
-const WINDOW_TASKS = [
-  {
-    id: "t1",
-    entityType: "TASK",
-    kind: "group",
-    title: "Bid pack - S99002",
-    dueDate: inDays(5),
-    doneCount: 1,
-    totalCount: 3,
-    members: [
-      { id: "m1", name: "Maria Duran" },
-      { id: "m2", name: "Raquel Galacgac" },
-      { id: "m3", name: "Jose Aquino" },
-    ],
-  },
-  {
-    id: "t2",
-    entityType: "TASK",
-    kind: "individual",
-    title: "Prepare technical compliance sheet",
-    dueDate: inDays(3),
-    doneCount: 0,
-    totalCount: 1,
-    members: [{ id: "m1", name: "Maria Duran" }],
-  },
-]
-
-const WINDOW_STOCK_LINES = [
-  { id: "a", name: "Stretcher, hydraulic", quantity: 12, odoo_product_id: 1 },
-  { id: "b", name: "IV pole, 4-hook", quantity: 24, odoo_product_id: 3 },
-]
-
+/**
+ * Not sample data. This deck is a Super Admin screen in the environment it
+ * describes, so this one opens the real SOR window on the newest SOR the
+ * register would list, through the same query the register uses. It is a real
+ * record: what you do in the window is done to it.
+ */
 export function SorWindowSample() {
-  const [tab, setTab] = useState("now")
-  const currentStage = SAMPLE_STAGES.find((s) => s.id === SAMPLE_OPPORTUNITY.flow_stage_id)
+  const { data: sors = [], isLoading, isError } = useQuery({
+    queryKey: ["opportunities"],
+    queryFn: () => opportunityService.getOpportunities(),
+  })
+  const sor = sors.find((o) => o.sale_type_id) || sors[0] || null
+
+  if (isLoading) return <p className="text-[14px] text-muted-foreground">Loading a real SOR…</p>
+  if (isError || !sor) {
+    return <p className="text-[14px] text-muted-foreground">No SOR in this environment to open.</p>
+  }
+
   return (
-    <SampleProvider
-      seed={[
-        SEED_CANVAS,
-        SEED_SNAPSHOT,
-        [["pendingActionDecisions", SAMPLE_OPPORTUNITY.id, SAMPLE_ACTOR], PENDING_ACTIONS],
-      ]}
-    >
+    <div className="space-y-3">
+      <p className="text-[14px] text-muted-foreground">
+        Live data: opens {sor.sales_reference || "an SOR"} - {sor.client_name}, the newest SOR you can see.
+      </p>
       <ClickMe>
-        {(open, close, setOpen) => (
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogContent className="max-h-[90vh] gap-0 overflow-y-auto p-0 sm:max-w-3xl">
-              <DialogTitle className="sr-only">SOR window sample</DialogTitle>
-              <SorModalHeader
-                opportunity={SAMPLE_OPPORTUNITY}
-                isEditing={false}
-                editForm={{}}
-                setEditForm={noop}
-                handleEditToggle={noop}
-                updateMutation={{ isPending: false }}
-                deleteMutation={{ isPending: false }}
-                isExpanded={false}
-                setIsExpanded={noop}
-                onClose={close}
-                isFlowDeal
-                flowCanvas={SAMPLE_CANVAS}
-                currentFlowStage={currentStage}
-                currentFlowStageTone="mauve"
-                pipelineStages={[]}
-                stageMutation={{ isPending: false, mutate: noop }}
-                handleStageChange={noop}
-                checklist={WINDOW_CHECKLIST}
-                isOpen={open}
-                hasPrev={false}
-                hasNext={false}
-                onPrev={noop}
-                onNext={noop}
-                accessLevel="full"
-              />
-              <div className="space-y-4 px-6 py-4">
-                <TabGroup
-                  tabs={[
-                    { value: "now", label: "Now" },
-                    { value: "items", label: "Items" },
-                  ]}
-                  activeTab={tab}
-                  onChange={setTab}
-                  variant="underline"
-                />
-                {tab === "now" ? (
-                  <div className="space-y-4">
-                    <ReadOnly>
-                      <PendingActionDecisions opportunity={SAMPLE_OPPORTUNITY} actorId={SAMPLE_ACTOR} onChanged={noop} />
-                    </ReadOnly>
-                    <div className="space-y-2">
-                      {WINDOW_TASKS.map((row) => (
-                        <ModalTaskRow key={row.id} row={row} />
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {WINDOW_STOCK_LINES.map((line) => (
-                      <div key={line.id} className="space-y-1">
-                        <div className="flex justify-between text-sm font-medium text-foreground">
-                          <span>{line.name}</span>
-                          <span className="text-muted-foreground">x{line.quantity}</span>
-                        </div>
-                        <div className="grid grid-cols-12">
-                          <ItemStockRow item={line} snapshotData={STOCK_SNAPSHOT} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+        {(open, close) => <OpportunityDetailsModal isOpen={open} onClose={close} opportunity={sor} />}
       </ClickMe>
-    </SampleProvider>
+    </div>
   )
 }
 
@@ -370,12 +327,12 @@ export function BlockedMoveSample() {
     <SampleProvider seed={[SEED_CANVAS]}>
       <div className="max-w-3xl space-y-6">
         <div className="space-y-2">
-          <p className="text-[13px] font-semibold text-muted-foreground">A required field is empty</p>
+          <p className="text-[13px] font-semibold text-muted-foreground">A required field and a condition are open</p>
           <FlowStageControl
             opportunity={SAMPLE_OPPORTUNITY}
             onMove={noop}
             isMoving={false}
-            blockedBy={["ITB Number", "Bid security attached"]}
+            blockedBy={["Bid Deadline", "Bid security attached"]}
           />
         </div>
         <div className="space-y-2">
@@ -412,8 +369,8 @@ export function StageAutomationSample() {
     >
       <ReadOnly>
         <FlowDataContext.Provider value={SAMPLE_FLOW_DATA}>
-          <div className="grid max-w-4xl gap-6 lg:grid-cols-2">
-            <div className="space-y-3">
+          <div className="grid max-w-4xl grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="min-w-0 space-y-3">
               <p className="text-[13px] font-semibold text-muted-foreground">Task title template</p>
               <p className="rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-foreground">
                 <TemplateTokenText text="{{so_number}} - Prepare technical compliance sheet" />
@@ -421,7 +378,7 @@ export function StageAutomationSample() {
               <p className="text-[13px] font-semibold text-muted-foreground">Optional Action waiting on you</p>
               <PendingActionDecisions opportunity={SAMPLE_OPPORTUNITY} actorId={SAMPLE_ACTOR} onChanged={noop} />
             </div>
-            <div className="space-y-3">
+            <div className="min-w-0 space-y-3">
               <p className="text-[13px] font-semibold text-muted-foreground">Follow-up Cadence on a Stage</p>
               <FollowUpCadenceEditor stageId="s-bid" />
             </div>
