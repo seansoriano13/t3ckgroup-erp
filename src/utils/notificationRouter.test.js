@@ -173,7 +173,11 @@ describe("handleNotificationRoute", () => {
 
     it("opens the deal a Stage Participant was just called into", () => {
       // ADR 0021: a participant gets no register row, so this notification is
-      // their only route in. An unmatched type no-ops silently.
+      // their only route in. It must NOT navigate to /sors — that page's
+      // deep-link fetch is getOpportunityById, which RLS gives them no row
+      // for, so the modal would never open and the click would look dead.
+      const dispatch = vi.spyOn(window, "dispatchEvent")
+
       handleNotificationRoute(
         { type: "SOR_STAGE_PARTICIPANT_ADDED", reference_id: "opp-9" },
         employee,
@@ -181,9 +185,14 @@ describe("handleNotificationRoute", () => {
         onClose,
       )
 
-      expect(navigate).toHaveBeenCalledWith("/sors", {
-        state: { openOpportunityId: "opp-9" },
-      })
+      expect(navigate).not.toHaveBeenCalled()
+      expect(dispatch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "OPEN_ENTITY_DETAILS",
+          detail: { id: "opp-9", type: "OPPORTUNITY" },
+        }),
+      )
+      dispatch.mockRestore()
     })
 
     it("sends procurement notifications to the deal, not to purchasing's task", () => {
