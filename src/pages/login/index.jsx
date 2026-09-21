@@ -19,10 +19,10 @@ export default function Login() {
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
   const [email, setEmail] = useState(
-    () => import.meta.env.VITE_MAGIC_LOGIN_EMAIL || ""
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
   );
   const [password, setPassword] = useState(
-    () => import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || ""
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
