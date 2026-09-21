@@ -1,5 +1,6 @@
 import { supabase } from "../../lib/supabase";
 import { TASK_STATUS } from "../../constants/status";
+import { countChecklist } from "../../utils/checklist";
 
 /**
  * Backward-compatible field resolution for the checklist/description split.
@@ -32,6 +33,12 @@ function resolveChecklist(taskDescription, checklistColumn) {
     } catch { /* not valid JSON */ }
   }
   return null;
+}
+
+/** `{ total, checked }` for a checklist that has items, `null` for one that has none. */
+function checklistCounts(checklist) {
+  const counts = countChecklist(checklist);
+  return counts.total > 0 ? counts : null;
 }
 
 function resolveDescription(taskDescription, checklistColumn) {
@@ -199,30 +206,73 @@ export const taskQueryService = {
   },
 
   /**
-   * The Quick View's "Tasks" section — this viewer's own open Tasks
-   * tied to one SOR. No nested `sales_opportunities` embed: the caller
-   * already has the opportunity (that's how it got here), and a plain Stage
-   * Participant can't read that table directly anyway (`sor_read` has no
-   * Participant clause), so embedding it here would just come back null.
+   * The Quick View's "Tasks" section — everything this viewer owes on one SOR:
+   * their own open individual Tasks (`kind: "task"`) and the open Group Tasks
+   * they are a member of (`kind: "group"`). A Stage Action can create either,
+   * and a person called in by a Group Task has no individual task at all.
+   * No nested `sales_opportunities` embed: the caller already has the
+   * opportunity (that's how it got here), and a plain Stage Participant can't
+   * read that table directly anyway (`sor_read` has no Participant clause), so
+   * embedding it here would just come back null.
    */
   async getMyOpenTasksForOpportunity(userId, opportunityId) {
     if (!userId || !opportunityId) return [];
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("id, task_description, checklist, status, priority, created_at")
-      .eq("logged_by", userId)
-      .eq("opportunity_id", opportunityId)
-      .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.AWAITING_APPROVAL])
-      .order("created_at", { ascending: false });
-    if (error) throw error;
+    const [tasksResult, groupsResult] = await Promise.all([
+      supabase
+        .from("tasks")
+        .select("id, project_title, task_description, checklist, status, priority, end_at, created_at")
+        .eq("logged_by", userId)
+        .eq("opportunity_id", opportunityId)
+        .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.AWAITING_APPROVAL])
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("committee_task_members")
+        .select(
+          "task_description, checklist, task:committee_tasks!inner(id, title, status, due_date, opportunity_id, created_at)",
+        )
+        .eq("employee_id", userId)
+        .eq("status", "PENDING")
+        .eq("task.opportunity_id", opportunityId)
+        .eq("task.status", "ACTIVE"),
+    ]);
+    if (tasksResult.error) throw tasksResult.error;
+    if (groupsResult.error) throw groupsResult.error;
 
-    return data.map((task) => ({
+    // Headline is `title`, the line under it is `taskDescription` — for a Group
+    // Task that is the viewer's own assignment, not the group's brief.
+    const tasks = tasksResult.data.map((task) => ({
       id: task.id,
+      kind: "task",
+      title: task.project_title || "",
       taskDescription: resolveDescription(task.task_description, task.checklist),
+      checklistProgress: checklistCounts(resolveChecklist(task.task_description, task.checklist)),
+      dueAt: task.end_at || null,
       status: task.status,
       priority: task.priority,
       createdAt: task.created_at,
     }));
+    const groups = groupsResult.data.map(({ task, task_description, checklist }) => ({
+      id: task.id,
+      kind: "group",
+      title: task.title,
+      taskDescription: task_description || "",
+      checklistProgress: checklistCounts(checklist),
+      dueAt: task.due_date || null,
+      status: task.status,
+      priority: null,
+      createdAt: task.created_at,
+    }));
+
+    // What is owed next: soonest due first (an overdue one is simply the
+    // earliest), undated last, newest-created breaking ties.
+    return [...tasks, ...groups].sort((a, b) => {
+      if (a.dueAt !== b.dueAt) {
+        if (!a.dueAt) return 1;
+        if (!b.dueAt) return -1;
+        return new Date(a.dueAt) - new Date(b.dueAt);
+      }
+      return a.createdAt < b.createdAt ? 1 : -1;
+    });
   },
 
   // 2.3. MANAGER REPLIES: Fetch all task IDs where the current user has any activity entry

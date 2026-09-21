@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase, ClipboardList, ListChecks } from "lucide-react";
+import { Briefcase, ChevronRight, ClipboardList, ListChecks, Users } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { taskService } from "../../services/taskService";
 import { CONDITION_STATUS } from "../../constants/stageGate";
+import { TASK_STATUS } from "../../constants/status";
 import { cn } from "../../lib/utils";
 import {
   Dialog,
@@ -11,7 +12,57 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
+import StatusBadge from "../StatusBadge";
 import Spinner from "../ui/Spinner";
+
+/**
+ * One thing this viewer owes on the deal. Headline is the task's title, with
+ * the description (for a Group Task: this member's own assignment) beneath it;
+ * a Group Task's obligation is its assignment, the group's brief is shared.
+ * Status only speaks up when it isn't plain "still to do" — an approval the
+ * viewer is waiting on, not one they owe.
+ */
+function TaskRow({ task, onOpen }) {
+  const isGroup = task.kind === "group";
+  const Icon = isGroup ? Users : ClipboardList;
+  const headline = task.title || task.taskDescription || "Untitled task";
+  const detail = task.title ? task.taskDescription : "";
+  const awaitingApproval = task.status === TASK_STATUS.AWAITING_APPROVAL;
+  const overdue = !awaitingApproval && task.dueAt && new Date(task.dueAt) < new Date();
+  const dueLabel = task.dueAt
+    ? new Date(task.dueAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="flex w-full items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/50"
+    >
+      <Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-sm font-bold break-words text-foreground">{headline}</p>
+        {detail && <p className="line-clamp-2 text-xs break-words text-muted-foreground">{detail}</p>}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold text-muted-foreground">
+          <span>{isGroup ? "Group task" : "Task"}</span>
+          {dueLabel && (
+            <span className={cn(overdue && "text-red-600 dark:text-red-400")}>
+              {overdue ? `Overdue · ${dueLabel}` : `Due ${dueLabel}`}
+            </span>
+          )}
+          {task.checklistProgress && (
+            <span>
+              {task.checklistProgress.checked}/{task.checklistProgress.total} done
+            </span>
+          )}
+          {task.priority === "HIGH" && <StatusBadge theme="red">High</StatusBadge>}
+          {awaitingApproval && <StatusBadge status={task.status}>Awaiting approval</StatusBadge>}
+        </div>
+      </div>
+      <ChevronRight size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
 
 /**
  * Quick View — the landing spot for every entry point into an SOR
@@ -31,6 +82,7 @@ export default function OpportunityQuickView({
   userId,
   onViewFullDetails,
   onOpenTask,
+  onOpenGroupTask,
 }) {
   const { data: tasks = [], isLoading: isLoadingTasks } = useQuery({
     queryKey: ["quickViewTasks", opportunityId, userId],
@@ -50,7 +102,7 @@ export default function OpportunityQuickView({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-2xl gap-6 p-6">
+      <DialogContent className="grid-cols-[minmax(0,1fr)] gap-6 p-6 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-base">
             <Briefcase size={16} className="text-muted-foreground" />
@@ -76,14 +128,11 @@ export default function OpportunityQuickView({
           ) : (
             <div className="space-y-2">
               {tasks.map((task) => (
-                <button
-                  key={task.id}
-                  type="button"
-                  onClick={() => onOpenTask(task.id)}
-                  className="flex w-full items-center justify-between gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
-                >
-                  <span className="truncate">{task.taskDescription || "Untitled task"}</span>
-                </button>
+                <TaskRow
+                  key={`${task.kind}-${task.id}`}
+                  task={task}
+                  onOpen={() => (task.kind === "group" ? onOpenGroupTask(task.id) : onOpenTask(task.id))}
+                />
               ))}
             </div>
           )}

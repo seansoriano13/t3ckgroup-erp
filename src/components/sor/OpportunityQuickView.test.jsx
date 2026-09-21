@@ -39,6 +39,7 @@ function renderQuickView(props = {}) {
   const onClose = vi.fn()
   const onViewFullDetails = vi.fn()
   const onOpenTask = vi.fn()
+  const onOpenGroupTask = vi.fn()
   const result = renderWithProviders(
     <OpportunityQuickView
       isOpen
@@ -48,10 +49,11 @@ function renderQuickView(props = {}) {
       userId="emp-1"
       onViewFullDetails={onViewFullDetails}
       onOpenTask={onOpenTask}
+      onOpenGroupTask={onOpenGroupTask}
       {...props}
     />,
   )
-  return { ...result, onClose, onViewFullDetails, onOpenTask }
+  return { ...result, onClose, onViewFullDetails, onOpenTask, onOpenGroupTask }
 }
 
 beforeEach(() => {
@@ -86,6 +88,75 @@ describe("your open tasks", () => {
 
     expect(onOpenTask).toHaveBeenCalledWith("task-1")
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it("reads as an obligation: title, what to do, kind, when it is due, checklist progress", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      {
+        id: "task-1",
+        kind: "task",
+        title: "Technical review — S99002",
+        taskDescription: "Check the specifications on this deal",
+        dueAt: "2999-09-24T12:00:00.000Z",
+        checklistProgress: { total: 5, checked: 2 },
+        status: "INCOMPLETE",
+        priority: "HIGH",
+      },
+    ])
+    renderQuickView()
+
+    expect(await screen.findByText("Technical review — S99002")).toBeInTheDocument()
+    expect(screen.getByText("Check the specifications on this deal")).toBeInTheDocument()
+    expect(screen.getByText("Task")).toBeInTheDocument()
+    expect(screen.getByText("Due Sep 24")).toBeInTheDocument()
+    expect(screen.getByText("2/5 done")).toBeInTheDocument()
+    expect(screen.getByText("High")).toBeInTheDocument()
+  })
+
+  it("calls out an overdue task, and stays quiet about status for a plain incomplete one", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      { id: "task-1", kind: "task", title: "Late one", dueAt: "2020-01-02T12:00:00.000Z", status: "INCOMPLETE", priority: "MEDIUM" },
+    ])
+    renderQuickView()
+
+    expect(await screen.findByText("Overdue · Jan 2")).toBeInTheDocument()
+    expect(screen.queryByText(/awaiting approval/i)).not.toBeInTheDocument()
+    expect(screen.queryByText("High")).not.toBeInTheDocument()
+  })
+
+  it("marks a task waiting on approval, and does not call it overdue", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      { id: "task-1", kind: "task", title: "Filed one", dueAt: "2020-01-02T12:00:00.000Z", status: "AWAITING APPROVAL" },
+    ])
+    renderQuickView()
+
+    expect(await screen.findByText("Awaiting approval")).toBeInTheDocument()
+    expect(screen.queryByText(/overdue/i)).not.toBeInTheDocument()
+  })
+
+  it("shows a Group Task's title with this member's own assignment beneath it", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      { id: "group-1", kind: "group", title: "Bid pack", taskDescription: "Assemble the bid", status: "ACTIVE" },
+    ])
+    renderQuickView()
+
+    expect(await screen.findByText("Bid pack")).toBeInTheDocument()
+    expect(screen.getByText("Assemble the bid")).toBeInTheDocument()
+    expect(screen.getByText("Group task")).toBeInTheDocument()
+  })
+
+  it("lists a Group Task beside an individual one and opens it as a group, not a task", async () => {
+    taskService.getMyOpenTasksForOpportunity.mockResolvedValue([
+      { id: "task-1", kind: "task", taskDescription: "Check the specifications", status: "INCOMPLETE" },
+      { id: "group-1", kind: "group", taskDescription: "Bid pack", status: "ACTIVE" },
+    ])
+    const { onOpenTask, onOpenGroupTask } = renderQuickView()
+
+    await setupUser().click(await screen.findByText("Bid pack"))
+
+    expect(screen.getByText("Check the specifications")).toBeInTheDocument()
+    expect(onOpenGroupTask).toHaveBeenCalledWith("group-1")
+    expect(onOpenTask).not.toHaveBeenCalled()
   })
 })
 

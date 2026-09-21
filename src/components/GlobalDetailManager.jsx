@@ -380,6 +380,7 @@ export default function GlobalDetailManager() {
             userId={user?.id}
             onViewFullDetails={() => setActiveItem({ id: activeItem.id, type: "OPPORTUNITY" })}
             onOpenTask={(taskId) => setStackedTaskId(taskId)}
+            onOpenGroupTask={(groupTaskId) => setActiveItem({ id: groupTaskId, type: "GROUP_TASK" })}
           />
         ))}
 
