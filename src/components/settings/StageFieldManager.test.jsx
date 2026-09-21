@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StageFieldManager from "./StageFieldManager";
 import { renderWithProviders } from "@/test/support";
@@ -66,6 +66,27 @@ describe("StageFieldManager", () => {
     expect(screen.getByText("Expected Award Date")).toBeInTheDocument();
   });
 
+  it("shows a live preview of how the field looks on the SOR", async () => {
+    const stage = makeFlowStage();
+
+    renderWithProviders(
+      <FlowDataProvider>
+        <StageFieldManager stageId={stage.id} />
+      </FlowDataProvider>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/Award amount/i), {
+      target: { value: "Contract Number" },
+    });
+
+    const previewHeading = screen.getByText("Preview — how this looks on the SOR");
+    expect(previewHeading).toBeInTheDocument();
+    const previewSection = previewHeading.closest("div");
+    expect(within(previewSection).getByText("Contract Number")).toBeInTheDocument();
+    expect(within(previewSection).getByText("Required")).toBeInTheDocument();
+  });
+
   it("builds a custom choice field's options row by row", async () => {
     const stage = makeFlowStage();
 
@@ -81,9 +102,9 @@ describe("StageFieldManager", () => {
     fireEvent.change(screen.getByLabelText("Field type"), { target: { value: "choice" } });
     fireEvent.change(screen.getByLabelText("Option 1"), { target: { value: "Won" } });
 
-    // One option is refused
+    // One option is refused — field is not saved to the list
     fireEvent.click(screen.getByRole("button", { name: /Save field/i }));
-    expect(screen.queryByText("Bid result")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Edit Bid result/i })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Option 2"), { target: { value: "Lost" } });
     fireEvent.click(screen.getByRole("button", { name: /Save field/i }));

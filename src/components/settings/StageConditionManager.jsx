@@ -180,6 +180,10 @@ export default function StageConditionManager({ stageId, disabled = false }) {
   };
 
   const startEdit = (condition) => {
+    if (editingId === condition.id) {
+      resetForm();
+      return;
+    }
     setEditingId(condition.id);
     setKind(condition.kind);
     setLabel(condition.label);
@@ -217,6 +221,197 @@ export default function StageConditionManager({ stageId, disabled = false }) {
     config: configFor(kind, config),
   };
 
+  const renderForm = () => (
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
+    >
+      <div className="flex items-center justify-between">
+        <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
+          {editingId ? "Edit condition" : "New condition"}
+        </h4>
+        <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
+          <X />
+        </Button>
+      </div>
+
+      {/* Story 1: Kind comes first. */}
+      <div className="rounded-xl border border-border bg-muted/30 p-3">
+        <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Kind
+        </span>
+        <Dropdown
+          usePortal
+          disabled={Boolean(editingId)}
+          placement="bottom-start"
+          popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
+          trigger={
+            <button
+              type="button"
+              disabled={Boolean(editingId)}
+              className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
+              <span className="flex-1">{activeKind.label}</span>
+              {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
+            </button>
+          }
+        >
+          {({ close }) => (
+            <div className="flex flex-col">
+              {NEW_CONDITION_KINDS.map((value) => {
+                const meta = CONDITION_KIND_META[value];
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      handleKindChange(value);
+                      close();
+                    }}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
+                      value === kind ? "bg-mauve-a3" : "hover:bg-mauve-a2",
+                    )}
+                  >
+                    <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
+                      <meta.icon size={14} strokeWidth={2.5} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-foreground">
+                        {meta.label}
+                      </span>
+                      <span className="block text-xs leading-snug text-muted-foreground">
+                        {meta.hint}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </Dropdown>
+        {editingId && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Kind is fixed once saved. Archive this condition and add a new one to change it.
+          </p>
+        )}
+      </div>
+
+      <Input
+        label="Label"
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="e.g. Notice of Award attached"
+        required
+      />
+
+      {kind === CONDITION_KINDS.ATTACHMENT && (
+        <div className="rounded-xl border border-border bg-muted/30 p-3">
+          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Accepts — Any, if none chosen
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(ATTACHMENT_ACCEPT_GROUPS).map(([key, group]) => {
+              const accepts = config.accepts || [];
+              const active = accepts.includes(key);
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() =>
+                    setConfig({
+                      accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
+                    })
+                  }
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                    active
+                      ? "bg-mauve-12 text-mauve-1"
+                      : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4",
+                  )}
+                >
+                  {group.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {kind === CONDITION_KINDS.ASSIGNMENT && (
+        <div className="rounded-xl border border-border bg-muted/30 p-3">
+          <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+            Who — a specific employee, an Employee Group, or a Team
+          </span>
+          <PeoplePicker
+            value={config.who || []}
+            onChange={(who) => setConfig((c) => ({ ...c, who }))}
+            types={[SELECTOR_TYPES.EMPLOYEE, SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM]}
+            placeholder="Add who satisfies this"
+          />
+        </div>
+      )}
+
+      {kind === CONDITION_KINDS.ASSIGNMENT && (
+        <AccessWindowConfig
+          stageId={stageId}
+          value={config.access}
+          onChange={(access) => setConfig((c) => ({ ...c, access }))}
+        />
+      )}
+
+      {kind === CONDITION_KINDS.DEADLINE && (
+        <Input
+          label="Days from Stage entry"
+          type="number"
+          min="1"
+          value={config.days || ""}
+          onChange={(e) => setConfig({ days: e.target.value })}
+          placeholder="10"
+          required
+        />
+      )}
+
+      <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-foreground">
+            Blocks the way out
+          </span>
+          <span className="block text-xs leading-snug text-muted-foreground">
+            {isRequired
+              ? "A deal cannot leave this Stage until it is satisfied."
+              : "Tracked and shown, but never in the way."}
+          </span>
+        </span>
+        <Switch checked={isRequired} onCheckedChange={setIsRequired} />
+      </label>
+
+      {/* Story 3: a live preview of the exact row the SOR's checklist
+          will show, fed a sample opportunity matching the draft. */}
+      <div className="rounded-xl border border-dashed border-mauve-7 p-3">
+        <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          Preview — how this looks on the SOR
+        </span>
+        <StageChecklistRow
+          condition={previewCondition}
+          status={CONDITION_STATUS.UNSATISFIED}
+          employees={employees}
+          isPreview
+        />
+      </div>
+
+      <div className="flex items-center justify-end gap-2">
+        <Button type="button" variant="ghost" size="lg" onClick={resetForm}>
+          Cancel
+        </Button>
+        <Button type="submit" size="lg" disabled={isSaving}>
+          {isSaving ? "Saving…" : editingId ? "Save changes" : "Save condition"}
+        </Button>
+      </div>
+    </form>
+  );
+
   return (
     <div className="flex flex-col">
       <div className="flex items-center justify-between gap-3 px-5 pt-5">
@@ -231,195 +426,10 @@ export default function StageConditionManager({ stageId, disabled = false }) {
       </div>
 
       <div className="space-y-2 p-5">
-        {isFormOpen && !disabled && (
-          <form
-            onSubmit={handleSubmit}
-            className="mb-4 space-y-3 rounded-2xl bg-mauve-a2 p-4 outline outline-1 -outline-offset-1 outline-mauve-6"
-          >
-            <div className="flex items-center justify-between">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">
-                {editingId ? "Edit condition" : "New condition"}
-              </h4>
-              <Button type="button" variant="ghost" size="icon-xs" onClick={resetForm} aria-label="Cancel">
-                <X />
-              </Button>
-            </div>
-
-            {/* Story 1: Kind comes first. */}
-            <div className="rounded-xl border border-border bg-muted/30 p-3">
-              <span className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Kind
-              </span>
-              <Dropdown
-                usePortal
-                disabled={Boolean(editingId)}
-                placement="bottom-start"
-                popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
-                trigger={
-                  <button
-                    type="button"
-                    disabled={Boolean(editingId)}
-                    className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
-                    <span className="flex-1">{activeKind.label}</span>
-                    {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
-                  </button>
-                }
-              >
-                {({ close }) => (
-                  <div className="flex flex-col">
-                    {NEW_CONDITION_KINDS.map((value) => {
-                      const meta = CONDITION_KIND_META[value]
-                      return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => {
-                          handleKindChange(value);
-                          close();
-                        }}
-                        className={cn(
-                          "flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
-                          value === kind ? "bg-mauve-a3" : "hover:bg-mauve-a2",
-                        )}
-                      >
-                        <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
-                          <meta.icon size={14} strokeWidth={2.5} />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block text-sm font-semibold text-foreground">
-                            {meta.label}
-                          </span>
-                          <span className="block text-xs leading-snug text-muted-foreground">
-                            {meta.hint}
-                          </span>
-                        </span>
-                      </button>
-                    )})}
-                  </div>
-                )}
-              </Dropdown>
-              {editingId && (
-                <p className="mt-1 text-[10px] text-muted-foreground">
-                  Kind is fixed once saved. Archive this condition and add a new one to change it.
-                </p>
-              )}
-            </div>
-
-            <Input
-              label="Label"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. Notice of Award attached"
-              required
-            />
-
-            {kind === CONDITION_KINDS.ATTACHMENT && (
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Accepts — Any, if none chosen
-                </span>
-                <div className="flex flex-wrap gap-2">
-                  {Object.entries(ATTACHMENT_ACCEPT_GROUPS).map(([key, group]) => {
-                    const accepts = config.accepts || [];
-                    const active = accepts.includes(key);
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() =>
-                          setConfig({
-                            accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
-                          })
-                        }
-                        className={cn(
-                          "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                          active
-                            ? "bg-mauve-12 text-mauve-1"
-                            : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4",
-                        )}
-                      >
-                        {group.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-
-            {kind === CONDITION_KINDS.ASSIGNMENT && (
-              <div className="rounded-xl border border-border bg-muted/30 p-3">
-                <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                  Who — a specific employee, an Employee Group, or a Team
-                </span>
-                <PeoplePicker
-                  value={config.who || []}
-                  onChange={(who) => setConfig((c) => ({ ...c, who }))}
-                  types={[SELECTOR_TYPES.EMPLOYEE, SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM]}
-                  placeholder="Add who satisfies this"
-                />
-              </div>
-            )}
-
-            {kind === CONDITION_KINDS.ASSIGNMENT && (
-              <AccessWindowConfig
-                stageId={stageId}
-                value={config.access}
-                onChange={(access) => setConfig((c) => ({ ...c, access }))}
-              />
-            )}
-
-            {kind === CONDITION_KINDS.DEADLINE && (
-              <Input
-                label="Days from Stage entry"
-                type="number"
-                min="1"
-                value={config.days || ""}
-                onChange={(e) => setConfig({ days: e.target.value })}
-                placeholder="10"
-                required
-              />
-            )}
-
-            <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
-              <span className="min-w-0">
-                <span className="block text-sm font-semibold text-foreground">
-                  Blocks the way out
-                </span>
-                <span className="block text-xs leading-snug text-muted-foreground">
-                  {isRequired
-                    ? "A deal cannot leave this Stage until it is satisfied."
-                    : "Tracked and shown, but never in the way."}
-                </span>
-              </span>
-              <Switch checked={isRequired} onCheckedChange={setIsRequired} />
-            </label>
-
-            {/* Story 3: a live preview of the exact row the SOR's checklist
-                will show, fed a sample opportunity matching the draft. */}
-            <div className="rounded-xl border border-dashed border-mauve-7 p-3">
-              <span className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Preview — how this looks on the SOR
-              </span>
-              <StageChecklistRow
-                condition={previewCondition}
-                status={CONDITION_STATUS.UNSATISFIED}
-                employees={employees}
-                isPreview
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2">
-              <Button type="button" variant="ghost" size="lg" onClick={resetForm}>
-                Cancel
-              </Button>
-              <Button type="submit" size="lg" disabled={isSaving}>
-                {isSaving ? "Saving…" : editingId ? "Save changes" : "Save condition"}
-              </Button>
-            </div>
-          </form>
+        {isAdding && !disabled && (
+          <div className="mb-4">
+            {renderForm()}
+          </div>
         )}
 
         {isLoading ? (
@@ -439,75 +449,94 @@ export default function StageConditionManager({ stageId, disabled = false }) {
             const meta = CONDITION_KIND_META[condition.kind];
             const detail = conditionDetail(condition);
             const Icon = meta?.icon ?? ListTodo;
+            const isEditing = editingId === condition.id;
 
             return (
-              <div
-                key={condition.id}
-                className="group flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8"
-              >
-                {!disabled && (
-                  <div className="flex shrink-0 flex-col">
-                    <button
-                      onClick={() => moveCondition(index, "up")}
-                      disabled={index === 0 || reorderMutation.isPending}
-                      aria-label={`Move ${condition.label} earlier`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
-                    >
-                      <ArrowUp size={13} />
-                    </button>
-                    <button
-                      onClick={() => moveCondition(index, "down")}
-                      disabled={index === conditions.length - 1 || reorderMutation.isPending}
-                      aria-label={`Move ${condition.label} later`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
-                    >
-                      <ArrowDown size={13} />
-                    </button>
-                  </div>
-                )}
+              <div key={condition.id} className="space-y-2">
+                <div
+                  className={cn(
+                    "group flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8",
+                    isEditing && "outline-mauve-8 bg-mauve-a2",
+                  )}
+                >
+                  {!disabled && (
+                    <div className="flex shrink-0 flex-col">
+                      <button
+                        onClick={() => moveCondition(index, "up")}
+                        disabled={index === 0 || reorderMutation.isPending}
+                        aria-label={`Move ${condition.label} earlier`}
+                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      >
+                        <ArrowUp size={13} />
+                      </button>
+                      <button
+                        onClick={() => moveCondition(index, "down")}
+                        disabled={index === conditions.length - 1 || reorderMutation.isPending}
+                        aria-label={`Move ${condition.label} later`}
+                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      >
+                        <ArrowDown size={13} />
+                      </button>
+                    </div>
+                  )}
 
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
-                  <Icon size={15} strokeWidth={2.5} />
-                </span>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
+                    <Icon size={15} strokeWidth={2.5} />
+                  </span>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="truncate text-sm font-bold text-foreground">
-                      {condition.label}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <p className="truncate text-sm font-bold text-foreground">
+                        {condition.label}
+                      </p>
+                      {!condition.is_required && (
+                        <span className="shrink-0 rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
+                          Optional
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {meta?.label ?? condition.kind}
+                      {detail && <span className="text-mauve-10"> · {detail}</span>}
                     </p>
-                    {!condition.is_required && (
-                      <span className="shrink-0 rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
-                        Optional
-                      </span>
-                    )}
                   </div>
-                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                    {meta?.label ?? condition.kind}
-                    {detail && <span className="text-mauve-10"> · {detail}</span>}
-                  </p>
+
+                  {!disabled && (
+                    <div
+                      className={cn(
+                        "flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100",
+                        isEditing && "opacity-100",
+                      )}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => startEdit(condition)}
+                        aria-label={`Edit ${condition.label}`}
+                        className={cn(
+                          "text-muted-foreground hover:text-foreground",
+                          isEditing && "bg-mauve-a3 text-foreground",
+                        )}
+                      >
+                        <Pencil />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => setPendingArchive(condition)}
+                        disabled={archiveMutation.isPending}
+                        aria-label={`Archive ${condition.label}`}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        <Archive />
+                      </Button>
+                    </div>
+                  )}
                 </div>
 
-                {!disabled && (
-                  <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => startEdit(condition)}
-                      aria-label={`Edit ${condition.label}`}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <Pencil />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setPendingArchive(condition)}
-                      disabled={archiveMutation.isPending}
-                      aria-label={`Archive ${condition.label}`}
-                      className="text-muted-foreground hover:text-destructive"
-                    >
-                      <Archive />
-                    </Button>
+                {isEditing && !disabled && (
+                  <div className="pt-0.5">
+                    {renderForm()}
                   </div>
                 )}
               </div>
