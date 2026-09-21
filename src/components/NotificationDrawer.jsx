@@ -89,6 +89,7 @@ const TYPE_ICONS = {
   TASK_VERIFIED: <ShieldAlert size={18} className="text-primary" />,
   TASK_COMPLETED: <Trophy size={18} className="text-green-9" />,
   NEW_TASK_SUBMITTED: <Clock size={18} className="text-amber-500" />,
+  TASK_ASSIGNED: <Briefcase size={18} className="text-blue-600" />,
   TASK_APPROVED_BY_HEAD: <CheckCircle2 size={18} className="text-amber-600" />,
   GROUP_ASSIGNED: <Briefcase size={18} className="text-violet-9" />,
   GROUP_TASK_COMMENT: <MessageCircle size={18} className="text-violet-9" />,
