@@ -5,6 +5,7 @@ import ChoiceOptionsEditor from "../settings/ChoiceOptionsEditor"
 import StageFieldPreview from "../settings/StageFieldPreview"
 import MySorRow from "../sor/MySorRow"
 import { ItemStockRow } from "../sor/modal/ItemsTab"
+import { STOCK_SNAPSHOT } from "./sampleData"
 
 /**
  * The real components, fed made-up data, so a row can show what the screen
@@ -96,15 +97,6 @@ const LINES = [
   { id: "d", name: "Delivery charge", quantity: 1, odoo_product_id: null },
 ]
 
-const SNAPSHOT = {
-  warehouses: [{ id: "w1", name: "Main warehouse" }],
-  products: {
-    1: { type: "product", free: 18, onHand: 20, forecast: 18, byWarehouse: { w1: { onHand: 20, free: 18, forecast: 18 } } },
-    2: { type: "product", free: 4, onHand: 6, forecast: 4, byWarehouse: { w1: { onHand: 6, free: 4, forecast: 4 } } },
-    3: { type: "product", free: 0, onHand: 0, forecast: 0, byWarehouse: { w1: { onHand: 0, free: 0, forecast: 0 } } },
-  },
-}
-
 export function StockSample() {
   return (
     <div className="grid max-w-2xl grid-cols-12 gap-x-3 gap-y-3 rounded-2xl border border-border bg-card p-4">
@@ -115,7 +107,7 @@ export function StockSample() {
             <span className="text-muted-foreground">x{line.quantity}</span>
           </div>
           <div className="grid grid-cols-12">
-            <ItemStockRow item={line} snapshotData={SNAPSHOT} />
+            <ItemStockRow item={line} snapshotData={STOCK_SNAPSHOT} />
           </div>
         </div>
       ))}

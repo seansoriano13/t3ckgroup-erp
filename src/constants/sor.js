@@ -371,3 +371,6 @@ export const formatLeadSource = (source, detail, leadSources = []) => {
   const label = dynamicLabel || source || "—";
   return detail ? `${label} - ${detail}` : label;
 };
+
+/** Filter value for SORs registered before Sale Types existed (`sale_type_id` null). */
+export const NO_SALE_TYPE = "NONE";

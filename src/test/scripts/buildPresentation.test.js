@@ -248,8 +248,7 @@ describe("buildPresentation", () => {
         impact: "A published flow can be rolled back without touching live SORs.",
         version: "1.7.12",
         issues: [188],
-        sample: "stock-badges",
-        link: { href: "/super-admin/flow-canvas", label: "Open the Flow Canvas" },
+        sample: "flow-versioning",
       },
       {
         id: "crm-board",
@@ -258,6 +257,7 @@ describe("buildPresentation", () => {
         impact: "Dragging was impossible before; the guard moved into the move.",
         changes: ["One column per Sale Type.", "Drag a deal to move it."],
         issues: [206, 288],
+        sample: "crm-board",
 
       },
     ],
@@ -325,7 +325,7 @@ describe("buildPresentation", () => {
         changelog,
         supplement: {
           ...supplement,
-          headline: [{ id: "x", block: "b", title: "t", impact: "i", version: "9.9.9" }],
+          headline: [{ id: "x", block: "b", title: "t", impact: "i", version: "9.9.9", sample: "s" }],
         },
         issues,
         generatedAt: "2026-09-16T10:00:00.000Z",
@@ -339,7 +339,7 @@ describe("buildPresentation", () => {
         changelog,
         supplement: {
           ...supplement,
-          headline: [{ id: "x", block: "b", title: "t", impact: "i" }],
+          headline: [{ id: "x", block: "b", title: "t", impact: "i", sample: "s" }],
         },
         issues,
         generatedAt: "2026-09-16T10:00:00.000Z",

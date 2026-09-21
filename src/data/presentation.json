@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-21T05:16:32.345Z",
+  "generatedAt": "2026-09-21T05:56:18.432Z",
   "since": "2026-09-14",
   "title": "What shipped since 14 September",
   "headline": [
@@ -16,10 +16,6 @@
       ],
       "issues": [],
       "sample": "my-sors",
-      "link": {
-        "href": "/my-sors",
-        "label": "Open My SORs"
-      },
       "source": "changelog"
     },
     {
@@ -35,11 +31,7 @@
         "Fixed: a task's link back to its SOR never appeared for someone called in for just that Stage. The database refused the read and the link silently rendered nothing."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/my-sors",
-        "label": "Open My SORs, then click an SOR"
-      },
+      "sample": "quick-view",
       "source": "supplement"
     },
     {
@@ -53,11 +45,7 @@
         "The filter on Tasks and Group Tasks that shows only work linked to an SOR is now labelled SORS."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      },
+      "sample": "sors-rename",
       "source": "changelog"
     },
     {
@@ -71,11 +59,7 @@
         "Who can open it has not changed: Super Admins and Sales Directors, the same as before the move."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/retail",
-        "label": "Open Retail"
-      },
+      "sample": "retail-screen",
       "source": "changelog"
     },
     {
@@ -98,11 +82,7 @@
         301,
         302
       ],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, then click an SOR"
-      },
+      "sample": "sor-window",
       "source": "changelog"
     },
     {
@@ -122,11 +102,7 @@
         286,
         288
       ],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      },
+      "sample": "crm-board",
       "source": "supplement"
     },
     {
@@ -141,11 +117,7 @@
         "The register and Board redraw when another person moves or edits an SOR, without a refresh."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      },
+      "sample": "sors-filters",
       "source": "supplement"
     },
     {
@@ -159,11 +131,7 @@
         "SORs that are closed lost or cancelled are excluded from both totals, ensuring the pipeline accurately reflects active work."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      },
+      "sample": "open-pipeline",
       "source": "changelog"
     },
     {
@@ -191,10 +159,6 @@
         297
       ],
       "sample": "stage-access",
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "source": "supplement"
     },
     {
@@ -212,10 +176,6 @@
         203
       ],
       "sample": "stage-fields",
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "source": "supplement"
     },
     {
@@ -235,10 +195,6 @@
         203
       ],
       "sample": "flow-canvas-editing",
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "source": "supplement"
     },
     {
@@ -255,11 +211,7 @@
         203,
         199
       ],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, then click an SOR"
-      },
+      "sample": "blocked-move",
       "source": "supplement"
     },
     {
@@ -276,11 +228,7 @@
         287,
         290
       ],
-      "sample": null,
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      },
+      "sample": "crm-itb-won",
       "source": "supplement"
     },
     {
@@ -296,11 +244,7 @@
       "issues": [
         204
       ],
-      "sample": null,
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
+      "sample": "stage-automation",
       "source": "supplement"
     },
     {
@@ -316,10 +260,6 @@
         202
       ],
       "sample": "stock-badges",
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, click an SOR, open Items"
-      },
       "source": "supplement"
     },
     {
@@ -332,11 +272,7 @@
         "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
       ],
       "issues": [],
-      "sample": null,
-      "link": {
-        "href": "/hr/offsets",
-        "label": "Open Leaves Manager"
-      },
+      "sample": "offset-approved-hours",
       "source": "changelog"
     },
     {
@@ -351,11 +287,7 @@
       "issues": [
         201
       ],
-      "sample": null,
-      "link": {
-        "href": "/settings",
-        "label": "Open Settings"
-      },
+      "sample": "employee-groups",
       "source": "changelog"
     }
   ],

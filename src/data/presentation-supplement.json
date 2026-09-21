@@ -10,10 +10,6 @@
       "impact": "New screen: Sales > My SORs. Lists every SOR you were called into by a task, an assignment or a purchase request, with the Stage that called you in and how far your access reaches.",
       "version": "1.7.22",
       "issues": [],
-      "link": {
-        "href": "/my-sors",
-        "label": "Open My SORs"
-      },
       "sample": "my-sors"
     },
     {
@@ -29,10 +25,7 @@
         "Fixed: a task's link back to its SOR never appeared for someone called in for just that Stage. The database refused the read and the link silently rendered nothing."
       ],
       "issues": [],
-      "link": {
-        "href": "/my-sors",
-        "label": "Open My SORs, then click an SOR"
-      }
+      "sample": "quick-view"
     },
     {
       "id": "sors-rename",
@@ -41,10 +34,7 @@
       "impact": "The CRM module is now called SORS, at /sors. Old /crm and /opportunities links still work.",
       "version": "1.7.20",
       "issues": [],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      }
+      "sample": "sors-rename"
     },
     {
       "id": "retail-screen",
@@ -53,10 +43,7 @@
       "impact": "Retail is its own screen under Sales instead of a tab in the SOR register. Same people can open it: Super Admins and Sales Directors.",
       "version": "1.7.19",
       "issues": [],
-      "link": {
-        "href": "/retail",
-        "label": "Open Retail"
-      }
+      "sample": "retail-screen"
     },
     {
       "id": "sor-window",
@@ -72,10 +59,7 @@
         301,
         302
       ],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, then click an SOR"
-      }
+      "sample": "sor-window"
     },
     {
       "id": "crm-board",
@@ -94,10 +78,7 @@
         286,
         288
       ],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      }
+      "sample": "crm-board"
     },
     {
       "id": "sors-filters",
@@ -111,10 +92,7 @@
         "The register and Board redraw when another person moves or edits an SOR, without a refresh."
       ],
       "issues": [],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      }
+      "sample": "sors-filters"
     },
     {
       "id": "open-pipeline",
@@ -123,10 +101,7 @@
       "impact": "The Open pipeline and Won totals at the top of SORS now follow each Sales Flow's own Stages instead of fixed Stage codes.",
       "version": "1.7.23",
       "issues": [],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      }
+      "sample": "open-pipeline"
     },
     {
       "id": "stage-access",
@@ -152,10 +127,6 @@
         296,
         297
       ],
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "sample": "stage-access"
     },
     {
@@ -172,10 +143,6 @@
       "issues": [
         203
       ],
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "sample": "stage-fields"
     },
     {
@@ -194,10 +161,6 @@
       "issues": [
         203
       ],
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      },
       "sample": "flow-canvas-editing"
     },
     {
@@ -214,10 +177,7 @@
         203,
         199
       ],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, then click an SOR"
-      }
+      "sample": "blocked-move"
     },
     {
       "id": "crm-itb-won",
@@ -233,10 +193,7 @@
         287,
         290
       ],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS"
-      }
+      "sample": "crm-itb-won"
     },
     {
       "id": "stage-automation",
@@ -251,10 +208,7 @@
       "issues": [
         204
       ],
-      "link": {
-        "href": "/super-admin/flow-canvas",
-        "label": "Open the Flow Canvas"
-      }
+      "sample": "stage-automation"
     },
     {
       "id": "stock-badges",
@@ -268,10 +222,6 @@
       "issues": [
         202
       ],
-      "link": {
-        "href": "/sors",
-        "label": "Open SORS, click an SOR, open Items"
-      },
       "sample": "stock-badges"
     },
     {
@@ -281,10 +231,7 @@
       "impact": "HR can lower the hours before approving offset leave; it cannot go above the hours requested. The leave lists show requested and approved hours when they differ.",
       "version": "1.7.21",
       "issues": [],
-      "link": {
-        "href": "/hr/offsets",
-        "label": "Open Leaves Manager"
-      }
+      "sample": "offset-approved-hours"
     },
     {
       "id": "employee-groups",
@@ -295,10 +242,7 @@
       "issues": [
         201
       ],
-      "link": {
-        "href": "/settings",
-        "label": "Open Settings"
-      }
+      "sample": "employee-groups"
     }
   ],
   "underTheHood": {

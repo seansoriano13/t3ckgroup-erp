@@ -6,8 +6,6 @@ import {
   Plus,
   Search,
   Target,
-  List,
-  Kanban,
   LayoutDashboard,
   X,
   ArrowUpDown,
@@ -16,11 +14,9 @@ import {
   AlertTriangle,
   Clock,
   SlidersHorizontal,
-  Trash2,
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Spinner from "../../components/ui/Spinner";
-import TabGroup from "../../components/ui/TabGroup";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import Dropdown from "../../components/ui/Dropdown";
@@ -28,6 +24,9 @@ import { FilterTrigger, FilterOptionList } from "../../components/ui/FilterDropd
 import OpportunityFormModal from "../../components/sor/OpportunityFormModal";
 import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModal";
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
+import SorsViewTabs from "../../components/sor/SorsViewTabs";
+import SorsTotals from "../../components/sor/SorsTotals";
+import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
 import DeletedOpportunitiesView from "../../components/sor/DeletedOpportunitiesView";
@@ -40,6 +39,7 @@ import {
   isOnTerminalStage,
   isRealizedOpportunity,
   PROJECT_TYPE_SHORT,
+  NO_SALE_TYPE,
   formatLeadSource,
   formatPHP,
   PROJECT_TYPES,
@@ -50,10 +50,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
-import { Building2, Users, Layers, Tag, GitBranch } from "lucide-react";
-
-// Filter value for SORs registered before Sale Types existed (`sale_type_id` null).
-const NO_SALE_TYPE = "NONE";
+import { Building2, Users, Layers, Tag } from "lucide-react";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -547,15 +544,6 @@ export default function OpportunitiesPage() {
   const currentProjectTypeLabel =
     projectTypeOptions.find((o) => o.value === projectTypeFilter)?.label || "All Types";
 
-  const saleTypeOptions = [
-    { value: "ALL", label: "All SORs" },
-    ...allSaleTypes.map((t) => ({ value: t.id, label: t.archived_at ? `${t.name} (archived)` : t.name })),
-    { value: NO_SALE_TYPE, label: "No Sale Type (legacy)" },
-  ];
-
-  const currentSaleTypeLabel =
-    saleTypeOptions.find((o) => o.value === saleTypeFilter)?.label || "All SORs";
-
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
   const subDepartments = [...new Set(employees.map(e => e.subDepartment).filter(Boolean))];
 
@@ -622,26 +610,7 @@ export default function OpportunitiesPage() {
       <div className="flex h-full min-h-0 flex-col">
         <div className="shrink-0 border-b border-border bg-card px-4 py-3 md:px-6">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="shrink-0 text-sm font-black uppercase tracking-widest text-foreground">
-              SORS
-            </h1>
-
-            <TabGroup
-              tabs={[
-                { value: "list", label: "List", icon: List },
-                { value: "board", label: "Board", icon: Kanban },
-                { value: "overview", label: "Overview", icon: LayoutDashboard },
-                // Retail Queue and Retail left this strip for their own screen
-                // at /retail — the strip was the crowded thing, and a retail
-                // order is not something you scan the register for.
-                { value: "deleted", icon: Trash2, label: "Deleted" },
-              ]}
-              activeTab={view}
-              onChange={changeView}
-              variant="pill"
-              size="sm"
-              className="shrink-0"
-            />
+            <SorsViewTabs view={view} onChange={changeView} />
 
             <div className="flex min-w-[160px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 focus-within:border-mauve-7">
               <Search size={15} className="shrink-0 text-muted-foreground" />
@@ -792,27 +761,7 @@ export default function OpportunitiesPage() {
 
                   {/* Row 3: Sale Type (All SORs), Stages, Lead Sources */}
                   <div className="flex gap-2.5">
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          icon={GitBranch}
-                          label={currentSaleTypeLabel}
-                          isActive={saleTypeFilter !== "ALL"}
-                          isOpen={isOpen}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={saleTypeOptions}
-                          value={saleTypeFilter}
-                          onChange={setSaleTypeFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
+                    <SaleTypeFilter saleTypes={allSaleTypes} value={saleTypeFilter} onChange={setSaleTypeFilter} />
 
                     <Dropdown
                       usePortal={true}
@@ -901,16 +850,7 @@ export default function OpportunitiesPage() {
               )}
             </Dropdown>
 
-            <div className="flex shrink-0 items-center gap-3 text-xs font-semibold text-muted-foreground">
-              <span>
-                Open pipeline{" "}
-                <span className="font-bold text-foreground">{formatPHP(totals.openValue)}</span>
-              </span>
-              <span className="text-muted-foreground/40">•</span>
-              <span>
-                Won <span className="font-bold text-foreground">{formatPHP(totals.wonValue)}</span>
-              </span>
-            </div>
+            <SorsTotals openValue={totals.openValue} wonValue={totals.wonValue} />
 
             <button
               onClick={() => setFormOpen(true)}

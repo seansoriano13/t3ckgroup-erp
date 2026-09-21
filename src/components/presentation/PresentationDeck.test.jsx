@@ -19,8 +19,7 @@ const data = {
       impact: "There used to be two places to edit a flow.",
       changes: ["The Sandbox is gone.", "One editing surface."],
       issues: [186],
-      sample: null,
-      link: null,
+      sample: "stock-badges",
     },
     {
       id: "crm-board",
@@ -29,8 +28,7 @@ const data = {
       impact: "Dragging was impossible before.",
       changes: ["One column per Sale Type."],
       issues: [206],
-      sample: "stock-badges",
-      link: { href: "/sors", label: "Open SORS" },
+      sample: "sors-rename",
     },
   ],
   underTheHood: {
@@ -166,19 +164,21 @@ describe("PresentationDeck", () => {
 
   it("mounts the sample a row names, and only that row", () => {
     render(<PresentationDeck data={data} />)
-    expect(screen.queryByText(/The real component, with sample data/i)).not.toBeInTheDocument()
-    press("ArrowRight")
-    expect(screen.getByText(/The real component, with sample data/i)).toBeInTheDocument()
     // The real Product List stock badges, fed made-up lines.
+    expect(screen.getByText(/The real component, with sample data/i)).toBeInTheDocument()
     expect(screen.getByText("Out of stock")).toBeInTheDocument()
-    expect(screen.getByText(/Partial · 4 of 12/)).toBeInTheDocument()
+    press("ArrowRight")
+    // The real SORS tab strip, and not the stock badges.
+    expect(screen.getByRole("tablist")).toBeInTheDocument()
+    expect(screen.queryByText("Out of stock")).not.toBeInTheDocument()
   })
 
-  it("links every row that names a screen to that screen, and no other", () => {
-    render(<PresentationDeck data={data} />)
-    expect(screen.queryByRole("link", { name: /Open SORS/ })).not.toBeInTheDocument()
-    press("ArrowRight")
-    expect(screen.getByRole("link", { name: /Open SORS/ })).toHaveAttribute("href", "/sors")
+  it("gives every row of the generated deck a component to show", async () => {
+    const { default: presentation } = await import("../../data/presentation.json")
+    const { SAMPLES } = await import("./sampleRegistry")
+    for (const row of presentation.headline) {
+      expect(SAMPLES[row.sample], row.id).toBeTypeOf("function")
+    }
   })
 
   it("counts the under-the-hood work without spending a slide on each item", () => {

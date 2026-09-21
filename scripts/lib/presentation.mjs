@@ -144,15 +144,21 @@ export function buildPresentation({ changelog, supplement, issues, generatedAt }
   const since = supplement.since
   const windowed = entriesSince(changelog, since)
 
-  const headline = supplement.headline.map((row) => ({
+  const headline = supplement.headline.map((row) => {
+    // Every row shows the real component it is about (or the modal that opens
+    // from a button). A row without one is a row that only claims a change.
+    if (!row.sample) {
+      throw new Error(`Headline row "${row.id}" names no sample component`)
+    }
+    return row
+  }).map((row) => ({
     id: row.id,
     block: row.block,
     title: enforceSorVocabulary(row.title),
     impact: enforceSorVocabulary(row.impact),
     changes: resolveChanges(row, windowed).map(enforceSorVocabulary),
     issues: row.issues ?? [],
-    sample: row.sample ?? null,
-    link: row.link ?? null,
+    sample: row.sample,
     source: row.version ? "changelog" : "supplement",
   }))
 
