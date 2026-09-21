@@ -199,7 +199,7 @@ export const taskQueryService = {
   },
 
   /**
-   * The Quick View's "Tasks" section (#316) — this viewer's own open Tasks
+   * The Quick View's "Tasks" section — this viewer's own open Tasks
    * tied to one SOR. No nested `sales_opportunities` embed: the caller
    * already has the opportunity (that's how it got here), and a plain Stage
    * Participant can't read that table directly anyway (`sor_read` has no

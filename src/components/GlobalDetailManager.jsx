@@ -20,7 +20,7 @@ export default function GlobalDetailManager() {
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
-  // Quick View's Tasks section opens a Task stacked on top of it (#316) —
+  // Quick View's Tasks section opens a Task stacked on top of it —
   // it's a drill-down, not a replacement, so closing the Task returns to
   // Quick View rather than to nothing.
   const [stackedTaskId, setStackedTaskId] = useState(null);
@@ -355,8 +355,8 @@ export default function GlobalDetailManager() {
         />
       )}
 
-      {/* QUICK VIEW — the landing spot for a task-originated link into an SOR
-          (#316). Locked access has no Tasks/Conditions of its own left to act
+      {/* QUICK VIEW — the landing spot for a task-originated link into an SOR.
+          Locked access has no Tasks/Conditions of its own left to act
           on (its window is closed), so it keeps the existing trimmed summary
           dialog instead of a Quick View with nothing in it. */}
       {activeItem.type === "OPPORTUNITY_QUICK_VIEW" &&

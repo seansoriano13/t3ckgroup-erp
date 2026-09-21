@@ -3497,7 +3497,7 @@ describe("getMySors", () => {
 })
 
 /**
- * A task's SOR link (#199, #316) resolves its label through `sor_link_label`
+ * A task's SOR link (#199) resolves its label through `sor_link_label`
  * — a SECURITY DEFINER RPC, not a raw table select — because `sor_read` has
  * no Stage Participant clause and a plain participant reading the table
  * directly gets zero rows back.

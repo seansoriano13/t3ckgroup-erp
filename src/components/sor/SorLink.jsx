@@ -24,7 +24,7 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   const open = () => {
     onClose?.();
-    // Quick View, not the full modal (#316) — every entry point into an SOR
+    // Quick View, not the full modal — every entry point into an SOR
     // from a task lands there first, whatever the viewer's access level.
     window.dispatchEvent(
       new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY_QUICK_VIEW" } }),

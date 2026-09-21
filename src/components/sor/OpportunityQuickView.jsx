@@ -14,7 +14,7 @@ import { Button } from "../ui/button";
 import Spinner from "../ui/Spinner";
 
 /**
- * Quick View (#316) — the landing spot for every entry point into an SOR
+ * Quick View — the landing spot for every entry point into an SOR
  * from a task (My SORs, a TaskCard's SOR chip, a task's SorLink field): what
  * this viewer is actually on the hook for, not the whole record. "View Full
  * Details" is the deliberate escalation to `SorModal` for whoever needs it.

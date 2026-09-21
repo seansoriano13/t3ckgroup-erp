@@ -87,7 +87,7 @@ function SorRow({ row, onOpen }) {
  * does not fetch the SOR, so a Participant would get an empty modal — the
  * failure commit 5409ca8 fixed one layer down, rebuilt here.
  *
- * Lands on Quick View (#316), not the full modal directly — what pulled this
+ * Lands on Quick View, not the full modal directly — what pulled this
  * person in is rarely "read the whole record", it's "what do I still owe
  * here", and Quick View's own "View Full Details" button is there for
  * whoever needs the rest.

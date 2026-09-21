@@ -1,5 +1,5 @@
 /**
- * Quick View (#316) — the landing spot for every task-originated entry into
+ * Quick View — the landing spot for every task-originated entry into
  * an SOR: this viewer's own open Tasks on the deal, and what's still open on
  * its current Stage (not personal — conditions carry no assignee in the data
  * model), with "View Full Details" as the deliberate escalation to the full

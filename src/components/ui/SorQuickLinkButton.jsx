@@ -2,7 +2,7 @@ import { Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The TaskCard footer's SOR indicator (#316) — icon only, no Sales
+ * The TaskCard footer's SOR indicator — icon only, no Sales
  * Reference: that number is already the task-title standard for a
  * Stage-Action task, so repeating it here would be the same value twice on
  * one card. Opens Quick View, the shared landing spot for every
