@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-09-21",
+        "title": "Unified All SORs Filter & Cleaner Filters Menu",
+        "version": "1.7.25",
+        "changes": [
+            "Added an 'All SORs' option across SORS view filters and the Kanban Board flow switcher.",
+            "The Filters popover now features a clean, well-spaced 4-row layout with aligned dropdowns and quick toggles, making filtering fast and easy to navigate.",
+            "Selecting 'All SORs' on the Kanban Board presents a clear guide and quick-select buttons for each Sales Flow, or a one-click switch to the List view."
+        ]
+    },
+    {
+        "date": "2026-09-21",
         "title": "Stage Conditions & Fields Inline Editing & Live Preview",
         "version": "1.7.24",
         "changes": [
