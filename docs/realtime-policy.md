@@ -50,6 +50,16 @@ this document exists gets a migration, the same way `sor_procurement_requests`
 Default to `postgres_changes` when RLS already covers the table; reach for
 Broadcast when it doesn't and adding RLS isn't in scope for the work at hand.
 
+A table with RLS can still choose Broadcast when its read policy is expensive.
+`sales_opportunities` is the case: `sor_read` calls `sor_is_deal_team` and
+`sor_always_sees`, and `postgres_changes` would run it for every change for
+every subscriber on Realtime's RLS thread. The SORS register only needs a nudge
+to refetch through the same RLS-filtered query it already uses, so
+`20260930020000_sales_opportunities_realtime_broadcast.sql` broadcasts just the
+row id, exactly as `tasks` does, and the register subscribes with
+`useTableRealtime("sales_opportunities", { invalidateKeys: [["opportunities"]], debounceMs: 800 })`.
+Its qualifying reason is concurrency: two people can move the same SOR.
+
 ## Consumers use the shared hook
 
 New consumers subscribe via `useTableRealtime` (`src/hooks/useTableRealtime.js`)
@@ -80,6 +90,15 @@ The hand-written subscriptions that predate this hook (in
 `group-tasks/_components/GroupTaskDetailModal.jsx` and
 `ComprehensiveChatModal.jsx`) are not retrofitted onto it as part of
 introducing it — that's a separate follow-up, not a prerequisite.
+
+## Running Realtime locally
+
+`supabase/config.toml` keeps Realtime disabled because the image the CLI pins
+ships a broken library (issue #87). To see live updates on a local stack, run
+`pnpm local:realtime` after `supabase start` (`scripts/local-realtime.mjs`): it
+starts the last known-good image beside the stack and adds the one
+`realtime.messages` policy a signed-in client needs. Re-run it after
+`supabase db reset`. `pnpm local:realtime -- stop` removes it.
 
 ## Cost
 

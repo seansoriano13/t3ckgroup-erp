@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useTableRealtime } from "./useTableRealtime"
 import { renderHookWithQuery } from "@/test/support"
 
@@ -66,6 +66,41 @@ describe("useTableRealtime", () => {
 
     expect(invalidateSpy).toHaveBeenCalledTimes(1)
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["dashboardTasks"] })
+  })
+
+  describe("debounceMs", () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it("turns a burst of signals into one invalidation at the end of it", () => {
+      const { client } = renderHookWithQuery(() =>
+        useTableRealtime("sales_opportunities", { invalidateKeys: [["opportunities"]], debounceMs: 500 }),
+      )
+      const invalidateSpy = vi.spyOn(client, "invalidateQueries")
+
+      for (let i = 0; i < 5; i += 1) {
+        channelState.handlers[0]({ event: "UPDATE" })
+        vi.advanceTimersByTime(100)
+      }
+      expect(invalidateSpy).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(500)
+      expect(invalidateSpy).toHaveBeenCalledTimes(1)
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ["opportunities"] })
+    })
+
+    it("drops a pending invalidation when the consumer unmounts", () => {
+      const { client, unmount } = renderHookWithQuery(() =>
+        useTableRealtime("sales_opportunities", { invalidateKeys: [["opportunities"]], debounceMs: 500 }),
+      )
+      const invalidateSpy = vi.spyOn(client, "invalidateQueries")
+
+      channelState.handlers[0]({ event: "UPDATE" })
+      unmount()
+      vi.advanceTimersByTime(1000)
+
+      expect(invalidateSpy).not.toHaveBeenCalled()
+    })
   })
 
   it("does nothing when there are no keys to invalidate", () => {
