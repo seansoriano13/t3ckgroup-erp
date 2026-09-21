@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-21",
+        "title": "My SORs",
+        "version": "1.7.22",
+        "changes": [
+            "Sales > My SORs is a new screen listing every SOR you were called into by a task, an assignment, or a purchase request. Until now those SORs appeared nowhere: the SORS register only lists SORs you own or are named on, so being called in gave you access with no way to find the record again except the notification.",
+            "Each row says which Stage called you in and how far your access reaches, in the same words the Flow Canvas uses for that setting. Opening one shows the same view the notification opens.",
+            "SORs whose access has since closed stay on the screen under Closed, so work you did last month is still findable.",
+            "The sidebar entry carries a count of the SORs you currently have open access to, and is visible to everyone — anyone can be called into an SOR, including people with no Sales access."
+        ]
+    },
+    {
         "date": "2026-09-18",
         "title": "Approve Offset Leave With Edited Hours",
         "version": "1.7.21",

@@ -107,6 +107,16 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevel === "participant",
   });
   const canViewJourney = accessLevel === "full" ? true : accessLevel === "participant" ? !!canViewJourneyFetched : false;
+
+  // ADR 0021 / Q7: a called-in person is told WHY they can see this deal and
+  // HOW FAR that reaches. Without it the access window is invisible to the one
+  // person it governs — they cannot tell a Stage they keep from one they are
+  // about to lose. Only asked at the two levels that have a window.
+  const { data: myWindows = [] } = useQuery({
+    queryKey: ["myWindowsOn", id, user?.id],
+    queryFn: () => opportunityService.getMyWindowsOn(id, user.id),
+    enabled: !!id && isOpen && !!user?.id && (accessLevel === "participant" || accessLevel === "locked"),
+  });
   const { stages: allStages } = usePipelineStages({ includeInactive: true });
   const pipelineStages = useMemo(
     () => allStages.filter((s) => s.is_active || s.code === rawOpportunity?.status),
@@ -903,6 +913,21 @@ export default function SorModal({
               : "You can view this deal's stages but not move it. Ask the deal owner or a manager to move it."
           }
         />
+
+        {myWindows.length > 0 && (
+          <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
+            <ul className="space-y-0.5">
+              {myWindows.map((w) => (
+                <li key={w.id} className="text-xs leading-relaxed text-violet-11">
+                  Called in at{" "}
+                  <span className="font-bold">{w.calledInAtStageName || "this deal"}</span> — you see{" "}
+                  {w.reachLabel}
+                  {w.closedAt ? ". This window has closed." : "."}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col">

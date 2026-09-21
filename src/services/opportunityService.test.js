@@ -19,6 +19,7 @@ import {
   makeStageAction,
   makeStageCondition,
   makeStageField,
+  makeStageParticipant,
   makeStageVisit,
   makeSuperAdmin,
   makeTask,
@@ -1611,6 +1612,40 @@ describe("opportunityService", () => {
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.flow_stage_id).toBeNull()
       expect(lost.id).toBeTruthy()
+    })
+
+    describe("an Individual Task's assignee hears about the task, not the deal", () => {
+      it("notifies the assignee by name and points the notification at the task", async () => {
+        const assignee = makeEmployee({ name: "Techie Tina" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { projectTitle: "Check the specs", loggedById: assignee.id },
+        })
+        const spy = vi.spyOn(notificationService, "createNotification")
+
+        const deal = await register()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const task = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(task).toBeTruthy()
+
+        // createTask already sends this: a Stage Action always submits on
+        // someone else's behalf, so submittedById !== loggedById.
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recipient_id: assignee.id,
+            type: "TASK_ASSIGNED",
+            reference_id: task.id,
+          }),
+        )
+
+        // ...and the vaguer "Added to a deal" must not arrive alongside it.
+        expect(spy).not.toHaveBeenCalledWith(
+          expect.objectContaining({ recipient_id: assignee.id, type: "SOR_STAGE_PARTICIPANT_ADDED" }),
+        )
+        spy.mockRestore()
+      })
     })
 
     describe("Stage Actions fire once per (deal, stage, action)", () => {
@@ -3339,3 +3374,124 @@ describe("opportunityService", () => {
   })
 })
 
+/**
+ * My SORs (Workspace of work, Sales nav) — ADR 0021 left a Stage Participant
+ * able to open a deal and unable to find it: `sor_read` is Deal Team or
+ * Always-sees only, so the SORS register structurally cannot list one. This
+ * is the list that can.
+ */
+describe("getMySors", () => {
+  let me, stageA, stageB, deal
+
+  beforeEach(() => {
+    me = makeEmployee({ name: "Techie Tina" })
+    const saleType = makeSaleType({ name: "Government" })
+    const flow = makeSalesFlow({ sale_type_id: saleType.id })
+    stageA = makeFlowStage({ flow_id: flow.id, name: "Technical Review" })
+    stageB = makeFlowStage({ flow_id: flow.id, name: "Bid Submitted" })
+    // No flow_stage_id: the insert trigger would record visit sequence 1 and
+    // collide with the visits these tests place by hand.
+    deal = makeOpportunity({ sale_type_id: saleType.id })
+    stubRpc("sor_locked_summary", () => [
+      {
+        sales_reference: "S01234",
+        project_title: "Supply of Equipment",
+        current_stage_name: "Bid Submitted",
+        is_restricted: false,
+      },
+    ])
+  })
+
+  it("lists a deal the person was called into, naming the Stage that called them", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      until_rule: "stage_left",
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({
+      opportunityId: deal.id,
+      salesReference: "S01234",
+      projectTitle: "Supply of Equipment",
+      currentStageName: "Bid Submitted",
+      isOpen: true,
+    })
+    // The Stage that pulled them in, not the Stage the deal is on now.
+    expect(rows[0].windows[0]).toMatchObject({
+      calledInAtStageName: "Technical Review",
+      untilRule: "stage_left",
+    })
+  })
+
+  it("names the later Stage a window reaches through", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      until_rule: "later_stage_left",
+      until_stage_id: stageB.id,
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows[0].windows[0]).toMatchObject({
+      untilRule: "later_stage_left",
+      untilStageName: "Bid Submitted",
+    })
+  })
+
+  it("keeps two call-ins on one deal as two windows under one row", async () => {
+    // CONTEXT.md: each call-in opens its own window, and one person named by
+    // two actions holds two at once. The screen must not silently merge them.
+    const visitA = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    const visitB = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageB.id, sequence: 2 })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visitA.id })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visitB.id, source: "assignment" })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].windows).toHaveLength(2)
+  })
+
+  it("still lists a deal whose window has closed, marked closed", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({
+      opportunity_id: deal.id,
+      employee_id: me.id,
+      opened_visit_id: visit.id,
+      closed_at: new Date().toISOString(),
+      closed_reason: "stage_left",
+    })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0].isOpen).toBe(false)
+  })
+
+  it("a deal with one open and one closed window counts as open", async () => {
+    const visit = makeStageVisit({ opportunity_id: deal.id, flow_stage_id: stageA.id, sequence: 1 })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id, closed_at: new Date().toISOString() })
+    makeStageParticipant({ opportunity_id: deal.id, employee_id: me.id, opened_visit_id: visit.id, source: "assignment" })
+
+    const rows = await opportunityService.getMySors(me.id)
+
+    expect(rows[0].isOpen).toBe(true)
+  })
+
+  it("lists nothing for someone who was never called in", async () => {
+    const stranger = makeEmployee({ name: "Nobody Nina" })
+    expect(await opportunityService.getMySors(stranger.id)).toEqual([])
+  })
+
+  it("asks for nothing without an employee", async () => {
+    expect(await opportunityService.getMySors(null)).toEqual([])
+  })
+})

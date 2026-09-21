@@ -19,6 +19,7 @@ export type Path =
   | `/hr/management`
   | `/hr/offsets`
   | `/login`
+  | `/my-sors`
   | `/offsets`
   | `/opportunities`
   | `/opportunities/commission`

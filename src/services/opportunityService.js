@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 import { purchasingService } from "./purchasingService";
 import { notificationService } from "./notificationService";
+import { accessWindowSummary } from "../utils/stageAudience";
 import { sorStageParticipantService } from "./sorStageParticipantService";
 import { pipelineStageService } from "./pipelineStageService";
 import { getCurrentLocalDate } from "../utils/formatDate";
@@ -1060,6 +1061,9 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
               sourceId: action.id,
               openedVisitId: runRow.stage_visit_id,
               access: config.access,
+              // groupTaskService.createGroupTask already sent this member a
+              // GROUP_ASSIGNED that names the task and opens it.
+              notify: false,
             },
             actorId,
           ).catch((err) => console.error("openWindow failed for action task:", err));
@@ -1129,6 +1133,14 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
             sourceId: action.id,
             openedVisitId: runRow.stage_visit_id,
             access: config.access,
+            // `taskService.createTask` already sent this person a
+            // TASK_ASSIGNED naming the task and opening it, because a Stage
+            // Action always submits on someone else's behalf
+            // (submittedById = the mover, loggedById = the assignee). Adding
+            // "Added to a deal" beside it is two notifications for one event,
+            // and the vaguer of the two. When the assignee IS the mover no
+            // TASK_ASSIGNED is sent, so the call-in still speaks for itself.
+            notify: payload.submittedById === payload.loggedById,
           },
           actorId,
         ).catch((err) => console.error("openWindow failed for action task:", err));
@@ -1300,6 +1312,55 @@ async function eligibleOpportunityIdsForVersionMove(targetSnapshotId) {
   if (dealsError) throw dealsError;
 
   return (deals || []).map((d) => d.id);
+}
+
+/**
+ * Turns raw `sor_stage_participants` rows into the shape both My SORs and the
+ * SOR modal's own banner render: the Stage that CALLED the person in (the
+ * Stage the opening visit sits on, not the Stage the deal is on now — those
+ * differ the moment it moves, and the first is the answer to "why am I here"),
+ * and the end Stage a longer window names.
+ *
+ * Returns a mapper rather than mapped rows so both callers resolve their Stage
+ * names in one round trip each instead of one per window.
+ */
+async function shapeAccessWindows(windows) {
+  const visitIds = [...new Set(windows.map((w) => w.opened_visit_id).filter(Boolean))];
+  const { data: visits } = visitIds.length
+    ? await supabase.from("sor_stage_visits").select("id, flow_stage_id").in("id", visitIds)
+    : { data: [] };
+  const stageIdByVisit = Object.fromEntries((visits || []).map((v) => [v.id, v.flow_stage_id]));
+
+  const stageIds = [
+    ...new Set([
+      ...Object.values(stageIdByVisit).filter(Boolean),
+      ...windows.map((w) => w.until_stage_id).filter(Boolean),
+    ]),
+  ];
+  const { data: stages } = stageIds.length
+    ? await supabase.from("flow_stages").select("id, name").in("id", stageIds)
+    : { data: [] };
+  const stageNameById = Object.fromEntries((stages || []).map((s) => [s.id, s.name]));
+
+  return (w) => {
+    // `accessWindowSummary` is the Flow Canvas Access tab's own wording, and
+    // its fallback when an end Stage no longer resolves is the rule the
+    // database actually applies. Reusing it is what keeps the screen a person
+    // reads and the canvas an admin configures from drifting apart.
+    const summary = accessWindowSummary(
+      { until: w.until_rule, stageId: w.until_stage_id },
+      stageNameById,
+    );
+    return {
+      id: w.id,
+      source: w.source,
+      calledInAtStageName: stageNameById[stageIdByVisit[w.opened_visit_id]] ?? null,
+      untilRule: w.until_rule,
+      untilStageName: w.until_stage_id ? stageNameById[w.until_stage_id] ?? null : null,
+      reachLabel: summary.reachLabel,
+      closedAt: w.closed_at ?? null,
+    };
+  };
 }
 
 export const opportunityService = {
@@ -2901,6 +2962,104 @@ export const opportunityService = {
    * "This stage is restricted" banner — same call, same rule. Null below
    * locked access.
    */
+  /**
+   * My SORs — every deal this person was called into, open windows and closed
+   * ones alike.
+   *
+   * ADR 0021 deliberately keeps a Stage Participant out of
+   * `sales_opportunities`: `sor_read` is Super Admin, Deal Team or Always-sees,
+   * so the SORS register structurally cannot list a deal someone was merely
+   * called into. That left 11 people on staging holding 33 valid access
+   * windows with nowhere to see them. This is that list.
+   *
+   * It reads `sor_stage_participants` rather than the register because that is
+   * the one table whose read policy already names the person themselves
+   * (`employee_id = get_employee_id()`), which is why this needs no new policy.
+   * The per-deal headline comes from `sor_locked_summary`, the same
+   * security-definer projection the locked modal uses — safe at every access
+   * level and money-free by construction.
+   *
+   * One row per deal, with its windows listed under it. Two call-ins on one
+   * person are two windows (CONTEXT.md, Stage Participant) and stay visible as
+   * two, because "why can I see this" has two different answers.
+   */
+  async getMySors(employeeId) {
+    if (!employeeId) return [];
+
+    const { data: windows, error } = await supabase
+      .from("sor_stage_participants")
+      .select("*")
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    if (!windows || windows.length === 0) return [];
+
+    const shape = await shapeAccessWindows(windows);
+
+    const byOpportunity = new Map();
+    for (const w of windows) {
+      if (!byOpportunity.has(w.opportunity_id)) byOpportunity.set(w.opportunity_id, []);
+      byOpportunity.get(w.opportunity_id).push(w);
+    }
+
+    const rows = await Promise.all(
+      [...byOpportunity.entries()].map(async ([opportunityId, ownWindows]) => {
+        const summary = await opportunityService.getLockedSummary(opportunityId).catch(() => null);
+        return {
+          opportunityId,
+          salesReference: summary?.sales_reference ?? null,
+          projectTitle: summary?.project_title ?? null,
+          currentStageName: summary?.current_stage_name ?? null,
+          isOpen: ownWindows.some((w) => !w.closed_at),
+          windows: ownWindows.map(shape),
+        };
+      }),
+    );
+
+    // Open work first; within each group the most recent call-in leads.
+    return rows.sort((a, b) => Number(b.isOpen) - Number(a.isOpen));
+  },
+
+  /**
+   * The My SORs badge: how many SORs this person still has an OPEN window on.
+   * Closed windows are listed on the screen but never counted — the badge is
+   * "work waiting", not "SORs I have touched".
+   *
+   * Counts distinct SORs, not windows, even though two call-ins on one SOR are
+   * deliberately two windows (CONTEXT.md, Stage Participant). The badge has to
+   * match what the screen shows when it is clicked, and the screen shows one
+   * row per SOR; a badge of 2 over a list of 1 reads as a bug.
+   */
+  /**
+   * This person's own access windows on ONE deal, for the banner the SOR modal
+   * shows a Stage Participant. Same shaping as My SORs, so the two cannot
+   * describe the same window differently.
+   */
+  async getMyWindowsOn(opportunityId, employeeId) {
+    if (!opportunityId || !employeeId) return [];
+    const { data, error } = await supabase
+      .from("sor_stage_participants")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .eq("employee_id", employeeId)
+      .order("created_at", { ascending: true });
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    const shape = await shapeAccessWindows(data);
+    return data.map(shape);
+  },
+
+  async countMyOpenSors(employeeId) {
+    if (!employeeId) return 0;
+    const { data, error } = await supabase
+      .from("sor_stage_participants")
+      .select("opportunity_id")
+      .eq("employee_id", employeeId)
+      .is("closed_at", null);
+    if (error) throw error;
+    return new Set((data || []).map((r) => r.opportunity_id)).size;
+  },
+
   async getLockedSummary(opportunityId) {
     if (!opportunityId) return null;
     const { data, error } = await supabase.rpc("sor_locked_summary", { p_opportunity_id: opportunityId });

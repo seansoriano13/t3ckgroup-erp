@@ -15,6 +15,7 @@ import {
   ShoppingCart,
   ShoppingBag,
   Presentation,
+  Handshake,
 } from "lucide-react";
 import { getPermissionContext, isNavEntryVisible } from "@/utils/permissions";
 
@@ -81,6 +82,23 @@ export const NAV_MODULES = {
         link: "/sors",
         icon: Target,
         isPermitted: (ctx) => ctx.isSuperAdmin || ctx.isHr || ctx.hasSalesFlow,
+        exactMatch: true,
+      },
+      // ADR 0021 keeps a Stage Participant out of `sales_opportunities`, so a
+      // deal someone was called into can never appear in the SORS register.
+      // This is where it appears instead. Deliberately ungated, like Flow
+      // Canvas: `isPermitted` is synchronous and cannot ask whether this
+      // person holds a window, and gating on `hasSalesFlow` would lock out
+      // exactly the people ADR 0021 names — a purchaser, an engineer, a
+      // finance officer — none of whom need Sales access to be called in.
+      // The page shows an empty state to anyone who has none.
+      {
+        key: "sales.mySors",
+        label: "My SORs",
+        link: "/my-sors",
+        icon: Handshake,
+        badgeKey: "mySors",
+        isPermitted: () => true,
         exactMatch: true,
       },
       {

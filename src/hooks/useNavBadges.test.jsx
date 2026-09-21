@@ -36,10 +36,13 @@ describe("useNavBadges", () => {
 
     const { result } = renderHookWithQuery(() => useNavBadges(user));
 
+    // My SORs is not role-gated — anyone can be called into a deal (ADR 0021)
+    // — so it is present for a standard employee and zero until one is.
     expect(result.current).toEqual({
       taskApprovals: 0,
       hrVerifications: 0,
       leaveApprovals: 0,
+      mySors: 0,
     });
   });
 
