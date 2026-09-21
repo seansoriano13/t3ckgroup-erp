@@ -198,6 +198,33 @@ export const taskQueryService = {
     }));
   },
 
+  /**
+   * The Quick View's "Tasks" section (#316) — this viewer's own open Tasks
+   * tied to one SOR. No nested `sales_opportunities` embed: the caller
+   * already has the opportunity (that's how it got here), and a plain Stage
+   * Participant can't read that table directly anyway (`sor_read` has no
+   * Participant clause), so embedding it here would just come back null.
+   */
+  async getMyOpenTasksForOpportunity(userId, opportunityId) {
+    if (!userId || !opportunityId) return [];
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("id, task_description, checklist, status, priority, created_at")
+      .eq("logged_by", userId)
+      .eq("opportunity_id", opportunityId)
+      .in("status", [TASK_STATUS.INCOMPLETE, TASK_STATUS.AWAITING_APPROVAL])
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+
+    return data.map((task) => ({
+      id: task.id,
+      taskDescription: resolveDescription(task.task_description, task.checklist),
+      status: task.status,
+      priority: task.priority,
+      createdAt: task.created_at,
+    }));
+  },
+
   // 2.3. MANAGER REPLIES: Fetch all task IDs where the current user has any activity entry
   async getManagerRepliesForTasks(taskIds, userId) {
     if (!taskIds?.length || !userId) return new Set();

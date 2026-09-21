@@ -9,7 +9,7 @@ import {
   Circle,
 } from "lucide-react"
 import Dot from "./ui/Dot"
-import { SorLinkChip } from "./ui/SorLinkChip"
+import { SorQuickLinkButton } from "./ui/SorQuickLinkButton"
 import StatusBadge from "./StatusBadge"
 import { useAuth } from "../context/AuthContext"
 import { TASK_STATUS } from "../constants/status"
@@ -275,12 +275,6 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
               </div>
             </>
           )}
-          {task.opportunity && (
-            <>
-              <span className="text-mauve-7 text-[10px] shrink-0">•</span>
-              <SorLinkChip opportunityId={task.opportunityId} opportunity={task.opportunity} />
-            </>
-          )}
         </div>
         <div className="shrink-0 flex-center gap-2">
           <StatusBadge status={task.status} />
@@ -475,8 +469,10 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
 
       {/* Row 3: The Footer (Metadata) */}
       <div className="mt-5 pt-4 flex items-center justify-between gap-2 overflow-hidden text-xs text-muted-foreground w-full border-t border-mauve-3">
-        {/* Left side: Author -> Head */}
-        <div className="flex items-center shrink-0 min-w-0">
+        {/* Left side: SOR link -> Author -> Head */}
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <SorQuickLinkButton opportunityId={task.opportunityId} />
+
           {isManagement && task.loggedByName && (
             <div
               className="flex items-center gap-1.5 shrink-0"

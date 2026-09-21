@@ -3495,3 +3495,25 @@ describe("getMySors", () => {
     expect(await opportunityService.getMySors(null)).toEqual([])
   })
 })
+
+/**
+ * A task's SOR link (#199, #316) resolves its label through `sor_link_label`
+ * — a SECURITY DEFINER RPC, not a raw table select — because `sor_read` has
+ * no Stage Participant clause and a plain participant reading the table
+ * directly gets zero rows back.
+ */
+describe("getOpportunityLinkLabel", () => {
+  it("asks the RPC for the label, not the table directly", async () => {
+    const deal = makeOpportunity({ sales_reference: "S99001", client_name: "Acme Corp" })
+    stubRpc("sor_link_label", (args) => {
+      expect(args).toEqual({ p_opportunity_id: deal.id })
+      return "S99001"
+    })
+
+    expect(await opportunityService.getOpportunityLinkLabel(deal.id)).toBe("S99001")
+  })
+
+  it("asks for nothing without an id", async () => {
+    expect(await opportunityService.getOpportunityLinkLabel(null)).toBeNull()
+  })
+})

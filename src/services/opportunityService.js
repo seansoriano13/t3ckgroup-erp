@@ -1425,15 +1425,17 @@ export const opportunityService = {
    * Company (issue #199). Null when the SOR can't be read. Kept narrow so a
    * task modal can resolve it without depending on how the task was loaded.
    */
+  /**
+   * A plain Stage Participant (a task's assignee with no deal-team role)
+   * cannot select `sales_opportunities` directly — `sor_read` carries no
+   * Participant clause. `sor_link_label` is a SECURITY DEFINER RPC scoped to
+   * exactly this: the one-column label a task's SOR link renders (#199).
+   */
   async getOpportunityLinkLabel(id) {
     if (!id) return null;
-    const { data, error } = await supabase
-      .from("sales_opportunities")
-      .select("sales_reference, client_name")
-      .eq("id", id)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc("sor_link_label", { p_opportunity_id: id });
     if (error) throw error;
-    return data ? data.sales_reference || data.client_name || null : null;
+    return data || null;
   },
 
   /**

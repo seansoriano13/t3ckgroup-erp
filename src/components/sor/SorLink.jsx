@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Briefcase } from "lucide-react";
+import { ArrowUpRight, Briefcase } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 
 /**
@@ -24,8 +24,10 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
 
   const open = () => {
     onClose?.();
+    // Quick View, not the full modal (#316) — every entry point into an SOR
+    // from a task lands there first, whatever the viewer's access level.
     window.dispatchEvent(
-      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY" } }),
+      new CustomEvent("OPEN_ENTITY_DETAILS", { detail: { id: opportunityId, type: "OPPORTUNITY_QUICK_VIEW" } }),
     );
   };
 
@@ -40,6 +42,7 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
         <span className="max-w-[200px] truncate" title={label}>
           Deal: {label}
         </span>
+        <ArrowUpRight size={12} className="text-muted-foreground" />
       </button>
     );
   }
@@ -52,10 +55,13 @@ export default function SorLink({ opportunityId, onClose, variant = "block" }) {
       <button
         type="button"
         onClick={open}
-        className="flex items-center gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
+        className="flex items-center justify-between gap-2 rounded-xl border border-border/50 bg-muted px-4 py-3 text-left text-sm font-bold text-foreground shadow-sm transition-colors hover:bg-muted/70"
       >
-        <Briefcase size={14} />
-        {label}
+        <span className="flex items-center gap-2">
+          <Briefcase size={14} />
+          {label}
+        </span>
+        <ArrowUpRight size={14} className="text-muted-foreground" />
       </button>
     </div>
   );

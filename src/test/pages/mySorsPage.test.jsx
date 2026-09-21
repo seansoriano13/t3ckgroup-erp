@@ -138,7 +138,7 @@ describe("My SORs", () => {
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({
         type: "OPEN_ENTITY_DETAILS",
-        detail: { id: deal.id, type: "OPPORTUNITY" },
+        detail: { id: deal.id, type: "OPPORTUNITY_QUICK_VIEW" },
       }),
     );
     dispatch.mockRestore();

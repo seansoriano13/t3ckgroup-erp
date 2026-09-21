@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest"
 import { taskQueryService } from "./taskQueryService"
 import { db } from "@/test/db/store"
-import { makeCategory, makeEmployee, makeHead, makeTask } from "@/test/factories"
+import { makeCategory, makeEmployee, makeHead, makeOpportunity, makeTask } from "@/test/factories"
 
 /**
  * The read side maps snake_case rows onto the camelCase shape every screen
@@ -160,6 +160,54 @@ describe("taskQueryService", () => {
       makeTask({ logged_by: author.id, category_id: category.category_id, status: "DELETED" })
 
       expect(await taskQueryService.getMyTasks(author.id)).toEqual([])
+    })
+  })
+
+  describe("getMyOpenTasksForOpportunity", () => {
+    it("returns only this employee's open tasks tied to the deal", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const otherOpportunity = makeOpportunity({ registered_by: author.id })
+      const colleague = makeEmployee({ name: "Ben Cruz" })
+      const mine = makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "INCOMPLETE",
+      })
+      // A colleague's task on the same deal isn't this viewer's.
+      makeTask({ logged_by: colleague.id, category_id: category.category_id, opportunity_id: opportunity.id })
+      // The same employee's task on a different deal isn't this deal's.
+      makeTask({ logged_by: author.id, category_id: category.category_id, opportunity_id: otherOpportunity.id })
+      // Finished work no longer needs acting on.
+      makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "COMPLETED",
+      })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => t.id)).toEqual([mine.id])
+    })
+
+    it("includes a task awaiting approval, not only incomplete ones", async () => {
+      const opportunity = makeOpportunity({ registered_by: author.id })
+      const awaiting = makeTask({
+        logged_by: author.id,
+        category_id: category.category_id,
+        opportunity_id: opportunity.id,
+        status: "AWAITING APPROVAL",
+      })
+
+      const tasks = await taskQueryService.getMyOpenTasksForOpportunity(author.id, opportunity.id)
+
+      expect(tasks.map((t) => t.id)).toEqual([awaiting.id])
+    })
+
+    it("asks for nothing without both a viewer and a deal", async () => {
+      expect(await taskQueryService.getMyOpenTasksForOpportunity(null, "opp-1")).toEqual([])
+      expect(await taskQueryService.getMyOpenTasksForOpportunity(author.id, null)).toEqual([])
     })
   })
 

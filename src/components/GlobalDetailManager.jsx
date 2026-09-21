@@ -7,6 +7,7 @@ import TaskDetails from "./TaskDetails";
 import GroupTaskDetailModal from "../pages/group-tasks/_components/GroupTaskDetailModal";
 import RateEmployeesModal from "../pages/group-tasks/_components/RateEmployeesModal";
 import OpportunityDetailsModal from "./sor/OpportunityDetailsModal";
+import OpportunityQuickView from "./sor/OpportunityQuickView";
 import { opportunityService } from "../services/opportunityService";
 import { useAuth } from "../context/AuthContext";
 import toast from "react-hot-toast";
@@ -14,10 +15,15 @@ import toast from "react-hot-toast";
 export default function GlobalDetailManager() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeItem, setActiveItem] = useState(null); // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' }
+  // { id, type: 'TASK' | 'GROUP_TASK' | 'OPPORTUNITY' | 'OPPORTUNITY_QUICK_VIEW' }
+  const [activeItem, setActiveItem] = useState(null);
   const [highlightIdOnClose, setHighlightIdOnClose] = useState(null);
   const [isRateOpen, setIsRateOpen] = useState(false);
   const [employees, setEmployees] = useState([]);
+  // Quick View's Tasks section opens a Task stacked on top of it (#316) —
+  // it's a drill-down, not a replacement, so closing the Task returns to
+  // Quick View rather than to nothing.
+  const [stackedTaskId, setStackedTaskId] = useState(null);
 
   const isSuperAdmin = user?.is_super_admin === true || user?.isSuperAdmin === true;
   const isHead = user?.is_head === true || user?.isHead === true;
@@ -70,10 +76,22 @@ export default function GlobalDetailManager() {
   // never list one for them, since RLS already excludes them from
   // `sales_opportunities` there. `getOpportunityForModal` is what branches on
   // access level so this fetch doesn't just throw for them.
+  const isOpportunityType =
+    activeItem?.type === "OPPORTUNITY" || activeItem?.type === "OPPORTUNITY_QUICK_VIEW";
+
   const { data: opportunityData, isLoading: isLoadingOpportunity } = useQuery({
     queryKey: ["globalOpportunity", activeItem?.id],
     queryFn: () => opportunityService.getOpportunityForModal(activeItem.id),
-    enabled: activeItem?.type === "OPPORTUNITY" && !!activeItem?.id,
+    enabled: isOpportunityType && !!activeItem?.id,
+    staleTime: 0,
+  });
+
+  // The Task stacked on top of Quick View — a separate fetch from the
+  // primary `activeItem`, since both can be open at once.
+  const { data: stackedTaskData } = useQuery({
+    queryKey: ["globalTask", stackedTaskId],
+    queryFn: () => taskService.getTaskById(stackedTaskId),
+    enabled: !!stackedTaskId,
     staleTime: 0,
   });
 
@@ -83,11 +101,11 @@ export default function GlobalDetailManager() {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       } else if (activeItem.type === "GROUP_TASK" && !isLoadingGroupTask) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
-      } else if (activeItem.type === "OPPORTUNITY" && !isLoadingOpportunity) {
+      } else if (isOpportunityType && !isLoadingOpportunity) {
         window.dispatchEvent(new CustomEvent("ENTITY_DETAILS_LOADED"));
       }
     }
-  }, [activeItem, isLoadingTask, isLoadingGroupTask, isLoadingOpportunity]);
+  }, [activeItem, isLoadingTask, isLoadingGroupTask, isOpportunityType, isLoadingOpportunity]);
 
   // --- Task Mutations ---
   const editTaskMutation = useMutation({
@@ -95,7 +113,10 @@ export default function GlobalDetailManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
       queryClient.invalidateQueries({ queryKey: ["dashboardTasks"] });
-      queryClient.invalidateQueries({ queryKey: ["globalTask", activeItem?.id] });
+      // No id: this also covers the Task stacked on top of Quick View, whose
+      // cache entry keys off `stackedTaskId` rather than `activeItem.id`.
+      queryClient.invalidateQueries({ queryKey: ["globalTask"] });
+      queryClient.invalidateQueries({ queryKey: ["quickViewTasks"] });
       queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
       toast.success("Task updated.");
     },
@@ -103,10 +124,17 @@ export default function GlobalDetailManager() {
 
   const deleteTaskMutation = useMutation({
     mutationFn: ({ id, userId }) => taskService.deleteTask(id, userId),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["quickViewTasks"] });
       queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
-      setActiveItem(null);
+      // Deleting the stacked Task should only close the stack, not the Quick
+      // View underneath it.
+      if (variables.id === stackedTaskId) {
+        setStackedTaskId(null);
+      } else {
+        setActiveItem(null);
+      }
       toast.success("Task deleted.");
     },
   });
@@ -250,6 +278,7 @@ export default function GlobalDetailManager() {
     }
     setActiveItem(null);
     setIsRateOpen(false);
+    setStackedTaskId(null);
   };
 
   if (!activeItem) return null;
@@ -323,6 +352,46 @@ export default function GlobalDetailManager() {
           opportunityId={activeItem.id}
           accessLevel={opportunityData.accessLevel}
           lockedSummary={opportunityData.lockedSummary}
+        />
+      )}
+
+      {/* QUICK VIEW — the landing spot for a task-originated link into an SOR
+          (#316). Locked access has no Tasks/Conditions of its own left to act
+          on (its window is closed), so it keeps the existing trimmed summary
+          dialog instead of a Quick View with nothing in it. */}
+      {activeItem.type === "OPPORTUNITY_QUICK_VIEW" &&
+        opportunityData &&
+        opportunityData.accessLevel !== "none" &&
+        (opportunityData.accessLevel === "locked" ? (
+          <OpportunityDetailsModal
+            isOpen={true}
+            onClose={handleClose}
+            opportunity={opportunityData.opportunity}
+            opportunityId={activeItem.id}
+            accessLevel={opportunityData.accessLevel}
+            lockedSummary={opportunityData.lockedSummary}
+          />
+        ) : (
+          <OpportunityQuickView
+            isOpen={true}
+            onClose={handleClose}
+            opportunity={opportunityData.opportunity}
+            opportunityId={activeItem.id}
+            userId={user?.id}
+            onViewFullDetails={() => setActiveItem({ id: activeItem.id, type: "OPPORTUNITY" })}
+            onOpenTask={(taskId) => setStackedTaskId(taskId)}
+          />
+        ))}
+
+      {/* TASK STACKED ON QUICK VIEW — a drill-down, so it renders alongside
+          Quick View rather than replacing it. */}
+      {stackedTaskId && (
+        <TaskDetails
+          isOpen={true}
+          onClose={() => setStackedTaskId(null)}
+          task={stackedTaskData}
+          onUpdateTask={(updated) => editTaskMutation.mutateAsync(updated)}
+          onDeleteTask={(payload) => deleteTaskMutation.mutateAsync(payload)}
         />
       )}
     </>
