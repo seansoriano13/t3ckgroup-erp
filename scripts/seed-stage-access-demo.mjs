@@ -21,15 +21,21 @@
  * Usage:
  *   node scripts/seed-stage-access-demo.mjs               # rehearsal, rolls back
  *   node scripts/seed-stage-access-demo.mjs --apply       # commits
- *   node scripts/seed-stage-access-demo.mjs --teardown --apply   # removes it entirely
+ *   node scripts/seed-stage-access-demo.mjs --local --apply       # local stack
+ *   node scripts/seed-stage-access-demo.mjs --teardown --apply    # removes it
  *
- * Reads STAGING_DB_URL from .env.local or the environment, like
- * scripts/db-ledger-check.mjs and scripts/transfer-sales-flows.mjs.
+ * Targets staging by default (STAGING_DB_URL from .env.local or the
+ * environment, like scripts/db-ledger-check.mjs). `--local` targets the
+ * `supabase start` stack instead, resolved the way scripts/seed-restore.mjs
+ * resolves it, so a run can be rehearsed against a disposable database before
+ * it touches the one the demo runs on. Run `pnpm db:reset` first: the local
+ * stack needs this repo's migrations AND the restored employee rows, since
+ * every person here is looked up by email.
  */
 import pg from "pg"
 import { fileURLToPath } from "url"
 import { dirname, join } from "path"
-import { loadDotEnvLocal } from "./lib/seedShared.mjs"
+import { DEFAULT_LOCAL_DB_URL, loadDotEnvLocal } from "./lib/seedShared.mjs"
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..")
 
@@ -67,10 +73,11 @@ const EDGES = [
 ]
 
 function parseArgs(argv) {
-  const args = { apply: false, teardown: false }
+  const args = { apply: false, teardown: false, local: false }
   for (const a of argv) {
     if (a === "--apply") args.apply = true
     else if (a === "--teardown") args.teardown = true
+    else if (a === "--local") args.local = true
     else if (a === "--help" || a === "-h") args.help = true
     else throw new Error(`Unknown argument: ${a}`)
   }
@@ -159,13 +166,16 @@ async function teardown(client) {
 async function main() {
   const args = parseArgs(process.argv.slice(2))
   if (args.help) {
-    console.log("node scripts/seed-stage-access-demo.mjs [--teardown] [--apply]")
+    console.log("node scripts/seed-stage-access-demo.mjs [--local] [--teardown] [--apply]")
     return
   }
 
   const env = loadDotEnvLocal(repoRoot)
-  const url = process.env.STAGING_DB_URL || env.STAGING_DB_URL
+  const url = args.local
+    ? process.env.LOCAL_DB_URL || env.LOCAL_DB_URL || DEFAULT_LOCAL_DB_URL
+    : process.env.STAGING_DB_URL || env.STAGING_DB_URL
   if (!url) throw new Error("STAGING_DB_URL is not set — put it in .env.local or the environment.")
+  console.log(args.local ? "Target: LOCAL stack" : "Target: STAGING")
 
   const client = new pg.Client({ connectionString: url })
   await client.connect()
@@ -282,9 +292,16 @@ async function main() {
         }),
       ],
     )
+    // Not required, unlike the one on Registered. Two reasons, both about
+    // the run sheet: Beat 3 drags S99001 straight out of Technical Review
+    // without stopping to answer anything, and answering this one live would
+    // open the employee a Participant window on S99001 — which carries no
+    // role shut-out, handing him back the Costing Stage the beat exists to
+    // shut him out of. It stays on the canvas as scenery and as the source
+    // Demo C's pre-aged window points at.
     const { rows: condShort } = await client.query(
       `insert into stage_conditions (stage_id, kind, label, is_required, sort_order, config)
-       values ($1, 'assignment', $2, true, 0, $3::jsonb) returning id`,
+       values ($1, 'assignment', $2, false, 0, $3::jsonb) returning id`,
       [
         stageId.technical,
         "Assign the Warehouse Checker",
@@ -294,9 +311,12 @@ async function main() {
         }),
       ],
     )
+    // Also not required: Beat 4B moves Demo B through Costing to Bid
+    // Submitted in one breath, and nobody on RIGHT can open Costing to tick
+    // it. Present on the canvas, never in the way.
     await client.query(
       `insert into stage_conditions (stage_id, kind, label, is_required, sort_order, config)
-       values ($1, 'tickbox', $2, true, 1, '{}'::jsonb)`,
+       values ($1, 'tickbox', $2, false, 1, '{}'::jsonb)`,
       [stageId.costing, "Costing sheet approved"],
     )
 
@@ -314,7 +334,7 @@ async function main() {
       [
         stageId.technical,
         JSON.stringify({
-          projectTitle: "Technical review — {{salesReference}}",
+          projectTitle: "Technical review — {{so_number}} {{project_title}}",
           description: "Check the specifications on this deal and note anything non-compliant.",
           categoryId: "DOCUMENTS CREATED / FOR SUBMISSION / APPROVAL",
           priority: "MEDIUM",
@@ -330,7 +350,7 @@ async function main() {
       [
         stageId.bid,
         JSON.stringify({
-          title: "Bid pack — {{salesReference}}",
+          title: "Bid pack — {{so_number}} {{project_title}}",
           description: "Assemble and submit the bid documents.",
           dueDateOffsetDays: "5",
           createdBy: admin.id,
@@ -355,6 +375,64 @@ async function main() {
       ],
     )
 
+    // ── The Flow Snapshot the three SORs run against ──────────────────────
+    // `snapshotContextFor` (src/services/opportunityService.js) refuses to
+    // move a deal whose `flow_snapshot_id` is null — a flow-built deal with
+    // no Snapshot on record is not a valid state (issue #83). SORs written
+    // straight into the table have none, so every drag in Beat 3 died on
+    // "This deal has no Flow Snapshot on record". A real registration pins
+    // the deal to the flow's latest Snapshot; this publishes one and pins
+    // all three to it.
+    //
+    // The flow stays `draft` on purpose: a flow that has Snapshots and is
+    // unlocked for editing is the ordinary state of a flow in use, and
+    // Beats 2 and 6 want the canvas editable. Shape mirrors
+    // `buildDraftSnapshotData` in src/constants/salesFlow.js — the two are
+    // kept in step by hand, so a new key there needs one here.
+    const { rows: snapshotRows } = await client.query(
+      `insert into flow_snapshots (flow_id, version, created_by, note, snapshot_data)
+       select $1, 1, $2, 'Seeded by scripts/seed-stage-access-demo.mjs', jsonb_build_object(
+         'stages',      coalesce((select jsonb_agg(to_jsonb(st) order by st.sort_order)
+                                    from flow_stages st where st.flow_id = $1), '[]'::jsonb),
+         'edges',       coalesce((select jsonb_agg(to_jsonb(ed))
+                                    from flow_edges ed where ed.flow_id = $1), '[]'::jsonb),
+         'actions',     coalesce((select jsonb_agg(to_jsonb(ac))
+                                    from flow_stage_actions ac
+                                    join flow_stages st on st.id = ac.stage_id
+                                   where st.flow_id = $1 and ac.archived_at is null), '[]'::jsonb),
+         'conditions',  coalesce((select jsonb_agg(to_jsonb(co))
+                                    from stage_conditions co
+                                    join flow_stages st on st.id = co.stage_id
+                                   where st.flow_id = $1 and co.archived_at is null), '[]'::jsonb),
+         'stageFields', coalesce((select jsonb_agg(to_jsonb(sf))
+                                    from flow_stage_fields sf
+                                    join flow_stages st on st.id = sf.stage_id
+                                   where st.flow_id = $1 and sf.archived_at is null), '[]'::jsonb),
+         'formFields',  coalesce((select jsonb_agg(to_jsonb(ff))
+                                    from flow_form_fields ff
+                                   where ff.flow_id = $1 and ff.archived_at is null), '[]'::jsonb),
+         -- Follow-up Cadence and Stage Access are one row per Stage in the
+         -- database; the snapshot keys both by the Stage's own id, the way
+         -- buildSnapshotData does.
+         'followUps',   coalesce((select jsonb_agg(to_jsonb(fu) || jsonb_build_object('id', fu.stage_id))
+                                    from flow_stage_follow_ups fu
+                                    join flow_stages st on st.id = fu.stage_id
+                                   where st.flow_id = $1), '[]'::jsonb),
+         'access',      jsonb_build_object(
+                          'flow',   (select to_jsonb(fa) from flow_access_settings fa where fa.flow_id = $1),
+                          'stages', coalesce((select jsonb_agg(to_jsonb(sa) || jsonb_build_object('id', sa.stage_id))
+                                                from flow_stage_access sa
+                                                join flow_stages st on st.id = sa.stage_id
+                                               where st.flow_id = $1), '[]'::jsonb)
+                        ),
+         'wonStageId',  (select won_stage_id from sales_flows where id = $1),
+         'saleTypeId',  (select sale_type_id from sales_flows where id = $1)
+       )
+       returning id`,
+      [flowId, admin.id],
+    )
+    const snapshotId = snapshotRows[0].id
+
     // ── The three SORs ────────────────────────────────────────────────────
     const today = new Date().toISOString().slice(0, 10)
 
@@ -363,9 +441,10 @@ async function main() {
         `insert into sales_opportunities
            (registration_date, registered_at, registered_by, lead_source, client_name,
             contact_person, project_title, project_type, expected_value, expected_award_date,
-            deal_owner_id, sales_director_id, status, sales_reference, sale_type_id, flow_stage_id)
+            deal_owner_id, sales_director_id, status, sales_reference, sale_type_id, flow_stage_id,
+            flow_snapshot_id)
          values ($1, now(), $2, 'LGU', $3, 'Demo Contact', $4, 'SSP', 1250000, $5,
-                 $6, $7, $8, $9, $10, $11)
+                 $6, $7, $8, $9, $10, $11, $12)
          returning id`,
         [
           today,
@@ -379,6 +458,7 @@ async function main() {
           ref,
           saleTypeId,
           stageId[stage],
+          snapshotId,
         ],
       )
       return rows[0].id
@@ -470,7 +550,7 @@ async function main() {
     }
 
     console.log(`Sale Type   ${SALE_TYPE}  (${saleTypeId})`)
-    console.log(`Sales Flow  ${flowId}  draft, 6 Stages, Won = Awarded`)
+    console.log(`Sales Flow  ${flowId}  draft, 6 Stages, Won = Awarded, Snapshot v1 ${snapshotId}`)
     console.log(`Restricted  Costing — shut out: deal_owner, group "${GROUP_NAME}" (${excluded.name})`)
     console.log(`Call-ins    Registered → ${employee.name}, through Bid Submitted`)
     console.log(`            Technical Review → ${employee.name}, only this Stage`)
