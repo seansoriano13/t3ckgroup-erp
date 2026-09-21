@@ -1,6 +1,25 @@
 [
     {
         "date": "2026-09-21",
+        "title": "Stage Conditions & Fields Inline Editing & Live Preview",
+        "version": "1.7.24",
+        "changes": [
+            "Editing a condition or field in a Stage now opens the editor directly below the item rather than jumping to the top of the panel, making editing feel seamless and in-context.",
+            "The Fields tab now includes a live preview matching how the field and its input look on the SOR, giving an immediate look at required badges, help text, and selection options."
+        ]
+    },
+    {
+        "date": "2026-09-21",
+        "title": "Dynamic Open Pipeline & Won Calculation",
+        "version": "1.7.23",
+        "changes": [
+            "The Open pipeline and Won totals in SORS now follow each Sales Flow's actual stages dynamically from the Flow Canvas.",
+            "An SOR is counted under Open pipeline while it is moving through stages before the Won stage. Once it reaches the Won stage or continues to post-award fulfillment stages (like Delivery or Invoicing), it counts toward Won.",
+            "Deals that are closed lost or cancelled are excluded from both totals, ensuring the pipeline accurately reflects active work."
+        ]
+    },
+    {
+        "date": "2026-09-21",
         "title": "My SORs",
         "version": "1.7.22",
         "changes": [
