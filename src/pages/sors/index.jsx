@@ -48,8 +48,12 @@ import { leadSourceService } from "../../services/leadSourceService";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
+import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
-import { Building2, Users, Layers, Tag } from "lucide-react";
+import { Building2, Users, Layers, Tag, GitBranch } from "lucide-react";
+
+// Filter value for SORs registered before Sale Types existed (`sale_type_id` null).
+const NO_SALE_TYPE = "NONE";
 
 // Alignment classes are written out in full rather than interpolated —
 // Tailwind scans source for literal class names, so a `text-${align}` would
@@ -112,6 +116,7 @@ export default function OpportunitiesPage() {
   );
   const [leadSourceFilter, setLeadSourceFilter] = useState("ALL");
   const [projectTypeFilter, setProjectTypeFilter] = useState("ALL");
+  const [saleTypeFilter, setSaleTypeFilter] = useState("ALL");
   const [departmentFilter, setDepartmentFilter] = useState("ALL");
   const [subDeptFilter, setSubDeptFilter] = useState("ALL");
   const [ownershipRole, setOwnershipRole] = useState("ALL");
@@ -158,6 +163,11 @@ export default function OpportunitiesPage() {
     if (navState.filterEmployeeId) {
       setEmployeeFilter(navState.filterEmployeeId);
       setView("list");
+      // The drill-down leaves Overview for good, so List is the view to
+      // remember: otherwise a reload restores the "overview" that was saved
+      // before the click and the register jumps back to a screen the user
+      // already left.
+      sessionStorage.setItem("opportunitiesView", "list");
       hasHandledState = true;
     }
     if (navState.filterStatus) {
@@ -178,6 +188,15 @@ export default function OpportunitiesPage() {
   const { data: opportunities = [], isLoading } = useQuery({
     queryKey: ["opportunities"],
     queryFn: () => opportunityService.getOpportunities(),
+  });
+
+  // Someone else moving or editing an SOR redraws the Board and the list here
+  // without a refresh. The signal carries only a row id; the refetch goes
+  // through the same RLS-filtered query as any other load. Debounced because
+  // that refetch is the whole register, and one move can touch the row twice.
+  useTableRealtime("sales_opportunities", {
+    invalidateKeys: [["opportunities"]],
+    debounceMs: 800,
   });
 
   const { data: employees = [] } = useQuery({
@@ -231,6 +250,14 @@ export default function OpportunitiesPage() {
   const { data: saleTypes = [] } = useQuery({
     queryKey: ["saleTypes"],
     queryFn: () => salesFlowService.getSaleTypes(),
+  });
+
+  // The filter lists every Sale Type, archived ones included: an SOR registered
+  // against a since-archived Sale Type is still in the register and must stay
+  // findable by it. The Board's switcher above keeps to the live ones.
+  const { data: allSaleTypes = [] } = useQuery({
+    queryKey: ["saleTypes", "all"],
+    queryFn: () => salesFlowService.getSaleTypes({ includeArchived: true }),
   });
 
   const stageDisplay = (o) => {
@@ -316,6 +343,11 @@ export default function OpportunitiesPage() {
     [opportunities, employeeFilter],
   );
 
+  // The Board has its own Sale Type switcher — it is not a filter, it picks
+  // which flow's Stages are drawn as columns — so a Sale Type chosen here for
+  // the list must not silently empty the Board behind it.
+  const effectiveSaleTypeFilter = view === "board" ? "ALL" : saleTypeFilter;
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return opportunities.filter((o) => {
@@ -325,6 +357,8 @@ export default function OpportunitiesPage() {
       if (stageFilter !== "ALL" && stageFilter !== "OPEN" && o.status !== stageFilter) return false;
       if (leadSourceFilter !== "ALL" && o.lead_source !== leadSourceFilter) return false;
       if (projectTypeFilter !== "ALL" && o.project_type !== projectTypeFilter) return false;
+      if (effectiveSaleTypeFilter === NO_SALE_TYPE && o.sale_type_id) return false;
+      if (effectiveSaleTypeFilter !== "ALL" && effectiveSaleTypeFilter !== NO_SALE_TYPE && o.sale_type_id !== effectiveSaleTypeFilter) return false;
 
       const dealOwner = employees.find(e => e.id === o.deal_owner_id);
       if (departmentFilter !== "ALL" && dealOwner?.department !== departmentFilter) return false;
@@ -371,6 +405,7 @@ export default function OpportunitiesPage() {
     stageFilter,
     leadSourceFilter,
     projectTypeFilter,
+    effectiveSaleTypeFilter,
     departmentFilter,
     subDeptFilter,
     ownershipRole,
@@ -512,6 +547,15 @@ export default function OpportunitiesPage() {
   const currentProjectTypeLabel =
     projectTypeOptions.find((o) => o.value === projectTypeFilter)?.label || "All Types";
 
+  const saleTypeOptions = [
+    { value: "ALL", label: "All SORs" },
+    ...allSaleTypes.map((t) => ({ value: t.id, label: t.archived_at ? `${t.name} (archived)` : t.name })),
+    { value: NO_SALE_TYPE, label: "No Sale Type (legacy)" },
+  ];
+
+  const currentSaleTypeLabel =
+    saleTypeOptions.find((o) => o.value === saleTypeFilter)?.label || "All SORs";
+
   const departments = [...new Set(employees.map(e => e.department).filter(Boolean))];
   const subDepartments = [...new Set(employees.map(e => e.subDepartment).filter(Boolean))];
 
@@ -548,6 +592,7 @@ export default function OpportunitiesPage() {
     stageFilter !== "ALL" ||
     leadSourceFilter !== "ALL" ||
     projectTypeFilter !== "ALL" ||
+    saleTypeFilter !== "ALL" ||
     departmentFilter !== "ALL" ||
     subDeptFilter !== "ALL" ||
     ownershipRole !== "ALL" ||
@@ -560,6 +605,7 @@ export default function OpportunitiesPage() {
     setStageFilter("ALL");
     setLeadSourceFilter("ALL");
     setProjectTypeFilter("ALL");
+    setSaleTypeFilter("ALL");
     setDepartmentFilter("ALL");
     setSubDeptFilter("ALL");
     setOwnershipRole("ALL");
@@ -624,11 +670,12 @@ export default function OpportunitiesPage() {
               )}
             >
               {({ close }) => (
-                <div className="flex w-[min(90vw,560px)] flex-col gap-3 p-1">
-                  <div className="flex flex-wrap gap-2.5">
+                <div className="flex w-[min(90vw,560px)] flex-col gap-2.5 p-1">
+                  {/* Row 1: Departments */}
+                  <div className="flex gap-2.5">
                     <Dropdown
                       usePortal={true}
-                      className="min-w-[170px] flex-1"
+                      className="min-w-0 flex-1"
                       trigger={({ isOpen }) => (
                         <FilterTrigger
                           icon={Building2}
@@ -650,7 +697,7 @@ export default function OpportunitiesPage() {
 
                     <Dropdown
                       usePortal={true}
-                      className="min-w-[170px] flex-1"
+                      className="min-w-0 flex-1"
                       trigger={({ isOpen }) => (
                         <FilterTrigger
                           icon={Building2}
@@ -670,14 +717,17 @@ export default function OpportunitiesPage() {
                         />
                       )}
                     </Dropdown>
+                  </div>
 
-                    <div className="flex flex-1 min-w-[240px] rounded-lg border border-border bg-card">
+                  {/* Row 2: Role / Employee & Project Type */}
+                  <div className="flex gap-2.5">
+                    <div className="flex min-w-0 flex-[2] rounded-lg border border-border bg-card">
                       <Dropdown
                         usePortal={true}
                         className="w-1/2"
                         trigger={({ isOpen }) => (
                           <FilterTrigger
-                            className="border-0 border-r border-border rounded-none rounded-l-lg hover:border-border/80"
+                            className="rounded-none rounded-l-lg border-0 border-r border-border hover:border-border/80"
                             icon={Users}
                             label={currentRoleLabel}
                             isActive={ownershipRole !== "ALL"}
@@ -699,7 +749,7 @@ export default function OpportunitiesPage() {
                         className="w-1/2"
                         trigger={({ isOpen }) => (
                           <FilterTrigger
-                            className="border-0 rounded-none rounded-r-lg hover:border-border/80"
+                            className="rounded-none rounded-r-lg border-0 hover:border-border/80"
                             label={currentEmployeeLabel}
                             isActive={employeeFilter !== "ALL"}
                             isOpen={isOpen}
@@ -719,7 +769,7 @@ export default function OpportunitiesPage() {
 
                     <Dropdown
                       usePortal={true}
-                      className="min-w-[150px] shrink-0"
+                      className="min-w-0 flex-1"
                       trigger={({ isOpen }) => (
                         <FilterTrigger
                           icon={Layers}
@@ -738,23 +788,27 @@ export default function OpportunitiesPage() {
                         />
                       )}
                     </Dropdown>
+                  </div>
 
+                  {/* Row 3: Sale Type (All SORs), Stages, Lead Sources */}
+                  <div className="flex gap-2.5">
                     <Dropdown
                       usePortal={true}
-                      className="min-w-[150px] shrink-0"
+                      className="min-w-0 flex-1"
                       trigger={({ isOpen }) => (
                         <FilterTrigger
-                          label={currentLeadSourceLabel}
-                          isActive={leadSourceFilter !== "ALL"}
+                          icon={GitBranch}
+                          label={currentSaleTypeLabel}
+                          isActive={saleTypeFilter !== "ALL"}
                           isOpen={isOpen}
                         />
                       )}
                     >
                       {({ close: closeInner }) => (
                         <FilterOptionList
-                          options={leadSourceOptions}
-                          value={leadSourceFilter}
-                          onChange={setLeadSourceFilter}
+                          options={saleTypeOptions}
+                          value={saleTypeFilter}
+                          onChange={setSaleTypeFilter}
                           close={closeInner}
                         />
                       )}
@@ -762,7 +816,7 @@ export default function OpportunitiesPage() {
 
                     <Dropdown
                       usePortal={true}
-                      className="min-w-[150px] shrink-0"
+                      className="min-w-0 flex-1"
                       trigger={({ isOpen }) => (
                         <FilterTrigger
                           icon={Tag}
@@ -782,41 +836,67 @@ export default function OpportunitiesPage() {
                       )}
                     </Dropdown>
 
-                    <button
-                      onClick={() => setMineOnly((v) => !v)}
-                      className={`shrink-0 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${mineOnly
-                        ? "bg-primary/10 border-primary/40 text-primary"
-                        : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
-                        }`}
+                    <Dropdown
+                      usePortal={true}
+                      className="min-w-0 flex-1"
+                      trigger={({ isOpen }) => (
+                        <FilterTrigger
+                          label={currentLeadSourceLabel}
+                          isActive={leadSourceFilter !== "ALL"}
+                          isOpen={isOpen}
+                        />
+                      )}
                     >
-                      My Deals
-                    </button>
-                    {/* Sales Director visibility (Stage Gate Engine ticket 6,
-                        story 25) — which deals are stuck on their own Stage,
-                        without hunting for it deal by deal. */}
-                    <button
-                      onClick={() => setBlockedOnly((v) => !v)}
-                      className={`flex shrink-0 items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-bold transition-all ${blockedOnly
-                        ? "bg-red-500/10 border-red-500/40 text-red-600 dark:text-red-400"
-                        : "bg-muted/30 border-border text-muted-foreground hover:text-foreground"
-                        }`}
-                    >
-                      <AlertTriangle size={13} />
-                      Blocked
-                    </button>
+                      {({ close: closeInner }) => (
+                        <FilterOptionList
+                          options={leadSourceOptions}
+                          value={leadSourceFilter}
+                          onChange={setLeadSourceFilter}
+                          close={closeInner}
+                        />
+                      )}
+                    </Dropdown>
                   </div>
 
-                  {hasActiveFilters && (
-                    <button
-                      onClick={() => {
-                        handleClearAll();
-                        close();
-                      }}
-                      className="self-start text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
-                    >
-                      Clear All
-                    </button>
-                  )}
+                  {/* Row 4: Toggles and Clear All */}
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setMineOnly((v) => !v)}
+                        className={`h-9 shrink-0 rounded-xl border px-3.5 text-sm font-bold transition-all ${mineOnly
+                          ? "border-mauve-6 bg-muted font-bold text-foreground ring-1 ring-mauve-4"
+                          : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        My Deals
+                      </button>
+                      {/* Sales Director visibility (Stage Gate Engine ticket 6,
+                          story 25) — which deals are stuck on their own Stage,
+                          without hunting for it deal by deal. */}
+                      <button
+                        onClick={() => setBlockedOnly((v) => !v)}
+                        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-bold transition-all ${blockedOnly
+                          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                          }`}
+                      >
+                        <AlertTriangle size={13} />
+                        Blocked
+                      </button>
+                    </div>
+
+                    {hasActiveFilters && (
+                      <button
+                        onClick={() => {
+                          handleClearAll();
+                          close();
+                        }}
+                        className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Clear filters
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </Dropdown>
@@ -889,6 +969,23 @@ export default function OpportunitiesPage() {
               </span>
             </div>
           </div>
+        ) : view === "board" ? (
+          <OpportunityBoard
+            opportunities={filtered}
+            search={search}
+            deadlineStatuses={deadlineStatuses}
+            flowStagesIndex={flowStagesIndex}
+            snapshotsById={snapshotsById}
+            blockedDeals={blockedDeals}
+            saleTypes={saleTypes}
+            stages={pipelineStages}
+            onCardClick={(o) => setSelectedId(o.id)}
+            onMoved={() => queryClient.invalidateQueries({ queryKey: ["opportunities"] })}
+            currentUserId={user?.id}
+            saleTypeFilter={saleTypeFilter}
+            onSaleTypeChange={setSaleTypeFilter}
+            onSwitchToList={() => changeView("list")}
+          />
         ) : filtered.length === 0 ? (
           <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="flex flex-col items-center justify-center py-16 text-center px-6">
@@ -907,20 +1004,6 @@ export default function OpportunitiesPage() {
               </p>
             </div>
           </div>
-        ) : view === "board" ? (
-          <OpportunityBoard
-            opportunities={filtered}
-            search={search}
-            deadlineStatuses={deadlineStatuses}
-            flowStagesIndex={flowStagesIndex}
-            snapshotsById={snapshotsById}
-            blockedDeals={blockedDeals}
-            saleTypes={saleTypes}
-            stages={pipelineStages}
-            onCardClick={(o) => setSelectedId(o.id)}
-            onMoved={() => queryClient.invalidateQueries({ queryKey: ["opportunities"] })}
-            currentUserId={user?.id}
-          />
         ) : (
           <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">

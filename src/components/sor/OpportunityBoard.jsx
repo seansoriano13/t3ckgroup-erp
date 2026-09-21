@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock, ChevronDown, LayoutGrid, Rows3 } from "lucide-react";
+import { Clock, ChevronDown, LayoutGrid, Rows3, GitBranch } from "lucide-react";
 import Avatar from "../Avatar";
 import Dropdown from "../ui/Dropdown";
 import MoveConfirmDialog from "./MoveConfirmDialog";
@@ -20,7 +20,8 @@ const THEME_DOT = {
   mauve: "bg-mauve-9",
 };
 
-const LEGACY_KEY = "LEGACY";
+const LEGACY_KEY = "NONE";
+const isLegacyValue = (key) => key === "NONE" || key === "LEGACY";
 
 /**
  * SORS Board (issue #206) — one Sale Type's Stages at a time, in the same
@@ -49,6 +50,9 @@ export default function OpportunityBoard({
   onCardClick,
   onMoved,
   currentUserId,
+  saleTypeFilter,
+  onSaleTypeChange,
+  onSwitchToList,
 }) {
   const pipelineOpportunities = useMemo(
     () => opportunities.filter((o) => !o.sale_type_id),
@@ -69,6 +73,7 @@ export default function OpportunityBoard({
   // Sale Type switcher — remembered per person, like the sidebar's own state.
   const storageKey = currentUserId ? `erp_board_sale_type_${currentUserId}` : null;
   const [selected, setSelected] = useState(() => {
+    if (saleTypeFilter) return saleTypeFilter;
     if (!storageKey) return null;
     try {
       return localStorage.getItem(storageKey) || null;
@@ -79,16 +84,34 @@ export default function OpportunityBoard({
 
   useEffect(() => {
     if (selected) return;
-    if (saleTypes.length > 0) setSelected(saleTypes[0].id);
-    else setSelected(LEGACY_KEY);
+    if (saleTypes.length > 0) {
+      const first = saleTypes[0].id;
+      setSelected(first);
+      onSaleTypeChange?.(first);
+    } else {
+      setSelected(LEGACY_KEY);
+      onSaleTypeChange?.(LEGACY_KEY);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saleTypes.length]);
 
+  // Sync when parent filter changes (e.g. from Filters popover)
+  useEffect(() => {
+    if (saleTypeFilter !== undefined && saleTypeFilter !== selected) {
+      setSelected(saleTypeFilter);
+    }
+  }, [saleTypeFilter]);
+
   const chooseSaleType = (id) => {
     setSelected(id);
+    onSaleTypeChange?.(id);
     if (storageKey) {
       try {
-        localStorage.setItem(storageKey, id);
+        if (id === "ALL") {
+          localStorage.removeItem(storageKey);
+        } else {
+          localStorage.setItem(storageKey, id);
+        }
       } catch {
         // Ignore storage errors
       }
@@ -114,24 +137,25 @@ export default function OpportunityBoard({
     });
   };
 
-  const isLegacy = selected === LEGACY_KEY || saleTypes.length === 0;
+  const isLegacy = isLegacyValue(selected) || (selected !== "ALL" && saleTypes.length === 0);
 
   const activeFlow = useMemo(() => {
-    if (isLegacy || !flowStagesIndex) return null;
+    if (selected === "ALL" || isLegacy || !flowStagesIndex) return null;
     return Object.values(flowStagesIndex.flowsById).find((f) => f.sale_type_id === selected) || null;
-  }, [isLegacy, flowStagesIndex, selected]);
+  }, [selected, isLegacy, flowStagesIndex]);
 
   const activeFlowStages = useMemo(() => {
     if (!activeFlow) return [];
     return flowStagesIndex.stagesByFlow[activeFlow.id] || [];
   }, [activeFlow, flowStagesIndex]);
 
-  const flowOpportunities = useMemo(
-    () => flowOpportunitiesAll.filter((o) => o.sale_type_id === selected),
-    [flowOpportunitiesAll, selected],
-  );
+  const flowOpportunities = useMemo(() => {
+    if (selected === "ALL") return [];
+    return flowOpportunitiesAll.filter((o) => o.sale_type_id === selected);
+  }, [flowOpportunitiesAll, selected]);
 
   const columns = useMemo(() => {
+    if (selected === "ALL") return [];
     if (isLegacy) return legacyBoardColumns({ stages, opportunities: pipelineOpportunities });
     return flowBoardColumns({
       stages: activeFlowStages,
@@ -139,7 +163,7 @@ export default function OpportunityBoard({
       snapshotsById,
       flow: activeFlow,
     });
-  }, [isLegacy, stages, pipelineOpportunities, activeFlowStages, flowOpportunities, snapshotsById, activeFlow]);
+  }, [selected, isLegacy, stages, pipelineOpportunities, activeFlowStages, flowOpportunities, snapshotsById, activeFlow]);
 
   const columnKeys = useMemo(() => new Set(columns.map((c) => c.key)), [columns]);
 
@@ -191,7 +215,9 @@ export default function OpportunityBoard({
                 }`}
             >
               <span className="truncate">
-                {isLegacy
+                {selected === "ALL"
+                  ? "All SORs"
+                  : isLegacy
                   ? "Legacy pipeline"
                   : saleTypes.find((s) => s.id === selected)?.name || "Choose a Sale Type"}
               </span>
@@ -201,6 +227,17 @@ export default function OpportunityBoard({
         >
           {({ close }) => (
             <div className="flex min-w-[200px] flex-col gap-0.5 rounded-xl border border-border bg-card p-1.5 shadow-lg">
+              <button
+                onClick={() => {
+                  chooseSaleType("ALL");
+                  close();
+                }}
+                className={`rounded-lg px-2.5 py-1.5 text-left text-[13px] font-semibold transition-colors ${selected === "ALL" ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60"
+                  }`}
+              >
+                All SORs
+              </button>
+              <div className="my-1 h-px bg-border" />
               {saleTypes.map((st) => (
                 <button
                   key={st.id}
@@ -239,35 +276,84 @@ export default function OpportunityBoard({
         </button>
       </div>
 
-      <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto pb-2 items-start">
-        {columns.map((column, idx) => {
-          const showBracketHeader =
-            column.bracketLabel && (idx === 0 || columns[idx - 1].bracketLabel !== column.bracketLabel);
-          return (
-            <BoardColumn
-              key={column.key}
-              column={column}
-              bracketHeader={showBracketHeader ? column.bracketLabel : null}
-              search={search}
-              density={density}
-              deadlineStatuses={deadlineStatuses}
-              onCardClick={onCardClick}
-              draggable={!isLegacy}
-              isDragTarget={dragging?.allowedStageIds?.has(column.key)}
-              isDragging={Boolean(dragging)}
-              draggingId={dragging?.opportunity?.id}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDrop={() => handleDrop(column)}
-            />
-          );
-        })}
-        {columns.length === 0 && (
-          <p className="py-8 text-sm text-muted-foreground">
-            {isLegacy ? "No legacy SORs." : "This Sale Type has no Stages yet."}
-          </p>
-        )}
-      </div>
+      {selected === "ALL" ? (
+        <div className="flex flex-1 items-center justify-center p-6">
+          <div className="flex max-w-lg flex-col items-center rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+              <GitBranch size={24} />
+            </div>
+            <h3 className="text-base font-bold text-foreground">All SORs Selected</h3>
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              Kanban boards visualize one Sales Flow at a time because each flow has unique stages. Choose a Sales Flow to view its pipeline, or switch to the List view to see all SORs at once.
+            </p>
+
+            {saleTypes.length > 0 && (
+              <div className="mt-6 flex w-full flex-col gap-2">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">
+                  Select a Sales Flow
+                </span>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {saleTypes.map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => chooseSaleType(st.id)}
+                      className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-bold text-foreground transition-all hover:border-border/80 hover:bg-muted"
+                    >
+                      <GitBranch size={13} className="text-muted-foreground" />
+                      {st.name}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => chooseSaleType(LEGACY_KEY)}
+                    className="flex items-center gap-1.5 rounded-xl border border-border bg-muted/40 px-3.5 py-2 text-xs font-bold text-foreground transition-all hover:border-border/80 hover:bg-muted"
+                  >
+                    Legacy pipeline
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {onSwitchToList && (
+              <button
+                onClick={onSwitchToList}
+                className="mt-6 text-xs font-bold text-muted-foreground underline underline-offset-4 transition-colors hover:text-foreground"
+              >
+                Switch to List View
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-1 min-h-0 gap-3 overflow-x-auto pb-2 items-start">
+          {columns.map((column, idx) => {
+            const showBracketHeader =
+              column.bracketLabel && (idx === 0 || columns[idx - 1].bracketLabel !== column.bracketLabel);
+            return (
+              <BoardColumn
+                key={column.key}
+                column={column}
+                bracketHeader={showBracketHeader ? column.bracketLabel : null}
+                search={search}
+                density={density}
+                deadlineStatuses={deadlineStatuses}
+                onCardClick={onCardClick}
+                draggable={!isLegacy}
+                isDragTarget={dragging?.allowedStageIds?.has(column.key)}
+                isDragging={Boolean(dragging)}
+                draggingId={dragging?.opportunity?.id}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDrop={() => handleDrop(column)}
+              />
+            );
+          })}
+          {columns.length === 0 && (
+            <p className="py-8 text-sm text-muted-foreground">
+              {isLegacy ? "No legacy SORs." : "This Sale Type has no Stages yet."}
+            </p>
+          )}
+        </div>
+      )}
 
       <MoveConfirmDialog
         isOpen={Boolean(pendingMove)}
