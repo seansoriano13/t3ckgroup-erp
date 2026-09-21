@@ -126,6 +126,20 @@ describe("FlowCanvasNode", () => {
     expect(screen.getByText(/On entry.*5/)).toBeInTheDocument()
   })
 
+  it("keeps a dimmed Fields count at zero, so 'no fields' reads differently from 'not built'", () => {
+    renderNode()
+    const chip = screen.getByText(/Fields.*0/)
+    expect(chip).toBeInTheDocument()
+    expect(chip).toHaveClass("opacity-60")
+  })
+
+  it("shows the Fields count, lit, once a Stage has fields", () => {
+    renderNode({ fieldCount: 2 })
+    const chip = screen.getByText(/Fields.*2/)
+    expect(chip).toHaveClass("bg-blue-a3")
+    expect(chip).not.toHaveClass("opacity-60")
+  })
+
   describe("outgoing plus button (issue #195)", () => {
     it("is always visible when the stage has no outgoing move", () => {
       renderNode({ canAddStage: true, hasOutgoing: false })

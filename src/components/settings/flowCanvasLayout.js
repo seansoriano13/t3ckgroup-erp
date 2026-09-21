@@ -1,9 +1,10 @@
 /**
  * Flow Canvas geometry — pure arithmetic, no React and no React Flow.
  *
- * A Stage on the canvas is not one box. It is a Stage node with two columns of
+ * A Stage on the canvas is not one box. It is a Stage node with three columns of
  * satellites hanging off it: the conditions that gate a deal on the way out,
- * and the actions that fire on the way in. Every consumer of that shape needs
+ * the actions that fire on the way in, and the fields the Stage asks the deal
+ * to fill in. Every consumer of that shape needs
  * the same numbers — the node builder places the satellites, auto-layout has to
  * reserve room for them, and neither may disagree with the other about where a
  * Stage actually ends. So the numbers live here, once.
@@ -13,8 +14,9 @@
  *
  * Coordinates: a satellite's position is relative to its Stage node's top-left,
  * which is what React Flow wants from a child node (`parentId`). Conditions
- * hang below-left, actions below-right, and both start below the Stage's own
- * band so they never cross the horizontal edges of the flow itself.
+ * hang below-left, actions below-right, fields straight below, and all three
+ * start below the Stage's own band so they never cross the horizontal edges of
+ * the flow itself.
  */
 
 export const STAGE_W = 264
@@ -38,9 +40,10 @@ export const SAT_GAP_X = 32
  */
 export const SAT_VISIBLE = 4
 
-/** The two satellite columns, by the handle they hang from. */
+/** The three satellite columns, by the handle they hang from. */
 export const GATE = "gate"
 export const RUN = "run"
+export const FIELDS = "fields"
 
 /** Vertical room a bracket's brace-and-label reserves above its Stages. */
 export const BRACKET_H = 48
@@ -120,6 +123,9 @@ export function bracketNode(run) {
 const COLUMN_X = {
   [GATE]: -(SAT_W + SAT_GAP_X),
   [RUN]: STAGE_W + SAT_GAP_X,
+  // Centred under the Stage: narrower than the Stage, so it adds no width to
+  // the Stage's box and never crowds a neighbour.
+  [FIELDS]: (STAGE_W - SAT_W) / 2,
 }
 
 /**
@@ -216,14 +222,15 @@ export function midpointStagePosition(source, target, stages = []) {
   return { x, y }
 }
 
-export function stageBox({ conditionCount = 0, actionCount = 0 } = {}) {
+export function stageBox({ conditionCount = 0, actionCount = 0, fieldCount = 0 } = {}) {
   const gateRows = columnRows(conditionCount)
   const runRows = columnRows(actionCount)
+  const fieldRows = columnRows(fieldCount)
 
   const left = gateRows > 0 ? COLUMN_X[GATE] : 0
   const right = runRows > 0 ? COLUMN_X[RUN] + SAT_W : STAGE_W
 
-  const rows = Math.max(gateRows, runRows)
+  const rows = Math.max(gateRows, runRows, fieldRows)
   const bottom =
     rows > 0 ? STAGE_H + SAT_DROP + rows * (SAT_H + SAT_GAP_Y) - SAT_GAP_Y : STAGE_H
 

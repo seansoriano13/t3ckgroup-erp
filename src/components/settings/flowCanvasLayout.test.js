@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   BRACKET_H,
   BRACKET_PAD_X,
+  FIELDS,
   GATE,
   RUN,
   SAT_H,
@@ -93,11 +94,39 @@ describe("flowCanvasLayout", () => {
       expect(tall.height).toBe(stageBox({ conditionCount: 3, actionCount: 1 }).height)
     })
 
+    it("makes room below for fields without widening the Stage", () => {
+      const bare = stageBox()
+      const withFields = stageBox({ fieldCount: 2 })
+
+      // The Fields column sits centred under the node, narrower than it — so a
+      // Stage that only has fields is taller, never wider, and never shifts.
+      expect(withFields.width).toBe(bare.width)
+      expect(withFields.offsetX).toBe(0)
+      expect(withFields.height).toBeGreaterThan(bare.height)
+    })
+
+    it("grows to the longest of all three columns", () => {
+      expect(stageBox({ fieldCount: 3, conditionCount: 1, actionCount: 1 }).height).toBe(
+        stageBox({ conditionCount: 3 }).height,
+      )
+    })
+
     it("reserves room for the overflow node, not just the drawn items", () => {
       const capped = stageBox({ conditionCount: SAT_VISIBLE })
       const overflowing = stageBox({ conditionCount: SAT_VISIBLE + 9 })
       // Nine extra conditions collapse into one node — one extra row, no more.
       expect(overflowing.height).toBe(capped.height + SAT_H + SAT_GAP_Y)
+    })
+  })
+
+  describe("satellitePosition", () => {
+    it("hangs fields straight under the Stage, between the conditions and the actions", () => {
+      const fields = satellitePosition(FIELDS, 0)
+
+      expect(fields.x).toBe((STAGE_W - SAT_W) / 2)
+      expect(fields.x).toBeGreaterThan(satellitePosition(GATE, 0).x + SAT_W)
+      expect(fields.x + SAT_W).toBeLessThan(satellitePosition(RUN, 0).x)
+      expect(fields.y).toBe(satellitePosition(GATE, 0).y)
     })
   })
 

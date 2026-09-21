@@ -22,8 +22,9 @@ import { initialsOf } from "@/utils/stageAudience";
  * A Stage on the Flow Canvas.
  *
  * Left and right handles carry the flow itself — the moves a deal may make.
- * The two handles on the bottom edge carry no moves at all: they anchor the
- * Stage's gate (its conditions, hanging below-left) and its run (its actions,
+ * The three handles on the bottom edge carry no moves at all: they anchor the
+ * Stage's gate (its conditions, hanging below-left), its fields (what it asks
+ * the deal to fill in, hanging straight below) and its run (its actions,
  * hanging below-right), so what a Stage *demands* and what it *does* are read
  * off the canvas rather than found by clicking through to a panel.
  *
@@ -32,7 +33,7 @@ import { initialsOf } from "@/utils/stageAudience";
  * node that also carries two bottom anchors is a coin toss — and it lands on
  * the gate anchor, which is why a move used to leave from under the node's
  * bottom-left corner instead of its right edge. IN/OUT are the flow's own
- * handles; GATE/RUN belong to the satellites and are never user-connectable.
+ * handles; GATE/FIELDS/RUN belong to the satellites and are never user-connectable.
  */
 
 export const HANDLE_IN = "in";
@@ -131,8 +132,13 @@ const Chip = ({ className, icon: Icon, children, ...rest }) => (
   </span>
 );
 
-/** The dashed anchor a satellite column hangs from. Never user-connectable. */
-const SubHandle = ({ id, left, tone, count, label }) => (
+/**
+ * The dashed anchor a satellite column hangs from. Never user-connectable.
+ *
+ * `showAtZero` keeps the count chip on a column with nothing in it, dimmed:
+ * "no fields" and "fields not built" must not look the same.
+ */
+const SubHandle = ({ id, left, tone, count, label, showAtZero = false }) => (
   <>
     <Handle
       type="source"
@@ -142,11 +148,11 @@ const SubHandle = ({ id, left, tone, count, label }) => (
       className="!h-2 !w-2 !min-w-0 !border-0 !bg-mauve-8"
       style={{ left, opacity: count > 0 ? 1 : 0 }}
     />
-    {count > 0 && (
+    {(count > 0 || showAtZero) && (
       <span
         className={cn(
           "pointer-events-none absolute top-full mt-2 -translate-x-1/2 rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] tabular-nums",
-          tone,
+          count > 0 ? tone : "bg-mauve-a3 text-mauve-11 opacity-60",
         )}
         style={{ left }}
       >
@@ -299,6 +305,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
     disabled,
     conditionCount = 0,
     actionCount = 0,
+    fieldCount = 0,
     hasOutgoing = false,
     canAddStage = false,
     onAddStage,
@@ -421,6 +428,14 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
         tone="bg-amber-a3 text-amber-11"
       />
       <SubHandle
+        id="fields"
+        left="50%"
+        count={fieldCount}
+        label="Fields"
+        tone="bg-blue-a3 text-blue-11"
+        showAtZero
+      />
+      <SubHandle
         id="run"
         left="76%"
         count={actionCount}
@@ -462,6 +477,7 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
       {/* Screen-reader summary: the two chips above read as counts out of context. */}
       <span className="sr-only">
         {conditionCount} condition{conditionCount === 1 ? "" : "s"} to leave,{" "}
+        {fieldCount} field{fieldCount === 1 ? "" : "s"} to fill in,{" "}
         {actionCount} action{actionCount === 1 ? "" : "s"} on entry.
       </span>
     </div>

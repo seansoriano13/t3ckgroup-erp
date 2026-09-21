@@ -10,6 +10,7 @@ import {
   makeSaleType,
   makeSalesFlow,
   makeStageCondition,
+  makeStageField,
   makeSuperAdmin,
 } from "@/test/factories"
 
@@ -448,6 +449,50 @@ describe("FlowCanvas", () => {
     // The clicked satellite itself carries React Flow's own selected class —
     // it isn't left looking like every other unclicked card.
     expect(satelliteNode).toHaveClass("selected")
+  })
+
+  // A Stage's fields used to be readable only inside its settings panel, so a
+  // Stage with customised fields looked identical to one with none.
+  it("draws a Stage's fields as satellite cards, and clicking one opens the panel on the Fields tab", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    makeStageField({ stage_id: lead.id, label: "Bid bond number", source: "custom", field_type: "text", is_required: true })
+    makeStageField({
+      stage_id: lead.id,
+      label: "Retired field",
+      source: "custom",
+      field_type: "text",
+      archived_at: "2026-01-01T00:00:00.000Z",
+    })
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    const satellite = await screen.findByText("Bid bond number")
+    // Archived fields are not part of the Stage any more.
+    expect(screen.queryByText("Retired field")).not.toBeInTheDocument()
+    // A required field says it blocks leaving — without being counted as a Gate condition.
+    expect(screen.getByText("Text · blocks leaving")).toBeInTheDocument()
+    expect(screen.getByText(/Fields · 1/)).toBeInTheDocument()
+
+    fireEvent.click(satellite.closest(".react-flow__node"))
+
+    // The Fields tab lists the same field again, in the panel.
+    await waitFor(() => expect(screen.getAllByText("Bid bond number").length).toBeGreaterThan(1))
+  })
+
+  it("keeps a dimmed Fields count on a Stage that has none, so 'no fields' is visible", async () => {
+    const user = setupUser()
+    const { saleType, flow, lead, awarded } = seedFlow()
+    makeFlowEdge(lead, awarded)
+    await salesFlowService.setWonStage(flow.id, awarded.id, mockUser.current.id)
+
+    renderWithProviders(<FlowCanvas />)
+    await user.click(await screen.findByRole("button", { name: saleType.name }))
+
+    expect((await screen.findAllByText(/Fields · 0/)).length).toBe(2)
   })
 
   it("disables Restore on a published Sales Flow, hinting to edit the draft first", async () => {

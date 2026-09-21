@@ -16,9 +16,14 @@ import {
   User,
   ListChecks,
   ShoppingCart,
+  Database,
+  Type,
+  Hash,
+  CalendarDays,
 } from "lucide-react"
 
 import { CONDITION_KINDS } from "../../constants/stageGate"
+import { SOR_STAGE_FIELDS } from "../../constants/stageFields"
 import { acceptsLabel } from "../../utils/attachments"
 
 /**
@@ -150,4 +155,36 @@ export function actionSummary(action) {
   }
 
   return summary
+}
+
+/**
+ * What a Stage Field is, for its canvas satellite: an SOR field (written to
+ * the SOR itself) or a custom one of a given input type. Kept beside the
+ * condition and action kinds so the canvas names all three the same way the
+ * panel does.
+ */
+const CUSTOM_FIELD_META = {
+  text: { label: "Text", icon: Type },
+  number: { label: "Number", icon: Hash },
+  date: { label: "Date", icon: CalendarDays },
+  choice: { label: "Choice", icon: ListChecks },
+}
+
+export function fieldMeta(field) {
+  if (field?.source === "sor") return { label: "SOR field", icon: Database }
+  return CUSTOM_FIELD_META[field?.field_type] ?? { label: "Custom", icon: Type }
+}
+
+/**
+ * The satellite's second line: what kind of field it is, and — for a required
+ * one — that it blocks leaving the Stage. A required Stage Field blocks the way
+ * out but is not a Stage Condition, so it says so here rather than being counted
+ * under the Gate.
+ */
+export function fieldDetail(field) {
+  const kind =
+    field?.source === "sor"
+      ? `SOR field · ${SOR_STAGE_FIELDS[field.sor_field]?.label ?? field.sor_field}`
+      : fieldMeta(field).label
+  return field?.is_required ? `${kind} · blocks leaving` : kind
 }

@@ -85,6 +85,7 @@ import FlowVersionRail, { FlowVersionStatusChip } from "./FlowVersionRail";
 import FlowVersionViewer from "../sor/FlowVersionViewer";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 import {
+  FIELDS,
   GATE,
   RUN,
   bracketNode,
@@ -113,6 +114,8 @@ const edgeTypes = {
  * infinite rebuild loop rather than a missing value.
  */
 const NO_SATELLITES = Object.freeze({});
+// Which Stage settings tab a satellite opens, by the column it hangs in.
+const SATELLITE_TAB = { [GATE]: "conditions", [FIELDS]: "fields", [RUN]: "actions" };
 // Same reasoning as NO_SATELLITES above, for the #296 access-lens reads: a
 // fresh `[]`/`{}` default on every render while a query is still unsettled
 // is a new dependency on every render, which is an infinite rebuild loop of
@@ -121,7 +124,11 @@ const NO_EMPLOYEES = Object.freeze([]);
 const NO_GROUPS = Object.freeze([]);
 
 const EDGE_COLOR = "var(--mauve-9)";
-const SATELLITE_COLOR = { [GATE]: "var(--amber-a8)", [RUN]: "var(--violet-a8)" };
+const SATELLITE_COLOR = {
+  [GATE]: "var(--amber-a8)",
+  [FIELDS]: "var(--blue-a8)",
+  [RUN]: "var(--violet-a8)",
+};
 
 const defaultEdgeOptions = {
   type: "move",
@@ -134,12 +141,14 @@ const defaultEdgeOptions = {
  * the SORS process together on this one screen, against staging.
  *
  * The canvas shows the whole contract of a flow, not just its shape: every
- * Stage carries its conditions below-left and its actions below-right, drawn
- * as satellites of the Stage that owns them. What blocks a deal from leaving
- * and what fires when it arrives are properties of a Stage, so they are read in
- * the same glance as the Stage — no panel, no click.
+ * Stage carries its conditions below-left, its fields straight below and its
+ * actions below-right, drawn as satellites of the Stage that owns them. What
+ * blocks a deal from leaving, what it must fill in and what fires when it
+ * arrives are properties of a Stage, so they are read in the same glance as the
+ * Stage — no panel, no click.
  *
- * Wired to salesFlowService, stageConditionService and stageActionService.
+ * Wired to salesFlowService, stageConditionService, stageFieldService and
+ * stageActionService.
  * Every question about the flow itself is asked of constants/salesFlow.js, and
  * every question about where a satellite sits is asked of flowCanvasLayout.js,
  * so this component can never disagree with either about the answer.
@@ -165,6 +174,7 @@ function FlowCanvasInner() {
     salesFlow: salesFlowService,
     stageCondition: stageConditionService,
     stageAction: stageActionService,
+    stageField: stageFieldService,
     presenceScope: contextPresenceScope,
   } = useFlowData();
   const queryClient = useQueryClient();
@@ -266,6 +276,14 @@ function FlowCanvasInner() {
   const { data: actionsByStage = NO_SATELLITES } = useQuery({
     queryKey: ["stageActionsByStage", stageKey],
     queryFn: () => stageActionService.getForStages(stageIds),
+    enabled: stageIds.length > 0,
+  });
+
+  // Live fields only (archived ones are not part of the Stage any more). The
+  // key is the one the Fields tab and `refresh` already invalidate.
+  const { data: fieldsByStage = NO_SATELLITES } = useQuery({
+    queryKey: ["stageFieldsByStage", stageKey],
+    queryFn: () => stageFieldService.getForStages(stageIds),
     enabled: stageIds.length > 0,
   });
 
@@ -671,6 +689,7 @@ function FlowCanvasInner() {
           disabled: isLocked,
           conditionCount: (conditionsByStage[stage.id] ?? []).length,
           actionCount: (actionsByStage[stage.id] ?? []).length,
+          fieldCount: (fieldsByStage[stage.id] ?? []).length,
           hasOutgoing: edges.some((e) => e.from_stage_id === stage.id),
           canAddStage: !isLocked,
           onAddStage: (name) => addStageAfter(stage, name),
@@ -731,6 +750,7 @@ function FlowCanvasInner() {
 
       const columns = [
         { column: GATE, items: conditionsByStage[stage.id] ?? [], variant: "condition", addLabel: "Condition" },
+        { column: FIELDS, items: fieldsByStage[stage.id] ?? [], variant: "field", addLabel: "Field" },
         { column: RUN, items: actionsByStage[stage.id] ?? [], variant: "action", addLabel: "Action" },
       ];
 
@@ -794,6 +814,7 @@ function FlowCanvasInner() {
     entry,
     conditionsByStage,
     actionsByStage,
+    fieldsByStage,
     stageAccessByStage,
     audienceByStage,
     accessLens,
@@ -919,7 +940,7 @@ function FlowCanvasInner() {
     setSelection({
       nodeId: node.id,
       stageId: node.data.stageId,
-      tab: node.data.column === GATE ? "conditions" : "actions",
+      tab: SATELLITE_TAB[node.data.column],
     });
   }, []);
 
@@ -939,6 +960,7 @@ function FlowCanvasInner() {
       const box = stageBox({
         conditionCount: (conditionsByStage[stage.id] ?? []).length,
         actionCount: (actionsByStage[stage.id] ?? []).length,
+        fieldCount: (fieldsByStage[stage.id] ?? []).length,
       });
       boxes[stage.id] = box;
       g.setNode(stage.id, { width: box.width, height: box.height });
@@ -968,7 +990,7 @@ function FlowCanvasInner() {
         console.error(err);
         toast.error("The layout could not be saved. Try again.");
       });
-  }, [stages, edges, conditionsByStage, actionsByStage, user?.id, refresh]);
+  }, [stages, edges, conditionsByStage, actionsByStage, fieldsByStage, user?.id, refresh]);
 
   const selectedSaleType = saleTypes?.find((t) => t.id === effectiveSaleTypeId) ?? null;
   const showEmptySaleTypes = !effectiveSaleTypeId && !loadingTypes;

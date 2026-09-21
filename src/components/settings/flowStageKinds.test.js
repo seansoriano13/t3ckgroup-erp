@@ -7,6 +7,8 @@ import {
   actionSummary,
   actionTitle,
   conditionDetail,
+  fieldDetail,
+  fieldMeta,
 } from "./flowStageKinds"
 
 describe("flowStageKinds", () => {
@@ -124,6 +126,43 @@ describe("flowStageKinds", () => {
       expect(
         conditionDetail({ kind: CONDITION_KINDS.PROJECT_EVALUATION, config: {} }),
       ).toBeNull()
+    })
+  })
+
+  describe("fieldDetail", () => {
+    it("names an SOR field by the SOR field it writes to, and says a required one blocks leaving", () => {
+      expect(
+        fieldDetail({ source: "sor", sor_field: "expected_award_date", is_required: true }),
+      ).toBe("SOR field · Expected Award Date · blocks leaving")
+    })
+
+    it("names a custom field by its input type", () => {
+      expect(fieldDetail({ source: "custom", field_type: "choice", is_required: false })).toBe("Choice")
+      expect(fieldDetail({ source: "custom", field_type: "number", is_required: true })).toBe(
+        "Number · blocks leaving",
+      )
+    })
+
+    it("falls back to the raw key for an SOR field it has no label for", () => {
+      expect(fieldDetail({ source: "sor", sor_field: "gone_field", is_required: false })).toBe(
+        "SOR field · gone_field",
+      )
+    })
+  })
+
+  describe("fieldMeta", () => {
+    it("gives every kind of field an icon and a label", () => {
+      for (const field of [
+        { source: "sor" },
+        { source: "custom", field_type: "text" },
+        { source: "custom", field_type: "number" },
+        { source: "custom", field_type: "date" },
+        { source: "custom", field_type: "choice" },
+        { source: "custom", field_type: "something_new" },
+      ]) {
+        expect(fieldMeta(field).label).toBeTruthy()
+        expect(fieldMeta(field).icon).toBeTruthy()
+      }
     })
   })
 })

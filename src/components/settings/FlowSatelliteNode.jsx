@@ -10,13 +10,15 @@ import {
   actionTitle,
   actionSummary,
   conditionDetail,
+  fieldDetail,
+  fieldMeta,
 } from "./flowStageKinds";
 import TemplateTokenText from "@/components/ui/TemplateTokenText";
 
 /**
  * The small nodes that hang off a Stage: one per condition on the gate side,
- * one per action on the run side, plus the overflow and add-slot nodes that
- * stand in for what is not drawn.
+ * one per action on the run side, one per field straight below, plus the
+ * overflow and add-slot nodes that stand in for what is not drawn.
  *
  * They are children of their Stage node (`parentId`), so React Flow moves them
  * when the Stage is dragged and they never drift out of alignment with it.
@@ -35,6 +37,11 @@ const TONE = {
     tile: "bg-violet-a3 text-violet-11",
     line: "outline-violet-a6",
     hover: "hover:outline-violet-8",
+  },
+  fields: {
+    tile: "bg-blue-a3 text-blue-11",
+    line: "outline-blue-a6",
+    hover: "hover:outline-blue-8",
   },
 };
 
@@ -120,6 +127,26 @@ function FlowSatelliteNode({ data, selected }) {
             data.action.config?.confirmMode === "confirm" && (
               <span className="shrink-0 rounded bg-violet-a4 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-violet-11">
                 Confirm
+              </span>
+            )
+          }
+        />
+      );
+    }
+
+    if (variant === "field") {
+      const meta = fieldMeta(data.field);
+      return (
+        <SatelliteBody
+          column={column}
+          selected={selected}
+          icon={meta.icon}
+          title={data.field.label}
+          detail={fieldDetail(data.field)}
+          badge={
+            data.field.is_required && (
+              <span className="shrink-0 rounded bg-blue-a4 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-blue-11">
+                Required
               </span>
             )
           }
