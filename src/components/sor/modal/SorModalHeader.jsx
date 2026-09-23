@@ -18,15 +18,16 @@ import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
+import { Button } from "../../ui/button";
 
 const TONE_CLASSES = {
-  green: { current: "bg-green-9 text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
-  amber: { current: "bg-amber-9 text-white", completed: "bg-amber-9/20 text-amber-11 hover:bg-amber-9/30" },
-  blue: { current: "bg-blue-9 text-white", completed: "bg-blue-9/20 text-blue-11 hover:bg-blue-9/30" },
-  red: { current: "bg-red-9 text-white", completed: "bg-red-9/20 text-red-11 hover:bg-red-9/30" },
-  violet: { current: "bg-violet-9 text-white", completed: "bg-violet-9/20 text-violet-11 hover:bg-violet-9/30" },
-  orange: { current: "bg-orange-9 text-white", completed: "bg-orange-9/20 text-orange-11 hover:bg-orange-9/30" },
-  mauve: { current: "bg-mauve-9 text-white", completed: "bg-mauve-9/20 text-mauve-11 hover:bg-mauve-9/30" },
+  green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
+  amber: { current: "bg-amber-9 text-white hover:bg-amber-9 hover:text-white", completed: "bg-amber-9/20 text-amber-11 hover:bg-amber-9/30" },
+  blue: { current: "bg-blue-9 text-white hover:bg-blue-9 hover:text-white", completed: "bg-blue-9/20 text-blue-11 hover:bg-blue-9/30" },
+  red: { current: "bg-red-9 text-white hover:bg-red-9 hover:text-white", completed: "bg-red-9/20 text-red-11 hover:bg-red-9/30" },
+  violet: { current: "bg-violet-9 text-white hover:bg-violet-9 hover:text-white", completed: "bg-violet-9/20 text-violet-11 hover:bg-violet-9/30" },
+  orange: { current: "bg-orange-9 text-white hover:bg-orange-9 hover:text-white", completed: "bg-orange-9/20 text-orange-11 hover:bg-orange-9/30" },
+  mauve: { current: "bg-mauve-9 text-white hover:bg-mauve-9 hover:text-white", completed: "bg-mauve-9/20 text-mauve-11 hover:bg-mauve-9/30" },
 };
 
 /**
@@ -108,8 +109,9 @@ export default function SorModalHeader({
                 ref={isCurrent ? activeChevronRef : undefined}
                 className="flex flex-none"
               >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 aria-current={isCurrent ? "step" : undefined}
                 aria-disabled={moveDisabled || stageMutation.isPending || isCurrent || undefined}
                 aria-label={isCurrent ? `${s.label || s.code} (current stage)` : moveDisabled ? `${s.label || s.code}, you can't move this deal` : `Move to ${s.label || s.code}`}
@@ -120,7 +122,7 @@ export default function SorModalHeader({
                 }}
                 title={moveDisabled ? moveDisabledReason : undefined}
                 className={cn(
-                  "relative flex h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none items-center justify-center px-5 text-[11px] font-bold tracking-wider uppercase transition-all duration-200",
+                  "relative h-full focus-visible:outline-2 focus-visible:-outline-offset-4 focus-visible:outline-current flex-none rounded-none px-5 text-[11px] font-bold tracking-wider uppercase",
                   moveDisabled ? "cursor-default" : "cursor-pointer",
                   isCompleted && classes.completed,
                   isCurrent && cn(classes.current, "shadow-inner"),
@@ -146,7 +148,7 @@ export default function SorModalHeader({
                   {isCurrent && <div className="size-1.5 shrink-0 animate-pulse rounded-full bg-white" />}
                   {s.label}
                 </span>
-              </button>
+              </Button>
               </li>
             );
           })}
@@ -214,54 +216,66 @@ export default function SorModalHeader({
         <div className="flex shrink-0 items-center gap-1">
           {(hasPrev || hasNext) && (
             <>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={onPrev}
                 disabled={!hasPrev}
                 title="Previous"
                 aria-label="Previous opportunity"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
+                className="text-muted-foreground"
               >
                 <ChevronLeft size={15} />
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={onNext}
                 disabled={!hasNext}
                 title="Next"
                 aria-label="Next opportunity"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground disabled:opacity-30"
+                className="text-muted-foreground"
               >
                 <ChevronRightIcon size={15} />
-              </button>
+              </Button>
               <div className="mx-1 h-4 w-px bg-border/60" />
             </>
           )}
           {isEditing ? (
             <>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
                 onClick={handleEditToggle}
-                className="rounded-md px-3 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                size="sm"
                 onClick={() => updateMutation.mutate(editForm)}
                 disabled={updateMutation.isPending}
-                className="rounded-md bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
               >
                 {updateMutation.isPending ? "Saving..." : "Save"}
-              </button>
+              </Button>
             </>
           ) : (
             <>
               {canEdit && (
-                <button
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
                   onClick={handleEditToggle}
                   title="Edit"
                   aria-label="Edit opportunity"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                  className="text-muted-foreground"
                 >
                   <Pencil size={14} />
-                </button>
+                </Button>
               )}
               {/* Rarely-used actions live behind one menu so the header keeps a single row of intent. */}
               <Dropdown
@@ -269,32 +283,36 @@ export default function SorModalHeader({
                 placement="bottom-end"
                 popoverClassName="popover-enter z-[10001] w-44 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     title="More actions"
                     aria-label="More actions"
-                    className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                    className="text-muted-foreground"
                   >
                     <MoreHorizontal size={15} />
-                  </button>
+                  </Button>
                 }
               >
                 {({ close }) => (
                   <div className="flex flex-col gap-0.5">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => {
                         close();
                         setIsExpanded((v) => !v);
                       }}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                      className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-mauve-a3 hover:text-foreground"
                     >
                       {isExpanded ? <Minimize2 size={14} className="text-muted-foreground" /> : <Maximize2 size={14} className="text-muted-foreground" />}
                       {isExpanded ? "Collapse" : "Expand to full screen"}
-                    </button>
+                    </Button>
                     {canEdit && (
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
                         onClick={() => {
                           close();
                           confirmDeleteToast(
@@ -303,23 +321,26 @@ export default function SorModalHeader({
                             () => deleteMutation.mutate(),
                           );
                         }}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-red-9/10 hover:text-red-11"
+                        className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-foreground hover:bg-red-9/10 hover:text-red-11"
                       >
                         <Trash2 size={14} className="text-red-11" />
                         Delete opportunity
-                      </button>
+                      </Button>
                     )}
                   </div>
                 )}
               </Dropdown>
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={onClose}
                 title="Close"
                 aria-label="Close"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+                className="text-muted-foreground"
               >
                 <X size={15} />
-              </button>
+              </Button>
             </>
           )}
         </div>
