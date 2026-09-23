@@ -9,6 +9,7 @@ import PageContainer from "../../components/ui/PageContainer";
 import PageHeader from "../../components/ui/PageHeader";
 import Spinner from "../../components/ui/Spinner";
 import StatusBadge from "../../components/StatusBadge";
+import { Button } from "@/components/ui/button";
 import Avatar from "../../components/Avatar";
 import FilterBar from "../../components/ui/FilterBar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
@@ -67,10 +68,11 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
       </td>
 
       <td className="px-4 py-3">
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={() => onOpenSor(sor.id)}
-          className="group/sor flex items-center gap-1.5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
+          className="group/sor h-auto justify-start gap-1.5 rounded p-0 text-left font-normal hover:bg-transparent"
         >
           <span className="min-w-0">
             <span className="block text-sm font-semibold text-foreground group-hover/sor:text-primary">
@@ -84,7 +86,7 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             size={13}
             className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
           />
-        </button>
+        </Button>
       </td>
 
       <td className="px-4 py-3">

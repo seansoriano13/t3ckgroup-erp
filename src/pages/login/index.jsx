@@ -4,6 +4,7 @@ import { useNavigate, useLocation, Navigate } from "react-router";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import PrimaryButton from "../../components/PrimaryButton";
+import { Button } from "../../components/ui/button";
 import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
@@ -151,13 +152,14 @@ export default function Login() {
                 <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                   Password
                 </label>
-                <button
+                <Button
                   type="button"
+                  variant="link"
                   onClick={handleForgotPassword}
-                  className="text-xs text-mauve-11 font-medium hover:underline"
+                  className="h-auto p-0 text-xs font-medium text-mauve-11 hover:underline"
                 >
                   Forgot password?
-                </button>
+                </Button>
               </div>
               <input
                 className={`${INPUT_STYLE} cursor-text`}

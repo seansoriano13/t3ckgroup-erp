@@ -337,13 +337,17 @@ export default function EmployeeLeavesPage() {
                               </Link>
                             )}
                             {req.status === 'PENDING' && (
-                              <button
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() => handleWithdraw(req)}
-                                className="p-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-lg transition-all inline-block border border-transparent hover:border-destructive/20 cursor-pointer"
+                                className="bg-destructive/10 hover:bg-destructive/20 text-destructive border border-transparent hover:border-destructive/20"
                                 title="Withdraw Request"
+                                aria-label="Withdraw Request"
                               >
                                 <Trash2 size={14} />
-                              </button>
+                              </Button>
                             )}
                           </td>
                         </tr>
