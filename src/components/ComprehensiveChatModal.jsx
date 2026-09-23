@@ -248,13 +248,15 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
               />
             </div>
             {/* Mobile explicit reply button */}
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="icon-sm"
               onClick={() => onReply?.(entry)}
-              className="bg-card border border-border shadow-sm rounded-full p-1.5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
+              className="h-auto w-auto bg-card border-border shadow-sm rounded-full p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted md:hidden"
             >
               <Reply size={14} />
-            </button>
+            </Button>
           </div>
 
           <SwipeToReplyWrapper 
@@ -296,17 +298,18 @@ function MessageBubble({ entry, currentUserId, onReply, onReact }) {
             {Object.entries(reactions).map(([emoji, users]) => {
               const iReacted = users.includes(currentUserId);
               return (
-                <button
+                <Button
                   key={emoji}
+                  variant="outline"
                   onClick={() => onReact && onReact(entry, emoji)}
                   className={cn(
-                    "flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full border bg-card hover:bg-muted transition-colors",
-                    iReacted ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+                    "h-auto flex items-center gap-1 text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-card hover:bg-muted transition-colors",
+                    iReacted ? "border-primary text-primary bg-primary/10 hover:bg-primary/10" : "border-border text-muted-foreground"
                   )}
                 >
                   <span>{emoji}</span>
                   <span>{users.length}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -1046,16 +1049,17 @@ export default function ComprehensiveChatModal({
                 const isChecked = selectedChatIds.has(chatKey);
 
                 return (
-                  <button
+                  <Button
                     key={chatKey}
+                    variant="ghost"
                     onClick={() => handleChatSelect(chat)}
                     className={cn(
-                      "w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 group relative border",
+                      "h-auto w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 group relative border",
                       selectionMode
                         ? "hover:bg-muted"
                         : selectedChat?.entity_id === chat.entity_id &&
                             selectedChat?.entity_type === chat.entity_type
-                          ? "bg-mauve-3 border-mauve-3 ring-1 ring-mauve-6"
+                          ? "bg-mauve-3 border-mauve-3 ring-1 ring-mauve-6 hover:bg-mauve-3"
                           : "bg-transparent border-transparent hover:bg-card hover:border-border",
                     )}
                   >
@@ -1142,7 +1146,7 @@ export default function ComprehensiveChatModal({
                         className="absolute top-1/2 -right-1 -translate-y-1/2 shadow-lg shadow-foreground/40"
                       />
                     )}
-                  </button>
+                  </Button>
                 );
               })
             )}
@@ -1339,19 +1343,21 @@ export default function ComprehensiveChatModal({
                     />
                     <div className="flex items-center justify-between px-2 pt-1 pb-0.5">
                       <div className="flex items-center gap-2">
-                        <button
+                        <Button
                           type="button"
+                          variant="ghost"
+                          size="icon-xs"
                           onClick={() => fileInputRef.current?.click()}
                           disabled={
                             sendMessageMutation.isPending ||
                             isUploading ||
                             isEntityDeleted
                           }
-                          className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                          className="h-auto w-auto text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors disabled:opacity-40"
                           title="Attach photo"
                         >
                           <Paperclip size={15} />
-                        </button>
+                        </Button>
                         <EmojiPicker
                           onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
                           disabled={

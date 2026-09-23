@@ -26,12 +26,12 @@
   },
   "src/components/ComprehensiveChatModal.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 3
     }
   },
   "src/components/EmployeePipelineMatrix.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 1
     }
   },
   "src/components/FieldBox.jsx": {
@@ -76,7 +76,7 @@
   },
   "src/components/NotificationDrawer.jsx": {
     "local/no-raw-html": {
-      "count": 8
+      "count": 1
     }
   },
   "src/components/PersonalizedHeroBanner.jsx": {
@@ -91,7 +91,7 @@
   },
   "src/components/ProcurementResolutionPanel.jsx": {
     "local/no-raw-html": {
-      "count": 14
+      "count": 5
     }
   },
   "src/components/RoleSwitcher.jsx": {
@@ -211,7 +211,7 @@
   },
   "src/components/presentation/PresentationDeck.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 1
     }
   },
   "src/components/presentation/sorSamples.jsx": {
@@ -221,7 +221,7 @@
   },
   "src/components/profile/SignatureCaptureModal.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 1
     }
   },
   "src/components/settings/AccessWindowConfig.jsx": {
