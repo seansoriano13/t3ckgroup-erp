@@ -246,7 +246,7 @@
   },
   "src/components/settings/EmployeeGroupManager.jsx": {
     "local/no-raw-html": {
-      "count": 16
+      "count": 8
     }
   },
   "src/components/settings/FlowCanvas.jsx": {
@@ -262,11 +262,6 @@
   "src/components/settings/FlowMoveEdge.jsx": {
     "local/no-raw-html": {
       "count": 2
-    }
-  },
-  "src/components/settings/FlowVersionRail.jsx": {
-    "local/no-raw-html": {
-      "count": 7
     }
   },
   "src/components/settings/LeadSourceManager.jsx": {
@@ -441,7 +436,7 @@
   },
   "src/pages/approvals/_components/GroupTaskApprovalSection.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 2
     }
   },
   "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
@@ -531,7 +526,7 @@
   },
   "src/pages/hr/offsets/index.jsx": {
     "local/no-raw-html": {
-      "count": 16
+      "count": 7
     }
   },
   "src/pages/login/index.jsx": {
