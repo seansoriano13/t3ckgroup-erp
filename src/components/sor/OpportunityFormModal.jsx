@@ -24,6 +24,7 @@ import { entryStage } from "../../constants/salesFlow";
 import { resolvePeople } from "../../utils/resolvePeople";
 import { employeeGroupService } from "../../services/employeeGroupService";
 import RegistrationField from "./RegistrationField";
+import { Button } from "../ui/button";
 
 const FORM_ID = "opportunity-form";
 
@@ -536,17 +537,18 @@ export default function OpportunityFormModal({
               <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
                 Sales Division
               </label>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={toggleStrategic}
-                className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
+                className={`h-auto text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors ${form.project_type === "STRATEGIC"
                     ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                     : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
                   }`}
                 title="Toggle Strategic project override"
               >
                 {form.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
-              </button>
+              </Button>
             </div>
             <div className="flex items-center gap-2 pt-0.5">
               <span
