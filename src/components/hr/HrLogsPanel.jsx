@@ -18,6 +18,7 @@ import {
   Activity,
   Settings,
 } from "lucide-react";
+import { Button } from "../ui/button";
 import { systemAuditLogService, HR_ENTITY_TYPES } from "../../services/systemAuditLogService";
 import { employeeService } from "../../services/employeeService";
 import { useEmployeeAvatarMap } from "../../hooks/useEmployeeAvatarMap";
@@ -159,13 +160,14 @@ export default function HrLogsPanel() {
               </span>
             </div>
             {hasActiveFilters && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={clearFilters}
-                className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                className="h-auto p-0 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors cursor-pointer"
               >
                 <X size={12} /> Clear
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -374,9 +376,9 @@ export default function HrLogsPanel() {
             {hasActiveFilters ? "Try adjusting your filters." : "Employee, category, and leave/OT actions will show up here."}
           </p>
           {hasActiveFilters && (
-            <button onClick={clearFilters} className="text-xs font-semibold text-primary hover:underline mt-1 cursor-pointer">
+            <Button variant="link" onClick={clearFilters} className="h-auto p-0 text-xs font-semibold text-primary hover:underline mt-1 cursor-pointer">
               Clear filters
-            </button>
+            </Button>
           )}
         </div>
       ) : (
@@ -455,21 +457,23 @@ export default function HrLogsPanel() {
       {/* Pagination */}
       {entries.length > 0 && (
         <div className="flex items-center justify-center gap-3 pt-3 border-t border-border/40">
-          <button
+          <Button
+            variant="outline"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            className="h-auto flex items-center gap-1.5 px-4 py-2 rounded-xl border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             <ChevronLeft size={14} /> Newer
-          </button>
+          </Button>
           <span className="text-[11px] font-bold text-muted-foreground">Page {page + 1}</span>
-          <button
+          <Button
+            variant="outline"
             onClick={() => setPage((p) => p + 1)}
             disabled={entries.length < PAGE_SIZE}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            className="h-auto flex items-center gap-1.5 px-4 py-2 rounded-xl border-border bg-card text-muted-foreground font-bold text-xs disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
             Older <ChevronRight size={14} />
-          </button>
+          </Button>
         </div>
       )}
     </div>

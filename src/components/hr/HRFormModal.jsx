@@ -1,4 +1,5 @@
 import { Dialog, DialogContent } from "../ui/dialog";
+import { Button } from "../ui/button";
 import { X, ChevronDown } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 
@@ -57,12 +58,14 @@ export default function HRFormModal({
               </>
             )}
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="h-auto w-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* Scrollable Body */}
@@ -77,14 +80,15 @@ export default function HRFormModal({
             <span>to close</span>
           </div>
           <div className="flex items-center gap-2.5">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4 transition-colors"
+              className="h-9 text-[13px] font-bold text-muted-foreground/80 hover:text-foreground hover:bg-transparent rounded-xl px-4 transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               form={formId}
               disabled={isPending}
@@ -92,7 +96,7 @@ export default function HRFormModal({
             >
               {isPending ? <Spinner size="sm" /> : null}
               {isPending ? "Saving..." : submitLabel}
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

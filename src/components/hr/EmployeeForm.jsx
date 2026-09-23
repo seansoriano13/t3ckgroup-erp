@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Shield, Users, Briefcase, ListCheck, ShoppingCart, ChevronDown, Clock, EyeOff, X } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
 import { getAllOverridableEntries } from "@/constants/navigation"
@@ -195,45 +196,48 @@ export default function EmployeeForm({
           usePortal={true}
           placement="bottom-start"
           trigger={({ isOpen }) => (
-            <button
+            <Button
               type="button"
-              className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
+              variant="ghost"
+              className="w-full h-auto justify-between bg-transparent text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-transparent"
             >
               {rawCompanies.find((c) => c.id === formData.companyId)?.name || (
                 <span className="text-muted-foreground/50">-- No company set --</span>
               )}
               <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-            </button>
+            </Button>
           )}
         >
           {({ close }) => (
             <div className="p-1 flex flex-col min-w-[220px]">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   setFormData((prev) => ({ ...prev, companyId: null }))
                   close()
                 }}
-                className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                  !formData.companyId ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                  !formData.companyId ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
                 }`}
               >
                 -- No company set --
-              </button>
+              </Button>
               {rawCompanies.map((company) => (
-                <button
+                <Button
                   key={company.id}
                   type="button"
+                  variant="ghost"
                   onClick={() => {
                     setFormData((prev) => ({ ...prev, companyId: company.id }))
                     close()
                   }}
-                  className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                    formData.companyId === company.id ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                    formData.companyId === company.id ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
                   }`}
                 >
                   {company.name}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -250,21 +254,23 @@ export default function EmployeeForm({
             usePortal={true}
             placement="bottom-start"
             trigger={({ isOpen }) => (
-              <button
+              <Button
                 type="button"
-                className="w-full bg-transparent text-sm text-foreground text-left outline-none font-medium flex justify-between items-center cursor-pointer"
+                variant="ghost"
+                className="w-full h-auto justify-between bg-transparent text-sm text-foreground text-left outline-none font-medium flex items-center cursor-pointer hover:bg-transparent"
               >
                 {formData.employment_status || <span className="text-muted-foreground/50">-- Select Status --</span>}
                 <ChevronDown size={14} className={`text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
-              </button>
+              </Button>
             )}
           >
             {({ close }) => (
               <div className="p-1 flex flex-col min-w-[150px]">
                 {["Regular", "Probationary", "OJT"].map(status => (
-                  <button
+                  <Button
                     key={status}
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       setFormData(prev => {
                         const willBeRegular = status === "Regular";
@@ -290,12 +296,12 @@ export default function EmployeeForm({
                       });
                       close();
                     }}
-                    className={`px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                      formData.employment_status === status ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                    className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
+                      formData.employment_status === status ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
                     }`}
                   >
                     {status}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -448,13 +454,14 @@ export default function EmployeeForm({
             <EyeOff size={12} /> Hidden From Navigation
           </label>
           {formData.hiddenNavKeys?.length > 0 && (
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={() => setFormData((prev) => ({ ...prev, hiddenNavKeys: [] }))}
-              className="text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
+              className="h-auto p-0 text-[10px] font-bold text-muted-foreground hover:text-foreground uppercase tracking-widest flex items-center gap-1 cursor-pointer"
             >
               <X size={11} /> Clear all
-            </button>
+            </Button>
           )}
         </div>
         <p className="text-[11px] text-muted-foreground leading-relaxed">
