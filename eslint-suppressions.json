@@ -1,0 +1,727 @@
+{
+  "src/components/ActivityLogFilters.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/Avatar.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/BroadcastModal.jsx": {
+    "local/no-raw-html": {
+      "count": 13
+    }
+  },
+  "src/components/CanvassPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 20
+    }
+  },
+  "src/components/ChecklistTaskInput.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/ChecklistTaskRenderer.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/ComprehensiveChatModal.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/EmployeePipelineMatrix.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/FieldBox.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/FloatingMonthPicker.jsx": {
+    "local/no-raw-html": {
+      "count": 9
+    }
+  },
+  "src/components/GradeSelector.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/GroupTaskFilters.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/GroupTasksList.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/HRCategoriesConfig.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/HRFilters.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/HistoryTimeline.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/ImageAttachment.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/ImageCropModal.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/IssuedPasswordBanner.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/LogTaskModal.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/NotificationDrawer.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/PersonalizedHeroBanner.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/PrimaryButton.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/ProcurementResolutionPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 14
+    }
+  },
+  "src/components/RoleSwitcher.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/SideNav.jsx": {
+    "local/no-raw-html": {
+      "count": 10
+    }
+  },
+  "src/components/SystemUpdateBanner.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/SystemUpdateManager.jsx": {
+    "local/no-raw-html": {
+      "count": 15
+    }
+  },
+  "src/components/TaskActivityTimeline.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/TaskBodySection.jsx": {
+    "local/no-raw-html": {
+      "count": 10
+    }
+  },
+  "src/components/TaskCard.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/TaskDetails.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/TaskEvaluationSection.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/TaskFilters.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/TaskHeader.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/TaskTableView.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/ThemeToggle.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/VersionUpdateNotifier.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/dropdowns/CategoryDropdown.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/dropdowns/PriorityDropdown.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/dropdowns/RoleDropdown.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/hr/CategoryForm.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/hr/DeptSubDeptSelector.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/hr/EmployeeForm.jsx": {
+    "local/no-raw-html": {
+      "count": 15
+    }
+  },
+  "src/components/hr/HRFormModal.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/hr/HrLogsPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 10
+    }
+  },
+  "src/components/hr/LeaveCategoriesConfig.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/hr/NotionLeaveCalendar.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/log-task/DictateButton.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/log-task/LogTaskAssignmentBar.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/log-task/LogTaskDetailsSection.jsx": {
+    "local/no-raw-html": {
+      "count": 13
+    }
+  },
+  "src/components/log-task/LogTaskFooter.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/log-task/LogTaskHeader.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/log-task/LogTaskPropertyBar.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/offsets/ApplyLeaveModal.jsx": {
+    "local/no-raw-html": {
+      "count": 49
+    }
+  },
+  "src/components/offsets/ApproveOffsetModal.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/offsets/ApproveOvertimeModal.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/offsets/ApproveUndertimeModal.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/offsets/HeadSelectField.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/presentation/BeforeAfter.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/presentation/PresentationDeck.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/presentation/demos.jsx": {
+    "local/no-raw-html": {
+      "count": 15
+    }
+  },
+  "src/components/profile/SignatureCaptureModal.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/settings/AccessWindowConfig.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/settings/CommissionAllocationManager.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/settings/CommissionRatesManager.jsx": {
+    "local/no-raw-html": {
+      "count": 9
+    }
+  },
+  "src/components/settings/DayShiftConfig.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/settings/EmployeeGroupManager.jsx": {
+    "local/no-raw-html": {
+      "count": 16
+    }
+  },
+  "src/components/settings/FlowCanvas.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/settings/FlowCanvasNode.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/settings/FlowMoveEdge.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/settings/FlowVersionRail.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/settings/LeadSourceManager.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/settings/ManageTagsModal.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/settings/SorFormBuilder.jsx": {
+    "local/no-raw-html": {
+      "count": 9
+    }
+  },
+  "src/components/settings/StageAccessManager.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/settings/StageActionManager.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/settings/StageConditionManager.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/settings/StageFieldManager.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/settings/StageSettingsPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/sor/CommissionDashboardView.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/sor/CommissionFormulaView.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/DeletedOpportunitiesView.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/sor/EmployeeOpportunityMatrix.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/components/sor/FlowVersionStagePanel.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/sor/FollowUpPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/sor/InclusionsPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 19
+    }
+  },
+  "src/components/sor/MoveConfirmDialog.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/sor/OpportunityBoard.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/sor/OpportunityCommissionFooter.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/sor/OpportunityFormModal.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/OpportunityItemsEditor.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/sor/PurchasingPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 31
+    }
+  },
+  "src/components/sor/RegistrationField.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/RetailOrdersQueue.jsx": {
+    "local/no-raw-html": {
+      "count": 17
+    }
+  },
+  "src/components/sor/RetailTab.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/SorField.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/components/sor/SorLink.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/StageChecklist.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/sor/StageChecklistRow.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/components/sor/StageFieldsForm.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/sor/StageRibbonScroller.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/components/sor/modal/DetailsTab.jsx": {
+    "local/no-raw-html": {
+      "count": 9
+    }
+  },
+  "src/components/sor/modal/ItemsTab.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/sor/modal/JourneyTab.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/components/sor/modal/NowTab.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/components/sor/modal/SorChatColumn.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/components/sor/modal/SorModal.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/components/sor/modal/SorModalHeader.jsx": {
+    "local/no-raw-html": {
+      "count": 12
+    }
+  },
+  "src/components/sor/modal/TaskRow.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/main.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/pages/approvals/_components/ApprovalDetailPane.jsx": {
+    "local/no-raw-html": {
+      "count": 10
+    }
+  },
+  "src/pages/approvals/_components/ApprovalQueueItem.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/pages/approvals/_components/BulkDeclineModal.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/approvals/_components/BulkGradeModal.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/pages/approvals/_components/GroupTaskApprovalSection.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/pages/approvals/hr-verification/_components/BulkVerifyModal.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/approvals/hr-verification/index.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/approvals/leaves/index.jsx": {
+    "local/no-raw-html": {
+      "count": 1
+    }
+  },
+  "src/pages/approvals/tasks/index.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/pages/group-tasks/_components/CreateGroupTaskModal.jsx": {
+    "local/no-raw-html": {
+      "count": 9
+    }
+  },
+  "src/pages/group-tasks/_components/GroupRoleManagerModal.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/pages/group-tasks/_components/GroupTaskDetailModal.jsx": {
+    "local/no-raw-html": {
+      "count": 23
+    }
+  },
+  "src/pages/group-tasks/_components/GroupTaskMemberPanel.jsx": {
+    "local/no-raw-html": {
+      "count": 8
+    }
+  },
+  "src/pages/group-tasks/_components/GroupTaskMemberRail.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/group-tasks/_components/GroupTaskTableView.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/group-tasks/_components/RateEmployeesModal.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/pages/group-tasks/_components/SaveGroupTaskTemplateModal.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/pages/group-tasks/index.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/group-tasks/templates/_components/TemplateEditorModal.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/group-tasks/templates/index.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/hr/management/index.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/hr/offsets/_components/DocumentCenterTab.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/hr/offsets/index.jsx": {
+    "local/no-raw-html": {
+      "count": 16
+    }
+  },
+  "src/pages/login/index.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  },
+  "src/pages/offsets/index.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/pages/profile/index.jsx": {
+    "local/no-raw-html": {
+      "count": 18
+    }
+  },
+  "src/pages/purchasing/index.jsx": {
+    "local/no-raw-html": {
+      "count": 2
+    }
+  },
+  "src/pages/reset-password/index.jsx": {
+    "local/no-raw-html": {
+      "count": 4
+    }
+  },
+  "src/pages/settings/FAQEditor.jsx": {
+    "local/no-raw-html": {
+      "count": 17
+    }
+  },
+  "src/pages/settings/FAQModal.jsx": {
+    "local/no-raw-html": {
+      "count": 6
+    }
+  },
+  "src/pages/settings/index.jsx": {
+    "local/no-raw-html": {
+      "count": 3
+    }
+  },
+  "src/pages/sors/index.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/pages/super-admin/activity-log/index.jsx": {
+    "local/no-raw-html": {
+      "count": 7
+    }
+  },
+  "src/pages/tasks/index.jsx": {
+    "local/no-raw-html": {
+      "count": 5
+    }
+  }
+}

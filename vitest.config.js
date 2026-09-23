@@ -10,6 +10,7 @@ const LOGIC = [
     "src/utils/**/*.test.{js,jsx}",
     "src/constants/**/*.test.{js,jsx}",
     "src/lib/pdf/**/*.test.{js,jsx}",
+    "src/lib/linting/**/*.test.{js,jsx}",
     "src/test/scripts/**/*.test.{js,jsx}",
 ]
 const SERVICES = [
