@@ -35,6 +35,7 @@ import { useState, useEffect } from "react";
 import LogTaskModal from "./LogTaskModal";
 import CreateGroupTaskModal from "../pages/group-tasks/_components/CreateGroupTaskModal";
 import Dropdown from "./ui/Dropdown";
+import { Button } from "./ui/button";
 import { groupTaskService } from "../services/groupTaskService";
 import { employeeService } from "../services/employeeService";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -227,12 +228,14 @@ export default function SideNav() {
     <>
       {/* Mobile Drawer Trigger (PanelRight) */}
       <div className="md:hidden fixed top-3 left-3 z-40">
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={() => setIsMobileOpen(true)}
-          className="text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-r border-sidebar-border backdrop-blur-md border p-1.5 rounded-lg shadow-sm transition-colors"
+          className="h-auto w-auto text-sidebar-foreground/80 hover:text-sidebar-foreground bg-sidebar border-sidebar-border backdrop-blur-md p-1.5 rounded-lg shadow-sm transition-colors"
         >
           <PanelRight size={18} strokeWidth={2} />
-        </button>
+        </Button>
       </div>
 
       {/* Mobile Backdrop Overlay */}
@@ -255,23 +258,27 @@ export default function SideNav() {
       >
         {/* Mobile Close Action (PanelLeft) */}
         <div className="md:hidden absolute top-4 right-4 z-50">
-          <button
+          <Button
+            variant="outline"
+            size="icon"
             onClick={() => setIsMobileOpen(false)}
-            className="text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 bg-sidebar border-r border-sidebar-border rounded-md shadow-sm border border-sidebar-border"
+            className="h-auto w-auto text-sidebar-foreground/60 hover:text-sidebar-foreground p-1 bg-sidebar border-sidebar-border rounded-md shadow-sm"
           >
             <PanelLeft size={18} strokeWidth={2} />
-          </button>
+          </Button>
         </div>
 
         {/* Desktop collapse toggle — a rail is icons-only, so this is the one
             control that survives collapsing to it. */}
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={toggleCollapsed}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden md:flex absolute top-4 right-2 z-50 items-center justify-center h-6 w-6 rounded-full border border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+          className="hidden md:flex absolute top-4 right-2 z-50 h-6 w-6 rounded-full border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         >
           {isCollapsed ? <PanelRight size={13} strokeWidth={2} /> : <PanelLeft size={13} strokeWidth={2} />}
-        </button>
+        </Button>
 
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
@@ -305,16 +312,17 @@ export default function SideNav() {
               {({ close }) => (
                 <div className="p-1.5 min-w-[215px] flex flex-col gap-0.5 bg-muted rounded-xl ">
                   {profileOptions.map((option) => (
-                    <button
+                    <Button
                       key={option.value}
+                      variant="ghost"
                       onClick={() => {
                         handleProfileSelect(option);
                         close();
                       }}
-                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-foreground text-sm font-semibold hover:bg-sidebar-accent transition-colors text-left"
+                      className="h-auto justify-start flex items-center gap-2.5 px-3 py-2 rounded-lg text-foreground text-sm font-semibold hover:bg-sidebar-accent transition-colors text-left"
                     >
                       <span>{option.label}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
@@ -326,25 +334,27 @@ export default function SideNav() {
           <div className={`flex items-center gap-1.5 ${isCollapsed ? "md:flex-col" : ""}`}>
             {/* Broadcast — super admins only */}
             {user?.isSuperAdmin && (
-              <button
+              <Button
+                variant="outline"
                 onClick={() => {
                   setIsMobileOpen(false);
                   setIsBroadcastOpen(true);
                 }}
-                className={`flex items-center justify-center p-2 rounded-lg border border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
+                className={`h-auto flex items-center justify-center p-2 rounded-lg border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent transition-all ${isCollapsed ? "md:w-full" : ""}`}
                 title="Broadcast"
               >
                 <Megaphone size={15} strokeWidth={2.2} />
-              </button>
+              </Button>
             )}
 
             {/* Notifications */}
-            <button
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsNotifOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isNotifOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Notifications"
             >
               <Bell size={15} strokeWidth={2.2} />
@@ -353,15 +363,16 @@ export default function SideNav() {
                   {unreadCount}
                 </span>
               )}
-            </button>
+            </Button>
 
             {/* Chats */}
-            <button
+            <Button
+              variant="outline"
               onClick={() => {
                 setIsChatsOpen(true);
                 setIsMobileOpen(false);
               }}
-              className={`relative flex-1 flex items-center justify-center p-2 rounded-lg border transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
+              className={`h-auto relative flex-1 flex items-center justify-center p-2 rounded-lg transition-all ${isCollapsed ? "md:w-full md:flex-none" : ""} ${isChatsOpen ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/30 shadow-sm" : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"}`}
               title="Chats"
             >
               <MessageCircle size={15} strokeWidth={2.2} />
@@ -370,7 +381,7 @@ export default function SideNav() {
                   {unreadChatsCount}
                 </span>
               )}
-            </button>
+            </Button>
 
             {/* Quick Action (+) Button */}
             {quickActionGroups.length > 0 && (
@@ -379,8 +390,9 @@ export default function SideNav() {
                 className={isCollapsed ? "md:w-full" : "flex-1"}
                 usePortal={true}
                 trigger={({ isOpen }) => (
-                  <button
-                    className={`w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg border transition-all ${
+                  <Button
+                    variant="outline"
+                    className={`h-auto w-full relative flex-1 flex items-center justify-center py-2 px-3 rounded-lg transition-all ${
                       isOpen
                         ? "bg-sidebar-accent text-sidebar-primary border-sidebar-primary/10 shadow-sm"
                         : "border-sidebar-border bg-sidebar-accent text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 hover:border-sidebar-accent"
@@ -388,7 +400,7 @@ export default function SideNav() {
                     title="Create new..."
                   >
                     <Plus size={15} strokeWidth={2.5} />
-                  </button>
+                  </Button>
                 )}
               >
                 {({ close }) => (
@@ -404,17 +416,18 @@ export default function SideNav() {
                         {catGroup.items.map((item) => {
                           const Icon = item.icon;
                           return (
-                            <button
+                            <Button
                               key={item.id}
+                              variant="ghost"
                               onClick={() => {
                                 close();
                                 handleQuickAction(item.id);
                               }}
-                              className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
+                              className="h-auto justify-start flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[13px] font-semibold text-sidebar-foreground hover:bg-sidebar-accent transition-colors text-left"
                             >
                               <Icon size={14} className="text-sidebar-foreground/70" />
                               <span>{item.label}</span>
-                            </button>
+                            </Button>
                           );
                         })}
                       </div>

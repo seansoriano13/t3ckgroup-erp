@@ -9,6 +9,7 @@ import toast from "react-hot-toast"
 import { useProjectTitles } from "../../hooks/useProjectTitles"
 import TemplateVariableChips from "@/components/ui/TemplateVariableChips"
 import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
+import { Button } from "@/components/ui/button"
 
 export default function LogTaskDetailsSection({
   formData,
@@ -194,13 +195,14 @@ export default function LogTaskDetailsSection({
             }
           />
           {!showChecklist && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onToggleChecklist}
-              className="mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+              className="h-auto mt-1 flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
             >
               <span className="text-base leading-none">+</span> Add checklist
-            </button>
+            </Button>
           )}
         </div>
 
@@ -211,13 +213,14 @@ export default function LogTaskDetailsSection({
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 Checklist
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={onToggleChecklist}
-                className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+                className="h-auto text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
               >
                 Hide
-              </button>
+              </Button>
             </div>
             <div className="bg-card rounded-xl border border-mauve-3 p-4">
               <ChecklistTaskInput
@@ -257,23 +260,27 @@ export default function LogTaskDetailsSection({
                     onClick={() => setFullscreenImage(url)}
                   />
                   <div className="absolute inset-0 flex items-center justify-center gap-1 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => setFullscreenImage(url)}
-                      className="p-1 text-white"
+                      className="h-auto w-auto p-1 text-white hover:text-white hover:bg-transparent"
                     >
                       <Maximize2 size={11} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleRemove(url)
                       }}
-                      className="p-1 text-white"
+                      className="h-auto w-auto p-1 text-white hover:text-white hover:bg-transparent"
                     >
                       <X size={11} />
-                    </button>
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -281,11 +288,12 @@ export default function LogTaskDetailsSection({
           )}
 
           {/* Button row */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading || attachments.length >= 5}
-            className="w-full flex items-center justify-center gap-2 px-3 py-3 text-[11px] font-semibold text-mauve-12/70 hover:text-mauve-12 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-auto w-full flex items-center justify-center gap-2 px-3 py-3 text-[11px] font-semibold text-mauve-12/70 hover:text-mauve-12 hover:bg-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isUploading ? (
               <>
@@ -309,7 +317,7 @@ export default function LogTaskDetailsSection({
                 </span>
               </>
             )}
-          </button>
+          </Button>
         </div>
 
         {/* Fullscreen lightbox */}
@@ -320,12 +328,14 @@ export default function LogTaskDetailsSection({
               className="fixed inset-0 z-[9999999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
               onClick={() => setFullscreenImage(null)}
             >
-              <button
-                className="absolute top-6 right-6 text-white hover:text-destructive transition-colors bg-black/50 p-2 rounded-full"
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-6 right-6 h-auto w-auto text-white hover:text-destructive hover:bg-black/50 transition-colors bg-black/50 p-2 rounded-full"
                 onClick={() => setFullscreenImage(null)}
               >
                 <X size={24} />
-              </button>
+              </Button>
               <img
                 src={fullscreenImage}
                 alt="Fullscreen Attachment"

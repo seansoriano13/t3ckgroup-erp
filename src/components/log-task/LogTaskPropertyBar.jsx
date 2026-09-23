@@ -6,6 +6,7 @@ import Dropdown from "../ui/Dropdown";
 import CategoryDropdown from "../dropdowns/CategoryDropdown";
 import PriorityDropdown from "../dropdowns/PriorityDropdown";
 import PropertyPill from "../ui/PropertyPill";
+import { Button } from "../ui/button";
 
 export default function LogTaskPropertyBar({
   formData,
@@ -126,17 +127,17 @@ export default function LogTaskPropertyBar({
                 )}
               </div>
               <div className="flex justify-end mt-3 pt-2 border-t border-border">
-                <button
+                <Button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     close();
                   }}
                   style={{ backgroundColor: "var(--primary)" }}
-                  className="px-4 py-1.5 text-primary-foreground rounded-lg text-[11px] font-bold hover:opacity-90 transition-all shadow-sm"
+                  className="h-auto px-4 py-1.5 text-primary-foreground rounded-lg text-[11px] font-bold hover:opacity-90 transition-all shadow-sm"
                 >
                   Done
-                </button>
+                </Button>
               </div>
             </>
           )}

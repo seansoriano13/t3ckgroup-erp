@@ -12,6 +12,7 @@ import LogTaskPropertyBar from "./log-task/LogTaskPropertyBar";
 import LogTaskAssignmentBar from "./log-task/LogTaskAssignmentBar";
 import LogTaskFooter from "./log-task/LogTaskFooter";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 
@@ -311,21 +312,22 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
                   <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
-                        <button
+                        <Button
                           key={role}
                           type="button"
+                          variant="outline"
                           onClick={(e) => {
                             e.preventDefault();
                             setCommitteeRole(role);
                           }}
-                          className={`px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 border ${
+                          className={`h-auto px-4 py-2 rounded-full text-[11px] font-bold tracking-wider transition-all duration-200 ${
                             committeeRole === role
-                              ? "bg-primary text-primary-foreground border-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
+                              ? "bg-primary text-primary-foreground border-primary hover:bg-primary dark:bg-primary dark:text-primary-foreground dark:border-primary shadow-md"
                               : "bg-card text-mauve-11 border-mauve-5 hover:border-mauve-5 hover:bg-mauve-2   dark:text-muted-foreground dark:hover:bg-muted shadow-sm"
                           }`}
                         >
                           {role}
-                        </button>
+                        </Button>
                       ),
                     )}
                   </div>

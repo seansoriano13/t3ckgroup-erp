@@ -8,14 +8,16 @@ import toast from "react-hot-toast";
 import Select from "react-select";
 import { defaultSelectStyles } from "../styles/selectStyles";
 import { getPermissionContext } from "../utils/permissions";
+import { Button } from "./ui/button";
 
 // Custom sleek toggle switch
 const Toggle = ({ checked, onChange }) => (
-  <button
+  <Button
     type="button"
+    variant="ghost"
     onClick={() => onChange(!checked)}
-    className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-      checked ? "bg-mauve-12" : "bg-mauve-4"
+    className={`relative h-5 w-9 p-0 inline-flex shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+      checked ? "bg-mauve-12 hover:bg-mauve-12" : "bg-mauve-4 hover:bg-mauve-4"
     }`}
   >
     <span
@@ -23,7 +25,7 @@ const Toggle = ({ checked, onChange }) => (
         checked ? "translate-x-4" : "translate-x-0"
       }`}
     />
-  </button>
+  </Button>
 );
 
 export default function RoleSwitcher() {
@@ -252,12 +254,13 @@ export default function RoleSwitcher() {
                   Role Simulator
                 </h3>
               </div>
-              <button
+              <Button
+                variant="outline"
                 onClick={handleReset}
-                className="text-[10px] text-muted-foreground hover:text-foreground font-bold transition-colors uppercase border border-mauve-4 px-2 py-1 rounded-md hover:border-mauve-12"
+                className="h-auto text-[10px] text-muted-foreground hover:text-foreground font-bold transition-colors uppercase border-mauve-4 px-2 py-1 rounded-md hover:border-mauve-12"
               >
                 Reset
-              </button>
+              </Button>
             </div>
 
             <div className="p-5 space-y-6">
@@ -362,7 +365,7 @@ export default function RoleSwitcher() {
               </div>
 
               {/* Action */}
-              <button
+              <Button
                 onClick={() => handleApply()}
                 disabled={switching}
                 className="w-full h-11 bg-[#111827] flex items-center justify-center gap-2 hover:bg-mauve-12 text-primary-foreground text-[13px] font-bold rounded-lg transition-all shadow-lg active:scale-[0.97] disabled:opacity-50"
@@ -375,15 +378,16 @@ export default function RoleSwitcher() {
                     <span>Update Configuration</span>
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           </div>,
           document.body
         )}
 
       {/* Trigger */}
-      <button
+      <Button
         ref={triggerRef}
+        variant="outline"
         onClick={() => {
           if (!isOpen) {
             updateCoords();
@@ -391,7 +395,7 @@ export default function RoleSwitcher() {
           setIsOpen(!isOpen);
         }}
         disabled={switching}
-        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 bg-[#111827] hover:bg-mauve-12 text-primary-foreground border border-white/5 group"
+        className="w-full h-auto flex items-center gap-3 px-4 py-3 rounded-xl shadow-sm transition-all active:scale-95 bg-[#111827] hover:bg-mauve-12 text-primary-foreground border-white/5 group"
       >
         <div
           className={`p-1.5 rounded-md bg-card/10 group-hover:bg-card/20 transition-colors`}
@@ -406,7 +410,7 @@ export default function RoleSwitcher() {
         >
           <ChevronUp size={14} className="opacity-40" />
         </div>
-      </button>
+      </Button>
     </div>
   );
 }

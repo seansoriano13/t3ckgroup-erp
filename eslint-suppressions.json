@@ -41,7 +41,7 @@
   },
   "src/components/FloatingMonthPicker.jsx": {
     "local/no-raw-html": {
-      "count": 9
+      "count": 2
     }
   },
   "src/components/GradeSelector.jsx": {
@@ -86,7 +86,7 @@
   },
   "src/components/LogTaskModal.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 4
     }
   },
   "src/components/NotificationDrawer.jsx": {
@@ -111,12 +111,12 @@
   },
   "src/components/RoleSwitcher.jsx": {
     "local/no-raw-html": {
-      "count": 6
+      "count": 2
     }
   },
   "src/components/SideNav.jsx": {
     "local/no-raw-html": {
-      "count": 10
+      "count": 1
     }
   },
   "src/components/SystemUpdateBanner.jsx": {
@@ -149,11 +149,6 @@
       "count": 2
     }
   },
-  "src/components/ThemeToggle.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/VersionUpdateNotifier.jsx": {
     "local/no-raw-html": {
       "count": 3
@@ -161,17 +156,12 @@
   },
   "src/components/dropdowns/CategoryDropdown.jsx": {
     "local/no-raw-html": {
-      "count": 3
-    }
-  },
-  "src/components/dropdowns/PriorityDropdown.jsx": {
-    "local/no-raw-html": {
-      "count": 3
+      "count": 1
     }
   },
   "src/components/dropdowns/RoleDropdown.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 1
     }
   },
   "src/components/hr/CategoryForm.jsx": {
@@ -199,11 +189,6 @@
       "count": 2
     }
   },
-  "src/components/log-task/DictateButton.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/components/log-task/LogTaskAssignmentBar.jsx": {
     "local/no-raw-html": {
       "count": 5
@@ -211,7 +196,7 @@
   },
   "src/components/log-task/LogTaskDetailsSection.jsx": {
     "local/no-raw-html": {
-      "count": 13
+      "count": 7
     }
   },
   "src/components/log-task/LogTaskFooter.jsx": {
@@ -219,14 +204,9 @@
       "count": 2
     }
   },
-  "src/components/log-task/LogTaskHeader.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
   "src/components/log-task/LogTaskPropertyBar.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/components/offsets/ApplyLeaveModal.jsx": {
