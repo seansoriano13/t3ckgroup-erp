@@ -501,12 +501,12 @@
   },
   "src/pages/hr/management/index.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/pages/hr/offsets/_components/DocumentCenterTab.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 2
     }
   },
   "src/pages/hr/offsets/index.jsx": {
@@ -516,12 +516,12 @@
   },
   "src/pages/login/index.jsx": {
     "local/no-raw-html": {
-      "count": 5
+      "count": 4
     }
   },
   "src/pages/offsets/index.jsx": {
     "local/no-raw-html": {
-      "count": 3
+      "count": 2
     }
   },
   "src/pages/profile/index.jsx": {
@@ -531,7 +531,7 @@
   },
   "src/pages/purchasing/index.jsx": {
     "local/no-raw-html": {
-      "count": 2
+      "count": 1
     }
   },
   "src/pages/reset-password/index.jsx": {
@@ -547,11 +547,6 @@
   "src/pages/settings/FAQModal.jsx": {
     "local/no-raw-html": {
       "count": 6
-    }
-  },
-  "src/pages/settings/index.jsx": {
-    "local/no-raw-html": {
-      "count": 3
     }
   },
   "src/pages/sors/index.jsx": {
