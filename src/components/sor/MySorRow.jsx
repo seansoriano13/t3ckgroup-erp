@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import { Button } from "../ui/button";
 
 /**
  * One SOR the person was called into: which Stage it is on, why they can see
@@ -12,10 +13,11 @@ const SOURCE_LABEL = {
 
 export default function MySorRow({ row, onOpen }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={() => onOpen(row.opportunityId)}
-      className="flex w-full flex-col gap-2 rounded-2xl border border-mauve-6 bg-mauve-2 p-4 text-left transition-colors hover:border-mauve-8"
+      className="h-auto w-full flex-col items-start gap-2 rounded-2xl border border-mauve-6 bg-mauve-2 p-4 text-left transition-colors hover:border-mauve-8"
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <span className="text-sm font-black tracking-tight text-foreground">
@@ -47,6 +49,6 @@ export default function MySorRow({ row, onOpen }) {
           </li>
         ))}
       </ul>
-    </button>
+    </Button>
   );
 }

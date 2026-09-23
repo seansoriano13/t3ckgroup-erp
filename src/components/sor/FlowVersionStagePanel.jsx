@@ -189,11 +189,12 @@ export default function FlowVersionStagePanel({
                   key={key}
                   className="rounded-xl bg-card outline outline-1 -outline-offset-1 outline-mauve-6"
                 >
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
                     onClick={() => setExpandedActionId(isExpanded ? null : key)}
                     aria-expanded={isExpanded}
-                    className="flex w-full items-center gap-3 px-3 py-2.5 text-left outline-none"
+                    className="h-auto w-full justify-start gap-3 rounded-xl px-3 py-2.5 text-left outline-none"
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
                       <Icon size={15} strokeWidth={2.5} />
@@ -213,7 +214,7 @@ export default function FlowVersionStagePanel({
                         isExpanded && "rotate-90",
                       )}
                     />
-                  </button>
+                  </Button>
                   {isExpanded && <StageActionDetail action={row} employees={employees} />}
                 </div>
               )

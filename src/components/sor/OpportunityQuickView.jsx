@@ -34,10 +34,11 @@ function TaskRow({ task, onOpen }) {
     : null;
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
       onClick={onOpen}
-      className="flex w-full items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/50"
+      className="h-auto w-full items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/50"
     >
       <Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 space-y-1">
@@ -60,7 +61,7 @@ function TaskRow({ task, onOpen }) {
         </div>
       </div>
       <ChevronRight size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
-    </button>
+    </Button>
   );
 }
 

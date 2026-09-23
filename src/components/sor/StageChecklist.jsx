@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Button } from "../ui/button";
 
 /**
  * Stage Gate Engine, ticket 6 (.scratch/stage-gate-engine/issues/06-deal-
@@ -295,15 +296,16 @@ export default function StageChecklist({ opportunity, employees = [], actorId, o
               </p>
             )}
             {existingFiles.map((file, idx) => (
-              <button
+              <Button
                 key={`${file.url}-${idx}`}
                 type="button"
+                variant="ghost"
                 disabled={pickExistingMutation.isPending}
                 onClick={() => pickingFor && pickExistingMutation.mutate({ condition: pickingFor, file })}
-                className="flex w-full items-center gap-2 truncate rounded-lg px-2.5 py-1.5 text-left text-sm hover:bg-muted disabled:opacity-50"
+                className="h-auto w-full justify-start truncate rounded-lg px-2.5 py-1.5 text-left text-sm"
               >
                 {file.name || "Attachment"}
-              </button>
+              </Button>
             ))}
           </div>
         </DialogContent>

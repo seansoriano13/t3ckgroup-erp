@@ -5,6 +5,7 @@ import { ListTodo } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import { stageFieldService } from "../../services/stageFieldService";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
+import { Button } from "../ui/button";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -151,14 +152,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                         className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
                       />
                     )}
-                    <button
+                    <Button
                       type="button"
                       disabled={isSaving || !value}
                       onClick={() => handleSave(field)}
-                      className="inline-flex h-8 shrink-0 items-center justify-center rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 shadow hover:bg-mauve-12/90 disabled:opacity-50"
+                      className="shrink-0 px-3 text-[11px]"
                     >
                       {isSaving ? "…" : "Save"}
-                    </button>
+                    </Button>
                   </div>
                 </>
               )}

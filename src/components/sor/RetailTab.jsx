@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, ShoppingBag, Package } from "lucide-react";
 import Spinner from "../ui/Spinner";
 import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
+import { Button } from "../ui/button";
 
 /**
  * Best-effort storefront label from a retail SOR's client name — the same
@@ -103,9 +104,11 @@ export default function RetailTab() {
               const isOpen = expanded.has(key);
               return (
                 <div key={key}>
-                  <button
+                  <Button
+                    type="button"
+                    variant="ghost"
                     onClick={() => toggle(key)}
-                    className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition-colors text-left"
+                    className="h-auto w-full justify-between rounded-none px-4 py-3 text-left"
                   >
                     <div className="flex items-center gap-2">
                       {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -118,7 +121,7 @@ export default function RetailTab() {
                       </span>
                     </div>
                     <span className="text-sm font-bold text-foreground">{formatPHP(group.total)}</span>
-                  </button>
+                  </Button>
 
                   {isOpen && (
                     <div className="bg-muted/10 px-4 pb-3">

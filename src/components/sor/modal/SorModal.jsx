@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import TabGroup from "../../ui/TabGroup";
 import { opportunityService } from "../../../services/opportunityService";
@@ -680,12 +681,15 @@ export default function SorModal({
               )}
               <h2 className="truncate text-lg font-black text-foreground">{lockedSummary?.project_title || "This SOR"}</h2>
             </div>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onClose}
-              className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted/80 hover:text-foreground"
+              className="shrink-0 text-muted-foreground"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-5 overflow-y-auto p-6">
