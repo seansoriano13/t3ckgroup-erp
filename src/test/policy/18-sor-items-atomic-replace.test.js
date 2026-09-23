@@ -18,6 +18,22 @@
  * concurrent replaces against the same SOR and checking that the loser's
  * rows never coexist with the winner's — not merely that a single call
  * behaves.
+ *
+ * Fallout from that fix (20260929040000_sor_replace_items_returns_previous.sql):
+ * expected_value stopped doubling, but the timeline started logging "Added
+ * product(s): <the whole list>" on *every* open, forever, for some
+ * employees — reproduced live: never for a Super Admin, always for an
+ * ordinary one. Cause: opportunityService.updateOpportunity built its
+ * "before" snapshot with a plain select on sales_opportunity_items, gated by
+ * sor_items_read (super admin, deal team, always_sees, or HR) — narrower
+ * than sor_can_edit_opportunity (deal team, or is_head, or super admin),
+ * the check sor_replace_items itself uses to authorize the write. A
+ * department head who can edit a deal only via is_head — not personally on
+ * its team — passes the write check but the read policy silently returns
+ * zero rows for them, so every product looks newly added, every time.
+ * sor_replace_items now returns the rows it deleted, captured inside the
+ * same SECURITY DEFINER call that already bypasses RLS to perform the
+ * write, so the caller's own read access no longer matters.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -110,5 +126,51 @@ describe("sor_replace_items — atomic Product List replace", () => {
         // top of each other, doubling the rows and the total.
         expect(items.length).not.toBe(payloadA.length + payloadB.length)
         expect(Number(sor.expected_value)).not.toBe(totalA + totalB)
+    })
+})
+
+describe("sor_replace_items — the returned 'before' snapshot bypasses sor_items_read", () => {
+    let editOnlySorId
+
+    beforeAll(async () => {
+        // `head` deliberately left off every deal-team column: their only
+        // route to editing this record is sor_can_edit_opportunity's is_head
+        // clause, which sor_items_read does not grant read access through.
+        editOnlySorId = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner })
+        const seeded = await serviceClient()
+            .from("sales_opportunity_items")
+            .insert({
+                opportunity_id: editOnlySorId,
+                product_name: `${MARKER} Pre-existing Line`,
+                unit: "pc",
+                quantity: 1,
+                unit_price: 500,
+            })
+        if (seeded.error) throw new Error(`Seeding a pre-existing item: ${seeded.error.message}`)
+    })
+
+    afterAll(async () => {
+        if (editOnlySorId) await serviceClient().from("sales_opportunities").delete().eq("id", editOnlySorId)
+    })
+
+    it("a plain select on sales_opportunity_items comes back empty for an is_head-only editor", async () => {
+        const head = await clientFor("head")
+        const { data, error } = await head
+            .from("sales_opportunity_items")
+            .select("product_name")
+            .eq("opportunity_id", editOnlySorId)
+        expect(error).toBeNull()
+        expect(data).toEqual([])
+    })
+
+    it("but sor_replace_items still hands that same editor the true previous row, not an empty list", async () => {
+        const head = await clientFor("head")
+        const { data, error } = await head.rpc("sor_replace_items", {
+            p_opportunity_id: editOnlySorId,
+            p_items: [{ product_name: `${MARKER} Pre-existing Line`, unit: "pc", quantity: 1, unit_price: 500 }],
+        })
+        expect(error).toBeNull()
+        expect(data).toHaveLength(1)
+        expect(data[0].product_name).toBe(`${MARKER} Pre-existing Line`)
     })
 })
