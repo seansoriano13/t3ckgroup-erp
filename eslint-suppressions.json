@@ -456,7 +456,7 @@
   },
   "src/components/sor/RetailOrdersQueue.jsx": {
     "local/no-raw-html": {
-      "count": 17
+      "count": 11
     }
   },
   "src/components/sor/RetailTab.jsx": {
@@ -471,7 +471,7 @@
   },
   "src/components/sor/StageChecklistRow.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 3
     }
   },
   "src/components/sor/StageFieldsForm.jsx": {
