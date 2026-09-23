@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Button } from "../ui/button";
 
 /**
  * Issue #206 — the confirmation a Board drag opens before it commits.
@@ -115,19 +116,16 @@ export default function MoveConfirmDialog({
           )}
 
           <div className="mt-1 flex items-center justify-end gap-2">
-            <button
-              onClick={handleClose}
-              className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
-            >
+            <Button type="button" variant="ghost" onClick={handleClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
               disabled={confirmDisabled}
               onClick={() => moveMutation.mutate()}
-              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               Confirm move
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

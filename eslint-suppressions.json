@@ -431,7 +431,7 @@
   },
   "src/components/sor/MoveConfirmDialog.jsx": {
     "local/no-raw-html": {
-      "count": 4
+      "count": 2
     }
   },
   "src/components/sor/OpportunityBoard.jsx": {
@@ -446,17 +446,12 @@
   },
   "src/components/sor/OpportunityItemsEditor.jsx": {
     "local/no-raw-html": {
-      "count": 7
+      "count": 5
     }
   },
   "src/components/sor/PurchasingPanel.jsx": {
     "local/no-raw-html": {
       "count": 31
-    }
-  },
-  "src/components/sor/RegistrationField.jsx": {
-    "local/no-raw-html": {
-      "count": 2
     }
   },
   "src/components/sor/RetailOrdersQueue.jsx": {
@@ -472,11 +467,6 @@
   "src/components/sor/SorField.jsx": {
     "local/no-raw-html": {
       "count": 6
-    }
-  },
-  "src/components/sor/SorLink.jsx": {
-    "local/no-raw-html": {
-      "count": 2
     }
   },
   "src/components/sor/StageChecklistRow.jsx": {
@@ -499,11 +489,6 @@
       "count": 4
     }
   },
-  "src/components/sor/modal/JourneyTab.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
   "src/components/sor/modal/NowTab.jsx": {
     "local/no-raw-html": {
       "count": 8
@@ -517,11 +502,6 @@
   "src/components/sor/modal/SorModalHeader.jsx": {
     "local/no-raw-html": {
       "count": 12
-    }
-  },
-  "src/components/sor/modal/TaskRow.jsx": {
-    "local/no-raw-html": {
-      "count": 2
     }
   },
   "src/main.jsx": {

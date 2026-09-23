@@ -6,6 +6,7 @@ import StatusBadge from "../../StatusBadge";
 import TabSkeleton from "./TabSkeleton";
 import { useSorModalData } from "./useSorModalData";
 import { opportunityService } from "../../../services/opportunityService";
+import { Button } from "../../ui/button";
 import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../constants/journey";
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
@@ -134,11 +135,12 @@ function PastVisit({ row, onToggle }) {
 
   return (
     <div className="rounded-lg border border-border/70 bg-card/50">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={onToggle}
         aria-expanded={isExpanded}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+        className="h-auto w-full justify-start gap-2 rounded-lg px-3 py-2 text-left"
       >
         {isExpanded ? (
           <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
@@ -167,7 +169,7 @@ function PastVisit({ row, onToggle }) {
         <span className="w-[70px] shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
           {taskCount} task{taskCount === 1 ? "" : "s"}
         </span>
-      </button>
+      </Button>
 
       {isExpanded && (
         <div className="space-y-4 border-t border-border/50 px-3 py-3">
@@ -276,10 +278,11 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
   return (
     <div className="space-y-4 p-6">
       {current && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           onClick={onGoToNow}
-          className="flex w-full items-center gap-3 rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-left transition-colors hover:border-mauve-7 hover:bg-muted/30"
+          className="h-auto w-full items-center gap-3 rounded-xl border border-border/70 bg-card/50 px-4 py-3 text-left hover:border-mauve-7 hover:bg-muted/30"
         >
           <div className="min-w-0 flex-1">
             <p className="flex items-center gap-1.5 text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
@@ -296,7 +299,7 @@ export default function JourneyTab({ opportunityId, hasOpened, onGoToNow }) {
             Open Now
             <ArrowRight size={12} />
           </span>
-        </button>
+        </Button>
       )}
 
       {past.length > 0 ? (
