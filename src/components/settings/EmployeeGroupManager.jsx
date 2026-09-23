@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Archive, ArchiveRestore, Trash2, Users, ChevronDown, ChevronUp } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { Button } from "@/components/ui/button";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useAuth } from "@/context/AuthContext";
@@ -80,13 +81,14 @@ export default function EmployeeGroupManager() {
           hand-picked people plus everyone on its Teams.
         </p>
         {!isAdding && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setIsAdding(true)}
-            className="shrink-0 text-xs font-bold text-foreground flex items-center gap-1 hover:bg-muted px-2.5 py-1.5 rounded-lg transition-colors"
+            className="shrink-0 h-auto text-xs font-bold text-foreground flex items-center gap-1 px-2.5 py-1.5 rounded-lg"
           >
             <Plus size={14} /> New Group
-          </button>
+          </Button>
         )}
       </div>
 
@@ -107,20 +109,21 @@ export default function EmployeeGroupManager() {
             <input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
           </label>
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setIsAdding(false)}
-              className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
+              className="h-9 px-3 text-sm font-semibold text-muted-foreground"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={createMutation.isPending}
-              className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="h-9 px-4 text-sm font-semibold"
             >
               Create
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -172,7 +175,12 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
 
   return (
     <div className={`rounded-xl border border-border ${isArchived ? "bg-muted/20 opacity-70" : "bg-card"}`}>
-      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between gap-3 p-3 text-left">
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={onToggle}
+        className="h-auto w-full justify-between gap-3 p-3 text-left rounded-xl"
+      >
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
             <Users size={15} />
@@ -189,7 +197,7 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
           </div>
         </div>
         {isOpen ? <ChevronUp size={16} className="text-muted-foreground" /> : <ChevronDown size={16} className="text-muted-foreground" />}
-      </button>
+      </Button>
 
       {isOpen && (
         <div className="space-y-4 border-t border-border p-4">
@@ -202,14 +210,14 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
               <span className="text-xs font-bold text-muted-foreground">Description</span>
               <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
             </label>
-            <button
+            <Button
               type="button"
               disabled={!detailsChanged || busy}
               onClick={() => onRename({ name, description })}
-              className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+              className="h-9 px-4 text-sm font-semibold"
             >
               Save
-            </button>
+            </Button>
           </div>
 
           <div className="space-y-1.5">
@@ -253,22 +261,23 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
 
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
             {isArchived ? (
-              <button type="button" disabled={busy} onClick={onRestore} className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-muted flex items-center gap-1.5">
+              <Button type="button" variant="outline" disabled={busy} onClick={onRestore} className="h-8 px-3 text-xs font-semibold">
                 <ArchiveRestore size={14} /> Restore
-              </button>
+              </Button>
             ) : (
-              <button type="button" disabled={busy} onClick={onArchive} className="h-8 px-3 rounded-lg border border-border text-xs font-semibold hover:bg-muted flex items-center gap-1.5">
+              <Button type="button" variant="outline" disabled={busy} onClick={onArchive} className="h-8 px-3 text-xs font-semibold">
                 <Archive size={14} /> Archive
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="outline"
               disabled={busy}
               onClick={onDelete}
-              className="h-8 px-3 rounded-lg border border-destructive/30 text-xs font-semibold text-destructive hover:bg-destructive/10 flex items-center gap-1.5"
+              className="h-8 px-3 text-xs font-semibold text-destructive border-destructive/30 hover:bg-destructive/10"
             >
               <Trash2 size={14} /> Delete
-            </button>
+            </Button>
           </div>
         </div>
       )}

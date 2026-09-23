@@ -4,6 +4,7 @@ import { useAuth } from "../../../context/AuthContext";
 import { useState } from "react";
 import { Users, CheckCircle2, XCircle, Search, Star } from "lucide-react";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 export default function GroupTaskApprovalSection() {
   const { user } = useAuth();
@@ -90,14 +91,17 @@ export default function GroupTaskApprovalSection() {
                     className="w-full text-xs p-2 bg-muted/50 border border-border rounded-lg outline-none focus:border-primary resize-none h-16"
                   />
                   <div className="flex gap-2">
-                    <button 
+                    <Button
+                      type="button"
                       onClick={() => verifyMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] })}
                       disabled={verifyMutation.isPending}
-                      className="flex-1 flex items-center justify-center gap-1 bg-green-9 hover:bg-green-9 text-primary-foreground py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      className="flex-1 h-auto py-1.5 text-xs font-bold bg-green-9 text-primary-foreground hover:bg-green-9"
                     >
                       <CheckCircle2 size={14} /> Verify
-                    </button>
-                    <button 
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
                       onClick={() => {
                         if (!actionRemarks[task.id]?.trim()) {
                           toast.error("Remarks are required to reject.");
@@ -106,10 +110,10 @@ export default function GroupTaskApprovalSection() {
                         rejectMutation.mutate({ id: task.id, remarks: actionRemarks[task.id] });
                       }}
                       disabled={rejectMutation.isPending}
-                      className="flex-1 flex items-center justify-center gap-1 bg-destructive hover:bg-destructive text-primary-foreground py-1.5 rounded-lg text-xs font-bold transition-colors disabled:opacity-50"
+                      className="flex-1 h-auto py-1.5 text-xs font-bold bg-destructive text-primary-foreground hover:bg-destructive"
                     >
                       <XCircle size={14} /> Reject
-                    </button>
+                    </Button>
                   </div>
                </div>
             </div>

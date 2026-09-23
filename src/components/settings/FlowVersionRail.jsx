@@ -105,14 +105,16 @@ export default function FlowVersionRail({
 
   if (!open) {
     return (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={() => setOpen(true)}
         aria-label="Show version history"
-        className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex size-8 items-center justify-center rounded-xl bg-card/85 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md transition-colors hover:bg-card hover:text-foreground"
+        className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 rounded-xl bg-card/85 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md hover:bg-card hover:text-foreground"
       >
         <ChevronRight size={14} className="text-muted-foreground" />
-      </button>
+      </Button>
     );
   }
 
@@ -124,14 +126,16 @@ export default function FlowVersionRail({
       <div className="pointer-events-auto absolute left-4 top-[4.25rem] z-20 flex max-h-[calc(100%-6rem)] w-80 flex-col overflow-hidden rounded-2xl bg-card/90 shadow-[0_1px_2px_rgba(0,0,0,0.04),0_12px_28px_-18px_rgba(0,0,0,0.4)] backdrop-blur-md">
         <div className="flex items-center justify-between border-b border-border/80 px-4 py-3">
           <p className="text-xs font-black uppercase tracking-widest text-muted-foreground">Versions</p>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={() => setOpen(false)}
             aria-label="Hide version history"
-            className="rounded-lg p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-lg text-muted-foreground"
           >
             <ChevronLeft size={16} />
-          </button>
+          </Button>
         </div>
 
         <div className="flex-1 space-y-2.5 overflow-y-auto p-3.5">
@@ -287,14 +291,16 @@ export default function FlowVersionRail({
                       <p className="text-[10px] font-bold uppercase tracking-widest text-foreground">
                         What the draft would change
                       </p>
-                      <button
+                      <Button
                         type="button"
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => setCompareTargetId(null)}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                        className="rounded text-muted-foreground"
                         aria-label="Close draft comparison"
                       >
                         <X size={12} />
-                      </button>
+                      </Button>
                     </div>
                     {draftSnapshotData ? (
                       <DiffSummary
@@ -336,22 +342,24 @@ function VersionRow({ label, subtitle, note, badge, expanded, onToggleExpand, on
       )}
     >
       <div className="flex w-full items-start gap-2.5 p-3 text-left">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           onClick={onToggleExpand}
           aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
-          className="mt-0.5 shrink-0 rounded-md p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="mt-0.5 shrink-0 rounded-md text-muted-foreground"
         >
           {expanded ? (
             <ChevronUp size={15} />
           ) : (
             <ChevronDown size={15} />
           )}
-        </button>
+        </Button>
         {onSelect ? (
-          <button type="button" onClick={onSelect} className="min-w-0 flex-1 text-left group/row">
+          <Button type="button" variant="ghost" onClick={onSelect} className="h-auto min-w-0 flex-1 flex-col items-start justify-start p-0 font-normal text-left group/row hover:bg-transparent">
             <RowLabel label={label} subtitle={subtitle} note={note} badge={badge} />
-          </button>
+          </Button>
         ) : (
           <div className="min-w-0 flex-1">
             <RowLabel label={label} subtitle={subtitle} note={note} badge={badge} />
@@ -430,34 +438,37 @@ export function FlowVersionStatusChip({ flow, saleTypeName, versionPreview, sale
 
   return (
     <div ref={chipRef} className="relative">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={() => canShowChanges && setOpen((o) => !o)}
         className={cn(
-          "inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-2.5 py-1.5 text-xs font-bold transition-colors",
+          "h-auto whitespace-nowrap rounded-xl px-2.5 py-1.5 text-xs font-bold",
           isLocked
-            ? "text-muted-foreground bg-muted/30 border border-border/50"
-            : "text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20",
+            ? "text-muted-foreground bg-muted/30 border border-border/50 hover:bg-muted/30"
+            : "text-amber-700 dark:text-amber-300 bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/10",
           canShowChanges && "hover:bg-amber-500/20 hover:text-foreground cursor-pointer",
         )}
       >
         {isLocked && <Lock size={12} className="shrink-0 text-muted-foreground" />}
         <span>{text}</span>
-      </button>
+      </Button>
       {open && canShowChanges && (
         <div className="popover-enter absolute right-0 top-full z-[10001] mt-2 w-84 rounded-2xl bg-popover p-3.5 shadow-2xl ring-1 ring-mauve-6">
           <div className="flex items-center justify-between border-b border-border pb-2 mb-2.5">
             <p className="text-[11px] font-black uppercase tracking-wider text-muted-foreground">
               Unpublished changes
             </p>
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="rounded-md text-muted-foreground"
               aria-label="Close unpublished changes"
             >
               <X size={14} />
-            </button>
+            </Button>
           </div>
           <div className="max-h-[60vh] overflow-y-auto scrollbar-thin">
             <DiffSummary
