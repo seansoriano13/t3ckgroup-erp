@@ -183,12 +183,15 @@ export default function SorFormBuilder({ flow }) {
                 {flow.name || "This Sale Type"}
               </span>
             </div>
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setOpen(false)}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="text-muted-foreground"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 min-h-0 space-y-4">
@@ -365,15 +368,17 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
       )}
     >
       <div className="flex items-start gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           {...attributes}
           {...listeners}
           aria-label={`Reorder ${field.label}`}
-          className="mt-4 shrink-0 cursor-grab rounded p-1 text-muted-foreground/50 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
+          className="mt-4 shrink-0 cursor-grab text-muted-foreground/50 opacity-0 hover:bg-transparent hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100 active:cursor-grabbing"
         >
           <GripVertical size={15} />
-        </button>
+        </Button>
 
         <div className="min-w-0 flex-1">
           {renaming ? (
@@ -393,27 +398,31 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
         </div>
 
         <div className="mt-3 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={onStartRename}
             aria-label={`Rename ${field.label}`}
             title="Rename"
-            className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="text-muted-foreground"
           >
             <Pencil size={14} />
-          </button>
+          </Button>
 
           {!core && (
             <>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={onToggleHidden}
                 aria-label={field.isHidden ? `Show ${field.label}` : `Hide ${field.label}`}
                 title={field.isHidden ? "Show on the form" : "Hide from the form"}
-                className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="text-muted-foreground"
               >
                 {field.isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
-              </button>
+              </Button>
               <label
                 className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
                 title="Required to register"
@@ -434,15 +443,17 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
           )}
 
           {field.source === "custom" && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onRemove}
               aria-label={`Remove ${field.label}`}
               title="Remove"
-              className="rounded p-1.5 text-muted-foreground hover:bg-muted hover:text-destructive"
+              className="text-muted-foreground hover:text-destructive"
             >
               <Trash2 size={14} />
-            </button>
+            </Button>
           )}
         </div>
       </div>
