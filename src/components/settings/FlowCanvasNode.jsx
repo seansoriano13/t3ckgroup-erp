@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import Dropdown from "@/components/ui/Dropdown";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 import { STAGE_H, STAGE_W } from "./flowCanvasLayout";
@@ -237,8 +238,9 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
 
   return (
     <div className="mt-0.5 border-t border-mauve-a4 pt-2">
-      <button
+      <Button
         type="button"
+        variant="ghost"
         onClick={(event) => {
           event.stopPropagation();
           onOpen?.();
@@ -246,9 +248,7 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
         title={title}
         aria-label={title}
         className={cn(
-          "nodrag nopan -my-0.5 flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left",
-          "outline-none transition-colors hover:bg-mauve-a3",
-          "focus-visible:ring-2 focus-visible:ring-ring/60",
+          "nodrag nopan -my-0.5 h-auto w-full justify-start gap-2 rounded-lg px-1 py-1 text-left",
         )}
       >
         {viewAsLabel ? (
@@ -292,7 +292,7 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
             )}
           </>
         )}
-      </button>
+      </Button>
     </div>
   );
 };
@@ -460,13 +460,15 @@ function FlowCanvasNode({ data, isConnectable, selected }) {
             placement="bottom-start"
             popoverClassName="popover-enter z-[10001] w-72 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
             trigger={
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 aria-label={`Add Stage after ${stage.name}`}
-                className="flex size-8 items-center justify-center rounded-full border-2 border-card bg-mauve-9 text-white shadow-sm transition-transform hover:scale-110 hover:bg-mauve-10"
+                className="size-8 rounded-full border-2 border-card bg-mauve-9 text-white shadow-sm hover:scale-110 hover:bg-mauve-10"
               >
                 <Plus size={16} strokeWidth={2.5} />
-              </button>
+              </Button>
             }
           >
             {({ close }) => <AddStagePopoverForm onSubmit={onAddStage} close={close} />}

@@ -3,6 +3,7 @@ import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath } from "@xyflow/react";
 import { Plus, X } from "lucide-react";
 
 import Dropdown from "@/components/ui/Dropdown";
+import { Button } from "@/components/ui/button";
 import AddStagePopoverForm from "./AddStagePopoverForm";
 
 /**
@@ -89,14 +90,16 @@ export default function FlowMoveEdge({
                 placement="bottom-start"
                 popoverClassName="popover-enter z-[10001] w-72 rounded-2xl bg-popover p-3 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
                     aria-label={insertLabel}
                     title={insertLabel}
-                    className="flex size-6 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:bg-mauve-9 hover:text-white hover:outline-mauve-9"
+                    className="size-6 rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 hover:bg-mauve-9 hover:text-white hover:outline-mauve-9"
                   >
                     <Plus size={13} strokeWidth={3} />
-                  </button>
+                  </Button>
                 }
               >
                 {({ close }) => (
@@ -108,18 +111,20 @@ export default function FlowMoveEdge({
               </Dropdown>
             )}
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               aria-label={deleteLabel}
               title={deleteLabel}
               onClick={(event) => {
                 event.stopPropagation();
                 data?.onDelete?.(id);
               }}
-              className="flex size-6 items-center justify-center rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:bg-destructive hover:text-destructive-foreground hover:outline-destructive"
+              className="size-6 rounded-full bg-card text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.4)] outline outline-1 -outline-offset-1 outline-mauve-6 hover:bg-destructive hover:text-destructive-foreground hover:outline-destructive"
             >
               <X size={13} strokeWidth={3} />
-            </button>
+            </Button>
           </div>
         </EdgeLabelRenderer>
       )}

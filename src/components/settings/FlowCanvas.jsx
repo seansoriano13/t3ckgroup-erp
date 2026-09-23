@@ -877,16 +877,17 @@ function FlowCanvasInner() {
               (t) => (
                 <span className="flex items-center gap-3 text-sm">
                   Move removed.
-                  <button
+                  <Button
                     type="button"
-                    className="font-bold underline underline-offset-2"
+                    variant="link"
+                    className="h-auto p-0 font-bold underline underline-offset-2"
                     onClick={() => {
                       toast.dismiss(t.id);
                       run(() => salesFlowService.addEdge(flow.id, edge.source, edge.target, user?.id), "Move restored.");
                     }}
                   >
                     Undo
-                  </button>
+                  </Button>
                 </span>
               ),
               { duration: 6000 },
@@ -1196,10 +1197,11 @@ function FlowCanvasInner() {
                   placement="bottom-start"
                   popoverClassName="popover-enter z-[10001] w-64 rounded-2xl bg-popover p-2 shadow-2xl ring-1 ring-mauve-6"
                   trigger={
-                    <button
+                    <Button
+                      type="button"
+                      variant="ghost"
                       className={cn(
-                        "flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-bold transition-colors hover:bg-mauve-a3",
-                        "outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+                        "h-auto gap-2 rounded-xl px-3 py-1.5 text-xs font-bold",
                         selectedSaleType?.archived_at && "opacity-60"
                       )}
                     >
@@ -1207,14 +1209,16 @@ function FlowCanvasInner() {
                         {selectedSaleType ? selectedSaleType.name : "Select Sale Type"}
                       </span>
                       <ChevronDown size={14} className="text-muted-foreground" />
-                    </button>
+                    </Button>
                   }
                 >
                   {({ close }) => (
                     <div className="flex max-h-[60vh] flex-col overflow-y-auto">
                       {activeSaleTypes.map((saleType) => (
-                        <button
+                        <Button
                           key={saleType.id}
+                          type="button"
+                          variant="ghost"
                           onClick={() => {
                             setSelectedSaleTypeId(saleType.id);
                             setSelection(null);
@@ -1222,32 +1226,35 @@ function FlowCanvasInner() {
                             close();
                           }}
                           className={cn(
-                            "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors hover:bg-mauve-a3",
+                            "h-auto justify-start gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold",
                             saleType.id === effectiveSaleTypeId && "bg-foreground text-background hover:bg-foreground hover:text-background"
                           )}
                         >
                           {saleType.name}
-                        </button>
+                        </Button>
                       ))}
 
                       {archivedSaleTypes.length > 0 && (
                         <div className="mt-1 border-t border-border pt-1">
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
                             onClick={() => setShowArchivedTypes((v) => !v)}
-                            className="flex w-full items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-muted-foreground transition-colors hover:bg-mauve-a3"
+                            className="h-auto w-full justify-start gap-1.5 rounded-lg px-2.5 py-1.5 text-left text-xs font-semibold text-muted-foreground"
                           >
                             <ChevronRight
                               size={12}
                               className={cn("transition-transform", showArchivedTypes && "rotate-90")}
                             />
                             {showArchivedTypes ? "Hide" : "Show"} archived ({archivedSaleTypes.length})
-                          </button>
+                          </Button>
 
                           {showArchivedTypes &&
                             archivedSaleTypes.map((saleType) => (
-                              <button
+                              <Button
                                 key={saleType.id}
+                                type="button"
+                                variant="ghost"
                                 onClick={() => {
                                   setSelectedSaleTypeId(saleType.id);
                                   setSelection(null);
@@ -1255,12 +1262,12 @@ function FlowCanvasInner() {
                                   close();
                                 }}
                                 className={cn(
-                                  "flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold opacity-60 transition-colors hover:bg-mauve-a3",
+                                  "h-auto justify-start gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold opacity-60",
                                   saleType.id === effectiveSaleTypeId && "bg-foreground text-background opacity-100 hover:bg-foreground hover:text-background"
                                 )}
                               >
                                 {saleType.name} (Archived)
-                              </button>
+                              </Button>
                             ))}
                         </div>
                       )}
@@ -1303,7 +1310,9 @@ function FlowCanvasInner() {
                       >
                         {({ close }) => (
                           <div className="flex flex-col gap-1">
-                            <button
+                            <Button
+                              type="button"
+                              variant="ghost"
                               onClick={() => {
                                 close();
                                 ask({
@@ -1313,12 +1322,14 @@ function FlowCanvasInner() {
                                   onConfirm: () => run(() => salesFlowService.restoreSaleType(selectedSaleType.id, user?.id), "Sale Type restored."),
                                 });
                               }}
-                              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-mauve-a3"
+                              className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground"
                             >
                               <ArchiveRestore size={15} className="text-muted-foreground" />
                               Restore
-                            </button>
-                            <button
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
                               onClick={() => {
                                 close();
                                 ask({
@@ -1335,11 +1346,11 @@ function FlowCanvasInner() {
                                   }
                                 });
                               }}
-                              className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              className="h-auto justify-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm font-semibold text-foreground hover:bg-destructive/10 hover:text-destructive"
                             >
                               <Trash2 size={15} className="text-destructive/80" />
                               Delete permanently
-                            </button>
+                            </Button>
                           </div>
                         )}
                       </Dropdown>
