@@ -237,12 +237,14 @@ export default function BroadcastModal({ isOpen, onClose }) {
               Broadcast
             </span>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="h-auto w-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* ── Scrollable Body ─────────────────────────────── */}
@@ -254,11 +256,12 @@ export default function BroadcastModal({ isOpen, onClose }) {
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
                 {editingId ? "Editing Broadcast" : "New Broadcast"}
               </p>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 onClick={generateAIContent}
                 disabled={isGenerating}
-                className="flex items-center gap-1.5 text-[11px] font-bold text-mauve-9 hover:text-mauve-11 bg-mauve-9/10 hover:bg-mauve-9/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                className="h-auto flex items-center gap-1.5 text-[11px] font-bold text-mauve-9 hover:text-mauve-11 bg-mauve-9/10 hover:bg-mauve-9/15 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
               >
                 {isGenerating ? (
                   <Spinner size="sm" />
@@ -269,7 +272,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                   </>
                 )}
                 {isGenerating ? "Analyzing commits…" : "AI via GitHub"}
-              </button>
+              </Button>
             </div>
 
             {/* Textarea */}
@@ -294,11 +297,12 @@ export default function BroadcastModal({ isOpen, onClose }) {
                 const Icon = opt.icon;
                 const isSelected = type === opt.value;
                 return (
-                  <button
+                  <Button
                     key={opt.value}
                     type="button"
+                    variant="outline"
                     onClick={() => setType(opt.value)}
-                    className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
+                    className={`h-auto flex flex-col items-start gap-1 p-3 rounded-xl text-left transition-all ${
                       isSelected
                         ? `${opt.bg}`
                         : "bg-muted/20 border-border hover:bg-muted/40"
@@ -320,7 +324,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                     <span className="text-[10px] text-muted-foreground leading-tight">
                       {opt.description}
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -330,8 +334,9 @@ export default function BroadcastModal({ isOpen, onClose }) {
           <div className="px-5 py-4">
             {/* History Header */}
             <div className="flex items-center justify-between mb-3">
-              <button
-                className="flex items-center gap-2 group"
+              <Button
+                variant="ghost"
+                className="h-auto p-0 flex items-center gap-2 group hover:bg-transparent"
                 onClick={() => setIsHistoryCollapsed((v) => !v)}
               >
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -342,7 +347,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                 ) : (
                   <ChevronUp size={12} className="text-muted-foreground/50" />
                 )}
-              </button>
+              </Button>
 
               {!isHistoryCollapsed && (
                 <TabGroup
@@ -389,17 +394,18 @@ export default function BroadcastModal({ isOpen, onClose }) {
                         className="flex gap-3 bg-muted/20 border border-border/60 rounded-xl p-3 group/item hover:bg-muted/30 transition-colors"
                       >
                         {/* Toggle */}
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() =>
                             toggleMutation.mutate({
                               id: update.id,
                               isActive: !update.is_active,
                             })
                           }
-                          className={`mt-0.5 w-9 h-5 rounded-full shrink-0 relative transition-colors ${
+                          className={`h-5 w-9 p-0 mt-0.5 rounded-full shrink-0 relative transition-colors ${
                             update.is_active
-                              ? "bg-green-9"
-                              : "bg-muted-foreground/30"
+                              ? "bg-green-9 hover:bg-green-9"
+                              : "bg-muted-foreground/30 hover:bg-muted-foreground/30"
                           }`}
                           title={update.is_active ? "Deactivate" : "Activate"}
                         >
@@ -408,7 +414,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                               update.is_active ? "left-[18px]" : "left-[3px]"
                             }`}
                           />
-                        </button>
+                        </Button>
 
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -434,7 +440,9 @@ export default function BroadcastModal({ isOpen, onClose }) {
                               </span>
                             </div>
                             <div className="flex items-center gap-2 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                              <button
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
                                 onClick={() => {
                                   if (inlineEditId === update.id) {
                                     setInlineEditId(null);
@@ -444,7 +452,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                     setInlineEditType(update.type);
                                   }
                                 }}
-                                className={`transition-colors ${
+                                className={`h-auto w-auto hover:bg-transparent transition-colors ${
                                   inlineEditId === update.id
                                     ? "text-mauve-12"
                                     : "text-mauve-7 hover:text-mauve-12"
@@ -456,8 +464,10 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                 }
                               >
                                 <Edit3 size={13} />
-                              </button>
-                              <button
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-xs"
                                 onClick={() => {
                                   confirmDeleteToast(
                                     "Delete Broadcast?",
@@ -465,11 +475,11 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                     () => deleteMutation.mutate(update.id),
                                   );
                                 }}
-                                className="text-muted-foreground hover:text-red-500 transition-colors"
+                                className="h-auto w-auto text-muted-foreground hover:text-red-500 hover:bg-transparent transition-colors"
                                 title="Delete"
                               >
                                 <Trash2 size={13} />
-                              </button>
+                              </Button>
                             </div>
                           </div>
                           {/* Inline edit form */}
@@ -487,13 +497,14 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                 {TYPE_OPTIONS.map((opt) => {
                                   const Icon = opt.icon;
                                   return (
-                                    <button
+                                    <Button
                                       key={opt.value}
                                       type="button"
+                                      variant="outline"
                                       onClick={() =>
                                         setInlineEditType(opt.value)
                                       }
-                                      className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-bold transition-all ${
+                                      className={`h-auto flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold transition-all ${
                                         inlineEditType === opt.value
                                           ? `${opt.bg} ${opt.color}`
                                           : "bg-muted/20 border-border text-muted-foreground hover:bg-muted/40"
@@ -508,17 +519,18 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                         }
                                       />
                                       {opt.label}
-                                    </button>
+                                    </Button>
                                   );
                                 })}
                                 <div className="ml-auto flex items-center gap-1.5">
-                                  <button
+                                  <Button
+                                    variant="ghost"
                                     onClick={() => setInlineEditId(null)}
-                                    className="px-3 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/80 transition-all"
+                                    className="h-auto px-3 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/80 transition-all"
                                   >
                                     Cancel
-                                  </button>
-                                  <button
+                                  </Button>
+                                  <Button
                                     disabled={
                                       !inlineEditContent.trim() ||
                                       editMutation.isPending
@@ -538,7 +550,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                         },
                                       );
                                     }}
-                                    className="px-3 py-1.5 rounded-lg text-[10px] font-black bg-primary text-white hover:bg-primary/90 transition-all flex items-center gap-1 disabled:opacity-50"
+                                    className="h-auto px-3 py-1.5 rounded-lg text-[10px] font-black bg-primary text-white hover:bg-primary/90 transition-all flex items-center gap-1 disabled:opacity-50"
                                   >
                                     {editMutation.isPending ? (
                                       <Spinner size="sm" />
@@ -546,7 +558,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                                       <Check size={10} />
                                     )}
                                     Save
-                                  </button>
+                                  </Button>
                                 </div>
                               </div>
                             </div>
@@ -586,24 +598,26 @@ export default function BroadcastModal({ isOpen, onClose }) {
                       {totalCount} total • Page {historyPage} of {totalPages}
                     </p>
                     <div className="flex items-center gap-1.5">
-                      <button
+                      <Button
+                        variant="outline"
                         onClick={() =>
                           setHistoryPage((p) => Math.max(1, p - 1))
                         }
                         disabled={historyPage <= 1 || isLoading}
-                        className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
+                        className="h-auto px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                       >
                         <ChevronLeft size={12} /> Prev
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="outline"
                         onClick={() =>
                           setHistoryPage((p) => Math.min(totalPages, p + 1))
                         }
                         disabled={historyPage >= totalPages || isLoading}
-                        className="px-2 py-1 rounded-lg border border-border text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
+                        className="h-auto px-2 py-1 rounded-lg text-[10px] font-bold text-muted-foreground hover:bg-muted/50 disabled:opacity-40 flex items-center gap-1"
                       >
                         Next <ChevronRight size={12} />
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 )}

@@ -9,6 +9,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import ReactMarkdown from "react-markdown";
+import { Button } from "./ui/button";
 
 const TYPE_OPTIONS = [
   {
@@ -89,9 +90,13 @@ function BannerItem({ update }) {
               Live
             </span>
           </div>
-          <button className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="h-auto w-auto p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+          >
             {isMinimized ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-          </button>
+          </Button>
         </div>
 
         {/* Collapsible content */}

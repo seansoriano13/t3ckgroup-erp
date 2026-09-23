@@ -15,6 +15,7 @@ import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import Dropdown from "./ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "./ui/FilterDropdown";
+import { Button } from "./ui/button";
 
 // ── FieldBox — mirrors LogTaskAssignmentBar's label+container pattern ────────
 function FieldBox({ label, children }) {
@@ -110,13 +111,14 @@ export default function ActivityLogFilters({
           )}
         </div>
         {hasActiveFilters && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={clearFilters}
-            className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
+            className="h-auto p-0 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors"
           >
             <X size={12} /> Clear
-          </button>
+          </Button>
         )}
       </div>
 
@@ -382,15 +384,17 @@ export default function ActivityLogFilters({
                     {filters.dateFrom ? new Date(filters.dateFrom).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select start date"}
                   </span>
                   {filters.dateFrom && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateFrom: null }));
                       }}
-                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-auto w-auto hover:text-foreground hover:bg-transparent text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <Calendar
@@ -426,15 +430,17 @@ export default function ActivityLogFilters({
                     {filters.dateTo ? new Date(filters.dateTo).toLocaleDateString("en-US", {month: "short", day:"numeric", year:"numeric"}) : "Select end date"}
                   </span>
                   {filters.dateTo && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={(e) => {
                         e.stopPropagation();
                         setFilters((p) => ({ ...p, dateTo: null }));
                       }}
-                      className="hover:text-foreground text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="h-auto w-auto hover:text-foreground hover:bg-transparent text-muted-foreground p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                     >
                       <X size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
                 <Calendar

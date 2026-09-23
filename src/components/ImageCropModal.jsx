@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import ModalOverlay from "@/components/ui/ModalOverlay";
+import { Button } from "@/components/ui/button";
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  CONSTANTS
@@ -263,13 +264,15 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
               Crop Profile Photo
             </span>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={onCancel}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="h-auto w-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* ── Canvas area ────────────────────────────────────────────────── */}
@@ -308,13 +311,15 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
 
           {/* ── Zoom controls ──────────────────────────────────────────── */}
           <div className="flex items-center gap-3 w-full">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setZoom((z) => clamp(z - ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="h-auto w-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <ZoomOut size={14} />
-            </button>
+            </Button>
 
             {/* Zoom slider */}
             <div className="flex-1 relative h-1.5 rounded-full bg-mauve-4 overflow-visible">
@@ -333,13 +338,15 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
               />
             </div>
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => setZoom((z) => clamp(z + ZOOM_STEP, MIN_ZOOM, MAX_ZOOM))}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="h-auto w-auto p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
             >
               <ZoomIn size={14} />
-            </button>
+            </Button>
 
             <span className="text-[10px] font-black text-mauve-8 w-9 text-right tabular-nums">
               {Math.round(zoom * 100)}%
@@ -349,28 +356,30 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
 
         {/* ── Footer ─────────────────────────────────────────────────────── */}
         <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={handleReset}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-[10px] font-black uppercase tracking-widest transition hover:bg-muted text-muted-foreground"
+            className="h-auto flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition hover:bg-muted text-muted-foreground"
           >
             <RotateCcw size={12} />
             Reset
-          </button>
+          </Button>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onCancel}
-              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
+              className="h-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-muted-foreground/80 hover:text-foreground hover:bg-muted transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleConfirm}
               disabled={!imgLoaded || isCropping}
-              className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-60"
+              className="h-auto flex items-center gap-1.5 px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 transition hover:opacity-90 disabled:opacity-60"
             >
               {isCropping ? (
                 <Spinner size="sm" />
@@ -378,7 +387,7 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
                 <Check size={13} strokeWidth={3} />
               )}
               Apply
-            </button>
+            </Button>
           </div>
         </div>
       </div>

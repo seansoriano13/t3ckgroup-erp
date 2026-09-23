@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 import { Plus, Edit, Trash2, XSquare } from "lucide-react"
 import Spinner from "@/components/ui/Spinner"
+import { Button } from "@/components/ui/button"
 import { employeeService } from "../services/employeeService"
 import { useAuth } from "../context/AuthContext"
 import { confirmDeleteToast } from "./ui/CustomToast"
@@ -95,13 +96,13 @@ export default function HRCategoriesConfig() {
           />
         </div>
 
-        <button
+        <Button
           type="button"
           onClick={openAdd}
-          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary-hover text-primary-foreground px-4 py-2.5 rounded-lg font-bold transition-colors text-sm shadow-sm active:scale-95"
+          className="h-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm shadow-sm active:scale-95"
         >
           <Plus size={18} /> Add Category
-        </button>
+        </Button>
       </div>
 
       <div className="bg-mauve-2 border border-mauve-4 rounded-xl shadow-lg overflow-x-auto">
@@ -153,14 +154,18 @@ export default function HRCategoriesConfig() {
                       {cat.subDepartment || "-"}
                     </td>
                     <td className="p-4 text-right space-x-2">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => openEdit(cat)}
-                        className="p-2 bg-mauve-3 hover:bg-mauve-4 text-foreground rounded-lg transition-colors inline-block"
+                        className="h-auto w-auto p-2 bg-mauve-3 hover:bg-mauve-4 text-foreground rounded-lg transition-colors inline-block"
                         title="Edit Category"
                       >
                         <Edit size={16} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         onClick={() => {
                           confirmDeleteToast(
                             `Delete Category?`,
@@ -168,12 +173,12 @@ export default function HRCategoriesConfig() {
                             () => deleteMutation.mutate(cat),
                           )
                         }}
-                        className="p-2 bg-red-3 hover:bg-red-6 text-destructive rounded-lg transition-colors inline-block"
+                        className="h-auto w-auto p-2 bg-red-3 hover:bg-red-6 text-destructive rounded-lg transition-colors inline-block"
                         title="Delete Category"
                         disabled={deleteMutation.isPending}
                       >
                         <Trash2 size={16} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))
