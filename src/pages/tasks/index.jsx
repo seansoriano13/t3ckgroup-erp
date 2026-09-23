@@ -10,6 +10,7 @@ import { useAuth } from "../../context/AuthContext";
 import { taskService } from "../../services/taskService.js";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
+import { Button } from "@/components/ui/button";
 
 // --- DATE PICKER IMPORTS ---
 import DatePicker from "react-datepicker";
@@ -437,21 +438,23 @@ export default function TasksPage() {
 
       <div className="flex justify-end -mt-2 mb-2">
         {hasSavedDefault ? (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={clearDefault}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
           >
             Clear saved default
-          </button>
+          </Button>
         ) : (
-          <button
+          <Button
             type="button"
+            variant="link"
             onClick={() => saveDefault({ crmOnly })}
-            className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+            className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
           >
             Save as my default
-          </button>
+          </Button>
         )}
       </div>
 
@@ -563,7 +566,8 @@ export default function TasksPage() {
                     Page {currentGroupPage} / {totalGroupPages}
                   </span>
                   <div className="flex gap-1">
-                    <button
+                    <Button
+                      variant="outline"
                       disabled={currentGroupPage === 1}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage - 1);
@@ -574,10 +578,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       ←
-                    </button>
+                    </Button>
                     {/* Page number pills */}
                     {(() => {
                       let startPage = Math.max(1, currentGroupPage - 2);
@@ -608,8 +612,10 @@ export default function TasksPage() {
                       }
 
                       return pages.map((p, idx) => (
-                        <button
+                        <Button
                           key={idx}
+                          variant="outline"
+                          size="icon"
                           disabled={p === "..."}
                           onClick={(e) => {
                             if (p !== "...") {
@@ -622,18 +628,19 @@ export default function TasksPage() {
                                 });
                             }
                           }}
-                          className={`w-7 h-7 rounded text-xs font-bold flex items-center justify-center transition-all border ${p === currentGroupPage
-                            ? "bg-primary text-primary-foreground border-primary"
+                          className={`h-7 w-7 text-xs font-bold ${p === currentGroupPage
+                            ? "bg-primary text-primary-foreground border-primary hover:bg-primary"
                             : p === "..."
                               ? "bg-transparent text-muted-foreground/80 border-transparent cursor-default"
                               : "bg-muted/50 text-muted-foreground/80 border-border hover:border-mauve-5"
                             }`}
                         >
                           {p}
-                        </button>
+                        </Button>
                       ));
                     })()}
-                    <button
+                    <Button
+                      variant="outline"
                       disabled={currentGroupPage === totalGroupPages}
                       onClick={(e) => {
                         setGroupPage(statusKey, currentGroupPage + 1);
@@ -644,10 +651,10 @@ export default function TasksPage() {
                             block: "nearest",
                           });
                       }}
-                      className="px-3 py-1 rounded bg-muted/50 border border-border text-foreground text-xs font-bold disabled:opacity-30 active:scale-95 transition-all"
+                      className="h-auto rounded bg-muted/50 px-3 py-1 text-xs font-bold disabled:opacity-30 active:scale-95"
                     >
                       →
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

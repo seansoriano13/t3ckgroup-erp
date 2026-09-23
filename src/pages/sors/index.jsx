@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import ProtectedRoute from "../../components/ProtectedRoute";
 import Spinner from "../../components/ui/Spinner";
+import { Button } from "@/components/ui/button";
 import StatusBadge from "../../components/StatusBadge";
 import Avatar from "../../components/Avatar";
 import Dropdown from "../../components/ui/Dropdown";
@@ -809,40 +810,43 @@ export default function OpportunitiesPage() {
                   {/* Row 4: Toggles and Clear All */}
                   <div className="flex items-center justify-between pt-1">
                     <div className="flex items-center gap-2">
-                      <button
+                      <Button
+                        variant="outline"
                         onClick={() => setMineOnly((v) => !v)}
-                        className={`h-9 shrink-0 rounded-xl border px-3.5 text-sm font-bold transition-all ${mineOnly
+                        className={`h-9 shrink-0 rounded-xl px-3.5 text-sm font-bold ${mineOnly
                           ? "border-mauve-6 bg-muted font-bold text-foreground ring-1 ring-mauve-4"
                           : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
                           }`}
                       >
                         My Deals
-                      </button>
+                      </Button>
                       {/* Sales Director visibility (Stage Gate Engine ticket 6,
                           story 25) — which deals are stuck on their own Stage,
                           without hunting for it deal by deal. */}
-                      <button
+                      <Button
+                        variant="outline"
                         onClick={() => setBlockedOnly((v) => !v)}
-                        className={`flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-sm font-bold transition-all ${blockedOnly
-                          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                        className={`h-9 shrink-0 gap-1.5 rounded-xl px-3.5 text-sm font-bold ${blockedOnly
+                          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
                           : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
                           }`}
                       >
                         <AlertTriangle size={13} />
                         Blocked
-                      </button>
+                      </Button>
                     </div>
 
                     {hasActiveFilters && (
-                      <button
+                      <Button
+                        variant="link"
                         onClick={() => {
                           handleClearAll();
                           close();
                         }}
-                        className="text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
+                        className="h-auto p-0 text-sm font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
                       >
                         Clear filters
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -851,22 +855,23 @@ export default function OpportunitiesPage() {
 
             <SorsTotals openValue={totals.openValue} wonValue={totals.wonValue} />
 
-            <button
+            <Button
               onClick={() => setFormOpen(true)}
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary-hover"
+              className="h-9 shrink-0 gap-1.5 rounded-xl px-4 text-[13px] font-bold shadow-lg shadow-primary/20"
             >
               <Plus size={15} /> Register SOR
-            </button>
+            </Button>
           </div>
 
           {employeeFilter && employeeFilter !== "ALL" && (
-            <button
+            <Button
+              variant="outline"
               onClick={() => setEmployeeFilter("ALL")}
-              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary transition-colors hover:bg-primary/15"
+              className="mt-2 h-auto gap-1.5 rounded-lg border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/15"
             >
               Filtered to {employeeFilterName || "employee"}
               <X size={12} />
-            </button>
+            </Button>
           )}
         </div>
 
