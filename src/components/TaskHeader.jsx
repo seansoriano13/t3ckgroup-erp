@@ -1,4 +1,5 @@
 import { ShieldCheck, MessageCircle, X } from "lucide-react";
+import { Button } from "./ui/button";
 
 const TaskHeader = ({ isEditing, isHrVerified, onClose, onOpenChat, extraButtons }) => (
   <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-card shrink-0">
@@ -14,21 +15,25 @@ const TaskHeader = ({ isEditing, isHrVerified, onClose, onOpenChat, extraButtons
     </div>
     <div className="flex items-center gap-2">
       {!isEditing && onOpenChat && (
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={onOpenChat}
           title="Open Conversation"
-          className="h-9 w-9 flex items-center justify-center rounded-xl text-red-10 hover:bg-red-2 transition-all active:scale-95 border border-red-3"
+          className="h-9 w-9 rounded-xl text-red-10 hover:bg-red-2 transition-all active:scale-95 border-red-3"
         >
           <MessageCircle size={18} />
-        </button>
+        </Button>
       )}
       {!isEditing && extraButtons}
-      <button
+      <Button
+        variant="outline"
+        size="icon"
         onClick={onClose}
-        className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border border-transparent hover:border-border"
+        className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border-transparent hover:border-border"
       >
         <X size={18} />
-      </button>
+      </Button>
     </div>
   </div>
 );

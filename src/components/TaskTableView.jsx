@@ -13,6 +13,7 @@ import {
 import Avatar from "./Avatar";
 import StatusBadge from "./StatusBadge";
 import Dot from "./ui/Dot";
+import { Button } from "./ui/button";
 import { SorLinkChip } from "./ui/SorLinkChip";
 import HighlightText from "./HighlightText";
 import { useAuth } from "../context/AuthContext";
@@ -401,17 +402,19 @@ export default function TaskTableView({
 
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right align-middle">
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                        className="h-auto w-auto p-1.5 rounded-lg bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                         title="View details"
                       >
                         <ArrowUpRight size={13} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -460,27 +463,31 @@ export default function TaskTableView({
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="h-auto w-auto p-1.5 rounded-md bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Previous Page"
             >
               <ChevronLeft size={14} />
-            </button>
+            </Button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="h-auto w-auto p-1.5 rounded-md bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
               title="Next Page"
             >
               <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
       </div>

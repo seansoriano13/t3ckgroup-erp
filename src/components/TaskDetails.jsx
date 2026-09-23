@@ -23,6 +23,7 @@ import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
+import { Button } from "./ui/button"
 
 export default function TaskDetails({
   isOpen,
@@ -509,8 +510,10 @@ export default function TaskDetails({
               }
               extraButtons={
                 <>
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       setIsSplitScreen((prev) => !prev)
                     }}
@@ -520,24 +523,26 @@ export default function TaskDetails({
                         : "Split Screen (Task + Chat)"
                     }
                     className={cn(
-                      "h-9 w-9 flex items-center justify-center rounded-xl transition-all active:scale-95 border",
+                      "h-9 w-9 rounded-xl transition-all active:scale-95",
                       isSplitScreen
                         ? "text-primary bg-primary/10 border-primary/20 hover:bg-primary/20"
                         : "text-muted-foreground border-transparent hover:bg-muted hover:border-border",
                     )}
                   >
                     <Columns2 size={16} />
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       setIsExpanded((prev) => !prev)
                     }}
                     title={isExpanded ? "Collapse" : "Expand"}
-                    className="h-9 w-9 flex items-center justify-center rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border border-transparent hover:border-border"
+                    className="h-9 w-9 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-95 border-transparent hover:border-border"
                   >
                     <Maximize2 size={16} />
-                  </button>
+                  </Button>
                 </>
               }
             />

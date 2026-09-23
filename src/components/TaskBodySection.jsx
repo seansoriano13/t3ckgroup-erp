@@ -1,6 +1,7 @@
 import { FolderKanban, Receipt } from "lucide-react"
 import SorLink from "./sor/SorLink"
 import Dot from "./ui/Dot"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import ChecklistTaskInput from "./ChecklistTaskInput"
@@ -143,13 +144,14 @@ export default function TaskBodySection({
                     <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
                       Checklist
                     </label>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() => setShowChecklist(false)}
-                      className="text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
+                      className="h-auto text-[10px] font-bold text-muted-foreground hover:text-foreground transition-colors px-2 py-0.5 rounded hover:bg-muted"
                     >
                       Hide
-                    </button>
+                    </Button>
                   </div>
                   <div className="bg-card rounded-xl border border-border p-4 shadow-sm">
                     <ChecklistTaskInput
@@ -165,13 +167,14 @@ export default function TaskBodySection({
                   </div>
                 </div>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setShowChecklist(true)}
-                  className="flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+                  className="h-auto flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
                 >
                   <span className="text-base leading-none">+</span> Add checklist
-                </button>
+                </Button>
               )}
             </div>
           </div>

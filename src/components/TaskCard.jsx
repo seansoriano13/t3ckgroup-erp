@@ -9,6 +9,7 @@ import {
   Circle,
 } from "lucide-react"
 import Dot from "./ui/Dot"
+import { Button } from "./ui/button"
 import { SorQuickLinkButton } from "./ui/SorQuickLinkButton"
 import StatusBadge from "./StatusBadge"
 import { useAuth } from "../context/AuthContext"
@@ -425,12 +426,13 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
               }`}
             >
               {hiddenItems.length > 0 && (
-                <button
+                <Button
+                  variant="ghost"
                   onClick={(e) => {
                     e.stopPropagation()
                     setIsExpanded(!isExpanded)
                   }}
-                  className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground transition-all duration-300 uppercase tracking-wider shrink-0"
+                  className="h-auto p-0 flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground hover:bg-transparent transition-all duration-300 uppercase tracking-wider shrink-0"
                 >
                   {isExpanded ? (
                     <>
@@ -441,7 +443,7 @@ const TaskCard = memo(({ task, onView, onSilentUpdate, searchTerm }) => {
                       <ChevronDown size={12} /> {hiddenItems.length} {previewItems.length > 0 ? "more item" : "item"}{hiddenItems.length !== 1 ? "s" : ""}
                     </>
                   )}
-                </button>
+                </Button>
               )}
 
               <div className="flex items-center gap-2 max-w-[170px]">
