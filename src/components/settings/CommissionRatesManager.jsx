@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 import { commissionService } from "../../services/commissionService";
 import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
+import { Button } from "@/components/ui/button";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -50,12 +51,13 @@ export default function CommissionRatesManager() {
           </h2>
         </div>
         {!isAdding && (
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setIsAdding(true)}
-            className="text-xs font-bold text-primary flex items-center gap-1 hover:bg-primary/10 px-2.5 py-1.5 rounded-lg transition-colors"
+            className="h-auto gap-1 px-2.5 py-1.5 text-xs font-bold text-primary hover:bg-primary/10 hover:text-primary"
           >
             <Plus size={14} /> Add Rate
-          </button>
+          </Button>
         )}
       </div>
 
@@ -102,20 +104,21 @@ export default function CommissionRatesManager() {
               />
             </div>
             <div className="flex items-center gap-2">
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={() => setIsAdding(false)}
-                className="h-9 px-3 rounded-lg border border-border text-muted-foreground hover:bg-muted text-sm font-semibold transition-colors"
+                className="h-9 px-3 text-sm font-semibold text-muted-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 disabled={addMutation.isPending}
-                className="h-9 px-4 rounded-lg bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors disabled:opacity-50"
+                className="h-9 px-4 text-sm font-semibold"
               >
                 Save
-              </button>
+              </Button>
             </div>
           </form>
         )}

@@ -21,7 +21,7 @@ import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
  */
 
 const ROLE_BUTTON =
-  "flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition-colors duration-150 outline outline-1 -outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
+  "h-auto justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold outline outline-1 -outline-offset-1 disabled:cursor-not-allowed disabled:opacity-50";
 
 const COLOR_SWATCHES = [
   { value: null, dot: "bg-mauve-8", label: "Default (by role)" },
@@ -121,11 +121,12 @@ export default function StageSettingsPanel({
               className="mt-1 h-9 text-base font-bold"
             />
           ) : (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               disabled={disabled}
               onClick={() => setDraft({ stageId: stage.id, value: stage.name })}
-              className="group mt-0.5 flex w-full items-center gap-2 rounded-md text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-default"
+              className="group mt-0.5 h-auto w-full justify-start gap-2 rounded-md p-0 text-left hover:bg-transparent disabled:cursor-default"
             >
               <h2 className="truncate text-lg font-bold tracking-[-0.015em] text-foreground">
                 {stage.name}
@@ -136,7 +137,7 @@ export default function StageSettingsPanel({
                   className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
                 />
               )}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -164,57 +165,61 @@ export default function StageSettingsPanel({
                 Role in the flow
               </h3>
               <div className="grid grid-cols-2 gap-2">
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onSetEntry}
                   disabled={disabled}
                   className={cn(
                     ROLE_BUTTON,
                     isEntry
-                      ? "bg-blue-a3 text-blue-11 outline-blue-a6"
+                      ? "bg-blue-a3 text-blue-11 outline-blue-a6 hover:bg-blue-a3 hover:text-blue-11"
                       : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
                   )}
                 >
                   <ArrowUpCircle size={14} /> {isEntry ? "Deals enter here" : "Make it the entry"}
-                </button>
+                </Button>
 
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onSetWon}
                   disabled={disabled}
                   className={cn(
                     ROLE_BUTTON,
                     isWon
-                      ? "bg-green-a3 text-green-11 outline-green-a6"
+                      ? "bg-green-a3 text-green-11 outline-green-a6 hover:bg-green-a3 hover:text-green-11"
                       : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
                   )}
                 >
                   <Flag size={14} /> {isWon ? "Deals are won here" : "Make it the win"}
-                </button>
+                </Button>
 
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onToggleTerminal}
                   disabled={disabled}
                   className={cn(
                     ROLE_BUTTON,
                     stage.is_terminal
-                      ? "bg-amber-a3 text-amber-11 outline-amber-a6"
+                      ? "bg-amber-a3 text-amber-11 outline-amber-a6 hover:bg-amber-a3 hover:text-amber-11"
                       : "text-foreground outline-mauve-6 hover:bg-mauve-a3",
                   )}
                 >
                   {stage.is_terminal ? <Check size={14} /> : <Octagon size={14} />}
                   {stage.is_terminal ? "Deals end here" : "Make it terminal"}
-                </button>
+                </Button>
 
-                <button
+                <Button
+                  variant="ghost"
                   onClick={onDelete}
                   disabled={disabled}
                   aria-label="Delete Stage"
                   className={cn(
                     ROLE_BUTTON,
-                    "text-destructive outline-destructive/30 hover:bg-destructive/10",
+                    "text-destructive outline-destructive/30 hover:bg-destructive/10 hover:text-destructive",
                   )}
                 >
                   <Trash2 size={14} /> Delete Stage
-                </button>
+                </Button>
               </div>
             </section>
 
@@ -274,21 +279,22 @@ export default function StageSettingsPanel({
               </h3>
               <div className="flex flex-wrap gap-2">
                 {COLOR_SWATCHES.map((swatch) => (
-                  <button
+                  <Button
                     key={swatch.value ?? "default"}
                     type="button"
+                    variant="ghost"
+                    size="icon-sm"
                     disabled={disabled}
                     onClick={() => onColorChange(swatch.value)}
                     aria-label={swatch.label}
                     title={swatch.label}
                     className={cn(
-                      "flex size-7 items-center justify-center rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform disabled:cursor-not-allowed disabled:opacity-50",
-                      "hover:scale-110",
+                      "rounded-full outline outline-1 -outline-offset-1 outline-mauve-6 transition-transform hover:scale-110 disabled:cursor-not-allowed disabled:opacity-50",
                       (stage.color ?? null) === swatch.value && "outline-2 outline-primary",
                     )}
                   >
                     <span className={cn("size-4 rounded-full", swatch.dot)} />
-                  </button>
+                  </Button>
                 ))}
               </div>
             </section>

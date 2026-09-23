@@ -154,30 +154,35 @@ export default function StageActionManager({ stageId, disabled = false }) {
               <div className="flex items-center gap-3 px-3 py-2.5">
                 {!disabled && (
                   <div className="flex shrink-0 flex-col">
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => moveAction(i, -1)}
                       disabled={i === 0 || reorderMutation.isPending}
                       aria-label={`Move ${title} earlier`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       <ArrowUp size={13} />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => moveAction(i, 1)}
                       disabled={i === actions.length - 1 || reorderMutation.isPending}
                       aria-label={`Move ${title} later`}
-                      className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                      className="text-muted-foreground hover:text-foreground"
                     >
                       <ArrowDown size={13} />
-                    </button>
+                    </Button>
                   </div>
                 )}
 
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => setExpandedId(isExpanded ? null : action.id)}
                   aria-expanded={isExpanded}
-                  className="flex min-w-0 flex-1 items-center gap-3 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                  className="h-auto min-w-0 flex-1 justify-start gap-3 rounded-lg text-left"
                 >
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
                     <Icon size={15} strokeWidth={2.5} />
@@ -199,7 +204,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                       isExpanded && "rotate-90",
                     )}
                   />
-                </button>
+                </Button>
 
                 {!disabled && (
                   <div className="flex shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -255,31 +260,33 @@ export default function StageActionManager({ stageId, disabled = false }) {
             placement="bottom-start"
             popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
             trigger={({ isOpen }) => (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
                 className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-mauve-7 p-3",
-                  "text-sm font-semibold transition-colors",
+                  "h-auto w-full justify-center gap-2 rounded-xl border border-dashed border-mauve-7 p-3",
+                  "text-sm font-semibold",
                   isOpen
-                    ? "border-primary bg-primary/5 text-primary"
+                    ? "border-primary bg-primary/5 text-primary hover:bg-primary/5 hover:text-primary"
                     : "text-muted-foreground hover:border-primary hover:bg-primary/5 hover:text-primary",
                 )}
               >
                 <Plus size={16} /> Add Action
-              </button>
+              </Button>
             )}
           >
             {({ close }) => (
               <div className="flex flex-col">
                 {Object.entries(ACTION_KIND_META).map(([value, meta]) => (
-                  <button
+                  <Button
                     key={value}
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       setAddingKind(value);
                       close();
                     }}
-                    className="flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors hover:bg-mauve-a2"
+                    className="h-auto items-start justify-start gap-3 rounded-xl px-2.5 py-2 text-left"
                   >
                     <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-violet-a3 text-violet-11">
                       <meta.icon size={14} strokeWidth={2.5} />
@@ -292,7 +299,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                         {meta.hint}
                       </span>
                     </span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

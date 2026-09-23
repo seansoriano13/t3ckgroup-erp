@@ -121,23 +121,27 @@ export default function ManageTagsModal({ isOpen, onClose, userId }) {
                 ))}
               </select>
               {tag.archived_at ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   title="Restore"
                   onClick={() => restoreMutation.mutate(tag.id)}
                   className="text-muted-foreground hover:text-foreground"
                 >
                   <RotateCcw size={14} />
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   title="Archive"
                   onClick={() => archiveMutation.mutate(tag.id)}
                   className="text-muted-foreground hover:text-destructive"
                 >
                   <Archive size={14} />
-                </button>
+                </Button>
               )}
             </div>
           ))}

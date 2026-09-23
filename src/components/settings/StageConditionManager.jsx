@@ -246,15 +246,16 @@ export default function StageConditionManager({ stageId, disabled = false }) {
           placement="bottom-start"
           popoverClassName="popover-enter z-[10001] w-[19rem] rounded-2xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
           trigger={
-            <button
+            <Button
               type="button"
+              variant="ghost"
               disabled={Boolean(editingId)}
-              className="flex w-full items-center gap-2 text-left text-sm font-medium text-foreground outline-none disabled:cursor-not-allowed disabled:opacity-70"
+              className="h-auto w-full justify-start gap-2 text-left text-sm font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-70"
             >
               <activeKind.icon size={15} className="shrink-0 text-muted-foreground" />
               <span className="flex-1">{activeKind.label}</span>
               {!editingId && <ChevronDown size={15} className="shrink-0 text-muted-foreground" />}
-            </button>
+            </Button>
           }
         >
           {({ close }) => (
@@ -262,16 +263,17 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               {NEW_CONDITION_KINDS.map((value) => {
                 const meta = CONDITION_KIND_META[value];
                 return (
-                  <button
+                  <Button
                     key={value}
                     type="button"
+                    variant="ghost"
                     onClick={() => {
                       handleKindChange(value);
                       close();
                     }}
                     className={cn(
-                      "flex items-start gap-3 rounded-xl px-2.5 py-2 text-left transition-colors",
-                      value === kind ? "bg-mauve-a3" : "hover:bg-mauve-a2",
+                      "h-auto items-start justify-start gap-3 rounded-xl px-2.5 py-2 text-left",
+                      value === kind ? "bg-mauve-a3 hover:bg-mauve-a3" : "hover:bg-mauve-a2",
                     )}
                   >
                     <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
@@ -285,7 +287,7 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                         {meta.hint}
                       </span>
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -316,23 +318,24 @@ export default function StageConditionManager({ stageId, disabled = false }) {
               const accepts = config.accepts || [];
               const active = accepts.includes(key);
               return (
-                <button
+                <Button
                   key={key}
                   type="button"
+                  variant="ghost"
                   onClick={() =>
                     setConfig({
                       accepts: active ? accepts.filter((a) => a !== key) : [...accepts, key],
                     })
                   }
                   className={cn(
-                    "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                    "h-auto rounded-full px-3 py-1 text-xs font-semibold",
                     active
-                      ? "bg-mauve-12 text-mauve-1"
-                      : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4",
+                      ? "bg-mauve-12 text-mauve-1 hover:bg-mauve-12 hover:text-mauve-1"
+                      : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4 hover:text-muted-foreground",
                   )}
                 >
                   {group.label}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -461,22 +464,26 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                 >
                   {!disabled && (
                     <div className="flex shrink-0 flex-col">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => moveCondition(index, "up")}
                         disabled={index === 0 || reorderMutation.isPending}
                         aria-label={`Move ${condition.label} earlier`}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                        className="text-muted-foreground hover:text-foreground"
                       >
                         <ArrowUp size={13} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => moveCondition(index, "down")}
                         disabled={index === conditions.length - 1 || reorderMutation.isPending}
                         aria-label={`Move ${condition.label} later`}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20 disabled:hover:bg-transparent"
+                        className="text-muted-foreground hover:text-foreground"
                       >
                         <ArrowDown size={13} />
-                      </button>
+                      </Button>
                     </div>
                   )}
 

@@ -238,26 +238,28 @@ export default function StageFieldManager({ stageId, disabled = false }) {
           Source
         </span>
         <div className="flex gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             disabled={Boolean(editingId)}
             onClick={() => setDraft((d) => ({ ...d, source: "sor" }))}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-              draft.source === "sor" ? "bg-mauve-12 text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4"
+            className={`h-auto flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+              draft.source === "sor" ? "bg-mauve-12 text-mauve-1 hover:bg-mauve-12 hover:text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4 hover:text-muted-foreground"
             }`}
           >
             SOR field
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             disabled={Boolean(editingId)}
             onClick={() => setDraft((d) => ({ ...d, source: "custom" }))}
-            className={`flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-              draft.source === "custom" ? "bg-mauve-12 text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4"
+            className={`h-auto flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-50 ${
+              draft.source === "custom" ? "bg-mauve-12 text-mauve-1 hover:bg-mauve-12 hover:text-mauve-1" : "bg-mauve-a3 text-muted-foreground hover:bg-mauve-a4 hover:text-muted-foreground"
             }`}
           >
             Custom
-          </button>
+          </Button>
         </div>
 
         {draft.source === "sor" ? (
@@ -369,22 +371,26 @@ export default function StageFieldManager({ stageId, disabled = false }) {
                 >
                   {!disabled && (
                     <div className="flex shrink-0 flex-col">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => moveField(index, "up")}
                         disabled={index === 0 || reorderMutation.isPending}
                         aria-label={`Move ${field.label} earlier`}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20"
+                        className="text-muted-foreground hover:text-foreground"
                       >
                         <ArrowUp size={13} />
-                      </button>
-                      <button
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => moveField(index, "down")}
                         disabled={index === fields.length - 1 || reorderMutation.isPending}
                         aria-label={`Move ${field.label} later`}
-                        className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-mauve-a3 hover:text-foreground disabled:opacity-20"
+                        className="text-muted-foreground hover:text-foreground"
                       >
                         <ArrowDown size={13} />
-                      </button>
+                      </Button>
                     </div>
                   )}
 
@@ -451,13 +457,14 @@ export default function StageFieldManager({ stageId, disabled = false }) {
 
         {stageId && !disabled && (
           <div className="pt-1">
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={() => setShowArchived((v) => !v)}
-              className="text-[11px] font-semibold text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="h-auto p-0 text-[11px] font-semibold text-muted-foreground no-underline hover:text-foreground hover:underline"
             >
               {showArchived ? "Hide archived fields" : "Show archived fields"}
-            </button>
+            </Button>
 
             {showArchived && (
               <div className="mt-2 space-y-2">

@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { cleanChoiceOptions } from "./choiceOptions";
 
@@ -57,13 +58,14 @@ export default function StageFieldPreview({ draft }) {
               className="flex h-8 w-full cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
             />
           )}
-          <button
+          <Button
             type="button"
             disabled
-            className="inline-flex h-8 shrink-0 cursor-not-allowed items-center justify-center rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 opacity-50 shadow"
+            size="sm"
+            className="shrink-0 cursor-not-allowed rounded-md bg-mauve-12 px-3 text-[11px] font-medium text-mauve-1 opacity-50 shadow"
           >
             Save
-          </button>
+          </Button>
         </div>
       </div>
     </div>
