@@ -8,6 +8,15 @@ Issues and specs live as GitHub issues in `seansoriano13/t3ckgroup-erp`, managed
 
 Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root, created lazily as needed. See `docs/agents/domain.md`.
 
+### UI Primitives
+
+Anything in `src/components/ui/` is a **Primitive**. Never write raw `<button>`, `<input>`,
+`<textarea>`, `<select>`, `<label>`, `<table>`, `<img>`, `<a>` or a hand-rolled full-screen
+modal outside that folder — use the Primitive. The catalog is DESIGN.md → Components →
+"Primitive catalog" (what to use, its props, what it replaces). If no Primitive fits,
+**stop and ask the maintainer**; don't hand-roll a workaround. **Never disable the lint rule**
+(`eslint-disable`) for this. See `docs/adr/0025-one-primitive-system-enforced-by-lint.md`.
+
 ### Branch topology
 
 `staging` is the permanent integration branch — everything accepted but not yet
