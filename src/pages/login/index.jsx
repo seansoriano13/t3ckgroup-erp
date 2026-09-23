@@ -18,15 +18,11 @@ export default function Login() {
 
   const redirectTo = resolvePostLoginPath(location.state?.from);
 
-  const [email, setEmail] = useState(() =>
-    import.meta.env.MODE !== "test"
-      ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || ""
-      : "",
+  const [email, setEmail] = useState(
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_EMAIL || "" : "")
   );
-  const [password, setPassword] = useState(() =>
-    import.meta.env.MODE !== "test"
-      ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || ""
-      : "",
+  const [password, setPassword] = useState(
+    () => (import.meta.env.MODE !== "test" ? import.meta.env.VITE_MAGIC_LOGIN_PASSWORD || "" : "")
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -64,9 +60,7 @@ export default function Login() {
       // The provider's own "Invalid login credentials" doesn't say what to do
       // next; anything else (network, rate limit) is shown as-is, since that
       // guidance would be wrong for it.
-      const isBadCredentials = /invalid login credentials/i.test(
-        error.message || "",
-      );
+      const isBadCredentials = /invalid login credentials/i.test(error.message || "");
       toast.error(
         isBadCredentials
           ? "Incorrect email or password. Use Forgot password? below, or sign in with Google."
@@ -158,7 +152,6 @@ export default function Login() {
                   Password
                 </label>
                 <Button
-                  type="submit"
                   type="button"
                   variant="link"
                   onClick={handleForgotPassword}
@@ -180,17 +173,13 @@ export default function Login() {
             {/* Action Area */}
             <div className="pt-6 border-t border-mauve-6 mt-3">
               <p className="text-sm font-bold text-mauve-10 mb-4">
-                Sign in with your email and password, or your corporate Google
-                account.
+                Sign in with your email and password, or your corporate Google account.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 items-center">
-                <Button
-                  type="submit"
-                  className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-                >
-                  {isSubmitting ? "Logging in..." : "Log In"}
-                </Button>
+                <Button type="submit" className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full sm:w-auto ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}>
+{isSubmitting ? "Logging in..." : "Log In"}
+</Button>
 
                 <div className="w-full sm:w-auto flex justify-center drop-shadow-md hover:scale-105 transition-transform">
                   <GoogleLogin
