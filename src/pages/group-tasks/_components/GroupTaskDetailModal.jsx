@@ -741,8 +741,10 @@ export default function GroupTaskDetailModal({
 
           <div className="flex items-center gap-1">
             {!isSplitScreen && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => {
                   window.dispatchEvent(
                     new CustomEvent("OPEN_CHAT_MODAL", {
@@ -751,70 +753,82 @@ export default function GroupTaskDetailModal({
                   );
                 }}
                 title="Open Conversation in Chat Modal"
-                className="p-1.5 rounded-md text-mauve-9 hover:bg-mauve-3 hover:text-mauve-11 transition-colors mr-1"
+                aria-label="Open Conversation in Chat Modal"
+                className="mr-1 rounded-md text-mauve-9 hover:bg-mauve-3 hover:text-mauve-11"
               >
                 <MessageCircle size={15} />
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => {
                 setIsSplitScreen((prev) => !prev);
               }}
               className={cn(
-                "p-1.5 rounded-md transition-colors",
+                "rounded-md",
                 isSplitScreen
                   ? "text-primary bg-primary/10 hover:bg-primary/20"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/80",
               )}
               title={isSplitScreen ? "Exit Split Screen" : "Split Screen (Task + Chat)"}
+              aria-label={isSplitScreen ? "Exit Split Screen" : "Split Screen (Task + Chat)"}
             >
               <Columns2 size={14} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={() => {
                 setIsExpanded(!isExpanded);
               }}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
               title={isExpanded ? "Collapse" : "Expand"}
+              aria-label={isExpanded ? "Collapse" : "Expand"}
             >
               <Maximize2 size={14} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onClose}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              aria-label="Close"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
         </div>
 
         {/* TABS (inside left panel) */}
         <div className="flex px-6 border-b border-border bg-card shrink-0 gap-6">
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab("overview")}
-            className={`py-3 text-sm font-bold border-b-2 transition-colors ${
+            className={`h-auto rounded-none py-3 text-sm font-bold border-b-2 hover:bg-transparent ${
               activeTab === "overview"
-                ? "border-primary text-primary"
+                ? "border-primary text-primary hover:text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             Overview
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setActiveTab("history")}
-            className={`py-3 text-sm font-bold border-b-2 transition-colors ${
+            className={`h-auto rounded-none py-3 text-sm font-bold border-b-2 hover:bg-transparent ${
               activeTab === "history"
-                ? "border-primary text-primary"
+                ? "border-primary text-primary hover:text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
           >
             History
-          </button>
+          </Button>
         </div>
 
         {/* TASK CONTENT */}
@@ -955,24 +969,30 @@ export default function GroupTaskDetailModal({
 
                             {(isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
-                                <button
+                                <Button
                                   type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
                                   onClick={() => handleEditClick(member)}
-                                  className="p-1.5 text-muted-foreground hover:text-violet-10 hover:bg-violet-2 rounded-lg transition-colors"
+                                  className="rounded-lg text-muted-foreground hover:bg-violet-2 hover:text-violet-10"
                                   title="Edit Assignment"
+                                  aria-label="Edit Assignment"
                                 >
                                   <Edit3 size={14} />
-                                </button>
+                                </Button>
                                 {(isCreator || isSuperAdmin) && (
-                                  <button
+                                  <Button
                                     type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
                                     onClick={() => handleRemoveMember(member.id)}
                                     disabled={isRemovingMember}
-                                    className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/5 rounded-lg transition-colors disabled:opacity-50"
+                                    className="rounded-lg text-muted-foreground hover:bg-destructive/5 hover:text-destructive"
                                     title="Remove Member"
+                                    aria-label="Remove Member"
                                   >
                                     <Trash2 size={14} />
-                                  </button>
+                                  </Button>
                                 )}
                               </div>
                             )}
@@ -1083,14 +1103,15 @@ export default function GroupTaskDetailModal({
                                       }
                                     }}
                                   />
-                                  <button
+                                  <Button
                                     type="button"
+                                    variant="link"
                                     disabled={isUploadingAttachment || isUploadingMemberFile}
-                                    className="text-[10px] text-primary hover:text-primary/80 font-semibold flex items-center gap-1 disabled:opacity-50"
+                                    className="h-auto gap-1 p-0 text-[10px] font-semibold text-primary hover:text-primary/80 hover:no-underline"
                                   >
                                     <Paperclip size={10} />
                                     {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
-                                  </button>
+                                  </Button>
                                 </div>
                               )}
                             </div>
@@ -1134,7 +1155,7 @@ export default function GroupTaskDetailModal({
                             {isMe &&
                               member.status === "PENDING" &&
                               task.status === "ACTIVE" && (
-                                <button
+                                <Button
                                   onClick={() => onMarkDone(member.id)}
                                   disabled={isMarkingDone || hasUncheckedItems}
                                   title={
@@ -1142,23 +1163,24 @@ export default function GroupTaskDetailModal({
                                       ? "Check all items first"
                                       : ""
                                   }
-                                  className="flex items-center gap-1.5 px-4 py-2 bg-green-9 text-primary-foreground rounded-lg text-xs font-bold hover:bg-green-9 transition-colors shadow-sm disabled:opacity-50 ml-auto"
+                                  className="ml-auto h-auto gap-1.5 rounded-lg bg-green-9 px-4 py-2 text-xs font-bold shadow-sm hover:bg-green-9"
                                 >
                                   <CheckCircle2 size={16} />
                                   {isMarkingDone
                                     ? "Marking..."
                                     : "Submit for Review"}
-                                </button>
+                                </Button>
                               )}
 
                             {isDone && task.status === "ACTIVE" && (
-                              <button
+                              <Button
+                                variant="outline"
                                 onClick={() => onRevertDone(member.id)}
                                 disabled={isReverting}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-warning/10 text-amber-10 border border-amber-500/20 rounded-lg text-[10px] uppercase tracking-widest font-bold hover:bg-warning/20 transition-colors ml-auto"
+                                className="ml-auto h-auto gap-1.5 rounded-lg border-amber-500/20 bg-warning/10 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-amber-10 hover:bg-warning/20"
                               >
                                 {isReverting ? "..." : "Revert"}
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -1410,15 +1432,18 @@ export default function GroupTaskDetailModal({
 
                 <div className="flex items-center justify-between px-2 pt-0.5 pb-0.5">
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-sm"
                       onClick={() => fileInputRef.current?.click()}
                       disabled={sendMessageMutation.isPending || isUploading}
-                      className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-40"
+                      className="text-muted-foreground hover:bg-transparent hover:text-foreground disabled:opacity-40"
                       title="Attach photo"
+                      aria-label="Attach photo"
                     >
                       <Paperclip size={14} />
-                    </button>
+                    </Button>
                     <EmojiPicker
                       onSelect={(emoji) => setMessageContent((prev) => prev + emoji)}
                       disabled={sendMessageMutation.isPending || isUploading}

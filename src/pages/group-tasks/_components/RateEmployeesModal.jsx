@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { X, Star } from "lucide-react";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
@@ -102,13 +103,16 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-1">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-sm"
               onClick={onClose}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+              aria-label="Close"
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -251,20 +255,21 @@ export default function RateEmployeesModal({
           </div>
 
           <div className="flex items-center gap-3 ml-auto">
-            <button
+            <Button
+              variant="ghost"
               onClick={onClose}
-              className="text-[13px] font-bold text-muted-foreground/80 hover:text-foreground h-9 rounded-xl px-4 transition-colors"
+              className="h-9 rounded-xl px-4 text-[13px] font-bold text-muted-foreground/80 hover:bg-transparent hover:text-foreground"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleSubmit}
               disabled={isSubmitting || !allMembersDone}
-              className="h-9 px-6 rounded-xl shadow-lg shadow-primary/20 bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 font-bold transition-colors disabled:opacity-50"
+              className="h-9 gap-2 rounded-xl px-6 font-bold shadow-lg shadow-primary/20"
             >
               <Star size={14} fill="currentColor" />
               {isSubmitting ? "Submitting..." : "Submit Ratings & Complete"}
-            </button>
+            </Button>
           </div>
         </div>
       </DialogContent>

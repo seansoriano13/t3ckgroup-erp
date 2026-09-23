@@ -1,5 +1,6 @@
 import { Users, Lock, Settings2 } from "lucide-react";
 import Dropdown from "@/components/ui/Dropdown";
+import { Button } from "@/components/ui/button";
 import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown";
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
@@ -96,14 +97,15 @@ export default function GroupTaskMemberPanel({
             Role (optional)
           </label>
           {canEditAssignment && onManageRoles && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={onManageRoles}
-              className="text-muted-foreground hover:text-foreground px-1.5 py-0.5 rounded-md hover:bg-muted transition-colors flex items-center gap-1 text-[9px] font-bold uppercase cursor-pointer"
+              className="h-auto gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase text-muted-foreground hover:text-foreground"
               title="Manage Roles"
             >
               <Settings2 size={11} /> Manage
-            </button>
+            </Button>
           )}
         </div>
         {canEditAssignment ? (
@@ -191,13 +193,14 @@ export default function GroupTaskMemberPanel({
           </>
         ) : (
           canEditChecklist && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={() => onChange("showChecklist", true)}
-              className="self-start flex items-center gap-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground transition-all py-1.5 px-2.5 rounded-lg hover:bg-muted"
+              className="h-auto self-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-muted-foreground hover:text-foreground"
             >
               <span className="text-base leading-none">+</span> Add checklist
-            </button>
+            </Button>
           )
         )}
       </div>

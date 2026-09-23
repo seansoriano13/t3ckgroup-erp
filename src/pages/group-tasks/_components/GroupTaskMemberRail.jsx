@@ -1,5 +1,6 @@
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import Avatar from "@/components/Avatar";
+import { Button } from "@/components/ui/button";
 import { resolveAssignment } from "@/utils/checklist";
 
 /**
@@ -59,13 +60,14 @@ export default function GroupTaskMemberRail({
           const status = member.status;
 
           return (
-            <button
+            <Button
               key={member.id}
               type="button"
+              variant="ghost"
               onClick={() => onSelect(member.id)}
-              className={`w-full text-left px-2.5 py-2.5 rounded-xl mb-1 flex items-start gap-2.5 transition-all group relative ${
+              className={`group relative h-auto w-full items-start justify-start gap-2.5 rounded-xl px-2.5 py-2.5 mb-1 text-left font-normal ${
                 isSelected
-                  ? "bg-card shadow-sm ring-1 ring-mauve-4"
+                  ? "bg-card shadow-sm ring-1 ring-mauve-4 hover:bg-card"
                   : "hover:bg-muted/60"
               } ${member.isRemoving ? "opacity-0 scale-95" : "opacity-100 scale-100"}`}
             >
@@ -129,20 +131,21 @@ export default function GroupTaskMemberRail({
                   <Trash2 size={13} />
                 </span>
               )}
-            </button>
+            </Button>
           );
         })}
       </div>
 
       {onAdd && (
         <div className="p-2 border-t border-border shrink-0">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={onAdd}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border-2 border-dashed border-primary/25 text-primary font-bold text-[11px] hover:bg-primary/5 hover:border-primary/40 transition-colors"
+            className="h-auto w-full gap-2 rounded-xl border-2 border-dashed border-primary/25 py-2.5 text-[11px] font-bold text-primary hover:border-primary/40 hover:bg-primary/5"
           >
             <Plus size={15} /> Add member
-          </button>
+          </Button>
         </div>
       )}
     </div>

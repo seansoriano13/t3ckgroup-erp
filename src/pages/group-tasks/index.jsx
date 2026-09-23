@@ -424,21 +424,23 @@ export default function GroupTasksPage() {
         />
         <div className="flex justify-end mt-2">
           {hasSavedDefault ? (
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={clearDefault}
-              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+              className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
             >
               Clear saved default
-            </button>
+            </Button>
           ) : (
-            <button
+            <Button
               type="button"
+              variant="link"
               onClick={handleSaveDefaultFilters}
-              className="text-xs text-muted-foreground hover:text-foreground font-semibold"
+              className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
             >
               Save as my default
-            </button>
+            </Button>
           )}
         </div>
       </div>

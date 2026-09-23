@@ -129,12 +129,15 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
               Manage Group Roles
             </span>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            aria-label="Close"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* BODY */}
@@ -178,10 +181,13 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                             if (e.key === "Escape") setEditingId(null);
                           }}
                         />
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => handleSaveEdit(role.id)}
                           disabled={editMutation.isPending}
-                          className="p-1.5 rounded-md text-green-600 hover:bg-green-500/10 transition-colors"
+                          className="rounded-md text-green-600 hover:bg-green-500/10"
+                          aria-label="Save role name"
                         >
                           {editMutation.isPending &&
                           editMutation.variables?.id === role.id ? (
@@ -189,13 +195,16 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                           ) : (
                             <Check size={15} />
                           )}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
                           onClick={() => setEditingId(null)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+                          className="rounded-md text-muted-foreground hover:bg-muted"
+                          aria-label="Cancel edit"
                         >
                           <X size={15} />
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <>
@@ -210,17 +219,22 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                           )}
                           {role.role_name !== "OTHERS" && (
                             <>
-                              <button
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() => {
                                   setEditingId(role.id);
                                   setEditValue(role.role_name);
                                 }}
-                                className="p-1.5 text-muted-foreground hover:text-foreground transition-colors"
+                                className="text-muted-foreground hover:text-foreground"
                                 title="Edit Role"
+                                aria-label="Edit Role"
                               >
                                 <Edit3 size={13} />
-                              </button>
-                              <button
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 onClick={() => {
                                   confirmDeleteToast(
                                     "Delete Role?",
@@ -228,11 +242,12 @@ export default function GroupRoleManagerModal({ isOpen, onClose }) {
                                     () => deleteMutation.mutate(role.id),
                                   );
                                 }}
-                                className="p-1.5 text-muted-foreground hover:text-destructive transition-colors"
+                                className="text-muted-foreground hover:text-destructive"
                                 title="Delete Role"
+                                aria-label="Delete Role"
                               >
                                 <Trash2 size={13} />
-                              </button>
+                              </Button>
                             </>
                           )}
                         </div>

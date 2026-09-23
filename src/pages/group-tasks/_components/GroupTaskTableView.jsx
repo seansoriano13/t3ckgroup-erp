@@ -19,6 +19,7 @@ import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import { TagPill } from "../../../components/ui/TagPill";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
+import { Button } from "@/components/ui/button";
 
 export default function GroupTaskTableView({
   tasks = [],
@@ -340,17 +341,20 @@ export default function GroupTaskTableView({
 
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right align-middle">
-                      <button
+                      <Button
                         type="button"
+                        variant="outline"
+                        size="icon-sm"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onView) onView(task);
                         }}
-                        className="p-1.5 rounded-lg border border-border bg-card hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                        className="rounded-lg bg-card text-muted-foreground active:scale-95"
                         title="View details"
+                        aria-label="View details"
                       >
                         <Eye size={13} />
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 );
@@ -399,27 +403,33 @@ export default function GroupTaskTableView({
         {/* Page Nav Controls */}
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
               title="Previous Page"
+              aria-label="Previous Page"
             >
               <ChevronLeft size={14} />
-            </button>
+            </Button>
 
             <span className="px-2 text-xs font-semibold text-foreground">
               Page {currentPage} of {totalPages}
             </span>
 
-            <button
+            <Button
+              variant="outline"
+              size="icon-sm"
               disabled={currentPage === totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              className="p-1.5 rounded-md border border-border bg-card hover:bg-muted text-foreground disabled:opacity-30 disabled:hover:bg-card transition-all"
+              className="rounded-md bg-card text-foreground disabled:opacity-30 disabled:hover:bg-card"
               title="Next Page"
+              aria-label="Next Page"
             >
               <ChevronRight size={14} />
-            </button>
+            </Button>
           </div>
         )}
       </div>
