@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import FAQModal from "./FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 import { getPermissionContext } from "../../utils/permissions";
@@ -120,14 +121,15 @@ export default function SettingsPage() {
           title="Settings"
           description="Configure your portal experience."
         />
-        <button
+        <Button
           id="open-faq-btn"
+          variant="outline"
           onClick={() => setShowFAQ(true)}
-          className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all shadow-sm"
+          className="h-auto shrink-0 gap-2 rounded-xl bg-card px-4 py-2.5 text-sm font-semibold shadow-sm"
         >
           <HelpCircle size={15} />
           Help & FAQ
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-6">
@@ -350,26 +352,28 @@ export default function SettingsPage() {
               re-authenticate with your T3CKGROUP Google account to access the
               portal again.
             </p>
-            <button
+            <Button
+              variant="outline"
               onClick={logout}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl font-bold bg-card text-destructive hover:bg-destructive hover:text-mauve-1 transition-all border border-destructive/30 hover:border-destructive shadow-sm"
+              className="h-auto gap-2 rounded-xl bg-card px-6 py-2.5 font-bold text-destructive shadow-sm border-destructive/30 hover:border-destructive hover:bg-destructive hover:text-mauve-1"
             >
               <LogOut size={18} />
               Sign Out
-            </button>
+            </Button>
           </div>
         </div>
       </div>
 
       {/* FAQ floating hint */}
       <div className="mt-8 flex items-center justify-center">
-        <button
+        <Button
+          variant="link"
           onClick={() => setShowFAQ(true)}
-          className="flex items-center gap-1.5 text-xs text-muted-foreground/60 hover:text-muted-foreground transition-colors cursor-pointer"
+          className="h-auto gap-1.5 p-0 text-xs font-normal text-muted-foreground/60 hover:text-muted-foreground hover:no-underline"
         >
           <HelpCircle size={12} />
           Have questions? View the Help & FAQ
-        </button>
+        </Button>
       </div>
 
       {/* Build fingerprint — for support conversations, not the reader */}

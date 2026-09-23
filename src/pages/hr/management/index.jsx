@@ -398,28 +398,37 @@ export default function EmployeeManagement() {
                         </td>
                         <td className="p-4 text-right space-x-2">
                           {!!user?.isSuperAdmin && emp.isIssuedPassword && (
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleReissuePassword(emp)}
-                              className="p-2 bg-amber-2 hover:bg-amber-3 text-amber-11 rounded-xl transition-all inline-block border border-transparent hover:border-amber-6"
+                              className="rounded-xl bg-amber-2 text-amber-11 border border-transparent hover:border-amber-6 hover:bg-amber-3"
                               title="Reissue Password"
+                              aria-label="Reissue Password"
                             >
                               <KeyRound size={15} />
-                            </button>
+                            </Button>
                           )}
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleEdit(emp)}
-                            className="p-2 bg-muted hover:bg-muted/70 text-foreground rounded-xl transition-all inline-block hover:border-mauve-5 border border-transparent"
+                            className="rounded-xl bg-muted text-foreground border border-transparent hover:border-mauve-5 hover:bg-muted/70"
                             title="Edit Employee"
+                            aria-label="Edit Employee"
                           >
                             <Edit size={15} />
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => handleDelete(emp.id)}
-                            className="p-2 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-xl transition-all inline-block border border-transparent hover:border-destructive/20"
+                            className="rounded-xl bg-destructive/10 text-destructive border border-transparent hover:border-destructive/20 hover:bg-destructive/20"
                             title="Delete Employee"
+                            aria-label="Delete Employee"
                           >
                             <Trash2 size={15} />
-                          </button>
+                          </Button>
                         </td>
                       </tr>
                     ))

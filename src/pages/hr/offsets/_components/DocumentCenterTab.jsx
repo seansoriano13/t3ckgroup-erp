@@ -8,6 +8,7 @@ import Avatar from '../../../../components/Avatar';
 import HighlightText from '../../../../components/HighlightText';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
 import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
+import { Button } from '@/components/ui/button';
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
@@ -176,14 +177,14 @@ export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, h
       </div>
 
       <div className="flex flex-col gap-4">
-        <button
+        <Button
           onClick={handlePrint}
           disabled={tray.length === 0 || isBusy || isRendering}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground hover:bg-primary-hover rounded-lg text-sm font-bold transition-colors cursor-pointer disabled:opacity-50"
+          className="h-auto gap-2 rounded-lg px-4 py-2.5 text-sm font-bold"
         >
           <Printer className="w-4 h-4" />
           {isBusy ? 'Working…' : 'Print'}
-        </button>
+        </Button>
         <p className="text-[11px] text-muted-foreground font-medium leading-relaxed -mt-2 px-1">
           Opens your browser's print dialog — choose "Save as PDF" there if you need a file instead of paper.
         </p>
@@ -281,25 +282,29 @@ function TrayRow({ id, record, onRemove }) {
 
   return (
     <li ref={setNodeRef} style={style} className="flex items-center gap-2 p-3 bg-card">
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         {...attributes}
         {...listeners}
-        className="cursor-grab text-muted-foreground touch-none"
+        className="h-auto w-auto cursor-grab touch-none p-0 text-muted-foreground hover:bg-transparent"
         aria-label={`Drag to reorder ${record.employee?.name}'s ${record.type} record`}
       >
         <GripVertical className="w-4 h-4" />
-      </button>
+      </Button>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-foreground truncate">{record.employee?.name}</p>
         <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-bold">{record.type} · {record.hours} hrs</p>
       </div>
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={onRemove}
-        className="text-muted-foreground hover:text-destructive transition-colors"
+        className="h-auto w-auto p-0 text-muted-foreground hover:bg-transparent hover:text-destructive"
         aria-label={`Remove ${record.employee?.name}'s ${record.type} record from the tray`}
       >
         <X className="w-4 h-4" />
-      </button>
+      </Button>
     </li>
   );
 }
