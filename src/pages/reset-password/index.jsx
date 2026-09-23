@@ -3,10 +3,13 @@ import { Link } from "react-router";
 import toast from "react-hot-toast";
 import { supabase, initialAuthUrlParams } from "../../lib/supabase";
 import { redeemRecoveryToken } from "../../lib/recoveryToken";
-import { markRecoveryActive, clearRecoveryActive } from "../../lib/recoveryFlag";
+import {
+  markRecoveryActive,
+  clearRecoveryActive,
+} from "../../lib/recoveryFlag";
 import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
-import PrimaryButton from "../../components/PrimaryButton";
+import { Button } from "../../components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 
@@ -67,16 +70,23 @@ function readAuthParams() {
 function isSessionGone(error) {
   if (!error) return false;
   if (error.name === "AuthSessionMissingError") return true;
-  if (error.code === "session_not_found" || error.code === "session_expired") return true;
+  if (error.code === "session_not_found" || error.code === "session_expired")
+    return true;
   if (error.status === 401) return true;
-  return /session (?:missing|not found|expired)|missing session/i.test(error.message || "");
+  return /session (?:missing|not found|expired)|missing session/i.test(
+    error.message || "",
+  );
 }
 
 /** Drops the token_hash from the address bar once it has been redeemed. */
 function scrubTokenFromUrl() {
   if (typeof window === "undefined" || !window.location.search) return;
   try {
-    window.history.replaceState(window.history.state, "", window.location.pathname);
+    window.history.replaceState(
+      window.history.state,
+      "",
+      window.location.pathname,
+    );
   } catch {
     /* replaceState can throw in some embedded contexts; harmless to skip */
   }
@@ -135,12 +145,19 @@ export default function ResetPassword() {
       // Current-style link: redeem the token_hash ourselves. This POST is the
       // moment the one-time token is spent — a prefetch of the link never gets
       // here — and a success is a live recovery session.
-      timer = setTimeout(() => done("invalid", noSessionCopy()), VERIFY_TIMEOUT_MS);
+      timer = setTimeout(
+        () => done("invalid", noSessionCopy()),
+        VERIFY_TIMEOUT_MS,
+      );
       redeemRecoveryToken(params.tokenHash, params.otpType).then(
         ({ session, error }) => {
           scrubTokenFromUrl();
           if (session) done("ready");
-          else done("invalid", error?.message?.replace(/\+/g, " ") || EXPIRED_COPY);
+          else
+            done(
+              "invalid",
+              error?.message?.replace(/\+/g, " ") || EXPIRED_COPY,
+            );
         },
       );
     } else if (!params.hasRecoveryToken) {
@@ -165,7 +182,10 @@ export default function ResetPassword() {
         );
       });
 
-      timer = setTimeout(() => done("invalid", noSessionCopy()), VERIFY_TIMEOUT_MS);
+      timer = setTimeout(
+        () => done("invalid", noSessionCopy()),
+        VERIFY_TIMEOUT_MS,
+      );
     }
 
     // Closing the tab is the likeliest way a reset gets abandoned, and React
@@ -262,8 +282,8 @@ export default function ResetPassword() {
           <p className="text-mauve-10 text-sm">{invalidReason}</p>
           {invalidReason !== NO_TOKEN_COPY && (
             <p className="text-mauve-10 text-sm">
-              Reset links open only once and time out after a while &mdash; request
-              a fresh one from the login page and use it straight away.
+              Reset links open only once and time out after a while &mdash;
+              request a fresh one from the login page and use it straight away.
             </p>
           )}
           <Link
@@ -284,14 +304,19 @@ export default function ResetPassword() {
         className="bg-white max-w-md w-full rounded-2xl border border-mauve-6 shadow-sm p-8 space-y-5"
       >
         <div>
-          <h1 className="text-2xl font-bold text-mauve-12">Set a new password</h1>
+          <h1 className="text-2xl font-bold text-mauve-12">
+            Set a new password
+          </h1>
           <p className="text-mauve-10 text-sm mt-1">
             Choose a password for your T3ckgroup account.
           </p>
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+          <label
+            htmlFor="new-password"
+            className="text-xs font-bold text-mauve-11 uppercase tracking-wider"
+          >
             New Password
           </label>
           <input
@@ -305,7 +330,10 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
+          <label
+            htmlFor="confirm-password"
+            className="text-xs font-bold text-mauve-11 uppercase tracking-wider"
+          >
             Confirm Password
           </label>
           <input
@@ -318,10 +346,12 @@ export default function ResetPassword() {
           />
         </div>
 
-        <PrimaryButton
-          label={isSubmitting ? "Saving..." : "Save Password"}
-          className={`w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
-        />
+        <Button
+          type="submit"
+          className={`h-auto bg-red-9 text-primary-foreground hover:bg-red-7 px-12 py-3 w-full ${isSubmitting ? "opacity-70 cursor-not-allowed" : ""}`}
+        >
+          {isSubmitting ? "Saving..." : "Save Password"}
+        </Button>
       </form>
     </div>
   );

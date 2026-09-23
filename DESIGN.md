@@ -254,7 +254,7 @@ A **Primitive** is anything in `src/components/ui/`. Raw `<button>`, `<input>`, 
 Each heading below is a stable anchor for lint messages. Paths are under `src/components/`.
 
 #### Button
-`ui/button.jsx`. Replaces raw `<button>` and **PrimaryButton** (legacy, to be deleted). Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
+`ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
 
 #### Dialog
 `ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals and **ModalOverlay** (legacy, to be deleted). Parts: `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`.
