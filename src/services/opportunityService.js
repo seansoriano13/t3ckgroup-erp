@@ -530,31 +530,32 @@ export const opportunityService = {
    * id-diffing) at the cost of not preserving item-level created_at across
    * edits. A `sales_opportunities` trigger recomputes `expected_value` from
    * whatever ends up in the table after this runs.
+   *
+   * Delete-then-insert happens inside `sor_replace_items`, one DB call, not
+   * two client round trips: opening an SOR auto-syncs its items from Odoo
+   * every time, and two overlapping opens doing their own unsynchronized
+   * delete-then-insert could interleave as delete_A, delete_B (no-op),
+   * insert_A, insert_B — both inserts land, doubling the rows and therefore
+   * `expected_value`. The function takes `FOR UPDATE` on the parent row
+   * first, so a second concurrent call blocks and cleanly replaces what the
+   * first call wrote instead of adding to it. (Isolated pre-October
+   * compatibility patch — see supabase/migrations/20260929030000_atomic_sor_items_replace.sql.)
    */
   async replaceItems(opportunityId, items) {
-    const { error: delError } = await supabase
-      .from("sales_opportunity_items")
-      .delete()
-      .eq("opportunity_id", opportunityId);
-    if (delError) throw delError;
-
     const rows = (items || [])
       .filter((it) => (it.product_name || "").trim())
-      .map((it, idx) => ({
-        opportunity_id: opportunityId,
+      .map((it) => ({
         product_name: it.product_name.trim(),
         unit: (it.unit || "").trim() || null,
         quantity: Number(it.quantity) || 0,
         unit_price: Number(it.unit_price) || 0,
-        sort_order: idx,
       }));
 
-    if (rows.length > 0) {
-      const { error: insError } = await supabase
-        .from("sales_opportunity_items")
-        .insert(rows);
-      if (insError) throw insError;
-    }
+    const { error } = await supabase.rpc("sor_replace_items", {
+      p_opportunity_id: opportunityId,
+      p_items: rows,
+    });
+    if (error) throw error;
   },
 
   // ── Notes / timeline ──────────────────────────────────────────────────────

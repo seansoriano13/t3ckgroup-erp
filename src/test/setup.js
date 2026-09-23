@@ -1,11 +1,12 @@
 import "@testing-library/jest-dom/vitest"
-import { afterAll, afterEach, beforeAll, vi } from "vitest"
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest"
 import { cleanup } from "@testing-library/react"
 import { server } from "./msw/server"
 import { resetExternalStubs, resetStubs } from "./msw/server"
 import { db } from "./db/store"
 import { resetFactories } from "./factories"
 import { waitForNetworkIdle } from "./network"
+import { stubReplaceItemsRpc } from "./stubs/replaceItemsRpc"
 
 /**
  * Realtime is a WebSocket, not HTTP, so MSW cannot intercept it. Subscriptions
@@ -53,6 +54,14 @@ afterEach(async () => {
   resetFactories()
   resetStubs()
   resetExternalStubs()
+})
+
+// sor_replace_items lives in Postgres, which the fake database does not
+// execute. Registered globally so any test exercising replaceItems gets it
+// without opting in — a test that needs different behavior can still
+// override with its own stubRpc call after this runs.
+beforeEach(() => {
+  stubReplaceItemsRpc()
 })
 
 afterAll(() => {
