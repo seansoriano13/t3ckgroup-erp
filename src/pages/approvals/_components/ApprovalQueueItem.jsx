@@ -8,6 +8,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import Avatar from "../../../components/Avatar";
+import { Button } from "@/components/ui/button";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
 import { formatDate } from "../../../utils/formatDate.js";
@@ -67,21 +68,24 @@ export function ApprovalQueueItem({
       {/* Bulk Selection Checkbox & Avatar */}
       <div className="flex items-center gap-2.5 shrink-0 pt-0.5">
         {enableBulkSelection && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={(e) => {
               e.stopPropagation();
               onToggleSelection?.(task.id);
             }}
-            className="text-muted-foreground/60 hover:text-foreground transition-colors p-0.5 rounded focus:outline-none"
+            className="h-auto w-auto rounded p-0.5 text-muted-foreground/60 hover:bg-transparent hover:text-foreground"
             title={isSelected ? "Deselect task" : "Select for bulk action"}
+            aria-label={isSelected ? "Deselect task" : "Select for bulk action"}
           >
             {isSelected ? (
               <CheckSquare className="w-4 h-4 text-foreground" />
             ) : (
               <Square className="w-4 h-4 opacity-40 group-hover:opacity-100" />
             )}
-          </button>
+          </Button>
         )}
 
         <Avatar

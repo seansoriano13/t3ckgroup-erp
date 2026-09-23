@@ -65,13 +65,16 @@ export default function BulkVerifyModal({
               Bulk HR Verification
             </span>
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-sm"
             onClick={onClose}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+            className="rounded-md text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+            aria-label="Close"
           >
             <X size={15} />
-          </button>
+          </Button>
         </div>
 
         {/* BODY */}
