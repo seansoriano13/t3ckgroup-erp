@@ -11,6 +11,9 @@
  * themselves SOR access by editing a flow. This file is what makes the next
  * change to that gate a deliberate one.
  *
+ * `20260930030000_open_flow_canvas_writes_to_all_employees.sql` reopened
+ * every write to any employee — an accepted trade-off against #208.
+ *
  * Reads stay open to every signed-in employee — only the six tables' `_read`
  * policies changed for nothing here; ON DELETE RESTRICT on a Stage in use is
  * untouched too.
@@ -31,11 +34,8 @@ const OPENED_TO_EVERYONE = [
     "stage_conditions",
 ]
 
-/** Only these two may write to the Flow Canvas (issue #291). */
-const CAN_EDIT = ["superAdmin", "flowEditor"]
-
-/** Everyone else, including an ordinary Deal Owner or a department head. */
-const CANNOT_EDIT = CAST_KEYS.filter((key) => !CAN_EDIT.includes(key))
+/** Every employee may write to the Flow Canvas (20260930030000 reopened #291's gate). */
+const CAN_EDIT = CAST_KEYS
 
 let saleTypeId
 let flowId
@@ -124,14 +124,6 @@ describe("editing a flow", () => {
         expect(result.affected, `${key} was refused`).toBe(1)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot rename a stage", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryUpdate(client, "flow_stages", stageId, {
-            name: `${MARKER} Renamed by ${key}`,
-        })
-        expect(result.affected, `${key} renamed a stage`).toBe(0)
-    })
-
     it.each(CAN_EDIT)("%s can add a stage to a flow", async (key) => {
         const client = await clientFor(key)
         const result = await tryInsert(client, "flow_stages", {
@@ -141,16 +133,6 @@ describe("editing a flow", () => {
         })
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("flow_stages").delete().eq("id", result.id)
-    })
-
-    it.each(CANNOT_EDIT)("%s cannot add a stage to a flow", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_stages", {
-            flow_id: flowId,
-            name: `${MARKER} Added by ${key}`,
-            sort_order: 91,
-        })
-        expect(result.ok, `${key} added a stage`).toBe(false)
     })
 
     it.each(CAN_EDIT)("%s can draw and remove an edge between two stages", async (key) => {
@@ -166,16 +148,6 @@ describe("editing a flow", () => {
         expect(removed.affected, `${key} could not remove the edge`).toBe(1)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot draw an edge between two stages", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_edges", {
-            flow_id: flowId,
-            from_stage_id: stageId,
-            to_stage_id: secondStageId,
-        })
-        expect(result.ok, `${key} drew an edge`).toBe(false)
-    })
-
     it.each(CAN_EDIT)("%s can attach a condition to a stage", async (key) => {
         const client = await clientFor(key)
         const result = await tryInsert(client, "stage_conditions", {
@@ -185,16 +157,6 @@ describe("editing a flow", () => {
         })
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("stage_conditions").delete().eq("id", result.id)
-    })
-
-    it.each(CANNOT_EDIT)("%s cannot attach a condition to a stage", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "stage_conditions", {
-            stage_id: stageId,
-            kind: "tickbox",
-            label: `${MARKER} Added by ${key}`,
-        })
-        expect(result.ok, `${key} attached a condition`).toBe(false)
     })
 
     it.each(CAN_EDIT)("%s can attach an action to a stage", async (key) => {
@@ -208,16 +170,6 @@ describe("editing a flow", () => {
         await serviceClient().from("flow_stage_actions").delete().eq("id", result.id)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot attach an action to a stage", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_stage_actions", {
-            stage_id: stageId,
-            kind: "create_individual_task",
-            config: { title: `${MARKER} ${key}` },
-        })
-        expect(result.ok, `${key} attached an action`).toBe(false)
-    })
-
     it.each(CAN_EDIT)("%s can create a Sale Type", async (key) => {
         const client = await clientFor(key)
         const result = await tryInsert(client, "sale_types", {
@@ -225,14 +177,6 @@ describe("editing a flow", () => {
         })
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("sale_types").delete().eq("id", result.id)
-    })
-
-    it.each(CANNOT_EDIT)("%s cannot create a Sale Type", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "sale_types", {
-            name: `${MARKER} Created by ${key}`,
-        })
-        expect(result.ok, `${key} created a Sale Type`).toBe(false)
     })
 
     it("a caller who is not signed in can change nothing", async () => {
@@ -304,17 +248,6 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
         await serviceClient().from("flow_stage_fields").delete().eq("id", result.id)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot add a Stage Field", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_stage_fields", {
-            stage_id: followUpStageId,
-            label: `${MARKER} Added by ${key}`,
-            source: "custom",
-            field_type: "text",
-        })
-        expect(result.ok, `${key} added a Stage Field`).toBe(false)
-    })
-
     it.each(CAN_EDIT)("%s can add a registration form field", async (key) => {
         const client = await clientFor(key)
         const result = await tryInsert(client, "flow_form_fields", {
@@ -327,17 +260,6 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
         await serviceClient().from("flow_form_fields").delete().eq("id", result.id)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot add a registration form field", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_form_fields", {
-            flow_id: flowId,
-            source: "custom",
-            label: `${MARKER} Added by ${key}`,
-            field_type: "text",
-        })
-        expect(result.ok, `${key} added a registration form field`).toBe(false)
-    })
-
     it.each(CAN_EDIT)("%s can set a Stage's follow-up cadence", async (key) => {
         // Not tryInsert: this table's primary key is stage_id, not id.
         const client = await clientFor(key)
@@ -346,14 +268,6 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
             .insert({ stage_id: followUpStageId, enabled: true, every_days: 3 })
         expect(error, `${key} was refused: ${error?.message}`).toBeNull()
         await serviceClient().from("flow_stage_follow_ups").delete().eq("stage_id", followUpStageId)
-    })
-
-    it.each(CANNOT_EDIT)("%s cannot set a Stage's follow-up cadence", async (key) => {
-        const client = await clientFor(key)
-        const { error } = await client
-            .from("flow_stage_follow_ups")
-            .insert({ stage_id: followUpStageId, enabled: true, every_days: 3 })
-        expect(error, `${key} set a follow-up cadence`).not.toBeNull()
     })
 
     it.each(CAN_EDIT)("%s can set a Stage's Access settings (issue #292)", async (key) => {
@@ -366,14 +280,6 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
         await serviceClient().from("flow_stage_access").delete().eq("stage_id", followUpStageId)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot set a Stage's Access settings (issue #292)", async (key) => {
-        const client = await clientFor(key)
-        const { error } = await client
-            .from("flow_stage_access")
-            .insert({ stage_id: followUpStageId, shut_out_roles: ["registrar"] })
-        expect(error, `${key} set Stage Access settings`).not.toBeNull()
-    })
-
     it.each(CAN_EDIT)("%s can set a flow's Access settings (issue #292)", async (key) => {
         // Not tryInsert: this table's primary key is flow_id, not id.
         const client = await clientFor(key)
@@ -384,13 +290,6 @@ describe("editing a Stage's other Flow Canvas settings (#291 gates every table, 
         await serviceClient().from("flow_access_settings").delete().eq("flow_id", flowId)
     })
 
-    it.each(CANNOT_EDIT)("%s cannot set a flow's Access settings (issue #292)", async (key) => {
-        const client = await clientFor(key)
-        const { error } = await client
-            .from("flow_access_settings")
-            .insert({ flow_id: flowId, always_sees: [{ type: "role", role: "deal_owner" }] })
-        expect(error, `${key} set flow Access settings`).not.toBeNull()
-    })
 })
 
 describe("a stage that deals are sitting on", () => {
@@ -445,17 +344,6 @@ describe("locking a flow, which is what writes a snapshot", () => {
         })
         expect(result.ok, `${key} was refused: ${result.message}`).toBe(true)
         await serviceClient().from("flow_snapshots").delete().eq("id", result.id)
-    })
-
-    it.each(CANNOT_EDIT)("%s cannot publish a snapshot, even in their own name", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryInsert(client, "flow_snapshots", {
-            flow_id: flowId,
-            version: 550 + CANNOT_EDIT.indexOf(key),
-            snapshot_data: { stages: [], edges: [] },
-            created_by: ids[key],
-        })
-        expect(result.ok, `${key} published a snapshot`).toBe(false)
     })
 
     it.each(CAN_EDIT)("%s cannot publish a snapshot in somebody else's name", async (key) => {
@@ -523,42 +411,6 @@ describe("locking a flow, which is what writes a snapshot", () => {
 
             expect(after.data.state).toBe("locked")
             expect(snaps.data, "locked with no snapshot is the stranded state").toHaveLength(1)
-        } finally {
-            await svc.from("flow_snapshots").delete().eq("flow_id", flow.data.id)
-            await svc.from("sales_flows").delete().eq("id", flow.data.id)
-            await svc.from("sale_types").delete().eq("id", saleType.data.id)
-        }
-    })
-
-    it("refuses lock_sales_flow itself to a caller without the capability", async () => {
-        // lock_sales_flow is SECURITY INVOKER (20260909130000's deliberate
-        // choice — it relies on RLS rather than a privilege bypass), so
-        // calling it directly as an ordinary employee hits the same
-        // sales_flows/flow_snapshots policies the table tests above assert,
-        // rather than any check written into the function body.
-        const svc = serviceClient()
-        const saleType = await svc
-            .from("sale_types")
-            .insert({ name: `${MARKER} RPC gate` })
-            .select("id")
-            .single()
-        const flow = await svc
-            .from("sales_flows")
-            .insert({ sale_type_id: saleType.data.id })
-            .select("id")
-            .single()
-
-        try {
-            const client = await clientFor("ordinary")
-            const { error } = await client.rpc("lock_sales_flow", {
-                p_flow_id: flow.data.id,
-                p_actor_id: ids.ordinary,
-                p_snapshot_data: { stages: [] },
-            })
-            expect(error).not.toBeNull()
-
-            const after = await svc.from("sales_flows").select("state").eq("id", flow.data.id).single()
-            expect(after.data.state).toBe("draft")
         } finally {
             await svc.from("flow_snapshots").delete().eq("flow_id", flow.data.id)
             await svc.from("sales_flows").delete().eq("id", flow.data.id)
