@@ -7,6 +7,7 @@ import Avatar from "../Avatar";
 import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
+import { Button } from "../ui/button";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -131,25 +132,31 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                   <td className="px-3 py-2.5">
                     <div className="flex items-center justify-end gap-1.5">
                       {canRestore && (
-                        <button
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => handleRestore(row)}
                           title="Restore"
-                          className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs font-bold text-muted-foreground transition-colors hover:text-foreground"
+                          className="gap-1"
                         >
                           <RotateCcw size={12} /> Restore
-                        </button>
+                        </Button>
                       )}
                       {isSuperAdmin && (
-                        <button
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
                           onClick={() => {
                             setPurgeTarget(row);
                             setConfirmText("");
                           }}
                           title="Permanently delete"
-                          className="flex items-center gap-1 rounded-lg border border-red-500/30 px-2.5 py-1.5 text-xs font-bold text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400"
+                          className="gap-1 border border-red-500/30 text-red-600 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
                         >
                           <Trash2 size={12} /> Delete forever
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -185,22 +192,24 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               </p>
             )}
             <div className="flex items-center justify-end gap-2">
-              <button
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => {
                   setPurgeTarget(null);
                   setConfirmText("");
                 }}
-                className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
                 disabled={confirmText.trim() !== expectedConfirmText || purgeMutation.isPending}
                 onClick={() => purgeMutation.mutate()}
-                className="h-10 rounded-xl bg-red-600 px-4 text-[13px] font-bold text-white transition-all hover:bg-red-700 disabled:opacity-50"
+                className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
               >
                 Delete forever
-              </button>
+              </Button>
             </div>
           </div>
         </div>

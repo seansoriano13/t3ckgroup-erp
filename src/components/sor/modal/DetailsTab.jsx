@@ -16,6 +16,7 @@ import {
   ITB_EXEMPT_LABEL,
 } from "../../../constants/sor";
 import { deriveProjectType } from "../../../utils/commission";
+import { Button } from "../../ui/button";
 
 function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }) {
   if (isEditing) {
@@ -177,35 +178,39 @@ export default function DetailsTab({ ctx }) {
                   <span className="font-mono text-primary">{opportunity.sales_reference}</span>
                 </div>
                 <div className="flex gap-2">
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     disabled={buildingLink}
                     onClick={handlePreviewQuotation}
-                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                    className="flex-1 gap-1.5 text-[12px]"
                   >
                     {buildingLink ? <Spinner size="sm" /> : <ExternalLink size={13} />}
                     <span>Preview Quote</span>
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     disabled={buildingLink}
                     onClick={handleCopyQuotationLink}
                     title="Copy customer quotation link"
                     aria-label="Copy customer quotation link"
-                    className="flex items-center justify-center rounded-lg border border-border/80 bg-background px-2.5 text-muted-foreground shadow-xs transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    className="text-muted-foreground"
                   >
                     <Link2 size={13} />
-                  </button>
+                  </Button>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   disabled={!!downloadStep}
                   onClick={handleDownloadQuotation}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/80 bg-background px-3 py-2 text-[12px] font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50"
+                  className="w-full gap-1.5 text-[12px]"
                 >
                   {downloadStep ? <Spinner size="sm" /> : <FileDown size={13} />}
                   <span>Download Full PDF</span>
-                </button>
+                </Button>
                 {downloadStep && <p className="truncate text-center text-[10.5px] font-medium text-muted-foreground">{downloadStep}</p>}
               </div>
             )}
@@ -440,8 +445,9 @@ export default function DetailsTab({ ctx }) {
                     >
                       {PROJECT_TYPE_LABELS[editForm.project_type] || editForm.project_type}
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
                       onClick={() =>
                         setEditForm((prev) => ({
                           ...prev,
@@ -451,7 +457,7 @@ export default function DetailsTab({ ctx }) {
                               : "STRATEGIC",
                         }))
                       }
-                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border transition-colors shrink-0 ${
+                      className={`h-auto text-[11px] font-semibold px-2 py-0.5 rounded-md border shrink-0 ${
                         editForm.project_type === "STRATEGIC"
                           ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30"
                           : "bg-muted/50 text-muted-foreground hover:text-foreground border-border hover:bg-muted"
@@ -459,7 +465,7 @@ export default function DetailsTab({ ctx }) {
                       title="Toggle Strategic project override"
                     >
                       {editForm.project_type === "STRATEGIC" ? "★ Strategic" : "Mark as Strategic"}
-                    </button>
+                    </Button>
                   </div>
                 }
               >
@@ -583,15 +589,16 @@ export default function DetailsTab({ ctx }) {
                       />
                     }
                   />
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
                     disabled={fetchingOdoo || !editForm.sales_reference}
                     onClick={handleFetchFromOdoo}
-                    className="h-full min-h-[66px] px-4 rounded-xl border border-border flex items-center gap-2 text-[13px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all shrink-0"
+                    className="h-full min-h-[66px] shrink-0 gap-2 rounded-xl px-4 text-[13px]"
                   >
                     {fetchingOdoo ? <Spinner size="sm" /> : <Download size={16} />}
                     <span className="hidden sm:inline">Fetch Items</span>
-                  </button>
+                  </Button>
                 </div>
               ) : (
                 <Detail label="Sales Reference">

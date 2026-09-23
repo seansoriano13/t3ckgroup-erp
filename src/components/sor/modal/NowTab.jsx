@@ -8,6 +8,7 @@ import PendingActionDecisions from "../PendingActionDecisions";
 import TaskRow from "./TaskRow";
 import { currentVisitTaskRows } from "../../../constants/sorTasks";
 import { opportunityService } from "../../../services/opportunityService";
+import { Button } from "../../ui/button";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
 
@@ -111,16 +112,16 @@ export default function NowTab({ ctx }) {
               className="w-full bg-transparent text-sm font-medium text-foreground outline-none"
             />
           </div>
-          <button
+          <Button
+            type="button"
             disabled={!lostReason.trim() || stageMutation.isPending}
             onClick={() => stageMutation.mutate({ next: pendingStage, reason: lostReason.trim(), salesReference: null })}
-            className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
           >
             Confirm
-          </button>
-          <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
+          </Button>
+          <Button type="button" variant="ghost" onClick={cancelPendingStage}>
             Cancel
-          </button>
+          </Button>
         </div>
       )}
 
@@ -143,10 +144,11 @@ export default function NowTab({ ctx }) {
           </div>
 
           <div className="mt-3 flex items-center justify-end gap-2">
-            <button onClick={cancelPendingStage} className="h-10 rounded-xl px-3 text-[13px] font-bold text-muted-foreground hover:text-foreground">
+            <Button type="button" variant="ghost" onClick={cancelPendingStage}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              type="button"
               disabled={(needsSalesRef && !salesRefValid) || stageMutation.isPending}
               onClick={() =>
                 stageMutation.mutate({
@@ -155,10 +157,9 @@ export default function NowTab({ ctx }) {
                   salesReference: needsSalesRef ? normalizeSalesReference(salesRef) : null,
                 })
               }
-              className="h-10 rounded-xl bg-primary px-4 text-[13px] font-bold text-primary-foreground transition-all hover:bg-primary-hover disabled:opacity-50"
             >
               Confirm {stageLabel(pendingStage) || pendingStage}
-            </button>
+            </Button>
           </div>
         </div>
       )}
