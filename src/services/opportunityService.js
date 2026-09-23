@@ -176,7 +176,6 @@ export const opportunityService = {
 
   async updateOpportunity(id, payload, actorId) {
     const existing = await opportunityService.getOpportunityById(id);
-    const existingItems = await opportunityService.getItems(id);
 
     const { data, error } = await supabase
       .from("sales_opportunities")
@@ -218,7 +217,15 @@ export const opportunityService = {
       );
     }
 
-    await opportunityService.replaceItems(id, payload.items);
+    // sor_replace_items hands back the rows it just deleted, captured inside
+    // the same SECURITY DEFINER call that performs the write — the diff
+    // below needs that, not a separate `existingItems` select, because a
+    // caller who can edit the Product List (e.g. via is_head) isn't
+    // necessarily covered by sor_items_read's narrower visibility rules; a
+    // plain select from this client would silently come back empty for them
+    // and every product would misreport as newly "added" (see
+    // 20260929040000_sor_replace_items_returns_previous.sql).
+    const previousItems = await opportunityService.replaceItems(id, payload.items);
     const final = await opportunityService.getOpportunityById(id);
 
     const changes = [];
@@ -263,7 +270,7 @@ export const opportunityService = {
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
 
     const newItems = payload.items || [];
-    const oldProducts = existingItems.map((i) => i.product_name?.trim()).filter(Boolean);
+    const oldProducts = previousItems.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
     const addedProducts = newProducts.filter((p) => !oldProducts.includes(p));
@@ -271,7 +278,7 @@ export const opportunityService = {
     const modifiedProducts = [];
 
     newProducts.forEach((p) => {
-      const oldItem = existingItems.find((i) => i.product_name?.trim() === p);
+      const oldItem = previousItems.find((i) => i.product_name?.trim() === p);
       const newItem = newItems.find((i) => i.product_name?.trim() === p);
       if (oldItem && newItem) {
         if (
@@ -540,6 +547,12 @@ export const opportunityService = {
    * first, so a second concurrent call blocks and cleanly replaces what the
    * first call wrote instead of adding to it. (Isolated pre-October
    * compatibility patch — see supabase/migrations/20260929030000_atomic_sor_items_replace.sql.)
+   *
+   * Returns the rows that were just deleted (the "before" Product List) —
+   * read from inside the same SECURITY DEFINER call, so `updateOpportunity`'s
+   * change log doesn't depend on the caller's own read access to
+   * sales_opportunity_items, which is narrower than who may edit it (see
+   * 20260929040000_sor_replace_items_returns_previous.sql).
    */
   async replaceItems(opportunityId, items) {
     const rows = (items || [])
@@ -551,11 +564,12 @@ export const opportunityService = {
         unit_price: Number(it.unit_price) || 0,
       }));
 
-    const { error } = await supabase.rpc("sor_replace_items", {
+    const { data, error } = await supabase.rpc("sor_replace_items", {
       p_opportunity_id: opportunityId,
       p_items: rows,
     });
     if (error) throw error;
+    return data || [];
   },
 
   // ── Notes / timeline ──────────────────────────────────────────────────────

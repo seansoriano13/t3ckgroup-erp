@@ -4,20 +4,25 @@ import { db, insertRow, deleteRows } from "@/test/db/store"
 const rowsOf = (table) => db.internal.rowsOf(table)
 
 /**
- * `sor_replace_items` (supabase/migrations/20260929030000_atomic_sor_items_replace.sql)
+ * `sor_replace_items` (supabase/migrations/20260929040000_sor_replace_items_returns_previous.sql)
  * lives in Postgres, which the fake database does not execute. Re-implemented
  * here against the same in-memory store so opportunityService.replaceItems
  * keeps exercising a real delete-then-insert of sales_opportunity_items — and
  * the fake's own sor_recalc_expected_value mirror in triggers.js — through
  * the RPC instead of the two direct table calls it replaced.
+ *
+ * Returns the deleted rows (the "before" Product List), same as the real
+ * function: `updateOpportunity`'s change log reads its "before" snapshot
+ * from this return value now, not a separate select.
  */
 export function stubReplaceItemsRpc() {
   stubRpc("sor_replace_items", (args) => {
     const opportunityId = args.p_opportunity_id
-    const existing = rowsOf("sales_opportunity_items").filter(
+    const existingLive = rowsOf("sales_opportunity_items").filter(
       (row) => row.opportunity_id === opportunityId,
     )
-    deleteRows("sales_opportunity_items", existing)
+    const existing = existingLive.map((row) => ({ ...row }))
+    deleteRows("sales_opportunity_items", existingLive)
 
     const items = Array.isArray(args.p_items) ? args.p_items : []
     items
@@ -32,6 +37,6 @@ export function stubReplaceItemsRpc() {
           sort_order: idx,
         })
       })
-    return null
+    return existing
   })
 }
