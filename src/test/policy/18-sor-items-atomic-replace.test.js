@@ -33,7 +33,18 @@
  * zero rows for them, so every product looks newly added, every time.
  * sor_replace_items now returns the rows it deleted, captured inside the
  * same SECURITY DEFINER call that already bypasses RLS to perform the
- * write, so the caller's own read access no longer matters.
+ * write, so the caller's own read access no longer matters for the diff log.
+ *
+ * That RPC-return workaround didn't fix the Product List's actual on-screen
+ * display, though — ItemsTab and everything else that renders it still read
+ * sales_opportunity_items with a plain select, so the same is_head-only
+ * editor who could edit fine still saw an empty list rendered, even though
+ * the row was really there (reproduced live: Super Admin sees it, an
+ * ordinary employee opening the identical SOR doesn't).
+ * 20260929050000_sor_items_read_matches_edit.sql widens sor_items_read
+ * itself to grant read access to anyone sor_can_edit_opportunity already
+ * lets write — the two were never supposed to diverge — so a plain select
+ * now works for that same editor directly, no RPC detour required.
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { ids, clientFor, ensureCastLoaded } from "./support/cast.js"
@@ -153,17 +164,17 @@ describe("sor_replace_items — the returned 'before' snapshot bypasses sor_item
         if (editOnlySorId) await serviceClient().from("sales_opportunities").delete().eq("id", editOnlySorId)
     })
 
-    it("a plain select on sales_opportunity_items comes back empty for an is_head-only editor", async () => {
+    it("a plain select on sales_opportunity_items now works for an is_head-only editor too", async () => {
         const head = await clientFor("head")
         const { data, error } = await head
             .from("sales_opportunity_items")
             .select("product_name")
             .eq("opportunity_id", editOnlySorId)
         expect(error).toBeNull()
-        expect(data).toEqual([])
+        expect(data).toEqual([{ product_name: `${MARKER} Pre-existing Line` }])
     })
 
-    it("but sor_replace_items still hands that same editor the true previous row, not an empty list", async () => {
+    it("and sor_replace_items still hands that same editor the true previous row directly, not an empty list", async () => {
         const head = await clientFor("head")
         const { data, error } = await head.rpc("sor_replace_items", {
             p_opportunity_id: editOnlySorId,
