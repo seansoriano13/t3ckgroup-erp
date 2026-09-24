@@ -1,0 +1,148 @@
+{
+  "flow": {
+    "created_at": "2026-09-01T09:36:29.207Z",
+    "id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+    "locked_at": null,
+    "locked_by": null,
+    "sale_type_id": "f06f79e4-40ba-499a-acfc-eabf8d1266e7",
+    "state": "draft",
+    "updated_at": "2026-09-01T09:36:29.207Z",
+    "won_stage_id": null
+  },
+  "format": 1,
+  "saleType": {
+    "archived_at": null,
+    "created_at": "2026-09-01T09:36:29.051Z",
+    "created_by": "6c17866f-8b2c-4475-950e-6d11afdda3ad",
+    "id": "f06f79e4-40ba-499a-acfc-eabf8d1266e7",
+    "name": "Recruitment",
+    "updated_at": "2026-09-01T09:36:29.051Z"
+  },
+  "tables": {
+    "flow_access_settings": [],
+    "flow_edges": [
+      {
+        "created_at": "2026-09-01T09:38:14.216Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "from_stage_id": "11771b3a-ea35-4e6f-9563-527e74526690",
+        "id": "12d5346c-fe30-41fb-b991-32d58d7323dc",
+        "to_stage_id": "786babb8-342f-4529-a5c9-8b7688a98485"
+      },
+      {
+        "created_at": "2026-09-01T09:38:09.474Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "from_stage_id": "0faf6682-7185-4391-b735-042f7d32d22b",
+        "id": "22d37e20-86ed-4751-a4e3-d6c33a9ab01f",
+        "to_stage_id": "11771b3a-ea35-4e6f-9563-527e74526690"
+      },
+      {
+        "created_at": "2026-09-01T09:37:30.598Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "from_stage_id": "cdee664c-6102-4555-a00e-00404230ab7a",
+        "id": "5ac6376a-8741-4258-b88d-bacecea0a309",
+        "to_stage_id": "0faf6682-7185-4391-b735-042f7d32d22b"
+      }
+    ],
+    "flow_form_fields": [],
+    "flow_snapshots": [],
+    "flow_stage_access": [],
+    "flow_stage_actions": [
+      {
+        "archived_at": null,
+        "config": {
+          "attachments": [],
+          "categoryId": "RECRUITMENT / ONBOARDING / OFFBOARDING",
+          "checklist": null,
+          "endAt": null,
+          "isAutoVerified": false,
+          "loggedById": "35547a6c-7cd1-4a4c-ae4d-7b5725bafdd2",
+          "paymentVoucher": null,
+          "priority": "LOW",
+          "projectTitle": "Set a Meeting",
+          "remarks": "",
+          "reportedTo": "6c17866f-8b2c-4475-950e-6d11afdda3ad",
+          "startAt": "2026-09-01T17:44",
+          "submittedById": "6c17866f-8b2c-4475-950e-6d11afdda3ad",
+          "submittedByName": "Geane Mateo (SUPER ADMIN)",
+          "taskDescription": ""
+        },
+        "created_at": "2026-09-01T09:45:32.354Z",
+        "id": "43e75cb5-3df4-4cf6-9b89-231f79aa1627",
+        "kind": "create_individual_task",
+        "sort_order": 0,
+        "stage_id": "0faf6682-7185-4391-b735-042f7d32d22b",
+        "updated_at": "2026-09-01T09:45:32.354Z"
+      }
+    ],
+    "flow_stage_fields": [],
+    "flow_stage_follow_ups": [],
+    "flow_stages": [
+      {
+        "bracket_label": "CRM",
+        "color": "amber",
+        "created_at": "2026-09-01T09:37:23.697Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "id": "0faf6682-7185-4391-b735-042f7d32d22b",
+        "is_terminal": false,
+        "name": "SCHEDULE INITIAL INTERVIEW",
+        "pos_x": 442,
+        "pos_y": 149,
+        "sort_order": 1,
+        "updated_at": "2026-09-01T09:43:31.196Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-01T09:37:41.261Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "id": "11771b3a-ea35-4e6f-9563-527e74526690",
+        "is_terminal": false,
+        "name": "FINAL INTERVIEW",
+        "pos_x": 869,
+        "pos_y": 133,
+        "sort_order": 2,
+        "updated_at": "2026-09-01T09:39:11.808Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-01T09:37:47.491Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "id": "786babb8-342f-4529-a5c9-8b7688a98485",
+        "is_terminal": true,
+        "name": "BG CHECKING",
+        "pos_x": 1251,
+        "pos_y": 133,
+        "sort_order": 3,
+        "updated_at": "2026-09-01T09:39:45.700Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-01T09:36:56.168Z",
+        "flow_id": "cb00cebc-218f-44ec-8768-b4697a8097a9",
+        "id": "cdee664c-6102-4555-a00e-00404230ab7a",
+        "is_terminal": false,
+        "name": "screening of CV",
+        "pos_x": 120,
+        "pos_y": 140,
+        "sort_order": 0,
+        "updated_at": "2026-09-01T09:43:19.824Z"
+      }
+    ],
+    "stage_conditions": [
+      {
+        "archived_at": null,
+        "config": {},
+        "created_at": "2026-09-01T09:45:58.850Z",
+        "id": "6340a03d-adb0-49e4-92eb-da60c25d6cef",
+        "is_required": true,
+        "kind": "attachment",
+        "label": "CV",
+        "sort_order": 0,
+        "stage_id": "cdee664c-6102-4555-a00e-00404230ab7a",
+        "updated_at": "2026-09-01T09:45:58.850Z"
+      }
+    ]
+  }
+}

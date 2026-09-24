@@ -1,0 +1,939 @@
+{
+  "flow": {
+    "created_at": "2026-08-28T00:31:28.430Z",
+    "id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+    "locked_at": null,
+    "locked_by": null,
+    "sale_type_id": "c33cf6f1-a765-4c52-9855-4a94eae83ee2",
+    "state": "draft",
+    "updated_at": "2026-09-11T08:29:27.311Z",
+    "won_stage_id": "3537d835-d87e-4441-9a35-dc3c858d63f5"
+  },
+  "format": 1,
+  "saleType": {
+    "archived_at": null,
+    "created_at": "2026-08-28T00:31:28.261Z",
+    "created_by": "108bddc0-0406-4062-bd16-52d9449a8794",
+    "id": "c33cf6f1-a765-4c52-9855-4a94eae83ee2",
+    "name": "Outright",
+    "updated_at": "2026-08-28T00:58:03.227Z"
+  },
+  "tables": {
+    "flow_access_settings": [],
+    "flow_edges": [
+      {
+        "created_at": "2026-09-10T08:28:35.297Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "from_stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+        "id": "0f55d057-8acf-4d12-8a94-b0cd28dda9c4",
+        "to_stage_id": "3537d835-d87e-4441-9a35-dc3c858d63f5"
+      },
+      {
+        "created_at": "2026-08-28T00:36:25.643Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "from_stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+        "id": "c76f803d-9210-45f9-bae7-aafd66fbce12",
+        "to_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa"
+      },
+      {
+        "created_at": "2026-09-08T05:14:58.776Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "from_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+        "id": "cc945c5d-67f0-4929-aaf6-827b15eaeb01",
+        "to_stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb"
+      },
+      {
+        "created_at": "2026-08-28T00:36:35.210Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "from_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "id": "fb836c3a-b0b4-40ff-9376-95e9b8a7c114",
+        "to_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884"
+      }
+    ],
+    "flow_form_fields": [],
+    "flow_snapshots": [
+      {
+        "created_at": "2026-08-28T05:45:51.256Z",
+        "created_by": "108bddc0-0406-4062-bd16-52d9449a8794",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "66dac736-fe6c-4dde-8b61-ce5f01d40e53",
+        "note": null,
+        "snapshot_data": {
+          "actions": [
+            {
+              "archived_at": null,
+              "config": {
+                "attachments": [],
+                "categoryId": "EXPENSES / AUDIT / LIQUIDATION",
+                "checklist": null,
+                "endAt": null,
+                "isAutoVerified": false,
+                "loggedById": "64ff2cc4-b73f-4e07-87e3-bbf6a6f9e0b5",
+                "paymentVoucher": null,
+                "priority": "MEDIUM",
+                "projectTitle": "SOR - Payment Verification",
+                "remarks": "",
+                "reportedTo": "b8b91351-99a1-4dac-9504-dfabcbd876ee",
+                "startAt": "2026-08-28T08:34",
+                "submittedById": "108bddc0-0406-4062-bd16-52d9449a8794",
+                "submittedByName": "IT Admin",
+                "taskDescription": "Verify the Payment"
+              },
+              "created_at": "2026-08-28T00:35:36.425034+00:00",
+              "id": "52de58e5-8d6a-481b-ba02-bd5d7e3e13d6",
+              "kind": "create_individual_task",
+              "sort_order": 0,
+              "stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "updated_at": "2026-08-28T00:35:36.425034+00:00"
+            }
+          ],
+          "conditions": [
+            {
+              "archived_at": null,
+              "config": {},
+              "created_at": "2026-08-28T05:45:29.584384+00:00",
+              "id": "959f61cc-5812-4818-8eae-ed1498dc3896",
+              "is_required": true,
+              "kind": "attachment",
+              "label": "Proof of Submission",
+              "sort_order": 1,
+              "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "updated_at": "2026-08-28T05:45:29.584384+00:00"
+            }
+          ],
+          "edges": [
+            {
+              "created_at": "2026-08-28T00:36:25.643343+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+              "id": "c76f803d-9210-45f9-bae7-aafd66fbce12",
+              "to_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa"
+            },
+            {
+              "created_at": "2026-08-28T00:36:35.210933+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "id": "fb836c3a-b0b4-40ff-9376-95e9b8a7c114",
+              "to_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884"
+            },
+            {
+              "created_at": "2026-08-28T00:38:05.770089+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "id": "896f5079-3bd5-4999-8164-a9e58926efc4",
+              "to_stage_id": "7e7d42c0-6c5a-43c3-89ec-4a841d1fd5f7"
+            },
+            {
+              "created_at": "2026-08-28T00:38:14.693377+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "7e7d42c0-6c5a-43c3-89ec-4a841d1fd5f7",
+              "id": "9826ef0f-eb60-406a-b436-ee452c28c70b",
+              "to_stage_id": "3537d835-d87e-4441-9a35-dc3c858d63f5"
+            }
+          ],
+          "saleTypeId": "c33cf6f1-a765-4c52-9855-4a94eae83ee2",
+          "stages": [
+            {
+              "created_at": "2026-08-28T00:33:08.213952+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "841b4eb8-69af-4051-ad23-3957271626d0",
+              "is_terminal": false,
+              "name": "Lead",
+              "pos_x": -444,
+              "pos_y": 94,
+              "sort_order": 0,
+              "updated_at": "2026-08-28T01:40:43.527+00:00"
+            },
+            {
+              "created_at": "2026-08-28T00:33:40.023316+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "is_terminal": false,
+              "name": "Payment Verification",
+              "pos_x": 497,
+              "pos_y": 94,
+              "sort_order": 1,
+              "updated_at": "2026-08-28T02:53:09.244+00:00"
+            },
+            {
+              "created_at": "2026-08-28T00:36:21.937004+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "is_terminal": false,
+              "name": "Proposal Submitted",
+              "pos_x": 68,
+              "pos_y": 94,
+              "sort_order": 2,
+              "updated_at": "2026-08-28T00:57:57.739+00:00"
+            },
+            {
+              "created_at": "2026-08-28T00:37:19.945677+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "3537d835-d87e-4441-9a35-dc3c858d63f5",
+              "is_terminal": true,
+              "name": "Closed Won",
+              "pos_x": 1436,
+              "pos_y": 113,
+              "sort_order": 3,
+              "updated_at": "2026-08-28T00:38:17.115+00:00"
+            },
+            {
+              "created_at": "2026-08-28T00:38:00.927707+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "7e7d42c0-6c5a-43c3-89ec-4a841d1fd5f7",
+              "is_terminal": false,
+              "name": "Collection",
+              "pos_x": 1035,
+              "pos_y": 111,
+              "sort_order": 4,
+              "updated_at": "2026-08-28T00:38:17.567+00:00"
+            }
+          ],
+          "wonStageId": "7e7d42c0-6c5a-43c3-89ec-4a841d1fd5f7"
+        },
+        "version": 1,
+        "version_minor": 0
+      },
+      {
+        "created_at": "2026-09-11T08:24:00.618Z",
+        "created_by": "108bddc0-0406-4062-bd16-52d9449a8794",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "f02c884c-5ce1-4167-b631-66b571b1f83b",
+        "note": null,
+        "snapshot_data": {
+          "actions": [
+            {
+              "archived_at": null,
+              "config": {
+                "createdBy": "b209c89e-211d-4a97-9710-9b94e8fece19",
+                "description": "",
+                "dueDate": null,
+                "dueDateOffsetDays": "",
+                "members": [
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Proof of Deposit Slip"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Full Payment"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Down payment"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "b209c89e-211d-4a97-9710-9b94e8fece19",
+                    "role": "SALES REPRESENTATIVE",
+                    "taskDescription": "Checking Payment"
+                  },
+                  {
+                    "checklist": null,
+                    "customRole": "",
+                    "employeeId": "5f6795d5-ed7d-4cda-9d1d-931263176a6c",
+                    "role": "",
+                    "taskDescription": "Verify or Confirm Payment"
+                  },
+                  {
+                    "checklist": null,
+                    "customRole": "",
+                    "employeeId": "64ff2cc4-b73f-4e07-87e3-bbf6a6f9e0b5",
+                    "role": "",
+                    "taskDescription": "Accounting"
+                  },
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Sales Support"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "27e54f12-0ba5-4a5d-88ca-b60ce8173fbb",
+                    "role": "SALES REPRESENTATIVE",
+                    "taskDescription": ""
+                  }
+                ],
+                "templateId": null,
+                "title": "Payment Details"
+              },
+              "created_at": "2026-09-08T05:29:53.607685+00:00",
+              "id": "4fcb89f4-5b3b-4da8-afd9-b413a41c00b3",
+              "kind": "create_group_task",
+              "sort_order": 0,
+              "stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "updated_at": "2026-09-08T06:50:46.264+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {
+                "createdBy": "b209c89e-211d-4a97-9710-9b94e8fece19",
+                "description": "",
+                "dueDate": null,
+                "dueDateOffsetDays": "",
+                "members": [
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Give the S.O Paid -  (Warehouse)"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Send the Proof of Picture to Client - (Packing and Release)"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "b209c89e-211d-4a97-9710-9b94e8fece19",
+                    "role": "",
+                    "taskDescription": ""
+                  },
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Prepare Items"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Take a Proof of Picture"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Fill up the Delivery & Pickup Details – box quantity released, date of release, released by"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Packing the Items"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "8e682067-acf6-45c5-8908-69542de848a4",
+                    "role": "",
+                    "taskDescription": "Prepare Items"
+                  },
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Check the Items Release"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Take a Proof of Picture Pick Up or Release"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Sign the Delivery & Pickup Details – (Client Pick up / Courier / Cargo)"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Send the Proof of Picture -(Pick up Items and Release)"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "c6c59898-c134-494b-94bc-32bfc3f8afec",
+                    "role": "",
+                    "taskDescription": "Release the Items"
+                  },
+                  {
+                    "checklist": [
+                      {
+                        "checked": false,
+                        "text": "Check the Items Release"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Take a Proof of Picture Pick Up or Release"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Sign the Delivery & Pickup Details - (Client Pickup / Courier  / Cargo)"
+                      },
+                      {
+                        "checked": false,
+                        "text": "Send the Proof of Picture - (Pick up Items and Release)"
+                      }
+                    ],
+                    "customRole": "",
+                    "employeeId": "eba6f98f-5ff6-4f3e-987a-70179b3d979f",
+                    "role": "",
+                    "taskDescription": "Release the Items"
+                  },
+                  {
+                    "checklist": null,
+                    "customRole": "",
+                    "employeeId": "27e54f12-0ba5-4a5d-88ca-b60ce8173fbb",
+                    "role": "SALES REPRESENTATIVE",
+                    "taskDescription": "Sales Support"
+                  }
+                ],
+                "templateId": null,
+                "title": "Releasing Items "
+              },
+              "created_at": "2026-09-08T05:50:55.162164+00:00",
+              "id": "810b105a-ae70-434e-a709-05c8785505d0",
+              "kind": "create_group_task",
+              "sort_order": 0,
+              "stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+              "updated_at": "2026-09-08T07:45:47.195+00:00"
+            }
+          ],
+          "conditions": [
+            {
+              "archived_at": null,
+              "config": {
+                "column": "1"
+              },
+              "created_at": "2026-09-08T03:54:49.043987+00:00",
+              "id": "a74bd119-80fa-49d6-aefc-53e93bc6f18a",
+              "is_required": true,
+              "kind": "field",
+              "label": "Proof of Request Quotation",
+              "sort_order": 0,
+              "stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+              "updated_at": "2026-09-08T03:54:49.043987+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {},
+              "created_at": "2026-08-28T05:45:29.584384+00:00",
+              "id": "959f61cc-5812-4818-8eae-ed1498dc3896",
+              "is_required": true,
+              "kind": "attachment",
+              "label": "Proof of Submission",
+              "sort_order": 1,
+              "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "updated_at": "2026-08-28T05:45:29.584384+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {
+                "column": "1"
+              },
+              "created_at": "2026-09-08T05:02:03.879873+00:00",
+              "id": "93328b02-1af0-4ad4-87de-ded7752cfc30",
+              "is_required": true,
+              "kind": "field",
+              "label": "1st ffup",
+              "sort_order": 1,
+              "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "updated_at": "2026-09-08T05:02:03.879873+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {
+                "column": "2"
+              },
+              "created_at": "2026-09-08T05:02:16.617453+00:00",
+              "id": "6b0fd91b-b709-4259-b630-7820bc5ea2d2",
+              "is_required": true,
+              "kind": "field",
+              "label": "2nd ffup",
+              "sort_order": 2,
+              "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "updated_at": "2026-09-08T05:02:16.617453+00:00"
+            }
+          ],
+          "edges": [
+            {
+              "created_at": "2026-08-28T00:36:25.643343+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+              "id": "c76f803d-9210-45f9-bae7-aafd66fbce12",
+              "to_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa"
+            },
+            {
+              "created_at": "2026-08-28T00:36:35.210933+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "id": "fb836c3a-b0b4-40ff-9376-95e9b8a7c114",
+              "to_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884"
+            },
+            {
+              "created_at": "2026-09-08T05:14:58.776004+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "id": "cc945c5d-67f0-4929-aaf6-827b15eaeb01",
+              "to_stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb"
+            },
+            {
+              "created_at": "2026-09-10T08:28:35.297712+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "from_stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+              "id": "0f55d057-8acf-4d12-8a94-b0cd28dda9c4",
+              "to_stage_id": "3537d835-d87e-4441-9a35-dc3c858d63f5"
+            }
+          ],
+          "saleTypeId": "c33cf6f1-a765-4c52-9855-4a94eae83ee2",
+          "stages": [
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-08-28T00:33:08.213952+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "841b4eb8-69af-4051-ad23-3957271626d0",
+              "is_terminal": false,
+              "name": "Lead",
+              "pos_x": -128,
+              "pos_y": 273,
+              "sort_order": 0,
+              "updated_at": "2026-09-09T07:28:17.774+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-08-28T00:33:40.023316+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+              "is_terminal": false,
+              "name": "Payment Verification",
+              "pos_x": 1054,
+              "pos_y": 305,
+              "sort_order": 1,
+              "updated_at": "2026-09-08T08:44:35.099+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-08-28T00:36:21.937004+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "be776742-73f0-415f-b459-89c38b1c27aa",
+              "is_terminal": false,
+              "name": "Proposal Submitted",
+              "pos_x": 593,
+              "pos_y": 505,
+              "sort_order": 2,
+              "updated_at": "2026-09-09T07:28:15.857+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": "green",
+              "created_at": "2026-08-28T00:37:19.945677+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "3537d835-d87e-4441-9a35-dc3c858d63f5",
+              "is_terminal": true,
+              "name": "Closed Won",
+              "pos_x": 2645,
+              "pos_y": 185,
+              "sort_order": 3,
+              "updated_at": "2026-09-09T07:24:13.716+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-08T05:14:27.38675+00:00",
+              "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+              "id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+              "is_terminal": false,
+              "name": "Delivery",
+              "pos_x": 1507,
+              "pos_y": 32,
+              "sort_order": 5,
+              "updated_at": "2026-09-08T08:44:37.714+00:00"
+            }
+          ],
+          "wonStageId": "3537d835-d87e-4441-9a35-dc3c858d63f5"
+        },
+        "version": 2,
+        "version_minor": 0
+      }
+    ],
+    "flow_stage_access": [],
+    "flow_stage_actions": [
+      {
+        "archived_at": null,
+        "config": {
+          "createdBy": "b209c89e-211d-4a97-9710-9b94e8fece19",
+          "description": "",
+          "dueDate": null,
+          "dueDateOffsetDays": "",
+          "members": [
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Proof of Deposit Slip"
+                },
+                {
+                  "checked": false,
+                  "text": "Full Payment"
+                },
+                {
+                  "checked": false,
+                  "text": "Down payment"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "b209c89e-211d-4a97-9710-9b94e8fece19",
+              "role": "SALES REPRESENTATIVE",
+              "taskDescription": "Checking Payment"
+            },
+            {
+              "checklist": null,
+              "customRole": "",
+              "employeeId": "5f6795d5-ed7d-4cda-9d1d-931263176a6c",
+              "role": "",
+              "taskDescription": "Verify or Confirm Payment"
+            },
+            {
+              "checklist": null,
+              "customRole": "",
+              "employeeId": "64ff2cc4-b73f-4e07-87e3-bbf6a6f9e0b5",
+              "role": "",
+              "taskDescription": "Accounting"
+            },
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Sales Support"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "27e54f12-0ba5-4a5d-88ca-b60ce8173fbb",
+              "role": "SALES REPRESENTATIVE",
+              "taskDescription": ""
+            }
+          ],
+          "templateId": null,
+          "title": "Payment Details"
+        },
+        "created_at": "2026-09-08T05:29:53.607Z",
+        "id": "4fcb89f4-5b3b-4da8-afd9-b413a41c00b3",
+        "kind": "create_group_task",
+        "sort_order": 0,
+        "stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+        "updated_at": "2026-09-08T06:50:46.264Z"
+      },
+      {
+        "archived_at": "2026-08-28T09:17:05.747Z",
+        "config": {
+          "attachments": [],
+          "categoryId": "EXPENSES / AUDIT / LIQUIDATION",
+          "checklist": null,
+          "endAt": null,
+          "isAutoVerified": false,
+          "loggedById": "64ff2cc4-b73f-4e07-87e3-bbf6a6f9e0b5",
+          "paymentVoucher": null,
+          "priority": "MEDIUM",
+          "projectTitle": "SOR - Payment Verification",
+          "remarks": "",
+          "reportedTo": "b8b91351-99a1-4dac-9504-dfabcbd876ee",
+          "startAt": "2026-08-28T08:34",
+          "submittedById": "108bddc0-0406-4062-bd16-52d9449a8794",
+          "submittedByName": "IT Admin",
+          "taskDescription": "Verify the Payment"
+        },
+        "created_at": "2026-08-28T00:35:36.425Z",
+        "id": "52de58e5-8d6a-481b-ba02-bd5d7e3e13d6",
+        "kind": "create_individual_task",
+        "sort_order": 0,
+        "stage_id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+        "updated_at": "2026-08-28T09:17:05.747Z"
+      },
+      {
+        "archived_at": null,
+        "config": {
+          "createdBy": "b209c89e-211d-4a97-9710-9b94e8fece19",
+          "description": "",
+          "dueDate": null,
+          "dueDateOffsetDays": "",
+          "members": [
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Give the S.O Paid -  (Warehouse)"
+                },
+                {
+                  "checked": false,
+                  "text": "Send the Proof of Picture to Client - (Packing and Release)"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "b209c89e-211d-4a97-9710-9b94e8fece19",
+              "role": "",
+              "taskDescription": ""
+            },
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Prepare Items"
+                },
+                {
+                  "checked": false,
+                  "text": "Take a Proof of Picture"
+                },
+                {
+                  "checked": false,
+                  "text": "Fill up the Delivery & Pickup Details – box quantity released, date of release, released by"
+                },
+                {
+                  "checked": false,
+                  "text": "Packing the Items"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "8e682067-acf6-45c5-8908-69542de848a4",
+              "role": "",
+              "taskDescription": "Prepare Items"
+            },
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Check the Items Release"
+                },
+                {
+                  "checked": false,
+                  "text": "Take a Proof of Picture Pick Up or Release"
+                },
+                {
+                  "checked": false,
+                  "text": "Sign the Delivery & Pickup Details – (Client Pick up / Courier / Cargo)"
+                },
+                {
+                  "checked": false,
+                  "text": "Send the Proof of Picture -(Pick up Items and Release)"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "c6c59898-c134-494b-94bc-32bfc3f8afec",
+              "role": "",
+              "taskDescription": "Release the Items"
+            },
+            {
+              "checklist": [
+                {
+                  "checked": false,
+                  "text": "Check the Items Release"
+                },
+                {
+                  "checked": false,
+                  "text": "Take a Proof of Picture Pick Up or Release"
+                },
+                {
+                  "checked": false,
+                  "text": "Sign the Delivery & Pickup Details - (Client Pickup / Courier  / Cargo)"
+                },
+                {
+                  "checked": false,
+                  "text": "Send the Proof of Picture - (Pick up Items and Release)"
+                }
+              ],
+              "customRole": "",
+              "employeeId": "eba6f98f-5ff6-4f3e-987a-70179b3d979f",
+              "role": "",
+              "taskDescription": "Release the Items"
+            },
+            {
+              "checklist": null,
+              "customRole": "",
+              "employeeId": "27e54f12-0ba5-4a5d-88ca-b60ce8173fbb",
+              "role": "SALES REPRESENTATIVE",
+              "taskDescription": "Sales Support"
+            }
+          ],
+          "templateId": null,
+          "title": "Releasing Items "
+        },
+        "created_at": "2026-09-08T05:50:55.162Z",
+        "id": "810b105a-ae70-434e-a709-05c8785505d0",
+        "kind": "create_group_task",
+        "sort_order": 0,
+        "stage_id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+        "updated_at": "2026-09-08T07:45:47.195Z"
+      }
+    ],
+    "flow_stage_fields": [
+      {
+        "archived_at": null,
+        "created_at": "2026-09-15T10:05:26.101Z",
+        "field_type": "text",
+        "help": null,
+        "id": "aebd2340-11c1-4e22-9a7e-ecd8e2d731e0",
+        "is_required": true,
+        "label": "1st ffup",
+        "options": [],
+        "sor_field": null,
+        "sort_order": 0,
+        "source": "custom",
+        "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "updated_at": "2026-09-15T10:05:26.101Z"
+      },
+      {
+        "archived_at": null,
+        "created_at": "2026-09-15T10:05:26.101Z",
+        "field_type": "text",
+        "help": null,
+        "id": "cb804ad7-cd09-49f4-a56d-19125bab7c7d",
+        "is_required": true,
+        "label": "2nd ffup",
+        "options": [],
+        "sor_field": null,
+        "sort_order": 1,
+        "source": "custom",
+        "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "updated_at": "2026-09-15T10:05:26.101Z"
+      },
+      {
+        "archived_at": null,
+        "created_at": "2026-09-15T10:05:26.101Z",
+        "field_type": "text",
+        "help": null,
+        "id": "f3b4232e-7c23-4d8d-bbd1-95d05a4baf57",
+        "is_required": true,
+        "label": "Proof of Request Quotation",
+        "options": [],
+        "sor_field": null,
+        "sort_order": 0,
+        "source": "custom",
+        "stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+        "updated_at": "2026-09-15T10:05:26.101Z"
+      }
+    ],
+    "flow_stage_follow_ups": [],
+    "flow_stages": [
+      {
+        "bracket_label": null,
+        "color": "green",
+        "created_at": "2026-08-28T00:37:19.945Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "3537d835-d87e-4441-9a35-dc3c858d63f5",
+        "is_terminal": true,
+        "name": "Closed Won",
+        "pos_x": 2645,
+        "pos_y": 185,
+        "sort_order": 3,
+        "updated_at": "2026-09-09T07:24:13.716Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-08-28T00:33:08.213Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "841b4eb8-69af-4051-ad23-3957271626d0",
+        "is_terminal": false,
+        "name": "Lead",
+        "pos_x": -128,
+        "pos_y": 273,
+        "sort_order": 0,
+        "updated_at": "2026-09-09T07:28:17.774Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-08-28T00:36:21.937Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "is_terminal": false,
+        "name": "Proposal Submitted",
+        "pos_x": 593,
+        "pos_y": 505,
+        "sort_order": 2,
+        "updated_at": "2026-09-09T07:28:15.857Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-08T05:14:27.386Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "c86f358b-29ef-402f-b98a-29adefe6a3eb",
+        "is_terminal": false,
+        "name": "Delivery",
+        "pos_x": 1507,
+        "pos_y": 32,
+        "sort_order": 5,
+        "updated_at": "2026-09-08T08:44:37.714Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-08-28T00:33:40.023Z",
+        "flow_id": "6a35175d-eec1-4ffb-b322-690e3155a98c",
+        "id": "daa5d729-9d0b-488e-83c6-2d98b8baf884",
+        "is_terminal": false,
+        "name": "Payment Verification",
+        "pos_x": 1054,
+        "pos_y": 305,
+        "sort_order": 1,
+        "updated_at": "2026-09-08T08:44:35.099Z"
+      }
+    ],
+    "stage_conditions": [
+      {
+        "archived_at": "2026-09-15T10:05:26.101Z",
+        "config": {
+          "column": "2"
+        },
+        "created_at": "2026-09-08T05:02:16.617Z",
+        "id": "6b0fd91b-b709-4259-b630-7820bc5ea2d2",
+        "is_required": true,
+        "kind": "field",
+        "label": "2nd ffup",
+        "sort_order": 2,
+        "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "updated_at": "2026-09-08T05:02:16.617Z"
+      },
+      {
+        "archived_at": "2026-09-15T10:05:26.101Z",
+        "config": {
+          "column": "1"
+        },
+        "created_at": "2026-09-08T05:02:03.879Z",
+        "id": "93328b02-1af0-4ad4-87de-ded7752cfc30",
+        "is_required": true,
+        "kind": "field",
+        "label": "1st ffup",
+        "sort_order": 1,
+        "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "updated_at": "2026-09-08T05:02:03.879Z"
+      },
+      {
+        "archived_at": null,
+        "config": {},
+        "created_at": "2026-08-28T05:45:29.584Z",
+        "id": "959f61cc-5812-4818-8eae-ed1498dc3896",
+        "is_required": true,
+        "kind": "attachment",
+        "label": "Proof of Submission",
+        "sort_order": 1,
+        "stage_id": "be776742-73f0-415f-b459-89c38b1c27aa",
+        "updated_at": "2026-08-28T05:45:29.584Z"
+      },
+      {
+        "archived_at": "2026-09-10T08:16:58.803Z",
+        "config": {
+          "column": "2"
+        },
+        "created_at": "2026-09-08T03:56:32.552Z",
+        "id": "9ed31e53-2783-4eca-ad9c-dabcc18a4fba",
+        "is_required": true,
+        "kind": "field",
+        "label": "Client Complete Detail",
+        "sort_order": 1,
+        "stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+        "updated_at": "2026-09-08T03:56:32.552Z"
+      },
+      {
+        "archived_at": "2026-09-15T10:05:26.101Z",
+        "config": {
+          "column": "1"
+        },
+        "created_at": "2026-09-08T03:54:49.043Z",
+        "id": "a74bd119-80fa-49d6-aefc-53e93bc6f18a",
+        "is_required": true,
+        "kind": "field",
+        "label": "Proof of Request Quotation",
+        "sort_order": 0,
+        "stage_id": "841b4eb8-69af-4051-ad23-3957271626d0",
+        "updated_at": "2026-09-08T03:54:49.043Z"
+      }
+    ]
+  }
+}

@@ -1,0 +1,587 @@
+{
+  "flow": {
+    "created_at": "2026-09-21T00:08:18.740Z",
+    "id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+    "locked_at": null,
+    "locked_by": null,
+    "sale_type_id": "c958fc76-19cf-4a24-a3ae-79a3c7556c3f",
+    "state": "draft",
+    "updated_at": "2026-09-21T00:08:18.740Z",
+    "won_stage_id": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea"
+  },
+  "format": 1,
+  "saleType": {
+    "archived_at": null,
+    "created_at": "2026-09-21T00:08:18.740Z",
+    "created_by": "108bddc0-0406-4062-bd16-52d9449a8794",
+    "id": "c958fc76-19cf-4a24-a3ae-79a3c7556c3f",
+    "name": "ZZ Demo — Stage Access",
+    "updated_at": "2026-09-21T00:08:18.740Z"
+  },
+  "tables": {
+    "flow_access_settings": [
+      {
+        "always_sees": [
+          {
+            "team": "PURCHASING",
+            "type": "team"
+          }
+        ],
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "journey_viewers": [
+          {
+            "team": "IT",
+            "type": "team"
+          }
+        ],
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      }
+    ],
+    "flow_edges": [
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "11552f16-041e-4855-bc03-49e39e401056",
+        "id": "24731330-0529-47cf-91db-3cdc375ae4bf",
+        "to_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f"
+      },
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+        "id": "34b2504b-0ff1-4e10-93c3-1800f3736954",
+        "to_stage_id": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea"
+      },
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+        "id": "4c0d746a-6c5c-4b1e-9a0f-95d4816918cd",
+        "to_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d"
+      },
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+        "id": "92711817-1864-4cab-9c2b-97347984c502",
+        "to_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93"
+      },
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+        "id": "e895d956-4cdd-4af7-a1fa-4422f8b28a30",
+        "to_stage_id": "7d152c8e-3853-492e-9290-43a745ae0c38"
+      },
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "from_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+        "id": "edbf0e58-eeed-494e-aa86-635f65b8b72d",
+        "to_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f"
+      }
+    ],
+    "flow_form_fields": [],
+    "flow_snapshots": [
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "created_by": "108bddc0-0406-4062-bd16-52d9449a8794",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "88e691fd-3c62-486f-a2d6-55ad79c402b7",
+        "note": "Seeded by scripts/seed-stage-access-demo.mjs",
+        "snapshot_data": {
+          "access": {
+            "flow": {
+              "always_sees": [
+                {
+                  "team": "PURCHASING",
+                  "type": "team"
+                }
+              ],
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "journey_viewers": [
+                {
+                  "team": "IT",
+                  "type": "team"
+                }
+              ],
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            "stages": [
+              {
+                "created_at": "2026-09-21T00:08:18.740432+00:00",
+                "excluded_group_ids": [
+                  "e0a68906-bf54-4cae-9f6b-2bf6f85b6318"
+                ],
+                "id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+                "shut_out_roles": [
+                  "deal_owner"
+                ],
+                "stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+                "updated_at": "2026-09-21T00:08:18.740432+00:00"
+              }
+            ]
+          },
+          "actions": [
+            {
+              "archived_at": null,
+              "config": {
+                "access": {
+                  "until": "terminal"
+                },
+                "createdBy": "108bddc0-0406-4062-bd16-52d9449a8794",
+                "description": "Assemble and submit the bid documents.",
+                "dueDateOffsetDays": "5",
+                "members": [
+                  {
+                    "checklist": null,
+                    "customRole": "",
+                    "employeeId": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+                    "role": "HELPER",
+                    "taskDescription": "Compile the technical annexes."
+                  },
+                  {
+                    "checklist": null,
+                    "customRole": "",
+                    "employeeId": "50805ead-7af4-44ab-98a7-1eb190a44a19",
+                    "role": "HELPER",
+                    "taskDescription": "Attach the supplier quotations."
+                  }
+                ],
+                "title": "Bid pack — {{salesReference}}"
+              },
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "id": "c3fa088a-4b45-45da-a5c6-e8da1f9a60a2",
+              "kind": "create_group_task",
+              "sort_order": 0,
+              "stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {
+                "access": {
+                  "until": "stage_left"
+                },
+                "categoryId": "DOCUMENTS CREATED / FOR SUBMISSION / APPROVAL",
+                "description": "Check the specifications on this deal and note anything non-compliant.",
+                "dueOffsetDays": "3",
+                "loggedById": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+                "priority": "MEDIUM",
+                "projectTitle": "Technical review — {{salesReference}}"
+              },
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "id": "53610441-2560-4074-91d4-a8e597f936d6",
+              "kind": "create_individual_task",
+              "sort_order": 0,
+              "stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            }
+          ],
+          "conditions": [
+            {
+              "archived_at": null,
+              "config": {
+                "access": {
+                  "stageId": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+                  "until": "later_stage_left"
+                },
+                "who": [
+                  {
+                    "id": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+                    "type": "employee"
+                  }
+                ]
+              },
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "id": "4f93cb79-65ba-4879-a607-87853e35f26b",
+              "is_required": true,
+              "kind": "assignment",
+              "label": "Assign the Technical Reviewer",
+              "sort_order": 0,
+              "stage_id": "11552f16-041e-4855-bc03-49e39e401056",
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {
+                "access": {
+                  "until": "stage_left"
+                },
+                "who": [
+                  {
+                    "id": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+                    "type": "employee"
+                  }
+                ]
+              },
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "id": "25ca8f66-99f2-4462-9d46-25935d25095c",
+              "is_required": false,
+              "kind": "assignment",
+              "label": "Assign the Warehouse Checker",
+              "sort_order": 0,
+              "stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "archived_at": null,
+              "config": {},
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "id": "1cabcc84-6274-4268-a1b1-bff2cffb671f",
+              "is_required": false,
+              "kind": "tickbox",
+              "label": "Costing sheet approved",
+              "sort_order": 1,
+              "stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            }
+          ],
+          "edges": [
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "11552f16-041e-4855-bc03-49e39e401056",
+              "id": "24731330-0529-47cf-91db-3cdc375ae4bf",
+              "to_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f"
+            },
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+              "id": "4c0d746a-6c5c-4b1e-9a0f-95d4816918cd",
+              "to_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d"
+            },
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+              "id": "92711817-1864-4cab-9c2b-97347984c502",
+              "to_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93"
+            },
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+              "id": "34b2504b-0ff1-4e10-93c3-1800f3736954",
+              "to_stage_id": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea"
+            },
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+              "id": "e895d956-4cdd-4af7-a1fa-4422f8b28a30",
+              "to_stage_id": "7d152c8e-3853-492e-9290-43a745ae0c38"
+            },
+            {
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "from_stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+              "id": "edbf0e58-eeed-494e-aa86-635f65b8b72d",
+              "to_stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f"
+            }
+          ],
+          "followUps": [],
+          "formFields": [],
+          "saleTypeId": "c958fc76-19cf-4a24-a3ae-79a3c7556c3f",
+          "stageFields": [],
+          "stages": [
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "11552f16-041e-4855-bc03-49e39e401056",
+              "is_terminal": false,
+              "name": "Registered",
+              "pos_x": 0,
+              "pos_y": 0,
+              "sort_order": 0,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+              "is_terminal": false,
+              "name": "Technical Review",
+              "pos_x": 260,
+              "pos_y": 0,
+              "sort_order": 10,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+              "is_terminal": false,
+              "name": "Costing",
+              "pos_x": 520,
+              "pos_y": 0,
+              "sort_order": 20,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+              "is_terminal": false,
+              "name": "Bid Submitted",
+              "pos_x": 780,
+              "pos_y": 0,
+              "sort_order": 30,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea",
+              "is_terminal": false,
+              "name": "Awarded",
+              "pos_x": 1040,
+              "pos_y": -90,
+              "sort_order": 40,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            },
+            {
+              "bracket_label": null,
+              "color": null,
+              "created_at": "2026-09-21T00:08:18.740432+00:00",
+              "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+              "id": "7d152c8e-3853-492e-9290-43a745ae0c38",
+              "is_terminal": true,
+              "name": "Closed Lost",
+              "pos_x": 1040,
+              "pos_y": 90,
+              "sort_order": 50,
+              "updated_at": "2026-09-21T00:08:18.740432+00:00"
+            }
+          ],
+          "wonStageId": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea"
+        },
+        "version": 1,
+        "version_minor": 0
+      }
+    ],
+    "flow_stage_access": [
+      {
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "excluded_group_ids": [
+          "e0a68906-bf54-4cae-9f6b-2bf6f85b6318"
+        ],
+        "shut_out_roles": [
+          "deal_owner"
+        ],
+        "stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      }
+    ],
+    "flow_stage_actions": [
+      {
+        "archived_at": null,
+        "config": {
+          "access": {
+            "until": "stage_left"
+          },
+          "categoryId": "DOCUMENTS CREATED / FOR SUBMISSION / APPROVAL",
+          "description": "Check the specifications on this deal and note anything non-compliant.",
+          "dueOffsetDays": "3",
+          "loggedById": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+          "priority": "MEDIUM",
+          "projectTitle": "Technical review — {{so_number}} {{project_title}}"
+        },
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "id": "53610441-2560-4074-91d4-a8e597f936d6",
+        "kind": "create_individual_task",
+        "sort_order": 0,
+        "stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      },
+      {
+        "archived_at": null,
+        "config": {
+          "access": {
+            "until": "terminal"
+          },
+          "createdBy": "108bddc0-0406-4062-bd16-52d9449a8794",
+          "description": "Assemble and submit the bid documents.",
+          "dueDateOffsetDays": "5",
+          "members": [
+            {
+              "checklist": null,
+              "customRole": "",
+              "employeeId": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+              "role": "HELPER",
+              "taskDescription": "Compile the technical annexes."
+            },
+            {
+              "checklist": null,
+              "customRole": "",
+              "employeeId": "50805ead-7af4-44ab-98a7-1eb190a44a19",
+              "role": "HELPER",
+              "taskDescription": "Attach the supplier quotations."
+            }
+          ],
+          "title": "Bid pack — {{so_number}} {{project_title}}"
+        },
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "id": "c3fa088a-4b45-45da-a5c6-e8da1f9a60a2",
+        "kind": "create_group_task",
+        "sort_order": 0,
+        "stage_id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      }
+    ],
+    "flow_stage_fields": [],
+    "flow_stage_follow_ups": [],
+    "flow_stages": [
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "11552f16-041e-4855-bc03-49e39e401056",
+        "is_terminal": false,
+        "name": "Registered",
+        "pos_x": 216,
+        "pos_y": 32,
+        "sort_order": 0,
+        "updated_at": "2026-09-21T04:18:28.285Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "7d152c8e-3853-492e-9290-43a745ae0c38",
+        "is_terminal": true,
+        "name": "Closed Lost",
+        "pos_x": 2616,
+        "pos_y": 0,
+        "sort_order": 50,
+        "updated_at": "2026-09-21T04:18:28.071Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+        "is_terminal": false,
+        "name": "Bid Submitted",
+        "pos_x": 2016,
+        "pos_y": 32,
+        "sort_order": 30,
+        "updated_at": "2026-09-21T04:18:28.180Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+        "is_terminal": false,
+        "name": "Technical Review",
+        "pos_x": 816,
+        "pos_y": 32,
+        "sort_order": 10,
+        "updated_at": "2026-09-21T04:18:27.716Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+        "is_terminal": false,
+        "name": "Costing",
+        "pos_x": 1632,
+        "pos_y": 32,
+        "sort_order": 20,
+        "updated_at": "2026-09-21T04:18:27.973Z"
+      },
+      {
+        "bracket_label": null,
+        "color": null,
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "flow_id": "ad80ead4-3533-4ee3-a615-4139473813d3",
+        "id": "fe5a0f2d-ca27-427f-b9c6-46965b7493ea",
+        "is_terminal": false,
+        "name": "Awarded",
+        "pos_x": 2616,
+        "pos_y": 176,
+        "sort_order": 40,
+        "updated_at": "2026-09-21T04:18:27.868Z"
+      }
+    ],
+    "stage_conditions": [
+      {
+        "archived_at": null,
+        "config": {},
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "id": "1cabcc84-6274-4268-a1b1-bff2cffb671f",
+        "is_required": false,
+        "kind": "tickbox",
+        "label": "Costing sheet approved",
+        "sort_order": 1,
+        "stage_id": "c9dbe294-ff8b-4b04-9b57-ce7348b4619d",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      },
+      {
+        "archived_at": null,
+        "config": {
+          "access": {
+            "until": "stage_left"
+          },
+          "who": [
+            {
+              "id": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+              "type": "employee"
+            }
+          ]
+        },
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "id": "25ca8f66-99f2-4462-9d46-25935d25095c",
+        "is_required": false,
+        "kind": "assignment",
+        "label": "Assign the Warehouse Checker",
+        "sort_order": 0,
+        "stage_id": "b7a6a322-7e74-4990-a693-47c535bb1d2f",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      },
+      {
+        "archived_at": null,
+        "config": {
+          "access": {
+            "stageId": "a7fee17d-33a8-404c-b3f1-3c350137be93",
+            "until": "later_stage_left"
+          },
+          "who": [
+            {
+              "id": "8eb1e9c1-de38-45e4-a211-b3727c3100c7",
+              "type": "employee"
+            }
+          ]
+        },
+        "created_at": "2026-09-21T00:08:18.740Z",
+        "id": "4f93cb79-65ba-4879-a607-87853e35f26b",
+        "is_required": true,
+        "kind": "assignment",
+        "label": "Assign the Technical Reviewer",
+        "sort_order": 0,
+        "stage_id": "11552f16-041e-4855-bc03-49e39e401056",
+        "updated_at": "2026-09-21T00:08:18.740Z"
+      }
+    ]
+  }
+}
