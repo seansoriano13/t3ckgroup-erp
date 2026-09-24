@@ -31,12 +31,12 @@ function DrawerContent({ side = "right", className, children, ...props }) {
       <DialogPrimitive.Backdrop
         data-slot="drawer-overlay"
         forceRender
-        className="fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0"
+        className="fixed inset-0 isolate z-50 bg-black/40 backdrop-blur-sm duration-200 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fill-mode-forwards data-closed:fade-out-0"
       />
       <DialogPrimitive.Popup
         data-slot="drawer-content"
         className={cn(
-          "fixed top-0 z-50 flex h-full w-[500px] max-w-full flex-col border-border bg-card text-foreground shadow-2xl outline-none duration-300 data-open:animate-in data-closed:animate-out",
+          "fixed top-0 z-50 flex h-full w-[500px] max-w-full flex-col border-border bg-card text-foreground shadow-2xl outline-none duration-300 data-open:animate-in data-closed:animate-out data-closed:fill-mode-forwards",
           SIDES[side],
           className,
         )}
