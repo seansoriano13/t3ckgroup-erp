@@ -227,12 +227,16 @@ export default function SideNav() {
 
   // The same panel renders in the desktop aside (rail-capable) and the mobile
   // Drawer (always full width), so it takes `collapsed` rather than reading state.
-  const renderSidebarBody = (collapsed) => (
+  const renderSidebarBody = (collapsed, showRailToggle = false) => (
     <>
         {/* 1. Header (Profile Dropdown + Quick Actions) */}
         <div className="px-3 pt-6 pb-2 flex flex-col gap-2.5">
           {/* Row 1: Profile Selector */}
-          <div className="flex-1 min-w-0">
+          {/* Desktop collapse toggle — a rail is icons-only, so this is the one
+              control that survives collapsing to it. Sits in the header row
+              (above the avatar on the rail) so it never overlaps the profile. */}
+          <div className={`flex items-center gap-1.5 ${collapsed ? "md:flex-col-reverse" : ""}`}>
+          <div className="flex-1 min-w-0 w-full">
             <Dropdown
               className="flex-1 min-w-0"
               trigger={({ isOpen }) => (
@@ -276,6 +280,18 @@ export default function SideNav() {
                 </div>
               )}
             </Dropdown>
+          </div>
+          {showRailToggle && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleCollapsed}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="hidden md:flex shrink-0 h-7 w-7 rounded-md border-sidebar-border bg-sidebar text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+            >
+              {collapsed ? <PanelRight size={14} strokeWidth={2} /> : <PanelLeft size={14} strokeWidth={2} />}
+            </Button>
+          )}
           </div>
 
           {/* Row 2: Action Buttons — stacks vertically on the collapsed rail,
@@ -537,19 +553,7 @@ export default function SideNav() {
           ${isCollapsed ? "w-[68px]" : "w-[240px]"} shrink-0 overflow-y-auto scrollbar-hide
         `}
       >
-        {/* Desktop collapse toggle — a rail is icons-only, so this is the one
-            control that survives collapsing to it. */}
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={toggleCollapsed}
-          title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="hidden md:flex absolute top-4 right-2 z-50 h-6 w-6 rounded-full border-sidebar-border bg-sidebar text-sidebar-foreground/70 shadow-sm hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-        >
-          {isCollapsed ? <PanelRight size={13} strokeWidth={2} /> : <PanelLeft size={13} strokeWidth={2} />}
-        </Button>
-
-        {renderSidebarBody(isCollapsed)}
+        {renderSidebarBody(isCollapsed, true)}
       </aside>
 
       {/* Drawers */}
