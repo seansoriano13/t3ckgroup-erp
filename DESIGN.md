@@ -337,8 +337,11 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### Page structure
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
 
-#### Not built yet
-Planned, not available: Image, ExternalLink (internal links use the router `Link`). Until each lands, ask the maintainer.
+#### Image
+`ui/image.jsx`. Thin `<img>` wrapper, no transforms. Props pass through (`src`, `alt`, `className`). Use for non-person, non-upload images; people use Avatar, uploads use ImageAttachment.
+
+#### ExternalLink
+`ui/external-link.jsx`. Anchor for outside URLs; always `target="_blank"` with `rel="noopener noreferrer"` (caller `rel` is merged). Internal links use the router `Link`.
 
 ## Do's and Don'ts
 

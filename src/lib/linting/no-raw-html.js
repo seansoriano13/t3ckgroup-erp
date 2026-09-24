@@ -18,8 +18,8 @@ const REPLACEMENTS = {
   select: ['select', 'SelectField (ui/SelectField.jsx)', 'selectfield'],
   label: ['label', 'FieldBox (ui/FieldBox.jsx)', 'fieldbox'],
   table: ['table', 'the Table Primitive set (Table, TableRow, TableCell...)', 'primitive-catalog'],
-  img: ['img', 'Avatar (people) or ImageAttachment (uploads)', 'avatar'],
-  a: ['a', 'the router Link (internal) or ExternalLink (external, not built yet: stop and ask the maintainer)', 'primitive-catalog'],
+  img: ['img', 'Avatar (people), ImageAttachment (uploads) or Image (ui/image.jsx)', 'image'],
+  a: ['a', 'the router Link (internal) or ExternalLink (ui/external-link.jsx, external)', 'externallink'],
 }
 
 const INPUT_REPLACEMENTS = {
