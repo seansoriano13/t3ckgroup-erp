@@ -1,5 +1,16 @@
 [
     {
+        "date": "2026-09-24",
+        "title": "One Consistent Look for Fields, Tables and Pop-ups",
+        "version": "1.7.26",
+        "changes": [
+            "Dropdown pickers, form fields, tables, pop-up windows and side panels now look and behave the same on every screen, so the app feels like one product instead of a mix of one-off designs.",
+            "Pick-lists that used the browser's plain dropdown (filters, page size, employee and offset forms) now use the app's own dropdown, with keyboard support, and still work inside the Filters menu.",
+            "Pop-up windows, the notifications panel and the mobile menu now open and close smoothly, and close the same way everywhere: press Escape or click outside.",
+            "Tables in SORS, Purchasing, HR, Offsets and Group Tasks share one look, and the login and reset-password buttons now match the rest of the app."
+        ]
+    },
+    {
         "date": "2026-09-21",
         "title": "Unified All SORs Filter & Cleaner Filters Menu",
         "version": "1.7.25",
