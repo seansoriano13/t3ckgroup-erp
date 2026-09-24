@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { Receipt, ImagePlus, X, Maximize2, ClipboardPaste } from "lucide-react"
 import { useState, useRef, useCallback, useEffect } from "react"
 import { createPortal } from "react-dom"
@@ -63,13 +64,11 @@ export default function LogTaskDetailsSection({
         toast.error("Upload failed: " + err.message)
       } finally {
         setIsUploading(false)
-        if (fileInputRef.current) fileInputRef.current.value = ""
       }
     },
     [onAttachmentsChange],
   )
 
-  const handleFileChange = (e) => uploadFiles(Array.from(e.target.files))
   const handleRemove = (url) =>
     onAttachmentsChange((formData.attachments || []).filter((u) => u !== url))
 
@@ -234,13 +233,11 @@ export default function LogTaskDetailsSection({
       </div>
       {/* 3. IMAGE ATTACHMENTS */}
       <div className="mb-3 animate-content-in stagger-3">
-        <input
-          type="file"
+        <FileInput
           ref={fileInputRef}
-          onChange={handleFileChange}
+          onFiles={uploadFiles}
           accept="image/jpeg,image/png,image/webp"
           multiple
-          className="hidden"
         />
 
         {/* Upload zone */}
@@ -291,7 +288,7 @@ export default function LogTaskDetailsSection({
           <Button
             type="button"
             variant="ghost"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => fileInputRef.current?.open()}
             disabled={isUploading || attachments.length >= 5}
             className="h-auto w-full flex items-center justify-center gap-2 px-3 py-3 text-[11px] font-semibold text-mauve-12/70 hover:text-mauve-12 hover:bg-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >

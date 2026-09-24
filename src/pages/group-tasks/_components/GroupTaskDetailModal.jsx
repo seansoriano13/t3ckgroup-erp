@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import toast from "react-hot-toast";
@@ -1066,53 +1067,41 @@ export default function GroupTaskDetailModal({
                                 Attachments
                               </label>
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
-                                <div className="relative">
-                                  <input
-                                    type="file"
-                                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                                    multiple
-                                    accept={ALLOWED_EXTENSIONS_STRING}
-                                    disabled={isUploadingAttachment || isUploadingMemberFile}
-                                    title="Upload attachments"
-                                    onChange={async (e) => {
-                                      const files = Array.from(e.target.files);
-                                      e.target.value = "";
-                                      setIsUploadingMemberFile(true);
-                                      try {
-                                        for (const file of files) {
-                                          if (!isAllowedAttachment(file)) {
-                                            toast.error(`${file.name} is not a supported file type.`);
-                                            continue;
-                                          }
-                                          if (file.size > MAX_ATTACHMENT_BYTES) {
-                                            toast.error(
-                                              `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
-                                            );
-                                            continue;
-                                          }
-                                          try {
-                                            const descriptor = await storageService.uploadFileToCloudinary(file);
-                                            await onAddAttachment(member.id, descriptor);
-                                          } catch (err) {
-                                            console.error(err);
-                                            toast.error(`Failed to upload ${file.name}`);
-                                          }
+                                <FileInput
+                                  multiple
+                                  accept={ALLOWED_EXTENSIONS_STRING}
+                                  variant="link"
+                                  disabled={isUploadingAttachment || isUploadingMemberFile}
+                                  className="h-auto gap-1 p-0 text-[10px] font-semibold text-primary hover:text-primary/80 hover:no-underline"
+                                  onFiles={async (files) => {
+                                    setIsUploadingMemberFile(true);
+                                    try {
+                                      for (const file of files) {
+                                        if (!isAllowedAttachment(file)) {
+                                          toast.error(`${file.name} is not a supported file type.`);
+                                          continue;
                                         }
-                                      } finally {
-                                        setIsUploadingMemberFile(false);
+                                        if (file.size > MAX_ATTACHMENT_BYTES) {
+                                          toast.error(
+                                            `${file.name} is too large (max ${formatBytes(MAX_ATTACHMENT_BYTES)}).`,
+                                          );
+                                          continue;
+                                        }
+                                        try {
+                                          const descriptor = await storageService.uploadFileToCloudinary(file);
+                                          await onAddAttachment(member.id, descriptor);
+                                        } catch (err) {
+                                          console.error(err);
+                                          toast.error(`Failed to upload ${file.name}`);
+                                        }
                                       }
-                                    }}
-                                  />
-                                  <Button
-                                    type="button"
-                                    variant="link"
-                                    disabled={isUploadingAttachment || isUploadingMemberFile}
-                                    className="h-auto gap-1 p-0 text-[10px] font-semibold text-primary hover:text-primary/80 hover:no-underline"
-                                  >
-                                    <Paperclip size={10} />
-                                    {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
-                                  </Button>
-                                </div>
+                                    } finally {
+                                      setIsUploadingMemberFile(false);
+                                    }
+                                  }}>
+                                  <Paperclip size={10} />
+                                  {isUploadingAttachment || isUploadingMemberFile ? "Uploading..." : "Add File"}
+                                </FileInput>
                               )}
                             </div>
 
@@ -1387,16 +1376,11 @@ export default function GroupTaskDetailModal({
 
             {/* Input Area */}
             <form onSubmit={handleSendMessage} className="p-3 border-t border-border bg-muted/10 shrink-0">
-              <input
+              <FileInput
                 ref={fileInputRef}
-                type="file"
                 accept={ALLOWED_MIME_TYPES.join(",")}
                 multiple
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files) addFiles(e.target.files);
-                  e.target.value = "";
-                }}
+                onFiles={addFiles}
               />
 
               <div className="bg-card border border-border rounded-2xl p-1.5 focus-within:ring-2 ring-mauve-8/20 transition-shadow">
@@ -1436,7 +1420,7 @@ export default function GroupTaskDetailModal({
                       type="button"
                       variant="ghost"
                       size="icon-sm"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => fileInputRef.current?.open()}
                       disabled={sendMessageMutation.isPending || isUploading}
                       className="text-muted-foreground hover:bg-transparent hover:text-foreground disabled:opacity-40"
                       title="Attach photo"

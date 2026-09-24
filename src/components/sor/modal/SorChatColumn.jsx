@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { Paperclip, Send, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Spinner from "../../ui/Spinner";
@@ -144,16 +145,11 @@ export default function SorChatColumn({
             handlePostNote();
           }}
         >
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             multiple
             accept={ALLOWED_EXTENSIONS_STRING}
-            className="hidden"
-            onChange={(e) => {
-              attachments.addFiles(e.target.files);
-              e.target.value = "";
-            }}
+            onFiles={attachments.addFiles}
           />
 
           {files.length > 0 && (
@@ -186,7 +182,7 @@ export default function SorChatColumn({
               size="icon"
               title={`Attach files (max ${attachments.max})`}
               disabled={isPosting || files.length >= attachments.max}
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.open()}
               className="h-10 w-10 shrink-0 rounded-xl text-muted-foreground"
             >
               <Paperclip size={15} />

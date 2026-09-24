@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
@@ -168,17 +169,15 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
       )}
 
       <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
-        <label className="inline-flex cursor-pointer items-center gap-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground">
+        <FileInput
+          multiple
+          accept={ALLOWED_EXTENSIONS_STRING}
+          onFiles={attachments.addFiles}
+          variant="ghost"
+          className="h-auto gap-1.5 p-0 text-[11px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground">
           <Paperclip size={13} />
-          <span>Attach file</span>
-          <input
-            type="file"
-            multiple
-            accept={ALLOWED_EXTENSIONS_STRING}
-            className="sr-only"
-            onChange={(e) => attachments.addFromInput(e)}
-          />
-        </label>
+          Attach file
+        </FileInput>
 
         <div className="flex items-center gap-2">
           <Button
@@ -499,21 +498,16 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </div>
       )}
 
-      <input
+      <FileInput
         ref={fileRef}
-        type="file"
         multiple
         accept={ALLOWED_EXTENSIONS_STRING}
-        className="hidden"
-        onChange={(e) => {
-          attachments.addFiles(e.target.files);
-          e.target.value = "";
-        }}
+        onFiles={attachments.addFiles}
       />
       <Button
         type="button"
         variant="ghost"
-        onClick={() => fileRef.current?.click()}
+        onClick={() => fileRef.current?.open()}
         className="h-auto mt-1.5 gap-1.5 p-0 text-[11px] font-medium text-muted-foreground hover:bg-transparent hover:text-foreground"
       >
         <ImagePlus size={12} />

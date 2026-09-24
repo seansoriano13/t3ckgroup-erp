@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, ImagePlus, Maximize2, ClipboardPaste } from "lucide-react";
@@ -56,7 +57,6 @@ export default function ImageAttachment({
       toast.error("Failed to upload: " + err.message);
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [taskId, userId, onChange]);
 
@@ -108,11 +108,6 @@ export default function ImageAttachment({
     return () => { isMounted = false; };
   }, [attachments]);
 
-  const handleFileChange = async (e) => {
-    const files = Array.from(e.target.files);
-    await uploadFiles(files);
-  };
-
   const handleDelete = async (pathToRemove) => {
     try {
       await storageService.deleteAttachment(pathToRemove);
@@ -129,14 +124,11 @@ export default function ImageAttachment({
 
   return (
     <div className="space-y-3">
-      {/* Hidden File Input */}
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleFileChange} 
-        accept="image/jpeg, image/png, image/webp" 
-        multiple 
-        className="hidden" 
+      <FileInput
+        ref={fileInputRef}
+        onFiles={uploadFiles}
+        accept="image/jpeg, image/png, image/webp"
+        multiple
       />
 
       {/* Gallery */}
@@ -188,7 +180,7 @@ export default function ImageAttachment({
            <Button
              type="button"
              variant="outline"
-             onClick={() => fileInputRef.current?.click()}
+             onClick={() => fileInputRef.current?.open()}
              disabled={isUploading || taskId === "NEW"}
              className="h-auto w-full py-4 border-2 border-dashed border-mauve-4 rounded-xl flex items-center justify-center gap-2 text-sm font-bold text-muted-foreground hover:border-foreground hover:text-foreground hover:bg-muted transition-all disabled:opacity-50 disabled:cursor-not-allowed"
            >

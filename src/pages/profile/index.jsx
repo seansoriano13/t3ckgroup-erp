@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import {
   Mail,
   Building2,
@@ -561,7 +562,7 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => avatarInputRef.current?.click()}
+                    onClick={() => avatarInputRef.current?.open()}
                     className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
@@ -592,16 +593,10 @@ export default function ProfilePage() {
                   {isUsingDefaultAvatar ? "Default" : "Custom"})
                 </span>
               </div>
-              <input
+              <FileInput
                 ref={avatarInputRef}
-                type="file"
                 accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  const selected = e.target.files?.[0];
-                  if (!selected) return;
-                  // Reset input so same file can be re-selected after cancel
-                  e.target.value = "";
+                onFiles={([selected]) => {
                   setPendingAvatarFile(selected);
                   setCropModalOpen(true);
                   setRemoveAvatar(false);
@@ -623,7 +618,7 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => bannerInputRef.current?.click()}
+                    onClick={() => bannerInputRef.current?.open()}
                     className="h-auto gap-1.5 rounded-full bg-muted/50 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
                   >
                     <UploadCloud size={14} /> Upload
@@ -661,13 +656,11 @@ export default function ProfilePage() {
                   </Button>
                 </div>
               </div>
-              <input
+              <FileInput
                 ref={bannerInputRef}
-                type="file"
                 accept="image/*"
-                className="hidden"
-                onChange={(e) => {
-                  setBannerFile(e.target.files?.[0] || null);
+                onFiles={([selected]) => {
+                  setBannerFile(selected);
                   setBannerUrlInput("");
                   setRemoveBanner(false);
                 }}

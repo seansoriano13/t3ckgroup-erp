@@ -5,6 +5,7 @@
  * hooks/useFileAttachments.
  */
 
+import { FileInput } from "./FileInput";
 import { useRef } from "react";
 import { FileText, Paperclip, X } from "lucide-react";
 import {
@@ -74,16 +75,11 @@ export function AttachmentField({
         {label}
       </label>
 
-      <input
+      <FileInput
         ref={inputRef}
-        type="file"
         multiple
         accept={ALLOWED_EXTENSIONS_STRING}
-        className="hidden"
-        onChange={(e) => {
-          addFiles(e.target.files);
-          e.target.value = "";
-        }}
+        onFiles={addFiles}
       />
 
       {files.length > 0 && (
@@ -99,7 +95,7 @@ export function AttachmentField({
       <button
         type="button"
         disabled={disabled || isFull}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => inputRef.current?.open()}
         className="w-full py-3 border-2 border-dashed border-border rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-muted-foreground hover:border-primary hover:text-primary hover:bg-primary/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
       >
         <Paperclip size={14} />

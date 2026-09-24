@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { X, PenLine, UploadCloud, Eraser, Check } from "lucide-react";
@@ -89,10 +90,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
     setHasDrawn(false);
   };
 
-  const handleFileSelected = (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
+  const handleFileSelected = ([file]) => {
 
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -211,7 +209,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => fileInputRef.current?.open()}
                   className="h-auto p-0 text-[11px] font-bold text-primary hover:opacity-80 hover:bg-transparent flex items-center gap-1 cursor-pointer"
                 >
                   <UploadCloud size={13} /> Choose Photo
@@ -229,13 +227,7 @@ export default function SignatureCaptureModal({ isOpen, onClose, employeeId, onS
                   </>
                 )}
               </div>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleFileSelected}
-              />
+              <FileInput ref={fileInputRef} accept="image/*" onFiles={handleFileSelected} />
               {uploadCanvasReady && (
                 <p className="text-[11px] font-semibold text-muted-foreground">
                   The background was removed automatically — check the ink still looks right.

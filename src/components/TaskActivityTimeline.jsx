@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { buildReplySnapshot } from "../utils/chatReply";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { notificationService } from "../services/notificationService";
@@ -673,14 +674,11 @@ export default function TaskActivityTimeline({
             onCancel={() => setReplyingTo(null)}
             className="rounded-xl mb-2"
           />
-          {/* Hidden file input */}
-          <input
+          <FileInput
             ref={fileInputRef}
-            type="file"
             accept={ALLOWED_MIME_TYPES.join(",")}
             multiple
-            className="hidden"
-            onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ""; }}
+            onFiles={addFiles}
           />
 
           {/* Attachment preview strip */}
@@ -690,7 +688,7 @@ export default function TaskActivityTimeline({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => fileInputRef.current?.open()}
                 className="w-14 h-14 rounded-lg border-dashed text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ImageIcon size={18} />
@@ -727,7 +725,7 @@ export default function TaskActivityTimeline({
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => fileInputRef.current?.open()}
                   disabled={postCommentMutation.isPending || isUploading}
                   className="h-auto w-auto text-muted-foreground hover:text-foreground hover:bg-transparent transition-colors disabled:opacity-40"
                   title="Attach photo"
