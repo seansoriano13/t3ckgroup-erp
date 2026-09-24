@@ -216,8 +216,8 @@ export default function EmployeeForm({
                   setFormData((prev) => ({ ...prev, companyId: null }))
                   close()
                 }}
-                className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                  !formData.companyId ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
+                className={`h-auto justify-start px-3 py-2 text-[13px] text-left rounded-lg transition-colors font-semibold cursor-pointer ${
+                  !formData.companyId ? "bg-muted/80 text-foreground font-bold hover:bg-muted/80" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
                 -- No company set --
@@ -231,8 +231,8 @@ export default function EmployeeForm({
                     setFormData((prev) => ({ ...prev, companyId: company.id }))
                     close()
                   }}
-                  className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                    formData.companyId === company.id ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
+                  className={`h-auto justify-start px-3 py-2 text-[13px] text-left rounded-lg transition-colors font-semibold cursor-pointer ${
+                    formData.companyId === company.id ? "bg-muted/80 text-foreground font-bold hover:bg-muted/80" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
                   {company.name}
@@ -293,8 +293,8 @@ export default function EmployeeForm({
                       });
                       close();
                     }}
-                    className={`h-auto justify-start px-3 py-2 text-sm text-left rounded-lg transition-colors font-medium cursor-pointer ${
-                      formData.employment_status === status ? "bg-primary/10 text-primary hover:bg-primary/10" : "text-foreground hover:bg-muted"
+                    className={`h-auto justify-start px-3 py-2 text-[13px] text-left rounded-lg transition-colors font-semibold cursor-pointer ${
+                      formData.employment_status === status ? "bg-muted/80 text-foreground font-bold hover:bg-muted/80" : "text-muted-foreground hover:bg-muted hover:text-foreground"
                     }`}
                   >
                     {status}
