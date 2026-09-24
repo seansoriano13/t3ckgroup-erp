@@ -12,6 +12,7 @@ import { employeeGroupService } from "@/services/employeeGroupService";
 import { useFlowData } from "./FlowDataContext";
 import { actionTitle } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
+import { Checkbox } from "@/components/ui/checkbox";
 
 /**
  * A Stage's Access tab (issue #292, part of #208/ADR 0021) — and, since the
@@ -269,12 +270,10 @@ function StageAccessForm({
               key={role}
               className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
             >
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={!shutOutRoles.has(role)}
                 disabled={disabled}
-                onChange={() => toggleRole(role)}
-                className="size-4 rounded border-mauve-7"
+                onCheckedChange={() => toggleRole(role)}
               />
               <span className={shutOutRoles.has(role) ? "text-muted-foreground line-through" : ""}>
                 {meta.label}

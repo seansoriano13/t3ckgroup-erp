@@ -9,6 +9,7 @@ import HighlightText from '../../../../components/HighlightText';
 import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } from '../../../../lib/pdf/htmlPrinter';
 import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from "@/components/ui/checkbox";
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
@@ -234,12 +235,10 @@ export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, h
               const key = recordKey(req);
               return (
                 <li key={key} className={`flex items-center gap-3 p-3 ${isInTray(key) ? 'bg-primary/5' : ''}`}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     aria-label={`Add ${req.employee?.name}'s ${req.type} record to the tray`}
-                    className="rounded border-border text-primary focus:border-foreground/30 w-4 h-4 cursor-pointer shrink-0"
                     checked={isInTray(key)}
-                    onChange={() => toggleTray(req)}
+                    onCheckedChange={() => toggleTray(req)}
                   />
                   <Avatar name={req.employee?.name} src={req.employee?.avatar_path} size="sm" />
                   <div className="flex-1 min-w-0">
