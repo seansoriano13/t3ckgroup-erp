@@ -1,4 +1,12 @@
 import { useState } from "react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import StageFieldPreview from "../settings/StageFieldPreview"
 import OpportunityQuickView from "../sor/OpportunityQuickView"
 import OpportunityBoard from "../sor/OpportunityBoard"
@@ -191,37 +199,37 @@ export function SorsFiltersSample() {
         </p>
       </div>
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-muted/30 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">
-              <th className="px-3 py-2.5">Sales Ref.</th>
-              <th className="px-3 py-2.5">Company</th>
-              <th className="px-3 py-2.5">Sale Type</th>
-              <th className="px-3 py-2.5">Stage</th>
-              <th className="px-3 py-2.5 text-right">Expected value</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Sales Ref.</TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Sale Type</TableHead>
+              <TableHead>Stage</TableHead>
+              <TableHead className="text-right">Expected value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {rows.map((o) => (
-              <tr key={o.id} className="border-b border-border last:border-0">
-                <td className="px-3 py-2.5 font-mono text-xs font-bold text-foreground">{o.ref}</td>
-                <td className="px-3 py-2.5 font-medium text-foreground">{o.client}</td>
-                <td className="px-3 py-2.5 text-muted-foreground">{nameOf(o.sale_type_id)}</td>
-                <td className="px-3 py-2.5">
+              <TableRow key={o.id}>
+                <TableCell className="font-mono text-xs font-bold text-foreground">{o.ref}</TableCell>
+                <TableCell className="font-medium text-foreground">{o.client}</TableCell>
+                <TableCell className="text-muted-foreground">{nameOf(o.sale_type_id)}</TableCell>
+                <TableCell>
                   <StatusBadge label={o.stage} theme="mauve" />
-                </td>
-                <td className="px-3 py-2.5 text-right font-bold text-foreground">{formatPHP(o.value)}</td>
-              </tr>
+                </TableCell>
+                <TableCell className="text-right font-bold text-foreground">{formatPHP(o.value)}</TableCell>
+              </TableRow>
             ))}
             {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+              <TableRow>
+                <TableCell colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                   No SORs match this filter.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   )

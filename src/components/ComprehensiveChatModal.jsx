@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import { ExternalLink } from "@/components/ui/external-link";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { notificationService } from "../services/notificationService";
 import Spinner from "@/components/ui/Spinner";
@@ -69,7 +70,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
       return (
-        <a
+        <ExternalLink
           key={`url-${i}`}
           href={part}
           target="_blank"
@@ -78,7 +79,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
           onClick={(e) => e.stopPropagation()}
         >
           {part}
-        </a>
+        </ExternalLink>
       );
     } else if (mentionRegex) {
       const mParts = part.split(mentionRegex);

@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import { ExternalLink } from "@/components/ui/external-link";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import toast from "react-hot-toast";
@@ -521,7 +522,7 @@ export default function GroupTaskDetailModal({
     return parts.map((part, i) => {
       if (urlRegex.test(part)) {
         return (
-          <a
+          <ExternalLink
             key={`url-${i}`}
             href={part}
             target="_blank"
@@ -530,7 +531,7 @@ export default function GroupTaskDetailModal({
             onClick={(e) => e.stopPropagation()}
           >
             {part}
-          </a>
+          </ExternalLink>
         );
       } else if (mentionRegex) {
         const mParts = part.split(mentionRegex);

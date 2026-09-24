@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { ExternalLink } from "@/components/ui/external-link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
   Award,
-  ExternalLink,
+  ExternalLink as ExternalLinkIcon,
   Pencil,
   Plus,
   ShoppingCart,
@@ -217,15 +218,15 @@ function OfferRow({ offer, canEdit, onMarkWinner, onUpdate, onRemove, isPending 
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-sm font-bold text-foreground">{offer.brand || "—"}</span>
           {offer.source_link && (
-            <a
+            <ExternalLink
               href={offer.source_link}
               target="_blank"
               rel="noopener noreferrer"
               className="text-muted-foreground hover:text-foreground"
               title={offer.source_link}
             >
-              <ExternalLink size={11} />
-            </a>
+              <ExternalLinkIcon size={11} />
+            </ExternalLink>
           )}
           <span className="ml-auto shrink-0 text-sm font-bold tabular-nums text-foreground">
             {money(offer.unit_price)}

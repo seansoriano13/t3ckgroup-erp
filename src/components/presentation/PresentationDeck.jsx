@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { ExternalLink } from "@/components/ui/external-link";
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
 import { SAMPLES, LIVE_SAMPLES } from "./sampleRegistry"
 import { Button } from "../ui/button"
@@ -261,14 +262,14 @@ function PrototypeSlide({ prototype }) {
               {v}
             </Button>
           ))}
-          <a
+          <ExternalLink
             href={`${prototype.file}?variant=${variant}`}
             target="_blank"
             rel="noreferrer"
             className="ml-1.5 rounded-xl border border-border bg-card px-3 py-2 text-[14px] font-semibold hover:bg-muted"
           >
             Full screen →
-          </a>
+          </ExternalLink>
         </div>
       </div>
       <iframe

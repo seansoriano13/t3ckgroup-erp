@@ -1,4 +1,5 @@
 import React from "react";
+import { Image } from "@/components/ui/image";
 import { CheckCircle2 } from "lucide-react";
 
 export default function Avatar({
@@ -53,7 +54,7 @@ export default function Avatar({
       {...props}
     >
       {src && !isSelected && !imgError ? (
-        <img
+        <Image
           src={src}
           alt={name || "Avatar"}
           className="w-full h-full object-cover"

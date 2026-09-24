@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import { Image } from "@/components/ui/image";
 import {
   Mail,
   Building2,
@@ -348,7 +349,7 @@ export default function ProfilePage() {
         <div className="lg:col-span-1 h-full">
           <div className="bg-card border border-border rounded-2xl p-6 flex flex-col gap-3 items-center text-center shadow-sm h-full justify-center">
             <div className="relative">
-              <img
+              <Image
                 src={user?.picture || "/default-avatar.png"}
                 alt="Profile"
                 className="w-24 h-24 rounded-full border border-border shadow-sm mb-3 object-cover"
@@ -463,7 +464,7 @@ export default function ProfilePage() {
               {isSignatureLoading ? (
                 <Spinner size="sm" />
               ) : signatureUrl ? (
-                <img src={signatureUrl} alt="Your signature" className="max-h-24 max-w-[80%] object-contain" />
+                <Image src={signatureUrl} alt="Your signature" className="max-h-24 max-w-[80%] object-contain" />
               ) : (
                 <p className="text-xs text-muted-foreground font-medium">No signature on file yet.</p>
               )}
@@ -531,7 +532,7 @@ export default function ProfilePage() {
                 Live Preview
               </p>
               <div className="relative rounded-lg overflow-hidden h-28 border border-border">
-                <img
+                <Image
                   src={bannerPreviewUrl || "/leaf-background.jpg"}
                   alt="Banner preview"
                   className="absolute inset-0 w-full h-full object-cover"
@@ -585,7 +586,7 @@ export default function ProfilePage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <img
+                <Image
                   src={avatarPreviewUrl || "/default-avatar.png"}
                   alt="Avatar preview"
                   className="w-10 h-10 rounded-full object-cover border border-border shadow-sm"

@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import { Image } from "@/components/ui/image";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { X, ImagePlus, Maximize2, ClipboardPaste } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
@@ -140,7 +141,7 @@ export default function ImageAttachment({
                     <Spinner size="sm" />
                  ) : (
                    <>
-                     <img 
+                     <Image 
                        src={item.signedUrl} 
                        alt={`Attachment ${index + 1}`} 
                        className="object-cover w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
@@ -220,7 +221,7 @@ export default function ImageAttachment({
             >
               <X size={24} />
             </Button>
-            <img 
+            <Image 
               src={fullscreenImage} 
               alt="Fullscreen Attachment" 
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 

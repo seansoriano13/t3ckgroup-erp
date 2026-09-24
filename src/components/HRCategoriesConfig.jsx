@@ -1,4 +1,12 @@
 import { useMemo, useState } from "react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import toast from "react-hot-toast"
 import { Plus, Edit, Trash2, XSquare } from "lucide-react"
@@ -123,38 +131,37 @@ export default function HRCategoriesConfig() {
             No categories found. Add the first one.
           </div>
         ) : (
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead>
-              <tr className="bg-mauve-1 border-b border-mauve-4 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                <th className="p-4">Category ID</th>
-                <th className="p-4 w-1/3">Description</th>
-                <th className="p-4">Department</th>
-                <th className="p-4">Sub-Department</th>
-                <th className="p-4 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-4">
+          <Table className="whitespace-nowrap">
+            <TableHeader>
+              <TableRow>
+                <TableHead>Category ID</TableHead>
+                <TableHead className="w-1/3">Description</TableHead>
+                <TableHead>Department</TableHead>
+                <TableHead>Sub-Department</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredCategories.length > 0 ? (
                 filteredCategories.map((cat) => (
-                  <tr
+                  <TableRow
                     key={cat.id}
-                    className="hover:bg-mauve-3/30 transition-colors"
                   >
-                    <td className="p-4">
+                    <TableCell>
                       <span className="text-xs font-bold text-foreground bg-mauve-3 px-2 py-1 rounded border border-mauve-4">
                         {cat.categoryId}
                       </span>
-                    </td>
-                    <td className="p-4 text-sm text-mauve-11 truncate max-w-xs">
+                    </TableCell>
+                    <TableCell className="text-sm text-mauve-11 truncate max-w-xs">
                       {cat.description}
-                    </td>
-                    <td className="p-4 text-sm text-mauve-11">
+                    </TableCell>
+                    <TableCell className="text-sm text-mauve-11">
                       {cat.department || "-"}
-                    </td>
-                    <td className="p-4 text-sm text-mauve-11">
+                    </TableCell>
+                    <TableCell className="text-sm text-mauve-11">
                       {cat.subDepartment || "-"}
-                    </td>
-                    <td className="p-4 text-right space-x-2">
+                    </TableCell>
+                    <TableCell className="text-right space-x-2">
                       <Button
                         variant="ghost"
                         size="icon-sm"
@@ -180,21 +187,21 @@ export default function HRCategoriesConfig() {
                       >
                         <Trash2 size={16} />
                       </Button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               ) : (
-                <tr>
-                  <td
+                <TableRow>
+                  <TableCell
                     colSpan="5"
                     className="p-8 text-center text-muted-foreground font-bold"
                   >
                     No categories found matching your search.
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
       </div>
 

@@ -1,4 +1,5 @@
 import { FileInput } from '@/components/ui/FileInput'
+import { Image } from "@/components/ui/image";
 import { Receipt, ImagePlus, X, Maximize2, ClipboardPaste } from 'lucide-react'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import ChecklistTaskInput from '../ChecklistTaskInput'
@@ -285,7 +286,7 @@ export default function LogTaskDetailsSection({
                                     key={url}
                                     className='relative group w-14 h-14 rounded-lg overflow-hidden border border-mauve-4 bg-mauve-2 shrink-0'
                                 >
-                                    <img
+                                    <Image
                                         src={url}
                                         alt={`Attachment ${i + 1}`}
                                         className='object-cover w-full h-full cursor-pointer'
@@ -369,7 +370,7 @@ export default function LogTaskDetailsSection({
                             >
                                 <X size={24} />
                             </Button>
-                            <img
+                            <Image
                                 src={fullscreenImage}
                                 alt='Fullscreen Attachment'
                                 className='max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl'

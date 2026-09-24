@@ -1,4 +1,5 @@
 import { FileInput } from "@/components/ui/FileInput";
+import { ExternalLink } from "@/components/ui/external-link";
 import { buildReplySnapshot } from "../utils/chatReply";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { notificationService } from "../services/notificationService";
@@ -54,7 +55,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
   return parts.map((part, i) => {
     if (urlRegex.test(part)) {
       return (
-        <a
+        <ExternalLink
           key={`url-${i}`}
           href={part}
           target="_blank"
@@ -63,7 +64,7 @@ function renderContent(text, messageMentions = [], isMe = false) {
           onClick={(e) => e.stopPropagation()}
         >
           {part}
-        </a>
+        </ExternalLink>
       );
     } else if (mentionRegex) {
       const mParts = part.split(mentionRegex);
