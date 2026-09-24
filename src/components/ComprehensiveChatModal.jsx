@@ -19,7 +19,7 @@ import {
   Search,
   Send,
   ChevronLeft,
-  ExternalLink,
+  ExternalLink as ExternalLinkIcon,
   Target,
   ListCheck,
   Users,
@@ -1217,7 +1217,7 @@ export default function ComprehensiveChatModal({
                       </>
                     ) : (
                       <>
-                        Details <ExternalLink size={12} />
+                        Details <ExternalLinkIcon size={12} />
                       </>
                     )}
                   </Button>
