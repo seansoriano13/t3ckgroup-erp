@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { cleanChoiceOptions } from "./choiceOptions";
+import { Input } from "@/components/ui/input";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
@@ -43,7 +44,7 @@ export default function StageFieldPreview({ draft }) {
               ))}
             </select>
           ) : (
-            <input
+            <Input
               disabled
               type={
                 draft.source === "sor"
@@ -55,7 +56,7 @@ export default function StageFieldPreview({ draft }) {
                       : "text"
               }
               placeholder={`Enter ${(draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "field") || "field").toLowerCase()}`}
-              className="flex h-8 w-full cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
+              containerClassName="flex w-full" className="h-8 cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
             />
           )}
           <Button

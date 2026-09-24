@@ -12,6 +12,7 @@ import GroupTaskMemberRail from "../../_components/GroupTaskMemberRail";
 import GroupTaskMemberPanel from "../../_components/GroupTaskMemberPanel";
 import { makeMemberDraft } from "../../utils/templateApply";
 import { cleanChecklistForSave } from "@/utils/checklist";
+import { Input } from "@/components/ui/input";
 
 /**
  * TemplateEditorModal — create/edit a Group Task Template.
@@ -221,24 +222,24 @@ export default function TemplateEditorModal({
             >
               {/* TEMPLATE-LEVEL FIELDS */}
               <div className="shrink-0 px-6 pt-5 pb-4 border-b border-border/60">
-                <input
+                <Input
                   ref={nameRef}
                   type="text"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Template Name (e.g. Monthly Safety Audit)"
-                  className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-2"
+                  containerClassName="w-full mb-2" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1"
                   autoComplete="off"
                 />
 
                 <div className="flex items-start gap-6 flex-wrap">
                   <div className="flex-1 min-w-[260px] flex flex-col gap-3">
-                    <input
+                    <Input
                       type="text"
                       value={title}
                       onChange={(e) => setTitle(e.target.value)}
                       placeholder="Default group task title (optional — leave blank to type it fresh each time)"
-                      className="w-full bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors"
+                      containerClassName="w-full" className="h-auto bg-card border border-border rounded-lg px-3 py-2 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors"
                     />
                     <textarea
                       value={description}
@@ -252,12 +253,12 @@ export default function TemplateEditorModal({
                     <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                       Due In (Days)
                     </span>
-                    <input
+                    <Input
                       type="number"
                       value={dueDateOffsetDays}
                       onChange={(e) => setDueDateOffsetDays(e.target.value)}
                       placeholder="Optional — e.g. 3"
-                      className="bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-40"
+                      containerClassName="w-40" className="h-auto bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
                     />
                   </div>
                 </div>

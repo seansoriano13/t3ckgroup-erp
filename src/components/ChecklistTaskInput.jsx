@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { Plus, X, GripVertical, FolderPlus, Trash2 } from "lucide-react";
 import { parseChecklistGroups } from "../utils/checklist";
 import { Button } from "./ui/button";
+import { Input } from "@/components/ui/input";
 
 let idCounter = 0;
 function createLocalId(prefix) {
@@ -279,7 +280,7 @@ export default function ChecklistTaskInput({
                 <span className="w-5 h-5 rounded-md bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">
                   {gIdx + 1}
                 </span>
-                <input
+                <Input
                   type="text"
                   data-section-title="true"
                   value={group.title}
@@ -296,7 +297,7 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder={`Section title (e.g. Phase ${gIdx + 1})...`}
-                  className="bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60 w-full"
+                  containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-xs font-bold text-foreground placeholder:text-muted-foreground/60"
                 />
               </div>
 
@@ -336,7 +337,7 @@ export default function ChecklistTaskInput({
 
                 <div className="w-4 h-4 border border-border rounded shrink-0 bg-background/80" />
 
-                <input
+                <Input
                   type="text"
                   data-item-input="true"
                   value={item.text}
@@ -387,7 +388,7 @@ export default function ChecklistTaskInput({
                     }
                   }}
                   placeholder="List detailed condition..."
-                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
+                  containerClassName="flex-1 min-w-0" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-foreground font-medium text-xs py-1 placeholder:text-muted-foreground transition-all"
                 />
 
                 <Button

@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Archive, ArchiveRestore, Trash2, Users, ChevronDown, ChevronUp } from "lucide-react";
@@ -10,8 +11,6 @@ import { useAuth } from "@/context/AuthContext";
 import { employeeGroupService } from "@/services/employeeGroupService";
 import { SELECTOR_TYPES } from "@/utils/resolvePeople";
 
-const inputClass =
-  "w-full h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
 
 /**
  * Issue #201 — Employee Groups in Settings, Super Admin only (the page gates
@@ -102,11 +101,11 @@ export default function EmployeeGroupManager() {
         >
           <label className="space-y-1">
             <span className="text-xs font-bold text-muted-foreground">Name</span>
-            <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" className={inputClass} required />
+            <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" required />
           </label>
           <label className="space-y-1">
             <span className="text-xs font-bold text-muted-foreground">Description (optional)</span>
-            <input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
+            <Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
           </label>
           <div className="flex items-center gap-2">
             <Button
@@ -204,11 +203,11 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
           <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
             <label className="space-y-1">
               <span className="text-xs font-bold text-muted-foreground">Name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
             </label>
             <label className="space-y-1">
               <span className="text-xs font-bold text-muted-foreground">Description</span>
-              <input value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} />
             </label>
             <Button
               type="button"

@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import toast from "react-hot-toast";
@@ -8,7 +9,6 @@ import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
 import { Button } from "../../components/ui/button";
 import Spinner from "@/components/ui/Spinner";
-import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 
 /**
  * Where the password-reset email link lands.
@@ -294,9 +294,9 @@ export default function ResetPassword() {
           <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
             New Password
           </label>
-          <input
+          <Input
             id="new-password"
-            className={`${INPUT_STYLE} cursor-text`}
+            className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={password}
@@ -308,9 +308,9 @@ export default function ResetPassword() {
           <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
             Confirm Password
           </label>
-          <input
+          <Input
             id="confirm-password"
-            className={`${INPUT_STYLE} cursor-text`}
+            className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
             type="password"
             autoComplete="new-password"
             value={confirmPassword}

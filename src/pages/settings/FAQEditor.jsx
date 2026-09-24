@@ -28,6 +28,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import { Navigate } from "react-router";
 import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
+import { Input } from "@/components/ui/input";
 
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
@@ -84,7 +85,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
       </span>
 
       {editingLabel ? (
-        <input
+        <Input
           ref={inputRef}
           value={draft}
           onClick={(e) => e.stopPropagation()}
@@ -97,7 +98,7 @@ function CategoryItem({ cat, isActive, onClick, onDelete, onLabelChange }) {
               setEditingLabel(false);
             }
           }}
-          className="flex-1 bg-transparent text-sm font-medium outline-none border-b border-primary"
+          containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium outline-none border-b border-primary"
         />
       ) : (
         <span className="flex-1 text-sm font-medium truncate">{cat.label}</span>

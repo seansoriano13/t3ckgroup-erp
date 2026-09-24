@@ -9,6 +9,7 @@ import { useAuth } from "../context/AuthContext"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import HRFormModal from "./hr/HRFormModal"
 import CategoryForm from "./hr/CategoryForm"
+import { Input } from "@/components/ui/input";
 
 export default function HRCategoriesConfig() {
   const queryClient = useQueryClient()
@@ -87,12 +88,12 @@ export default function HRCategoriesConfig() {
             <circle cx="11" cy="11" r="8" />
             <path d="m21 21-4.3-4.3" />
           </svg>
-          <input
+          <Input
             type="text"
             placeholder="Search categories..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-mauve-1 border border-mauve-4 text-foreground rounded-lg pl-10 pr-4 py-2.5 outline-none focus:border-mauve-6 transition-colors text-sm"
+            containerClassName="w-full" className="pl-10 pr-4"
           />
         </div>
 

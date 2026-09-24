@@ -23,6 +23,7 @@ import {
 } from "../../constants/projectEvaluation";
 import { REQUEST_UNITS } from "../../constants/procurement";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Inclusions (issue #43) — the client's specification, broken out.
@@ -143,7 +144,7 @@ function InclusionRow({
 
         {isEditingCost ? (
           <form onSubmit={submitManualCost} className="mt-1 flex items-center gap-1.5">
-            <input
+            <Input
               autoFocus
               type="number"
               min="0"
@@ -151,7 +152,7 @@ function InclusionRow({
               value={manualAmount}
               onChange={(e) => setManualAmount(e.target.value)}
               placeholder="Manual cost"
-              className="w-28 rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
+              containerClassName="w-28" className="h-auto rounded-md border border-border bg-card px-2 py-0.5 text-[12px] font-semibold text-foreground outline-none focus:border-mauve-8"
             />
             <Button type="submit" variant="link" className="h-auto p-0 text-[11px]">
               Save
@@ -263,21 +264,21 @@ function Composer({ onAdd, onCancel, isPending }) {
       onSubmit={submit}
       className="flex items-center gap-2 rounded-xl border border-dashed border-mauve-7 bg-muted/30 px-3 py-2"
     >
-      <input
+      <Input
         autoFocus
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         placeholder="What the client asked for…"
-        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+        containerClassName="min-w-0 flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
       />
-      <input
+      <Input
         type="number"
         min="0"
         step="any"
         value={quantity}
         onChange={(e) => setQuantity(e.target.value)}
         aria-label="Quantity"
-        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+        containerClassName="w-16" className="h-auto rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
       <select
         value={unit}
@@ -321,20 +322,20 @@ function Composer({ onAdd, onCancel, isPending }) {
 function DraftRow({ draft, onChange, onDiscard, isPending }) {
   return (
     <div className="flex items-center gap-2 rounded-xl border border-dashed border-violet-7 bg-violet-a2 px-3 py-2">
-      <input
+      <Input
         value={draft.description}
         onChange={(e) => onChange({ description: e.target.value })}
         aria-label="Imported description"
-        className="min-w-0 flex-1 bg-transparent text-sm font-medium text-foreground outline-none"
+        containerClassName="min-w-0 flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium text-foreground outline-none"
       />
-      <input
+      <Input
         type="number"
         min="0"
         step="any"
         value={draft.quantity}
         onChange={(e) => onChange({ quantity: e.target.value })}
         aria-label="Imported quantity"
-        className="w-16 rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
+        containerClassName="w-16" className="h-auto rounded-md border border-border bg-card px-2 py-1 text-right text-[13px] font-semibold tabular-nums text-foreground outline-none focus:border-mauve-4"
       />
       <Button
         type="button"

@@ -3,6 +3,7 @@ import Dropdown from "../ui/Dropdown";
 import { Tag, ChevronDown, Search, Check } from "lucide-react";
 import { FilterTrigger } from "../ui/FilterDropdown";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function CategoryDropdown({
   value,
@@ -72,12 +73,12 @@ export default function CategoryDropdown({
                 size={14}
                 className="text-muted-foreground shrink-0"
               />
-              <input
+              <Input
                 type="text"
                 placeholder="Search categories..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
+                containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent outline-none text-[13px] font-medium text-foreground placeholder:text-muted-foreground"
                 autoFocus
                 onClick={(e) => e.stopPropagation()}
               />

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
+import { Input } from "@/components/ui/input";
 
 /**
  * HR decides an undertime request, editing the hours actually charged
@@ -82,14 +83,14 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
               >
                 Approved Hours
               </label>
-              <input
+              <Input
                 id="approved-hours"
                 type="number"
                 step="0.5"
                 min="0"
                 value={approvedHours}
                 onChange={(e) => setApprovedHours(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                containerClassName="w-full" className="font-semibold"
                 required
               />
               <p className="text-[11px] font-semibold text-muted-foreground mt-1.5">

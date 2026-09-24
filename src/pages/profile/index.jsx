@@ -27,6 +27,7 @@ import SignatureCaptureModal from "../../components/profile/SignatureCaptureModa
 import { TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
+import { Input } from "@/components/ui/input";
 
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
@@ -670,7 +671,7 @@ export default function ProfilePage() {
                   setRemoveBanner(false);
                 }}
               />
-              <input
+              <Input
                 type="url"
                 value={bannerUrlInput}
                 onChange={(e) => {
@@ -678,7 +679,7 @@ export default function ProfilePage() {
                   setBannerFile(null);
                   setRemoveBanner(false);
                 }}
-                className="w-full rounded-full border border-border bg-muted/20 px-4 py-2 text-sm outline-none focus:ring-2 focus:ring-mauve-8/40 transition-all"
+                containerClassName="w-full"
                 placeholder="Paste Unsplash image URL"
               />
             </div>

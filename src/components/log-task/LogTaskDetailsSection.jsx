@@ -11,6 +11,7 @@ import { useProjectTitles } from "../../hooks/useProjectTitles"
 import TemplateVariableChips from "@/components/ui/TemplateVariableChips"
 import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input";
 
 export default function LogTaskDetailsSection({
   formData,
@@ -109,14 +110,14 @@ export default function LogTaskDetailsSection({
             autoComplete="off"
           />
         ) : (
-          <input
+          <Input
             ref={titleRef}
             type="text"
             name="projectTitle"
             value={formData.projectTitle}
             onChange={handleChange}
             placeholder="Project / Campaign Title"
-            className="w-full text-lg font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1 mb-1"
+            containerClassName="w-full mb-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-lg font-semibold text-foreground bg-transparent outline-none placeholder:text-mauve-6 border-none pb-1"
             autoComplete="on"
             list="project-titles-list"
           />
@@ -139,13 +140,13 @@ export default function LogTaskDetailsSection({
       {selectedEmployeeInfo.department?.toUpperCase() === "ADMIN" && (
         <div className="flex items-center gap-2.5 mb-3 px-3 py-2 bg-muted border border-mauve-3 rounded-lg animate-slide-down">
           <Receipt size={14} className="text-mauve-7 shrink-0" />
-          <input
+          <Input
             type="text"
             name="paymentVoucher"
             value={formData.paymentVoucher}
             onChange={handleChange}
             placeholder="Payment Voucher (e.g. PV001-2024)"
-            className="flex-1 bg-transparent border-none outline-none text-sm text-foreground placeholder:text-mauve-7"
+            containerClassName="flex-1" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-sm text-foreground placeholder:text-mauve-7"
             autoComplete="off"
           />
         </div>

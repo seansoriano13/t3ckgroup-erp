@@ -17,6 +17,7 @@ import { getStatusTheme } from "../../constants/status";
 import { formatPHP, isWonCode } from "../../constants/sor";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 const THEME_BAR = {
   green: "bg-green-a7",
@@ -153,12 +154,12 @@ export default function EmployeeOpportunityMatrix({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-1.5 min-w-[200px]">
             <Search size={14} className="text-muted-foreground" />
-            <input
+            <Input
               type="text"
               placeholder="Search employee..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground w-full"
+              containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent border-none outline-none text-xs text-foreground placeholder-muted-foreground"
             />
             {searchTerm && (
               <Button

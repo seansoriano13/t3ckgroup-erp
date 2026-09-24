@@ -6,6 +6,7 @@ import { commissionService } from "../../services/commissionService";
 import { RATE_TYPE_LABELS } from "../../utils/commission";
 import { useSalesDirectorAccess } from "../../hooks/useSalesDirectorAccess";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 const ROLE_LABELS_BY_PROJECT_TYPE = {
   SSP: {
@@ -85,12 +86,12 @@ function SplitEditor({ projectType, label, canEdit, actorId }) {
               <span className="text-[12.5px] text-foreground">{roleLabel}</span>
               {canEdit ? (
                 <div className="flex items-center gap-1">
-                  <input
+                  <Input
                     type="number"
                     step="0.001"
                     value={row?.percent ?? 0}
                     onChange={(e) => updateRow(shareRole, Number(e.target.value))}
-                    className="h-7 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    containerClassName="w-20" className="h-7 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                   <span className="text-xs text-muted-foreground">%</span>
                 </div>

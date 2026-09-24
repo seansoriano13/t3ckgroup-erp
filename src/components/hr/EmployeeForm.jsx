@@ -136,7 +136,7 @@ export default function EmployeeForm({
     <form id={formId} onSubmit={handleSubmit} className="space-y-5">
       {/* 1. EMPLOYEE NAME */}
       <div className="mb-2">
-        <input
+        <Input
           required
           type="text"
           placeholder="Employee Full Name"
@@ -144,7 +144,7 @@ export default function EmployeeForm({
           onChange={(e) =>
             setFormData((prev) => ({ ...prev, name: e.target.value }))
           }
-          className="w-full text-2xl font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 border-none pb-1"
+          containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto text-2xl font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground/40 border-none pb-1"
           autoComplete="off"
         />
       </div>
@@ -315,7 +315,7 @@ export default function EmployeeForm({
               <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
             )}
           </label>
-          <input
+          <Input
             id="sil-balance"
             type="number"
             step="0.5"
@@ -323,7 +323,7 @@ export default function EmployeeForm({
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, sil_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+            containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
         </div>
 
@@ -331,14 +331,14 @@ export default function EmployeeForm({
           <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
             Offset Hours Balance
           </label>
-          <input
+          <Input
             type="number"
             step="0.5"
             value={formData.offset_hours_balance}
             onChange={(e) =>
               setFormData((prev) => ({ ...prev, offset_hours_balance: parseFloat(e.target.value) || 0 }))
             }
-            className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+            containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
           />
         </div>
       </div>

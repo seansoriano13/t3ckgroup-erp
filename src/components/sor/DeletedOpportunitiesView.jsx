@@ -8,6 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -180,11 +181,11 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
             <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
               Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm
             </label>
-            <input
+            <Input
               autoFocus
               value={confirmText}
               onChange={(e) => setConfirmText(e.target.value)}
-              className="mb-3 w-full rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm font-medium text-foreground outline-none focus:border-mauve-7"
+              containerClassName="mb-3 w-full" className="font-medium"
             />
             {purgeMutation.isError && (
               <p className="mb-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">

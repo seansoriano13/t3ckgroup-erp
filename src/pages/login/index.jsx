@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useNavigate, useLocation, Navigate } from "react-router";
@@ -8,7 +9,6 @@ import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
-import { AUTH_INPUT_STYLE as INPUT_STYLE } from "../../constants/authForm.js";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -136,8 +136,8 @@ export default function Login() {
               <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
                 Email Address
               </label>
-              <input
-                className={`${INPUT_STYLE} cursor-text`}
+              <Input
+                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
                 autoComplete="username"
                 placeholder="name@t3ckgroup.com"
@@ -160,8 +160,8 @@ export default function Login() {
                   Forgot password?
                 </Button>
               </div>
-              <input
-                className={`${INPUT_STYLE} cursor-text`}
+              <Input
+                className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="password"
                 autoComplete="current-password"
                 placeholder="••••••••"

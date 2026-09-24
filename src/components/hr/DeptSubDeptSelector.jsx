@@ -3,6 +3,7 @@ import { Building2, Info } from "lucide-react";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 /**
  * Reusable selection component for Department and Sub-Department with manual entry fallback.
@@ -159,7 +160,7 @@ export default function DeptSubDeptSelector({
               <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
                 New Department
               </label>
-              <input
+              <Input
                 required
                 type="text"
                 autoFocus
@@ -168,7 +169,7 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onDepartmentChange(e.target.value.toUpperCase())
                 }
-                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
+                containerClassName="w-full" className="h-auto bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
             </div>
           )}
@@ -177,7 +178,7 @@ export default function DeptSubDeptSelector({
               <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
                 New Sub-Department
               </label>
-              <input
+              <Input
                 required
                 type="text"
                 autoFocus
@@ -186,7 +187,7 @@ export default function DeptSubDeptSelector({
                 onChange={(e) =>
                   onSubDepartmentChange(e.target.value.toUpperCase())
                 }
-                className="w-full bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
+                containerClassName="w-full" className="h-auto bg-card border border-mauve-5 rounded-xl px-3 py-2 text-xs outline-none focus:border-mauve-8 transition-all font-bold"
               />
             </div>
           )}

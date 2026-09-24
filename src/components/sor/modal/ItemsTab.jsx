@@ -14,6 +14,7 @@ import { formatPHP, isValidSalesReference, normalizeSalesReference, SALES_REFERE
 import { formatDate } from "../../../utils/formatDate";
 import { pullOdooLines, saveOdooLines } from "./odooLines";
 import { Button } from "../../ui/button";
+import { Input } from "@/components/ui/input";
 
 export function ItemStockRow({ item, snapshotData }) {
   const [expanded, setExpanded] = useState(false);
@@ -192,13 +193,13 @@ export default function ItemsTab({ ctx, hasOpened }) {
         <div className="flex flex-wrap items-center gap-2 px-6 py-3">
           <div className="relative min-w-[180px] flex-1">
             <Search size={13} className="absolute top-1/2 left-3 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search products…"
               aria-label="Search products"
-              className="h-9 w-full rounded-lg border border-border bg-muted/30 pr-3 pl-8 text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/60 focus:border-mauve-7"
+              containerClassName="w-full" className="h-9 pr-3 pl-8 font-medium placeholder:text-muted-foreground/60"
             />
           </div>
           <span className="text-[11px] font-semibold tabular-nums text-muted-foreground">

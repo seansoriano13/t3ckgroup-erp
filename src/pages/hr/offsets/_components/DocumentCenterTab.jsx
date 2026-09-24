@@ -10,6 +10,7 @@ import { hydrateRecordsForPrint, buildPrintableDocument, printComposedHtml } fro
 import { getFormType } from '../../../../lib/pdf/formTypeRegistry';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 
 const TRAY_STORAGE_KEY = 'documentCenterTray:v1';
 
@@ -220,13 +221,13 @@ export default function DocumentCenterTab({ approvedRecords, allLoadedRecords, h
             </span>
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
+              <Input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search by name…"
                 aria-label="Search approved records by employee name"
-                className="w-full pl-7 pr-2 py-1.5 text-xs font-medium rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
+                containerClassName="w-full" className="h-auto pl-7 pr-2 py-1.5 text-xs font-medium rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
             </div>
           </div>

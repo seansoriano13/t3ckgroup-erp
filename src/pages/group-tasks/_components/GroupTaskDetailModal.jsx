@@ -1548,12 +1548,12 @@ export default function GroupTaskDetailModal({
               <>
                 {showRejectForm ? (
                   <div className="flex items-center gap-2 animate-in fade-in">
-                    <input
+                    <Input
                       type="text"
                       value={rejectRemarks}
                       onChange={(e) => setRejectRemarks(e.target.value)}
                       placeholder="Reason for rejection..."
-                      className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors w-[220px]"
+                      containerClassName="w-[220px]" className="h-9 px-3 bg-card border border-border rounded-xl text-xs text-foreground outline-none focus:border-red-400 transition-colors"
                     />
                     <Button
                       type="button"

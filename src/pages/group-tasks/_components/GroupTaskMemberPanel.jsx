@@ -5,6 +5,7 @@ import { FilterTrigger, FilterOptionList } from "@/components/ui/FilterDropdown"
 import RoleDropdown from "@/components/dropdowns/RoleDropdown";
 import ChecklistTaskInput from "@/components/ChecklistTaskInput";
 import { resolveAssignment } from "@/utils/checklist";
+import { Input } from "@/components/ui/input";
 
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
@@ -124,12 +125,12 @@ export default function GroupTaskMemberPanel({
             />
             {role === "OTHERS" && (
               <div className="animate-slide-down mt-1 max-w-sm">
-                <input
+                <Input
                   type="text"
                   value={customRole}
                   onChange={(e) => onChange("customRole", e.target.value)}
                   placeholder="Specify custom role…"
-                  className="w-full bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
+                  containerClassName="w-full" className="h-auto bg-card border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors"
                 />
               </div>
             )}

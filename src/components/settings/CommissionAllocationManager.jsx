@@ -7,6 +7,7 @@ import { commissionService } from "../../services/commissionService";
 import { cn } from "@/lib/utils";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 function sumOf(rows) {
   return rows.reduce((sum, row) => sum + (Number(row.allocationPercent) || 0), 0);
@@ -55,18 +56,18 @@ function PositionsEditor({ department, actorId }) {
       {draft.length === 0 && <p className="text-xs text-muted-foreground">No positions yet.</p>}
       {draft.map((row, i) => (
         <div key={row.id ?? `new-${i}`} className="flex items-center gap-2">
-          <input
+          <Input
             value={row.name}
             onChange={(e) => updateRow(i, { name: e.target.value })}
             placeholder="Position name"
-            className="h-8 flex-1 rounded-md border border-border bg-card px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+            containerClassName="flex-1" className="h-8 rounded-md border border-border bg-card px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
-          <input
+          <Input
             type="number"
             step="0.001"
             value={row.allocationPercent}
             onChange={(e) => updateRow(i, { allocationPercent: Number(e.target.value) })}
-            className="h-8 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
+            containerClassName="w-20" className="h-8 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
           />
           <span className="text-xs text-muted-foreground">%</span>
           <Button
@@ -122,12 +123,12 @@ function DepartmentRow({ department, index, onChange, isOpen, onToggle, actorId 
           <ChevronDown size={13} className={cn("shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />
           <span className="text-sm font-semibold text-foreground">{department.name}</span>
         </Button>
-        <input
+        <Input
           type="number"
           step="0.001"
           value={department.allocationPercent}
           onChange={(e) => onChange(index, { allocationPercent: Number(e.target.value) })}
-          className="h-8 w-20 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
+          containerClassName="w-20" className="h-8 rounded-md border border-border bg-card px-2 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/50"
         />
         <span className="text-xs text-muted-foreground">%</span>
       </div>

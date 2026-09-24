@@ -19,6 +19,7 @@ import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
 import { Button } from "../../ui/button";
+import { Input } from "@/components/ui/input";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -192,17 +193,17 @@ export default function SorModalHeader({
           </div>
           {isEditing ? (
             <div className="space-y-2 mt-2 max-w-xl">
-              <input
+              <Input
                 value={editForm.project_title}
                 onChange={(e) => setEditForm((f) => ({ ...f, project_title: e.target.value }))}
-                className="w-full text-lg font-black text-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                containerClassName="w-full" className="text-lg font-black placeholder:text-muted-foreground/30"
                 placeholder="Project Title"
                 autoFocus
               />
-              <input
+              <Input
                 value={editForm.client_name}
                 onChange={(e) => setEditForm((f) => ({ ...f, client_name: e.target.value }))}
-                className="w-full text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
+                containerClassName="w-full" className="h-auto text-xs font-medium text-muted-foreground bg-transparent border-b border-border/50 focus:border-primary focus:outline-none placeholder:text-muted-foreground/30"
                 placeholder="Company"
               />
             </div>

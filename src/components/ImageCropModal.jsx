@@ -1,3 +1,4 @@
+import { Input } from "@/components/ui/input";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, Check, CropIcon } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
@@ -327,14 +328,15 @@ export default function ImageCropModal({ file, isOpen, onConfirm, onCancel }) {
                 className="absolute left-0 top-0 h-full rounded-full bg-primary transition-all"
                 style={{ width: `${((zoom - MIN_ZOOM) / (MAX_ZOOM - MIN_ZOOM)) * 100}%` }}
               />
-              <input
+              <Input
                 type="range"
                 min={MIN_ZOOM}
                 max={MAX_ZOOM}
                 step={ZOOM_STEP}
                 value={zoom}
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                containerClassName="absolute inset-0 h-full"
+                className="h-full rounded-none border-0 bg-transparent p-0 opacity-0 cursor-pointer"
               />
             </div>
 

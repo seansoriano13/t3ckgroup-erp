@@ -17,6 +17,7 @@ import {
 } from "../../../constants/sor";
 import { deriveProjectType } from "../../../utils/commission";
 import { Button } from "../../ui/button";
+import { Input } from "@/components/ui/input";
 
 function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }) {
   if (isEditing) {
@@ -417,11 +418,11 @@ export default function DetailsTab({ ctx }) {
                   label="Referral"
                   isEditing={isEditing}
                   control={
-                    <input
+                    <Input
                       type="text"
                       value={editForm.lead_source_detail}
                       onChange={(e) => setEditForm((f) => ({ ...f, lead_source_detail: e.target.value }))}
-                      className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                      containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                       placeholder="Specify..."
                     />
                   }
@@ -560,12 +561,12 @@ export default function DetailsTab({ ctx }) {
                 label="Contact Person"
                 isEditing={isEditing}
                 control={
-                  <input
+                  <Input
                     type="text"
                     required
                     value={editForm.contact_person}
                     onChange={(e) => setEditForm((f) => ({ ...f, contact_person: e.target.value }))}
-                    className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
+                    containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none font-medium"
                     placeholder="e.g. Juan Dela Cruz"
                   />
                 }
@@ -580,11 +581,11 @@ export default function DetailsTab({ ctx }) {
                     isEditing={true}
                     wrapperClass="flex-1"
                     control={
-                      <input
+                      <Input
                         type="text"
                         value={editForm.sales_reference}
                         onChange={(e) => setEditForm((f) => ({ ...f, sales_reference: e.target.value.toUpperCase() }))}
-                        className="w-full bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
+                        containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-mono text-foreground placeholder:text-muted-foreground/50 outline-none font-medium uppercase"
                         placeholder="e.g. S01237"
                       />
                     }

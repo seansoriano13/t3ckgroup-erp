@@ -41,6 +41,7 @@ import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import FilterBar from "../ui/FilterBar";
 import { Button } from "../ui/button";
+import { Input } from "@/components/ui/input";
 
 const DATE_PRESETS = [
   { value: "ALL", label: "All Time" },
@@ -681,12 +682,12 @@ export default function CommissionDashboardView() {
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
-          <input
+          <Input
             type="text"
             placeholder="Search deals, clients, reps…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="h-[46px] w-full rounded-xl border border-border bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-border transition-all"
+            containerClassName="w-full" className="h-[46px] rounded-xl border border-border bg-background pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-border transition-all"
           />
         </div>
 

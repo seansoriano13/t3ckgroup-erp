@@ -3,6 +3,7 @@
  * (see components/hr/EmployeeForm.jsx).
  */
 
+import { Input } from "@/components/ui/input";
 import Dropdown from "../ui/Dropdown";
 import { ChevronDown } from "lucide-react";
 import { FilterOptionList } from "../ui/FilterDropdown";
@@ -50,7 +51,7 @@ export function TextField({
         </label>
         {action}
       </div>
-      <input className={CONTROL} required={required} {...props} />
+      <Input className={`h-auto rounded-none border-0 bg-transparent px-0 py-0 shadow-none focus-visible:ring-0 ${CONTROL}`} required={required} {...props} />
     </div>
   );
 }
