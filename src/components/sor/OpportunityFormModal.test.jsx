@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { screen, waitFor, fireEvent, within } from "@testing-library/react";
+import { screen, waitFor, fireEvent } from "@testing-library/react";
 import { renderWithProviders } from "../../test/support";
 import OpportunityFormModal from "./OpportunityFormModal";
 import { odooService } from "../../services/odooService";
@@ -154,30 +154,22 @@ describe("OpportunityFormModal — Sales Director", () => {
   });
 });
 
-describe("OpportunityFormModal — day-one Assignment (#294)", () => {
-  it("blocks registration until a required entry-Stage Assignment is filled, then submits it as a call-in", async () => {
+describe("OpportunityFormModal — Assignment conditions", () => {
+  it("does not offer an entry-Stage Assignment condition on the registration form", async () => {
     const onSubmit = renderForm();
     await screen.findByText("101");
 
     fireEvent.click(screen.getByText("Select sale type…"));
     fireEvent.click(await screen.findByText("Flow A"));
 
-    await screen.findByText("Buyer assigned");
+    await screen.findByText(/Showing \d+ fields? for Flow A/);
+    expect(screen.queryByText("Buyer assigned")).not.toBeInTheDocument();
 
     const form = document.getElementById("opportunity-form");
     form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(expect.stringContaining("Buyer assigned")));
-    expect(onSubmit).not.toHaveBeenCalled();
-
-    const assignmentLabel = await screen.findByText("Buyer assigned");
-    fireEvent.click(within(assignmentLabel.closest("div")).getByText("Select…"));
-    fireEvent.click(await screen.findByText("Maey Zausa"));
-
-    form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
-    expect(onSubmit.mock.calls[0][0].dayOneAssignments).toEqual({ [CONDITION_ID]: OWNER_ID });
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("dayOneAssignments");
   });
 });
 

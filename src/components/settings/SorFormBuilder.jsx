@@ -75,6 +75,8 @@ export default function SorFormBuilder({ flow }) {
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["flowFormFields", flowId] });
+    // The registration form reads the same rows keyed by Sale Type.
+    queryClient.invalidateQueries({ queryKey: ["flowFormFields", "saleType"] });
     queryClient.invalidateQueries({ queryKey: ["flowVersionPreview"] });
     queryClient.invalidateQueries({ queryKey: ["flowDraftSnapshotData"] });
   };
@@ -197,7 +199,8 @@ export default function SorFormBuilder({ flow }) {
           <div className="flex-1 overflow-y-auto p-5 min-h-0 space-y-4">
             <p className="text-[11px] text-muted-foreground leading-relaxed bg-muted/40 border border-border rounded-xl px-3 py-2.5">
               This is the form a salesperson fills in when registering an SOR against this Sale
-              Type. Drag a field to reorder it, click its name to rename it, and use the toggles to
+              Type. Each Sale Type has its own form, so changes here only affect{" "}
+              {flow.name || "this Sale Type"}. Drag a field to reorder it, click its name to rename it, and use the toggles to
               choose what is asked for.
             </p>
 
