@@ -4,7 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 /**
  * Simple Select: `options` / `value` / `onChange`. Wraps the base-ui building
  * blocks in select.jsx. `options` are `{ value, label, disabled? }`;
- * `onChange` receives the chosen value.
+ * `onChange` receives the chosen value. `""`/`null`/`undefined` mean nothing
+ * chosen unless an option really has that value.
  */
 export function SelectField({
   options,
@@ -19,9 +20,11 @@ export function SelectField({
 }) {
   const popupRef = useDropdownNestedPopoverRef();
   const selected = options.find((o) => o.value === value);
+  // "" with no "" option means nothing chosen, so the placeholder shows.
+  const unset = value == null || (value === "" && !selected);
   return (
     <Select
-      value={value ?? null}
+      value={unset ? null : value}
       onValueChange={(next) => onChange?.(next)}
       disabled={disabled}
       items={options}

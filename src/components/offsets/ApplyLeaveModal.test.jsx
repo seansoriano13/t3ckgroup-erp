@@ -1,8 +1,8 @@
-import { screen, waitFor } from "@testing-library/react"
+import { screen, waitFor, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import toast from "react-hot-toast"
 import ApplyLeaveModal from "./ApplyLeaveModal"
-import { renderWithProviders, setupUser } from "@/test/support"
+import { chooseOption, renderWithProviders, setupUser } from "@/test/support"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeLeaveCategory } from "@/test/factories"
@@ -51,19 +51,18 @@ describe("ApplyLeaveModal", () => {
     )
 
   /** Fills the visible tab's fields. */
-  const fillForm = async ({ date, startTime, endTime, reason, categoryId }) => {
+  const fillForm = async ({ date, startTime, endTime, reason, categoryLabel }) => {
     const user = setupUser()
     const form = screen.getByRole("button", { name: /submit|apply/i }).closest("form")
     const dateField = form.querySelector('input[type="date"]')
     const timeFields = form.querySelectorAll('input[type="time"]')
     const reasonField = form.querySelector("textarea")
-    // Not `form.querySelector("select")` — the overtime tab's only select is
-    // now the required Department Head field (issue #137), so the category
-    // select (offset/SIL only) is picked out by its own placeholder option
-    // instead of by position.
-    const selectField = Array.from(form.querySelectorAll("select")).find(
-      (s) => s.querySelector('option[value=""]')?.textContent === "Select category...",
-    )
+    // The overtime tab's only combobox is the required Department Head field
+    // (issue #137), so the category picker (offset/SIL only) is picked out by
+    // its own placeholder instead of by position.
+    const categoryField = within(form)
+      .queryAllByRole("combobox")
+      .find((c) => c.textContent.startsWith("Select category..."))
 
     await user.clear(dateField)
     await user.type(dateField, date)
@@ -79,11 +78,8 @@ describe("ApplyLeaveModal", () => {
       }
     }
     
-    if (selectField) {
-      await waitFor(() => {
-        expect(selectField.options.length).toBeGreaterThan(1)
-      })
-      await user.selectOptions(selectField, categoryId || defaultCategory.id)
+    if (categoryField) {
+      await chooseOption(user, categoryField, categoryLabel || defaultCategory.label)
     }
 
     await user.clear(reasonField)
@@ -388,16 +384,10 @@ describe("ApplyLeaveModal", () => {
       })
       const employeeSelect = screen.getAllByRole("combobox")[0]
 
-      await waitFor(() => {
-        expect(employeeSelect.children.length).toBeGreaterThan(1)
-      })
-      await user.selectOptions(employeeSelect, targetEmployee.id)
+      await chooseOption(user, employeeSelect, targetEmployee.name)
 
       const headSelect = screen.getAllByRole("combobox")[1]
-      await waitFor(() => {
-        expect(headSelect.children.length).toBeGreaterThan(1)
-      })
-      await user.selectOptions(headSelect, targetHead.id)
+      await chooseOption(user, headSelect, targetHead.name)
 
       const form = screen.getByRole("button", { name: /submit/i }).closest("form")
       const dateField = form.querySelector('input[type="date"]')
@@ -444,11 +434,8 @@ describe("ApplyLeaveModal", () => {
 
       const employeeSelect = screen.getAllByRole("combobox")[0]
 
-      await waitFor(() => {
-        expect(employeeSelect.children.length).toBeGreaterThan(1)
-      })
-
-      const options = Array.from(employeeSelect.options).map((opt) => opt.text)
+      await setupUser().click(employeeSelect)
+      const options = (await screen.findAllByRole("option")).map((opt) => opt.textContent)
       expect(options).toContain("Active Worker")
       expect(options).not.toContain("Deactivated Worker")
     })

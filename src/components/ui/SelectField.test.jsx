@@ -17,6 +17,13 @@ describe("SelectField", () => {
     expect(screen.getByRole("combobox")).toHaveTextContent("Pick one");
   });
 
+  it("treats an empty-string value as nothing chosen unless an option is \"\"", () => {
+    const { rerender } = render(<SelectField options={OPTIONS} value="" placeholder="Pick one" />);
+    expect(screen.getByRole("combobox")).toHaveTextContent("Pick one");
+    rerender(<SelectField options={[{ value: "", label: "None" }, ...OPTIONS]} value="" placeholder="Pick one" />);
+    expect(screen.getByRole("combobox")).toHaveTextContent("None");
+  });
+
   it("chooses an option", async () => {
     const user = setupUser();
     const onChange = vi.fn();

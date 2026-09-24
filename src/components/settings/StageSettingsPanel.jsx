@@ -10,6 +10,7 @@ import StageActionManager from "./StageActionManager";
 import StageFieldManager from "./StageFieldManager";
 import StageAccessManager from "./StageAccessManager";
 import FollowUpCadenceEditor from "./FollowUpCadenceEditor";
+import { SelectField } from "@/components/ui/SelectField";
 
 /**
  * Everything a single Stage is, opened beside the canvas.
@@ -256,19 +257,14 @@ export default function StageSettingsPanel({
                   </ul>
                 )}
                 {!disabled && moveTargets.length > 0 && (
-                  <select
+                  <SelectField
                     aria-label="Add a move to another Stage"
-                    value=""
-                    onChange={(e) => e.target.value && onAddMove(e.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm text-foreground"
-                  >
-                    <option value="">Add a move to…</option>
-                    {moveTargets.map((target) => (
-                      <option key={target.id} value={target.id}>
-                        {target.name}
-                      </option>
-                    ))}
-                  </select>
+                    value={null}
+                    onChange={(next) => next && onAddMove(next)}
+                    options={moveTargets.map((target) => ({ value: target.id, label: target.name }))}
+                    placeholder="Add a move to…"
+                    className="w-full"
+                  />
                 )}
               </section>
             )}

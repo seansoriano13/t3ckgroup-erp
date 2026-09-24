@@ -32,6 +32,7 @@ import { Dialog, DialogContent, DialogTitle } from '../../../components/ui/dialo
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { Input } from "@/components/ui/input";
+import { SelectField } from "@/components/ui/SelectField";
 
 export default function HrLeavesManagerPage() {
   const { user } = useAuth();
@@ -446,50 +447,51 @@ export default function HrLeavesManagerPage() {
               {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history') && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Filter size={14} className="text-muted-foreground" />
-                  <select
+                  <SelectField
                     value={leaveTypeFilter}
-                    onChange={(e) => setLeaveTypeFilter(e.target.value)}
-                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
-                  >
-                    <option value="ALL">All Types</option>
-                    <option value="OVERTIME">Overtime</option>
-                    <option value="OFFSET">Offset Leave</option>
-                    <option value="SIL">SIL Leave</option>
-                    <option value="UNDERTIME">Undertime</option>
-                  </select>
+                    onChange={setLeaveTypeFilter}
+                    options={[
+                      { value: "ALL", label: "All Types" },
+                      { value: "OVERTIME", label: "Overtime" },
+                      { value: "OFFSET", label: "Offset Leave" },
+                      { value: "SIL", label: "SIL Leave" },
+                      { value: "UNDERTIME", label: "Undertime" },
+                    ]}
+                    size="sm"
+                  />
                 </div>
               )}
               
               {(activeTab === 'pending' || activeTab === 'documents' || activeTab === 'history' || activeTab === 'balances') && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
-                  <select
+                  <SelectField
                     value={companyFilter}
-                    onChange={(e) => setCompanyFilter(e.target.value)}
-                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
+                    onChange={setCompanyFilter}
+                    options={[
+                      { value: "ALL", label: "All companies" },
+                      { value: "NONE", label: "No company set" },
+                      ...companies.map((c) => ({ value: c.id, label: c.name })),
+                    ]}
                     title="Filter by company"
-                  >
-                    <option value="ALL">All companies</option>
-                    <option value="NONE">No company set</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    size="sm"
+                  />
                 </div>
               )}
 
               {activeTab === 'pending' && (
                 <div className="flex items-center space-x-2 bg-card border border-border rounded-xl px-3 py-1.5">
                   <Clock size={14} className="text-muted-foreground" />
-                  <select
+                  <SelectField
                     value={pendingPeriodFilter}
-                    onChange={(e) => setPendingPeriodFilter(e.target.value)}
-                    className="bg-transparent text-sm font-semibold outline-none cursor-pointer text-foreground"
-                  >
-                    <option value="ALL">All time</option>
-                    <option value="THIS_MONTH">This month</option>
-                    <option value="NEXT_MONTH">Next month</option>
-                    <option value="OVERDUE">Overdue</option>
-                  </select>
+                    onChange={setPendingPeriodFilter}
+                    options={[
+                      { value: "ALL", label: "All time" },
+                      { value: "THIS_MONTH", label: "This month" },
+                      { value: "NEXT_MONTH", label: "Next month" },
+                      { value: "OVERDUE", label: "Overdue" },
+                    ]}
+                    size="sm"
+                  />
                 </div>
               )}
               

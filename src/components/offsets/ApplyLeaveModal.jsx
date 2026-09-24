@@ -22,6 +22,7 @@ import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 const DEFAULT_DAY_HOURS = 8;
 
 /**
@@ -516,17 +517,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
           {showEmployeeSelector && (
             <div>
               <FieldBox label="Employee" className="block mb-1.5" />
-              <select
+              <SelectField
                 value={selectedEmployeeId}
-                onChange={(e) => setSelectedEmployeeId(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                required
-              >
-                <option value="" disabled>Select employee...</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>{emp.name}</option>
-                ))}
-              </select>
+                onChange={setSelectedEmployeeId}
+                options={employees.map((x) => ({ value: x.id, label: x.name }))}
+                placeholder="Select employee..."
+                className="w-full"
+              />
             </div>
           )}
 
@@ -637,17 +634,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <div>
                 <FieldBox label="Category" className="block mb-1.5" />
-                <select
-                  value={offsetCategoryId}
-                  onChange={(e) => setOffsetCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select category...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                <SelectField
+                value={offsetCategoryId}
+                onChange={setOffsetCategoryId}
+                options={categories.map((x) => ({ value: x.id, label: x.label }))}
+                placeholder="Select category..."
+                className="w-full"
+              />
               </div>
               {offsetApplyMode === 'range' ? (
                 <RangeDayEditor
@@ -760,17 +753,13 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <div>
                 <FieldBox label="Category" className="block mb-1.5" />
-                <select
-                  value={silCategoryId}
-                  onChange={(e) => setSilCategoryId(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 appearance-none"
-                  required
-                >
-                  <option value="" disabled>Select category...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.label}</option>
-                  ))}
-                </select>
+                <SelectField
+                value={silCategoryId}
+                onChange={setSilCategoryId}
+                options={categories.map((x) => ({ value: x.id, label: x.label }))}
+                placeholder="Select category..."
+                className="w-full"
+              />
               </div>
               {silApplyMode === 'range' ? (
                 <RangeDayEditor

@@ -9,6 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -71,17 +72,12 @@ export default function CommissionRatesManager() {
           >
             <div className="space-y-1">
               <FieldBox label="Type" />
-              <select
+              <SelectField
                 value={rateType}
-                onChange={(e) => setRateType(e.target.value)}
-                className="h-9 rounded-lg border border-border bg-card px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              >
-                {Object.entries(RATE_TYPE_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+                onChange={setRateType}
+                options={Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
+                className="h-9"
+              />
             </div>
             <div className="space-y-1">
               <FieldBox label="Percent" />

@@ -3,6 +3,7 @@ import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { cleanChoiceOptions } from "./choiceOptions";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
@@ -31,17 +32,12 @@ export default function StageFieldPreview({ draft }) {
         )}
         <div className="mt-1.5 flex max-w-sm items-center gap-2">
           {draft.source === "custom" && draft.fieldType === "choice" ? (
-            <select
+            <SelectField
               disabled
-              className="flex h-8 w-full cursor-not-allowed rounded-md border border-input bg-background/50 px-2.5 py-1 text-xs opacity-90 shadow-sm"
-            >
-              <option value="">Select…</option>
-              {cleanChoiceOptions(draft.options).map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </select>
+              options={cleanChoiceOptions(draft.options).map((opt) => ({ value: opt, label: opt }))}
+              placeholder="Select…"
+              className="w-full"
+            />
           ) : (
             <Input
               disabled

@@ -24,6 +24,7 @@ import HRFilters from "../../../components/HRFilters";
 import { confirmActionToast } from "../../../components/ui/CustomToast";
 import { silService } from "../../../services/silService";
 import { offsetService } from "../../../services/offsetService";
+import { SelectField } from "@/components/ui/SelectField";
 
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
@@ -241,18 +242,17 @@ export default function EmployeeManagement() {
                   uniqueStatuses={uniqueStatuses}
                 />
               </div>
-              <select
+              <SelectField
                 value={companyFilter}
-                onChange={(e) => setCompanyFilter(e.target.value)}
-                className="h-[46px] px-3 rounded-xl border border-border bg-card text-sm font-medium text-foreground"
+                onChange={setCompanyFilter}
+                options={[
+                  { value: "ALL", label: "All companies" },
+                  { value: "NONE", label: "No company set" },
+                  ...companies.map((c) => ({ value: c.id, label: c.name })),
+                ]}
                 title="Filter by company"
-              >
-                <option value="ALL">All companies</option>
-                <option value="NONE">No company set</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+                className="h-[46px]"
+              />
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">

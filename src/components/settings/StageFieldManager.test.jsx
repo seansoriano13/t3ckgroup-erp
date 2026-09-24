@@ -1,7 +1,7 @@
 import { screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import StageFieldManager from "./StageFieldManager";
-import { renderWithProviders } from "@/test/support";
+import { chooseOption, renderWithProviders, setupUser } from "@/test/support";
 import { FlowDataProvider } from "./FlowDataContext";
 import { makeFlowStage, makeStageField, makeSuperAdmin } from "@/test/factories";
 
@@ -99,7 +99,7 @@ describe("StageFieldManager", () => {
     fireEvent.click(await screen.findByRole("button", { name: /^Add$/i }));
     fireEvent.change(screen.getByPlaceholderText(/Award amount/i), { target: { value: "Bid result" } });
     fireEvent.click(screen.getByRole("button", { name: "Custom" }));
-    fireEvent.change(screen.getByLabelText("Field type"), { target: { value: "choice" } });
+    await chooseOption(setupUser(), screen.getByLabelText("Field type"), "Choice");
     fireEvent.change(screen.getByLabelText("Option 1"), { target: { value: "Won" } });
 
     // One option is refused — field is not saved to the list

@@ -8,6 +8,7 @@ import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
+import { SelectField } from "@/components/ui/SelectField";
 
 /**
  * A Stage's own small form, under its checklist — never checklist rows
@@ -121,19 +122,14 @@ export default function StageFieldsForm({ opportunity, fields, currentVisitId, a
                   )}
                   <div className="flex items-center gap-2 max-w-sm">
                     {field.source === "custom" && field.field_type === "choice" ? (
-                      <select
+                      <SelectField
                         aria-label={field.label}
                         value={value}
-                        onChange={(e) => setDraft((p) => ({ ...p, [field.id]: e.target.value }))}
-                        className="flex h-8 w-full rounded-md border border-input bg-transparent px-2.5 py-1 text-xs shadow-sm"
-                      >
-                        <option value="">Select…</option>
-                        {(field.options || []).map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(next) => setDraft((p) => ({ ...p, [field.id]: next }))}
+                        options={(field.options || []).map((opt) => ({ value: opt, label: opt }))}
+                        placeholder="Select…"
+                        className="w-full"
+                      />
                     ) : (
                       <Input
                         aria-label={field.label}
