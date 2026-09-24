@@ -1070,7 +1070,7 @@ export default function ComprehensiveChatModal({
                           checked={isChecked}
                           readOnly
                           tabIndex={-1}
-                          aria-label="Select chat"
+                          aria-label={`Select ${chat.title || "chat"}`}
                           className="pointer-events-none"
                         />
                       </div>
