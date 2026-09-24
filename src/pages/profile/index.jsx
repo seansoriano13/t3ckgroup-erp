@@ -735,7 +735,7 @@ export default function ProfilePage() {
                 setCustomQuote(e.target.value);
                 setRemoveQuote(false);
               }}
-              className="min-h-[70px] resize-none p-4 text-sm"
+              className="min-h-[70px] resize-none p-4 text-sm md:text-sm"
               placeholder="Write your 7-word motivational quote (all users)..."
             />
           </div>

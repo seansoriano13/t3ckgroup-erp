@@ -449,12 +449,12 @@ export default function CreateGroupTaskModal({
                       className={cn("text-[13px] placeholder:text-mauve-6", isExpanded ? "h-20" : "h-14")}
                     />
                   ) : (
-                    <Textarea
+                    <Textarea variant="bare"
                       ref={descriptionRef}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Provide an overview of the group task objective…"
-                      className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-y text-[13px] ${
+                      className={`resize-y text-[13px] md:text-[13px] ${
                         isExpanded ? "h-20" : "h-14"
                       }`}
                     />

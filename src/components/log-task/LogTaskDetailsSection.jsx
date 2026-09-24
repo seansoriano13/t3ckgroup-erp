@@ -167,13 +167,13 @@ export default function LogTaskDetailsSection({
             className={`text-sm placeholder:text-mauve-6 ${isExpanded ? "h-48" : "h-24"}`}
           />
         ) : (
-          <Textarea
+          <Textarea variant="bare"
             ref={descriptionRef}
             name="taskDescription"
             value={formData.taskDescription || ""}
             onChange={handleChange}
             placeholder="Add description…"
-            className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-y text-sm ${
+            className={`resize-y text-sm md:text-sm ${
               isExpanded ? "h-48" : "h-24"
             }`}
           />

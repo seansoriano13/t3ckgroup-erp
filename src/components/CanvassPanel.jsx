@@ -93,7 +93,7 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Description"
-        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px]"
+        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
       />
 
       <div className="grid grid-cols-3 gap-2">
@@ -125,7 +125,7 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         onChange={(e) => setRemarks(e.target.value)}
         rows={1}
         placeholder="Remarks (optional)"
-        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px]"
+        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px] md:text-[12.5px]"
       />
 
       {existingBrochure.length > 0 && (

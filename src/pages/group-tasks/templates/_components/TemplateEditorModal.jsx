@@ -246,7 +246,7 @@ export default function TemplateEditorModal({
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Default description (optional)…"
-                      className="h-16 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px]"
+                      className="h-16 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px] md:text-[13px]"
                     />
                   </div>
 

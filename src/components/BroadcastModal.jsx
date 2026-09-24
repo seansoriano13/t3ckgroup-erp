@@ -487,7 +487,7 @@ export default function BroadcastModal({ isOpen, onClose }) {
                           {inlineEditId === update.id ? (
                             <div className="mt-2 flex flex-col gap-2 animate-slide-down">
                               <Textarea
-                                className="min-h-[72px] resize-none rounded-lg p-2.5 text-xs"
+                                className="min-h-[72px] resize-none rounded-lg p-2.5 text-xs md:text-xs"
                                 value={inlineEditContent}
                                 onChange={(e) =>
                                   setInlineEditContent(e.target.value)

@@ -697,7 +697,7 @@ export default function GroupTaskDetailModal({
                   <Textarea
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
-                    className="h-20 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px]"
+                    className="h-20 min-h-0 resize-y rounded-lg px-3 py-2 text-[13px] md:text-[13px]"
                     placeholder="Task Description..."
                   />
                 </div>

@@ -346,7 +346,7 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
                     placeholder="Specify details..."
                     value={othersRemarks}
                     onChange={(e) => setOthersRemarks(e.target.value)}
-                    className="h-20 resize-none rounded-lg px-3 py-2 text-xs"
+                    className="h-20 resize-none rounded-lg px-3 py-2 text-xs md:text-xs"
                   />
                 </div>
               )}

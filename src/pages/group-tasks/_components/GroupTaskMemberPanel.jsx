@@ -153,7 +153,7 @@ export default function GroupTaskMemberPanel({
           onChange={(e) => onChange("taskDescription", e.target.value)}
           disabled={!canEditDescription}
           placeholder="What exactly are they responsible for?"
-          className="h-28 min-h-0 resize-y rounded-lg px-3 py-2.5 text-[13px]"
+          className="h-28 min-h-0 resize-y rounded-lg px-3 py-2.5 text-[13px] md:text-[13px]"
         />
       </div>
 

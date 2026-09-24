@@ -99,13 +99,13 @@ export default function MoveConfirmDialog({
                 Reason
                 <span className="ml-0.5 text-red-500">*</span>
               </label>
-              <Textarea
+              <Textarea variant="bare"
                 autoFocus
                 rows={2}
                 value={lostReason}
                 onChange={(e) => setLostReason(e.target.value)}
                 placeholder="Why was this deal lost?"
-                className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none text-sm font-medium"
+                className="resize-none text-sm md:text-sm font-medium"
               />
             </div>
           )}

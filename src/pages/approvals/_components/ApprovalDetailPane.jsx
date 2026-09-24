@@ -467,7 +467,7 @@ export function ApprovalDetailPane({
                   }
                   disabled={isReadOnly}
                   rows={3}
-                  className="resize-none p-3 text-xs sm:text-sm"
+                  className="resize-none p-3 text-xs sm:text-sm md:text-sm"
                 />
 
                 {/* Quick Feedback Presets */}
@@ -572,7 +572,7 @@ export function ApprovalDetailPane({
                   }
                   disabled={isReadOnly}
                   rows={3}
-                  className="resize-none p-3 text-xs sm:text-sm"
+                  className="resize-none p-3 text-xs sm:text-sm md:text-sm"
                 />
 
                 {/* Quick HR Presets */}

@@ -41,13 +41,13 @@ function AutoTextarea({ value, onChange, placeholder, className }) {
     }
   }, [value]);
   return (
-    <Textarea
+    <Textarea variant="bare"
       ref={ref}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       rows={1}
-      className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none overflow-hidden ${className}`}
+      className={`resize-none overflow-hidden ${className}`}
     />
   );
 }

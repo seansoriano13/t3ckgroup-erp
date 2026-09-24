@@ -90,7 +90,7 @@ export default function GroupTaskApprovalSection() {
                     placeholder="HR Remarks (required for rejection)"
                     value={actionRemarks[task.id] || ""}
                     onChange={(e) => setActionRemarks(prev => ({ ...prev, [task.id]: e.target.value }))}
-                    className="h-16 min-h-0 resize-none rounded-lg p-2 text-xs"
+                    className="h-16 min-h-0 resize-none rounded-lg p-2 text-xs md:text-xs"
                   />
                   <div className="flex gap-2">
                     <Button

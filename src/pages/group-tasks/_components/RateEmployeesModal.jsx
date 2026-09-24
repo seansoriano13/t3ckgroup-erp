@@ -229,7 +229,7 @@ export default function RateEmployeesModal({
                           )
                         }
                         placeholder="Add feedback for this member..."
-                        className="h-20 min-h-0 resize-none text-[13px]"
+                        className="h-20 min-h-0 resize-none text-[13px] md:text-[13px]"
                       />
                     </div>
                   </div>

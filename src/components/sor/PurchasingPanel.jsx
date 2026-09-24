@@ -135,12 +135,12 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         </Dropdown>
       </div>
 
-      <Textarea
+      <Textarea variant="bare"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Specs, brand, client notes..."
-        className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none text-[12.5px] leading-relaxed"
+        className="resize-none text-[12.5px] md:text-[12.5px] leading-relaxed"
       />
 
       {existingImages.length > 0 && (
@@ -485,13 +485,13 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </Dropdown>
       </div>
 
-      <Textarea
+      <Textarea variant="bare"
         aria-label={`Description ${index + 1}`}
         value={draft.description}
         onChange={(e) => onChange({ ...draft, description: e.target.value })}
         rows={2}
         placeholder="Specs, brand, the wording the client used — paste a screenshot straight in"
-        className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent mt-2 resize-none text-[12.5px] leading-relaxed"
+        className="mt-2 resize-none text-[12.5px] md:text-[12.5px] leading-relaxed"
       />
 
       {attachments.files.length > 0 && (

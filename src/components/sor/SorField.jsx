@@ -133,7 +133,7 @@ export function TextAreaField({ label, required, className = "", ...props }) {
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
-      <Textarea className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none ${CONTROL}`} required={required} {...props} />
+      <Textarea variant="bare" className={`resize-none ${CONTROL}`} required={required} {...props} />
     </div>
   );
 }

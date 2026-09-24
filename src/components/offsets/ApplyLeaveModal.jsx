@@ -596,7 +596,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onChange={(e) => setOtReason(e.target.value)}
                   placeholder="Reason for the overtime request"
                   rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required
                 />
               </div>
@@ -729,7 +729,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onChange={(e) => setOffsetReason(e.target.value)}
                   placeholder="Reason for the offset leave"
                   rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required
                 />
               </div>
@@ -862,7 +862,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onChange={(e) => setSilReason(e.target.value)}
                   placeholder="Reason for taking leave"
                   rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required
                 />
               </div>
@@ -975,7 +975,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   onChange={(e) => setUtReason(e.target.value)}
                   placeholder="Purpose of the undertime"
                   rows={3}
-                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm md:text-sm font-semibold"
                   required
                 />
               </div>

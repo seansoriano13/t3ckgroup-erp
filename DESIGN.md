@@ -266,7 +266,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have their own Primitives.
 
 #### Textarea
-`ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props.
+`ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props. `variant="bare"` strips border, background, padding and ring for inline-edit fields inside a bordered card.
 
 #### MentionTextarea
 `ui/MentionTextarea.jsx`. Textarea with `@` people suggestions; `mentions` ride beside plain-text `value`. Also exports `NoteText` to render a note with mentions.

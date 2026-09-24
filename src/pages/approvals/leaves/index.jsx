@@ -84,7 +84,7 @@ function LeaveApprovalsPage() {
                 value={noteDraft[item.matchValue] || ''}
                 onChange={(e) => setNoteDraft((prev) => ({ ...prev, [item.matchValue]: e.target.value }))}
                 rows={2}
-                className="min-h-0 resize-none rounded-lg px-3 py-2 text-xs font-medium"
+                className="min-h-0 resize-none rounded-lg px-3 py-2 text-xs md:text-xs font-medium"
               />
               <div className="flex gap-2 justify-end">
                 <Button
