@@ -913,7 +913,7 @@ export default function OpportunitiesPage() {
               </span>
             </div>
           </div>
-        ) : view === "board" ? (
+        ) : view === "board" && opportunities.length > 0 ? (
           <OpportunityBoard
             opportunities={filtered}
             search={search}

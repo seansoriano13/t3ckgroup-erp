@@ -3,6 +3,7 @@ import {
   isRealizedOpportunity,
   PIPELINE_STAGE_SEED,
 } from "../constants/sor";
+import { isWonOrPostWonFlowStage } from "../constants/salesFlow";
 
 // Pure commission-pool math. No database, no network — every value comes in
 // as an argument and every result goes out as a plain number, so this can be
@@ -230,7 +231,22 @@ export function resolveEffectiveRatesFromList(rateList = [], asOfDate) {
  * requires a Contract Date to fix commission pricing, and is not lost.
  */
 export const isRealizedCommissionOpportunity = (opp, stages = PIPELINE_STAGE_SEED) => {
-  return Boolean(opp?.contract_date) && !isLostCode(opp?.status, stages);
+  return Boolean(opp?.contract_date) && !isLostOpportunity(opp, stages);
+};
+
+/**
+ * Lost, for either kind of deal. A legacy deal is lost by its status code. A
+ * flow-built deal's status never changes after registration (it moves via
+ * flow_stage_id), so it is lost when it sits on a Terminal Stage of its own
+ * Flow Snapshot that is not the Won Stage or a post-won Stage. A deal whose
+ * Stage cannot be resolved is not treated as lost.
+ */
+const isLostOpportunity = (opp, stages) => {
+  if (!opp?.sale_type_id) return isLostCode(opp?.status, stages);
+  const snapshotData = opp.flow_snapshot?.snapshot_data;
+  const flowStage = (snapshotData?.stages || []).find((s) => s.id === opp.flow_stage_id);
+  if (!flowStage?.is_terminal) return false;
+  return !isWonOrPostWonFlowStage(flowStage, snapshotData);
 };
 
 /**
@@ -249,7 +265,7 @@ export function aggregateOpportunityCommissions({
   stages = PIPELINE_STAGE_SEED,
 } = {}) {
   const filteredOpps = opportunities.filter((opp) => {
-    if (isLostCode(opp.status, stages)) return false;
+    if (isLostOpportunity(opp, stages)) return false;
 
     if (scope === "REALIZED") {
       if (!isRealizedCommissionOpportunity(opp, stages)) return false;
