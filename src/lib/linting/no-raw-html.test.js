@@ -24,7 +24,7 @@ describe('local/no-raw-html', () => {
     ['<textarea />', /Textarea.*DESIGN\.md#textarea/],
     ['<select />', /Select.*DESIGN\.md#select/],
     ['<label>x</label>', /FieldBox.*DESIGN\.md#fieldbox/],
-    ['<table />', /Table/],
+    ['<table />', /Table.*DESIGN\.md#table/],
     ['<img src="a" />', /Avatar.*ImageAttachment/],
     ['<a href="/x">x</a>', /Link/],
     ['<div className="fixed inset-0 bg-black/50" />', /Dialog.*DESIGN\.md#dialog/],

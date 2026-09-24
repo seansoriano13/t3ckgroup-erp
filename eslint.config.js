@@ -44,8 +44,7 @@ export default defineConfig([
   },
   {
     // ADR 0025: raw covered HTML is banned in feature code. The shared UI folder
-    // is exempt inside the rule itself, by path. Existing violations are frozen
-    // in eslint-suppressions.json; only new ones fail.
+    // is exempt inside the rule itself, by path. There is no baseline.
     files: ['src/**/*.{js,jsx}'],
     ignores: ['src/test/**', 'src/**/*.test.{js,jsx}'],
     processor: refuseDisableProcessor,

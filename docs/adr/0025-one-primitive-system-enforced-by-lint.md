@@ -1,6 +1,6 @@
 # One Primitive system in the shared UI folder, enforced by lint
 
-**Status:** accepted (2026-09-20)
+**Status:** accepted (2026-09-20); complete (2026-09-24)
 
 A **Primitive** is anything in `src/components/ui/`. For a defined set of HTML
 elements, raw HTML is banned everywhere except inside that folder, and a lint
@@ -43,10 +43,11 @@ feature code. A Claude Code hook lints each edited `.jsx` so an agent sees the
 violation in the same turn. CI blocks on this rule even though the rest of the
 lint step stays non-blocking on an unrelated backlog.
 
-**Existing violations are frozen, then burned down.** ESLint bulk suppression
-freezes the ~700 current violations so nothing new lands. Migration is one
-slice per element type, each its own issue and PR, and each deletes its
-suppressions. The suppression file is the authoritative measure of what remains.
+**Existing violations were frozen, then burned down.** ESLint bulk suppression
+froze the ~700 violations so nothing new landed. Migration was one slice per
+element type, each its own issue and PR, and each deleted its suppressions. The
+last slice emptied the baseline and `eslint-suppressions.json` is gone: the rule
+now has no exceptions, and any raw covered HTML fails lint and CI.
 
 **When no Primitive fits, stop and ask the maintainer.** The Primitive set
 grows only when the maintainer decides. A new variant or size is added only when
@@ -58,8 +59,9 @@ the same custom look appears in three or more places.
   element's one-off styling. The maintainer reviews visual change per slice on
   staging.
 - Not moved: root-level shared components (Avatar, StatusBadge, StatCard,
-  FieldBox, ImageAttachment) stay where they are for now, and the folder keeps
-  its mixed base-ui and custom files and mixed case. Neither is a covered
-  element, and relocating them is churn with no consistency gain.
+  ImageAttachment) stay where they are for now, and the folder keeps its mixed
+  base-ui and custom files and mixed case. Neither is a covered element, and
+  relocating them is churn with no consistency gain. FieldBox is the exception:
+  it moved into the folder when it became the form-field Primitive.
 - Hard to reverse: once agents and CI rely on the ban, loosening it means
   re-opening the drift it removed.

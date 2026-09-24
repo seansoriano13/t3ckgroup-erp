@@ -9,7 +9,6 @@
         "build": "vite build",
         "lint": "eslint .",
         "lint:primitives": "node scripts/lint-primitives.mjs",
-        "lint:primitives:count": "node scripts/lint-primitives.mjs --count",
         "lint:tests": "eslint \"src/test/**/*.{js,jsx}\" \"src/**/*.test.{js,jsx}\"",
         "preview": "vite preview",
         "test": "vitest run",

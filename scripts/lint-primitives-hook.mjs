@@ -1,9 +1,8 @@
 // Claude Code PostToolUse hook (ADR 0025). After an agent edits a .jsx file,
 // lint it and hand any Primitive violation back in the same turn.
 //
-// Runs the real CLI so eslint-suppressions.json applies: frozen violations and
-// the unrelated lint backlog stay silent, only local/no-raw-html findings that
-// are not in the baseline are reported. Exit 2 feeds stderr back to the agent.
+// Runs the real CLI. The unrelated lint backlog stays silent; only
+// local/no-raw-html findings are reported. Exit 2 feeds stderr back to the agent.
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 

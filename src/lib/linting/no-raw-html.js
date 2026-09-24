@@ -17,7 +17,7 @@ const REPLACEMENTS = {
   textarea: ['textarea', 'Textarea (ui/textarea.jsx)', 'textarea'],
   select: ['select', 'SelectField (ui/SelectField.jsx)', 'selectfield'],
   label: ['label', 'FieldBox (ui/FieldBox.jsx)', 'fieldbox'],
-  table: ['table', 'the Table Primitive set (Table, TableRow, TableCell...)', 'primitive-catalog'],
+  table: ['table', 'the Table Primitive set (Table, TableRow, TableCell...) (ui/table.jsx)', 'table'],
   img: ['img', 'Avatar (people), ImageAttachment (uploads) or Image (ui/image.jsx)', 'image'],
   a: ['a', 'the router Link (internal) or ExternalLink (ui/external-link.jsx, external)', 'externallink'],
 }
