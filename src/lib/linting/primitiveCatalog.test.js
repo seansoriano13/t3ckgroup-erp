@@ -12,34 +12,31 @@ const catalog = design.slice(design.indexOf('### Primitive catalog')).split(/\n#
 // GitHub's heading slug: lowercase, drop punctuation, spaces to hyphens.
 const slug = (heading) =>
   heading.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')
-const anchors = new Set([...catalog.matchAll(/^#{3,4} (.+)$/gm)].map(([, h]) => slug(h)))
+const anchors = [...catalog.matchAll(/^#{3,4} (.+)$/gm)].map(([, heading]) => slug(heading))
 
-const COVERED = [
-  '<button />',
-  '<input />',
-  '<input type="checkbox" />',
-  '<input type="file" />',
-  '<textarea />',
-  '<select />',
-  '<label />',
-  '<table />',
-  '<img />',
-  '<a />',
-  '<div className="fixed inset-0" />',
-]
-
-async function anchorFor(jsx) {
+async function lintMessage(jsx) {
   const code = `export default function X() { return (${jsx}) }\n`
   const [result] = await eslint.lintText(code, { filePath: 'src/pages/Example.jsx' })
-  const message = result.messages.find((m) => m.ruleId === 'local/no-raw-html')
-  return /DESIGN\.md#([\w-]+)/.exec(message.message)[1]
+  return result.messages.find((m) => m.ruleId === 'local/no-raw-html')?.message
 }
 
 describe('Primitive catalog', () => {
-  it.each(COVERED)('the lint message for %s links to its own catalog heading', async (jsx) => {
-    const anchor = await anchorFor(jsx)
-    expect(anchor, 'a covered element must link to its Primitive, not the catalog top').not.toBe('primitive-catalog')
-    expect([...anchors], `#${anchor} is not a heading in the Primitive catalog`).toContain(anchor)
+  it.each([
+    ['<button />', 'button'],
+    ['<input />', 'input'],
+    ['<input type="checkbox" />', 'checkbox'],
+    ['<input type="file" />', 'fileinput'],
+    ['<textarea />', 'textarea'],
+    ['<select />', 'selectfield'],
+    ['<label />', 'fieldbox'],
+    ['<table />', 'table'],
+    ['<img />', 'image'],
+    ['<a />', 'externallink'],
+    ['<div className="fixed inset-0" />', 'dialog'],
+  ])('the lint message for %s links to #%s, and that heading exists', async (jsx, anchor) => {
+    const message = await lintMessage(jsx)
+    expect(message, 'the rule did not report this element').toContain(`See DESIGN.md#${anchor}.`)
+    expect(anchors, `#${anchor} is not a heading in the Primitive catalog`).toContain(anchor)
   })
 
   it('lists every file in the shared UI folder', () => {

@@ -251,7 +251,7 @@ React Flow chrome is re-themed from the same tokens so the canvas belongs to the
 
 A **Primitive** is anything in `src/components/ui/`. Raw `<button>`, `<input>`, `<textarea>`, `<select>`, `<label>`, `<table>`, `<img>`, `<a>` and hand-rolled full-screen modals are banned outside that folder (ADR 0025). One Primitive per job. `<form>`, layout tags, paragraphs and headings are not covered. **If nothing here fits, stop and ask the maintainer.** Never disable the lint rule.
 
-Each heading below is a stable anchor for lint messages. Paths are under `src/components/`.
+Headings are stable anchors; a lint message links to the heading of the Primitive it asks for. Paths are under `src/components/`.
 
 #### Button
 `ui/button.jsx`. Replaces raw `<button>`. Props: `variant` (`default` | `outline` | `secondary` | `ghost` | `destructive` | `link`), `size` (`default` | `xs` | `sm` | `lg` | `icon` | `icon-xs` | `icon-sm` | `icon-lg`), `asChild`, `className`, plus native button props.
@@ -281,13 +281,13 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
 
 #### FileInput
-`ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `onCancel`, `variant`/`size`/`className` for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
+`ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `onCancel`, `variant`/`size`/`className` and any other props for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
 
 #### Select (base-ui building blocks)
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`, `SelectScrollUpButton`, `SelectScrollDownButton`. Building blocks for `SelectField`; use those directly only for custom triggers/items. Look matches the Category/Priority Dropdowns and `FilterTrigger`/`FilterOptionList`: bordered card trigger (`h-[46px]`, `size="sm"` is `h-9`) with rotating chevron and mauve ring when open; `bg-muted` rounded-xl popover; semibold items, selected item `bg-muted/80` bold with a muted check.
 
 #### SelectField
-`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` (dropdownNesting.js)), otherwise the outer popover closes on mousedown before the pick registers.
+`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` in `ui/dropdownNesting.js`), otherwise the outer popover closes on mousedown before the pick registers.
 
 #### FieldBox
 `ui/FieldBox.jsx`. Form-field Primitive, label plus control. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `bare`, `inline`, `htmlFor`, `className`, `children`. Default: caption above a bordered control box; `bare`: caption above children, no box; no children: caption only (pass `htmlFor`); `inline`: label wraps children, for checkbox and switch rows. A lone child control is associated with the label automatically.
@@ -299,10 +299,10 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `className`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context (`ui/dropdownNesting.js`: `DropdownNestingContext`, `useDropdownNestedPopoverRef`, the hook for any popover portalled out of a Dropdown).
 
 #### FilterDropdown
-`ui/FilterDropdown.jsx`. Filter parts for use inside Dropdown: `FilterTrigger` (`label`, `isActive`, `isOpen`, `icon`), `FilterOptionList` (`options`, `value`, `onChange`, `close`), `MultiFilterOptionList` (`options`, `values`, `onChange`).
+`ui/FilterDropdown.jsx`. Filter parts for use inside Dropdown: `FilterTrigger` (`label`, `isActive`, `isOpen`, `icon`, `disabled`, `className`), `FilterOptionList` (`options`, `value`, `onChange`, `close`), `MultiFilterOptionList` (`options`, `values`, `onChange`).
 
 #### PeoplePicker
-`ui/PeoplePicker.jsx`. Multi-select of groups, teams, employees. Props: `value`, `onChange`, `types`, `allowRoles`, `placeholder`, `disabled`.
+`ui/PeoplePicker.jsx`. Multi-select of groups, teams, employees. Props: `value`, `onChange`, `types`, `allowRoles`, `placeholder`, `disabled`, `className`.
 
 #### TabGroup
 `ui/TabGroup.jsx`. Tabs. Props: `tabs`, `activeTab`, `onChange`, `variant` (`pill` | `primary` | `success` | `violet` | `red` | `destructive` | `underline`), `size`, `fullWidth`, `className`, `id`.
@@ -311,7 +311,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/card.jsx`. Parts: `Card` (`size`), `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`.
 
 #### PropertyPill
-`ui/PropertyPill.jsx`. Round pill button for a property or filter. Props: `children`, `onClick`, `isActive`, `isOpen`, `icon`, `disabled`.
+`ui/PropertyPill.jsx`. Round pill button for a property or filter. Props: `children`, `onClick`, `isActive`, `isOpen`, `icon`, `disabled`, `className`.
 
 #### StatusBadge
 `StatusBadge.jsx` (root). Status pill. Props: `status`, `label`, `theme`, `children`.
@@ -320,7 +320,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/TagPill.jsx`. Tag chip. Props: `tag` (`name`, `color`, `archived_at`).
 
 #### Dot
-`ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes).
+`ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes), `className`, plus native span props.
 
 #### Avatar
 `Avatar.jsx` (root). The Primitive for people images. Props: `name`, `src`, `size` (`xxs`..`xl`), `isSelected`, `showCheckOnSelect`, `onClick`. Replaces raw `<img>` of a person.
@@ -332,13 +332,13 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/Attachments.jsx`. Attachment picking and display: `AttachmentField` (`label`, `hint`, `attachments`, `disabled`), `AttachmentPreviews` (`files`, `onRemove`, `disabled`), `AttachmentList` (`attachments`, `className`, `compact`). `AttachmentEvidence` in `ui/AttachmentEvidence.jsx` (`attachments`, `className`) shows attached evidence with a viewer.
 
 #### Tooltip
-`ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `children`.
+`ui/Tooltip.jsx`. Props: `content`, `side`, `align`, `delay`, `className`, `children`.
 
 #### Spinner
-`ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`.
+`ui/Spinner.jsx`. Props: `size`, `text`, `fullScreen`, `className`.
 
 #### CustomToast
-`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`. Helpers: `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
+`ui/CustomToast.jsx`. Toast body for react-hot-toast. `CustomToast` props: `t`, `title`, `description`, `variant` (`default` | `success` | `error` | `loading` | `info` | `confirm`), `onConfirm`, `onCancel`, `confirmText`, `cancelText`; renders `t.action` (`{ label, onClick }`) when set. Helpers: `confirmDeleteToast(title, description, onConfirm)`, `confirmActionToast(title, description, confirmText, actionType, onConfirm)`, `undoableSuccessToast(message, label, onUndo, duration)`.
 
 #### EmojiPicker
 `ui/EmojiPicker.jsx`. Emoji button plus popup grid with recents. Props: `onSelect(emoji)`, `className`, `align`, `disabled`.
