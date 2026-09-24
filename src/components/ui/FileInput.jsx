@@ -1,17 +1,19 @@
-import { useImperativeHandle, useRef } from "react";
+import { useEffect, useImperativeHandle, useRef } from "react";
 
 import { Button } from "@/components/ui/button";
 
 /**
  * Owns the hidden file input and its trigger. With `children` it renders a
  * Button that opens the picker; without, only the hidden input, opened through
- * the ref (`ref.current.open()`) from a trigger elsewhere.
+ * the ref (`ref.current.open()`) from a trigger elsewhere. `onCancel` fires
+ * when the picker is dismissed without a choice.
  */
 function FileInput({
   accept,
   multiple = false,
   disabled = false,
   onFiles,
+  onCancel,
   children,
   ref,
   variant = "outline",
@@ -26,6 +28,14 @@ function FileInput({
       if (!disabled) inputRef.current?.click();
     },
   }));
+
+  // React has no onCancel for <input>; listen to the native event.
+  useEffect(() => {
+    const input = inputRef.current;
+    if (!input || !onCancel) return;
+    input.addEventListener("cancel", onCancel);
+    return () => input.removeEventListener("cancel", onCancel);
+  }, [onCancel]);
 
   const handleChange = (e) => {
     const files = Array.from(e.target.files ?? []);

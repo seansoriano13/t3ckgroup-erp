@@ -83,6 +83,7 @@ export default function FollowUpPanel({ opportunity, actorId, onChanged, status 
             <FileInput
               accept={ALLOWED_EXTENSIONS_STRING}
               size="sm"
+              onCancel={() => setFile(null)}
               onFiles={([picked]) => {
                 if (!isAllowedAttachment(picked)) {
                   toast.error("That file type isn't supported.");

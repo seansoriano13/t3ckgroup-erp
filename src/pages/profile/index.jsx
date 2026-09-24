@@ -659,6 +659,11 @@ export default function ProfilePage() {
               <FileInput
                 ref={bannerInputRef}
                 accept="image/*"
+                onCancel={() => {
+                  setBannerFile(null);
+                  setBannerUrlInput("");
+                  setRemoveBanner(false);
+                }}
                 onFiles={([selected]) => {
                   setBannerFile(selected);
                   setBannerUrlInput("");

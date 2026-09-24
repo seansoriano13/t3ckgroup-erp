@@ -22,6 +22,13 @@ describe("FileInput", () => {
     expect(onFiles).not.toHaveBeenCalled();
   });
 
+  it("calls onCancel when the picker is dismissed", () => {
+    const onCancel = vi.fn();
+    const { container } = render(<FileInput onCancel={onCancel} />);
+    fireEvent(inputOf(container), new Event("cancel"));
+    expect(onCancel).toHaveBeenCalled();
+  });
+
   it("honours accept and multiple", () => {
     const { container } = render(<FileInput accept="image/png" multiple />);
     const input = inputOf(container);
