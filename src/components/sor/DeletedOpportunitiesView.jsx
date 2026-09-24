@@ -9,6 +9,7 @@ import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function formatWhen(iso) {
   if (!iso) return "Deleted before this was recorded";
@@ -178,9 +179,7 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
               {purgeTarget.client_name} — {purgeTarget.project_title}. This cannot be undone. Its
               tasks are kept, unlinked — only the SOR itself and its own records are removed.
             </p>
-            <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm
-            </label>
+            <FieldBox label={<>Type <span className="font-mono text-foreground">{expectedConfirmText}</span> to confirm</>} className="mb-1 block" />
             <Input
               autoFocus
               value={confirmText}

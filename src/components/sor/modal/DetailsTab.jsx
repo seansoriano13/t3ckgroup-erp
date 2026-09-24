@@ -18,14 +18,13 @@ import {
 import { deriveProjectType } from "../../../utils/commission";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function Detail({ label, children, isEditing, control, wrapperClass = "w-full" }) {
   if (isEditing) {
     return (
       <div className={`bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all ${wrapperClass}`}>
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-          {label}
-        </label>
+        <FieldBox label={label} className="mb-1 block" />
         {control}
       </div>
     );

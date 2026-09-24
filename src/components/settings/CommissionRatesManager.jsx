@@ -8,6 +8,7 @@ import { RATE_TYPES, RATE_TYPE_LABELS } from "../../utils/commission";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function CommissionRatesManager() {
   const { user } = useAuth();
@@ -69,7 +70,7 @@ export default function CommissionRatesManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20 flex-wrap"
           >
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Type</label>
+              <FieldBox label="Type" />
               <select
                 value={rateType}
                 onChange={(e) => setRateType(e.target.value)}
@@ -83,7 +84,7 @@ export default function CommissionRatesManager() {
               </select>
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Percent</label>
+              <FieldBox label="Percent" />
               <Input
                 type="number"
                 step="0.001"
@@ -95,7 +96,7 @@ export default function CommissionRatesManager() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">Effective From</label>
+              <FieldBox label="Effective From" />
               <Input
                 type="date"
                 value={effectiveFrom}

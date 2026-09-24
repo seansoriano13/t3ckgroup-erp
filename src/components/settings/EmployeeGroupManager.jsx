@@ -10,6 +10,7 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { useAuth } from "@/context/AuthContext";
 import { employeeGroupService } from "@/services/employeeGroupService";
 import { SELECTOR_TYPES } from "@/utils/resolvePeople";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 
 /**
@@ -99,14 +100,14 @@ export default function EmployeeGroupManager() {
           }}
           className="mb-5 grid gap-3 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end"
         >
-          <label className="space-y-1">
+          <FieldBox inline className="space-y-1">
             <span className="text-xs font-bold text-muted-foreground">Name</span>
             <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Purchasing" required />
-          </label>
-          <label className="space-y-1">
+          </FieldBox>
+          <FieldBox inline className="space-y-1">
             <span className="text-xs font-bold text-muted-foreground">Description (optional)</span>
             <Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} />
-          </label>
+          </FieldBox>
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -201,14 +202,14 @@ function GroupCard({ group, isOpen, onToggle, busy, onRename, onSetMembers, onSe
       {isOpen && (
         <div className="space-y-4 border-t border-border p-4">
           <div className="grid gap-3 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
-            <label className="space-y-1">
+            <FieldBox inline className="space-y-1">
               <span className="text-xs font-bold text-muted-foreground">Name</span>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
-            </label>
-            <label className="space-y-1">
+            </FieldBox>
+            <FieldBox inline className="space-y-1">
               <span className="text-xs font-bold text-muted-foreground">Description</span>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} />
-            </label>
+            </FieldBox>
             <Button
               type="button"
               disabled={!detailsChanged || busy}

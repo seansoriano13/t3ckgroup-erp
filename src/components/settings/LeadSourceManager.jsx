@@ -5,6 +5,7 @@ import { Plus, Check, X, Shield } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LeadSourceManager() {
   const queryClient = useQueryClient();
@@ -75,9 +76,7 @@ export default function LeadSourceManager() {
             className="flex items-end gap-3 mb-6 p-4 rounded-xl border border-border bg-muted/20"
           >
             <div className="flex-1 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">
-                Value (ID)
-              </label>
+              <FieldBox label="Value (ID)" />
               <Input
                 type="text"
                 value={newValue}
@@ -88,9 +87,7 @@ export default function LeadSourceManager() {
               />
             </div>
             <div className="flex-1 space-y-1">
-              <label className="text-xs font-bold text-muted-foreground">
-                Display Label
-              </label>
+              <FieldBox label="Display Label" />
               <Input
                 type="text"
                 value={newLabel}

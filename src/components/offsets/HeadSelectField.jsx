@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { employeeService } from '../../services/employeeService';
 import { headResolver } from '../../services/headResolver';
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Lets the applicant confirm (or override) which department head this
@@ -36,9 +37,7 @@ export default function HeadSelectField({ employee, value, onChange, required = 
 
   return (
     <div>
-      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-        Department Head
-      </label>
+      <FieldBox label="Department Head" className="block mb-1.5" />
       <select
         value={value || ''}
         onChange={(e) => onChange(e.target.value)}

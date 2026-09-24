@@ -9,6 +9,7 @@ import Select from "react-select";
 import { defaultSelectStyles } from "../styles/selectStyles";
 import { getPermissionContext } from "../utils/permissions";
 import { Button } from "./ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 // Custom sleek toggle switch
 const Toggle = ({ checked, onChange }) => (
@@ -267,9 +268,7 @@ export default function RoleSwitcher() {
               {/* Field Sets */}
               <div className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest pl-1">
-                    Department
-                  </label>
+                  <FieldBox label="Department" className="pl-1" />
                   <div className="relative">
                     <Select
                       instanceId="role-switcher-dept"
@@ -295,9 +294,7 @@ export default function RoleSwitcher() {
                   </div>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] uppercase text-muted-foreground font-bold tracking-widest pl-1">
-                    Sub-Department
-                  </label>
+                  <FieldBox label="Sub-Department" className="pl-1" />
                   <div className="relative">
                     <Select
                       instanceId="role-switcher-subdept"

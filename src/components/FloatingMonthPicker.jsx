@@ -22,6 +22,7 @@ import {
   getMonthKeysInRange,
   formatDateToYMD,
 } from "../utils/dateUtils"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const MODES = ["MONTHLY", "QUARTERLY", "YEARLY", "CUSTOM"]
 const MODE_LABELS = {
@@ -464,9 +465,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                 ) : (
                   <div className="flex flex-col gap-4 flex-1 justify-center rounded-lg border border-border/50 bg-muted/10 p-4">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
-                        Start Date
-                      </label>
+                      <FieldBox label="Start Date" className="ml-0.5" />
                       <DatePicker
                         selected={parseYMD(customStart)}
                         onChange={(date) => {
@@ -483,9 +482,7 @@ export default function FloatingMonthPicker({ selectedRange, onChange }) {
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider ml-0.5">
-                        End Date
-                      </label>
+                      <FieldBox label="End Date" className="ml-0.5" />
                       <DatePicker
                         selected={parseYMD(customEnd)}
                         onChange={(date) => {

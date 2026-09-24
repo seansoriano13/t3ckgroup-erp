@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { SOR_STAGE_FIELDS } from "../../constants/stageFields";
 import { cleanChoiceOptions } from "./choiceOptions";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * How a Stage field will look on the SOR, drawn from the draft being edited.
@@ -15,8 +16,7 @@ export default function StageFieldPreview({ draft }) {
         Preview — how this looks on the SOR
       </span>
       <div className="space-y-1 rounded-lg bg-card/60 p-3 outline outline-1 -outline-offset-1 outline-mauve-5">
-        <label className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
-          {draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "Untitled field")}
+        <FieldBox label={<>{draft.label.trim() || (draft.source === "sor" ? SOR_STAGE_FIELDS[draft.sorField]?.label : "Untitled field")}
           {draft.isRequired ? (
             <span className="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400">
               Required
@@ -25,8 +25,7 @@ export default function StageFieldPreview({ draft }) {
             <span className="rounded bg-mauve-a3 px-1.5 py-px text-[9px] font-black uppercase tracking-[0.1em] text-mauve-11">
               Optional
             </span>
-          )}
-        </label>
+          )}</>} />
         {draft.help?.trim() && (
           <p className="text-[11px] text-muted-foreground">{draft.help.trim()}</p>
         )}

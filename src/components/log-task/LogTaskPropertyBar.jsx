@@ -8,6 +8,7 @@ import PriorityDropdown from "../dropdowns/PriorityDropdown";
 import PropertyPill from "../ui/PropertyPill";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LogTaskPropertyBar({
   formData,
@@ -90,9 +91,7 @@ export default function LogTaskPropertyBar({
         >
           {({ close }) => (
             <>
-              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-4">
-                {mode === "automation" ? "Target Due Date" : "End Date & Time"}
-              </label>
+              <FieldBox label={mode === "automation" ? "Target Due Date" : "End Date & Time"} className="block mb-4" />
               <div className="w-full py-1">
                 {mode === "automation" ? (
                   <div className="px-1">

@@ -13,6 +13,7 @@ import { useFlowData } from "./FlowDataContext";
 import { actionTitle } from "./flowStageKinds";
 import { useAuth } from "../../context/AuthContext";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * A Stage's Access tab (issue #292, part of #208/ADR 0021) — and, since the
@@ -266,10 +267,7 @@ function StageAccessForm({
         </p>
         <div className="space-y-1.5">
           {Object.entries(DEAL_TEAM_ROLES).map(([role, meta]) => (
-            <label
-              key={role}
-              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted"
-            >
+            <FieldBox inline className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-muted" key={role}>
               <Checkbox
                 checked={!shutOutRoles.has(role)}
                 disabled={disabled}
@@ -278,7 +276,7 @@ function StageAccessForm({
               <span className={shutOutRoles.has(role) ? "text-muted-foreground line-through" : ""}>
                 {meta.label}
               </span>
-            </label>
+            </FieldBox>
           ))}
         </div>
       </section>

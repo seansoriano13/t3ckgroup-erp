@@ -32,6 +32,7 @@ import { FORM_FIELD_TYPES, isCoreFormField, resolveFormFields } from "../../cons
 import RegistrationField, { SAMPLE_FIELD_CTX } from "../sor/RegistrationField";
 import ChoiceOptionsEditor from "./ChoiceOptionsEditor";
 import { cleanChoiceOptions, choiceOptionsError } from "./choiceOptions";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * The SOR registration form, shown exactly as a salesperson will see it, and
@@ -255,13 +256,13 @@ export default function SorFormBuilder({ flow }) {
                     onChange={(options) => setDraft((d) => ({ ...d, options }))}
                   />
                 )}
-                <label className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
+                <FieldBox inline className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3">
                   <span className="text-sm font-semibold text-foreground">Required to register</span>
                   <Switch
                     checked={draft.isRequired}
                     onCheckedChange={(v) => setDraft((d) => ({ ...d, isRequired: v }))}
                   />
-                </label>
+                </FieldBox>
                 <div className="flex items-center justify-end gap-2">
                   <Button type="button" variant="ghost" size="lg" onClick={() => setIsAdding(false)}>
                     Cancel
@@ -426,13 +427,10 @@ function BuilderRow({ field, renaming, onStartRename, onCommitRename, onToggleHi
               >
                 {field.isHidden ? <EyeOff size={14} /> : <Eye size={14} />}
               </Button>
-              <label
-                className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground"
-                title="Required to register"
-              >
+              <FieldBox inline className="flex items-center gap-1 rounded px-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground" title="Required to register">
                 Req
                 <Switch checked={field.isRequired} onCheckedChange={onToggleRequired} />
-              </label>
+              </FieldBox>
             </>
           )}
 

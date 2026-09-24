@@ -34,6 +34,7 @@ import {
 import toast from "react-hot-toast";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 const QUICK_REMARKS_HEAD = [
   "Completed as specified.",
   "Great quality work!",
@@ -358,20 +359,16 @@ export function ApprovalDetailPane({
         <div className="space-y-2 pb-5 border-b border-border/70">
           {task.projectTitle && (
             <div className="mb-4">
-              <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1.5">
-                <Tag className="w-3.5 h-3.5" />
-                Project Title
-              </label>
+              <FieldBox label={<><Tag className="w-3.5 h-3.5" />
+                Project Title</>} className="mb-1.5" />
               <h4 className="text-sm font-bold text-foreground">
                 <HighlightText text={task.projectTitle} search={searchTerm} />
               </h4>
             </div>
           )}
 
-          <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <FileText className="w-3.5 h-3.5" />
-            Task Description
-          </label>
+          <FieldBox label={<><FileText className="w-3.5 h-3.5" />
+            Task Description</>} />
 
           {isChecklist ? (
             <div className="pt-1">
@@ -395,10 +392,8 @@ export function ApprovalDetailPane({
         {/* SECTION 3: SCREENSHOTS / ATTACHMENTS (if present) */}
         {task.attachments && task.attachments.length > 0 && (
           <div className="space-y-2 pb-5 border-b border-border/70">
-            <label className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              Attachments ({task.attachments.length})
-            </label>
+            <FieldBox label={<><Sparkles className="w-3.5 h-3.5" />
+              Attachments ({task.attachments.length})</>} />
             <div className="pt-1">
               <ImageAttachment
                 taskId={task.id}
@@ -437,9 +432,7 @@ export function ApprovalDetailPane({
             <div className="space-y-4">
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-bold text-foreground uppercase tracking-wider">
-                    Assign Grade (1-5)
-                  </label>
+                  <FieldBox label="Assign Grade (1-5)" />
                   <span className="text-[10px] text-muted-foreground font-mono">
                     Press keys 1 to 5
                   </span>
@@ -453,9 +446,7 @@ export function ApprovalDetailPane({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
-                  Evaluation Remarks / Feedback
-                </label>
+                <FieldBox label="Evaluation Remarks / Feedback" className="block" />
                 <Textarea
                   ref={textareaRef}
                   value={remarks}
@@ -558,9 +549,7 @@ export function ApprovalDetailPane({
 
               {/* HR Verification Notes */}
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
-                  HR Verification / Audit Notes
-                </label>
+                <FieldBox label="HR Verification / Audit Notes" className="block" />
                 <Textarea
                   ref={textareaRef}
                   value={hrRemarks}

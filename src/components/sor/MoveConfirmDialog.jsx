@@ -11,6 +11,7 @@ import {
 import { Button } from "../ui/button";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 /**
  * Issue #206 — the confirmation a Board drag opens before it commits.
  *
@@ -95,10 +96,8 @@ export default function MoveConfirmDialog({
 
           {isLostTarget && (
             <div className="rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-              <label className="mb-1 block text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                Reason
-                <span className="ml-0.5 text-red-500">*</span>
-              </label>
+              <FieldBox label={<>Reason
+                <span className="ml-0.5 text-red-500">*</span></>} className="mb-1 block" />
               <Textarea variant="bare"
                 autoFocus
                 rows={2}

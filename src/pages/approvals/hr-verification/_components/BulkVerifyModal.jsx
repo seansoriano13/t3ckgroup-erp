@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { X, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function BulkVerifyModal({
   isOpen,
@@ -107,9 +108,7 @@ export default function BulkVerifyModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
-              HR Verification Notes (Optional)
-            </label>
+            <FieldBox label="HR Verification Notes (Optional)" className="mb-2 block" />
             <Input
               type="text"
               value={notes}

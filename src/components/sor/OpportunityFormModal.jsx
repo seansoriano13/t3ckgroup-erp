@@ -21,6 +21,7 @@ import { formFieldService } from "../../services/formFieldService";
 import { resolveFormFields } from "../../constants/sorFormBuilder";
 import RegistrationField from "./RegistrationField";
 import { Button } from "../ui/button";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const FORM_ID = "opportunity-form";
 
@@ -464,9 +465,7 @@ export default function OpportunityFormModal({
         <div className="grid grid-cols-1 gap-3">
           <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest block">
-                Sales Division
-              </label>
+              <FieldBox label="Sales Division" className="block" />
               <Button
                 type="button"
                 variant="ghost"

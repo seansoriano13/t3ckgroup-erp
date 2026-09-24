@@ -21,6 +21,7 @@ import HeadSelectField from './HeadSelectField';
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 const DEFAULT_DAY_HOURS = 8;
 
 /**
@@ -36,9 +37,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
     <div className="space-y-3">
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-            From
-          </label>
+          <FieldBox label="From" className="block mb-1.5" />
           <Input
             type="date"
             value={startDate}
@@ -48,9 +47,7 @@ function RangeDayEditor({ startDate, endDate, onStartDateChange, onEndDateChange
           />
         </div>
         <div>
-          <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-            To
-          </label>
+          <FieldBox label="To" className="block mb-1.5" />
           <Input
             type="date"
             value={endDate}
@@ -518,9 +515,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
           {showEmployeeSelector && (
             <div>
-              <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                Employee
-              </label>
+              <FieldBox label="Employee" className="block mb-1.5" />
               <select
                 value={selectedEmployeeId}
                 onChange={(e) => setSelectedEmployeeId(e.target.value)}
@@ -545,7 +540,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Date Worked</label>
+                  <FieldBox label="Date Worked" />
                   <Input
                     type="date"
                     value={otDate}
@@ -557,9 +552,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    Start Time
-                  </label>
+                  <FieldBox label="Start Time" className="block mb-1.5" />
                   <Input
                     type="time"
                     value={otStartTime}
@@ -569,9 +562,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                    End Time
-                  </label>
+                  <FieldBox label="End Time" className="block mb-1.5" />
                   <Input
                     type="time"
                     value={otEndTime}
@@ -588,9 +579,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <HeadSelectField employee={selectedEmployee} value={otHeadId} onChange={setOtHeadId} />
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Reason
-                </label>
+                <FieldBox label="Reason" className="block mb-1.5" />
                 <Textarea
                   value={otReason}
                   onChange={(e) => setOtReason(e.target.value)}
@@ -647,9 +636,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 </div>
               )}
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Category
-                </label>
+                <FieldBox label="Category" className="block mb-1.5" />
                 <select
                   value={offsetCategoryId}
                   onChange={(e) => setOffsetCategoryId(e.target.value)}
@@ -674,9 +661,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               ) : (
                 <>
                   <div>
-                    <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                      Leave Date (Mon-Fri)
-                    </label>
+                    <FieldBox label="Leave Date (Mon-Fri)" className="block mb-1.5" />
                     <Input
                       type="date"
                       value={offsetDate}
@@ -687,9 +672,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                        Start Time
-                      </label>
+                      <FieldBox label="Start Time" className="block mb-1.5" />
                       <Input
                         type="time"
                         value={offsetStartTime}
@@ -699,9 +682,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                        End Time
-                      </label>
+                      <FieldBox label="End Time" className="block mb-1.5" />
                       <Input
                         type="time"
                         value={offsetEndTime}
@@ -721,9 +702,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <HeadSelectField employee={selectedEmployee} value={offsetHeadId} onChange={setOffsetHeadId} />
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Reason
-                </label>
+                <FieldBox label="Reason" className="block mb-1.5" />
                 <Textarea
                   value={offsetReason}
                   onChange={(e) => setOffsetReason(e.target.value)}
@@ -780,9 +759,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 </div>
               )}
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Category
-                </label>
+                <FieldBox label="Category" className="block mb-1.5" />
                 <select
                   value={silCategoryId}
                   onChange={(e) => setSilCategoryId(e.target.value)}
@@ -807,9 +784,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               ) : (
                 <>
                   <div>
-                    <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                      Leave Date
-                    </label>
+                    <FieldBox label="Leave Date" className="block mb-1.5" />
                     <Input
                       type="date"
                       value={silDate}
@@ -820,9 +795,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                        Start Time
-                      </label>
+                      <FieldBox label="Start Time" className="block mb-1.5" />
                       <Input
                         type="time"
                         value={silStartTime}
@@ -832,9 +805,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                        End Time
-                      </label>
+                      <FieldBox label="End Time" className="block mb-1.5" />
                       <Input
                         type="time"
                         value={silEndTime}
@@ -854,9 +825,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <HeadSelectField employee={selectedEmployee} value={silHeadId} onChange={setSilHeadId} />
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Reason
-                </label>
+                <FieldBox label="Reason" className="block mb-1.5" />
                 <Textarea
                   value={silReason}
                   onChange={(e) => setSilReason(e.target.value)}
@@ -895,9 +864,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 </h3>
               </div>
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Date
-                </label>
+                <FieldBox label="Date" className="block mb-1.5" />
                 <Input
                   type="date"
                   value={utDate}
@@ -912,7 +879,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
+                    <FieldBox label="Start" className="block mb-1" />
                     <Input
                       type="time"
                       value={utOriginalStart}
@@ -922,7 +889,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
+                    <FieldBox label="End" className="block mb-1" />
                     <Input
                       type="time"
                       value={utOriginalEnd}
@@ -939,7 +906,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">Start</label>
+                    <FieldBox label="Start" className="block mb-1" />
                     <Input
                       type="time"
                       value={utActualStart}
@@ -949,7 +916,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-semibold text-muted-foreground mb-1">End</label>
+                    <FieldBox label="End" className="block mb-1" />
                     <Input
                       type="time"
                       value={utActualEnd}
@@ -967,9 +934,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
               )}
               <HeadSelectField employee={selectedEmployee} value={utHeadId} onChange={setUtHeadId} />
               <div>
-                <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
-                  Purpose
-                </label>
+                <FieldBox label="Purpose" className="block mb-1.5" />
                 <Textarea
                   value={utReason}
                   onChange={(e) => setUtReason(e.target.value)}

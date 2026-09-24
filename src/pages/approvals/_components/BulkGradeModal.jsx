@@ -4,6 +4,7 @@ import { X, CheckSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import GradeSelector from "../../../components/GradeSelector.jsx";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function BulkGradeModal({
   isOpen,
@@ -91,18 +92,14 @@ export default function BulkGradeModal({
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-primary uppercase tracking-wider mb-2 block">
-              Assign Grade (1-5)
-            </label>
+            <FieldBox label="Assign Grade (1-5)" className="mb-2 block" />
             <div className="mt-1">
               <GradeSelector grade={grade} onSelect={setGrade} canEvaluate={true} />
             </div>
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2 block">
-              Evaluation Remarks
-            </label>
+            <FieldBox label="Evaluation Remarks" className="mb-2 block" />
             <Input
               type="text"
               value={remarks}

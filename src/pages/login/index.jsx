@@ -9,6 +9,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { supabase } from "../../lib/supabase";
 import { passwordService } from "../../services/passwordService";
 import { resolvePostLoginPath } from "../../utils/authRedirect.js";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function Login() {
   const { handleLogin, user, isAuthLoading } = useAuth();
@@ -133,9 +134,7 @@ export default function Login() {
           {/* Email + password form */}
           <form className="grid gap-5" onSubmit={handleManualLogin}>
             <div className="grid gap-2">
-              <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-                Email Address
-              </label>
+              <FieldBox label="Email Address" />
               <Input
                 className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
                 type="email"
@@ -148,9 +147,7 @@ export default function Login() {
 
             <div className="grid gap-2">
               <div className="flex justify-between items-center">
-                <label className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-                  Password
-                </label>
+                <FieldBox label="Password" />
                 <Button
                   type="button"
                   variant="link"

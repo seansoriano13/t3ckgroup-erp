@@ -12,6 +12,7 @@ import { Button } from "../../ui/button";
 import { stageFieldService } from "../../../services/stageFieldService";
 import { normalizeSalesReference, SALES_REFERENCE_HINT } from "../../../constants/sor";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 function Section({ title, count, children }) {
   return (
@@ -104,7 +105,7 @@ export default function NowTab({ ctx }) {
       {isLostPending && (
         <div className="flex items-end gap-2">
           <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">Reason for loss</label>
+            <FieldBox label="Reason for loss" className="mb-1 block" />
             <Input
               autoFocus
               value={lostReason}
@@ -129,9 +130,7 @@ export default function NowTab({ ctx }) {
       {needsSalesRef && (
         <div className="rounded-xl border border-amber-400/20 bg-amber-500/5 p-3">
           <div className="flex-1 rounded-xl border border-border bg-muted/30 p-3 focus-within:border-mauve-7">
-            <label className="mb-1 block text-[10px] font-bold tracking-widest text-muted-foreground uppercase">
-              Sales Reference<span className="ml-0.5 text-red-11">*</span>
-            </label>
+            <FieldBox label={<>Sales Reference<span className="ml-0.5 text-red-11">*</span></>} className="mb-1 block" />
             <Input
               autoFocus
               value={salesRef}

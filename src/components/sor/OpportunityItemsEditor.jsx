@@ -2,6 +2,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { formatPHP } from "../../constants/sor";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const emptyRow = () => ({ product_name: "", unit: "", quantity: 1, unit_price: "" });
 
@@ -29,9 +30,7 @@ export default function OpportunityItemsEditor({ items, onChange }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-          Product List
-        </label>
+        <FieldBox label="Product List" />
         <Button
           type="button"
           variant="link"

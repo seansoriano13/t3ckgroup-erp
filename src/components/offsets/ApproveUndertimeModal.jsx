@@ -5,6 +5,7 @@ import { X, CheckCircle2, XCircle } from 'lucide-react';
 import { Button } from '../ui/button';
 import { offsetService } from '../../services/offsetService';
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * HR decides an undertime request, editing the hours actually charged
@@ -77,12 +78,7 @@ export default function ApproveUndertimeModal({ isOpen, onClose, request, status
 
           {isApprove && (
             <div>
-              <label
-                htmlFor="approved-hours"
-                className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider"
-              >
-                Approved Hours
-              </label>
+              <FieldBox label="Approved Hours" htmlFor="approved-hours" className="block mb-1.5" />
               <Input
                 id="approved-hours"
                 type="number"

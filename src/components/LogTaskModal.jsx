@@ -17,6 +17,7 @@ import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 // ═════════════════════════════════════════════════════════════
 //  MODAL COMPONENT
 // ═════════════════════════════════════════════════════════════
@@ -300,16 +301,12 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
           {(isCommittee || isOthersGlobal) && (
             <div className="py-3 animate-slide-down">
               {!isCommittee && (
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                  Others Details
-                </label>
+                <FieldBox label="Others Details" className="block mb-2" />
               )}
 
               {isCommittee && (
                 <div className="bg-mauve-4/80 /40 p-4 rounded-xl border border-mauve-5/60 /50 mb-3">
-                  <label className="block text-[10px] font-extrabold text-foreground  uppercase tracking-widest mb-3">
-                    SELECT COMMITTEE ROLE
-                  </label>
+                  <FieldBox label="SELECT COMMITTEE ROLE" className="block mb-3" />
                   <div className="flex flex-wrap gap-2">
                     {["EVENT", "CREATIVE", "DEMO", "BAC", "ODOO", "OTHERS"].map(
                       (role) => (
@@ -338,9 +335,7 @@ export default function LogTaskModal({ isOpen, onClose, mode = "normal", onSubmi
               {(isOthersGlobal || committeeRole === "OTHERS") && (
                 <div className="animate-slide-down">
                   {isCommittee && committeeRole === "OTHERS" && (
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2">
-                      Others Details
-                    </label>
+                    <FieldBox label="Others Details" className="block mb-2" />
                   )}
                   <Textarea
                     placeholder="Specify details..."

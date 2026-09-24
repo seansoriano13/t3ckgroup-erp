@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react"
 import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function CategoryForm({
   initialData,
@@ -52,9 +53,7 @@ export default function CategoryForm({
     <form id={formId} onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-4">
         <div className="group">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block ml-1">
-            Category ID
-          </label>
+          <FieldBox label="Category ID" className="mb-1.5 block ml-1" />
           <Input
             required
             type="text"
@@ -68,9 +67,7 @@ export default function CategoryForm({
         </div>
 
         <div className="group">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5 block ml-1">
-            Description
-          </label>
+          <FieldBox label="Description" className="mb-1.5 block ml-1" />
           <Input
             required
             type="text"

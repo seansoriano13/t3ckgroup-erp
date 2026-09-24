@@ -1,17 +1,7 @@
 import { Users, ClipboardList, Building2 } from "lucide-react"
 import Dropdown from "../ui/Dropdown"
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown"
-
-const FieldBox = ({ label, children }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-      {label}
-    </label>
-    <div className="min-h-[44px] flex items-center w-full bg-card border border-border rounded-lg px-2 shadow-sm transition-all">
-      {children}
-    </div>
-  </div>
-)
+import { FieldBox } from "../ui/FieldBox"
 
 export default function LogTaskAssignmentBar({
   formData,
@@ -56,9 +46,7 @@ export default function LogTaskAssignmentBar({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-                Dept
-              </label>
+              <FieldBox label="Dept" className="pl-1" />
               <Dropdown
                 usePortal
                 isOpen={openPopover === "hrDept"}
@@ -90,9 +78,7 @@ export default function LogTaskAssignmentBar({
               </Dropdown>
             </div>
             <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-                Sub-Dept
-              </label>
+              <FieldBox label="Sub-Dept" className="pl-1" />
               <Dropdown
                 usePortal
                 isOpen={openPopover === "hrSubDept"}
@@ -135,9 +121,7 @@ export default function LogTaskAssignmentBar({
       {canAssignOthers && (
         <div className="space-y-1.5">
           {!isHr && (
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
-              <Users size={12} /> Assign To
-            </label>
+            <FieldBox label={<><Users size={12} /> Assign To</>} className="pl-1" />
           )}
           <Dropdown
             usePortal
@@ -185,9 +169,7 @@ export default function LogTaskAssignmentBar({
 
       {/* REPORTED TO SECTION */}
       <div className="space-y-1.5 pt-1">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 pl-1">
-          <ClipboardList size={12} /> Report To (Head)
-        </label>
+        <FieldBox label={<><ClipboardList size={12} /> Report To (Head)</>} className="pl-1" />
         <Dropdown
           usePortal
           isOpen={openPopover === "reportedTo"}

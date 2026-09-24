@@ -7,6 +7,7 @@ import DeptSubDeptSelector from "./DeptSubDeptSelector"
 import Dropdown from "../ui/Dropdown"
 import { getAllOverridableEntries } from "@/constants/navigation"
 import { getPermissionContext } from "@/utils/permissions"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function EmployeeForm({
   initialData,
@@ -189,9 +190,7 @@ export default function EmployeeForm({
       {/* Company (issue #142) — nullable; a blank entry is filed as a blank
           on the printed forms rather than guessed. */}
       <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all mb-6">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-          Name of Company
-        </label>
+        <FieldBox label="Name of Company" className="mb-1 block" />
         <Dropdown
           usePortal={true}
           placement="bottom-start"
@@ -247,9 +246,7 @@ export default function EmployeeForm({
       {/* Employment Status, SIL Balance & Offset Balance */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 pt-4 mt-2 border-t border-border/50">
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Employment Status
-          </label>
+          <FieldBox label="Employment Status" className="mb-1 block" />
           <Dropdown
             usePortal={true}
             placement="bottom-start"
@@ -309,12 +306,10 @@ export default function EmployeeForm({
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label htmlFor="sil-balance" className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block flex justify-between">
-            <span>SIL Hours Balance</span>
+          <FieldBox label={<><span>SIL Hours Balance</span>
             {hasAutoGranted && (
               <span className="text-green-500 font-bold ml-2 animate-pulse">+40 hrs auto-granted</span>
-            )}
-          </label>
+            )}</>} htmlFor="sil-balance" className="mb-1 block justify-between" />
           <Input
             id="sil-balance"
             type="number"
@@ -328,9 +323,7 @@ export default function EmployeeForm({
         </div>
 
         <div className="bg-muted/30 border border-border rounded-xl p-3 flex flex-col group focus-within:border-mauve-7 focus-within:ring-1 ring-mauve-7 transition-all">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">
-            Offset Hours Balance
-          </label>
+          <FieldBox label="Offset Hours Balance" className="mb-1 block" />
           <Input
             type="number"
             step="0.5"
@@ -344,9 +337,7 @@ export default function EmployeeForm({
       </div>
 
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-          <Shield size={12} /> System Access Rights
-        </label>
+        <FieldBox label={<><Shield size={12} /> System Access Rights</>} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {/* Dept Head */}
           <AccessSwitch
@@ -450,9 +441,7 @@ export default function EmployeeForm({
           current toggle state, live. */}
       <div className="space-y-3 pt-4 mt-2 border-t border-border/50">
         <div className="flex items-center justify-between">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
-            <EyeOff size={12} /> Hidden From Navigation
-          </label>
+          <FieldBox label={<><EyeOff size={12} /> Hidden From Navigation</>} />
           {formData.hiddenNavKeys?.length > 0 && (
             <Button
               type="button"

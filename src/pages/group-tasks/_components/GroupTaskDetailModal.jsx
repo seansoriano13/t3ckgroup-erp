@@ -76,6 +76,7 @@ import {
 } from "@/utils/attachments";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 export default function GroupTaskDetailModal({
   isOpen,
   onClose,
@@ -684,7 +685,7 @@ export default function GroupTaskDetailModal({
             {isEditingTask ? (
               <div className="space-y-3 mt-2 animate-in fade-in slide-in-from-top-2 w-full pr-4">
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Title</label>
+                  <FieldBox label="Title" className="mb-1 block" />
                   <Input 
                     value={taskEditDraft.title}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, title: e.target.value }))}
@@ -693,7 +694,7 @@ export default function GroupTaskDetailModal({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Description</label>
+                  <FieldBox label="Description" className="mb-1 block" />
                   <Textarea
                     value={taskEditDraft.description}
                     onChange={(e) => setTaskEditDraft(p => ({ ...p, description: e.target.value }))}
@@ -702,7 +703,7 @@ export default function GroupTaskDetailModal({
                   />
                 </div>
                 <div className="w-48">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
+                  <FieldBox label="Due Date" className="mb-1 block" />
                   <Input 
                     type="date"
                     value={taskEditDraft.dueDate}
@@ -1002,9 +1003,7 @@ export default function GroupTaskDetailModal({
 
                           {/* Description */}
                           <div className="flex flex-col gap-1.5">
-                            <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                              Specific Task
-                            </label>
+                            <FieldBox label="Specific Task" className="block" />
                             {memberDescription?.trim() ? (
                               <div className="text-[13px] text-foreground bg-muted/20 p-4 rounded-xl border border-border/50 leading-relaxed whitespace-pre-wrap">
                                 {memberDescription}
@@ -1023,9 +1022,7 @@ export default function GroupTaskDetailModal({
                           {checklistItems.length > 0 && (
                             <div className="flex flex-col gap-1.5">
                               <div className="flex items-center justify-between">
-                                <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                  Checklist
-                                </label>
+                                <FieldBox label="Checklist" className="block" />
                                 <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
                                   {checklistItems.filter((i) => i.checked).length}
                                   /{checklistItems.length}
@@ -1064,9 +1061,7 @@ export default function GroupTaskDetailModal({
                           {/* Attachments Section */}
                           <div className="flex flex-col gap-1.5 mt-2">
                             <div className="flex items-center justify-between">
-                              <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                                Attachments
-                              </label>
+                              <FieldBox label="Attachments" className="block" />
                               {isMe && member.status === "PENDING" && task.status === "ACTIVE" && (
                                 <FileInput
                                   multiple

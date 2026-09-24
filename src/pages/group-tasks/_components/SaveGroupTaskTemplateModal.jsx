@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { computeDueDateOffsetDays } from "../utils/templateApply";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function SaveGroupTaskTemplateModal({
   isOpen,
@@ -82,9 +83,7 @@ export default function SaveGroupTaskTemplateModal({
           <div className="px-6 py-5 flex flex-col gap-4">
             {/* Template Name Field */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                Template Name <span className="text-primary">*</span>
-              </label>
+              <FieldBox label={<>Template Name <span className="text-primary">*</span></>} />
               <Input
                 ref={inputRef}
                 type="text"

@@ -4,6 +4,7 @@ import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Reusable selection component for Department and Sub-Department with manual entry fallback.
@@ -157,9 +158,7 @@ export default function DeptSubDeptSelector({
           </div>
           {isNewDept && (
             <div>
-              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
-                New Department
-              </label>
+              <FieldBox label="New Department" className="mb-1 block" />
               <Input
                 required
                 type="text"
@@ -175,9 +174,7 @@ export default function DeptSubDeptSelector({
           )}
           {isNewSubDept && (
             <div>
-              <label className="text-[9px] font-bold text-foreground/60 uppercase tracking-wider mb-1 block">
-                New Sub-Department
-              </label>
+              <FieldBox label="New Sub-Department" className="mb-1 block" />
               <Input
                 required
                 type="text"

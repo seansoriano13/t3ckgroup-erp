@@ -28,6 +28,7 @@ import Dot from "../ui/Dot";
 import Dropdown from "../ui/Dropdown";
 import { FilterTrigger, FilterOptionList } from "../ui/FilterDropdown";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 const PAGE_SIZE = 30;
 
@@ -175,9 +176,7 @@ export default function HrLogsPanel() {
 
         <div className="px-4 py-3.5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-4">
           <div className="lg:col-span-2">
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Search
-            </label>
+            <FieldBox label="Search" className="pl-1 block mb-1.5" />
             <div className="relative flex items-center">
               <Search size={13} className="absolute left-3 text-muted-foreground pointer-events-none shrink-0" />
               <Input
@@ -190,9 +189,7 @@ export default function HrLogsPanel() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Category
-            </label>
+            <FieldBox label="Category" className="pl-1 block mb-1.5" />
             <Dropdown
               usePortal
               className="w-full"
@@ -223,9 +220,7 @@ export default function HrLogsPanel() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Action Type
-            </label>
+            <FieldBox label="Action Type" className="pl-1 block mb-1.5" />
             <Dropdown
               usePortal
               className="w-full"
@@ -257,9 +252,7 @@ export default function HrLogsPanel() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Actor
-            </label>
+            <FieldBox label="Actor" className="pl-1 block mb-1.5" />
             <Dropdown
               usePortal
               className="w-full"
@@ -295,9 +288,7 @@ export default function HrLogsPanel() {
           </div>
 
           <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1.5">
-              Employee Involved
-            </label>
+            <FieldBox label="Employee Involved" className="pl-1 block mb-1.5" />
             <Dropdown
               usePortal
               className="w-full"

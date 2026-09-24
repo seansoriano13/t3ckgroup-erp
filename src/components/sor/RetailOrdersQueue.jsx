@@ -26,6 +26,7 @@ import { formatPHP } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 // ---------------------------------------------------------------------------
 // Approve / Edit Modal
@@ -64,9 +65,7 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
         <div className="px-6 py-5 space-y-4">
           {/* Company / Client */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Company / Client
-            </label>
+            <FieldBox label="Company / Client" />
             <Input
               value={fields.client_name}
               onChange={set("client_name")}
@@ -76,9 +75,7 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
           </div>
           {/* Contact Person */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Contact Person
-            </label>
+            <FieldBox label="Contact Person" />
             <Input
               value={fields.contact_person}
               onChange={set("contact_person")}
@@ -88,9 +85,7 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
           </div>
           {/* Project Title */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Project Title
-            </label>
+            <FieldBox label="Project Title" />
             <Input
               value={fields.project_title}
               onChange={set("project_title")}
@@ -100,9 +95,7 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
           </div>
           {/* Value */}
           <div>
-            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-              Amount (₱)
-            </label>
+            <FieldBox label="Amount (₱)" />
             <Input
               type="number"
               value={fields.expected_value}

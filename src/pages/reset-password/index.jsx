@@ -9,6 +9,7 @@ import { readRecoveryParams } from "../../lib/recoveryLink";
 import { passwordService } from "../../services/passwordService";
 import { Button } from "../../components/ui/button";
 import Spinner from "@/components/ui/Spinner";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * Where the password-reset email link lands.
@@ -291,9 +292,7 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="new-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            New Password
-          </label>
+          <FieldBox label="New Password" htmlFor="new-password" />
           <Input
             id="new-password"
             className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"
@@ -305,9 +304,7 @@ export default function ResetPassword() {
         </div>
 
         <div className="grid gap-2">
-          <label htmlFor="confirm-password" className="text-xs font-bold text-mauve-11 uppercase tracking-wider">
-            Confirm Password
-          </label>
+          <FieldBox label="Confirm Password" htmlFor="confirm-password" />
           <Input
             id="confirm-password"
             className="h-auto px-4 py-3 bg-mauve-3 border-mauve-6 text-mauve-12 rounded-lg placeholder:text-mauve-8"

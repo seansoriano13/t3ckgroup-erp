@@ -38,6 +38,7 @@ import {
 import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
 import { STAGE_LABELS } from "../constants/sor";
 import { canEditSor } from "../utils/sorPermissions";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
  * The deal a requisition was raised from, for the buyer working the task.
@@ -379,9 +380,7 @@ function ProcurementEditForm({
       )}
 
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-foreground">
-          Status / Outcome <span className="text-destructive">*</span>
-        </label>
+        <FieldBox label={<>Status / Outcome <span className="text-destructive">*</span></>} />
         <OutcomeDropdown value={outcome} onChange={handleOutcomeChange} />
       </div>
 
@@ -390,9 +389,7 @@ function ProcurementEditForm({
           {/* PO Number Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Odoo PO Number {needsPo && <span className="text-destructive">*</span>}
-              </label>
+              <FieldBox label={<>Odoo PO Number {needsPo && <span className="text-destructive">*</span>}</>} />
               {liveVerification.isChecking ? (
                 <span className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
                   <Loader2 size={11} className="animate-spin" /> Checking PO in Odoo...
@@ -419,9 +416,7 @@ function ProcurementEditForm({
           {/* Odoo Product & Supplier Details Card */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Odoo Product Reference
-              </label>
+              <FieldBox label="Odoo Product Reference" />
               {isOdooVerified && (
                 <Button
                   type="button"
@@ -474,9 +469,7 @@ function ProcurementEditForm({
           {/* ETA Input */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-foreground">
-                Estimated Arrival (ETA)
-              </label>
+              <FieldBox label="Estimated Arrival (ETA)" />
               {isOdooVerified && liveVerification.eta ? (
                 <span className="text-[11px] font-normal text-muted-foreground">
                   Auto-populated: <span className="font-medium text-foreground">{formatDueDate(liveVerification.eta)}</span>
@@ -498,9 +491,7 @@ function ProcurementEditForm({
 
           {/* Remarks */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-foreground">
-              Purchasing Remarks (Optional)
-            </label>
+            <FieldBox label="Purchasing Remarks (Optional)" />
             <Textarea
               aria-label="Purchasing remarks"
               value={note}

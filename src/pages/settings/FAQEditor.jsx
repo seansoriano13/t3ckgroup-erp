@@ -31,6 +31,7 @@ import { canEditFAQ } from "../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
 import { Textarea } from "@/components/ui/textarea";
+import { FieldBox } from "@/components/ui/FieldBox";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -264,8 +265,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
               return (
                 <>
                   {/* Share toggle */}
-                  <label className="flex items-center gap-2 mb-3 cursor-pointer group/toggle">
-                    <div
+                  <FieldBox label={<><div
                       onClick={() => toggleShared(activeTab)}
                       className={`w-8 h-4 rounded-full relative transition-colors shrink-0 ${
                         shared ? "bg-muted-foreground/30" : "bg-primary"
@@ -279,8 +279,7 @@ function FAQItemEditor({ item, onUpdate, onDelete }) {
                     </div>
                     <span className="text-xs font-medium text-muted-foreground group-hover/toggle:text-foreground transition-colors">
                       {shared ? "Using shared answer" : "Custom answer for " + role.label}
-                    </span>
-                  </label>
+                    </span></>} className="gap-2 mb-3 cursor-pointer group/toggle" />
 
                   {shared ? (
                     /* Preview of shared answer */

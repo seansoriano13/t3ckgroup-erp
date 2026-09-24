@@ -9,6 +9,7 @@ import ChecklistTaskRenderer from "./ChecklistTaskRenderer"
 import HighlightText from "./HighlightText"
 import ImageAttachment from "./ImageAttachment"
 import { useProjectTitles } from "../hooks/useProjectTitles"
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function TaskBodySection({
   isEditing,
@@ -35,14 +36,12 @@ export default function TaskBodySection({
       {/* --- PROJECT / CAMPAIGN TITLE --- */}
       {(isEditing || formData.projectTitle) && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            <FolderKanban size={12} /> Project / Campaign Title
+          <FieldBox label={<><FolderKanban size={12} /> Project / Campaign Title
             {isEditing && (
               <span className="font-normal text-muted-foreground normal-case tracking-normal">
                 (optional)
               </span>
-            )}
-          </label>
+            )}</>} className="pl-1" />
           {isEditing ? (
             <div className="relative">
               <Input
@@ -77,14 +76,12 @@ export default function TaskBodySection({
       {((isEditing && taskDept?.toUpperCase() === "ADMIN") ||
         formData.paymentVoucher) && (
         <div className="flex flex-col gap-1.5 pt-2">
-          <label className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            <Receipt size={12} /> Payment Voucher
+          <FieldBox label={<><Receipt size={12} /> Payment Voucher
             {isEditing && (
               <span className="font-normal text-muted-foreground normal-case tracking-normal">
                 (optional)
               </span>
-            )}
-          </label>
+            )}</>} className="pl-1" />
           {isEditing ? (
             <Input
               type="text"
@@ -106,9 +103,7 @@ export default function TaskBodySection({
       {/* --- OTHERS DETAILS --- */}
       {isEditing && isOthersGlobal && (
         <div className="flex flex-col gap-1.5 pt-2 animate-slide-down">
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-            Others Details
-          </label>
+          <FieldBox label="Others Details" className="pl-1" />
           <Textarea
             name="remarks"
             value={formData.remarks || ""}
@@ -125,9 +120,7 @@ export default function TaskBodySection({
           <div className="flex flex-col gap-4">
             {/* Description is always visible in edit mode */}
             <div>
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1 block mb-1">
-                Description
-              </label>
+              <FieldBox label="Description" className="pl-1 block mb-1" />
               <Textarea
                 name="taskDescription"
                 value={formData.taskDescription || ""}
@@ -141,9 +134,7 @@ export default function TaskBodySection({
               {showChecklist ? (
                 <div className="animate-slide-down">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-                      Checklist
-                    </label>
+                    <FieldBox label="Checklist" className="pl-1" />
                     <Button
                       type="button"
                       variant="ghost"
@@ -184,10 +175,8 @@ export default function TaskBodySection({
             {/* Show description if it exists */}
             {formData.taskDescription?.trim() && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
-                  <Dot />
-                  Description
-                </label>
+                <FieldBox label={<><Dot />
+                  Description</>} className="pl-1 gap-2 mb-2" />
                 <div className="bg-muted/30 p-6 rounded-2xl border border-border text-foreground leading-relaxed text-[15px] whitespace-pre-wrap shadow-sm">
                   <HighlightText text={formData.taskDescription} search={searchTerm} />
                 </div>
@@ -197,10 +186,8 @@ export default function TaskBodySection({
             {/* Show checklist if it exists */}
             {hasChecklist && (
               <div>
-                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-[0.2em] pl-1 flex items-center gap-2 mb-2">
-                  <Dot />
-                  Checklist
-                </label>
+                <FieldBox label={<><Dot />
+                  Checklist</>} className="pl-1 gap-2 mb-2" />
                 <ChecklistTaskRenderer
                   description={formData.checklist}
                   isOwner={isOwner}
@@ -236,9 +223,7 @@ export default function TaskBodySection({
 
       {/* --- ATTACHMENTS (all tasks, owner only) --- */}
       <div className="flex flex-col gap-1.5 pt-2 border-t border-border mt-2">
-        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider pl-1">
-          Attachments
-        </label>
+        <FieldBox label="Attachments" className="pl-1" />
         <ImageAttachment
           taskId={task.id}
           userId={user.id}

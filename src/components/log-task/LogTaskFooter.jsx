@@ -2,6 +2,7 @@ import { Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { FieldBox } from "@/components/ui/FieldBox";
 
 export default function LogTaskFooter({
   createMore,
@@ -12,12 +13,12 @@ export default function LogTaskFooter({
   return (
     <div className="px-5 py-4 border-t border-border bg-muted/30 flex items-center justify-between shrink-0">
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 cursor-pointer group">
+        <FieldBox inline className="flex items-center gap-2 cursor-pointer group">
           <Checkbox checked={createMore} onCheckedChange={setCreateMore} />
           <span className="text-[11px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
             Create more
           </span>
-        </label>
+        </FieldBox>
 
         <div className="hidden sm:flex items-center gap-3 text-[10px] text-muted-foreground font-medium">
           <div className="flex items-center gap-1.5">
