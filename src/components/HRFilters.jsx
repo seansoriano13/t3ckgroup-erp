@@ -36,6 +36,7 @@ export default function HRFilters({
   uniqueSubDepts = [],
   uniqueRoles = [],
   uniqueStatuses = [],
+  extraFilters = null,
 }) {
   const [showAdvanced, setShowAdvanced] = useState(
     deptFilter !== "ALL" ||
@@ -308,6 +309,10 @@ export default function HRFilters({
               />
             )}
           </Dropdown>
+
+          {extraFilters && (
+            <div className="flex-1 min-w-[160px]">{extraFilters}</div>
+          )}
         </div>
       )}
     </div>

@@ -207,8 +207,7 @@ export default function EmployeeManagement() {
           />
 
           <Button
-            variant="primary"
-            className="h-[46px] px-6 rounded-xl shadow-lg shadow-primary/20 shrink-0"
+            className="h-[46px] px-6 rounded-xl shrink-0"
             onClick={handleAddNew}
           >
             <UserPlus size={16} />
@@ -219,9 +218,21 @@ export default function EmployeeManagement() {
         {activeTab === "employees" ? (
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {/* Filter Bar + Add Button */}
-            <div className="flex flex-col xl:flex-row gap-3 items-start xl:items-end">
-              <div className="flex-1 w-full">
+            <div>
+              <div className="w-full">
                 <HRFilters
+                  extraFilters={
+                    <SelectField
+                      value={companyFilter}
+                      onChange={setCompanyFilter}
+                      options={[
+                        { value: "ALL", label: "All companies" },
+                        { value: "NONE", label: "No company set" },
+                        ...companies.map((c) => ({ value: c.id, label: c.name })),
+                      ]}
+                      title="Filter by company"
+                    />
+                  }
                   searchTerm={searchTerm}
                   setSearchTerm={setSearchTerm}
                   deptFilter={deptFilter}
@@ -242,16 +253,6 @@ export default function EmployeeManagement() {
                   uniqueStatuses={uniqueStatuses}
                 />
               </div>
-              <SelectField
-                value={companyFilter}
-                onChange={setCompanyFilter}
-                options={[
-                  { value: "ALL", label: "All companies" },
-                  { value: "NONE", label: "No company set" },
-                  ...companies.map((c) => ({ value: c.id, label: c.name })),
-                ]}
-                title="Filter by company"
-              />
             </div>
 
             <div className="bg-card border border-border rounded-2xl shadow-sm overflow-x-auto">
