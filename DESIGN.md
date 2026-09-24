@@ -259,6 +259,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 #### Dialog
 `ui/dialog.jsx` (base-ui). Replaces hand-rolled full-screen modals. Parts: `Dialog`, `DialogTrigger`, `DialogContent` (`showCloseButton`, `className`), `DialogHeader`, `DialogFooter`, `DialogTitle`, `DialogDescription`, `DialogClose`.
 
+#### Drawer
+`ui/drawer.jsx` (base-ui dialog). Side panel: notification drawer, mobile sidebar. Same focus trap, Escape and backdrop click as Dialog. Parts: `Drawer` (`open`, `onOpenChange`), `DrawerTrigger`, `DrawerContent` (`side`: `right` | `left`, `className`), `DrawerTitle`, `DrawerDescription`, `DrawerClose`. No built-in close button; add `DrawerClose`.
+
 #### ConfirmDialog
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
 

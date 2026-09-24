@@ -31,6 +31,7 @@ import Avatar from "./Avatar";
 import { useEmployeeAvatarMap } from "../hooks/useEmployeeAvatarMap";
 import Dot from "./ui/Dot";
 import { Button } from "./ui/button";
+import { Drawer, DrawerContent, DrawerTitle } from "./ui/drawer";
 import { handleNotificationRoute } from "../utils/notificationRouter";
 import { showNotificationPopup } from "../utils/notificationPopup";
 
@@ -245,25 +246,14 @@ export default function NotificationDrawer({ isOpen, onClose }) {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <>
-      {/* Backdrop */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-99"
-          onClick={onClose}
-        />
-      )}
-
-      {/* Drawer */}
-      <div
-        className={`fixed top-0 right-0 h-full w-[500px] max-w-full bg-card border-l border-border shadow-2xl z-[9999] transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? "translate-x-0" : "translate-x-full"}`}
-      >
+    <Drawer open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DrawerContent>
         {/* Header */}
         <div className="p-6 border-b border-border flex justify-between items-center bg-card shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <DrawerTitle className="text-xl font-bold text-foreground flex items-center gap-2 leading-normal">
               <Bell size={20} className="text-foreground" /> Notifications
-            </h2>
+            </DrawerTitle>
             <p className="text-[10px] text-muted-foreground mt-0.5 uppercase tracking-wider font-semibold">
               Your Universal Action Hub
             </p>
@@ -339,8 +329,8 @@ export default function NotificationDrawer({ isOpen, onClose }) {
             ))
           )}
         </div>
-      </div>
-    </>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
