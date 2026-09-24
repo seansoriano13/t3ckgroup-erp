@@ -247,6 +247,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplyOvertime = async (e) => {
     e.preventDefault();
+    if (!employeeId || !otHeadId) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
     if (!otDate || !otStartTime || !otEndTime || !otReason) {
       toast.error('Please fill in all fields.');
       return;
@@ -283,6 +287,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplyOffsetLeave = async (e) => {
     e.preventDefault();
+    if (!employeeId || !offsetHeadId) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
 
     if (offsetApplyMode === 'range') {
       const days = enumerateDateRange(offsetRangeStart, offsetRangeEnd);
@@ -359,6 +367,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplySilLeave = async (e) => {
     e.preventDefault();
+    if (!employeeId || !silHeadId) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
 
     if (silApplyMode === 'range') {
       const days = enumerateDateRange(silRangeStart, silRangeEnd);
@@ -435,6 +447,10 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
 
   const handleApplyUndertime = async (e) => {
     e.preventDefault();
+    if (!employeeId || !utHeadId) {
+      toast.error('Please fill in all fields.');
+      return;
+    }
     if (!utDate || !utOriginalStart || !utOriginalEnd || !utActualStart || !utActualEnd || !utReason) {
       toast.error('Please fill in all fields.');
       return;
