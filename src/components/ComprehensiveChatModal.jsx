@@ -1,3 +1,4 @@
+import { FileInput } from "@/components/ui/FileInput";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { notificationService } from "../services/notificationService";
 import Spinner from "@/components/ui/Spinner";
@@ -1295,17 +1296,11 @@ export default function ComprehensiveChatModal({
                 onSubmit={handleSend}
                 className="p-4 border-t border-border bg-muted/10 min-w-0 w-full max-w-full overflow-hidden flex flex-col"
               >
-                {/* Hidden file input */}
-                <input
+                <FileInput
                   ref={fileInputRef}
-                  type="file"
                   accept={ALLOWED_MIME_TYPES.join(",")}
                   multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    if (e.target.files) addFiles(e.target.files);
-                    e.target.value = "";
-                  }}
+                  onFiles={addFiles}
                 />
 
                 {isEntityDeleted ? (
@@ -1349,7 +1344,7 @@ export default function ComprehensiveChatModal({
                           type="button"
                           variant="ghost"
                           size="icon-xs"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={() => fileInputRef.current?.open()}
                           disabled={
                             sendMessageMutation.isPending ||
                             isUploading ||

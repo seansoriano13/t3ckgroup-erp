@@ -263,7 +263,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/ConfirmDialog.jsx`. Dialog preset for confirm/cancel. Props: `open`, `onOpenChange`, `title`, `description`, `confirmLabel`, `cancelLabel`, `tone`, `onConfirm`, `confirmDisabled`, `children`.
 
 #### Input
-`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have no Primitive yet.
+`ui/input.jsx`. Replaces raw `<input>` (text, number, date). Props: `label`, `error`, `icon`, `type`, `containerClassName`, `labelClassName`, plus native input props. Checkbox and file inputs have their own Primitives.
 
 #### Textarea
 `ui/textarea.jsx`. Replaces raw `<textarea>`. Native textarea props.
@@ -276,6 +276,9 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 
 #### Checkbox
 `ui/checkbox.jsx`. Replaces raw `<input type="checkbox">`; a tick box, not the on/off Switch. Props: base-ui checkbox props (`checked`, `onCheckedChange`, `disabled`). Wrap in a label for a text target, or pass `aria-label`.
+
+#### FileInput
+`ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `variant`/`size`/`className` for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
 
 #### Select (base-ui building blocks)
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Replaces raw `<select>` for now; a simple `options` / `value` / `onChange` Select is planned.
@@ -329,7 +332,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
 
 #### Not built yet
-Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Checkbox, FileInput (`accept`, `onFiles`), Image, ExternalLink (internal links use the router `Link`), simple Select. Until each lands, ask the maintainer.
+Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Image, ExternalLink (internal links use the router `Link`), simple Select. Until each lands, ask the maintainer.
 
 ## Do's and Don'ts
 
