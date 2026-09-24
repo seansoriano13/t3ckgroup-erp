@@ -251,7 +251,6 @@ export default function EmployeeManagement() {
                   ...companies.map((c) => ({ value: c.id, label: c.name })),
                 ]}
                 title="Filter by company"
-                className="h-[46px]"
               />
             </div>
 

@@ -76,7 +76,7 @@ export default function CommissionRatesManager() {
                 value={rateType}
                 onChange={setRateType}
                 options={Object.entries(RATE_TYPE_LABELS).map(([value, label]) => ({ value, label }))}
-                className="h-9"
+                size="sm"
               />
             </div>
             <div className="space-y-1">
