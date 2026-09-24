@@ -1,4 +1,12 @@
 import { useState, useMemo } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { PackageSearch, ExternalLink } from "lucide-react";
@@ -57,17 +65,17 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
   });
 
   return (
-    <tr className="group border-b border-border last:border-0 transition-colors hover:bg-mauve-a2">
-      <td className="px-4 py-3">
+    <TableRow className="group">
+      <TableCell>
         <span className="block text-sm font-bold text-foreground">
           {request.requested_name}
         </span>
         <span className="mt-0.5 block text-xs text-muted-foreground">
           {Number(request.requested_quantity)} {request.requested_unit || "unit"}
         </span>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <Button
           type="button"
           variant="ghost"
@@ -87,9 +95,9 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             className="shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
           />
         </Button>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <div className="flex items-center gap-2">
           <Avatar
             src={request.requester?.avatar_path}
@@ -100,9 +108,9 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             {request.requester?.name || "—"}
           </span>
         </div>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <Select
           value={request.assignee?.id || "unassigned"}
           onValueChange={(val) => {
@@ -144,9 +152,9 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
             ))}
           </SelectContent>
         </Select>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3">
+      <TableCell>
         <span
           className={
             days !== null && days >= 7
@@ -156,12 +164,12 @@ function QueueRow({ request, now, onOpenSor, buyers, currentUserId }) {
         >
           {waitedFor(request, now)}
         </span>
-      </td>
+      </TableCell>
 
-      <td className="px-4 py-3 text-right">
+      <TableCell className="text-right">
         <StatusBadge status={outcomeRaw} label={outcomeLabel} />
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -311,24 +319,22 @@ function PurchasingQueue() {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[52rem] border-collapse">
-              <thead>
-                <tr className="border-b border-border text-left">
+            <Table className="min-w-[52rem]">
+              <TableHeader>
+                <TableRow>
                   {["Product", "SOR", "Requested by", "Assigned to", "Waiting", ""].map(
                     (heading, i) => (
-                      <th
+                      <TableHead
                         key={heading || `col-${i}`}
-                        className={`px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.12em] text-muted-foreground ${
-                          heading === "" ? "text-right" : ""
-                        }`}
+                        className={heading === "" ? "text-right" : undefined}
                       >
                         {heading}
-                      </th>
+                      </TableHead>
                     ),
                   )}
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {filteredRequests.map((request) => (
                   <QueueRow
                     key={request.id}
@@ -339,8 +345,8 @@ function PurchasingQueue() {
                     currentUserId={user?.id}
                   />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </div>
       )}

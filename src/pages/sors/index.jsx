@@ -52,6 +52,14 @@ import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
 import { Building2, Users, Layers, Tag } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
 // Alignment classes are written out in full rather than interpolated —
@@ -86,17 +94,17 @@ function SortableTh({ field, sortField, sortOrder, onSort, align = "left", class
   );
 
   return (
-    <th
+    <TableHead
       scope="col"
       onClick={() => onSort(field)}
       aria-sort={active ? (sortOrder === "asc" ? "ascending" : "descending") : "none"}
-      className={`${cell} font-bold px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
+      className={`${cell} px-2.5 py-2.5 whitespace-nowrap cursor-pointer hover:text-foreground transition-colors ${className}`}
     >
       <span className={`flex items-center ${inner}`}>
         {children}
         {icon}
       </span>
-    </th>
+    </TableHead>
   );
 }
 
@@ -952,15 +960,15 @@ export default function OpportunitiesPage() {
         ) : (
           <div className="mt-4 border border-border rounded-2xl overflow-hidden bg-card">
             <div className="overflow-x-auto">
-              <table className="w-full table-fixed text-sm">
-                <thead>
+              <Table className="table-fixed">
+                <TableHeader>
                   {/* Sortable headers. The interaction styling is
                       TaskTableView's — cursor-pointer hover:text-foreground
                       transition-colors — but the padding stays at this
                       table's own px-2.5/py-2.5: ten columns already overflow
                       the fixed layout, and px-4 gutters would push Status out
                       of view. */}
-                  <tr className="border-b border-border bg-muted/30 text-[10px] uppercase tracking-widest text-muted-foreground select-none">
+                  <TableRow>
                     <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[46px]">No.</SortableTh>
                     <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
@@ -971,9 +979,9 @@ export default function OpportunitiesPage() {
                     <SortableTh field="project_type" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} align="center" className="px-2 w-[44px]">Div.</SortableTh>
                     <SortableTh field="deal_owner" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[14%]">Deal Owner</SortableTh>
                     <SortableTh field="status" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[96px]">Status</SortableTh>
-                  </tr>
-                </thead>
-                <tbody>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {sorted.map((o) => {
                     const deadline = deadlineStatuses[o.id];
                     const leadSourceText = formatLeadSource(
@@ -992,15 +1000,15 @@ export default function OpportunitiesPage() {
                       : "—";
 
                     return (
-                      <tr
+                      <TableRow
                         key={o.id}
                         onClick={() => setSelectedId(o.id)}
-                        className="border-b border-border/50 last:border-0 hover:bg-muted/40 cursor-pointer transition-colors"
+                        className="cursor-pointer"
                       >
-                        <td className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                        <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
                           <HighlightText text={o.serial_no} search={search} />
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"
                           title={o.sales_reference || ""}
                         >
@@ -1009,35 +1017,35 @@ export default function OpportunitiesPage() {
                           ) : (
                             <span className="text-muted-foreground/50">—</span>
                           )}
-                        </td>
-                        <td className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
+                        </TableCell>
+                        <TableCell className="px-2.5 py-2.5 text-muted-foreground whitespace-nowrap text-xs">
                           {dateFormatted}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
                           title={leadSourceText}
                         >
                           <HighlightText text={leadSourceText} search={search} />
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-2.5 py-2.5 font-semibold text-xs truncate whitespace-nowrap"
                           title={o.client_name}
                         >
                           <HighlightText text={o.client_name} search={search} />
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-2.5 py-2.5 text-xs truncate whitespace-nowrap"
                           title={o.project_title}
                         >
                           <HighlightText text={o.project_title} search={search} />
-                        </td>
-                        <td className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="px-2.5 py-2.5 text-right font-bold text-xs whitespace-nowrap">
                           {formatPHP(o.expected_value)}
-                        </td>
-                        <td className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="px-2 py-2.5 text-center text-xs font-bold text-muted-foreground whitespace-nowrap">
                           {PROJECT_TYPE_SHORT[o.project_type] || o.project_type}
-                        </td>
-                        <td
+                        </TableCell>
+                        <TableCell
                           className="px-2.5 py-2.5 whitespace-nowrap"
                           title={o.deal_owner?.name || ""}
                         >
@@ -1055,8 +1063,8 @@ export default function OpportunitiesPage() {
                           ) : (
                             <span className="text-muted-foreground/60">—</span>
                           )}
-                        </td>
-                        <td className="px-2.5 py-2.5 whitespace-nowrap">
+                        </TableCell>
+                        <TableCell className="px-2.5 py-2.5 whitespace-nowrap">
                           <div className="flex items-center gap-1.5">
                             {(() => {
                               const display = stageDisplay(o);
@@ -1094,12 +1102,12 @@ export default function OpportunitiesPage() {
                               </span>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}

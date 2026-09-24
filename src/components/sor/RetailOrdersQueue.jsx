@@ -1,4 +1,12 @@
 import { useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import {
@@ -173,29 +181,29 @@ function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
 
   return (
     <>
-      <tr className={`border-b border-border transition-colors ${isDismissed ? "opacity-50" : "hover:bg-muted/20"}`}>
+      <TableRow className={isDismissed ? "opacity-50" : undefined}>
         {/* SO Number */}
-        <td className="px-3 py-3 whitespace-nowrap">
+        <TableCell className="whitespace-nowrap">
           <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/50 border border-border text-xs font-mono font-bold text-foreground">
             <Package size={10} className="text-muted-foreground" />
             {item.odoo_so_number}
           </span>
-        </td>
+        </TableCell>
         {/* Company / Contact */}
-        <td className="px-3 py-3">
+        <TableCell>
           <p className="text-sm font-semibold text-foreground">{item.client_name || item.odoo_partner_name}</p>
           {item.contact_person && (
             <p className="text-xs text-muted-foreground mt-0.5">{item.contact_person}</p>
           )}
-        </td>
+        </TableCell>
         {/* Value */}
-        <td className="px-3 py-3 text-right whitespace-nowrap">
+        <TableCell className="text-right whitespace-nowrap">
           <span className="text-sm font-bold text-foreground">
             {formatPHP(item.expected_value ?? item.odoo_amount ?? 0)}
           </span>
-        </td>
+        </TableCell>
         {/* Salesperson */}
-        <td className="px-3 py-3">
+        <TableCell>
           {item.deal_owner ? (
             <div className="flex items-center gap-2">
               <Avatar name={item.deal_owner.name} size="xs" />
@@ -206,9 +214,9 @@ function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
           ) : (
             <span className="text-xs text-muted-foreground/50">—</span>
           )}
-        </td>
+        </TableCell>
         {/* Date */}
-        <td className="px-3 py-3 whitespace-nowrap">
+        <TableCell className="whitespace-nowrap">
           <span className="text-xs text-muted-foreground">
             {item.odoo_date_order
               ? new Date(item.odoo_date_order).toLocaleDateString("en-PH", {
@@ -216,9 +224,9 @@ function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
                 })
               : "—"}
           </span>
-        </td>
+        </TableCell>
         {/* Status / Actions */}
-        <td className="px-3 py-3 whitespace-nowrap">
+        <TableCell className="whitespace-nowrap">
           {isDismissed ? (
             <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-muted/50 border border-border text-xs font-bold text-muted-foreground">
               <XCircle size={10} />
@@ -250,8 +258,8 @@ function QueueRow({ item, onApprove, onDismiss, isApproving, isDismissing }) {
               </Button>
             </div>
           )}
-        </td>
-      </tr>
+        </TableCell>
+      </TableRow>
 
       {approveOpen && (
         <ApproveModal
@@ -358,18 +366,18 @@ export default function RetailOrdersQueue() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">SO #</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Client / Buyer</th>
-                  <th className="text-right px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Amount</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Assigned To</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider whitespace-nowrap">Order Date</th>
-                  <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="whitespace-nowrap">SO #</TableHead>
+                  <TableHead>Client / Buyer</TableHead>
+                  <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
+                  <TableHead className="whitespace-nowrap">Assigned To</TableHead>
+                  <TableHead className="whitespace-nowrap">Order Date</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {pending.map((item) => (
                   <QueueRow
                     key={item.id}
@@ -380,8 +388,8 @@ export default function RetailOrdersQueue() {
                     isDismissing={dismissMutation.isPending && dismissMutation.variables === item.id}
                   />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
@@ -413,18 +421,18 @@ export default function RetailOrdersQueue() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">SO #</th>
-                      <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Client / Buyer</th>
-                      <th className="text-right px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Amount</th>
-                      <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Assigned To</th>
-                      <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Order Date</th>
-                      <th className="text-left px-3 py-2.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>SO #</TableHead>
+                      <TableHead>Client / Buyer</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Assigned To</TableHead>
+                      <TableHead>Order Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {dismissed.map((item) => (
                       <QueueRow
                         key={item.id}
@@ -433,8 +441,8 @@ export default function RetailOrdersQueue() {
                         onDismiss={() => {}}
                       />
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </div>

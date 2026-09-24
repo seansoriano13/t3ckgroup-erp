@@ -188,7 +188,7 @@ export default function TaskTableView({
       <div className="rounded-2xl border border-border bg-card overflow-hidden shadow-sm">
           <Table className="min-w-[900px]">
             <TableHeader>
-              <TableRow className="border-b border-border bg-muted/50 hover:bg-muted/50">
+              <TableRow>
                 <TableHead
                   onClick={() => handleSort("title")}
                   className="cursor-pointer hover:text-foreground transition-colors"

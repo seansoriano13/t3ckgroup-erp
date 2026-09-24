@@ -54,26 +54,6 @@
       "count": 1
     }
   },
-  "src/components/sor/CommissionDashboardView.jsx": {
-    "local/no-raw-html": {
-      "count": 3
-    }
-  },
-  "src/components/sor/DeletedOpportunitiesView.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/components/sor/RetailOrdersQueue.jsx": {
-    "local/no-raw-html": {
-      "count": 2
-    }
-  },
-  "src/components/sor/RetailTab.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
   "src/pages/approvals/tasks/index.jsx": {
     "local/no-raw-html": {
       "count": 1
@@ -107,16 +87,6 @@
   "src/pages/profile/index.jsx": {
     "local/no-raw-html": {
       "count": 4
-    }
-  },
-  "src/pages/purchasing/index.jsx": {
-    "local/no-raw-html": {
-      "count": 1
-    }
-  },
-  "src/pages/sors/index.jsx": {
-    "local/no-raw-html": {
-      "count": 1
     }
   }
 }

@@ -1,4 +1,12 @@
 import { useMemo, useState } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, ShoppingBag, Package } from "lucide-react";
 import Spinner from "../ui/Spinner";
@@ -125,35 +133,35 @@ export default function RetailTab() {
 
                   {isOpen && (
                     <div className="bg-muted/10 px-4 pb-3">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="text-muted-foreground uppercase tracking-wider">
-                            <th className="text-left font-bold py-1.5">Reference</th>
-                            <th className="text-left font-bold py-1.5">Item</th>
-                            <th className="text-left font-bold py-1.5">Date</th>
-                            <th className="text-right font-bold py-1.5">Amount</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="py-1.5">Reference</TableHead>
+                            <TableHead className="py-1.5">Item</TableHead>
+                            <TableHead className="py-1.5">Date</TableHead>
+                            <TableHead className="text-right py-1.5">Amount</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {group.orders.map((order) => (
-                            <tr key={order.id} className="border-t border-border/50">
-                              <td className="py-1.5 font-mono font-bold text-foreground flex items-center gap-1.5">
+                            <TableRow key={order.id} className="border-t border-border/50">
+                              <TableCell className="py-1.5 font-mono font-bold text-foreground flex items-center gap-1.5">
                                 <Package size={11} className="text-muted-foreground shrink-0" />
                                 {order.sales_reference || "—"}
-                              </td>
-                              <td className="py-1.5 text-foreground">{order.project_title}</td>
-                              <td className="py-1.5 text-muted-foreground">
+                              </TableCell>
+                              <TableCell className="py-1.5 text-foreground">{order.project_title}</TableCell>
+                              <TableCell className="py-1.5 text-muted-foreground">
                                 {order.registration_date
                                   ? new Date(order.registration_date).toLocaleDateString("en-PH")
                                   : "—"}
-                              </td>
-                              <td className="py-1.5 text-right font-semibold text-foreground">
+                              </TableCell>
+                              <TableCell className="py-1.5 text-right font-semibold text-foreground">
                                 {formatPHP(order.expected_value)}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   )}
                 </div>
