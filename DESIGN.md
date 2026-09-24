@@ -281,7 +281,10 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/FileInput.jsx`. Replaces raw `<input type="file">`; owns the hidden input and its trigger. Props: `accept`, `multiple`, `disabled`, `onFiles(files[])`, `variant`/`size`/`className` for the trigger Button. With `children` it renders a Button trigger; without, only the hidden input, opened via `ref.current.open()` from a trigger elsewhere.
 
 #### Select (base-ui building blocks)
-`ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Replaces raw `<select>` for now; a simple `options` / `value` / `onChange` Select is planned.
+`ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Building blocks for `SelectField`; use those directly only for custom triggers/items.
+
+#### SelectField
+`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef`), otherwise the outer popover closes on mousedown before the pick registers.
 
 #### FieldBox
 `FieldBox.jsx` (root, not in `ui/` yet). Form-field wrapper, label plus control box. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `children`.
@@ -332,7 +335,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
 
 #### Not built yet
-Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Image, ExternalLink (internal links use the router `Link`), simple Select. Until each lands, ask the maintainer.
+Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Image, ExternalLink (internal links use the router `Link`). Until each lands, ask the maintainer.
 
 ## Do's and Don'ts
 
