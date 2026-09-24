@@ -24,6 +24,7 @@ import {
 } from "../constants/projectEvaluation";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 /**
  * Canvass (issue #46, Inclusion side #47) — the three-or-more supplier
  * comparison, recorded as structured Offers instead of an ad-hoc sheet nobody
@@ -87,12 +88,12 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         />
       </div>
 
-      <textarea
+      <Textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Description"
-        className="w-full resize-none rounded-md border border-border bg-card px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-mauve-8"
+        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px]"
       />
 
       <div className="grid grid-cols-3 gap-2">
@@ -119,12 +120,12 @@ function OfferForm({ initial, onSubmit, onCancel, isPending }) {
         />
       </div>
 
-      <textarea
+      <Textarea
         value={remarks}
         onChange={(e) => setRemarks(e.target.value)}
         rows={1}
         placeholder="Remarks (optional)"
-        className="w-full resize-none rounded-md border border-border bg-card px-2.5 py-1.5 text-[12.5px] text-foreground outline-none focus:border-mauve-8"
+        className="min-h-0 resize-none rounded-md px-2.5 py-1.5 text-[12.5px]"
       />
 
       {existingBrochure.length > 0 && (

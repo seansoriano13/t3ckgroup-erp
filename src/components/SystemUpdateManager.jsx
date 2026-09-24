@@ -29,6 +29,7 @@ import { confirmDeleteToast } from "./ui/CustomToast.jsx";
 import TabGroup from "./ui/TabGroup";
 import { Button } from "./ui/button";
 
+import { Textarea } from "@/components/ui/textarea";
 const MAX_CONTENT_LENGTH = 2000;
 const HISTORY_PAGE_SIZE_OPTIONS = [10, 20, 30];
 
@@ -508,8 +509,8 @@ export default function SystemUpdateManager() {
                         {/* Inline edit form */}
                         {inlineEditId === update.id ? (
                           <div className="mt-2 flex flex-col gap-2 animate-slide-down">
-                            <textarea
-                              className="w-full bg-background border border-border rounded-lg p-2.5 text-xs text-foreground focus:border-mauve-7 focus:outline-none focus:ring-1 ring-mauve-7 min-h-[72px] resize-none transition-all"
+                            <Textarea
+                              className="min-h-[72px] resize-none rounded-lg p-2.5 text-xs"
                               value={inlineEditContent}
                               onChange={(e) =>
                                 setInlineEditContent(e.target.value)

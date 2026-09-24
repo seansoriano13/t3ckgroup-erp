@@ -10,6 +10,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 
+import { Textarea } from "@/components/ui/textarea";
 /**
  * Issue #206 — the confirmation a Board drag opens before it commits.
  *
@@ -98,13 +99,13 @@ export default function MoveConfirmDialog({
                 Reason
                 <span className="ml-0.5 text-red-500">*</span>
               </label>
-              <textarea
+              <Textarea
                 autoFocus
                 rows={2}
                 value={lostReason}
                 onChange={(e) => setLostReason(e.target.value)}
                 placeholder="Why was this deal lost?"
-                className="w-full resize-none bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+                className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none text-sm font-medium"
               />
             </div>
           )}

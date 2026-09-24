@@ -20,6 +20,7 @@ import { DEFAULT_DAY_SHIFT_CONFIG, getShiftForDate } from '../../services/dayShi
 import HeadSelectField from './HeadSelectField';
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 const DEFAULT_DAY_HOURS = 8;
 
 /**
@@ -590,12 +591,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
                 </label>
-                <textarea
+                <Textarea
                   value={otReason}
                   onChange={(e) => setOtReason(e.target.value)}
                   placeholder="Reason for the overtime request"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
                   required
                 />
               </div>
@@ -723,12 +724,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
                 </label>
-                <textarea
+                <Textarea
                   value={offsetReason}
                   onChange={(e) => setOffsetReason(e.target.value)}
                   placeholder="Reason for the offset leave"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
                   required
                 />
               </div>
@@ -856,12 +857,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Reason
                 </label>
-                <textarea
+                <Textarea
                   value={silReason}
                   onChange={(e) => setSilReason(e.target.value)}
                   placeholder="Reason for taking leave"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
                   required
                 />
               </div>
@@ -969,12 +970,12 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
                 <label className="block text-[11px] font-bold text-muted-foreground mb-1.5 uppercase tracking-wider">
                   Purpose
                 </label>
-                <textarea
+                <Textarea
                   value={utReason}
                   onChange={(e) => setUtReason(e.target.value)}
                   placeholder="Purpose of the undertime"
                   rows={3}
-                  className="w-full px-3.5 py-2.5 bg-muted border border-border rounded-xl text-sm font-semibold text-foreground focus:outline-none focus:border-foreground/30 resize-none"
+                  className="min-h-0 resize-none px-3.5 py-2.5 text-sm font-semibold"
                   required
                 />
               </div>

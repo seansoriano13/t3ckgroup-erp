@@ -30,6 +30,7 @@ import { useAuth } from "../../context/AuthContext";
 import { canEditFAQ } from "../../utils/faqAccess";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 // ─── Tiny auto-resize textarea ────────────────────────────────────────────────
 function AutoTextarea({ value, onChange, placeholder, className }) {
   const ref = useRef(null);
@@ -40,13 +41,13 @@ function AutoTextarea({ value, onChange, placeholder, className }) {
     }
   }, [value]);
   return (
-    <textarea
+    <Textarea
       ref={ref}
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       rows={1}
-      className={`resize-none overflow-hidden ${className}`}
+      className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none overflow-hidden ${className}`}
     />
   );
 }

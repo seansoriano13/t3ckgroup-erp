@@ -44,6 +44,7 @@ import {
 } from "../utils/templateApply";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 const makeMember = () => ({
   id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
   employeeId: null,
@@ -448,12 +449,12 @@ export default function CreateGroupTaskModal({
                       className={cn("text-[13px] placeholder:text-mauve-6", isExpanded ? "h-20" : "h-14")}
                     />
                   ) : (
-                    <textarea
+                    <Textarea
                       ref={descriptionRef}
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       placeholder="Provide an overview of the group task objective…"
-                      className={`w-full bg-transparent border-none outline-none transition-all resize-y text-[13px] text-foreground placeholder:text-mauve-6 ${
+                      className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-y text-[13px] ${
                         isExpanded ? "h-20" : "h-14"
                       }`}
                     />

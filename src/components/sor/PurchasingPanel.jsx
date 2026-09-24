@@ -45,6 +45,7 @@ import { canEditSor } from "../../utils/sorPermissions";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 let draftSeq = 0;
 const blankDraft = (seed = {}) => ({
   key: `draft-${(draftSeq += 1)}`,
@@ -134,12 +135,12 @@ function RequestEditRow({ request, onSave, onCancel, isPending }) {
         </Dropdown>
       </div>
 
-      <textarea
+      <Textarea
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={2}
         placeholder="Specs, brand, client notes..."
-        className="w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
+        className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-none text-[12.5px] leading-relaxed"
       />
 
       {existingImages.length > 0 && (
@@ -484,13 +485,13 @@ function DraftRow({ draft, index, canRemove, onChange, onRemove, attachments, na
         </Dropdown>
       </div>
 
-      <textarea
+      <Textarea
         aria-label={`Description ${index + 1}`}
         value={draft.description}
         onChange={(e) => onChange({ ...draft, description: e.target.value })}
         rows={2}
         placeholder="Specs, brand, the wording the client used — paste a screenshot straight in"
-        className="mt-2 w-full resize-none bg-transparent text-[12.5px] leading-relaxed text-foreground outline-none placeholder:text-muted-foreground/50"
+        className="min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent mt-2 resize-none text-[12.5px] leading-relaxed"
       />
 
       {attachments.files.length > 0 && (

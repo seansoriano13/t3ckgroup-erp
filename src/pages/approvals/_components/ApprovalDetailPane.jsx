@@ -33,6 +33,7 @@ import {
 } from "../../../utils/approvalQueue.js";
 import toast from "react-hot-toast";
 
+import { Textarea } from "@/components/ui/textarea";
 const QUICK_REMARKS_HEAD = [
   "Completed as specified.",
   "Great quality work!",
@@ -455,7 +456,7 @@ export function ApprovalDetailPane({
                 <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
                   Evaluation Remarks / Feedback
                 </label>
-                <textarea
+                <Textarea
                   ref={textareaRef}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
@@ -466,7 +467,7 @@ export function ApprovalDetailPane({
                   }
                   disabled={isReadOnly}
                   rows={3}
-                  className="w-full bg-muted/20 border border-border rounded-xl p-3 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-foreground/25 focus:border-foreground/30 transition-all resize-none"
+                  className="resize-none p-3 text-xs sm:text-sm"
                 />
 
                 {/* Quick Feedback Presets */}
@@ -560,7 +561,7 @@ export function ApprovalDetailPane({
                 <label className="text-[11px] font-bold text-foreground uppercase tracking-wider block">
                   HR Verification / Audit Notes
                 </label>
-                <textarea
+                <Textarea
                   ref={textareaRef}
                   value={hrRemarks}
                   onChange={(e) => setHrRemarks(e.target.value)}
@@ -571,7 +572,7 @@ export function ApprovalDetailPane({
                   }
                   disabled={isReadOnly}
                   rows={3}
-                  className="w-full bg-muted/20 border border-border rounded-xl p-3 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-foreground/25 focus:border-foreground/30 transition-all resize-none"
+                  className="resize-none p-3 text-xs sm:text-sm"
                 />
 
                 {/* Quick HR Presets */}

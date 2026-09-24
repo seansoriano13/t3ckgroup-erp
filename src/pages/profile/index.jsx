@@ -29,6 +29,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 const UNSPLASH_BANNER_POOL = [
   "https://images.unsplash.com/photo-1469474968028-56623f02e42e?auto=format&fit=crop&w=1600&q=80",
   "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=1600&q=80",
@@ -727,14 +728,14 @@ export default function ProfilePage() {
                 </Button>
               </div>
             </div>
-            <textarea
+            <Textarea
               value={customQuote}
               maxLength={100}
               onChange={(e) => {
                 setCustomQuote(e.target.value);
                 setRemoveQuote(false);
               }}
-              className="w-full min-h-[70px] rounded-xl border border-border bg-muted/20 p-4 text-sm outline-none focus:ring-2 focus:ring-mauve-8/40 transition-all resize-none"
+              className="min-h-[70px] resize-none p-4 text-sm"
               placeholder="Write your 7-word motivational quote (all users)..."
             />
           </div>

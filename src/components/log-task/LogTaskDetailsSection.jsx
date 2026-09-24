@@ -13,6 +13,7 @@ import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 export default function LogTaskDetailsSection({
   formData,
   handleChange,
@@ -166,13 +167,13 @@ export default function LogTaskDetailsSection({
             className={`text-sm placeholder:text-mauve-6 ${isExpanded ? "h-48" : "h-24"}`}
           />
         ) : (
-          <textarea
+          <Textarea
             ref={descriptionRef}
             name="taskDescription"
             value={formData.taskDescription || ""}
             onChange={handleChange}
             placeholder="Add description…"
-            className={`w-full bg-transparent border-none outline-none transition-all resize-y text-sm text-foreground placeholder:text-mauve-6 ${
+            className={`min-h-0 rounded-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0 dark:bg-transparent resize-y text-sm ${
               isExpanded ? "h-48" : "h-24"
             }`}
           />

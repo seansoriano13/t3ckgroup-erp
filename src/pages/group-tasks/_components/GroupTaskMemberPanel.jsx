@@ -7,6 +7,7 @@ import ChecklistTaskInput from "@/components/ChecklistTaskInput";
 import { resolveAssignment } from "@/utils/checklist";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 /**
  * GroupTaskMemberPanel — the detail half of the master/detail layout.
  *
@@ -147,12 +148,12 @@ export default function GroupTaskMemberPanel({
         <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
           Specific Task
         </label>
-        <textarea
+        <Textarea
           value={description}
           onChange={(e) => onChange("taskDescription", e.target.value)}
           disabled={!canEditDescription}
           placeholder="What exactly are they responsible for?"
-          className="w-full bg-card border border-border rounded-lg px-3 py-2.5 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-28 resize-y disabled:opacity-70 disabled:cursor-not-allowed"
+          className="h-28 min-h-0 resize-y rounded-lg px-3 py-2.5 text-[13px]"
         />
       </div>
 

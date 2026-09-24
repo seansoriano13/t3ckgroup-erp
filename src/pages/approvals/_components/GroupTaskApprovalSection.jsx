@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+import { Textarea } from "@/components/ui/textarea";
 export default function GroupTaskApprovalSection() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -85,11 +86,11 @@ export default function GroupTaskApprovalSection() {
                   {task.description && <p className="text-sm text-muted-foreground mt-2">{task.description}</p>}
                </div>
                <div className="shrink-0 flex flex-col gap-2 min-w-[250px]">
-                  <textarea 
+                  <Textarea 
                     placeholder="HR Remarks (required for rejection)"
                     value={actionRemarks[task.id] || ""}
                     onChange={(e) => setActionRemarks(prev => ({ ...prev, [task.id]: e.target.value }))}
-                    className="w-full text-xs p-2 bg-muted/50 border border-border rounded-lg outline-none focus:border-primary resize-none h-16"
+                    className="h-16 min-h-0 resize-none rounded-lg p-2 text-xs"
                   />
                   <div className="flex gap-2">
                     <Button

@@ -7,6 +7,7 @@ import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { parseChecklist } from "@/utils/checklist";
 import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 
+import { Textarea } from "@/components/ui/textarea";
 export default function RateEmployeesModal({
   isOpen,
   onClose,
@@ -218,7 +219,7 @@ export default function RateEmployeesModal({
                       <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
                         Remarks (Optional)
                       </label>
-                      <textarea
+                      <Textarea
                         value={rating.gradeRemarks}
                         onChange={(e) =>
                           handleRatingChange(
@@ -228,7 +229,7 @@ export default function RateEmployeesModal({
                           )
                         }
                         placeholder="Add feedback for this member..."
-                        className="w-full bg-card border border-border rounded-xl px-4 py-3 text-[13px] text-foreground outline-none focus:border-primary/50 transition-colors h-20 resize-none shadow-sm"
+                        className="h-20 min-h-0 resize-none text-[13px]"
                       />
                     </div>
                   </div>
