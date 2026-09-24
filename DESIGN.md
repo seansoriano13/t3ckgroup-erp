@@ -284,7 +284,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/select.jsx`. Parts: `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator`. Building blocks for `SelectField`; use those directly only for custom triggers/items.
 
 #### SelectField
-`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef`), otherwise the outer popover closes on mousedown before the pick registers.
+`ui/SelectField.jsx`. Replaces raw `<select>`. Props: `options` (`{value,label,disabled?}`), `value`, `onChange(value)`, `placeholder`, `disabled`, `size`, `className`, `contentClassName`. Works inside Dropdown popovers: its list registers with the Dropdown nesting context (`useDropdownNestedPopoverRef` (dropdownNesting.js)), otherwise the outer popover closes on mousedown before the pick registers.
 
 #### FieldBox
 `FieldBox.jsx` (root, not in `ui/` yet). Form-field wrapper, label plus control box. Replaces raw `<label>`. Props: `label`, `isEditing`, `noBorder`, `children`.

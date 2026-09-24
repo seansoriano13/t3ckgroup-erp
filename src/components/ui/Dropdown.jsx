@@ -8,6 +8,7 @@ import React, {
   forwardRef,
 } from "react";
 import { createPortal } from "react-dom";
+import { DropdownNestingContext } from "./dropdownNesting";
 
 /**
  * Nested Dropdowns both portal to document.body, so an inner popover is a
@@ -22,25 +23,6 @@ import { createPortal } from "react-dom";
  * popover node upward. An ancestor then counts a click inside any registered
  * descendant popover as a click inside itself.
  */
-const DropdownNestingContext = React.createContext(null);
-
-/**
- * Ref callback for any popover portalled out of a Dropdown's children (a
- * Select's list, say). Registers the node with the enclosing Dropdowns so a
- * click inside it does not count as an outside click. No-op outside a Dropdown.
- */
-export function useDropdownNestedPopoverRef() {
-  const nesting = useContext(DropdownNestingContext);
-  const last = useRef(null);
-  return useCallback(
-    (node) => {
-      if (last.current) nesting?.unregister(last.current);
-      last.current = node;
-      if (node) nesting?.register(node);
-    },
-    [nesting],
-  );
-}
 
 const Dropdown = forwardRef(
   (
