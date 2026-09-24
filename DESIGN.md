@@ -338,7 +338,7 @@ Each heading below is a stable anchor for lint messages. Paths are under `src/co
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `lastWordColor`), `ui/SectionHeader.jsx` (`icon`, `title`, `description`, `rangeLabel`), `ui/FilterBar.jsx` (`advancedFilters`, `hasActiveFilters`, `onClearAll`, `actions`).
 
 #### Not built yet
-Planned, not available: Table set (`Table`, `TableHeader`, `TableRow`, `TableHead`, `TableCell`, styling only), Image, ExternalLink (internal links use the router `Link`). Until each lands, ask the maintainer.
+Planned, not available: Image, ExternalLink (internal links use the router `Link`). Until each lands, ask the maintainer.
 
 ## Do's and Don'ts
 
