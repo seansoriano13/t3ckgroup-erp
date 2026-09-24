@@ -25,6 +25,7 @@ import {
 import { formatPHP } from "../../constants/sor";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -43,8 +44,8 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
   const set = (key) => (e) => setFields((f) => ({ ...f, [key]: e.target.value }));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent showCloseButton={false} className="max-w-lg sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
         {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-border">
           <div className="flex items-start justify-between gap-3">
@@ -153,8 +154,8 @@ function ApproveModal({ item, onConfirm, onClose, isPending }) {
             Approve & Add to SOR
           </Button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

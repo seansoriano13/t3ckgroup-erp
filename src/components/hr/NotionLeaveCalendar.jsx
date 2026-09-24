@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users, X } from 'lucide-react';
 import Avatar from '@/components/Avatar';
 import { Button } from '../ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { compareByStartTime, formatWindow, formatWindowCompact } from '../../utils/time';
 
 export default function NotionLeaveCalendar({
@@ -228,8 +229,8 @@ export default function NotionLeaveCalendar({
 
       {/* Stacked Group Day View Modal */}
       {selectedDayLeaves && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl p-6 max-w-md w-full shadow-2xl animate-in fade-in zoom-in duration-150 space-y-4">
+        <Dialog open onOpenChange={(open) => !open && setSelectedDayLeaves(null)}>
+          <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md p-6 gap-4">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center space-x-2">
                 <CalendarIcon size={18} className="text-primary" />
@@ -281,14 +282,14 @@ export default function NotionLeaveCalendar({
                 );
               })}
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* Individual Leave Detail Modal */}
       {selectedLeave && (
-        <div className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-card border border-border rounded-2xl w-full max-w-sm shadow-2xl animate-in fade-in zoom-in duration-150 overflow-hidden">
+        <Dialog open onOpenChange={(open) => !open && setSelectedLeave(null)}>
+          <DialogContent showCloseButton={false} className="max-w-sm sm:max-w-sm overflow-hidden p-0 gap-0">
             <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/30">
               <h3 className="font-black text-sm uppercase text-foreground">Leave Details</h3>
               <Button
@@ -359,8 +360,8 @@ export default function NotionLeaveCalendar({
                   </Button>
                 )}
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

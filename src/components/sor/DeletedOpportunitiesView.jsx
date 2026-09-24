@@ -8,6 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 import { formatPHP } from "../../constants/sor";
 import { confirmActionToast } from "../ui/CustomToast";
 import { Button } from "../ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { FieldBox } from "@/components/ui/FieldBox";
 
@@ -170,8 +171,15 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
       </div>
 
       {purgeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-xl">
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (open) return;
+            setPurgeTarget(null);
+            setConfirmText("");
+          }}
+        >
+          <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md p-5 gap-0">
             <p className="mb-1 flex items-center gap-1.5 text-sm font-bold text-red-600 dark:text-red-400">
               <AlertTriangle size={15} /> Permanently delete this SOR?
             </p>
@@ -211,8 +219,8 @@ export default function DeletedOpportunitiesView({ currentUserId, isSuperAdmin }
                 Delete forever
               </Button>
             </div>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

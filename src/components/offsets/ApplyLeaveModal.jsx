@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuth } from '../../context/AuthContext';
 import { offsetService } from '../../services/offsetService';
 import { silService } from '../../services/silService';
@@ -496,9 +496,9 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
     }
   };
 
-  return createPortal(
-    <div className="fixed inset-0 z-[100005] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-card border border-border w-full max-w-md rounded-2xl shadow-xl flex flex-col relative overflow-hidden animate-in zoom-in-95 duration-200">
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent showCloseButton={false} className="max-w-md sm:max-w-md flex flex-col overflow-hidden p-0 gap-0">
 
         {/* Header */}
         <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-muted/30">
@@ -969,8 +969,7 @@ export default function ApplyLeaveModal({ isOpen, onClose, onSuccess, showEmploy
             </form>
           )}
         </div>
-      </div>
-    </div>,
-    document.body
+      </DialogContent>
+    </Dialog>
   );
 }

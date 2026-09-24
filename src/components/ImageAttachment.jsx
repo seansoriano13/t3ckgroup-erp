@@ -1,9 +1,9 @@
 import { FileInput } from "@/components/ui/FileInput";
 import { useState, useRef, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
 import { X, ImagePlus, Maximize2, ClipboardPaste } from "lucide-react";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { storageService } from "../services/storageService";
 import toast from "react-hot-toast";
 
@@ -206,12 +206,11 @@ export default function ImageAttachment({
       )}
 
       {/* Fullscreen Lightbox */}
-      {fullscreenImage &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div 
-            className="fixed inset-0 z-[9999999] bg-black/90 flex items-center justify-center p-4 backdrop-blur-sm"
-            onClick={() => setFullscreenImage(null)}
+      {fullscreenImage && (
+        <Dialog open onOpenChange={(open) => !open && setFullscreenImage(null)}>
+          <DialogContent
+            showCloseButton={false}
+            className="max-w-[95vw] sm:max-w-[95vw] items-center justify-items-center bg-transparent p-0 ring-0"
           >
             <Button
               variant="ghost"
@@ -227,9 +226,9 @@ export default function ImageAttachment({
               className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl" 
               onClick={(e) => e.stopPropagation()} 
             />
-          </div>,
-          document.body
-        )}
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
