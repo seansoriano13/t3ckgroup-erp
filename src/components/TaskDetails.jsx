@@ -181,12 +181,13 @@ export default function TaskDetails({
   // Reset states when closed
   useEffect(() => {
     if (!isOpen) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setIsEditing(false)
         setIsSubmitting(false)
         setIsExpanded(false)
         setIsSplitScreen(typeof window !== "undefined" && window.innerWidth >= 1024)
       }, 300)
+      return () => clearTimeout(timer)
     }
   }, [isOpen])
 
