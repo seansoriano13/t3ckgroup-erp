@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-09-25",
+        "title": "One-Row SORS Header & Floating Register Button",
+        "version": "1.7.27",
+        "changes": [
+            "The SORS header is now a single row: search and results on the left, view tabs and Filters on the right, so switching views no longer moves them.",
+            "Search and the SOR count, Open and Won figures appear on List and Board only. Figures are shortened (e.g. ₱353.7M); hover for the exact amount.",
+            "The Filters button shows how many filters are on. On Overview and Deleted it stays in place, greyed out.",
+            "Register is now a floating button at the bottom-right, clear of the environment banner.",
+            "On phones, the view tabs and Filters show icons only."
+        ]
+    },
+    {
         "date": "2026-09-24",
         "title": "One Consistent Look for Fields, Tables and Pop-ups",
         "version": "1.7.26",
