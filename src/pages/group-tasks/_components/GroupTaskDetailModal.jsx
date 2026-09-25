@@ -8,7 +8,6 @@ import {
   CheckCircle2,
   Star,
   Calendar,
-  Users,
   FileText,
   Maximize2,
   Check,
@@ -726,14 +725,10 @@ export default function GroupTaskDetailModal({
                 <h2 className="text-2xl font-black text-foreground tracking-tight leading-tight">
                   {task.title}
                 </h2>
-                <div className="flex items-center gap-4 text-xs font-semibold text-muted-foreground mt-2">
-                  <div className="flex items-center gap-1.5">
-                    <Users size={14} className="text-primary/70" /> Created by{" "}
-                    {task.creator?.name || "Unknown"}
-                  </div>
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-muted-foreground mt-2">
                   {task.due_date && (
                     <div className="flex items-center gap-1.5">
-                      <Calendar size={14} className="text-primary/70" /> Due{" "}
+                      <Calendar size={14} className="text-mauve-9" /> Due{" "}
                       {formatDueDate(task.due_date)}
                     </div>
                   )}
@@ -842,35 +837,16 @@ export default function GroupTaskDetailModal({
               {/* Description */}
               {!isEditingTask && task.description && (
                 <div className="animate-content-in stagger-1 mb-2">
-                  <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                  <p className="max-w-[70ch] text-[15px] text-foreground leading-relaxed whitespace-pre-wrap break-words">
                     {task.description}
                   </p>
                 </div>
               )}
 
-              {/* MEMBERS — master / detail */}
+              {/* MEMBERS — detail / master. The selected assignment (the
+                  viewer's own, on open) leads; the member rail supports it
+                  from the right, and below it on narrow screens. */}
               <div className="animate-content-in stagger-2 flex-1 flex flex-col md:flex-row min-h-[420px] border border-border rounded-2xl overflow-hidden bg-card">
-                <div className="w-full md:w-[240px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-b md:border-b-0 md:border-r border-border">
-                  <GroupTaskMemberRail
-                    members={orderedMembers}
-                    selectedId={draft && !draft.id ? null : effectiveMemberId}
-                    onSelect={(id) => {
-                      setDraft(null);
-                      setSelectedMemberId(id);
-                    }}
-                    onAdd={
-                      (isCreator || isSuperAdmin) ? handleStartAddMember : undefined
-                    }
-                    currentUserId={currentUserId}
-                    avatarMap={avatarMap}
-                    resolveEmployee={(m) => ({
-                      id: m.employee_id,
-                      name: m.employee?.name,
-                    })}
-                    mode="detail"
-                  />
-                </div>
-
                 <div className="flex-1 flex flex-col min-w-0 min-h-0">
                   {draft ? (
                     <>
@@ -955,11 +931,8 @@ export default function GroupTaskDetailModal({
                                   You
                                 </span>
                               )}
-                              {member.role && (
-                                <span className="text-[9px] font-bold bg-mauve-4 text-mauve-11 dark:text-muted-foreground px-2 py-0.5 rounded shadow-sm uppercase tracking-wider border border-mauve-5">
-                                  {member.custom_role || member.role}
-                                </span>
-                              )}
+                              {/* Role lives on the rail row; here the
+                                  assignment itself leads. */}
                               <span
                                 className={`text-[9px] font-bold px-2 py-0.5 rounded shadow-sm uppercase tracking-wider ${
                                   isDone
@@ -1178,6 +1151,28 @@ export default function GroupTaskDetailModal({
                     </div>
                   )}
                 </div>
+
+                <div className="w-full md:w-[220px] shrink-0 h-[200px] md:h-auto md:min-h-0 border-t md:border-t-0 md:border-l border-border">
+                  <GroupTaskMemberRail
+                    members={orderedMembers}
+                    selectedId={draft && !draft.id ? null : effectiveMemberId}
+                    onSelect={(id) => {
+                      setDraft(null);
+                      setSelectedMemberId(id);
+                    }}
+                    onAdd={
+                      (isCreator || isSuperAdmin) ? handleStartAddMember : undefined
+                    }
+                    currentUserId={currentUserId}
+                    avatarMap={avatarMap}
+                    resolveEmployee={(m) => ({
+                      id: m.employee_id,
+                      name: m.employee?.name,
+                    })}
+                    mode="detail"
+                    className="border-r-0"
+                  />
+                </div>
               </div>
 
               {/* HR Remarks */}
@@ -1191,6 +1186,17 @@ export default function GroupTaskDetailModal({
                   </p>
                 </div>
               )}
+
+              {/* Who set it up — kept, but last: assignees open this to do
+                  their part, not to see who filed it. */}
+              <dl className="pt-5 border-t border-border">
+                <dt className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Created by
+                </dt>
+                <dd className="mt-1 text-[13px] font-semibold text-foreground">
+                  {task.creator?.name || "Unknown"}
+                </dd>
+              </dl>
             </>
           ) : (
             <div className="p-0">

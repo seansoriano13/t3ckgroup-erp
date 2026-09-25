@@ -5,11 +5,15 @@ import TaskHeader from "./TaskHeader"
 import ManagementSection from "./ManagementSection"
 import StandardDetailsSection from "./StandardDetailsSection"
 import TaskBodySection from "./TaskBodySection"
+import TaskMetaDetails from "./TaskMetaDetails"
 import ProcurementResolutionPanel from "./ProcurementResolutionPanel"
 import TaskEvaluationSection from "./TaskEvaluationSection"
 import TaskActivityTimeline from "./TaskActivityTimeline"
 import { formatDate, toLocalDatetimeString } from "../utils/formatDate"
-import { isCategoryMetadataRemarks } from "../utils/taskFormatters"
+import {
+  extractOthersDetailsFromRemarks,
+  isCategoryMetadataRemarks,
+} from "../utils/taskFormatters"
 import { PencilLine, AlertTriangle, Columns2, Maximize2 } from "lucide-react"
 import TaskFooter from "./TaskFooter.jsx"
 import { TASK_STATUS } from "../constants/status.js"
@@ -245,6 +249,19 @@ export default function TaskDetails({
   const isOthersGlobal =
     selectedCategoryObj?.category_id?.toUpperCase().includes("OTHERS") ||
     selectedCategoryObj?.description?.toUpperCase().includes("OTHERS")
+
+  // An Individual Task has no title of its own (CONTEXT.md): its Project /
+  // Campaign Title stands in, then its Category.
+  const categoryLabel =
+    extractOthersDetailsFromRemarks(task?.remarks) ||
+    topologyData?.filteredCategories?.find(
+      (c) => c.category_id === task?.categoryId,
+    )?.description ||
+    activeTask?.categoryDesc ||
+    "Unknown Category"
+  const taskTitle =
+    formData.projectTitle?.trim() ||
+    (task?.categoryId ? categoryLabel : "Task Details")
 
   const isComplete = task.status === TASK_STATUS.COMPLETE
 
@@ -490,6 +507,8 @@ export default function TaskDetails({
             <TaskHeader
               isEditing={isEditing}
               isHrVerified={task.hrVerified}
+              title={taskTitle}
+              status={task.status}
               onClose={onClose}
               onOpenChat={
                 !isSplitScreen
@@ -560,29 +579,35 @@ export default function TaskDetails({
               )}
 
               <div className="space-y-4">
-                <ManagementSection
-                  isEditing={isEditing}
-                  isHr={isHr}
-                  isHead={isHead}
-                  task={task}
-                  formData={formData}
-                  taskLoggedByName={task.loggedByName}
-                  reportedToName={task.reportedToName}
-                  topologyData={topologyData}
-                  handlers={{
-                    handleDeptChange,
-                    handleSubDeptChange,
-                    handleAssigneeChange,
-                  }}
-                />
-                <StandardDetailsSection
-                  isEditing={isEditing}
-                  isManagement={isManagement}
-                  formData={formData}
-                  handleChange={handleChange}
-                  topologyData={topologyData}
-                  task={task}
-                />
+                {/* Who/what fields lead only while editing, where they are
+                    controls. In view mode they sit last (TaskMetaDetails). */}
+                {isEditing && (
+                  <>
+                    <ManagementSection
+                      isEditing={isEditing}
+                      isHr={isHr}
+                      isHead={isHead}
+                      task={task}
+                      formData={formData}
+                      taskLoggedByName={task.loggedByName}
+                      reportedToName={task.reportedToName}
+                      topologyData={topologyData}
+                      handlers={{
+                        handleDeptChange,
+                        handleSubDeptChange,
+                        handleAssigneeChange,
+                      }}
+                    />
+                    <StandardDetailsSection
+                      isEditing={isEditing}
+                      isManagement={isManagement}
+                      formData={formData}
+                      handleChange={handleChange}
+                      topologyData={topologyData}
+                      task={task}
+                    />
+                  </>
+                )}
 
                 <TaskBodySection
                   isEditing={isEditing}
@@ -653,6 +678,14 @@ export default function TaskDetails({
                   setApprovalRemarks={setApprovalRemarks}
                   timelineMessageRef={timelineMessageRef}
                 />
+
+                {!isEditing && (
+                  <TaskMetaDetails
+                    task={task}
+                    formData={formData}
+                    categoryLabel={categoryLabel}
+                  />
+                )}
 
                 {/* --- UNIFIED ACTIVITY TIMELINE --- */}
                 {!isEditing && !isSplitScreen && (

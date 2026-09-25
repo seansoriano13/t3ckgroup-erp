@@ -61,7 +61,8 @@ A task with one owner, tracked on that person's own list rather than as
 shared work. The other kind of task a Stage Action can create, alongside a
 Group Task: same trigger, same fire-once rule, but no members and no roles —
 it says what one person must do. Its kind of work is named by its Category,
-not by a Tag.
+not by a Tag. It has no title of its own: its Project / Campaign Title stands
+in as one, and its Category when that is blank.
 _Avoid_: Personal Task, My Task, Solo Task
 
 **Tag**:
