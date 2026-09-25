@@ -347,6 +347,13 @@ a real one — which is what makes "it works" an observation rather than a claim
 Excluded from every register, dashboard, and commission total.
 _Avoid_: Test Deal, Dummy, Fixture
 
+**Legacy Pipeline**:
+The Sale Type that holds every SOR registered before Sales Flows existed. It
+gives those SORs a Sales Flow to belong to, not a new process. They keep their
+Stages and behave as they always did, and they have no link to Government or
+Outright.
+_Avoid_: Standard Pipeline (its old name), Default flow
+
 **Flow Snapshot**:
 The entire Sales Flow captured at the moment it was published. Answers "what
 did we agree on the day of the meeting" by being opened. A snapshot is also
