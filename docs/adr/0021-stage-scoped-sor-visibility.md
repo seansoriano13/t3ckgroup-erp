@@ -101,3 +101,12 @@ three.
 Everyone else called into an SOR — Technical evaluating specifications, the
 Warehouse, Logistics — sees the Costing Matrix **without money**, inside their
 window, which is the rule this ADR already sets for line-item prices.
+
+### 2026-09-25 — Legacy Pipeline is open to Everyone
+
+From #377 / #382. Reverses #330's "Legacy Pipeline gets no Always sees".
+
+Legacy Pipeline's Always sees and Always edits are both **Everyone**, set by
+the cutover backfill. Every employee reads, edits and moves Legacy Pipeline
+SORs as they do on production today. Government and Outright stay private to
+their Deal Team.

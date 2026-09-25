@@ -21,8 +21,15 @@
 -- Stage changes are guarded by sor_guard_stage_move, which exempts only the
 -- service role, so the block runs with that role claim (transaction-local).
 --
--- Legacy Pipeline gets no Always sees configuration:
--- its SORs stay visible to their Deal Team and Super Admin only.
+-- Legacy Pipeline is left open (#382, reversing #330's "no Always sees"; see
+-- the 2026-09-25 amendment to ADR 0021): its Always sees and Always edits are
+-- both set to Everyone, so every employee reads, edits and moves Legacy
+-- Pipeline SORs as they do on production today. Any earlier setting on either
+-- list is replaced. Nothing is deleted: it only attaches and upserts.
+--
+-- Runs twice at cutover: in the database window (Sep 29-30) and again right
+-- before the UI switch (Oct 1), to pick up SORs registered on the old UI in
+-- between. The second run rewrites nothing that is already right.
 --
 -- Idempotent and re-runnable. It targets production's Sale Type by id and does
 -- nothing if that id isn't present, so running it against staging (or any
@@ -87,15 +94,14 @@ begin
     raise exception 'Legacy Pipeline backfill: % non-deleted SORs still have no Sale Type', v_remaining;
   end if;
 
-  if exists (
-    select 1
-      from public.flow_access_settings fas
-      join public.sales_flows f on f.id = fas.flow_id
-     where f.sale_type_id = v_sale_type_id
-       and jsonb_array_length(coalesce(fas.always_sees, '[]'::jsonb)) > 0
-  ) then
-    raise exception 'Legacy Pipeline backfill: Legacy Pipeline has an Always sees configuration; it must have none';
-  end if;
+  insert into public.flow_access_settings as fas (flow_id, always_sees, always_edits)
+  values (v_flow_id, '[{"type":"everyone"}]'::jsonb, '[{"type":"everyone"}]'::jsonb)
+  on conflict (flow_id) do update
+     set always_sees = excluded.always_sees,
+         always_edits = excluded.always_edits,
+         updated_at = now()
+   where fas.always_sees is distinct from excluded.always_sees
+      or fas.always_edits is distinct from excluded.always_edits;
 
   raise notice 'Legacy Pipeline backfill: attached % SORs', v_attached;
 end

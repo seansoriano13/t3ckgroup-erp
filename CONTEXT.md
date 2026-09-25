@@ -352,7 +352,7 @@ _Avoid_: Test Deal, Dummy, Fixture
 The Sale Type that holds every SOR registered before Sales Flows existed. It
 gives those SORs a Sales Flow to belong to, not a new process. They keep their
 Stages and behave as they always did, and they have no link to Government or
-Outright.
+Outright. Its Always sees and Always edits are both Everyone.
 _Avoid_: Standard Pipeline (its old name), Default flow
 
 **Flow Snapshot**:
