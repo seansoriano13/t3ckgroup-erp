@@ -125,6 +125,38 @@ describe("canvasAccessLens", () => {
   });
 });
 
+describe("canvasAccessLens with Always sees", () => {
+  const draft = (alwaysSees) => ({
+    stages: [{ id: "s1", shutOutRoles: ["support_sales"], excludedGroupIds: ["g1"] }],
+    employees,
+    alwaysSees,
+  })
+
+  it("keeps a shut-out role visible when Always sees is Everyone", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft([{ type: "everyone" }]),
+      selector: { type: "role", role: "support_sales" },
+    })
+    expect(lens.s1).toBe("visible")
+  })
+
+  it("keeps an employee visible when Always sees names them", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft([{ type: "employee", id: "emp-owner" }]),
+      selector: { type: "employee", id: "emp-owner" },
+    })
+    expect(lens.s1).toBe("visible")
+  })
+
+  it("still hides a shut-out role Always sees does not cover", () => {
+    const lens = canvasAccessLens({
+      snapshotLikeDraft: draft([{ type: "employee", id: "emp-owner" }]),
+      selector: { type: "role", role: "support_sales" },
+    })
+    expect(lens.s1).toBe("hidden")
+  })
+})
+
 describe("stageHasAccessNote", () => {
   it("is false for a stage with no restriction and no call-in", () => {
     expect(stageHasAccessNote({ id: "s1" })).toBe(false);

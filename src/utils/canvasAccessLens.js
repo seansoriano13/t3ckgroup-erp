@@ -28,6 +28,8 @@
  *                                        // how the draft's own conditions/
  *                                        // actions are turned into this list
  *     }],
+ *     alwaysSees?: Array<selector>,     // the Flow's Always sees — sees every
+ *                                        // Stage, so it beats a shut-out
  *     groupMembersById?: Record<string, { employeeIds?: string[], teams?: string[] }>,
  *     employees?: Array<{ id, sub_department?, is_deleted? }>,
  *   }
@@ -87,6 +89,14 @@ function isShutOut(stage, selector, { employees, groupMembersById }) {
   return false;
 }
 
+/** Whether the Flow's Always sees covers `selector`. "Everyone" covers any viewer. */
+function isAlwaysSeen(alwaysSees, selector, context) {
+  return alwaysSees.some(
+    (other) =>
+      other?.type === SELECTOR_TYPES.EVERYONE || selectorMatchesViewer(other, selector, context),
+  );
+}
+
 /** Whether `stage` explicitly calls `selector` in. */
 function isCalledIn(stage, selector, context) {
   return (stage.calledIn || []).some((other) => selectorMatchesViewer(other, selector, context));
@@ -106,6 +116,7 @@ export function canvasAccessLens({ snapshotLikeDraft, selector } = {}) {
   const employees = snapshotLikeDraft?.employees || [];
   const groupMembersById = snapshotLikeDraft?.groupMembersById || {};
   const context = { employees, groupMembersById };
+  const alwaysSees = snapshotLikeDraft?.alwaysSees || [];
 
   const lens = {};
   for (const stage of stages) {
@@ -118,6 +129,8 @@ export function canvasAccessLens({ snapshotLikeDraft, selector } = {}) {
 
     if (isCalledIn(stage, selector, context)) {
       lens[stage.id] = "calls-in";
+    } else if (isAlwaysSeen(alwaysSees, selector, context)) {
+      lens[stage.id] = "visible";
     } else if (isShutOut(stage, selector, context)) {
       lens[stage.id] = "hidden";
     } else {

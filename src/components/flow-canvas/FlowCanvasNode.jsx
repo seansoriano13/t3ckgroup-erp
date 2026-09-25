@@ -10,6 +10,7 @@ import {
   Plus,
   ShieldOff,
   Users,
+  Globe,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -230,9 +231,12 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
     (audience?.counts?.shutOutRoles ?? 0) + (audience?.shutOutGroups?.length ?? 0);
 
   const roster = calledIn.map((person) => person.name).join(", ");
+  const everyone = Boolean(audience?.everyoneSees);
   const title = viewAsLabel
     ? (LENS_COPY[lensState] || LENS_COPY.visible).title(viewAsLabel)
-    : calledIn.length > 0
+    : everyone
+      ? "Everyone sees this Stage (Always sees includes Everyone)."
+      : calledIn.length > 0
       ? `Called in here: ${roster}`
       : "Nobody is called in here. Only the Deal Team sees this Stage.";
 
@@ -255,7 +259,9 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
           <LensLine state={lensState} viewAsLabel={viewAsLabel} />
         ) : (
           <>
-            {faces.length > 0 ? (
+            {everyone ? (
+              <Globe size={12} className="shrink-0 text-muted-foreground" />
+            ) : faces.length > 0 ? (
               <span className="flex shrink-0 items-center">
                 {faces.map((person, index) => (
                   <span
@@ -272,7 +278,9 @@ const AudienceStrip = ({ audience, lensState, viewAsLabel, onOpen }) => {
             )}
 
             <span className="min-w-0 flex-1 truncate text-[10.5px] leading-none">
-              {calledIn.length > 0 ? (
+              {everyone ? (
+                <span className="font-semibold text-muted-foreground">Everyone</span>
+              ) : calledIn.length > 0 ? (
                 <>
                   <span className="font-black tabular-nums text-foreground">
                     {calledIn.length}

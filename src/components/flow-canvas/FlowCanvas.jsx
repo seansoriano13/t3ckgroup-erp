@@ -296,6 +296,15 @@ function FlowCanvasInner() {
     enabled: stageIds.length > 0,
   });
 
+  // The flow-level Always sees, so a node can say "Everyone" when everyone is
+  // in it. Same key as the toolbar's Access settings, so saving there
+  // refreshes the nodes too.
+  const { data: flowAccess } = useQuery({
+    queryKey: ["flowAccess", flow?.id],
+    queryFn: () => flowAccessService.getForFlow(flow.id),
+    enabled: Boolean(flow?.id),
+  });
+
   // Shares its cache with PeoplePicker's own reads below, so opening "View
   // as" costs nothing extra once the picker has been opened once.
   const { data: allEmployees = NO_EMPLOYEES } = useQuery({
@@ -338,8 +347,7 @@ function FlowCanvasInner() {
 
   // Who can see each Stage, by name — what the node's audience strip reads,
   // and the same shape the Stage's Access tab builds for itself. Flow-level
-  // "Always sees" is deliberately left out here: the canvas would have to
-  // fetch it on every render to show a line that is identical on every node.
+  // "Always sees" is passed in only so a node can say "Everyone".
   const audienceByStage = useMemo(
     () =>
       Object.fromEntries(
@@ -347,6 +355,7 @@ function FlowCanvasInner() {
           s.id,
           stageAudience({
             stageAccess: stageAccessByStage[s.id],
+            flowAccess,
             conditions: conditionsByStage[s.id],
             actions: actionsByStage[s.id],
             employees: allEmployees,
@@ -360,6 +369,7 @@ function FlowCanvasInner() {
     [
       stages,
       stageAccessByStage,
+      flowAccess,
       conditionsByStage,
       actionsByStage,
       allEmployees,
@@ -393,10 +403,11 @@ function FlowCanvasInner() {
           })),
           employees: allEmployees,
           groupMembersById,
+          alwaysSees: flowAccess?.alwaysSees || [],
         },
         selector: viewAsSelector,
       }),
-    [stages, stageAccessByStage, calledInByStage, allEmployees, groupMembersById, viewAsSelector],
+    [stages, stageAccessByStage, flowAccess, calledInByStage, allEmployees, groupMembersById, viewAsSelector],
   );
 
   const refresh = useCallback(() => {

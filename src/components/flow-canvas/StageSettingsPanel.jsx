@@ -98,7 +98,7 @@ export default function StageSettingsPanel({
   return (
     <aside
       className={cn(
-        "absolute inset-y-0 right-0 z-30 flex w-[26rem] max-w-[92vw] flex-col bg-card",
+        "absolute bottom-0 right-0 top-[4.25rem] z-30 flex w-[26rem] max-w-[92vw] flex-col bg-card",
         "shadow-[-1px_0_0_var(--mauve-6),-24px_0_48px_-32px_rgba(0,0,0,0.5)]",
         "animate-in slide-in-from-right-4 fade-in-0 duration-200 ease-out",
       )}

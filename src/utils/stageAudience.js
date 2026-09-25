@@ -135,6 +135,8 @@ export function describeSelector(selector, { employees = [], groupsById = {} } =
       return `Everyone in ${normaliseTeam(selector.team)}`;
     case SELECTOR_TYPES.ROLE:
       return DEAL_TEAM_ROLES[selector.role]?.label || selector.role;
+    case SELECTOR_TYPES.EVERYONE:
+      return "Everyone";
     default:
       return employees.find((e) => String(e.id) === String(selector.id))?.name || "Former employee";
   }
@@ -211,6 +213,7 @@ function callsByEmployee({
  * @returns {{
  *   dealTeam: Array<{ role: string, label: string, shutOut: boolean }>,
  *   alwaysSees: Array<{ key: string, label: string }>,
+ *   everyoneSees: boolean,   // Always sees holds "Everyone"
  *   calledIn: Array<{ employeeId: string, name: string, calls: object[] }>,
  *   shutOutGroups: Array<{ id: string, name: string, memberCount: number }>,
  *   isRestricted: boolean,
@@ -263,6 +266,7 @@ export function stageAudience({
   return {
     dealTeam,
     alwaysSees,
+    everyoneSees: (flowAccess?.alwaysSees || []).some((s) => s?.type === SELECTOR_TYPES.EVERYONE),
     calledIn,
     shutOutGroups,
     isRestricted: shutOutRoles.length > 0 || excludedGroupIds.length > 0,

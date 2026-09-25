@@ -225,9 +225,19 @@ function StageAccessForm({
       <section className="space-y-1">
         <SectionHeading>Who can see this Stage</SectionHeading>
         <p className="text-sm font-bold leading-snug text-foreground">
-          {counts.seeingRoles} of {audience.dealTeam.length} Deal Team roles
-          {counts.calledIn > 0 ? `, plus ${counts.calledIn} called in here` : ", and nobody else"}
-          {audience.alwaysSees.length > 0 && `, plus ${audience.alwaysSees.length} who always see`}.
+          {audience.everyoneSees ? (
+            "Everyone. The Sales Flow's Always sees includes Everyone, so this Stage is open to all employees."
+          ) : (
+            <>
+              {counts.seeingRoles} of {audience.dealTeam.length} Deal Team roles
+              {counts.calledIn > 0
+                ? `, plus ${counts.calledIn} called in here`
+                : ", and nobody else"}
+              {audience.alwaysSees.length > 0 &&
+                `, plus ${audience.alwaysSees.length} who always see`}
+              .
+            </>
+          )}
         </p>
         {counts.shutOutRoles + counts.shutOutPeople > 0 && (
           <p className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-11">
