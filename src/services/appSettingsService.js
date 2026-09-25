@@ -1,7 +1,18 @@
 import { supabase } from "../lib/supabase";
 import { systemAuditLogService } from "./systemAuditLogService";
 
+const DEFAULTS = {
+  universal_task_submission: true,
+  marketing_approval_by_ops_manager: false,
+  enable_self_verification: false,
+  enable_bulk_approval: false,
+  enable_visual_shaming: false,
+  retail_storefronts: ["Shopee", "Lazada"],
+};
+
 export const appSettingsService = {
+  defaults: DEFAULTS,
+
   async getAppSettings() {
     const { data, error } = await supabase
       .from("app_settings")
@@ -13,17 +24,12 @@ export const appSettingsService = {
       throw error;
     }
 
-    // Default configuration if no row exists or if fetch failed
-    return (
-      data || {
-        universal_task_submission: true,
-        marketing_approval_by_ops_manager: false,
-        enable_self_verification: false,
-        enable_bulk_approval: false,
-        enable_visual_shaming: false,
-        retail_storefronts: ["Shopee", "Lazada"],
-      }
-    );
+    // Defaults win when the row or a field is missing
+    const merged = { ...DEFAULTS };
+    for (const [k, v] of Object.entries(data ?? {})) {
+      if (v !== null && v !== undefined) merged[k] = v;
+    }
+    return merged;
   },
 
   async updateAppSettings(payload) {

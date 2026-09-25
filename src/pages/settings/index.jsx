@@ -10,8 +10,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { getPermissionContext } from "../../utils/permissions";
 import { canEditFAQ } from "../../utils/faqAccess";
 
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { appSettingsService } from "../../services/appSettingsService";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
@@ -58,7 +57,6 @@ export default function SettingsPage() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const queryClient = useQueryClient();
   const [showFAQ, setShowFAQ] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -93,23 +91,14 @@ export default function SettingsPage() {
   const { isSuperAdmin } = getPermissionContext(user);
   const canEditFAQContent = canEditFAQ(user);
 
-  const { data: appSettings, isLoading: loadingSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: () => appSettingsService.getAppSettings(),
-    enabled: !!isSuperAdmin,
-  });
-
-  const mutation = useMutation({
-    mutationFn: (payload) => appSettingsService.updateAppSettings(payload),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["appSettings"] });
-      toast.success("Security configuration updated system-wide!");
-    },
-    onError: (err) => toast.error(err.message),
-  });
+  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
 
   const toggle = (key) => () =>
-    !mutation.isPending && mutation.mutate({ [key]: !appSettings?.[key] });
+    !isPending &&
+    updateSetting(
+      { [key]: !appSettings[key] },
+      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
+    );
 
   return (
     <PageContainer maxWidth="4xl" className="pt-4">
@@ -218,7 +207,7 @@ export default function SettingsPage() {
                 icon={Shield}
                 checked={!!appSettings?.marketing_approval_by_ops_manager}
                 onToggle={toggle("marketing_approval_by_ops_manager")}
-                isPending={mutation.isPending}
+                isPending={isPending}
                 isLoading={loadingSettings}
               />
               <SettingToggle
@@ -227,7 +216,7 @@ export default function SettingsPage() {
                 icon={Shield}
                 checked={!!appSettings?.universal_task_submission}
                 onToggle={toggle("universal_task_submission")}
-                isPending={mutation.isPending}
+                isPending={isPending}
                 isLoading={loadingSettings}
               />
               <SettingToggle
@@ -236,7 +225,7 @@ export default function SettingsPage() {
                 icon={Shield}
                 checked={!!appSettings?.enable_self_verification}
                 onToggle={toggle("enable_self_verification")}
-                isPending={mutation.isPending}
+                isPending={isPending}
                 isLoading={loadingSettings}
               />
               <SettingToggle
@@ -245,7 +234,7 @@ export default function SettingsPage() {
                 icon={Shield}
                 checked={!!appSettings?.enable_bulk_approval}
                 onToggle={toggle("enable_bulk_approval")}
-                isPending={mutation.isPending}
+                isPending={isPending}
                 isLoading={loadingSettings}
               />
               <SettingToggle
@@ -254,7 +243,7 @@ export default function SettingsPage() {
                 icon={Shield}
                 checked={!!appSettings?.enable_visual_shaming}
                 onToggle={toggle("enable_visual_shaming")}
-                isPending={mutation.isPending}
+                isPending={isPending}
                 isLoading={loadingSettings}
               />
             </div>

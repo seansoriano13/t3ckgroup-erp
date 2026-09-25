@@ -4,7 +4,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
 import { taskQueryService } from "../../../services/tasks/taskQueryService.js";
-import { supabase } from "../../../lib/supabase.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import {
@@ -40,6 +39,7 @@ import BulkGradeModal from "../_components/BulkGradeModal";
 import BulkDeclineModal from "../_components/BulkDeclineModal";
 import { Button } from "@/components/ui/button";
 import PageContainer from "../../../components/ui/PageContainer";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import TabGroup from "../../../components/ui/TabGroup";
 
 export default function TaskApprovalsPage() {
@@ -61,13 +61,7 @@ export default function TaskApprovalsPage() {
     enabled: !!user?.id,
   });
 
-  const { data: appSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*").single();
-      return data;
-    },
-  });
+  const { settings: appSettings } = useAppSettings();
 
   const location = useLocation();
   const navigate = useNavigate();

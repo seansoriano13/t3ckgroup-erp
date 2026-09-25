@@ -14,7 +14,6 @@ import { PencilLine, AlertTriangle, Columns2, Maximize2 } from "lucide-react"
 import TaskFooter from "./TaskFooter.jsx"
 import { TASK_STATUS } from "../constants/status.js"
 import { useQuery } from "@tanstack/react-query"
-import { supabase } from "../lib/supabase.js"
 import { toast } from "react-hot-toast"
 import { confirmDeleteToast } from "./ui/CustomToast"
 import { activeChatService } from "../services/tasks/activeChatService"
@@ -22,6 +21,7 @@ import { taskQueryService } from "@/services/tasks/taskQueryService"
 import { purchasingService } from "@/services/purchasingService"
 import { PROCUREMENT_OUTCOME, isRequisitionTitle } from "@/constants/procurement"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { useAppSettings } from "@/hooks/useAppSettings"
 import { cn } from "@/lib/utils"
 import { Button } from "./ui/button"
 
@@ -44,14 +44,7 @@ export default function TaskDetails({
     return false
   })
 
-  const { data: appSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*").single()
-      return data
-    },
-    staleTime: 5 * 60 * 1000, // 5 mins — setting rarely changes
-  })
+  const { settings: appSettings } = useAppSettings()
 
   const [approvalGrade, setApprovalGrade] = useState(null)
   const [editGrade, setEditGrade] = useState(null)

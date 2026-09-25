@@ -4,7 +4,6 @@ import { useAuth } from "../../../context/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taskService } from "../../../services/taskService.js";
 import { employeeService } from "../../../services/employeeService.js";
-import { supabase } from "../../../lib/supabase.js";
 import { TASK_STATUS } from "../../../constants/status.js";
 import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import {
@@ -30,6 +29,7 @@ import BulkVerifyModal from "./_components/BulkVerifyModal";
 import { Button } from "@/components/ui/button";
 import { sameDepartment } from "../../../utils/compareDepartment.js";
 import PageContainer from "../../../components/ui/PageContainer";
+import { useAppSettings } from "@/hooks/useAppSettings";
 import TabGroup from "../../../components/ui/TabGroup";
 
 export default function HrVerificationPage() {
@@ -55,13 +55,7 @@ function HrVerificationQueueContent() {
     enabled: !!user?.id,
   });
 
-  const { data: appSettings } = useQuery({
-    queryKey: ["appSettings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("app_settings").select("*").single();
-      return data;
-    },
-  });
+  const { settings: appSettings } = useAppSettings();
 
   const [viewTask, setViewTask] = useState(null);
   const [activeTaskId, setActiveTaskId] = useState(null);
