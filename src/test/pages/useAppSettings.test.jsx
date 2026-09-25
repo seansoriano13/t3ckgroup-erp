@@ -37,7 +37,7 @@ async function clickBulkSwitch(user) {
 
 function renderBoth() {
   return renderWithProviders(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={["/settings?tab=approvals"]}>
       <RegisterProbe />
       <SettingsPage />
     </MemoryRouter>,

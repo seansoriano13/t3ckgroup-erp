@@ -1,9 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
+import userEvent from "@testing-library/user-event";
+import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import SettingsPage from "@/pages/settings/index";
 import { renderWithProviders } from "@/test/support";
-import { makeEmployee, makeSuperAdmin } from "@/test/factories";
+import { makeEmployee, makeHrEmployee, makeSuperAdmin } from "@/test/factories";
+import { appSettingsService } from "@/services/appSettingsService";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 
@@ -14,76 +16,97 @@ vi.mock("@/context/AuthContext", () => ({
   }),
 }));
 
-// Issue #177: configuration that used to live on eight different screens is
-// now sectioned inside Settings, gated by the same capability each screen
-// already had. These tests are the seam that proves the gating, not the
-// moved screens' own behaviour — each keeps its own tests for that.
+function LocationProbe() {
+  const location = useLocation();
+  const type = useNavigationType();
+  return <div data-testid="loc">{`${location.search}|${type}`}</div>;
+}
+
+const renderAt = (url) =>
+  renderWithProviders(
+    <MemoryRouter initialEntries={[url]}>
+      <SettingsPage />
+      <LocationProbe />
+    </MemoryRouter>,
+  );
+
+const tabNames = () => screen.getAllByRole("tab", { hidden: true }).map((t) => t.textContent);
+
+// Issue #372: Settings is a tabbed workspace; tabs a person cannot use are
+// absent, and an inactive tab mounts nothing (so issues no queries).
 describe("SettingsPage", () => {
   beforeEach(() => {
     mockUser.current = null;
+    vi.restoreAllMocks();
   });
 
-  it("shows an ordinary employee only the sections they may use", async () => {
+  it("shows an employee only General, and bounces a forbidden tab without a history entry", async () => {
     mockUser.current = makeEmployee({ name: "Rank And File" });
-
-    renderWithProviders(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
+    renderAt("/settings?tab=approvals");
 
     expect(await screen.findByText("App Preferences")).toBeInTheDocument();
-    expect(screen.getByText("Account Actions")).toBeInTheDocument();
-
-    expect(screen.queryByText("Customization")).not.toBeInTheDocument();
-    expect(screen.queryByText("Lead Sources")).not.toBeInTheDocument();
-    expect(screen.queryByText("Employee Groups")).not.toBeInTheDocument();
-    expect(screen.queryByText("System Announcements")).not.toBeInTheDocument();
-    expect(screen.queryByText("Content")).not.toBeInTheDocument();
-    expect(screen.queryByText("FAQ Editor")).not.toBeInTheDocument();
+    expect(tabNames()).toEqual(["General"]);
+    await waitFor(() => expect(screen.getByTestId("loc")).toHaveTextContent("?tab=general|REPLACE"));
+    expect(screen.queryByText("Approval Rules", { selector: "h2" })).not.toBeInTheDocument();
   });
 
-  it("shows a Super Admin every moved section", async () => {
+  it("shows an HR Officer General and HR & Schedule, with no Working Week", async () => {
+    mockUser.current = makeHrEmployee({ name: "Hr Officer" });
+    renderAt("/settings?tab=hr");
+
+    await screen.findByRole("tab", { name: "HR & Schedule", hidden: true });
+    expect(tabNames()).toEqual(["General", "HR & Schedule"]);
+    expect(screen.queryByText(/working week/i)).not.toBeInTheDocument();
+  });
+
+  it("shows a Super Admin all six tabs, each on its own key", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
+    renderAt("/settings");
 
-    renderWithProviders(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
+    await screen.findByText("App Preferences");
+    expect(tabNames()).toEqual([
+      "General",
+      "Approval Rules",
+      "HR & Schedule",
+      "Sales Configuration",
+      "Employee Groups",
+      "System Announcements",
+    ]);
 
-    expect(await screen.findByText("Customization")).toBeInTheDocument();
-    expect(screen.getByText("Lead Sources")).toBeInTheDocument();
-    expect(screen.getByText("Employee Groups")).toBeInTheDocument();
-    expect(screen.getByText("System Announcements")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
+    expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|PUSH");
+    await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
+    expect(screen.queryByText("App Preferences")).not.toBeInTheDocument();
 
-    await waitFor(() => {
-      expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument();
-    });
+    await userEvent.click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
+    expect(await screen.findByText("Lead Sources")).toBeInTheDocument();
+    expect(screen.getByText("Commission Pool")).toBeInTheDocument();
+  });
+
+  it("issues no settings request until the Approval Rules tab opens", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Root Access" });
+    const spy = vi.spyOn(appSettingsService, "getAppSettings");
+    renderAt("/settings");
+
+    await screen.findByText("App Preferences");
+    expect(spy).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
+    await waitFor(() => expect(spy).toHaveBeenCalled());
   });
 
   it("shows the FAQ Editor entry only to a person the FAQ capability names", async () => {
     mockUser.current = makeEmployee({ id: "101", name: "Named Editor" });
-
-    renderWithProviders(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
+    renderAt("/settings");
 
     expect(await screen.findByText("FAQ Editor")).toBeInTheDocument();
   });
 
-  it("no longer offers a notification toggle with nothing behind it", async () => {
+  it("keeps Help & FAQ in the header on every tab", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
+    renderAt("/settings?tab=groups");
 
-    renderWithProviders(
-      <MemoryRouter>
-        <SettingsPage />
-      </MemoryRouter>,
-    );
-
-    await screen.findByText("Customization");
-    expect(screen.queryByText(/email notification/i)).not.toBeInTheDocument();
+    await screen.findByRole("tab", { name: "Employee Groups", hidden: true });
+    expect(document.getElementById("open-faq-btn")).toBeInTheDocument();
   });
 });

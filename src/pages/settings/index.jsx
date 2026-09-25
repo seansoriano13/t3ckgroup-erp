@@ -1,10 +1,11 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import FAQModal from "./FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/button";
+import TabGroup from "@/components/ui/TabGroup";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../hooks/useTheme";
 import { getPermissionContext } from "../../utils/permissions";
@@ -53,14 +54,113 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
   );
 }
 
+function ApprovalRulesPanel() {
+  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
+
+  const toggle = (key) => () =>
+    !isPending &&
+    updateSetting(
+      { [key]: !appSettings[key] },
+      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
+    );
+
+  return (
+        <>
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5 relative z-10">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Shield size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Approval Rules
+              </h2>
+            </div>
+            <div className="divide-y divide-border relative z-10">
+              <SettingToggle
+                label="Ops Manager Marketing Approvals"
+                description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
+                icon={Shield}
+                checked={!!appSettings?.marketing_approval_by_ops_manager}
+                onToggle={toggle("marketing_approval_by_ops_manager")}
+                isPending={isPending}
+                isLoading={loadingSettings}
+              />
+              <SettingToggle
+                label="Universal Task Submission"
+                description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
+                icon={Shield}
+                checked={!!appSettings?.universal_task_submission}
+                onToggle={toggle("universal_task_submission")}
+                isPending={isPending}
+                isLoading={loadingSettings}
+              />
+              <SettingToggle
+                label="Enable Task Self-Verification"
+                description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
+                icon={Shield}
+                checked={!!appSettings?.enable_self_verification}
+                onToggle={toggle("enable_self_verification")}
+                isPending={isPending}
+                isLoading={loadingSettings}
+              />
+              <SettingToggle
+                label="Enable Manager Bulk Approval"
+                description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
+                icon={Shield}
+                checked={!!appSettings?.enable_bulk_approval}
+                onToggle={toggle("enable_bulk_approval")}
+                isPending={isPending}
+                isLoading={loadingSettings}
+              />
+              <SettingToggle
+                label="Visual Urgency Indicators (Bottleneck Tracking)"
+                description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
+                icon={Shield}
+                checked={!!appSettings?.enable_visual_shaming}
+                onToggle={toggle("enable_visual_shaming")}
+                isPending={isPending}
+                isLoading={loadingSettings}
+              />
+            </div>
+          </div>
+        </>
+
+  );
+}
+
+const TAB_DEFS = [
+  { value: "general", label: "General", isPermitted: () => true },
+  { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin },
+  { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr },
+  { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin },
+  { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin },
+  { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin },
+];
+
 export default function SettingsPage() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showFAQ, setShowFAQ] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+
+  const permissionContext = getPermissionContext(user);
+  const { isSuperAdmin } = permissionContext;
+  const canEditFAQContent = canEditFAQ(user);
+  const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
+  const requestedTab = searchParams.get("tab");
+  const isRequestedUsable = visibleTabs.some((t) => t.value === requestedTab);
+  const activeTab = isRequestedUsable ? requestedTab : "general";
+
+  useEffect(() => {
+    if (requestedTab && !isRequestedUsable) {
+      setSearchParams({ tab: "general" }, { replace: true });
+    }
+  }, [requestedTab, isRequestedUsable, setSearchParams]);
 
   useEffect(() => {
     isPushEnabled().then(setPushEnabled);
@@ -88,18 +188,6 @@ export default function SettingsPage() {
     }
   };
 
-  const { isSuperAdmin } = getPermissionContext(user);
-  const canEditFAQContent = canEditFAQ(user);
-
-  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
-
-  const toggle = (key) => () =>
-    !isPending &&
-    updateSetting(
-      { [key]: !appSettings[key] },
-      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
-    );
-
   return (
     <PageContainer maxWidth="4xl" className="pt-4">
       <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
@@ -121,7 +209,18 @@ export default function SettingsPage() {
         </Button>
       </div>
 
+      <div className="mb-6 max-w-full">
+        <TabGroup
+          tabs={visibleTabs.map(({ value, label }) => ({ value, label }))}
+          activeTab={activeTab}
+          onChange={(value) => setSearchParams({ tab: value })}
+        />
+      </div>
+
+      {/* Only the active panel is mounted, so an inactive tab issues no queries. */}
       <div className="space-y-6">
+        {activeTab === "general" && (
+          <>
         {/* PREFERENCES SECTION */}
         <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border bg-muted/30">
@@ -188,71 +287,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* SUPER ADMIN SECURITY SYSTEM ZONE */}
-        {isSuperAdmin && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5 relative z-10">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shield size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Customization
-              </h2>
-            </div>
-            <div className="divide-y divide-border relative z-10">
-              <SettingToggle
-                label="Ops Manager Marketing Approvals"
-                description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
-                icon={Shield}
-                checked={!!appSettings?.marketing_approval_by_ops_manager}
-                onToggle={toggle("marketing_approval_by_ops_manager")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Universal Task Submission"
-                description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
-                icon={Shield}
-                checked={!!appSettings?.universal_task_submission}
-                onToggle={toggle("universal_task_submission")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Enable Task Self-Verification"
-                description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
-                icon={Shield}
-                checked={!!appSettings?.enable_self_verification}
-                onToggle={toggle("enable_self_verification")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Enable Manager Bulk Approval"
-                description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
-                icon={Shield}
-                checked={!!appSettings?.enable_bulk_approval}
-                onToggle={toggle("enable_bulk_approval")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Visual Urgency Indicators (Bottleneck Tracking)"
-                description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
-                icon={Shield}
-                checked={!!appSettings?.enable_visual_shaming}
-                onToggle={toggle("enable_visual_shaming")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* WORKING WEEK — issue #150/#152: gated to Super Admin, same as Customization above */}
-        {isSuperAdmin && <DayShiftConfig />}
-
         {/* CONTENT SECTION — #177: FAQ editing was reachable only through a
             button buried in the Help modal and its route had no guard of
             its own; gated by the same predicate that button already used. */}
@@ -281,52 +315,6 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* LEAD SOURCES — #177: moved from /super-admin/lead-sources, same Super Admin gate */}
-        {isSuperAdmin && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shuffle size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Lead Sources
-              </h2>
-            </div>
-            <LeadSourceManager />
-          </div>
-        )}
-
-        {/* EMPLOYEE GROUPS — #201: Super Admin only, because a group decides who sees SOR data (ADR 0021) */}
-        {isSuperAdmin && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
-                <Users size={14} className="text-muted-foreground" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Employee Groups
-              </h2>
-            </div>
-            <EmployeeGroupManager />
-          </div>
-        )}
-
-        {/* SYSTEM ANNOUNCEMENTS — #177: moved from /super-admin, same Super Admin gate */}
-        {isSuperAdmin && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Megaphone size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                System Announcements
-              </h2>
-            </div>
-            <SystemUpdateBanner />
-            <SystemUpdateManager />
-          </div>
-        )}
-
         {/* DANGER ZONE SECTION */}
         <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-border bg-destructive/5 flex items-center gap-2.5">
@@ -351,6 +339,83 @@ export default function SettingsPage() {
             </Button>
           </div>
         </div>
+          </>
+        )}
+
+        {activeTab === "approvals" && <ApprovalRulesPanel />}
+
+        {activeTab === "hr" &&
+          (isSuperAdmin ? (
+            <DayShiftConfig />
+          ) : (
+            <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
+              Nothing to configure here yet.
+            </p>
+          ))}
+
+        {activeTab === "sales" && (
+          <>
+        <>
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Shuffle size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Lead Sources
+              </h2>
+            </div>
+            <LeadSourceManager />
+          </div>
+        </>
+
+            <div
+              className="bg-card border border-border rounded-2xl shadow-sm p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+              onClick={() => navigate("/sors/commission-formula")}
+            >
+              <div>
+                <p className="font-bold text-foreground text-sm">Commission Pool</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Rates and department allocations.</p>
+              </div>
+              <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+            </div>
+          </>
+        )}
+
+        {activeTab === "groups" && (
+        <>
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
+                <Users size={14} className="text-muted-foreground" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                Employee Groups
+              </h2>
+            </div>
+            <EmployeeGroupManager />
+          </div>
+        </>
+
+        )}
+
+        {activeTab === "announcements" && (
+        <>
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Megaphone size={14} className="text-primary" />
+              </div>
+              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+                System Announcements
+              </h2>
+            </div>
+            <SystemUpdateBanner />
+            <SystemUpdateManager />
+          </div>
+        </>
+
+        )}
       </div>
 
       {/* FAQ floating hint */}
