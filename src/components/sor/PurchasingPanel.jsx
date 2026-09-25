@@ -41,7 +41,7 @@ import {
 } from "../../constants/procurement";
 import { outstandingInclusions } from "../../constants/projectEvaluation";
 import { useAuth } from "../../context/AuthContext";
-import { canEditSor } from "../../utils/sorPermissions";
+import { useCanEditSor } from "../../hooks/useCanEditSor";
 import { Button } from "../ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -651,6 +651,7 @@ function AssigneeField({ options, value, onChange, placeholder = "Mention a buye
 }
 
 export default function PurchasingPanel({ opportunity, isRequired = false }) {
+  const canEditOpportunity = useCanEditSor(opportunity?.id);
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -951,7 +952,7 @@ export default function PurchasingPanel({ opportunity, isRequired = false }) {
                   (!r.outcome || r.outcome === "IN_PROGRESS");
                 const canEdit =
                   isRowEditable &&
-                  (user?.id === r.requested_by || canEditSor(user, opportunity));
+                  (user?.id === r.requested_by || canEditOpportunity);
 
                 return (
                   <RequestRow

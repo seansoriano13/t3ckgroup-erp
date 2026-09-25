@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../test/support"
-import { stubEdgeFunction } from "../../test/msw/server"
+import { stubEdgeFunction, stubRpc } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
 import { useQuery } from "@tanstack/react-query"
 import {
@@ -62,6 +62,7 @@ const found = (items, extra = {}) => ({
 
 describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
   beforeEach(() => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     stubEdgeFunction("odoo-sor-lookup", found([]))
   })
 
@@ -168,6 +169,7 @@ describe("OpportunityDetailsModal — Odoo auto-sync on open (#53)", () => {
 
 describe("OpportunityDetailsModal — manual Product List fetch (#53)", () => {
   it("refuses to replace stored items with an empty Odoo response", async () => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     const owner = makeEmployee()
     const opportunity = makeOpportunity({
       registered_by: owner.id,

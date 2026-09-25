@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import { fireEvent, screen } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
-import { stubEdgeFunction } from "../../../test/msw/server"
+import { stubEdgeFunction, stubRpc } from "../../../test/msw/server"
 import { db } from "../../../test/db/store"
 import { makeEmployee, makeOpportunity } from "../../../test/factories"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
@@ -27,6 +27,7 @@ describe("DetailsTab (#302)", () => {
   let owner, director
 
   beforeEach(() => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     stubEdgeFunction("odoo-sor-lookup", { success: true, found: true, order: { name: "S06070" }, items: [] })
     owner = makeEmployee({ name: "Ben Cruz" })
     director = makeEmployee({ name: "Ana Reyes" })

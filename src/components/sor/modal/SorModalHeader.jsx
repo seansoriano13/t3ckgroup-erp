@@ -61,11 +61,10 @@ export default function SorModalHeader({
   hasNext,
   onPrev,
   onNext,
-  accessLevel = "full",
+  canEdit = false,
   moveDisabled = false,
   moveDisabledReason,
 }) {
-  const canEdit = accessLevel === "full";
   const scrollRef = useRef(null);
   const activeChevronRef = useRef(null);
 

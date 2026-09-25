@@ -2960,6 +2960,17 @@ export const opportunityService = {
   },
 
   /**
+   * #379: the database's own answer to "may I edit this SOR?" —
+   * `sor_can_edit_opportunity`, the same function the update policies use.
+   */
+  async canEdit(opportunityId) {
+    if (!opportunityId) return false;
+    const { data, error } = await supabase.rpc("sor_can_edit_opportunity", { p_opportunity_id: opportunityId });
+    if (error) throw error;
+    return data === true;
+  },
+
+  /**
    * ADR 0021 / #297: whether the caller may open the Journey tab —
    * `sor_can_view_journey`. Always true at full access; at participant
    * access, matched against the owning flow's `journey_viewers` selectors

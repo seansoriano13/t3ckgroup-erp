@@ -31,6 +31,7 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import NowTab from "./NowTab";
 import JourneyTab from "./JourneyTab";
 import ItemsTab from "./ItemsTab";
@@ -82,6 +83,7 @@ export default function SorModal({
     enabled: !!id && isOpen && accessLevelProp == null,
   });
   const accessLevel = accessLevelProp ?? fetchedAccessLevel ?? "full";
+  const canEdit = useCanEditSor(id, { enabled: isOpen && accessLevel === "full" });
 
   // Also doubles as the full/participant "This stage is restricted" flag —
   // see `isRestricted` below and NowTab's banner.
@@ -909,7 +911,7 @@ export default function SorModal({
           hasNext={hasNext}
           onPrev={goPrev}
           onNext={goNext}
-          accessLevel={accessLevel}
+          canEdit={canEdit}
           moveDisabled={moveDisabled}
           moveDisabledReason={
             isRestricted

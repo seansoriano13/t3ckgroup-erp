@@ -12,6 +12,7 @@ import OpportunityDetailsModal from "../OpportunityDetailsModal"
 import { opportunityService } from "../../../services/opportunityService"
 import { leadSourceService } from "../../../services/leadSourceService"
 import { waitForNetworkIdle } from "../../../test/network"
+import { stubRpc } from "../../../test/msw/server"
 
 let authUser
 vi.mock("../../../context/AuthContext", () => ({ useAuth: () => ({ user: authUser }) }))
@@ -81,12 +82,13 @@ describe("SorModal — each tab fetches once, when first opened", () => {
   // The edit form carries the whole Product List into Save, so a list that
   // was never fetched must not be saved over the stored one as empty.
   it("keeps the stored Product List through an Edit and Save made before Items was ever opened", async () => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     const deal = makeOpportunity({ status: "LEAD", sales_reference: null })
     makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
     renderModal(deal)
     await screen.findByText("What blocks this stage")
 
-    fireEvent.click(screen.getByTitle("Edit"))
+    fireEvent.click(await screen.findByTitle("Edit"))
     fireEvent.click(await screen.findByRole("button", { name: "Save" }))
 
     await waitFor(() => expect(screen.getByTitle("Edit")).toBeInTheDocument())

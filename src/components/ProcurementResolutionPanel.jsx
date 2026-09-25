@@ -37,7 +37,7 @@ import {
 } from "../constants/procurement";
 import { formatDueDate, toLocalDatetimeString } from "../utils/formatDate";
 import { STAGE_LABELS } from "../constants/sor";
-import { canEditSor } from "../utils/sorPermissions";
+import { useCanEditSor } from "../hooks/useCanEditSor";
 import { FieldBox } from "@/components/ui/FieldBox";
 
 /**
@@ -54,7 +54,8 @@ import { FieldBox } from "@/components/ui/FieldBox";
  * record is offered only to someone who could actually act on it — anyone else
  * would land in a form whose saves the database refuses.
  */
-function SorSummary({ sor, user }) {
+function SorSummary({ sor }) {
+  const canEdit = useCanEditSor(sor?.id);
   if (!sor) return null;
 
   const value = Number(sor.expected_value || 0);
@@ -86,7 +87,7 @@ function SorSummary({ sor, user }) {
           Deal owner: {sor.deal_owner.name}
         </span>
       )}
-      {canEditSor(user, sor) && (
+      {canEdit && (
         <Button
           type="button"
           variant="link"
@@ -859,7 +860,7 @@ export default function ProcurementResolutionPanel({
 
   return (
     <div className="space-y-3 rounded-2xl border border-border/70 bg-card p-5 shadow-xs">
-      <SorSummary sor={sor} user={user} />
+      <SorSummary sor={sor} />
 
       <div className="flex items-center justify-between">
         <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">

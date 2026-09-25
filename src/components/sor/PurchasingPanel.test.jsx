@@ -25,6 +25,7 @@ import { screen, waitFor } from "@testing-library/react"
 import { renderWithProviders, setupUser } from "../../test/support"
 import PurchasingPanel from "./PurchasingPanel"
 import { purchasingService } from "../../services/purchasingService"
+import { opportunityService } from "../../services/opportunityService"
 
 const SALES_ID = "11111111-1111-4111-8111-111111111111"
 const BUYER_ID = "22222222-2222-4222-8222-222222222222"
@@ -518,14 +519,15 @@ describe("a request already sent", () => {
     expect(screen.queryByRole("button", { name: /delete hydraulic hose kit/i })).toBeNull()
   })
 
-  it("shows edit controls for another salesperson on the same deal", async () => {
+  it("shows edit controls when the database says the user can edit the deal", async () => {
+    vi.spyOn(opportunityService, "canEdit").mockResolvedValue(true)
     authUser = { id: "user-partner", isSuperAdmin: false, is_head: false }
     const opp = { ...OPPORTUNITY, support_sales_1_id: "user-partner" }
     purchasingService.listForOpportunity.mockResolvedValue([request()])
     await renderWithProviders(<PurchasingPanel opportunity={opp} />)
     await screen.findByRole("button", { name: /procurement requests/i })
-    
-    expect(screen.getByRole("button", { name: /edit hydraulic hose kit/i })).toBeInTheDocument()
+
+    expect(await screen.findByRole("button", { name: /edit hydraulic hose kit/i })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: /delete hydraulic hose kit/i })).toBeInTheDocument()
   })
 

@@ -15,7 +15,7 @@ import { describe, it, expect, vi } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../test/support"
-import { stubEdgeFunction } from "../../test/msw/server"
+import { stubEdgeFunction, stubRpc } from "../../test/msw/server"
 import { waitForNetworkIdle } from "../../test/network"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../test/factories"
 import { opportunityService } from "../../services/opportunityService"
@@ -75,6 +75,7 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
   })
 
   it("keeps each line's odoo_product_id through a manual Fetch + Save (updateOpportunity)", async () => {
+    stubRpc("sor_can_edit_opportunity", () => true)
     const owner = makeEmployee()
     const opportunity = makeOpportunity({ registered_by: owner.id, sales_reference: "S06070" })
     // No existing items — Fetch Items runs straight away instead of behind
