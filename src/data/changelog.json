@@ -1,6 +1,19 @@
 [
     {
         "date": "2026-09-25",
+        "title": "Settings in Tabs & Saved Task Filters",
+        "version": "1.7.29",
+        "changes": [
+            "Settings is now split into tabs: General, Approval Rules, HR & Schedule, Sales Configuration, Employee Groups and System Announcements. You only see the tabs you can use.",
+            "Leave categories are now managed in Settings, under HR & Schedule. HR Management has a card that takes you there.",
+            "Changing an approval rule in Settings now takes effect in open approval queues straight away, with no page reload.",
+            "On Tasks, \"Save filters as default\" now remembers every filter, not just SORS.",
+            "On Tasks and Group Tasks, the save button now shows \"Default saved\" once saved, or \"Update default\" if you have changed the filters since.",
+            "The Commission Pool card in Settings can now be opened with the keyboard."
+        ]
+    },
+    {
+        "date": "2026-09-25",
         "title": "Fixed: SOR Product List Could Double",
         "version": "1.7.28",
         "changes": [
