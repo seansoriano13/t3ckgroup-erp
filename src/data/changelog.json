@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-09-25",
+        "title": "Fixed: SOR Product List Could Double",
+        "version": "1.7.28",
+        "changes": [
+            "Fixed a bug where an SOR's Product List, and its Estimated Value, could double when the SOR was open in more than one place at the same time.",
+            "Opening an SOR no longer adds a false \"Added product(s)\" entry to its timeline."
+        ]
+    },
+    {
+        "date": "2026-09-25",
         "title": "One-Row SORS Header & Floating Register Button",
         "version": "1.7.27",
         "changes": [
