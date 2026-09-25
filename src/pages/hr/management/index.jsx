@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeeService } from "../../../services/employeeService";
 import { companyService, matchesCompanyFilter } from "../../../services/companyService";
@@ -6,7 +7,6 @@ import ProtectedRoute from "../../../components/ProtectedRoute.jsx";
 import toast from "react-hot-toast";
 import { useAuth } from "../../../context/AuthContext";
 import HRCategoriesConfig from "../../../components/HRCategoriesConfig.jsx";
-import LeaveCategoriesConfig from "../../../components/hr/LeaveCategoriesConfig.jsx";
 import { UserPlus, Edit, Trash2, Shield, KeyRound } from "lucide-react";
 import { passwordService } from "../../../services/passwordService";
 import Spinner from "@/components/ui/Spinner";
@@ -37,6 +37,7 @@ import {
 export default function EmployeeManagement() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("employees");
   const [searchTerm, setSearchTerm] = useState("");
   const [deptFilter, setDeptFilter] = useState("ALL");
@@ -459,7 +460,15 @@ export default function EmployeeManagement() {
           </div>
         ) : (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6">
-            <LeaveCategoriesConfig />
+            <div className="rounded-2xl border border-border bg-card p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-black text-foreground uppercase tracking-wide">Leave Categories</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Leave categories now live in Settings under HR &amp; Schedule.
+                </p>
+              </div>
+              <Button onClick={() => navigate("/settings?tab=hr")}>Open in Settings</Button>
+            </div>
           </div>
         )}
 

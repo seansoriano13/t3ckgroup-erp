@@ -57,6 +57,15 @@ describe("SettingsPage", () => {
     await screen.findByRole("tab", { name: "HR & Schedule", hidden: true });
     expect(tabNames()).toEqual(["General", "HR & Schedule"]);
     expect(screen.queryByText(/working week/i)).not.toBeInTheDocument();
+    expect(await screen.findByText("Leave Categories")).toBeInTheDocument();
+  });
+
+  it("shows a Super Admin Leave Categories and Working Week together", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Root Access" });
+    renderAt("/settings?tab=hr");
+
+    expect(await screen.findByText("Leave Categories")).toBeInTheDocument();
+    expect(screen.getByText(/working week/i)).toBeInTheDocument();
   });
 
   it("shows a Super Admin all six tabs, each on its own key", async () => {

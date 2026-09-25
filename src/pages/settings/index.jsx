@@ -1,4 +1,4 @@
-import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Shuffle, Megaphone, Users } from "lucide-react";
+import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import FAQModal from "./FAQModal";
@@ -16,6 +16,7 @@ import toast from "react-hot-toast";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { formatBuildFingerprint } from "@/utils/buildFingerprint";
+import LeaveCategoriesConfig from "../../components/hr/LeaveCategoriesConfig";
 import DayShiftConfig from "../../components/settings/DayShiftConfig";
 import LeadSourceManager from "../../components/settings/LeadSourceManager";
 import EmployeeGroupManager from "../../components/settings/EmployeeGroupManager";
@@ -344,30 +345,16 @@ export default function SettingsPage() {
 
         {activeTab === "approvals" && <ApprovalRulesPanel />}
 
-        {activeTab === "hr" &&
-          (isSuperAdmin ? (
-            <DayShiftConfig />
-          ) : (
-            <p className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
-              Nothing to configure here yet.
-            </p>
-          ))}
+        {activeTab === "hr" && (
+          <div className="space-y-6">
+            <LeaveCategoriesConfig />
+            {isSuperAdmin && <DayShiftConfig />}
+          </div>
+        )}
 
         {activeTab === "sales" && (
           <>
-        <>
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shuffle size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Lead Sources
-              </h2>
-            </div>
-            <LeadSourceManager />
-          </div>
-        </>
+        <LeadSourceManager />
 
             <div
               className="bg-card border border-border rounded-2xl shadow-sm p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
