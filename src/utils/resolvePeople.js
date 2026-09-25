@@ -7,8 +7,9 @@
  *   { type: "group", id }        an Employee Group
  *   { type: "team", team }       everyone whose Sub-department matches
  *   { type: "role", role }       a Deal Team role, only meaningful per SOR
+ *   { type: "everyone" }         every non-deleted employee, including later hires
  *
- * `resolvePeople` is the pure mirror of `employee_group_member_ids` in
+ * `resolvePeople` is the pure mirror of `sor_selector_covers` (20260930050000) and `employee_group_member_ids` in
  * Postgres (20260915010000_employee_groups.sql), used for previews such as
  * "3 people". The database is the authority for access; the policy tier holds
  * the two to the same answers.
@@ -19,6 +20,7 @@ export const SELECTOR_TYPES = Object.freeze({
   GROUP: "group",
   TEAM: "team",
   ROLE: "role",
+  EVERYONE: "everyone",
 });
 
 /** Deal Team roles, each read off the SOR's own column. */
@@ -87,6 +89,9 @@ export function resolvePeople(selectors, { employees = [], groupMembersById = {}
       case SELECTOR_TYPES.EMPLOYEE:
         if (selector.id != null) wanted.add(String(selector.id));
         break;
+      case SELECTOR_TYPES.EVERYONE:
+        for (const e of employees) wanted.add(String(e.id));
+        break;
       case SELECTOR_TYPES.GROUP:
         for (const id of resolveGroupMemberIds(groupMembersById[selector.id], employees)) {
           wanted.add(String(id));
@@ -123,6 +128,8 @@ export function selectorKey(selector) {
       return `team:${normaliseTeam(selector.team)}`;
     case SELECTOR_TYPES.ROLE:
       return `role:${selector.role}`;
+    case SELECTOR_TYPES.EVERYONE:
+      return "everyone";
     default:
       return `${selector.type}:${selector.id}`;
   }

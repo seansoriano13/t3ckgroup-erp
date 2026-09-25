@@ -86,6 +86,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
               value={alwaysSees}
               onChange={(next) => save({ alwaysSees: next })}
               allowRoles
+              allowEveryone
               disabled={disabled}
               placeholder="Add people"
             />
@@ -102,6 +103,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
               value={journeyIsDefault ? [] : journeyViewers}
               onChange={(next) => save({ journeyViewers: next.length ? next : null })}
               allowRoles
+              allowEveryone
               disabled={disabled}
               placeholder="Add people"
             />

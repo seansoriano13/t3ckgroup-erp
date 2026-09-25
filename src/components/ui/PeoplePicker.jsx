@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, User, Users, Building2, BadgeCheck, X } from "lucide-react";
+import { Plus, Search, User, Users, Building2, BadgeCheck, Globe, X } from "lucide-react";
 
 import Dropdown from "@/components/ui/Dropdown";
 import { cn } from "@/lib/utils";
@@ -14,7 +14,7 @@ import { DEAL_TEAM_ROLES, SELECTOR_TYPES, selectorKey, teamOptions } from "@/uti
  * Its value is a list of selectors (see `src/utils/resolvePeople.js`): a
  * specific employee, an Employee Group, everyone in a Team, and — where the
  * setting is per SOR — a Deal Team role. Call sites turn the role option on
- * with `allowRoles`; `types` narrows the offer further (the group editor
+ * with `allowRoles`, "Everyone" with `allowEveryone` (Flow Canvas access pickers only); `types` narrows the offer further (the group editor
  * picks only employees, or only Teams).
  *
  * Archived groups are never offered, but one already in the value still shows
@@ -24,6 +24,7 @@ export default function PeoplePicker({
   value = [],
   onChange,
   allowRoles = false,
+  allowEveryone = false,
   types = [SELECTOR_TYPES.GROUP, SELECTOR_TYPES.TEAM, SELECTOR_TYPES.EMPLOYEE],
   disabled = false,
   placeholder = "Add people",
@@ -50,6 +51,16 @@ export default function PeoplePicker({
   const matches = (text) => !needle || String(text || "").toLowerCase().includes(needle);
 
   const options = [
+    ...(allowEveryone && matches("Everyone")
+      ? [
+          {
+            selector: { type: SELECTOR_TYPES.EVERYONE },
+            label: "Everyone",
+            section: "Everyone",
+            icon: Globe,
+          },
+        ]
+      : []),
     ...groups
       .filter((g) => !g.archived_at && matches(g.name))
       .map((g) => ({
@@ -87,7 +98,9 @@ export default function PeoplePicker({
       })),
   ].filter(
     (option) =>
-      (types.includes(option.selector.type) || option.selector.type === SELECTOR_TYPES.ROLE) &&
+      (types.includes(option.selector.type) ||
+        option.selector.type === SELECTOR_TYPES.ROLE ||
+        option.selector.type === SELECTOR_TYPES.EVERYONE) &&
       !chosen.has(selectorKey(option.selector)),
   );
 
@@ -100,6 +113,8 @@ export default function PeoplePicker({
       }
       case SELECTOR_TYPES.TEAM:
         return `Everyone in ${selector.team}`;
+      case SELECTOR_TYPES.EVERYONE:
+        return "Everyone";
       case SELECTOR_TYPES.ROLE:
         return DEAL_TEAM_ROLES[selector.role]?.label || selector.role;
       default:

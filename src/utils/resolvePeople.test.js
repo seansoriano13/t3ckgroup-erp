@@ -66,6 +66,17 @@ describe("resolvePeople", () => {
   })
 })
 
+describe("resolvePeople everyone", () => {
+  it("resolves to every non-deleted employee, with or without a Sub-department", () => {
+    expect(resolvePeople([{ type: "everyone" }], { employees })).toEqual(["ana", "ben", "cy", "eli", "fay"])
+  })
+
+  it("covers an employee added after the selector was saved", () => {
+    const later = [...employees, { id: "gus", sub_department: null }]
+    expect(resolvePeople([{ type: "everyone" }], { employees: later })).toContain("gus")
+  })
+})
+
 describe("resolveGroupMemberIds", () => {
   it("matches a Team after trimming and upper-casing both sides", () => {
     expect(resolveGroupMemberIds({ teams: [" purchasing"] }, employees)).toEqual(["ana", "ben"])
