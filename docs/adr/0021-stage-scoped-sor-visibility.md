@@ -104,9 +104,37 @@ window, which is the rule this ADR already sets for line-item prices.
 
 ### 2026-09-25 — Legacy Pipeline is open to Everyone
 
-From #377 / #382. Reverses #330's "Legacy Pipeline gets no Always sees".
+From #377 / #382 and the go-live grilling session, ahead of the 2026-10-01
+production cutover. Reverses #330's "Legacy Pipeline gets no Always sees".
 
 Legacy Pipeline's Always sees and Always edits are both **Everyone**, set by
 the cutover backfill. Every employee reads, edits and moves Legacy Pipeline
 SORs as they do on production today. Government and Outright stay private to
 their Deal Team.
+
+**Every employee always sees Legacy Pipeline SORs.** This decision's private
+model applies to the Sales Flows built for it, Government and Outright, and not
+to the 252 SORs production registered before Sales Flows existed. Always sees
+gains an "Everyone" selector for this, set on Legacy Pipeline's Flow Canvas
+settings, so the rule is visible where every other access rule is.
+
+This reverses the #330 cutover note that Legacy Pipeline gets no Always sees.
+Measured on production, that note would leave 23 of 37 active
+non-Super-Admin employees with an empty register, including the whole of
+Operations and most of Admin. Those staff read and work every SOR today. It
+would also stop Admin moving a legacy SOR's Stage, because
+`sor_guard_stage_move` requires full access. Taking away access staff rely on,
+mid-project and on go-live day, was the larger risk. The legacy SORs carry no
+Stage Visit history worth isolating, and Legacy Pipeline has no Restricted
+Stages.
+
+Government and Outright keep this decision unchanged: Deal Team and Super
+Admins by default, and anything wider is configured on their Flow Canvas.
+
+Editing follows the same line. Production lets any employee edit any SOR
+today, while this decision limits editing to the Deal Team, heads and Super
+Admins. For Legacy Pipeline, a per-flow **Always edits** list sits beside
+Always sees on the Flow Canvas, set to Everyone, so staff keep editing the
+projects they are mid-way through. Government and Outright leave it empty.
+It is a flow setting rather than a Legacy-only exception in the policy, so
+flows built later can use it too.

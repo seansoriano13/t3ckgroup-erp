@@ -185,6 +185,21 @@ only what they were called into, unless the Sales Flow names them as always
 seeing it.
 _Avoid_: Participants, Members (when meaning these roles)
 
+**Always sees**:
+The people a Sales Flow names as reading every one of its SORs in full, as the
+Deal Team does, without holding a role on any of them. It can name everyone.
+They can read the SOR and move it between Stages, but not edit it; a Restricted
+Stage still shuts them out. It is set per Sales Flow, so being open on one flow
+never opens another.
+_Avoid_: Viewers, Watchers, Read-all
+
+**Always edits**:
+The people a Sales Flow names as editing every one of its SORs, their details
+and Product List, as the Deal Team can, without holding a role on any of them.
+Set per Sales Flow beside Always sees and can name everyone. It widens editing
+only; who can see or move an SOR is still Always sees.
+_Avoid_: Editors, Write access
+
 **Stage Participant**:
 Someone outside the Deal Team called into an SOR — by a task a Stage Action
 creates, by an Assignment condition, or as a purchasing member of a Purchase
@@ -405,7 +420,8 @@ _Avoid_: Test Deal, Dummy, Fixture
 The Sale Type that holds every SOR registered before Sales Flows existed. It
 gives those SORs a Sales Flow to belong to, not a new process. They keep their
 Stages and behave as they always did, and they have no link to Government or
-Outright. Its Always sees and Always edits are both Everyone.
+Outright. Its Always sees and Always edits are both Everyone, as before Sales
+Flows existed; only the Government and Outright flows are private.
 _Avoid_: Standard Pipeline (its old name), Default flow
 
 **Flow Snapshot**:
