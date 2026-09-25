@@ -11,7 +11,7 @@
  * No React, no network: stages/opportunities/snapshots all come in as
  * arguments. Prior art: constants/sor.js and constants/salesFlow.js.
  */
-import { bracketRuns } from "../components/settings/flowCanvasLayout";
+import { bracketRuns } from "../components/flow-canvas/flowCanvasLayout";
 import { isOpenPipelineOpportunity, isRealizedOpportunity } from "./sor";
 import { flowStageTone } from "./salesFlow";
 

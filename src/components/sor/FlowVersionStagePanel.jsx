@@ -6,14 +6,14 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import TabGroup from "@/components/ui/TabGroup"
 import { employeeService } from "@/services/employeeService"
-import StageActionDetail from "@/components/settings/StageActionDetail"
+import StageActionDetail from "@/components/flow-canvas/StageActionDetail"
 import {
   ACTION_KIND_META,
   CONDITION_KIND_META,
   actionSummary,
   actionTitle,
   conditionDetail,
-} from "@/components/settings/flowStageKinds"
+} from "@/components/flow-canvas/flowStageKinds"
 
 /**
  * One Stage of a Flow Snapshot, opened beside the version viewer, read-only.

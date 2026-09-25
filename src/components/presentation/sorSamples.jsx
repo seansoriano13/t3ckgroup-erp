@@ -7,7 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import StageFieldPreview from "../settings/StageFieldPreview"
+import StageFieldPreview from "../flow-canvas/StageFieldPreview"
 import OpportunityQuickView from "../sor/OpportunityQuickView"
 import OpportunityBoard from "../sor/OpportunityBoard"
 import RetailOrdersQueue from "../sor/RetailOrdersQueue"
@@ -16,9 +16,9 @@ import PendingActionDecisions from "../sor/PendingActionDecisions"
 import SorsViewTabs from "../sor/SorsViewTabs"
 import SorsTotals from "../sor/SorsTotals"
 import SaleTypeFilter from "../sor/SaleTypeFilter"
-import FollowUpCadenceEditor from "../settings/FollowUpCadenceEditor"
+import FollowUpCadenceEditor from "../flow-canvas/FollowUpCadenceEditor"
 import EmployeeGroupManager from "../settings/EmployeeGroupManager"
-import { FlowDataContext } from "../settings/FlowDataContext"
+import { FlowDataContext } from "../flow-canvas/FlowDataContext"
 import ApproveOffsetModal from "../offsets/ApproveOffsetModal"
 import TemplateTokenText from "../ui/TemplateTokenText"
 import { Button } from "../ui/button"

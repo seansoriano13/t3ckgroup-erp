@@ -86,7 +86,7 @@ The hand-written subscriptions that predate this hook (in
 `notificationService.js`, `systemAuditLogService.js`,
 `ProcurementResolutionPanel.jsx`, `sor/PurchasingPanel.jsx`,
 `sor/OpportunityDetailsModal.jsx`, `sor/modal/SorModal.jsx`,
-`TaskActivityTimeline.jsx`, `settings/FlowCanvas.jsx`,
+`TaskActivityTimeline.jsx`, `flow-canvas/FlowCanvas.jsx`,
 `group-tasks/_components/GroupTaskDetailModal.jsx` and
 `ComprehensiveChatModal.jsx`) are not retrofitted onto it as part of
 introducing it — that's a separate follow-up, not a prerequisite.

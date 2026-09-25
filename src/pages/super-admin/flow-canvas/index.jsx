@@ -1,6 +1,6 @@
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
-import FlowCanvas from "@/components/settings/FlowCanvas.jsx";
-import { FlowDataProvider } from "@/components/settings/FlowDataContext.jsx";
+import FlowCanvas from "@/components/flow-canvas/FlowCanvas.jsx";
+import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
 import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
-import { bracketRuns } from "../settings/flowCanvasLayout";
+import { bracketRuns } from "../flow-canvas/flowCanvasLayout";
 
 /**
  * The stage control for a deal that runs a Sales Flow (issue #36, ADR 0006).
