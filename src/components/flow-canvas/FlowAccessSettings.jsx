@@ -47,6 +47,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
   });
 
   const alwaysSees = access?.alwaysSees || [];
+  const alwaysEdits = access?.alwaysEdits || [];
   // null means "Deal Team plus Always sees" — the default until narrowed.
   const journeyViewers = access?.journeyViewers;
   const journeyIsDefault = journeyViewers == null;
@@ -54,6 +55,7 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
   const save = (patch) =>
     saveMutation.mutate({
       alwaysSees,
+      alwaysEdits,
       journeyViewers,
       ...patch,
     });
@@ -85,6 +87,24 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
             <PeoplePicker
               value={alwaysSees}
               onChange={(next) => save({ alwaysSees: next })}
+              allowRoles
+              allowEveryone
+              disabled={disabled}
+              placeholder="Add people"
+            />
+          </section>
+
+          <section className="space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
+              Always edits
+            </p>
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              These people can edit every SOR of this Sale Type, the way the Deal Team can. They also
+              need to be able to see the SOR.
+            </p>
+            <PeoplePicker
+              value={alwaysEdits}
+              onChange={(next) => save({ alwaysEdits: next })}
               allowRoles
               allowEveryone
               disabled={disabled}
