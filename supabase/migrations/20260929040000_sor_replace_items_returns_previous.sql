@@ -1,3 +1,4 @@
+-- allow-out-of-order: prod hotfix (2026-09-23) already recorded under this name in prod's ledger; renaming would orphan it there (#325).
 -- ==============================================================================
 -- 20260929040000_sor_replace_items_returns_previous.sql
 --
