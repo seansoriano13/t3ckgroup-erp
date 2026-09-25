@@ -200,9 +200,11 @@ export default function SystemUpdateManager() {
   const isPosting = createMutation.isPending || editMutation.isPending;
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm mt-6 overflow-hidden">
+    <div>
       {/* ── Header ──────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+      <div
+        className={`flex items-center justify-between px-5 py-4 ${isOpen ? "border-b border-border/60" : ""}`}
+      >
         <div>
           <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
             System Updates Banner
