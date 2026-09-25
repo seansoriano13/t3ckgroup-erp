@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
-import { useSavedFilters } from "../../hooks/useSavedFilters.js";
+import { useSavedFilters, isDefaultDirty } from "../../hooks/useSavedFilters.js";
 import { useTableRealtime } from "../../hooks/useTableRealtime.js";
 import { employeeService } from "../../services/employeeService.js";
 import PageHeader from "../../components/ui/PageHeader";
@@ -24,6 +24,7 @@ import PageContainer from "../../components/ui/PageContainer";
 import TabGroup from "../../components/ui/TabGroup";
 import Spinner from "@/components/ui/Spinner";
 import Dot from "../../components/ui/Dot";
+import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 
 // Every mutation and the realtime hook below need the page's own list and the
 // dashboard's shared task list to agree on freshness after any change.
@@ -74,48 +75,78 @@ export default function TasksPage() {
   };
 
   // 1. Filter State (Standard)
+  const { initial: saved, hasSavedDefault, savedDefault, saveDefault, clearDefault } =
+    useSavedFilters("tasks", user?.id, {
+      statusFilter: "ALL",
+      priorityFilter: "ALL",
+      sortBy: "NEWEST",
+      timeframe: "YEARLY",
+      selectedDateFilter: `${new Date().getFullYear()}`,
+      deptFilter: null,
+      subDeptFilter: null,
+      employeeFilter: null,
+      reportedToFilter: "ALL",
+      crmOnly: false,
+    });
   const [searchTerm, setSearchTerm] = useState("");
   // Read preset filter from nav state (e.g. from DashboardStats card click)
   const [statusFilter, setStatusFilter] = useState(
-    location.state?.presetFilter?.status || "ALL",
+    location.state?.presetFilter?.status || saved.statusFilter,
   );
-  const [priorityFilter, setPriorityFilter] = useState("ALL");
-  const [sortBy, setSortBy] = useState("NEWEST");
+  const [priorityFilter, setPriorityFilter] = useState(saved.priorityFilter);
+  const [sortBy, setSortBy] = useState(saved.sortBy);
   // Track if advanced filter panel should be open (auto-open when preset active)
   const [advancedOpen, setAdvancedOpen] = useState(
     !!location.state?.presetFilter,
   );
 
   // Date Filter State
-  const [timeframe, setTimeframe] = useState("YEARLY");
-  const [selectedDateFilter, setSelectedDateFilter] = useState(() => {
-    const today = new Date();
-    return `${today.getFullYear()}`;
-  });
+  const [timeframe, setTimeframe] = useState(saved.timeframe);
+  const [selectedDateFilter, setSelectedDateFilter] = useState(
+    saved.selectedDateFilter,
+  );
 
   // 2. Filter State (Management Cascading)
   // Pre-fill with user's dept/subdept if they are a HEAD, otherwise default to "ALL"
   const [deptFilter, setDeptFilter] = useState(
-    location.state?.filterEmployeeId ? "ALL" : isHr ? "ALL" : userDept || "ALL",
+    location.state?.filterEmployeeId
+      ? "ALL"
+      : isHr
+        ? "ALL"
+        : isManagement && saved.deptFilter
+          ? saved.deptFilter
+          : userDept || "ALL",
   );
   const [subDeptFilter, setSubDeptFilter] = useState(
     location.state?.filterEmployeeId
       ? "ALL"
       : isHr
         ? "ALL"
-        : userSubDept || "ALL",
+        : isManagement && saved.subDeptFilter
+          ? saved.subDeptFilter
+          : userSubDept || "ALL",
   );
   const [employeeFilter, setEmployeeFilter] = useState(
-    location.state?.filterEmployeeId || (!isManagement ? user?.id : "ALL"),
+    location.state?.filterEmployeeId ||
+      (!isManagement ? user?.id : saved.employeeFilter || "ALL"),
   );
-  const [reportedToFilter, setReportedToFilter] = useState("ALL");
+  const [reportedToFilter, setReportedToFilter] = useState(
+    saved.reportedToFilter,
+  );
+  const [crmOnly, setCrmOnly] = useState(saved.crmOnly);
+  const currentFilters = {
+    statusFilter,
+    priorityFilter,
+    sortBy,
+    timeframe,
+    selectedDateFilter,
+    deptFilter,
+    subDeptFilter,
+    employeeFilter,
+    reportedToFilter,
+    crmOnly,
+  };
 
-  const { initial: savedTaskFilters, hasSavedDefault, saveDefault, clearDefault } = useSavedFilters(
-    "tasks",
-    user?.id,
-    { crmOnly: false },
-  );
-  const [crmOnly, setCrmOnly] = useState(savedTaskFilters.crmOnly);
 
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
@@ -437,25 +468,12 @@ export default function TasksPage() {
       />
 
       <div className="flex justify-end -mt-2 mb-2">
-        {hasSavedDefault ? (
-          <Button
-            type="button"
-            variant="link"
-            onClick={clearDefault}
-            className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
-          >
-            Clear saved default
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="link"
-            onClick={() => saveDefault({ crmOnly })}
-            className="h-auto p-0 text-xs font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
-          >
-            Save as my default
-          </Button>
-        )}
+        <SaveDefaultButton
+          hasSavedDefault={hasSavedDefault}
+          isDirty={isDefaultDirty(savedDefault, currentFilters)}
+          onSave={() => saveDefault(currentFilters)}
+          onClear={clearDefault}
+        />
       </div>
 
       {viewMode === "table" ? (

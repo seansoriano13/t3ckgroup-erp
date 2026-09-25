@@ -19,19 +19,23 @@ export function useSavedFilters(pageKey, userId, defaults) {
     }
   });
 
-  const [hasSavedDefault, setHasSavedDefault] = useState(() => {
+  // The stored snapshot itself (not just a flag), so the UI can tell whether
+  // the live filters have drifted from it and offer "Update default".
+  const [savedDefault, setSavedDefault] = useState(() => {
     try {
-      return localStorage.getItem(storageKey) !== null;
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : null;
     } catch {
-      return false;
+      return null;
     }
   });
+  const hasSavedDefault = savedDefault !== null;
 
   const saveDefault = useCallback(
     (currentFilters) => {
       try {
         localStorage.setItem(storageKey, JSON.stringify(currentFilters));
-        setHasSavedDefault(true);
+        setSavedDefault(JSON.parse(JSON.stringify(currentFilters)));
       } catch {
         /* ignore */
       }
@@ -42,11 +46,20 @@ export function useSavedFilters(pageKey, userId, defaults) {
   const clearDefault = useCallback(() => {
     try {
       localStorage.removeItem(storageKey);
-      setHasSavedDefault(false);
+      setSavedDefault(null);
     } catch {
       /* ignore */
     }
   }, [storageKey]);
 
-  return { initial, hasSavedDefault, saveDefault, clearDefault };
+  return { initial, hasSavedDefault, savedDefault, saveDefault, clearDefault };
+}
+
+/** True when the live filters no longer match the stored snapshot. */
+export function isDefaultDirty(savedDefault, currentFilters) {
+  if (!savedDefault) return false;
+  const norm = JSON.parse(JSON.stringify(currentFilters));
+  return Object.keys(norm).some(
+    (k) => JSON.stringify(norm[k]) !== JSON.stringify(savedDefault[k]),
+  );
 }
