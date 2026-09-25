@@ -24,7 +24,7 @@ export function useAppSettings() {
     onMutate: async (payload) => {
       await queryClient.cancelQueries({ queryKey: QUERY_KEY });
       const previous = queryClient.getQueryData(QUERY_KEY);
-      queryClient.setQueryData(QUERY_KEY, (old) => ({ ...old, ...payload }));
+      queryClient.setQueryData(QUERY_KEY, (old) => ({ ...appSettingsService.defaults, ...old, ...payload }));
       return { previous };
     },
     onError: (err, _payload, context) => {
