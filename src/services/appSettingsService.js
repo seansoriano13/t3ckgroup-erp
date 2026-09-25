@@ -10,8 +10,18 @@ const DEFAULTS = {
   retail_storefronts: ["Shopee", "Lazada"],
 };
 
+/** Defaults win when the row or a field is missing (null counts as missing). */
+function withDefaults(row) {
+  const merged = { ...DEFAULTS };
+  for (const [k, v] of Object.entries(row ?? {})) {
+    if (v !== null && v !== undefined) merged[k] = v;
+  }
+  return merged;
+}
+
 export const appSettingsService = {
   defaults: DEFAULTS,
+  withDefaults,
 
   async getAppSettings() {
     const { data, error } = await supabase
@@ -24,12 +34,7 @@ export const appSettingsService = {
       throw error;
     }
 
-    // Defaults win when the row or a field is missing
-    const merged = { ...DEFAULTS };
-    for (const [k, v] of Object.entries(data ?? {})) {
-      if (v !== null && v !== undefined) merged[k] = v;
-    }
-    return merged;
+    return withDefaults(data);
   },
 
   async updateAppSettings(payload) {

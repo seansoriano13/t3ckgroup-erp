@@ -9,7 +9,9 @@ import { db } from "@/test/db/store";
 import { server } from "@/test/msw/server";
 import { waitForNetworkIdle } from "@/test/network";
 import { renderWithProviders, setupUser } from "@/test/support";
-import { makeSuperAdmin } from "@/test/factories";
+import { makeCategory, makeEmployee, makeSuperAdmin, makeTask } from "@/test/factories";
+import { TASK_STATUS } from "@/constants/status.js";
+import TaskApprovals from "@/pages/approvals/tasks/index";
 
 const mockUser = vi.hoisted(() => ({ current: null }));
 vi.mock("@/context/AuthContext", () => ({
@@ -18,7 +20,7 @@ vi.mock("@/context/AuthContext", () => ({
 
 const BASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
-/** Stands in for a mounted approval register reading the same settings. */
+/** Reads the hook directly, for values the register does not surface. */
 function RegisterProbe() {
   const { settings } = useAppSettings();
   return (
@@ -59,11 +61,29 @@ describe("useAppSettings", () => {
 
   it("lets a Settings-page toggle reach a mounted register without a reload, and audits it", async () => {
     db.seed("app_settings", { id: true });
+    const category = makeCategory({ category_id: "IT-01", description: "IT Support" });
+    makeTask({
+      logged_by: makeEmployee({ name: "Ana Cruz" }).id,
+      category_id: category.category_id,
+      reported_to: mockUser.current.id,
+      status: TASK_STATUS.INCOMPLETE,
+      task_description: "Replace the office switch",
+    });
     const user = setupUser();
-    renderBoth();
+    renderWithProviders(
+      <MemoryRouter initialEntries={["/settings?tab=approvals"]}>
+        <TaskApprovals />
+        <SettingsPage />
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getAllByText("Replace the office switch").length).toBeGreaterThan(0),
+    );
+    expect(screen.queryByRole("button", { name: "Select for bulk action", hidden: true })).not.toBeInTheDocument();
+
     await clickBulkSwitch(user);
 
-    await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("bulk:true"));
+    expect(await screen.findByRole("button", { name: "Select for bulk action", hidden: true })).toBeInTheDocument();
     await waitForNetworkIdle();
     expect(db.rows("system_audit_logs")[0].content).toBe("App settings updated: enable_bulk_approval.");
   });
@@ -83,5 +103,35 @@ describe("useAppSettings", () => {
 
     await waitFor(() => expect(errorToast).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("bulk:false"));
+  });
+
+  it("shows the stored value, not the defaults, when a save fails with nothing cached", async () => {
+    // Stored differs from the default on a field the click does not touch, so
+    // "reverted to stored" and "stuck on defaults" read differently.
+    db.seed("app_settings", { id: true, universal_task_submission: false });
+    let failFirstRead = true;
+    server.use(
+      http.get(`${BASE_URL}/rest/v1/app_settings`, () => {
+        if (!failFirstRead) return undefined;
+        failFirstRead = false;
+        return HttpResponse.json({ message: "offline" }, { status: 500 });
+      }),
+      http.patch(`${BASE_URL}/rest/v1/app_settings`, () =>
+        HttpResponse.json({ message: "boom" }, { status: 500 }),
+      ),
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorToast = vi.spyOn(toast, "error");
+    const user = setupUser();
+    renderBoth();
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("bulk:false universal:true"),
+    );
+    await clickBulkSwitch(user);
+
+    await waitFor(() => expect(errorToast).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(screen.getByTestId("probe")).toHaveTextContent("bulk:false universal:false"),
+    );
   });
 });

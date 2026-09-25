@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { useTaskFilters } from "../../hooks/useTaskFilters.jsx";
-import { useSavedFilters, isDefaultDirty } from "../../hooks/useSavedFilters.js";
+import { useSavedFilters } from "../../hooks/useSavedFilters.js";
 import { useTableRealtime } from "../../hooks/useTableRealtime.js";
 import { employeeService } from "../../services/employeeService.js";
 import PageHeader from "../../components/ui/PageHeader";
@@ -30,6 +30,35 @@ import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 // dashboard's shared task list to agree on freshness after any change.
 const TASK_QUERY_KEYS = [["tasks"], ["dashboardTasks"]];
 
+/** Whose tasks a person sees when looking at only their own. */
+const ownScope = (user) => ({
+  deptFilter: user?.department || "ALL",
+  subDeptFilter: user?.sub_department || user?.subDepartment || "ALL",
+  employeeFilter: user?.id,
+});
+
+const COMPANY_SCOPE = { deptFilter: "ALL", subDeptFilter: "ALL", employeeFilter: "ALL" };
+
+/**
+ * The Tasks page's saved-default filter set: its keys and where each starts.
+ * Whose tasks to show starts on real values, never a null placeholder: HR
+ * company-wide, heads their own department, staff only themselves.
+ */
+function taskFilterDefaults(user, { isHr, isManagement }) {
+  const own = ownScope(user);
+  return {
+    statusFilter: "ALL",
+    priorityFilter: "ALL",
+    sortBy: "NEWEST",
+    timeframe: "YEARLY",
+    selectedDateFilter: `${new Date().getFullYear()}`,
+    ...(isHr ? COMPANY_SCOPE : own),
+    ...(isManagement && !isHr && { employeeFilter: "ALL" }),
+    reportedToFilter: "ALL",
+    crmOnly: false,
+  };
+}
+
 export default function TasksPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -41,7 +70,6 @@ export default function TasksPage() {
   const isHr = user?.is_hr === true || user?.isHr === true || isSA;
   const isHead = user?.is_head === true || user?.isHead === true;
   const isManagement = isHr || isHead;
-  const userDept = user?.department;
   const userSubDept = user?.sub_department || user?.subDepartment;
 
   const isDeptWideHead = isHead && (!userSubDept || userSubDept.trim() === "");
@@ -74,67 +102,24 @@ export default function TasksPage() {
     }
   };
 
-  // 1. Filter State (Standard)
-  const { initial: saved, hasSavedDefault, savedDefault, saveDefault, clearDefault } =
-    useSavedFilters("tasks", user?.id, {
-      statusFilter: "ALL",
-      priorityFilter: "ALL",
-      sortBy: "NEWEST",
-      timeframe: "YEARLY",
-      selectedDateFilter: `${new Date().getFullYear()}`,
-      deptFilter: null,
-      subDeptFilter: null,
-      employeeFilter: null,
-      reportedToFilter: "ALL",
-      crmOnly: false,
-    });
-  const [searchTerm, setSearchTerm] = useState("");
-  // Read preset filter from nav state (e.g. from DashboardStats card click)
-  const [statusFilter, setStatusFilter] = useState(
-    location.state?.presetFilter?.status || saved.statusFilter,
-  );
-  const [priorityFilter, setPriorityFilter] = useState(saved.priorityFilter);
-  const [sortBy, setSortBy] = useState(saved.sortBy);
-  // Track if advanced filter panel should be open (auto-open when preset active)
-  const [advancedOpen, setAdvancedOpen] = useState(
-    !!location.state?.presetFilter,
-  );
-
-  // Date Filter State
-  const [timeframe, setTimeframe] = useState(saved.timeframe);
-  const [selectedDateFilter, setSelectedDateFilter] = useState(
-    saved.selectedDateFilter,
-  );
-
-  // 2. Filter State (Management Cascading)
-  // Pre-fill with user's dept/subdept if they are a HEAD, otherwise default to "ALL"
-  const [deptFilter, setDeptFilter] = useState(
-    location.state?.filterEmployeeId
-      ? "ALL"
-      : isHr
-        ? "ALL"
-        : isManagement && saved.deptFilter
-          ? saved.deptFilter
-          : userDept || "ALL",
-  );
-  const [subDeptFilter, setSubDeptFilter] = useState(
-    location.state?.filterEmployeeId
-      ? "ALL"
-      : isHr
-        ? "ALL"
-        : isManagement && saved.subDeptFilter
-          ? saved.subDeptFilter
-          : userSubDept || "ALL",
-  );
-  const [employeeFilter, setEmployeeFilter] = useState(
-    location.state?.filterEmployeeId ||
-      (!isManagement ? user?.id : saved.employeeFilter || "ALL"),
-  );
-  const [reportedToFilter, setReportedToFilter] = useState(
-    saved.reportedToFilter,
-  );
-  const [crmOnly, setCrmOnly] = useState(saved.crmOnly);
-  const currentFilters = {
+  // 1. Filter State — the saved-default filter set lives in one object, so its
+  // defaults, first render and "current filters" can never disagree.
+  const filterDefaults = taskFilterDefaults(user, { isHr, isManagement });
+  const { initial: saved, hasSavedDefault, saveDefault, clearDefault, isDirty } =
+    useSavedFilters("tasks", user?.id, filterDefaults);
+  const [filters, setFilters] = useState(() => {
+    const deepLinkEmployee = location.state?.filterEmployeeId;
+    return {
+      ...saved,
+      // Staff are locked to their own tasks whatever was saved.
+      ...(!isManagement && ownScope(user)),
+      // A deep link to one person opens company-wide on them.
+      ...(deepLinkEmployee && { ...COMPANY_SCOPE, employeeFilter: deepLinkEmployee }),
+      // Read preset filter from nav state (e.g. from DashboardStats card click)
+      statusFilter: location.state?.presetFilter?.status || saved.statusFilter,
+    };
+  });
+  const {
     statusFilter,
     priorityFilter,
     sortBy,
@@ -145,8 +130,12 @@ export default function TasksPage() {
     employeeFilter,
     reportedToFilter,
     crmOnly,
-  };
-
+  } = filters;
+  const [searchTerm, setSearchTerm] = useState("");
+  // Track if advanced filter panel should be open (auto-open when preset active)
+  const [advancedOpen, setAdvancedOpen] = useState(
+    !!location.state?.presetFilter,
+  );
 
   // Clear nav state so back-nav doesn't re-apply deep-link filters
   useEffect(() => {
@@ -168,9 +157,7 @@ export default function TasksPage() {
   useEffect(() => {
     if (!user?.id) return; // wait until auth resolves
     if (!isManagement) {
-      setDeptFilter(userDept || "ALL");
-      setSubDeptFilter(userSubDept || "ALL");
-      setEmployeeFilter(user.id);
+      setFilters((prev) => ({ ...prev, ...ownScope(user) }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]); // deliberately exclude isManagement — roles don't change mid-session
@@ -179,17 +166,8 @@ export default function TasksPage() {
   // filters should be auto-reset; avoids any effect-based race condition.
   const handleHrViewModeChange = (newMode) => {
     setHrViewMode(newMode);
-    if (newMode === "PERSONAL") {
-      setDeptFilter(userDept || "ALL");
-      setSubDeptFilter(userSubDept || "ALL");
-      setEmployeeFilter(user?.id || "ALL");
-      setReportedToFilter("ALL");
-    } else {
-      setDeptFilter("ALL");
-      setSubDeptFilter("ALL");
-      setEmployeeFilter("ALL");
-      setReportedToFilter("ALL");
-    }
+    const scope = newMode === "PERSONAL" ? ownScope(user) : COMPANY_SCOPE;
+    setFilters((prev) => ({ ...prev, ...scope, reportedToFilter: "ALL" }));
   };
 
   // --- DB DATA STATES FOR DROPDOWNS ---
@@ -328,18 +306,9 @@ export default function TasksPage() {
   const { filteredTasks: sortedAndFilteredTasks } = useTaskFilters(
     rawTasks,
     {
+      ...filters,
       searchTerm,
-      statusFilter,
-      priorityFilter,
       hrFilter: "ALL", // Default to ALL since standard tasks view doesn't use it yet
-      timeframe,
-      selectedDateFilter,
-      deptFilter,
-      subDeptFilter,
-      employeeFilter,
-      reportedToFilter,
-      sortBy,
-      crmOnly,
     },
     {
       isManagement: isHr && hrViewMode === "PERSONAL" ? false : isManagement,
@@ -353,13 +322,8 @@ export default function TasksPage() {
     setGroupPages({});
   };
 
-  const handleDateFilterChange = (val) => {
-    setSelectedDateFilter(val);
-    setGroupPages({});
-  };
-
-  const handleTimeframeChange = (val) => {
-    setTimeframe(val);
+  const changeFilter = (key) => (val) => {
+    setFilters((prev) => ({ ...prev, [key]: val }));
     setGroupPages({});
   };
 
@@ -424,21 +388,21 @@ export default function TasksPage() {
         searchTerm={searchTerm}
         setSearchTerm={wrapFilter(setSearchTerm)}
         statusFilter={statusFilter}
-        setStatusFilter={wrapFilter(setStatusFilter)}
+        setStatusFilter={changeFilter("statusFilter")}
         priorityFilter={priorityFilter}
-        setPriorityFilter={wrapFilter(setPriorityFilter)}
+        setPriorityFilter={changeFilter("priorityFilter")}
         timeframe={timeframe}
-        setTimeframe={handleTimeframeChange}
+        setTimeframe={changeFilter("timeframe")}
         selectedDateFilter={selectedDateFilter}
-        setSelectedDateFilter={handleDateFilterChange}
+        setSelectedDateFilter={changeFilter("selectedDateFilter")}
         deptFilter={deptFilter}
-        setDeptFilter={wrapFilter(setDeptFilter)}
+        setDeptFilter={changeFilter("deptFilter")}
         subDeptFilter={subDeptFilter}
-        setSubDeptFilter={wrapFilter(setSubDeptFilter)}
+        setSubDeptFilter={changeFilter("subDeptFilter")}
         employeeFilter={employeeFilter}
-        setEmployeeFilter={wrapFilter(setEmployeeFilter)}
+        setEmployeeFilter={changeFilter("employeeFilter")}
         reportedToFilter={reportedToFilter}
-        setReportedToFilter={wrapFilter(setReportedToFilter)}
+        setReportedToFilter={changeFilter("reportedToFilter")}
         isManagement={isManagement}
         isHr={isHr}
         hrViewMode={hrViewMode}
@@ -447,11 +411,11 @@ export default function TasksPage() {
         uniqueSubDepts={uniqueSubDepts}
         uniqueEmployees={uniqueEmployees}
         sortBy={sortBy}
-        setSortBy={wrapFilter(setSortBy)}
+        setSortBy={changeFilter("sortBy")}
         forceAdvancedOpen={advancedOpen}
         onAdvancedOpenChange={setAdvancedOpen}
         crmOnly={crmOnly}
-        setCrmOnly={wrapFilter(setCrmOnly)}
+        setCrmOnly={changeFilter("crmOnly")}
         actions={
           <TabGroup
             variant="pill"
@@ -470,8 +434,8 @@ export default function TasksPage() {
       <div className="flex justify-end -mt-2 mb-2">
         <SaveDefaultButton
           hasSavedDefault={hasSavedDefault}
-          isDirty={isDefaultDirty(savedDefault, currentFilters)}
-          onSave={() => saveDefault(currentFilters)}
+          isDirty={isDirty(filters)}
+          onSave={() => saveDefault(filters)}
           onClear={clearDefault}
         />
       </div>

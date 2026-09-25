@@ -24,11 +24,13 @@ export function useAppSettings() {
     onMutate: async (payload) => {
       await queryClient.cancelQueries({ queryKey: QUERY_KEY });
       const previous = queryClient.getQueryData(QUERY_KEY);
-      queryClient.setQueryData(QUERY_KEY, (old) => ({ ...appSettingsService.defaults, ...old, ...payload }));
+      queryClient.setQueryData(QUERY_KEY, (old) => appSettingsService.withDefaults({ ...old, ...payload }));
       return { previous };
     },
     onError: (err, _payload, context) => {
-      queryClient.setQueryData(QUERY_KEY, context?.previous);
+      // Nothing was cached before, so there is nothing to restore: the
+      // onSettled refetch replaces the optimistic value with the stored one.
+      if (context?.previous !== undefined) queryClient.setQueryData(QUERY_KEY, context.previous);
       toast.error(err.message || "Could not save the setting.");
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEY }),

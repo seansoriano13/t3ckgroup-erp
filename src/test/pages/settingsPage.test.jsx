@@ -1,9 +1,8 @@
 import { screen, waitFor } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation, useNavigationType } from "react-router";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import SettingsPage from "@/pages/settings/index";
-import { renderWithProviders } from "@/test/support";
+import { renderWithProviders, setupUser } from "@/test/support";
 import { makeEmployee, makeHrEmployee, makeSuperAdmin } from "@/test/factories";
 import { appSettingsService } from "@/services/appSettingsService";
 
@@ -19,7 +18,12 @@ vi.mock("@/context/AuthContext", () => ({
 function LocationProbe() {
   const location = useLocation();
   const type = useNavigationType();
-  return <div data-testid="loc">{`${location.search}|${type}`}</div>;
+  return (
+    <>
+      <div data-testid="loc">{`${location.search}|${type}`}</div>
+      <div data-testid="path">{location.pathname}</div>
+    </>
+  );
 }
 
 const renderAt = (url) =>
@@ -82,12 +86,12 @@ describe("SettingsPage", () => {
       "System Announcements",
     ]);
 
-    await userEvent.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
+    await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
     expect(screen.getByTestId("loc")).toHaveTextContent("?tab=approvals|PUSH");
     await waitFor(() => expect(screen.getByText("Ops Manager Marketing Approvals")).toBeInTheDocument());
     expect(screen.queryByText("App Preferences")).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
+    await setupUser().click(screen.getByRole("tab", { name: "Sales Configuration", hidden: true }));
     expect(await screen.findByText("Lead Sources")).toBeInTheDocument();
     expect(screen.getByText("Commission Pool")).toBeInTheDocument();
   });
@@ -100,7 +104,7 @@ describe("SettingsPage", () => {
     await screen.findByText("App Preferences");
     expect(spy).not.toHaveBeenCalled();
 
-    await userEvent.click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
+    await setupUser().click(screen.getByRole("tab", { name: "Approval Rules", hidden: true }));
     await waitFor(() => expect(spy).toHaveBeenCalled());
   });
 
@@ -111,11 +115,30 @@ describe("SettingsPage", () => {
     expect(await screen.findByText("FAQ Editor")).toBeInTheDocument();
   });
 
-  it("keeps Help & FAQ in the header on every tab", async () => {
+  it("keeps Help & FAQ in the header on every tab, and the build fingerprint on General only", async () => {
     mockUser.current = makeSuperAdmin({ name: "Root Access" });
-    renderAt("/settings?tab=groups");
+    const user = setupUser();
+    renderAt("/settings");
+    await screen.findByText("App Preferences");
 
-    await screen.findByRole("tab", { name: "Employee Groups", hidden: true });
-    expect(document.getElementById("open-faq-btn")).toBeInTheDocument();
+    for (const name of tabNames()) {
+      await user.click(screen.getByRole("tab", { name, hidden: true }));
+      expect(screen.getByRole("button", { name: "Help & FAQ", hidden: true })).toBeInTheDocument();
+      // The test build is not a git SHA, so the fingerprint reads "dev".
+      expect(screen.queryAllByText("dev", { exact: true })).toHaveLength(name === "General" ? 1 : 0);
+    }
+  });
+
+  it("opens Commission Pool from the keyboard", async () => {
+    mockUser.current = makeSuperAdmin({ name: "Root Access" });
+    const user = setupUser();
+    renderAt("/settings?tab=sales");
+
+    const card = await screen.findByRole("link", { name: /Commission Pool/, hidden: true });
+    card.focus();
+    expect(card).toHaveFocus();
+    await user.keyboard("{Enter}");
+
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/sors/commission-formula"));
   });
 });

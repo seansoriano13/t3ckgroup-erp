@@ -19,7 +19,7 @@ import RateEmployeesModal from "./_components/RateEmployeesModal";
 import GroupTaskFilters from "../../components/GroupTaskFilters";
 import ManageTagsModal from "../../components/settings/ManageTagsModal";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
-import { useSavedFilters, isDefaultDirty } from "../../hooks/useSavedFilters";
+import { useSavedFilters } from "../../hooks/useSavedFilters";
 import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
 import { useMemo } from "react";
 
@@ -109,7 +109,7 @@ export default function GroupTasksPage() {
     }
   };
 
-  const { initial: savedFilters, hasSavedDefault, savedDefault, saveDefault, clearDefault } = useSavedFilters(
+  const { initial: savedFilters, hasSavedDefault, saveDefault, clearDefault, isDirty } = useSavedFilters(
     "group_tasks",
     user?.id,
     GROUP_TASK_FILTER_DEFAULTS,
@@ -166,7 +166,6 @@ export default function GroupTasksPage() {
     tagFilter,
     crmOnly,
   };
-  const handleSaveDefaultFilters = () => saveDefault(currentFilters);
 
   const uniqueDepts = useMemo(() => {
     const fromEmps = employees.map((e) => e.department);
@@ -426,8 +425,8 @@ export default function GroupTasksPage() {
         <div className="flex justify-end mt-2">
           <SaveDefaultButton
             hasSavedDefault={hasSavedDefault}
-            isDirty={isDefaultDirty(savedDefault, currentFilters)}
-            onSave={handleSaveDefaultFilters}
+            isDirty={isDirty(currentFilters)}
+            onSave={() => saveDefault(currentFilters)}
             onClear={clearDefault}
           />
         </div>

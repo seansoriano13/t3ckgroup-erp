@@ -367,6 +367,9 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### SorQuickLinkButton
 `ui/SorQuickLinkButton.jsx`. Icon-only SOR link for the task card footer; opens Quick View. Props: `opportunityId`, `className`.
 
+#### SaveDefaultButton
+`ui/SaveDefaultButton.jsx`. "Save filters as default" control for a filter bar: Save / Default saved (with clear) / Update default (with clear) once the filters drift. Pair with `useSavedFilters`. Props: `hasSavedDefault`, `isDirty`, `onSave`, `onClear`, `className`.
+
 #### Page structure
 `ui/PageContainer.jsx` (`maxWidth`, `spaceY`, `className`), `ui/PageHeader.jsx` (`title`, `description`, `children`, `showGradient`, `lastWordColor`, `className`), `ui/SectionHeader.jsx` (`icon`, `bgIcon`, `title`, `description`, `rangeLabel`, `children`, `className`), `ui/FilterBar.jsx` (`children`, `advancedFilters`, `isAdvancedOpen`, `onAdvancedOpenChange`, `defaultAdvancedOpen`, `hasActiveFilters`, `onClearAll`, `actions`, `className`).
 

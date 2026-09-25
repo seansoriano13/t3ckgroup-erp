@@ -2,6 +2,26 @@ import { Bookmark, BookmarkCheck, BookmarkPlus, X } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 
+/** The one way to drop a saved default, the same in both saved states. */
+function ClearDefaultButton({ onClear, size, className = "" }) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size={size}
+      onClick={() => {
+        onClear();
+        toast.success("Saved default cleared");
+      }}
+      aria-label="Clear saved default filters"
+      title="Clear saved default"
+      className={`text-muted-foreground ${className}`}
+    >
+      <X aria-hidden="true" />
+    </Button>
+  );
+}
+
 /**
  * Two honest states for "remember these filters":
  * - nothing saved: an outlined bookmark button that reads as an action.
@@ -30,18 +50,7 @@ export default function SaveDefaultButton({
           <BookmarkPlus aria-hidden="true" />
           Update default
         </Button>
-        <button
-          type="button"
-          onClick={() => {
-            onClear();
-            toast.success("Saved default cleared");
-          }}
-          aria-label="Clear saved default filters"
-          title="Clear saved default"
-          className="grid size-7 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 outline-none"
-        >
-          <X className="size-3.5" aria-hidden="true" />
-        </button>
+        <ClearDefaultButton onClear={onClear} size="icon-sm" />
       </div>
     );
   }
@@ -51,20 +60,9 @@ export default function SaveDefaultButton({
       <div
         className={`inline-flex h-7 items-center gap-1.5 rounded-lg border border-transparent bg-muted pl-2.5 pr-1 text-[0.8rem] font-medium text-foreground ${className}`}
       >
-        <BookmarkCheck className="size-3.5 text-primary" aria-hidden="true" />
+        <BookmarkCheck className="size-3.5 text-muted-foreground" aria-hidden="true" />
         <span>Default saved</span>
-        <button
-          type="button"
-          onClick={() => {
-            onClear();
-            toast.success("Saved default cleared");
-          }}
-          aria-label="Clear saved default filters"
-          title="Clear saved default"
-          className="grid size-5 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 outline-none"
-        >
-          <X className="size-3" aria-hidden="true" />
-        </button>
+        <ClearDefaultButton onClear={onClear} size="icon-xs" className="hover:bg-background" />
       </div>
     );
   }

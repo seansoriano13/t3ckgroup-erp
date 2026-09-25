@@ -1,6 +1,6 @@
 import { Bell, Moon, Sun, LogOut, Shield, HelpCircle, Sparkles, ArrowRight, BookOpen, Megaphone, Users } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import FAQModal from "./FAQModal";
 import ChangelogModal from "../../components/ChangelogModal";
 import Spinner from "@/components/ui/Spinner";
@@ -55,113 +55,14 @@ function SettingToggle({ label, description, icon: Icon, checked, onToggle, isPe
   );
 }
 
-function ApprovalRulesPanel() {
-  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
-
-  const toggle = (key) => () =>
-    !isPending &&
-    updateSetting(
-      { [key]: !appSettings[key] },
-      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
-    );
-
-  return (
-        <>
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5 relative z-10">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Shield size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Approval Rules
-              </h2>
-            </div>
-            <div className="divide-y divide-border relative z-10">
-              <SettingToggle
-                label="Ops Manager Marketing Approvals"
-                description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
-                icon={Shield}
-                checked={!!appSettings?.marketing_approval_by_ops_manager}
-                onToggle={toggle("marketing_approval_by_ops_manager")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Universal Task Submission"
-                description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
-                icon={Shield}
-                checked={!!appSettings?.universal_task_submission}
-                onToggle={toggle("universal_task_submission")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Enable Task Self-Verification"
-                description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
-                icon={Shield}
-                checked={!!appSettings?.enable_self_verification}
-                onToggle={toggle("enable_self_verification")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Enable Manager Bulk Approval"
-                description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
-                icon={Shield}
-                checked={!!appSettings?.enable_bulk_approval}
-                onToggle={toggle("enable_bulk_approval")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-              <SettingToggle
-                label="Visual Urgency Indicators (Bottleneck Tracking)"
-                description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
-                icon={Shield}
-                checked={!!appSettings?.enable_visual_shaming}
-                onToggle={toggle("enable_visual_shaming")}
-                isPending={isPending}
-                isLoading={loadingSettings}
-              />
-            </div>
-          </div>
-        </>
-
-  );
-}
-
-const TAB_DEFS = [
-  { value: "general", label: "General", isPermitted: () => true },
-  { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin },
-  { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr },
-  { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin },
-  { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin },
-  { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin },
-];
-
-export default function SettingsPage() {
+function GeneralPanel() {
   const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [showFAQ, setShowFAQ] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
-
-  const permissionContext = getPermissionContext(user);
-  const { isSuperAdmin } = permissionContext;
   const canEditFAQContent = canEditFAQ(user);
-  const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
-  const requestedTab = searchParams.get("tab");
-  const isRequestedUsable = visibleTabs.some((t) => t.value === requestedTab);
-  const activeTab = isRequestedUsable ? requestedTab : "general";
-
-  useEffect(() => {
-    if (requestedTab && !isRequestedUsable) {
-      setSearchParams({ tab: "general" }, { replace: true });
-    }
-  }, [requestedTab, isRequestedUsable, setSearchParams]);
 
   useEffect(() => {
     isPushEnabled().then(setPushEnabled);
@@ -190,9 +91,300 @@ export default function SettingsPage() {
   };
 
   return (
+    <>
+      <ChangelogModal manualOpen={showChangelog} onManualClose={() => setShowChangelog(false)} />
+
+      {/* PREFERENCES SECTION */}
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-border bg-muted/30">
+          <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+            App Preferences
+          </h2>
+        </div>
+
+        <div className="divide-y divide-border">
+          {/* Theme Toggle */}
+          <div className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
+            <div className="flex items-center gap-4">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${theme === "dark" ? "bg-primary/10 text-primary" : "bg-mauve-4 text-mauve-10"}`}>
+                {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
+              </div>
+              <div>
+                <p className="font-bold text-foreground text-sm">Theme Mode</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Toggle between light and dark themes.</p>
+              </div>
+            </div>
+            <div
+              onClick={toggleTheme}
+              className={`w-11 h-6 rounded-full relative cursor-pointer transition-all duration-200 shrink-0 ${
+                theme === "dark" ? "bg-primary shadow-sm" : "bg-mauve-5"
+              }`}
+            >
+              <div className={`absolute top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all duration-200 ${theme === "dark" ? "right-1" : "left-1"}`} />
+            </div>
+          </div>
+
+          {/* Desktop push notifications — #166/#167 */}
+          {isPushSupported() && (
+            <SettingToggle
+              label="Desktop Notifications"
+              description="Get notified on this device when someone mentions you, assigns you a task, decides on your request, or needs your approval — even with the portal closed."
+              icon={Bell}
+              checked={pushEnabled}
+              onToggle={togglePush}
+              isPending={pushBusy}
+            />
+          )}
+
+          {/* What's New row */}
+          <div
+            className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+            onClick={() => setShowChangelog(true)}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                <Sparkles size={18} />
+              </div>
+              <div>
+                <p className="font-bold text-foreground text-sm">What's New</p>
+                <p className="text-xs text-muted-foreground mt-0.5">View the latest updates and release notes.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 pr-2">
+              <span className="text-xs font-semibold text-muted-foreground">v{appSemver}</span>
+              <span className="text-muted-foreground group-hover:text-foreground transition-colors">
+                <ArrowRight size={16} />
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* CONTENT SECTION — #177: FAQ editing was reachable only through a
+          button buried in the Help modal and its route had no guard of
+          its own; gated by the same predicate that button already used. */}
+      {canEditFAQContent && (
+        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-border bg-muted/30">
+            <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+              Content
+            </h2>
+          </div>
+          <div
+            className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
+            onClick={() => navigate("/settings/FAQEditor")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
+                <BookOpen size={18} />
+              </div>
+              <div>
+                <p className="font-bold text-foreground text-sm">FAQ Editor</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Edit the Help &amp; FAQ content shown to every role.</p>
+              </div>
+            </div>
+            <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+          </div>
+        </div>
+      )}
+
+      {/* DANGER ZONE SECTION */}
+      <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-border bg-destructive/5 flex items-center gap-2.5">
+          <h2 className="text-[10px] font-black text-destructive/80 uppercase tracking-[0.2em]">
+            Account Actions
+          </h2>
+        </div>
+
+        <div className="p-6">
+          <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
+            Logging out will clear your current session. You will need to
+            re-authenticate with your T3CKGROUP Google account to access the
+            portal again.
+          </p>
+          <Button
+            variant="outline"
+            onClick={logout}
+            className="h-auto gap-2 rounded-xl bg-card px-6 py-2.5 font-bold text-destructive shadow-sm border-destructive/30 hover:border-destructive hover:bg-destructive hover:text-mauve-1"
+          >
+            <LogOut size={18} />
+            Sign Out
+          </Button>
+        </div>
+      </div>
+
+      {/* Build fingerprint — for support conversations, not the reader */}
+      <div className="flex items-center justify-center">
+        <span className="text-[10px] text-muted-foreground/40">{buildFingerprint}</span>
+      </div>
+    </>
+  );
+}
+
+function ApprovalRulesPanel() {
+  const { settings: appSettings, updateSetting, isPending, isLoading: loadingSettings } = useAppSettings();
+
+  const toggle = (key) => () =>
+    !isPending &&
+    updateSetting(
+      { [key]: !appSettings[key] },
+      { onSuccess: () => toast.success("Security configuration updated system-wide!") },
+    );
+
+  return (
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden relative">
+      <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 blur-3xl pointer-events-none -mr-20 -mt-20" />
+      <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5 relative z-10">
+        <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Shield size={14} className="text-primary" />
+        </div>
+        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+          Approval Rules
+        </h2>
+      </div>
+      <div className="divide-y divide-border relative z-10">
+        <SettingToggle
+          label="Ops Manager Marketing Approvals"
+          description="When ON, the Operations Manager can also approve/reject 'Awaiting Approval' tasks created by Marketing employees. When OFF, only Super Admins can process these."
+          icon={Shield}
+          checked={!!appSettings?.marketing_approval_by_ops_manager}
+          onToggle={toggle("marketing_approval_by_ops_manager")}
+          isPending={isPending}
+          isLoading={loadingSettings}
+        />
+        <SettingToggle
+          label="Universal Task Submission"
+          description="All employees can explicitly submit tasks for manager review before approval. Heads will see submitted tasks in their approval queue."
+          icon={Shield}
+          checked={!!appSettings?.universal_task_submission}
+          onToggle={toggle("universal_task_submission")}
+          isPending={isPending}
+          isLoading={loadingSettings}
+        />
+        <SettingToggle
+          label="Enable Task Self-Verification"
+          description="Allow employees to self-verify their own tasks if a manager has not responded after 48 hours. These will be flagged for HR audit."
+          icon={Shield}
+          checked={!!appSettings?.enable_self_verification}
+          onToggle={toggle("enable_self_verification")}
+          isPending={isPending}
+          isLoading={loadingSettings}
+        />
+        <SettingToggle
+          label="Enable Manager Bulk Approval"
+          description="Allow Super Admins to bulk-approve delayed pending tasks to clear bottlenecks."
+          icon={Shield}
+          checked={!!appSettings?.enable_bulk_approval}
+          onToggle={toggle("enable_bulk_approval")}
+          isPending={isPending}
+          isLoading={loadingSettings}
+        />
+        <SettingToggle
+          label="Visual Urgency Indicators (Bottleneck Tracking)"
+          description='Highlight tasks waiting more than 48 hours for a manager with a "DELAYED" badge in the action queue.'
+          icon={Shield}
+          checked={!!appSettings?.enable_visual_shaming}
+          onToggle={toggle("enable_visual_shaming")}
+          isPending={isPending}
+          isLoading={loadingSettings}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HrPanel() {
+  const { user } = useAuth();
+  const { isSuperAdmin } = getPermissionContext(user);
+  return (
+    <>
+      <LeaveCategoriesConfig />
+      {isSuperAdmin && <DayShiftConfig />}
+    </>
+  );
+}
+
+function SalesPanel() {
+  return (
+    <>
+      <LeadSourceManager />
+      <Link
+        to="/sors/commission-formula"
+        className="bg-card border border-border rounded-2xl shadow-sm p-5 flex items-center justify-between hover:bg-muted/30 transition-colors group outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        <div>
+          <p className="font-bold text-foreground text-sm">Commission Pool</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Rates and department allocations.</p>
+        </div>
+        <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+      </Link>
+    </>
+  );
+}
+
+function EmployeeGroupsPanel() {
+  return (
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+        <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
+          <Users size={14} className="text-muted-foreground" />
+        </div>
+        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+          Employee Groups
+        </h2>
+      </div>
+      <EmployeeGroupManager />
+    </div>
+  );
+}
+
+function AnnouncementsPanel() {
+  return (
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+      <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
+        <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Megaphone size={14} className="text-primary" />
+        </div>
+        <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
+          System Announcements
+        </h2>
+      </div>
+      <SystemUpdateBanner />
+      <SystemUpdateManager />
+    </div>
+  );
+}
+
+/** Each tab and the one panel it mounts. General comes first and is the fallback. */
+const TAB_DEFS = [
+  { value: "general", label: "General", isPermitted: () => true, Panel: GeneralPanel },
+  { value: "approvals", label: "Approval Rules", isPermitted: (c) => c.isSuperAdmin, Panel: ApprovalRulesPanel },
+  { value: "hr", label: "HR & Schedule", isPermitted: (c) => c.isSuperAdmin || c.isHr, Panel: HrPanel },
+  { value: "sales", label: "Sales Configuration", isPermitted: (c) => c.isSuperAdmin, Panel: SalesPanel },
+  { value: "groups", label: "Employee Groups", isPermitted: (c) => c.isSuperAdmin, Panel: EmployeeGroupsPanel },
+  { value: "announcements", label: "System Announcements", isPermitted: (c) => c.isSuperAdmin, Panel: AnnouncementsPanel },
+];
+
+export default function SettingsPage() {
+  const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showFAQ, setShowFAQ] = useState(false);
+
+  const permissionContext = getPermissionContext(user);
+  const visibleTabs = TAB_DEFS.filter((t) => t.isPermitted(permissionContext));
+  const requestedTab = searchParams.get("tab");
+  const requested = visibleTabs.find((t) => t.value === requestedTab);
+  const { value: activeTab, Panel: ActivePanel } = requested ?? TAB_DEFS[0];
+
+  useEffect(() => {
+    if (requestedTab && !requested) {
+      setSearchParams({ tab: TAB_DEFS[0].value }, { replace: true });
+    }
+  }, [requestedTab, requested, setSearchParams]);
+
+  return (
     <PageContainer maxWidth="4xl" className="pt-4">
       <FAQModal isOpen={showFAQ} onClose={() => setShowFAQ(false)} />
-      <ChangelogModal manualOpen={showChangelog} onManualClose={() => setShowChangelog(false)} />
 
       <div className="flex items-start justify-between gap-4 mb-6">
         <PageHeader
@@ -220,189 +412,7 @@ export default function SettingsPage() {
 
       {/* Only the active panel is mounted, so an inactive tab issues no queries. */}
       <div className="space-y-6">
-        {activeTab === "general" && (
-          <>
-        {/* PREFERENCES SECTION */}
-        <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-muted/30">
-            <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-              App Preferences
-            </h2>
-          </div>
-
-          <div className="divide-y divide-border">
-            {/* Theme Toggle */}
-            <div className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${theme === "dark" ? "bg-primary/10 text-primary" : "bg-mauve-4 text-mauve-10"}`}>
-                  {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
-                </div>
-                <div>
-                  <p className="font-bold text-foreground text-sm">Theme Mode</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Toggle between light and dark themes.</p>
-                </div>
-              </div>
-              <div
-                onClick={toggleTheme}
-                className={`w-11 h-6 rounded-full relative cursor-pointer transition-all duration-200 shrink-0 ${
-                  theme === "dark" ? "bg-primary shadow-sm" : "bg-mauve-5"
-                }`}
-              >
-                <div className={`absolute top-1 bg-mauve-1 w-4 h-4 rounded-full shadow transition-all duration-200 ${theme === "dark" ? "right-1" : "left-1"}`} />
-              </div>
-            </div>
-
-            {/* Desktop push notifications — #166/#167 */}
-            {isPushSupported() && (
-              <SettingToggle
-                label="Desktop Notifications"
-                description="Get notified on this device when someone mentions you, assigns you a task, decides on your request, or needs your approval — even with the portal closed."
-                icon={Bell}
-                checked={pushEnabled}
-                onToggle={togglePush}
-                isPending={pushBusy}
-              />
-            )}
-
-            {/* What's New row */}
-            <div 
-              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
-              onClick={() => setShowChangelog(true)}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
-                  <Sparkles size={18} />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground text-sm">What's New</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">View the latest updates and release notes.</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pr-2">
-                <span className="text-xs font-semibold text-muted-foreground">v{appSemver}</span>
-                <span className="text-muted-foreground group-hover:text-foreground transition-colors">
-                  <ArrowRight size={16} />
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CONTENT SECTION — #177: FAQ editing was reachable only through a
-            button buried in the Help modal and its route had no guard of
-            its own; gated by the same predicate that button already used. */}
-        {canEditFAQContent && (
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30">
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Content
-              </h2>
-            </div>
-            <div
-              className="p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
-              onClick={() => navigate("/settings/FAQEditor")}
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-9 h-9 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:text-foreground transition-colors">
-                  <BookOpen size={18} />
-                </div>
-                <div>
-                  <p className="font-bold text-foreground text-sm">FAQ Editor</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Edit the Help &amp; FAQ content shown to every role.</p>
-                </div>
-              </div>
-              <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            </div>
-          </div>
-        )}
-
-        {/* DANGER ZONE SECTION */}
-        <div className="bg-card border border-destructive/20 rounded-2xl shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-border bg-destructive/5 flex items-center gap-2.5">
-            <h2 className="text-[10px] font-black text-destructive/80 uppercase tracking-[0.2em]">
-              Account Actions
-            </h2>
-          </div>
-
-          <div className="p-6">
-            <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-              Logging out will clear your current session. You will need to
-              re-authenticate with your T3CKGROUP Google account to access the
-              portal again.
-            </p>
-            <Button
-              variant="outline"
-              onClick={logout}
-              className="h-auto gap-2 rounded-xl bg-card px-6 py-2.5 font-bold text-destructive shadow-sm border-destructive/30 hover:border-destructive hover:bg-destructive hover:text-mauve-1"
-            >
-              <LogOut size={18} />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-          </>
-        )}
-
-        {activeTab === "approvals" && <ApprovalRulesPanel />}
-
-        {activeTab === "hr" && (
-          <div className="space-y-6">
-            <LeaveCategoriesConfig />
-            {isSuperAdmin && <DayShiftConfig />}
-          </div>
-        )}
-
-        {activeTab === "sales" && (
-          <>
-        <LeadSourceManager />
-
-            <div
-              className="bg-card border border-border rounded-2xl shadow-sm p-5 flex items-center justify-between hover:bg-muted/30 transition-colors cursor-pointer group"
-              onClick={() => navigate("/sors/commission-formula")}
-            >
-              <div>
-                <p className="font-bold text-foreground text-sm">Commission Pool</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Rates and department allocations.</p>
-              </div>
-              <ArrowRight size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
-            </div>
-          </>
-        )}
-
-        {activeTab === "groups" && (
-        <>
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-muted flex items-center justify-center">
-                <Users size={14} className="text-muted-foreground" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                Employee Groups
-              </h2>
-            </div>
-            <EmployeeGroupManager />
-          </div>
-        </>
-
-        )}
-
-        {activeTab === "announcements" && (
-        <>
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-border bg-muted/30 flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-lg bg-primary/10 flex items-center justify-center">
-                <Megaphone size={14} className="text-primary" />
-              </div>
-              <h2 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">
-                System Announcements
-              </h2>
-            </div>
-            <SystemUpdateBanner />
-            <SystemUpdateManager />
-          </div>
-        </>
-
-        )}
+        <ActivePanel />
       </div>
 
       {/* FAQ floating hint */}
@@ -415,11 +425,6 @@ export default function SettingsPage() {
           <HelpCircle size={12} />
           Have questions? View the Help & FAQ
         </Button>
-      </div>
-
-      {/* Build fingerprint — for support conversations, not the reader */}
-      <div className="mt-2 flex items-center justify-center">
-        <span className="text-[10px] text-muted-foreground/40">{buildFingerprint}</span>
       </div>
     </PageContainer>
   );
