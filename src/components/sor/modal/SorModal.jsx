@@ -310,6 +310,7 @@ export default function SorModal({
     // A tab never opened stays `enabled: false`, so this can't wake a fetch
     // the reader hasn't asked for.
     queryClient.invalidateQueries({ queryKey: ["sorModalTab"] });
+    queryClient.invalidateQueries({ queryKey: ["sorCanEdit"] });
     queryClient.invalidateQueries({ queryKey: ["superAdminActivityLog"] });
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
