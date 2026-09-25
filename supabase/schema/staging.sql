@@ -15,6 +15,9 @@
 -- Extensions
 -- ============================================================
 
+create extension if not exists "pg_cron" with schema "pg_catalog";
+create extension if not exists "pg_graphql" with schema "graphql";
+create extension if not exists "pg_net" with schema "extensions";
 create extension if not exists "pg_stat_statements" with schema "extensions";
 create extension if not exists "pgcrypto" with schema "extensions";
 create extension if not exists "supabase_vault" with schema "vault";
@@ -139,6 +142,13 @@ create table if not exists public."committee_task_members" (
   "attachments" jsonb default '[]'::jsonb
 );
 
+create table if not exists public."committee_task_tags" (
+  "committee_task_id" uuid not null,
+  "tag_id" uuid not null,
+  "added_by" uuid,
+  "added_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."committee_tasks" (
   "id" uuid not null default gen_random_uuid(),
   "title" text not null,
@@ -154,7 +164,9 @@ create table if not exists public."committee_tasks" (
   "created_at" timestamp with time zone default now(),
   "updated_at" timestamp with time zone default now(),
   "template_id" uuid,
-  "opportunity_id" uuid
+  "opportunity_id" uuid,
+  "stage_action_id" uuid,
+  "stage_visit_id" uuid
 );
 
 create table if not exists public."companies" (
@@ -189,6 +201,30 @@ create table if not exists public."crm_pipeline_stages" (
   "is_itb_gate" boolean not null default false
 );
 
+create table if not exists public."employee_group_members" (
+  "id" uuid not null default gen_random_uuid(),
+  "group_id" uuid not null,
+  "employee_id" uuid not null,
+  "added_by" uuid,
+  "added_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."employee_group_teams" (
+  "id" uuid not null default gen_random_uuid(),
+  "group_id" uuid not null,
+  "team" text not null
+);
+
+create table if not exists public."employee_groups" (
+  "id" uuid not null default gen_random_uuid(),
+  "name" text not null,
+  "description" text,
+  "archived_at" timestamp with time zone,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."employees" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -218,12 +254,21 @@ create table if not exists public."employees" (
   "is_role_simulator" boolean not null default false,
   "hidden_nav_keys" text[] not null default '{}'::text[],
   "company_id" uuid,
-  "is_issued_password" boolean not null default false
+  "is_issued_password" boolean not null default false,
+  "can_edit_sales_flows" boolean not null default false
 );
 
 create table if not exists public."faq_data" (
   "id" integer not null default 1,
   "categories" jsonb not null default '[]'::jsonb,
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."flow_access_settings" (
+  "flow_id" uuid not null,
+  "always_sees" jsonb not null default '[]'::jsonb,
+  "journey_viewers" jsonb,
+  "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now()
 );
 
@@ -233,6 +278,23 @@ create table if not exists public."flow_edges" (
   "from_stage_id" uuid not null,
   "to_stage_id" uuid not null,
   "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."flow_form_fields" (
+  "id" uuid not null default gen_random_uuid(),
+  "flow_id" uuid not null,
+  "source" text not null,
+  "default_key" text,
+  "label" text,
+  "help" text,
+  "field_type" text,
+  "options" jsonb not null default '[]'::jsonb,
+  "is_required" boolean,
+  "is_hidden" boolean not null default false,
+  "sort_order" integer not null default 0,
+  "archived_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."flow_snapshots" (
@@ -246,6 +308,14 @@ create table if not exists public."flow_snapshots" (
   "note" text
 );
 
+create table if not exists public."flow_stage_access" (
+  "stage_id" uuid not null,
+  "shut_out_roles" text[] not null default '{}'::text[],
+  "excluded_group_ids" uuid[] not null default '{}'::uuid[],
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."flow_stage_actions" (
   "id" uuid not null default gen_random_uuid(),
   "stage_id" uuid not null,
@@ -253,6 +323,32 @@ create table if not exists public."flow_stage_actions" (
   "config" jsonb not null default '{}'::jsonb,
   "sort_order" integer not null default 0,
   "archived_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."flow_stage_fields" (
+  "id" uuid not null default gen_random_uuid(),
+  "stage_id" uuid not null,
+  "label" text not null,
+  "help" text,
+  "source" text not null,
+  "sor_field" text,
+  "field_type" text not null,
+  "options" jsonb not null default '[]'::jsonb,
+  "is_required" boolean not null default true,
+  "sort_order" integer not null default 0,
+  "archived_at" timestamp with time zone,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."flow_stage_follow_ups" (
+  "stage_id" uuid not null,
+  "enabled" boolean not null default false,
+  "every_days" integer,
+  "recipients" jsonb not null default '[{"role": "deal_owner", "type": "role"}]'::jsonb,
+  "proof_required" boolean not null default true,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now()
 );
@@ -375,13 +471,14 @@ create table if not exists public."offset_leaves" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid,
+  "approved_hours" numeric
 );
 
 create table if not exists public."overtime_requests" (
@@ -410,13 +507,13 @@ create table if not exists public."overtime_requests" (
   "hr_processed_by" uuid,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
 );
 
 create table if not exists public."push_subscriptions" (
@@ -502,7 +599,9 @@ create table if not exists public."sales_opportunities" (
   "odoo_partner_id" bigint,
   "flow_snapshot_id" uuid,
   "is_retail" boolean not null default false,
-  "serial_no" bigint not null generated by default as identity
+  "serial_no" bigint not null generated by default as identity,
+  "deleted_at" timestamp with time zone,
+  "deleted_by" uuid
 );
 
 create table if not exists public."sales_opportunity_items" (
@@ -514,7 +613,8 @@ create table if not exists public."sales_opportunity_items" (
   "unit_price" numeric(18,2) not null default 0,
   "sort_order" integer not null default 0,
   "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
+  "updated_at" timestamp with time zone not null default now(),
+  "odoo_product_id" integer
 );
 
 create table if not exists public."sales_opportunity_logs" (
@@ -524,7 +624,8 @@ create table if not exists public."sales_opportunity_logs" (
   "type" text not null default 'COMMENT'::text,
   "content" text not null,
   "metadata" jsonb,
-  "created_at" timestamp with time zone not null default now()
+  "created_at" timestamp with time zone not null default now(),
+  "stage_visit_id" uuid
 );
 
 create table if not exists public."sales_opportunity_members" (
@@ -561,13 +662,28 @@ create table if not exists public."sil_leaves" (
   "approval_credits_snapshot" numeric,
   "printed_at" timestamp with time zone,
   "printed_by" uuid,
-  "company_id" uuid,
   "head_id" uuid,
   "head_status" text not null default 'APPROVED'::text,
   "head_note" text,
   "head_decided_at" timestamp with time zone,
   "head_signature_version" text,
-  "hr_override" boolean not null default false
+  "hr_override" boolean not null default false,
+  "company_id" uuid
+);
+
+create table if not exists public."sor_action_runs" (
+  "id" uuid not null default gen_random_uuid(),
+  "opportunity_id" uuid not null,
+  "stage_id" uuid not null,
+  "action_id" uuid not null,
+  "stage_visit_id" uuid,
+  "outcome" text not null default 'pending'::text,
+  "decider" jsonb,
+  "decided_by" uuid,
+  "decided_at" timestamp with time zone,
+  "task_id" uuid,
+  "group_task_id" uuid,
+  "created_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."sor_canvass_offers" (
@@ -605,7 +721,17 @@ create table if not exists public."sor_condition_status" (
   "opportunity_id" uuid not null,
   "condition_id" uuid not null,
   "satisfied_by" uuid,
-  "satisfied_at" timestamp with time zone not null default now()
+  "satisfied_at" timestamp with time zone not null default now(),
+  "stage_visit_id" uuid
+);
+
+create table if not exists public."sor_form_values" (
+  "id" uuid not null default gen_random_uuid(),
+  "opportunity_id" uuid not null,
+  "field_id" uuid not null,
+  "value" jsonb,
+  "updated_by" uuid,
+  "updated_at" timestamp with time zone not null default now()
 );
 
 create table if not exists public."sor_inclusions" (
@@ -651,19 +777,6 @@ create table if not exists public."sor_procurement_requests" (
   "inclusion_id" uuid
 );
 
-create table if not exists public."sor_project_evaluations" (
-  "id" uuid not null default gen_random_uuid(),
-  "opportunity_id" uuid not null,
-  "candidate_sales_price" numeric(14,2),
-  "estimated_opex" numeric(14,2),
-  "is_government_client" boolean not null default false,
-  "signed_off_by" uuid,
-  "signed_off_at" timestamp with time zone,
-  "created_by" uuid,
-  "created_at" timestamp with time zone not null default now(),
-  "updated_at" timestamp with time zone not null default now()
-);
-
 create table if not exists public."sor_purchase_order_links" (
   "id" uuid not null default gen_random_uuid(),
   "opportunity_id" uuid not null,
@@ -673,6 +786,50 @@ create table if not exists public."sor_purchase_order_links" (
   "created_by" uuid,
   "created_at" timestamp with time zone not null default now(),
   "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."sor_stage_field_values" (
+  "id" uuid not null default gen_random_uuid(),
+  "opportunity_id" uuid not null,
+  "stage_visit_id" uuid not null,
+  "field_id" uuid not null,
+  "value" jsonb,
+  "updated_by" uuid,
+  "updated_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."sor_stage_participants" (
+  "id" uuid not null default gen_random_uuid(),
+  "opportunity_id" uuid not null,
+  "employee_id" uuid not null,
+  "source" text not null,
+  "source_id" uuid,
+  "opened_visit_id" uuid not null,
+  "until_rule" text not null,
+  "until_stage_id" uuid,
+  "closed_at" timestamp with time zone,
+  "closed_reason" text,
+  "removed_by" uuid,
+  "created_at" timestamp with time zone not null default now()
+);
+
+create table if not exists public."sor_stage_visits" (
+  "id" uuid not null default gen_random_uuid(),
+  "opportunity_id" uuid not null,
+  "flow_stage_id" uuid not null,
+  "flow_snapshot_id" uuid,
+  "sequence" integer not null,
+  "entered_at" timestamp with time zone not null default now(),
+  "entered_by" uuid,
+  "left_at" timestamp with time zone,
+  "left_by" uuid
+);
+
+create table if not exists public."sor_stock_snapshots" (
+  "opportunity_id" uuid not null,
+  "fetched_at" timestamp with time zone not null default now(),
+  "fetched_by" uuid,
+  "data" jsonb not null default '{}'::jsonb
 );
 
 create table if not exists public."stage_conditions" (
@@ -719,6 +876,16 @@ create table if not exists public."task_activity" (
   "metadata" jsonb
 );
 
+create table if not exists public."task_tags" (
+  "id" uuid not null default gen_random_uuid(),
+  "name" text not null,
+  "color" text not null,
+  "archived_at" timestamp with time zone,
+  "created_by" uuid,
+  "created_at" timestamp with time zone not null default now(),
+  "updated_at" timestamp with time zone not null default now()
+);
+
 create table if not exists public."tasks" (
   "id" uuid not null default gen_random_uuid(),
   "created_at" timestamp with time zone not null default now(),
@@ -743,7 +910,9 @@ create table if not exists public."tasks" (
   "payment_voucher" text,
   "attachment_urls" text[] default '{}'::text[],
   "checklist" jsonb,
-  "opportunity_id" uuid
+  "opportunity_id" uuid,
+  "stage_action_id" uuid,
+  "stage_visit_id" uuid
 );
 
 create table if not exists public."undertime_requests" (
@@ -805,15 +974,24 @@ alter table committee_roles add constraint "committee_roles_pkey" PRIMARY KEY (i
 alter table committee_task_activity add constraint "committee_task_activity_pkey" PRIMARY KEY (id);
 alter table committee_task_logs add constraint "committee_task_logs_pkey" PRIMARY KEY (id);
 alter table committee_task_members add constraint "committee_task_members_pkey" PRIMARY KEY (id);
+alter table committee_task_tags add constraint "committee_task_tags_pkey" PRIMARY KEY (committee_task_id, tag_id);
 alter table committee_tasks add constraint "committee_tasks_pkey" PRIMARY KEY (id);
 alter table companies add constraint "companies_pkey" PRIMARY KEY (id);
 alter table crm_lead_sources add constraint "crm_lead_sources_pkey" PRIMARY KEY (value);
 alter table crm_pipeline_stages add constraint "crm_pipeline_stages_pkey" PRIMARY KEY (code);
+alter table employee_group_members add constraint "employee_group_members_pkey" PRIMARY KEY (id);
+alter table employee_group_teams add constraint "employee_group_teams_pkey" PRIMARY KEY (id);
+alter table employee_groups add constraint "employee_groups_pkey" PRIMARY KEY (id);
 alter table employees add constraint "employees_pkey" PRIMARY KEY (id);
 alter table faq_data add constraint "faq_data_pkey" PRIMARY KEY (id);
+alter table flow_access_settings add constraint "flow_access_settings_pkey" PRIMARY KEY (flow_id);
 alter table flow_edges add constraint "flow_edges_pkey" PRIMARY KEY (id);
+alter table flow_form_fields add constraint "flow_form_fields_pkey" PRIMARY KEY (id);
 alter table flow_snapshots add constraint "flow_snapshots_pkey" PRIMARY KEY (id);
+alter table flow_stage_access add constraint "flow_stage_access_pkey" PRIMARY KEY (stage_id);
 alter table flow_stage_actions add constraint "flow_stage_actions_pkey" PRIMARY KEY (id);
+alter table flow_stage_fields add constraint "flow_stage_fields_pkey" PRIMARY KEY (id);
+alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_pkey" PRIMARY KEY (stage_id);
 alter table flow_stages add constraint "flow_stages_pkey" PRIMARY KEY (id);
 alter table group_task_template_members add constraint "group_task_template_members_pkey" PRIMARY KEY (id);
 alter table group_task_templates add constraint "group_task_templates_pkey" PRIMARY KEY (id);
@@ -833,17 +1011,23 @@ alter table sales_opportunity_items add constraint "sales_opportunity_items_pkey
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_pkey" PRIMARY KEY (id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_pkey" PRIMARY KEY (id);
 alter table sil_leaves add constraint "sil_leaves_pkey" PRIMARY KEY (id);
+alter table sor_action_runs add constraint "sor_action_runs_pkey" PRIMARY KEY (id);
 alter table sor_canvass_offers add constraint "sor_canvass_offers_pkey" PRIMARY KEY (id);
 alter table sor_canvasses add constraint "sor_canvasses_pkey" PRIMARY KEY (id);
 alter table sor_condition_status add constraint "sor_requirement_status_pkey" PRIMARY KEY (id);
+alter table sor_form_values add constraint "sor_form_values_pkey" PRIMARY KEY (id);
 alter table sor_inclusions add constraint "sor_inclusions_pkey" PRIMARY KEY (id);
 alter table sor_procurement_requests add constraint "sor_procurement_requests_pkey" PRIMARY KEY (id);
-alter table sor_project_evaluations add constraint "sor_project_evaluations_pkey" PRIMARY KEY (id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_pkey" PRIMARY KEY (id);
+alter table sor_stage_field_values add constraint "sor_stage_field_values_pkey" PRIMARY KEY (id);
+alter table sor_stage_participants add constraint "sor_stage_participants_pkey" PRIMARY KEY (id);
+alter table sor_stage_visits add constraint "sor_stage_visits_pkey" PRIMARY KEY (id);
+alter table sor_stock_snapshots add constraint "sor_stock_snapshots_pkey" PRIMARY KEY (opportunity_id);
 alter table stage_conditions add constraint "stage_requirements_pkey" PRIMARY KEY (id);
 alter table system_audit_logs add constraint "system_audit_logs_pkey" PRIMARY KEY (id);
 alter table system_updates add constraint "system_updates_pkey" PRIMARY KEY (id);
 alter table task_activity add constraint "task_activity_pkey" PRIMARY KEY (id);
+alter table task_tags add constraint "task_tags_pkey" PRIMARY KEY (id);
 alter table tasks add constraint "tasks_pkey" PRIMARY KEY (id);
 alter table undertime_requests add constraint "undertime_requests_pkey" PRIMARY KEY (id);
 alter table verification_rate_limits add constraint "verification_rate_limits_pkey" PRIMARY KEY (ip_address);
@@ -854,7 +1038,10 @@ alter table commission_positions add constraint "commission_positions_unique_nam
 alter table commission_rates add constraint "commission_rates_unique_type_date" UNIQUE (rate_type, effective_from);
 alter table commission_splits add constraint "commission_splits_unique_role" UNIQUE (project_type, share_role);
 alter table committee_roles add constraint "committee_roles_role_name_key" UNIQUE (role_name);
+alter table employee_group_members add constraint "employee_group_members_group_employee_key" UNIQUE (group_id, employee_id);
+alter table employee_group_teams add constraint "employee_group_teams_group_team_key" UNIQUE (group_id, team);
 alter table flow_edges add constraint "flow_edges_unique" UNIQUE (flow_id, from_stage_id, to_stage_id);
+alter table flow_form_fields add constraint "flow_form_fields_default_unique" UNIQUE (flow_id, default_key);
 alter table flow_snapshots add constraint "flow_snapshots_version_unique" UNIQUE (flow_id, version, version_minor);
 alter table flow_stages add constraint "flow_stages_flow_scoped_key" UNIQUE (flow_id, id);
 alter table odoo_retail_queue add constraint "odoo_retail_queue_odoo_so_number_key" UNIQUE (odoo_so_number);
@@ -866,9 +1053,12 @@ alter table sales_opportunities add constraint "sales_opportunities_opportunity_
 alter table sales_opportunities add constraint "sales_opportunities_serial_no_key" UNIQUE (serial_no);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_unique" UNIQUE (opportunity_id, employee_id);
 alter table sil_leaves add constraint "sil_leaves_verification_token_key" UNIQUE (verification_token);
-alter table sor_condition_status add constraint "sor_condition_status_unique" UNIQUE (opportunity_id, condition_id);
-alter table sor_project_evaluations add constraint "sor_project_evaluations_opportunity_id_key" UNIQUE (opportunity_id);
+alter table sor_action_runs add constraint "sor_action_runs_unique" UNIQUE (opportunity_id, stage_id, action_id);
+alter table sor_condition_status add constraint "sor_condition_status_visit_unique" UNIQUE (stage_visit_id, condition_id);
+alter table sor_form_values add constraint "sor_form_values_unique" UNIQUE (opportunity_id, field_id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_unique" UNIQUE (opportunity_id, po_number);
+alter table sor_stage_field_values add constraint "sor_stage_field_values_unique" UNIQUE (stage_visit_id, field_id);
+alter table sor_stage_visits add constraint "sor_stage_visits_unique_sequence" UNIQUE (opportunity_id, sequence);
 alter table undertime_requests add constraint "undertime_requests_verification_token_key" UNIQUE (verification_token);
 alter table app_settings add constraint "app_settings_id_check" CHECK ((id = true));
 alter table chat_read_receipts add constraint "chat_read_receipts_entity_type_check" CHECK ((entity_type = ANY (ARRAY['TASK'::text, 'SALES'::text, 'COMMITTEE_TASK'::text, 'GROUP_TASK'::text])));
@@ -877,7 +1067,17 @@ alter table commission_splits add constraint "commission_splits_project_type_chk
 alter table commission_splits add constraint "commission_splits_share_role_chk" CHECK ((share_role = ANY (ARRAY['deal_owner'::text, 'supporting_salesperson'::text, 'closing_salesperson'::text, 'sales_director'::text])));
 alter table faq_data add constraint "faq_data_id_check" CHECK ((id = 1));
 alter table flow_edges add constraint "flow_edges_no_self_loop" CHECK ((from_stage_id <> to_stage_id));
+alter table flow_form_fields add constraint "flow_form_fields_custom_shape_chk" CHECK (((source <> 'custom'::text) OR ((label IS NOT NULL) AND (btrim(label) <> ''::text) AND (field_type IS NOT NULL))));
+alter table flow_form_fields add constraint "flow_form_fields_default_key_chk" CHECK ((((source = 'default'::text) AND (default_key IS NOT NULL)) OR ((source = 'custom'::text) AND (default_key IS NULL))));
+alter table flow_form_fields add constraint "flow_form_fields_source_chk" CHECK ((source = ANY (ARRAY['default'::text, 'custom'::text])));
+alter table flow_form_fields add constraint "flow_form_fields_type_chk" CHECK (((field_type IS NULL) OR (field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text]))));
 alter table flow_stage_actions add constraint "flow_stage_actions_kind_chk" CHECK ((kind = ANY (ARRAY['create_group_task'::text, 'create_individual_task'::text])));
+alter table flow_stage_fields add constraint "flow_stage_fields_label_not_blank" CHECK ((btrim(label) <> ''::text));
+alter table flow_stage_fields add constraint "flow_stage_fields_sor_field_chk" CHECK ((((source = 'sor'::text) AND (sor_field IS NOT NULL)) OR ((source = 'custom'::text) AND (sor_field IS NULL))));
+alter table flow_stage_fields add constraint "flow_stage_fields_source_chk" CHECK ((source = ANY (ARRAY['sor'::text, 'custom'::text])));
+alter table flow_stage_fields add constraint "flow_stage_fields_type_chk" CHECK ((field_type = ANY (ARRAY['text'::text, 'number'::text, 'date'::text, 'choice'::text])));
+alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_days_when_enabled" CHECK (((NOT enabled) OR (every_days IS NOT NULL)));
+alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_every_days_check" CHECK (((every_days IS NULL) OR (every_days > 0)));
 alter table flow_stages add constraint "flow_stages_color_check" CHECK (((color IS NULL) OR (color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text]))));
 alter table flow_stages add constraint "flow_stages_name_not_blank" CHECK ((btrim(name) <> ''::text));
 alter table hr_day_shift_config add constraint "hr_day_shift_config_weekday_check" CHECK (((weekday >= 0) AND (weekday <= 6)));
@@ -895,6 +1095,7 @@ alter table sales_opportunity_logs add constraint "sales_opportunity_logs_type_c
 alter table sil_leaves add constraint "sil_leaves_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table sil_leaves add constraint "sil_leaves_hours_check" CHECK ((hours > (0)::numeric));
 alter table sil_leaves add constraint "sil_leaves_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
+alter table sor_action_runs add constraint "sor_action_runs_outcome_check" CHECK ((outcome = ANY (ARRAY['pending'::text, 'created'::text, 'skipped'::text, 'failed'::text])));
 alter table sor_canvasses add constraint "sor_canvasses_one_subject_chk" CHECK (((((procurement_request_id IS NOT NULL))::integer + ((inclusion_id IS NOT NULL))::integer) = 1));
 alter table sor_inclusions add constraint "sor_inclusions_completeness_check" CHECK ((completeness = ANY (ARRAY['COVERED'::text, 'MISSING'::text, 'SUBSTITUTED'::text, 'NOT_REQUIRED'::text])));
 alter table sor_inclusions add constraint "sor_inclusions_cost_source_chk" CHECK (((cost_source IS NULL) OR (cost_source = ANY (ARRAY['CANVASS_OFFER'::text, 'ODOO_CATALOG'::text, 'MANUAL'::text]))));
@@ -902,8 +1103,11 @@ alter table sor_inclusions add constraint "sor_inclusions_sourcing_check" CHECK 
 alter table sor_procurement_requests add constraint "sor_procurement_requests_outcome_check" CHECK ((outcome = ANY (ARRAY['IN_PROGRESS'::text, 'PURCHASED'::text, 'DELIVERED'::text, 'ON_ORDER'::text, 'ALREADY_EXISTS'::text, 'SUBSTITUTED'::text, 'UNAVAILABLE'::text])));
 alter table sor_procurement_requests add constraint "sor_procurement_requests_verification_check" CHECK ((verification = ANY (ARRAY['UNVERIFIED'::text, 'VERIFIED'::text, 'PENDING_VERIFICATION'::text, 'NOT_FOUND'::text])));
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_origin_check" CHECK ((origin = ANY (ARRAY['ODOO_ORIGIN'::text, 'MANUAL'::text])));
+alter table sor_stage_participants add constraint "sor_stage_participants_source_chk" CHECK ((source = ANY (ARRAY['action'::text, 'assignment'::text, 'purchase_request'::text])));
+alter table sor_stage_participants add constraint "sor_stage_participants_until_rule_chk" CHECK ((until_rule = ANY (ARRAY['stage_left'::text, 'stage_entered'::text, 'later_stage_left'::text, 'terminal'::text])));
 alter table stage_conditions add constraint "stage_conditions_kind_chk" CHECK ((kind = ANY (ARRAY['attachment'::text, 'field'::text, 'tickbox'::text, 'assignment'::text, 'deadline'::text, 'project_evaluation'::text, 'inclusions'::text, 'purchasing'::text])));
 alter table task_activity add constraint "task_activity_type_check" CHECK (((type)::text = ANY (ARRAY[('SYSTEM'::character varying)::text, ('COMMENT'::character varying)::text, ('APPROVAL'::character varying)::text, ('HR_NOTE'::character varying)::text])));
+alter table task_tags add constraint "task_tags_color_check" CHECK ((color = ANY (ARRAY['mauve'::text, 'amber'::text, 'blue'::text, 'red'::text, 'violet'::text, 'orange'::text, 'green'::text])));
 alter table undertime_requests add constraint "undertime_requests_head_status_check" CHECK ((head_status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text])));
 alter table undertime_requests add constraint "undertime_requests_status_check" CHECK ((status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text, 'REJECTED'::text, 'CANCELLED'::text])));
 alter table categories add constraint "categories_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
@@ -917,18 +1121,33 @@ alter table committee_task_logs add constraint "committee_task_logs_committee_ta
 alter table committee_task_members add constraint "committee_task_members_committee_task_id_fkey" FOREIGN KEY (committee_task_id) REFERENCES committee_tasks(id);
 alter table committee_task_members add constraint "committee_task_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table committee_task_members add constraint "committee_task_members_rated_by_fkey" FOREIGN KEY (rated_by) REFERENCES employees(id);
+alter table committee_task_tags add constraint "committee_task_tags_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id);
+alter table committee_task_tags add constraint "committee_task_tags_committee_task_id_fkey" FOREIGN KEY (committee_task_id) REFERENCES committee_tasks(id) ON DELETE CASCADE;
+alter table committee_task_tags add constraint "committee_task_tags_tag_id_fkey" FOREIGN KEY (tag_id) REFERENCES task_tags(id);
 alter table committee_tasks add constraint "committee_tasks_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_hr_verified_by_fkey" FOREIGN KEY (hr_verified_by) REFERENCES employees(id);
 alter table committee_tasks add constraint "committee_tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
+alter table committee_tasks add constraint "committee_tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
+alter table committee_tasks add constraint "committee_tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table committee_tasks add constraint "committee_tasks_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE SET NULL;
+alter table employee_group_members add constraint "employee_group_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table employee_group_members add constraint "employee_group_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE;
+alter table employee_group_members add constraint "employee_group_members_group_id_fkey" FOREIGN KEY (group_id) REFERENCES employee_groups(id) ON DELETE CASCADE;
+alter table employee_group_teams add constraint "employee_group_teams_group_id_fkey" FOREIGN KEY (group_id) REFERENCES employee_groups(id) ON DELETE CASCADE;
+alter table employee_groups add constraint "employee_groups_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table employees add constraint "employees_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL;
 alter table employees add constraint "employees_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
+alter table flow_access_settings add constraint "flow_access_settings_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_from_in_flow" FOREIGN KEY (flow_id, from_stage_id) REFERENCES flow_stages(flow_id, id) ON DELETE CASCADE;
 alter table flow_edges add constraint "flow_edges_to_in_flow" FOREIGN KEY (flow_id, to_stage_id) REFERENCES flow_stages(flow_id, id) ON DELETE CASCADE;
+alter table flow_form_fields add constraint "flow_form_fields_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table flow_snapshots add constraint "flow_snapshots_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table flow_snapshots add constraint "flow_snapshots_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
+alter table flow_stage_access add constraint "flow_stage_access_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
 alter table flow_stage_actions add constraint "flow_stage_actions_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
+alter table flow_stage_fields add constraint "flow_stage_fields_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
+alter table flow_stage_follow_ups add constraint "flow_stage_follow_ups_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
 alter table flow_stages add constraint "flow_stages_flow_id_fkey" FOREIGN KEY (flow_id) REFERENCES sales_flows(id) ON DELETE CASCADE;
 alter table group_task_template_members add constraint "group_task_template_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table group_task_template_members add constraint "group_task_template_members_template_id_fkey" FOREIGN KEY (template_id) REFERENCES group_task_templates(id) ON DELETE CASCADE;
@@ -960,6 +1179,7 @@ alter table sales_flows add constraint "sales_flows_sale_type_id_fkey" FOREIGN K
 alter table sales_flows add constraint "sales_flows_won_stage_fkey" FOREIGN KEY (won_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
 alter table sales_opportunities add constraint "sales_opportunities_closing_sales_id_fkey" FOREIGN KEY (closing_sales_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sales_opportunities add constraint "sales_opportunities_deal_owner_id_fkey" FOREIGN KEY (deal_owner_id) REFERENCES employees(id);
+alter table sales_opportunities add constraint "sales_opportunities_deleted_by_fkey" FOREIGN KEY (deleted_by) REFERENCES employees(id);
 alter table sales_opportunities add constraint "sales_opportunities_flow_snapshot_id_fkey" FOREIGN KEY (flow_snapshot_id) REFERENCES flow_snapshots(id);
 alter table sales_opportunities add constraint "sales_opportunities_flow_stage_id_fkey" FOREIGN KEY (flow_stage_id) REFERENCES flow_stages(id) ON DELETE RESTRICT;
 alter table sales_opportunities add constraint "sales_opportunities_registered_by_fkey" FOREIGN KEY (registered_by) REFERENCES employees(id);
@@ -971,6 +1191,7 @@ alter table sales_opportunities add constraint "sales_opportunities_support_sale
 alter table sales_opportunity_items add constraint "sales_opportunity_items_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table sales_opportunity_logs add constraint "sales_opportunity_logs_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sales_opportunity_logs add constraint "sales_opportunity_logs_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table sales_opportunity_members add constraint "sales_opportunity_members_added_by_fkey" FOREIGN KEY (added_by) REFERENCES employees(id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
 alter table sales_opportunity_members add constraint "sales_opportunity_members_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
@@ -980,15 +1201,26 @@ alter table sil_leaves add constraint "sil_leaves_employee_id_fkey" FOREIGN KEY 
 alter table sil_leaves add constraint "sil_leaves_head_id_fkey" FOREIGN KEY (head_id) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sil_leaves add constraint "sil_leaves_hr_processed_by_fkey" FOREIGN KEY (hr_processed_by) REFERENCES employees(id) ON DELETE SET NULL;
 alter table sil_leaves add constraint "sil_leaves_printed_by_fkey" FOREIGN KEY (printed_by) REFERENCES employees(id);
+alter table sor_action_runs add constraint "sor_action_runs_action_id_fkey" FOREIGN KEY (action_id) REFERENCES flow_stage_actions(id) ON DELETE CASCADE;
+alter table sor_action_runs add constraint "sor_action_runs_decided_by_fkey" FOREIGN KEY (decided_by) REFERENCES employees(id);
+alter table sor_action_runs add constraint "sor_action_runs_group_task_id_fkey" FOREIGN KEY (group_task_id) REFERENCES committee_tasks(id) ON DELETE SET NULL;
+alter table sor_action_runs add constraint "sor_action_runs_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_action_runs add constraint "sor_action_runs_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
+alter table sor_action_runs add constraint "sor_action_runs_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
+alter table sor_action_runs add constraint "sor_action_runs_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
 alter table sor_canvass_offers add constraint "sor_canvass_offers_canvass_id_fkey" FOREIGN KEY (canvass_id) REFERENCES sor_canvasses(id) ON DELETE CASCADE;
 alter table sor_canvass_offers add constraint "sor_canvass_offers_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sor_canvasses add constraint "sor_canvasses_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sor_canvasses add constraint "sor_canvasses_inclusion_id_fkey" FOREIGN KEY (inclusion_id) REFERENCES sor_inclusions(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_procurement_request_id_fkey" FOREIGN KEY (procurement_request_id) REFERENCES sor_procurement_requests(id) ON DELETE CASCADE;
 alter table sor_canvasses add constraint "sor_canvasses_signed_off_by_fkey" FOREIGN KEY (signed_off_by) REFERENCES employees(id);
+alter table sor_condition_status add constraint "sor_condition_status_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE CASCADE;
 alter table sor_condition_status add constraint "sor_requirement_status_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table sor_condition_status add constraint "sor_requirement_status_requirement_id_fkey" FOREIGN KEY (condition_id) REFERENCES stage_conditions(id) ON DELETE CASCADE;
 alter table sor_condition_status add constraint "sor_requirement_status_satisfied_by_fkey" FOREIGN KEY (satisfied_by) REFERENCES employees(id);
+alter table sor_form_values add constraint "sor_form_values_field_id_fkey" FOREIGN KEY (field_id) REFERENCES flow_form_fields(id) ON DELETE CASCADE;
+alter table sor_form_values add constraint "sor_form_values_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_form_values add constraint "sor_form_values_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
 alter table sor_inclusions add constraint "sor_inclusions_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sor_inclusions add constraint "sor_inclusions_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table sor_procurement_requests add constraint "sor_procurement_requests_assigned_to_fkey" FOREIGN KEY (assigned_to) REFERENCES employees(id);
@@ -997,22 +1229,38 @@ alter table sor_procurement_requests add constraint "sor_procurement_requests_op
 alter table sor_procurement_requests add constraint "sor_procurement_requests_requested_by_fkey" FOREIGN KEY (requested_by) REFERENCES employees(id);
 alter table sor_procurement_requests add constraint "sor_procurement_requests_resolved_by_fkey" FOREIGN KEY (resolved_by) REFERENCES employees(id);
 alter table sor_procurement_requests add constraint "sor_procurement_requests_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE SET NULL;
-alter table sor_project_evaluations add constraint "sor_project_evaluations_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
-alter table sor_project_evaluations add constraint "sor_project_evaluations_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
-alter table sor_project_evaluations add constraint "sor_project_evaluations_signed_off_by_fkey" FOREIGN KEY (signed_off_by) REFERENCES employees(id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table sor_purchase_order_links add constraint "sor_purchase_order_links_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_stage_field_values add constraint "sor_stage_field_values_field_id_fkey" FOREIGN KEY (field_id) REFERENCES flow_stage_fields(id) ON DELETE CASCADE;
+alter table sor_stage_field_values add constraint "sor_stage_field_values_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_stage_field_values add constraint "sor_stage_field_values_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE CASCADE;
+alter table sor_stage_field_values add constraint "sor_stage_field_values_updated_by_fkey" FOREIGN KEY (updated_by) REFERENCES employees(id);
+alter table sor_stage_participants add constraint "sor_stage_participants_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
+alter table sor_stage_participants add constraint "sor_stage_participants_opened_visit_id_fkey" FOREIGN KEY (opened_visit_id) REFERENCES sor_stage_visits(id);
+alter table sor_stage_participants add constraint "sor_stage_participants_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_stage_participants add constraint "sor_stage_participants_removed_by_fkey" FOREIGN KEY (removed_by) REFERENCES employees(id);
+alter table sor_stage_participants add constraint "sor_stage_participants_until_stage_id_fkey" FOREIGN KEY (until_stage_id) REFERENCES flow_stages(id);
+alter table sor_stage_visits add constraint "sor_stage_visits_entered_by_fkey" FOREIGN KEY (entered_by) REFERENCES employees(id);
+alter table sor_stage_visits add constraint "sor_stage_visits_flow_snapshot_id_fkey" FOREIGN KEY (flow_snapshot_id) REFERENCES flow_snapshots(id);
+alter table sor_stage_visits add constraint "sor_stage_visits_flow_stage_id_fkey" FOREIGN KEY (flow_stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
+alter table sor_stage_visits add constraint "sor_stage_visits_left_by_fkey" FOREIGN KEY (left_by) REFERENCES employees(id);
+alter table sor_stage_visits add constraint "sor_stage_visits_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
+alter table sor_stock_snapshots add constraint "sor_stock_snapshots_fetched_by_fkey" FOREIGN KEY (fetched_by) REFERENCES employees(id) ON DELETE SET NULL;
+alter table sor_stock_snapshots add constraint "sor_stock_snapshots_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE CASCADE;
 alter table stage_conditions add constraint "stage_requirements_stage_id_fkey" FOREIGN KEY (stage_id) REFERENCES flow_stages(id) ON DELETE CASCADE;
 alter table system_audit_logs add constraint "system_audit_logs_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table system_updates add constraint "system_updates_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table task_activity add constraint "task_activity_author_id_fkey" FOREIGN KEY (author_id) REFERENCES employees(id);
 alter table task_activity add constraint "task_activity_task_id_fkey" FOREIGN KEY (task_id) REFERENCES tasks(id);
+alter table task_tags add constraint "task_tags_created_by_fkey" FOREIGN KEY (created_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_category_fk" FOREIGN KEY (category_id) REFERENCES categories(category_id);
 alter table tasks add constraint "tasks_edited_by_fk" FOREIGN KEY (edited_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_evaluated_by_fkey" FOREIGN KEY (evaluated_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_logged_by_fk" FOREIGN KEY (logged_by) REFERENCES employees(id);
 alter table tasks add constraint "tasks_opportunity_id_fkey" FOREIGN KEY (opportunity_id) REFERENCES sales_opportunities(id) ON DELETE SET NULL;
 alter table tasks add constraint "tasks_reported_to_fkey" FOREIGN KEY (reported_to) REFERENCES employees(id);
+alter table tasks add constraint "tasks_stage_action_id_fkey" FOREIGN KEY (stage_action_id) REFERENCES flow_stage_actions(id) ON DELETE SET NULL;
+alter table tasks add constraint "tasks_stage_visit_id_fkey" FOREIGN KEY (stage_visit_id) REFERENCES sor_stage_visits(id) ON DELETE SET NULL;
 alter table undertime_requests add constraint "undertime_requests_category_id_fkey" FOREIGN KEY (category_id) REFERENCES hr_leave_categories(id) ON DELETE SET NULL;
 alter table undertime_requests add constraint "undertime_requests_company_id_fkey" FOREIGN KEY (company_id) REFERENCES companies(id);
 alter table undertime_requests add constraint "undertime_requests_employee_id_fkey" FOREIGN KEY (employee_id) REFERENCES employees(id);
@@ -1028,6 +1276,7 @@ CREATE INDEX commission_positions_department_id_idx ON public.commission_positio
 CREATE INDEX commission_rates_rate_type_idx ON public.commission_rates USING btree (rate_type);
 CREATE INDEX commission_splits_project_type_idx ON public.commission_splits USING btree (project_type);
 CREATE INDEX committee_tasks_opportunity_id_idx ON public.committee_tasks USING btree (opportunity_id);
+CREATE INDEX committee_tasks_stage_visit_id_idx ON public.committee_tasks USING btree (stage_visit_id);
 CREATE INDEX committee_tasks_template_idx ON public.committee_tasks USING btree (template_id);
 CREATE UNIQUE INDEX companies_sort_order_key ON public.companies USING btree (sort_order);
 CREATE UNIQUE INDEX crm_pipeline_stages_one_anchor ON public.crm_pipeline_stages USING btree ((true)) WHERE is_anchor;
@@ -1036,9 +1285,13 @@ CREATE UNIQUE INDEX crm_pipeline_stages_one_itb_gate ON public.crm_pipeline_stag
 CREATE UNIQUE INDEX crm_pipeline_stages_one_lost ON public.crm_pipeline_stages USING btree ((true)) WHERE is_lost;
 CREATE UNIQUE INDEX crm_pipeline_stages_one_won ON public.crm_pipeline_stages USING btree ((true)) WHERE is_won;
 CREATE UNIQUE INDEX crm_pipeline_stages_sort_order_key ON public.crm_pipeline_stages USING btree (sort_order);
+CREATE INDEX employee_group_members_employee_idx ON public.employee_group_members USING btree (employee_id);
+CREATE UNIQUE INDEX employee_groups_active_name_key ON public.employee_groups USING btree (lower(TRIM(BOTH FROM name))) WHERE (archived_at IS NULL);
 CREATE INDEX employees_company_id_idx ON public.employees USING btree (company_id);
 CREATE INDEX flow_edges_from_idx ON public.flow_edges USING btree (flow_id, from_stage_id);
+CREATE INDEX flow_form_fields_flow_id_idx ON public.flow_form_fields USING btree (flow_id);
 CREATE INDEX flow_stage_actions_stage_idx ON public.flow_stage_actions USING btree (stage_id, sort_order);
+CREATE INDEX flow_stage_fields_stage_id_idx ON public.flow_stage_fields USING btree (stage_id);
 CREATE INDEX flow_stages_flow_idx ON public.flow_stages USING btree (flow_id, sort_order);
 CREATE UNIQUE INDEX flow_stages_name_per_flow_key ON public.flow_stages USING btree (flow_id, lower(btrim(name)));
 CREATE INDEX group_task_template_members_template_idx ON public.group_task_template_members USING btree (template_id);
@@ -1066,23 +1319,35 @@ CREATE INDEX sales_opportunities_sales_reference_idx ON public.sales_opportuniti
 CREATE INDEX sales_opportunities_status_idx ON public.sales_opportunities USING btree (status);
 CREATE INDEX sales_opportunity_items_opp_idx ON public.sales_opportunity_items USING btree (opportunity_id, sort_order);
 CREATE INDEX sales_opportunity_logs_opp_idx ON public.sales_opportunity_logs USING btree (opportunity_id, created_at);
+CREATE INDEX sales_opportunity_logs_stage_visit_id_idx ON public.sales_opportunity_logs USING btree (stage_visit_id);
 CREATE INDEX sales_opportunity_members_opp_idx ON public.sales_opportunity_members USING btree (opportunity_id);
 CREATE INDEX sil_leaves_company_id_idx ON public.sil_leaves USING btree (company_id);
 CREATE INDEX sil_leaves_head_id_idx ON public.sil_leaves USING btree (head_id);
 CREATE INDEX sil_leaves_leave_group_id_idx ON public.sil_leaves USING btree (leave_group_id);
+CREATE INDEX sor_action_runs_opportunity_id_idx ON public.sor_action_runs USING btree (opportunity_id);
+CREATE INDEX sor_action_runs_pending_idx ON public.sor_action_runs USING btree (stage_visit_id) WHERE (outcome = 'pending'::text);
 CREATE INDEX sor_canvass_offers_canvass_idx ON public.sor_canvass_offers USING btree (canvass_id, sort_order);
 CREATE UNIQUE INDEX sor_canvass_offers_one_winner_per_canvass ON public.sor_canvass_offers USING btree (canvass_id) WHERE is_winner;
 CREATE INDEX sor_canvasses_inclusion_idx ON public.sor_canvasses USING btree (inclusion_id) WHERE (inclusion_id IS NOT NULL);
 CREATE INDEX sor_canvasses_procurement_request_idx ON public.sor_canvasses USING btree (procurement_request_id) WHERE (procurement_request_id IS NOT NULL);
 CREATE INDEX sor_condition_status_opp_idx ON public.sor_condition_status USING btree (opportunity_id);
+CREATE INDEX sor_condition_status_stage_visit_id_idx ON public.sor_condition_status USING btree (stage_visit_id);
+CREATE INDEX sor_form_values_opportunity_id_idx ON public.sor_form_values USING btree (opportunity_id);
 CREATE INDEX sor_inclusions_opp_idx ON public.sor_inclusions USING btree (opportunity_id, sort_order);
 CREATE INDEX sor_procurement_requests_inclusion_idx ON public.sor_procurement_requests USING btree (inclusion_id) WHERE (inclusion_id IS NOT NULL);
 CREATE INDEX sor_procurement_requests_open_idx ON public.sor_procurement_requests USING btree (assigned_to) WHERE (outcome IS NULL);
 CREATE INDEX sor_procurement_requests_opp_idx ON public.sor_procurement_requests USING btree (opportunity_id);
 CREATE INDEX sor_procurement_requests_task_idx ON public.sor_procurement_requests USING btree (task_id);
 CREATE INDEX sor_purchase_order_links_opp_idx ON public.sor_purchase_order_links USING btree (opportunity_id);
+CREATE INDEX sor_stage_field_values_opportunity_id_idx ON public.sor_stage_field_values USING btree (opportunity_id);
+CREATE INDEX sor_stage_participants_open_idx ON public.sor_stage_participants USING btree (opportunity_id) WHERE (closed_at IS NULL);
+CREATE INDEX sor_stage_participants_opportunity_id_idx ON public.sor_stage_participants USING btree (opportunity_id);
+CREATE INDEX sor_stage_visits_open_idx ON public.sor_stage_visits USING btree (opportunity_id) WHERE (left_at IS NULL);
+CREATE INDEX sor_stage_visits_opportunity_id_idx ON public.sor_stage_visits USING btree (opportunity_id);
 CREATE INDEX stage_conditions_stage_idx ON public.stage_conditions USING btree (stage_id, sort_order);
+CREATE UNIQUE INDEX task_tags_active_name_key ON public.task_tags USING btree (lower(name)) WHERE (archived_at IS NULL);
 CREATE INDEX tasks_opportunity_id_idx ON public.tasks USING btree (opportunity_id);
+CREATE INDEX tasks_stage_visit_id_idx ON public.tasks USING btree (stage_visit_id);
 CREATE INDEX undertime_requests_employee_id_idx ON public.undertime_requests USING btree (employee_id);
 CREATE INDEX undertime_requests_head_id_idx ON public.undertime_requests USING btree (head_id);
 
@@ -1102,14 +1367,23 @@ alter table public."committee_roles" enable row level security;
 alter table public."committee_task_activity" enable row level security;
 alter table public."committee_task_logs" enable row level security;
 alter table public."committee_task_members" enable row level security;
+alter table public."committee_task_tags" enable row level security;
 alter table public."committee_tasks" enable row level security;
 alter table public."companies" enable row level security;
 alter table public."crm_pipeline_stages" enable row level security;
+alter table public."employee_group_members" enable row level security;
+alter table public."employee_group_teams" enable row level security;
+alter table public."employee_groups" enable row level security;
 alter table public."employees" enable row level security;
 alter table public."faq_data" enable row level security;
+alter table public."flow_access_settings" enable row level security;
 alter table public."flow_edges" enable row level security;
+alter table public."flow_form_fields" enable row level security;
 alter table public."flow_snapshots" enable row level security;
+alter table public."flow_stage_access" enable row level security;
 alter table public."flow_stage_actions" enable row level security;
+alter table public."flow_stage_fields" enable row level security;
+alter table public."flow_stage_follow_ups" enable row level security;
 alter table public."flow_stages" enable row level security;
 alter table public."group_task_template_members" enable row level security;
 alter table public."group_task_templates" enable row level security;
@@ -1129,15 +1403,21 @@ alter table public."sales_opportunity_items" enable row level security;
 alter table public."sales_opportunity_logs" enable row level security;
 alter table public."sales_opportunity_members" enable row level security;
 alter table public."sil_leaves" enable row level security;
+alter table public."sor_action_runs" enable row level security;
 alter table public."sor_canvass_offers" enable row level security;
 alter table public."sor_canvasses" enable row level security;
+alter table public."sor_form_values" enable row level security;
 alter table public."sor_inclusions" enable row level security;
 alter table public."sor_procurement_requests" enable row level security;
-alter table public."sor_project_evaluations" enable row level security;
 alter table public."sor_purchase_order_links" enable row level security;
+alter table public."sor_stage_field_values" enable row level security;
+alter table public."sor_stage_participants" enable row level security;
+alter table public."sor_stage_visits" enable row level security;
+alter table public."sor_stock_snapshots" enable row level security;
 alter table public."stage_conditions" enable row level security;
 alter table public."system_audit_logs" enable row level security;
 alter table public."task_activity" enable row level security;
+alter table public."task_tags" enable row level security;
 alter table public."tasks" enable row level security;
 alter table public."undertime_requests" enable row level security;
 alter table public."verification_rate_limits" enable row level security;
@@ -1324,6 +1604,25 @@ create policy "committee_task_members_read" on public."committee_task_members"
   for select
   to authenticated
   using (committee_task_visible(committee_task_id));
+create policy "committee_task_tags_delete_owner" on public."committee_task_tags"
+  as permissive
+  for delete
+  to authenticated
+  using ((COALESCE(is_super_admin(), false) OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_tags.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+create policy "committee_task_tags_insert_owner" on public."committee_task_tags"
+  as permissive
+  for insert
+  to authenticated
+  with check ((COALESCE(is_super_admin(), false) OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_tags.committee_task_id) AND (ct.created_by = get_employee_id()))))));
+create policy "committee_task_tags_select_authenticated" on public."committee_task_tags"
+  as permissive
+  for select
+  to authenticated
+  using (true);
 create policy "Allow update for authenticated users" on public."committee_tasks"
   as permissive
   for update
@@ -1338,9 +1637,9 @@ create policy "committee_tasks_read" on public."committee_tasks"
   as permissive
   for select
   to authenticated
-  using (((created_by = get_employee_id()) OR is_super_admin() OR (EXISTS ( SELECT 1
+  using ((((opportunity_id IS NULL) OR is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(committee_tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))) AND ((created_by = get_employee_id()) OR is_super_admin() OR (EXISTS ( SELECT 1
    FROM committee_task_members ctm
-  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id()))))));
+  WHERE ((ctm.committee_task_id = committee_tasks.id) AND (ctm.employee_id = get_employee_id())))))));
 create policy "companies_read" on public."companies"
   as permissive
   for select
@@ -1371,6 +1670,69 @@ create policy "crm_pipeline_stages_write" on public."crm_pipeline_stages"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND e.is_super_admin))));
+create policy "Employees can read employee group members" on public."employee_group_members"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "Super Admins can delete employee group members" on public."employee_group_members"
+  as permissive
+  for delete
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
+create policy "Super Admins can insert employee group members" on public."employee_group_members"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "Super Admins can update employee group members" on public."employee_group_members"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
+create policy "Employees can read employee group teams" on public."employee_group_teams"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "Super Admins can delete employee group teams" on public."employee_group_teams"
+  as permissive
+  for delete
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
+create policy "Super Admins can insert employee group teams" on public."employee_group_teams"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "Super Admins can update employee group teams" on public."employee_group_teams"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
+create policy "Employees can read employee groups" on public."employee_groups"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "Super Admins can delete employee groups" on public."employee_groups"
+  as permissive
+  for delete
+  to authenticated
+  using (COALESCE(is_super_admin(), false));
+create policy "Super Admins can insert employee groups" on public."employee_groups"
+  as permissive
+  for insert
+  to authenticated
+  with check (COALESCE(is_super_admin(), false));
+create policy "Super Admins can update employee groups" on public."employee_groups"
+  as permissive
+  for update
+  to authenticated
+  using (COALESCE(is_super_admin(), false))
+  with check (COALESCE(is_super_admin(), false));
 create policy "Allow Super Admin and HR to insert employees" on public."employees"
   as permissive
   for insert
@@ -1404,6 +1766,17 @@ create policy "faq_data_upsert" on public."faq_data"
   to authenticated
   using (true)
   with check (true);
+create policy "flow_access_settings_read" on public."flow_access_settings"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "flow_access_settings_write" on public."flow_access_settings"
+  as permissive
+  for all
+  to authenticated
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "flow_edges_read" on public."flow_edges"
   as permissive
   for select
@@ -1413,8 +1786,19 @@ create policy "flow_edges_write" on public."flow_edges"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
+create policy "flow_form_fields_read" on public."flow_form_fields"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "flow_form_fields_write" on public."flow_form_fields"
+  as permissive
+  for all
+  to authenticated
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "flow_snapshots_read" on public."flow_snapshots"
   as permissive
   for select
@@ -1425,6 +1809,17 @@ create policy "flow_snapshots_write" on public."flow_snapshots"
   for insert
   to authenticated
   with check ((created_by = get_employee_id()));
+create policy "flow_stage_access_read" on public."flow_stage_access"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "flow_stage_access_write" on public."flow_stage_access"
+  as permissive
+  for all
+  to authenticated
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "flow_stage_actions_read" on public."flow_stage_actions"
   as permissive
   for select
@@ -1434,8 +1829,30 @@ create policy "flow_stage_actions_write" on public."flow_stage_actions"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
+create policy "flow_stage_fields_read" on public."flow_stage_fields"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "flow_stage_fields_write" on public."flow_stage_fields"
+  as permissive
+  for all
+  to authenticated
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
+create policy "flow_stage_follow_ups_read" on public."flow_stage_follow_ups"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "flow_stage_follow_ups_write" on public."flow_stage_follow_ups"
+  as permissive
+  for all
+  to authenticated
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "flow_stages_read" on public."flow_stages"
   as permissive
   for select
@@ -1445,8 +1862,8 @@ create policy "flow_stages_write" on public."flow_stages"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "group_task_template_members_delete" on public."group_task_template_members"
   as permissive
   for delete
@@ -1702,8 +2119,8 @@ create policy "sale_types_write" on public."sale_types"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "Users can delete their own templates" on public."sales_custom_templates"
   as permissive
   for delete
@@ -1741,8 +2158,8 @@ create policy "sales_flows_write" on public."sales_flows"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "sor_insert" on public."sales_opportunities"
   as permissive
   for insert
@@ -1752,7 +2169,7 @@ create policy "sor_read" on public."sales_opportunities"
   as permissive
   for select
   to authenticated
-  using (((registered_by = get_employee_id()) OR (deal_owner_id = get_employee_id()) OR (support_sales_1_id = get_employee_id()) OR (support_sales_2_id = get_employee_id()) OR (sales_director_id = get_employee_id()) OR is_head() OR is_super_admin() OR is_hr()));
+  using ((is_super_admin() OR sor_is_deal_team(sales_opportunities.*, get_employee_id()) OR sor_always_sees(sales_opportunities.*, get_employee_id())));
 create policy "sor_update" on public."sales_opportunities"
   as permissive
   for update
@@ -1774,7 +2191,9 @@ create policy "sor_items_read" on public."sales_opportunity_items"
   as permissive
   for select
   to authenticated
-  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
+  using ((is_super_admin() OR (EXISTS ( SELECT 1
+   FROM sales_opportunities o
+  WHERE ((o.id = sales_opportunity_items.opportunity_id) AND (sor_is_deal_team(o.*, get_employee_id()) OR sor_always_sees(o.*, get_employee_id()))))) OR is_hr()));
 create policy "sor_items_update" on public."sales_opportunity_items"
   as permissive
   for update
@@ -1789,7 +2208,7 @@ create policy "sor_log_read" on public."sales_opportunity_logs"
   as permissive
   for select
   to authenticated
-  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
+  using ((is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(sales_opportunity_logs.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
 create policy "sales_opportunity_members_insert" on public."sales_opportunity_members"
   as permissive
   for insert
@@ -1798,8 +2217,8 @@ create policy "sales_opportunity_members_insert" on public."sales_opportunity_me
 create policy "sales_opportunity_members_read" on public."sales_opportunity_members"
   as permissive
   for select
-  to authenticated
-  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
+  to public
+  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr() OR (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text]))));
 create policy "sil_leaves_head_select" on public."sil_leaves"
   as permissive
   for select
@@ -1837,6 +2256,11 @@ create policy "sil_leaves_withdraw" on public."sil_leaves"
   to authenticated
   using (((employee_id = get_employee_id()) AND (status = ANY (ARRAY['PENDING'::text, 'APPROVED'::text]))))
   with check (((employee_id = get_employee_id()) AND (status = 'CANCELLED'::text)));
+create policy "sor_action_runs_read" on public."sor_action_runs"
+  as permissive
+  for select
+  to authenticated
+  using (true);
 create policy "sor_canvass_offers_read" on public."sor_canvass_offers"
   as permissive
   for select
@@ -1881,6 +2305,22 @@ create policy "sor_canvasses_write" on public."sor_canvasses"
   with check ((EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.has_purchasing_flow OR e.is_head OR e.is_super_admin)))));
+create policy "sor_condition_status_read" on public."sor_condition_status"
+  as permissive
+  for select
+  to authenticated
+  using ((is_super_admin() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(sor_condition_status.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
+create policy "sor_form_values_read" on public."sor_form_values"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "sor_form_values_write" on public."sor_form_values"
+  as permissive
+  for all
+  to authenticated
+  using (true)
+  with check (true);
 create policy "sor_inclusions_delete" on public."sor_inclusions"
   as permissive
   for delete
@@ -1933,17 +2373,6 @@ create policy "sor_procurement_update" on public."sor_procurement_requests"
   with check (((assigned_to = get_employee_id()) OR (requested_by = get_employee_id()) OR (EXISTS ( SELECT 1
    FROM employees e
   WHERE ((e.id = get_employee_id()) AND (e.is_head OR e.is_super_admin))))));
-create policy "sor_project_evaluations_read" on public."sor_project_evaluations"
-  as permissive
-  for select
-  to authenticated
-  using ((sor_can_edit_opportunity(opportunity_id) OR is_hr()));
-create policy "sor_project_evaluations_write" on public."sor_project_evaluations"
-  as permissive
-  for all
-  to authenticated
-  using (sor_can_edit_opportunity(opportunity_id))
-  with check (sor_can_edit_opportunity(opportunity_id));
 create policy "sor_purchase_order_links_read" on public."sor_purchase_order_links"
   as permissive
   for select
@@ -1952,6 +2381,65 @@ create policy "sor_purchase_order_links_read" on public."sor_purchase_order_link
 create policy "sor_purchase_order_links_write" on public."sor_purchase_order_links"
   as permissive
   for all
+  to authenticated
+  using (sor_can_edit_opportunity(opportunity_id))
+  with check (sor_can_edit_opportunity(opportunity_id));
+create policy "sor_stage_field_values_delete" on public."sor_stage_field_values"
+  as permissive
+  for delete
+  to authenticated
+  using (true);
+create policy "sor_stage_field_values_insert" on public."sor_stage_field_values"
+  as permissive
+  for insert
+  to authenticated
+  with check (true);
+create policy "sor_stage_field_values_read" on public."sor_stage_field_values"
+  as permissive
+  for select
+  to authenticated
+  using ((is_super_admin() OR (stage_visit_id IN ( SELECT sor_visible_visit_ids(sor_stage_field_values.opportunity_id) AS sor_visible_visit_ids))));
+create policy "sor_stage_field_values_update" on public."sor_stage_field_values"
+  as permissive
+  for update
+  to authenticated
+  using (true)
+  with check (true);
+create policy "sor_stage_participants_insert" on public."sor_stage_participants"
+  as permissive
+  for insert
+  to authenticated
+  with check (true);
+create policy "sor_stage_participants_read" on public."sor_stage_participants"
+  as permissive
+  for select
+  to authenticated
+  using (((sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])) OR (employee_id = get_employee_id())));
+create policy "sor_stage_participants_update" on public."sor_stage_participants"
+  as permissive
+  for update
+  to authenticated
+  using ((is_super_admin() OR (EXISTS ( SELECT 1
+   FROM sales_opportunities o
+  WHERE ((o.id = sor_stage_participants.opportunity_id) AND (o.deal_owner_id = get_employee_id()))))));
+create policy "sor_stage_visits_read" on public."sor_stage_visits"
+  as permissive
+  for select
+  to authenticated
+  using (((sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])) OR (id IN ( SELECT sor_visible_visit_ids(sor_stage_visits.opportunity_id) AS sor_visible_visit_ids))));
+create policy "sor_stock_snapshots_insert" on public."sor_stock_snapshots"
+  as permissive
+  for insert
+  to authenticated
+  with check (sor_can_edit_opportunity(opportunity_id));
+create policy "sor_stock_snapshots_read" on public."sor_stock_snapshots"
+  as permissive
+  for select
+  to authenticated
+  using ((sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])));
+create policy "sor_stock_snapshots_update" on public."sor_stock_snapshots"
+  as permissive
+  for update
   to authenticated
   using (sor_can_edit_opportunity(opportunity_id))
   with check (sor_can_edit_opportunity(opportunity_id));
@@ -1964,8 +2452,8 @@ create policy "stage_conditions_write" on public."stage_conditions"
   as permissive
   for all
   to authenticated
-  using (true)
-  with check (true);
+  using ((get_employee_id() IS NOT NULL))
+  with check ((get_employee_id() IS NOT NULL));
 create policy "authenticated_insert_system_audit_logs" on public."system_audit_logs"
   as permissive
   for insert
@@ -1997,11 +2485,27 @@ create policy "Enable read access for all users" on public."task_activity"
   for select
   to public
   using (true);
+create policy "task_tags_insert_management" on public."task_tags"
+  as permissive
+  for insert
+  to authenticated
+  with check ((COALESCE(is_super_admin(), false) OR COALESCE(is_head(), false)));
+create policy "task_tags_select_authenticated" on public."task_tags"
+  as permissive
+  for select
+  to authenticated
+  using (true);
+create policy "task_tags_update_management" on public."task_tags"
+  as permissive
+  for update
+  to authenticated
+  using ((COALESCE(is_super_admin(), false) OR COALESCE(is_head(), false)))
+  with check ((COALESCE(is_super_admin(), false) OR COALESCE(is_head(), false)));
 create policy "Allow public read of tasks" on public."tasks"
   as permissive
   for select
-  to public
-  using (true);
+  to authenticated
+  using (((opportunity_id IS NULL) OR is_super_admin() OR (logged_by = get_employee_id()) OR (reported_to = get_employee_id()) OR is_hr() OR ((stage_visit_id IS NOT NULL) AND (stage_visit_id IN ( SELECT sor_visible_visit_ids(tasks.opportunity_id) AS sor_visible_visit_ids))) OR ((stage_visit_id IS NULL) AND (sor_access_level(opportunity_id) = ANY (ARRAY['full'::text, 'participant'::text])))));
 create policy "Users and Managers can insert tasks" on public."tasks"
   as permissive
   for insert
@@ -2136,6 +2640,14 @@ begin
 end;
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.can_edit_sales_flows()
+ RETURNS boolean
+ LANGUAGE sql
+ SECURITY DEFINER
+AS $function$
+  SELECT can_edit_sales_flows FROM public.employees WHERE email = auth.jwt() ->> 'email';
+$function$
+;
 CREATE OR REPLACE FUNCTION public.can_handle_retail_queue()
  RETURNS boolean
  LANGUAGE sql
@@ -2247,6 +2759,44 @@ AS $function$
   where email = auth.jwt() ->> 'email';
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.close_stage_participant_windows()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_is_terminal boolean;
+begin
+  if NEW.flow_stage_id is not distinct from OLD.flow_stage_id then
+    return NEW;
+  end if;
+
+  select is_terminal into v_is_terminal from public.flow_stages where id = NEW.flow_stage_id;
+
+  if v_is_terminal then
+    update public.sor_stage_participants
+      set closed_at = now(), closed_reason = 'terminal'
+      where opportunity_id = NEW.id and closed_at is null;
+    return NEW;
+  end if;
+
+  update public.sor_stage_participants p
+    set closed_at = now(), closed_reason = 'rule_met'
+    from public.sor_stage_visits v
+    where p.opportunity_id = NEW.id
+      and p.closed_at is null
+      and p.opened_visit_id = v.id
+      and (
+        (p.until_rule = 'stage_left' and v.flow_stage_id = OLD.flow_stage_id)
+        or (p.until_rule = 'stage_entered' and p.until_stage_id = NEW.flow_stage_id)
+        or (p.until_rule = 'later_stage_left' and p.until_stage_id = OLD.flow_stage_id)
+      );
+
+  return NEW;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.committee_task_visible(p_task_id uuid)
  RETURNS boolean
  LANGUAGE sql
@@ -2268,7 +2818,7 @@ AS $function$
   )
 $function$
 ;
-CREATE OR REPLACE FUNCTION public.decide_offset_leave_decision(p_group_id uuid, p_status text, p_hr_notes text, p_hr_id uuid)
+CREATE OR REPLACE FUNCTION public.decide_offset_leave_decision(p_group_id uuid, p_status text, p_hr_notes text, p_hr_id uuid, p_approved_hours numeric DEFAULT NULL::numeric)
  RETURNS jsonb
  LANGUAGE plpgsql
  SET search_path TO 'public', 'extensions'
@@ -2279,6 +2829,9 @@ DECLARE
   v_row_count integer;
   v_pending_count integer;
   v_total_hours numeric;
+  v_approved_hours numeric := NULL;
+  v_head_status text;
+  v_hr_override boolean;
   v_dates date[];
   v_balance numeric;
   v_new_balance numeric := NULL;
@@ -2312,21 +2865,38 @@ BEGIN
     RAISE EXCEPTION 'This leave application has already been decided.';
   END IF;
 
-  SELECT employee_id, application_hash
-    INTO v_employee_id, v_application_hash
+  SELECT employee_id, application_hash, head_status, hr_override
+    INTO v_employee_id, v_application_hash, v_head_status, v_hr_override
     FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id LIMIT 1;
+
+  -- #328: the head-status gate, under the group lock (overtime's shape,
+  -- 20260908130000). Head decisions stamp every day-row alike, so the first
+  -- row speaks for the group.
+  IF p_status = 'APPROVED' AND v_head_status <> 'APPROVED' AND NOT v_hr_override THEN
+    RAISE EXCEPTION 'Cannot approve this offset leave: the department head has not approved this request yet (head_status=%). Use the HR override if this needs to proceed anyway.', v_head_status;
+  END IF;
+
+  IF p_status = 'APPROVED' THEN
+    v_approved_hours := COALESCE(p_approved_hours, v_total_hours);
+    IF NOT (v_approved_hours > 0) THEN
+      RAISE EXCEPTION 'Approved hours must be greater than zero.';
+    END IF;
+    IF v_approved_hours > v_total_hours THEN
+      RAISE EXCEPTION 'Approved hours cannot exceed the requested hours.';
+    END IF;
+  END IF;
 
   IF p_status = 'APPROVED' THEN
     SELECT offset_hours_balance INTO v_balance FROM employees WHERE id = v_employee_id FOR UPDATE;
     v_balance := COALESCE(v_balance, 0);
 
-    IF v_balance < v_total_hours THEN
+    IF v_balance < v_approved_hours THEN
       RAISE EXCEPTION 'Cannot approve leave. Employee currently only has % hrs balance.', trim_scale(round(v_balance, 2));
     END IF;
 
     -- The snapshot is the balance the employee will have AFTER this
     -- deduction, not the balance at the moment of approval.
-    v_new_balance := v_balance - v_total_hours;
+    v_new_balance := v_balance - v_approved_hours;
     v_credits_snapshot := v_new_balance;
   END IF;
 
@@ -2348,8 +2918,24 @@ BEGIN
     hr_signature_version = v_hr_signature_version,
     hr_signature_timestamp = v_hr_signature_timestamp,
     approval_credits_snapshot = v_credits_snapshot,
-    hr_processed_by = p_hr_id
+    hr_processed_by = p_hr_id,
+    -- The group total is split across its day-rows in proportion to each
+    -- day's requested hours; approved = requested leaves every row as asked.
+    approved_hours = CASE
+      WHEN v_approved_hours IS NULL THEN NULL
+      WHEN v_total_hours = 0 THEN 0
+      ELSE round(hours * v_approved_hours / v_total_hours, 2)
+    END
   WHERE leave_group_id = p_group_id;
+
+  -- Rounding each day can leave the rows a cent off the total that was
+  -- debited; the last day absorbs it, so undo/withdraw refund exactly that.
+  IF v_approved_hours IS NOT NULL THEN
+    UPDATE offset_leaves SET approved_hours = approved_hours + (
+      v_approved_hours - (SELECT sum(approved_hours) FROM offset_leaves WHERE leave_group_id = p_group_id)
+    )
+    WHERE id = (SELECT id FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY date DESC, id DESC LIMIT 1);
+  END IF;
 
   IF v_new_balance IS NOT NULL THEN
     UPDATE employees SET offset_hours_balance = v_new_balance, updated_at = v_now WHERE id = v_employee_id;
@@ -2359,6 +2945,7 @@ BEGIN
     'rows', (SELECT jsonb_agg(to_jsonb(l) ORDER BY l.date) FROM offset_leaves l WHERE l.leave_group_id = p_group_id),
     'employee_id', v_employee_id,
     'total_hours', v_total_hours,
+    'approved_hours', v_approved_hours,
     'dates', to_jsonb(v_dates)
   );
 END;
@@ -2608,6 +3195,28 @@ BEGIN
 
   RETURN v_request;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.employee_group_member_ids(p_group_id uuid)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select e.id
+  from public.employees e
+  where coalesce(e.is_deleted, false) = false
+    and (
+      exists (
+        select 1 from public.employee_group_members m
+        where m.group_id = p_group_id and m.employee_id = e.id
+      )
+      or exists (
+        select 1 from public.employee_group_teams t
+        where t.group_id = p_group_id
+          and upper(trim(t.team)) = upper(trim(e.sub_department))
+      )
+    );
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.flow_snapshot_next_version(p_flow_id uuid, p_snapshot_data jsonb)
@@ -2951,6 +3560,16 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
+  IF NEW.can_edit_sales_flows IS DISTINCT FROM OLD.can_edit_sales_flows
+     AND NOT (v_caller_is_super_admin IS TRUE)
+  THEN
+    RAISE EXCEPTION
+      'Insufficient privileges: only a super-admin can change Flow editor access.'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Nobody edits their own hidden-navigation override — server-side, not by
+  -- hiding the control — and only HR/Super Admin may edit anyone else's.
   IF NEW.hidden_nav_keys IS DISTINCT FROM OLD.hidden_nav_keys THEN
     IF OLD.id = v_caller_id OR NOT (v_caller_is_super_admin IS TRUE OR v_caller_is_hr IS TRUE) THEN
       NEW.hidden_nav_keys := OLD.hidden_nav_keys;
@@ -2988,6 +3607,47 @@ AS $function$BEGIN
   RETURN NEW;
 END;$function$
 ;
+CREATE OR REPLACE FUNCTION public.record_stage_visit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_next_sequence integer;
+begin
+  if TG_OP = 'INSERT' then
+    if NEW.flow_stage_id is null then
+      return NEW;
+    end if;
+
+    insert into public.sor_stage_visits (opportunity_id, flow_stage_id, flow_snapshot_id, sequence, entered_at, entered_by)
+    values (NEW.id, NEW.flow_stage_id, NEW.flow_snapshot_id, 1, coalesce(NEW.created_at, now()), NEW.registered_by);
+
+    return NEW;
+  end if;
+
+  -- UPDATE: only react to an actual stage change.
+  if NEW.flow_stage_id is not distinct from OLD.flow_stage_id then
+    return NEW;
+  end if;
+
+  update public.sor_stage_visits
+    set left_at = now()
+    where opportunity_id = NEW.id and left_at is null;
+
+  if NEW.flow_stage_id is not null then
+    select coalesce(max(sequence), 0) + 1 into v_next_sequence
+      from public.sor_stage_visits where opportunity_id = NEW.id;
+
+    insert into public.sor_stage_visits (opportunity_id, flow_stage_id, flow_snapshot_id, sequence, entered_at)
+    values (NEW.id, NEW.flow_stage_id, NEW.flow_snapshot_id, v_next_sequence, now());
+  end if;
+
+  return NEW;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.reorder_leave_categories(p_ordering jsonb)
  RETURNS void
  LANGUAGE plpgsql
@@ -3021,6 +3681,9 @@ declare
   v_target_edge_ids uuid[];
   v_target_action_ids uuid[];
   v_target_condition_ids uuid[];
+  v_target_field_ids uuid[];
+  v_target_form_field_ids uuid[];
+  v_target_follow_up_stage_ids uuid[];
   v_won_stage_id uuid;
   v_blockers text[] := array[]::text[];
   v_rec record;
@@ -3218,6 +3881,164 @@ begin
       updated_at = now();
   end loop;
 
+  -- Stage Fields (#331). Values recorded against a field cascade from it, so
+  -- a field the target lacks is archived, not deleted: the SOR data stays.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_field_ids
+  from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e;
+
+  update flow_stage_fields
+     set archived_at = now(), updated_at = now()
+   where stage_id in (select id from flow_stages where flow_id = p_flow_id)
+     and not (id = any(v_target_field_ids))
+     and archived_at is null;
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'stageFields', '[]'::jsonb)) as e
+  loop
+    insert into flow_stage_fields (
+      id, stage_id, label, help, source, sor_field, field_type, options, is_required, sort_order, archived_at, created_at, updated_at
+    )
+    values (
+      (v_elem->>'id')::uuid,
+      (v_elem->>'stage_id')::uuid,
+      v_elem->>'label',
+      nullif(v_elem->>'help', ''),
+      v_elem->>'source',
+      nullif(v_elem->>'sor_field', ''),
+      v_elem->>'field_type',
+      coalesce(v_elem->'options', '[]'::jsonb),
+      coalesce((v_elem->>'is_required')::boolean, true),
+      coalesce((v_elem->>'sort_order')::int, 0),
+      nullif(v_elem->>'archived_at', '')::timestamptz,
+      coalesce((v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (id) do update set
+      stage_id = excluded.stage_id,
+      label = excluded.label,
+      help = excluded.help,
+      source = excluded.source,
+      sor_field = excluded.sor_field,
+      field_type = excluded.field_type,
+      options = excluded.options,
+      is_required = excluded.is_required,
+      sort_order = excluded.sort_order,
+      archived_at = excluded.archived_at,
+      updated_at = now();
+  end loop;
+
+  -- Registration form fields: same archive-don't-delete rule (sor_form_values).
+  -- A 'default' row is unique per (flow, default_key). When the draft already
+  -- has one for a key the target customizes, under a different id, that row
+  -- is updated in place (keeping its id and its values) rather than replaced.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_form_field_ids
+  from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e;
+
+  update flow_form_fields
+     set archived_at = now(), updated_at = now()
+   where flow_id = p_flow_id
+     and not (id = any(v_target_form_field_ids))
+     and not (
+       source = 'default'
+       and default_key in (
+         select e->>'default_key'
+         from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e
+         where e->>'source' = 'default'
+       )
+     )
+     and archived_at is null;
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'formFields', '[]'::jsonb)) as e
+  loop
+    if v_elem->>'source' = 'default' then
+      update flow_form_fields set
+        label = nullif(v_elem->>'label', ''),
+        help = nullif(v_elem->>'help', ''),
+        field_type = nullif(v_elem->>'field_type', ''),
+        options = coalesce(v_elem->'options', '[]'::jsonb),
+        is_required = (v_elem->>'is_required')::boolean,
+        is_hidden = coalesce((v_elem->>'is_hidden')::boolean, false),
+        sort_order = coalesce((v_elem->>'sort_order')::int, 0),
+        archived_at = nullif(v_elem->>'archived_at', '')::timestamptz,
+        updated_at = now()
+      where flow_id = p_flow_id
+        and source = 'default'
+        and default_key = v_elem->>'default_key'
+        and id <> (v_elem->>'id')::uuid;
+      if found then
+        continue;
+      end if;
+    end if;
+
+    insert into flow_form_fields (
+      id, flow_id, source, default_key, label, help, field_type, options, is_required, is_hidden, sort_order, archived_at, created_at, updated_at
+    )
+    values (
+      (v_elem->>'id')::uuid,
+      p_flow_id,
+      v_elem->>'source',
+      nullif(v_elem->>'default_key', ''),
+      nullif(v_elem->>'label', ''),
+      nullif(v_elem->>'help', ''),
+      nullif(v_elem->>'field_type', ''),
+      coalesce(v_elem->'options', '[]'::jsonb),
+      (v_elem->>'is_required')::boolean,
+      coalesce((v_elem->>'is_hidden')::boolean, false),
+      coalesce((v_elem->>'sort_order')::int, 0),
+      nullif(v_elem->>'archived_at', '')::timestamptz,
+      coalesce((v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (id) do update set
+      source = excluded.source,
+      default_key = excluded.default_key,
+      label = excluded.label,
+      help = excluded.help,
+      field_type = excluded.field_type,
+      options = excluded.options,
+      is_required = excluded.is_required,
+      is_hidden = excluded.is_hidden,
+      sort_order = excluded.sort_order,
+      archived_at = excluded.archived_at,
+      updated_at = now();
+  end loop;
+
+  -- Follow-up Cadence: one row per Stage, carried in the snapshot keyed by
+  -- its Stage id (`id` = stage_id), in followUpService's camelCase shape
+  -- (everyDays, proofRequired). Nothing hangs off it, so plain replace.
+  select coalesce(array_agg((e->>'id')::uuid), array[]::uuid[])
+    into v_target_follow_up_stage_ids
+  from jsonb_array_elements(coalesce(v_data->'followUps', '[]'::jsonb)) as e;
+
+  delete from flow_stage_follow_ups
+   where stage_id in (select id from flow_stages where flow_id = p_flow_id)
+     and not (stage_id = any(v_target_follow_up_stage_ids));
+
+  for v_elem in select e from jsonb_array_elements(coalesce(v_data->'followUps', '[]'::jsonb)) as e
+  loop
+    insert into flow_stage_follow_ups (stage_id, enabled, every_days, recipients, proof_required, created_at, updated_at)
+    values (
+      (v_elem->>'id')::uuid,
+      coalesce((v_elem->>'enabled')::boolean, false),
+      nullif(coalesce(v_elem->>'everyDays', v_elem->>'every_days'), '')::int,
+      coalesce(v_elem->'recipients', '[{"type":"role","role":"deal_owner"}]'::jsonb),
+      coalesce(coalesce(v_elem->>'proofRequired', v_elem->>'proof_required')::boolean, true),
+      coalesce(coalesce(v_elem->>'createdAt', v_elem->>'created_at')::timestamptz, now()),
+      now()
+    )
+    on conflict (stage_id) do update set
+      enabled = excluded.enabled,
+      every_days = excluded.every_days,
+      recipients = excluded.recipients,
+      proof_required = excluded.proof_required,
+      updated_at = now();
+  end loop;
+
+  -- Access configuration (snapshot `access`) is deliberately NOT restored:
+  -- who sees a flow's SORs is set per environment, and the release transfer
+  -- (#331) must land Government and Outright with no flow_access_settings.
+
   update sales_flows
      set won_stage_id = v_won_stage_id,
          updated_at = now()
@@ -3225,6 +4046,27 @@ begin
   returning * into v_flow;
 
   return json_build_object('flow', row_to_json(v_flow), 'version', v_snapshot.version);
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sales_opportunities_broadcast_change()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+begin
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.id, old.id)),
+      tg_op,
+      'sales_opportunities-changes',
+      true -- private: gated by the realtime.messages policy, not public
+    );
+  exception when others then
+    null;
+  end;
+  return null;
 end;
 $function$
 ;
@@ -3249,51 +4091,30 @@ AS $function$
 declare
   _is_lead boolean;
   _is_lost boolean;
-  _sort_order int;
   _old_is_lead boolean;
-  _old_sort_order int;
-  _gate_sort_order int;
 begin
   -- Normalise before checking
   new.sales_reference := upper(nullif(btrim(new.sales_reference), ''));
   new.itb_number := nullif(btrim(new.itb_number), '');
 
-  select is_default, is_lost, sort_order into _is_lead, _is_lost, _sort_order
+  select is_default, is_lost into _is_lead, _is_lost
   from public.crm_pipeline_stages
   where code = new.status;
-
-  -- The ITB gate's own position, not a literal. No flagged row means nothing
-  -- is gated — the same fail-safe direction the app-side derivation takes.
-  select sort_order into _gate_sort_order
-  from public.crm_pipeline_stages
-  where is_itb_gate
-  limit 1;
 
   if tg_op = 'INSERT' then
     if not _is_lead and not _is_lost and new.sales_reference is null then
       raise exception 'A Sales Reference (Odoo quotation no., e.g. S01237) is required to register an opportunity beyond Lead.';
     end if;
-    if _gate_sort_order is not null and _sort_order >= _gate_sort_order
-       and not _is_lost and new.itb_number is null and not new.itb_exempt then
-      raise exception 'An ITB Number (Invitation to Bid) is required to register an opportunity at For Bidding or beyond, unless it is marked outright (no bidding required).';
-    end if;
     return new;
   end if;
 
-  select is_default, sort_order into _old_is_lead, _old_sort_order
+  select is_default into _old_is_lead
   from public.crm_pipeline_stages
   where code = old.status;
 
   if new.status is distinct from old.status then
     if _old_is_lead and not _is_lead and not _is_lost and new.sales_reference is null then
       raise exception 'A Sales Reference (Odoo quotation no., e.g. S01237) is required before this opportunity can leave Lead.';
-    end if;
-
-    if _gate_sort_order is not null
-       and _old_sort_order < _gate_sort_order
-       and _sort_order >= _gate_sort_order
-       and not _is_lost and new.itb_number is null and not new.itb_exempt then
-      raise exception 'An ITB Number (Invitation to Bid) is required before this opportunity can move to For Bidding or beyond, unless it is marked outright (no bidding required).';
     end if;
   end if;
 
@@ -3317,6 +4138,110 @@ BEGIN
   NEW.updated_at = now();
   RETURN NEW;
 END;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_access_level(p_opportunity_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when not exists (select 1 from public.sales_opportunities where id = p_opportunity_id) then 'none'
+    when public.is_super_admin() then 'full'
+    when exists (
+      select 1 from public.sales_opportunities o
+      where o.id = p_opportunity_id
+        and (
+          public.sor_is_deal_team(o, public.get_employee_id())
+          or public.sor_always_sees(o, public.get_employee_id())
+        )
+    ) then 'full'
+    when exists (
+      select 1 from public.sor_stage_participants p
+      where p.opportunity_id = p_opportunity_id
+        and p.employee_id = public.get_employee_id()
+        and p.closed_at is null
+    ) then 'participant'
+    when exists (
+      select 1 from public.sor_stage_participants p
+      where p.opportunity_id = p_opportunity_id
+        and p.employee_id = public.get_employee_id()
+    ) then 'locked'
+    else 'none'
+  end
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_always_sees(p_opp sales_opportunities, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1
+    from public.sales_flows f
+    join public.flow_access_settings fas on fas.flow_id = f.id
+    cross join lateral jsonb_array_elements(coalesce(fas.always_sees, '[]'::jsonb)) as selector
+    where f.sale_type_id = p_opp.sale_type_id
+      and (
+        (
+          selector->>'type' = 'employee'
+          and (selector->>'id')::uuid = p_employee_id
+        )
+        or (
+          selector->>'type' = 'group'
+          and exists (
+            select 1 from public.employee_group_member_ids((selector->>'id')::uuid) gm
+            where gm = p_employee_id
+          )
+        )
+        or (
+          selector->>'type' = 'team'
+          and exists (
+            select 1 from public.employees e
+            where e.id = p_employee_id
+              and upper(trim(e.sub_department)) = upper(trim(selector->>'team'))
+          )
+        )
+        or (
+          selector->>'type' = 'role'
+          and (
+            (selector->>'role' = 'deal_owner' and p_opp.deal_owner_id = p_employee_id)
+            or (selector->>'role' = 'closing_sales' and p_opp.closing_sales_id = p_employee_id)
+            or (selector->>'role' = 'sales_director' and p_opp.sales_director_id = p_employee_id)
+            or (selector->>'role' = 'registrar' and p_opp.registered_by = p_employee_id)
+            or (
+              selector->>'role' = 'support_sales'
+              and (p_opp.support_sales_1_id = p_employee_id or p_opp.support_sales_2_id = p_employee_id)
+            )
+          )
+        )
+      )
+  )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_begin_action_run(p_opportunity_id uuid, p_stage_id uuid, p_action_id uuid, p_stage_visit_id uuid DEFAULT NULL::uuid, p_decider jsonb DEFAULT NULL::jsonb)
+ RETURNS sor_action_runs
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.sor_action_runs;
+begin
+  insert into public.sor_action_runs (opportunity_id, stage_id, action_id, stage_visit_id, decider)
+  values (p_opportunity_id, p_stage_id, p_action_id, p_stage_visit_id, p_decider)
+  on conflict (opportunity_id, stage_id, action_id) do nothing;
+
+  select * into v_row
+  from public.sor_action_runs
+  where opportunity_id = p_opportunity_id
+    and stage_id = p_stage_id
+    and action_id = p_action_id;
+
+  return v_row;
+end;
 $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_can_edit_opportunity(p_opportunity_id uuid)
@@ -3343,6 +4268,63 @@ AS $function$
   )
 $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_can_view_journey(p_opportunity_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select case
+    when public.sor_access_level(p_opportunity_id) = 'full' then true
+    when public.sor_access_level(p_opportunity_id) != 'participant' then false
+    else coalesce((
+      select exists (
+        select 1
+        from public.sales_opportunities o
+        join public.sales_flows f on f.sale_type_id = o.sale_type_id
+        join public.flow_access_settings fas on fas.flow_id = f.id
+        cross join lateral jsonb_array_elements(coalesce(fas.journey_viewers, '[]'::jsonb)) as selector
+        where o.id = p_opportunity_id
+          and fas.journey_viewers is not null
+          and (
+            (
+              selector->>'type' = 'employee'
+              and (selector->>'id')::uuid = public.get_employee_id()
+            )
+            or (
+              selector->>'type' = 'group'
+              and exists (
+                select 1 from public.employee_group_member_ids((selector->>'id')::uuid) gm
+                where gm = public.get_employee_id()
+              )
+            )
+            or (
+              selector->>'type' = 'team'
+              and exists (
+                select 1 from public.employees e
+                where e.id = public.get_employee_id()
+                  and upper(trim(e.sub_department)) = upper(trim(selector->>'team'))
+              )
+            )
+            or (
+              selector->>'type' = 'role'
+              and (
+                (selector->>'role' = 'deal_owner' and o.deal_owner_id = public.get_employee_id())
+                or (selector->>'role' = 'closing_sales' and o.closing_sales_id = public.get_employee_id())
+                or (selector->>'role' = 'sales_director' and o.sales_director_id = public.get_employee_id())
+                or (selector->>'role' = 'registrar' and o.registered_by = public.get_employee_id())
+                or (
+                  selector->>'role' = 'support_sales'
+                  and (o.support_sales_1_id = public.get_employee_id() or o.support_sales_2_id = public.get_employee_id())
+                )
+              )
+            )
+          )
+      )
+    ), false)
+  end
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_canvass_offers_touch()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3361,6 +4343,205 @@ begin
   return new;
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_decide_action_run(p_run_id uuid, p_decision text, p_actor_id uuid)
+ RETURNS sor_action_runs
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.sor_action_runs;
+  v_opportunity public.sales_opportunities;
+  v_selector jsonb;
+  v_allowed boolean := false;
+begin
+  if p_decision not in ('create', 'skip') then
+    raise exception 'sor_decide_action_run: invalid decision %', p_decision;
+  end if;
+
+  select * into v_row from public.sor_action_runs where id = p_run_id;
+  if v_row.id is null then
+    raise exception 'sor_decide_action_run: run % not found', p_run_id;
+  end if;
+
+  if v_row.outcome <> 'pending' then
+    raise exception 'sor_decide_action_run: run % already decided', p_run_id;
+  end if;
+
+  select * into v_opportunity from public.sales_opportunities where id = v_row.opportunity_id;
+
+  if v_row.decider is null or jsonb_array_length(v_row.decider) = 0 then
+    v_allowed := false;
+  else
+    for v_selector in select * from jsonb_array_elements(v_row.decider)
+    loop
+      if v_selector->>'type' = 'employee' and (v_selector->>'id')::uuid = p_actor_id then
+        v_allowed := true;
+      elsif v_selector->>'type' = 'group'
+        and exists (
+          select 1 from public.employee_group_members egm
+          where egm.group_id = (v_selector->>'id')::uuid
+            and egm.employee_id = p_actor_id
+        ) then
+        v_allowed := true;
+      elsif v_selector->>'type' = 'team'
+        and exists (
+          select 1 from public.employees e
+          where e.id = p_actor_id
+            and upper(trim(e.sub_department)) = upper(trim(v_selector->>'team'))
+        ) then
+        v_allowed := true;
+      elsif v_selector->>'type' = 'role' and v_opportunity.id is not null then
+        case v_selector->>'role'
+          when 'deal_owner' then
+            v_allowed := v_opportunity.deal_owner_id = p_actor_id;
+          when 'closing_sales' then
+            v_allowed := v_opportunity.closing_sales_id = p_actor_id;
+          when 'support_sales' then
+            v_allowed := v_opportunity.support_sales_1_id = p_actor_id
+              or v_opportunity.support_sales_2_id = p_actor_id;
+          when 'sales_director' then
+            v_allowed := v_opportunity.sales_director_id = p_actor_id;
+          when 'registrar' then
+            v_allowed := v_opportunity.registered_by = p_actor_id;
+          else
+            v_allowed := false;
+        end case;
+      end if;
+      exit when v_allowed;
+    end loop;
+  end if;
+
+  if not v_allowed then
+    raise exception 'sor_decide_action_run: actor % is not a decider for run %', p_actor_id, p_run_id;
+  end if;
+
+  update public.sor_action_runs
+  set decided_by = p_actor_id,
+      decided_at = now(),
+      outcome = case when p_decision = 'create' then 'created' else 'skipped' end
+  where id = p_run_id
+  returning * into v_row;
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_due_follow_ups(p_now timestamp with time zone DEFAULT now())
+ RETURNS TABLE(opportunity_id uuid, stage_visit_id uuid, stage_id uuid, entered_at timestamp with time zone, every_days integer, recipients jsonb, due_at timestamp with time zone)
+ LANGUAGE sql
+ STABLE
+ SET search_path TO 'public'
+AS $function$
+  with open_visits as (
+    select
+      v.id as stage_visit_id,
+      v.opportunity_id,
+      v.flow_stage_id as stage_id,
+      v.entered_at,
+      so.flow_snapshot_id
+    from public.sor_stage_visits v
+    join public.sales_opportunities so on so.id = v.opportunity_id
+    where v.left_at is null
+  ),
+  cadences as (
+    select
+      ov.*,
+      fu.value as follow_up_cfg
+    from open_visits ov
+    join public.flow_snapshots fs on fs.id = ov.flow_snapshot_id
+    cross join lateral jsonb_array_elements(coalesce(fs.snapshot_data->'followUps', '[]'::jsonb)) as fu(value)
+    where fu.value->>'id' = ov.stage_id::text
+      and (fu.value->>'enabled')::boolean is true
+      and (fu.value->>'everyDays') is not null
+  ),
+  last_logged as (
+    select
+      (metadata->>'stageVisitId')::uuid as stage_visit_id,
+      max(created_at) as last_at
+    from public.sales_opportunity_logs
+    where metadata->>'event' = 'FOLLOW_UP_LOGGED'
+    group by 1
+  ),
+  last_reminder as (
+    select
+      (metadata->>'stageVisitId')::uuid as stage_visit_id,
+      max(created_at) as last_at
+    from public.sales_opportunity_logs
+    where metadata->>'event' = 'FOLLOW_UP_REMINDER'
+    group by 1
+  )
+  select
+    c.opportunity_id,
+    c.stage_visit_id,
+    c.stage_id,
+    c.entered_at,
+    (c.follow_up_cfg->>'everyDays')::integer as every_days,
+    coalesce(c.follow_up_cfg->'recipients', '[]'::jsonb) as recipients,
+    greatest(c.entered_at, coalesce(ll.last_at, c.entered_at), coalesce(lr.last_at, c.entered_at))
+      + ((c.follow_up_cfg->>'everyDays')::integer) * interval '1 day' as due_at
+  from cadences c
+  left join last_logged ll on ll.stage_visit_id = c.stage_visit_id
+  left join last_reminder lr on lr.stage_visit_id = c.stage_visit_id
+  where
+    greatest(c.entered_at, coalesce(ll.last_at, c.entered_at), coalesce(lr.last_at, c.entered_at))
+      + ((c.follow_up_cfg->>'everyDays')::integer) * interval '1 day' <= p_now;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_finish_action_run(p_run_id uuid, p_outcome text, p_task_id uuid DEFAULT NULL::uuid, p_group_task_id uuid DEFAULT NULL::uuid)
+ RETURNS sor_action_runs
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_row public.sor_action_runs;
+begin
+  if p_outcome not in ('created', 'skipped', 'failed') then
+    raise exception 'sor_finish_action_run: invalid outcome %', p_outcome;
+  end if;
+
+  update public.sor_action_runs
+  set outcome = p_outcome,
+      task_id = coalesce(p_task_id, task_id),
+      group_task_id = coalesce(p_group_task_id, group_task_id)
+  where id = p_run_id
+  returning * into v_row;
+
+  return v_row;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_guard_stage_move()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if NEW.flow_stage_id is not distinct from OLD.flow_stage_id then
+    return NEW;
+  end if;
+
+  if auth.role() = 'service_role' then
+    return NEW;
+  end if;
+
+  if public.sor_access_level(OLD.id) <> 'full' then
+    raise exception 'You do not have access to move this stage.' using errcode = '42501';
+  end if;
+
+  -- #296: a Deal Team/Always-sees caller still reads 'full' at
+  -- sor_access_level (that predicate is opportunity-wide, not per-stage),
+  -- but a Restricted Stage refuses the move itself.
+  if public.sor_is_stage_shut_out(OLD, public.get_employee_id(), OLD.flow_stage_id) then
+    raise exception 'This stage is restricted — you cannot move this SOR.' using errcode = '42501';
+  end if;
+
+  return NEW;
+end;
+$function$
+;
 CREATE OR REPLACE FUNCTION public.sor_inclusions_touch()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3369,6 +4550,145 @@ begin
   new.updated_at := now();
   return new;
 end $function$
+;
+CREATE OR REPLACE FUNCTION public.sor_is_deal_team(p_opp sales_opportunities, p_employee_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE
+AS $function$
+  select
+    p_opp.registered_by = p_employee_id
+    or p_opp.deal_owner_id = p_employee_id
+    or p_opp.closing_sales_id = p_employee_id
+    or p_opp.support_sales_1_id = p_employee_id
+    or p_opp.support_sales_2_id = p_employee_id
+    or p_opp.sales_director_id = p_employee_id
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_is_stage_shut_out(p_opp sales_opportunities, p_employee_id uuid, p_stage_id uuid)
+ RETURNS boolean
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with fsa as (
+    select * from public.flow_stage_access where stage_id = p_stage_id
+  ),
+  roles as (
+    select role from (values
+      ('deal_owner', p_opp.deal_owner_id = p_employee_id),
+      ('closing_sales', p_opp.closing_sales_id = p_employee_id),
+      ('support_sales', p_opp.support_sales_1_id = p_employee_id or p_opp.support_sales_2_id = p_employee_id),
+      ('sales_director', p_opp.sales_director_id = p_employee_id),
+      ('registrar', p_opp.registered_by = p_employee_id)
+    ) as t(role, matches)
+    where matches
+  )
+  select exists (select 1 from fsa)
+    and (
+      -- Every Deal Team role this employee holds on this opportunity is
+      -- shut out of this stage. An employee holding no role here at all
+      -- never satisfies this arm — that's the Employee Group arm's job.
+      (
+        exists (select 1 from roles)
+        and not exists (
+          select 1 from roles, fsa
+          where not (roles.role = any(fsa.shut_out_roles))
+        )
+      )
+      or exists (
+        select 1
+        from fsa, unnest(fsa.excluded_group_ids) as gid
+        where exists (select 1 from public.employee_group_member_ids(gid) m where m = p_employee_id)
+      )
+    )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_link_label(p_opportunity_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select coalesce(o.sales_reference, o.client_name)
+  from public.sales_opportunities o
+  where o.id = p_opportunity_id
+    and public.sor_access_level(p_opportunity_id) in ('full', 'participant', 'locked')
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_locked_summary(p_opportunity_id uuid)
+ RETURNS TABLE(sales_reference text, project_title text, current_stage_name text, is_restricted boolean)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    o.sales_reference,
+    o.project_title,
+    fs.name,
+    (
+      (
+        public.sor_is_deal_team(o, public.get_employee_id())
+        or public.sor_always_sees(o, public.get_employee_id())
+      )
+      and public.sor_is_stage_shut_out(o, public.get_employee_id(), o.flow_stage_id)
+      and not public.is_super_admin()
+    )
+  from public.sales_opportunities o
+  left join public.flow_stages fs on fs.id = o.flow_stage_id
+  where o.id = p_opportunity_id
+    and public.sor_access_level(p_opportunity_id) in ('full', 'participant', 'locked')
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_participant_items(p_opportunity_id uuid)
+ RETURNS TABLE(id uuid, opportunity_id uuid, product_name text, unit text, quantity numeric, sort_order integer)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select i.id, i.opportunity_id, i.product_name, i.unit, i.quantity, i.sort_order
+  from public.sales_opportunity_items i
+  where i.opportunity_id = p_opportunity_id
+    and public.sor_access_level(p_opportunity_id) in ('full', 'participant')
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_participant_record(p_opportunity_id uuid)
+ RETURNS TABLE(id uuid, opportunity_no text, client_name text, contact_person text, project_title text, project_type text, sales_reference text, status text, lost_reason text, registration_date date, expected_award_date date, po_date date, lead_source text, lead_source_detail text, itb_number text, itb_exempt boolean, is_scratch boolean, sale_type_id uuid, flow_stage_id uuid, flow_snapshot_id uuid, registered_by uuid, deal_owner_id uuid, closing_sales_id uuid, support_sales_1_id uuid, support_sales_2_id uuid, sales_director_id uuid)
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  select
+    o.id,
+    o.opportunity_no,
+    o.client_name,
+    o.contact_person,
+    o.project_title,
+    o.project_type,
+    o.sales_reference,
+    o.status,
+    o.lost_reason,
+    o.registration_date,
+    o.expected_award_date,
+    o.po_date,
+    o.lead_source,
+    o.lead_source_detail,
+    o.itb_number,
+    o.itb_exempt,
+    o.is_scratch,
+    o.sale_type_id,
+    o.flow_stage_id,
+    o.flow_snapshot_id,
+    o.registered_by,
+    o.deal_owner_id,
+    o.closing_sales_id,
+    o.support_sales_1_id,
+    o.support_sales_2_id,
+    o.sales_director_id
+  from public.sales_opportunities o
+  where o.id = p_opportunity_id
+    and public.sor_access_level(p_opportunity_id) in ('full', 'participant')
+$function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_procurement_requests_guard()
  RETURNS trigger
@@ -3436,6 +4756,52 @@ AS $function$
 begin
   new.updated_at := now();
   return new;
+end $function$
+;
+CREATE OR REPLACE FUNCTION public.sor_purge_opportunity(p_id uuid, p_confirm_text text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_actor uuid := public.get_employee_id();
+  v_row record;
+  v_task_count int;
+  v_committee_task_count int;
+  v_expect text;
+begin
+  if v_actor is null then
+    raise exception 'Not signed in.' using errcode = '42501';
+  end if;
+
+  if not public.is_super_admin() then
+    raise exception 'Only a Super Admin can permanently delete an SOR.' using errcode = '42501';
+  end if;
+
+  select * into v_row from public.sales_opportunities where id = p_id;
+  if not found then
+    raise exception 'That SOR no longer exists.' using errcode = '22023';
+  end if;
+
+  v_expect := coalesce(v_row.sales_reference, v_row.client_name);
+  if p_confirm_text is null or btrim(p_confirm_text) <> v_expect then
+    raise exception 'Confirmation text does not match — type % to permanently delete this SOR.', v_expect
+      using errcode = '22023';
+  end if;
+
+  select count(*) into v_task_count from public.tasks where opportunity_id = p_id;
+  select count(*) into v_committee_task_count from public.committee_tasks where opportunity_id = p_id;
+
+  delete from public.sales_opportunities where id = p_id;
+
+  return jsonb_build_object(
+    'id', p_id,
+    'client_name', v_row.client_name,
+    'sales_reference', v_row.sales_reference,
+    'tasks_unlinked', v_task_count,
+    'committee_tasks_unlinked', v_committee_task_count
+  );
 end $function$
 ;
 CREATE OR REPLACE FUNCTION public.sor_raise_procurement_task(p_opportunity_id uuid, p_assignee_id uuid, p_description text, p_checklist jsonb, p_project_title text, p_category_id text, p_reported_to uuid, p_remarks text)
@@ -3521,6 +4887,169 @@ begin
   return null; -- AFTER trigger; return value is ignored
 end $function$
 ;
+CREATE OR REPLACE FUNCTION public.sor_replace_items(p_opportunity_id uuid, p_items jsonb)
+ RETURNS SETOF sales_opportunity_items
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if public.get_employee_id() is null then
+    raise exception 'Not signed in.' using errcode = '42501';
+  end if;
+
+  -- Serializes concurrent replaces of the same opportunity's Product List
+  -- (see 20260929030000). Locked before the authorization check so a caller
+  -- who fails it still releases the lock immediately (the transaction ends).
+  perform 1 from public.sales_opportunities where id = p_opportunity_id for update;
+
+  if not public.sor_can_edit_opportunity(p_opportunity_id) then
+    raise exception 'You cannot edit this opportunity''s Product List.' using errcode = '42501';
+  end if;
+
+  -- The "before" snapshot, handed back to the caller for its own change log
+  -- -- captured here, bypassing RLS, rather than left to a separate
+  -- SELECT the caller might not have visibility to run.
+  return query
+    select * from public.sales_opportunity_items where opportunity_id = p_opportunity_id;
+
+  delete from public.sales_opportunity_items where opportunity_id = p_opportunity_id;
+
+  insert into public.sales_opportunity_items (
+    opportunity_id, product_name, unit, quantity, unit_price, sort_order, odoo_product_id
+  )
+  select
+    p_opportunity_id,
+    trim(item ->> 'product_name'),
+    nullif(trim(item ->> 'unit'), ''),
+    coalesce((item ->> 'quantity')::numeric, 0),
+    coalesce((item ->> 'unit_price')::numeric, 0),
+    (ordinality - 1)::int,
+    nullif(item ->> 'odoo_product_id', '')::int
+  from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) with ordinality as t(item, ordinality)
+  where nullif(trim(item ->> 'product_name'), '') is not null;
+
+  return;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_set_log_stage_visit()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+begin
+  if NEW.stage_visit_id is null then
+    select id into NEW.stage_visit_id
+    from public.sor_stage_visits
+    where opportunity_id = NEW.opportunity_id and left_at is null
+    limit 1;
+  end if;
+  return NEW;
+end;
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_visible_visit_ids(p_opportunity_id uuid)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  -- Super Admin: every visit, no exceptions, ever.
+  select v.id
+  from public.sor_stage_visits v
+  where v.opportunity_id = p_opportunity_id
+    and public.is_super_admin()
+
+  union
+
+  -- Deal Team / Always sees: every visit on this opportunity, except one
+  -- recorded on a Stage that shuts this caller out (#296). Checked against
+  -- the VISIT's own flow_stage_id, not the opportunity's current stage, so a
+  -- Stage that restricted this caller stays closed on every visit it ever
+  -- recorded, even long after the SOR has moved on.
+  select v.id
+  from public.sor_stage_visits v
+  join public.sales_opportunities o on o.id = v.opportunity_id
+  where v.opportunity_id = p_opportunity_id
+    and not public.is_super_admin()
+    and (
+      public.sor_is_deal_team(o, public.get_employee_id())
+      or public.sor_always_sees(o, public.get_employee_id())
+    )
+    and not public.sor_is_stage_shut_out(o, public.get_employee_id(), v.flow_stage_id)
+
+  union
+
+  -- Participants: unchanged by #296 — a Stage Participant's window is its
+  -- own call-in and carries no Deal Team role/group exclusion to check.
+  select v.id
+  from public.sor_stage_participants p
+  join public.sor_stage_visits opened on opened.id = p.opened_visit_id
+  join public.sor_stage_visits v on v.opportunity_id = p.opportunity_id
+  where p.opportunity_id = p_opportunity_id
+    and p.employee_id = public.get_employee_id()
+    and not public.is_super_admin()
+    and (
+      (p.closed_at is null and v.sequence >= opened.sequence)
+      or (
+        p.closed_at is not null
+        and v.sequence >= opened.sequence
+        and v.sequence <= (
+          select max(closing.sequence)
+          from public.sor_stage_visits closing
+          where closing.opportunity_id = p.opportunity_id
+            and closing.sequence >= opened.sequence
+            and closing.left_at is not null
+            and closing.left_at <= p.closed_at
+        )
+      )
+    )
+$function$
+;
+CREATE OR REPLACE FUNCTION public.sor_visit_audience(p_opportunity_id uuid, p_visit_id uuid)
+ RETURNS SETOF uuid
+ LANGUAGE sql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public'
+AS $function$
+  with allowed as (
+    select public.sor_access_level(p_opportunity_id) in ('full', 'participant') as ok
+  )
+  select e.id from public.employees e, allowed
+  where allowed.ok and e.is_super_admin
+
+  union
+
+  -- Deal Team + Always sees, provided the visit is one of theirs and this
+  -- visit's stage does not shut them out (#296).
+  select e.id
+  from public.employees e
+  join public.sales_opportunities o on o.id = p_opportunity_id
+  join public.sor_stage_visits v on v.id = p_visit_id and v.opportunity_id = p_opportunity_id
+  , allowed
+  where allowed.ok
+    and (
+      public.sor_is_deal_team(o, e.id)
+      or public.sor_always_sees(o, e.id)
+    )
+    and not public.sor_is_stage_shut_out(o, e.id, v.flow_stage_id)
+
+  union
+
+  -- Participants whose OPEN window currently covers this visit — unchanged.
+  select p.employee_id
+  from public.sor_stage_participants p
+  join public.sor_stage_visits opened on opened.id = p.opened_visit_id
+  join public.sor_stage_visits v on v.id = p_visit_id and v.opportunity_id = p.opportunity_id
+  , allowed
+  where allowed.ok
+    and p.opportunity_id = p_opportunity_id
+    and p.closed_at is null
+    and v.sequence >= opened.sequence
+$function$
+;
 CREATE OR REPLACE FUNCTION public.tasks_broadcast_change()
  RETURNS trigger
  LANGUAGE plpgsql
@@ -3528,12 +5057,16 @@ CREATE OR REPLACE FUNCTION public.tasks_broadcast_change()
  SET search_path TO ''
 AS $function$
 begin
-  perform realtime.send(
-    jsonb_build_object('id', coalesce(new.id, old.id)),
-    tg_op,
-    'tasks-changes',
-    true -- private: gated by the realtime.messages policy above, not public
-  );
+  begin
+    perform realtime.send(
+      jsonb_build_object('id', coalesce(new.id, old.id)),
+      tg_op,
+      'tasks-changes',
+      true -- private: gated by the realtime.messages policy above, not public
+    );
+  exception when others then
+    null;
+  end;
   return null;
 end;
 $function$
@@ -3618,7 +5151,7 @@ DECLARE
 BEGIN
   PERFORM 1 FROM offset_leaves WHERE leave_group_id = p_group_id ORDER BY id FOR UPDATE;
 
-  SELECT count(*), COALESCE(sum(hours), 0), array_agg(date ORDER BY date)
+  SELECT count(*), COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date)
     INTO v_row_count, v_total_hours, v_dates
     FROM offset_leaves WHERE leave_group_id = p_group_id;
 
@@ -3651,7 +5184,8 @@ BEGIN
     hr_signature_version = NULL,
     hr_signature_timestamp = NULL,
     approval_credits_snapshot = NULL,
-    hr_processed_by = NULL
+    hr_processed_by = NULL,
+    approved_hours = NULL
   WHERE leave_group_id = p_group_id;
 
   RETURN jsonb_build_object(
@@ -4056,7 +5590,7 @@ BEGIN
     RAISE EXCEPTION 'Cannot withdraw this request.';
   END IF;
 
-  SELECT COALESCE(sum(hours), 0), array_agg(date ORDER BY date), min(date)
+  SELECT COALESCE(sum(COALESCE(approved_hours, hours)), 0), array_agg(date ORDER BY date), min(date)
     INTO v_total_hours, v_dates, v_first_date
     FROM offset_leaves WHERE leave_group_id = v_group_id;
 
@@ -4104,17 +5638,22 @@ CREATE TRIGGER trg_group_task_templates_touch BEFORE UPDATE ON public.group_task
 CREATE TRIGGER trg_odoo_retail_queue_updated_at BEFORE UPDATE ON public.odoo_retail_queue FOR EACH ROW EXECUTE FUNCTION set_odoo_retail_queue_updated_at();
 CREATE TRIGGER offset_leaves_guard_head_status BEFORE UPDATE ON public.offset_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER overtime_requests_guard_head_status BEFORE UPDATE ON public.overtime_requests FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
+CREATE TRIGGER sales_opportunities_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_broadcast_change();
+CREATE TRIGGER sor_guard_stage_move BEFORE UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sor_guard_stage_move();
+CREATE TRIGGER sor_stage_participants_on_stage_change AFTER UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION close_stage_participant_windows();
+CREATE TRIGGER sor_stage_visits_on_insert AFTER INSERT ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION record_stage_visit();
+CREATE TRIGGER sor_stage_visits_on_stage_change AFTER UPDATE OF flow_stage_id ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION record_stage_visit();
 CREATE TRIGGER trg_sales_opportunities_guard BEFORE UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_guard();
 CREATE TRIGGER trg_sales_opportunities_require_sales_ref BEFORE INSERT OR UPDATE ON public.sales_opportunities FOR EACH ROW EXECUTE FUNCTION sales_opportunities_require_sales_ref();
 CREATE TRIGGER trg_sales_opportunity_items_touch BEFORE UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sales_opportunity_items_touch();
 CREATE TRIGGER trg_sor_items_recalc AFTER INSERT OR DELETE OR UPDATE ON public.sales_opportunity_items FOR EACH ROW EXECUTE FUNCTION sor_recalc_expected_value();
+CREATE TRIGGER sor_logs_set_stage_visit BEFORE INSERT ON public.sales_opportunity_logs FOR EACH ROW EXECUTE FUNCTION sor_set_log_stage_visit();
 CREATE TRIGGER sil_leaves_guard_head_status BEFORE UPDATE ON public.sil_leaves FOR EACH ROW EXECUTE FUNCTION guard_head_status_change();
 CREATE TRIGGER trg_sor_canvass_offers_touch BEFORE UPDATE ON public.sor_canvass_offers FOR EACH ROW EXECUTE FUNCTION sor_canvass_offers_touch();
 CREATE TRIGGER trg_sor_canvasses_touch BEFORE UPDATE ON public.sor_canvasses FOR EACH ROW EXECUTE FUNCTION sor_canvasses_touch();
 CREATE TRIGGER trg_sor_inclusions_touch BEFORE UPDATE ON public.sor_inclusions FOR EACH ROW EXECUTE FUNCTION sor_inclusions_touch();
 CREATE TRIGGER trg_sor_procurement_requests_guard BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_guard();
 CREATE TRIGGER trg_sor_procurement_requests_touch BEFORE UPDATE ON public.sor_procurement_requests FOR EACH ROW EXECUTE FUNCTION sor_procurement_requests_touch();
-CREATE TRIGGER trg_sor_project_evaluations_touch BEFORE UPDATE ON public.sor_project_evaluations FOR EACH ROW EXECUTE FUNCTION sor_project_evaluations_touch();
 CREATE TRIGGER trg_sor_purchase_order_links_touch BEFORE UPDATE ON public.sor_purchase_order_links FOR EACH ROW EXECUTE FUNCTION sor_purchase_order_links_touch();
 CREATE TRIGGER enforce_task_verification_security BEFORE UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION protect_task_verification();
 CREATE TRIGGER tasks_broadcast_change_trigger AFTER INSERT OR DELETE OR UPDATE ON public.tasks FOR EACH ROW EXECUTE FUNCTION tasks_broadcast_change();
