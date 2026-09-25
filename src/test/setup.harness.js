@@ -5,6 +5,7 @@ import { db } from "./db/store"
 import { resetFactories } from "./factories"
 import { waitForNetworkIdle } from "./network"
 import { stubActionRunRpcs } from "./stubs/actionRunRpc"
+import { stubReplaceItemsRpc } from "./stubs/replaceItemsRpc"
 
 /**
  * The fake Supabase: MSW answering PostgREST, Storage and Edge Functions from
@@ -72,6 +73,7 @@ afterEach(async () => {
 // override with its own stubRpc call after this runs.
 beforeEach(() => {
   stubActionRunRpcs()
+  stubReplaceItemsRpc()
 })
 
 afterAll(() => {

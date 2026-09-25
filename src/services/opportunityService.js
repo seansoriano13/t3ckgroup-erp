@@ -1584,7 +1584,17 @@ export const opportunityService = {
     }
 
     const replacesItems = has("items");
-    if (replacesItems) await opportunityService.replaceItems(id, payload.items);
+    // sor_replace_items hands back the rows it just deleted, captured inside
+    // the same SECURITY DEFINER call that performs the write — the diff
+    // below needs that, not a separate `existingItems` select, because a
+    // caller who can edit the Product List (e.g. via is_head) isn't
+    // necessarily covered by sor_items_read's narrower visibility rules; a
+    // plain select from this client would silently come back empty for
+    // them and every product would misreport as newly "added" (see
+    // 20260929040000_sor_replace_items_returns_previous.sql).
+    const previousItems = replacesItems
+      ? await opportunityService.replaceItems(id, payload.items)
+      : existingItems;
     const final = await opportunityService.getOpportunityById(id);
 
     // Change notes compare only what the payload carried, plus the derived
@@ -1635,7 +1645,7 @@ export const opportunityService = {
     checkEmployee('support_sales_2_id', 'support_2', 'Support Sales 2');
 
     const newItems = replacesItems ? payload.items || [] : existingItems;
-    const oldProducts = existingItems.map((i) => i.product_name?.trim()).filter(Boolean);
+    const oldProducts = previousItems.map((i) => i.product_name?.trim()).filter(Boolean);
     const newProducts = newItems.map((i) => i.product_name?.trim()).filter(Boolean);
 
     const addedProducts = newProducts.filter((p) => !oldProducts.includes(p));
@@ -1643,7 +1653,7 @@ export const opportunityService = {
     const modifiedProducts = [];
 
     newProducts.forEach((p) => {
-      const oldItem = existingItems.find((i) => i.product_name?.trim() === p);
+      const oldItem = previousItems.find((i) => i.product_name?.trim() === p);
       const newItem = newItems.find((i) => i.product_name?.trim() === p);
       if (oldItem && newItem) {
         if (
@@ -2258,35 +2268,40 @@ export const opportunityService = {
    * id-diffing) at the cost of not preserving item-level created_at across
    * edits. A `sales_opportunities` trigger recomputes `expected_value` from
    * whatever ends up in the table after this runs.
+   *
+   * Delete-then-insert happens inside `sor_replace_items`, one DB call, not
+   * two client round trips: SorModal auto-syncs an SOR's items from Odoo on
+   * every open (#53), and two overlapping opens doing their own unsynchronized
+   * delete-then-insert could interleave as delete_A, delete_B (no-op),
+   * insert_A, insert_B — both inserts land, doubling the rows and therefore
+   * `expected_value`. The function takes `FOR UPDATE` on the parent row first,
+   * so a second concurrent call blocks and cleanly replaces what the first
+   * call wrote instead of adding to it.
+   *
+   * Returns the rows that were just deleted (the "before" Product List) —
+   * read from inside the same SECURITY DEFINER call, so `updateOpportunity`'s
+   * change log doesn't depend on the caller's own read access to
+   * sales_opportunity_items, which is narrower than who may edit it (see
+   * 20260929040000_sor_replace_items_returns_previous.sql).
    */
   async replaceItems(opportunityId, items) {
-    const { error: delError } = await supabase
-      .from("sales_opportunity_items")
-      .delete()
-      .eq("opportunity_id", opportunityId);
-    if (delError) throw delError;
+    const rows = (items || []).map((it) => ({
+      product_name: it.product_name || "",
+      unit: it.unit || "",
+      quantity: Number(it.quantity) || 0,
+      unit_price: Number(it.unit_price) || 0,
+      // Issue #202 — lines are recreated on every save, so this only
+      // survives because it's written fresh each time, not because rows
+      // persist. Absent on a hand-typed line.
+      odoo_product_id: Number.isInteger(it.odoo_product_id) ? it.odoo_product_id : null,
+    }));
 
-    const rows = (items || [])
-      .filter((it) => (it.product_name || "").trim())
-      .map((it, idx) => ({
-        opportunity_id: opportunityId,
-        product_name: it.product_name.trim(),
-        unit: (it.unit || "").trim() || null,
-        quantity: Number(it.quantity) || 0,
-        unit_price: Number(it.unit_price) || 0,
-        sort_order: idx,
-        // Issue #202 — lines are recreated on every save, so this only
-        // survives because it's written fresh each time, not because rows
-        // persist. Absent on a hand-typed line.
-        odoo_product_id: Number.isInteger(it.odoo_product_id) ? it.odoo_product_id : null,
-      }));
-
-    if (rows.length > 0) {
-      const { error: insError } = await supabase
-        .from("sales_opportunity_items")
-        .insert(rows);
-      if (insError) throw insError;
-    }
+    const { data, error } = await supabase.rpc("sor_replace_items", {
+      p_opportunity_id: opportunityId,
+      p_items: rows,
+    });
+    if (error) throw error;
+    return data || [];
   },
 
   // ── Stock availability (issue #202) ─────────────────────────────────────
