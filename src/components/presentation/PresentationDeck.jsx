@@ -324,6 +324,8 @@ function Overview({ data, sizes, onPick }) {
 
 /* ── Shell ──────────────────────────────────────────────────────────────── */
 
+const LAST_POS_KEY = "release-notes:last-position"
+
 export default function PresentationDeck({ data }) {
   // Derived from a file baked at build time, so it is stable for the life of
   // the page — memoised so the keydown listener is not torn down and
@@ -332,11 +334,27 @@ export default function PresentationDeck({ data }) {
   // A section can be empty (a deck generated before any prototype existed, or
   // with an empty window), so open on the first section that renders anything
   // rather than assuming section 0 has slides.
-  const [pos, setPos] = useState(() => ({
-    section: sizes.findIndex((n) => n > 0),
-    item: 0,
-  }))
+  const [pos, setPos] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LAST_POS_KEY))
+      if (saved && saved.item >= 0 && saved.item < (sizes[saved.section] ?? 0)) {
+        return { section: saved.section, item: saved.item }
+      }
+    } catch {
+      // storage unavailable or corrupt — fall through to the first slide
+    }
+    return { section: sizes.findIndex((n) => n > 0), item: 0 }
+  })
   const [overview, setOverview] = useState(false)
+
+  useEffect(() => {
+    if (pos.section === -1) return
+    try {
+      localStorage.setItem(LAST_POS_KEY, JSON.stringify(pos))
+    } catch {
+      // storage unavailable — position just isn't retained
+    }
+  }, [pos])
 
   const onKey = useCallback(
     (event) => {
