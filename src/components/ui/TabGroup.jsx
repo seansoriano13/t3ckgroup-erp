@@ -11,6 +11,10 @@
  *               scrolling — the wrapper hides its scrollbar, so a clipped
  *               tab is invisible rather than merely cut off.
  *  className  - optional extra class on the wrapper
+ *  labelClassName
+ *             - optional extra class on each label span. Pass a responsive
+ *               "hidden sm:inline" to collapse a strip to icons on narrow
+ *               screens; the button keeps its accessible name either way.
  *
  * Variants:
  *  pill      → bg-muted wrapper, bg-card active (group / approvals / broadcast)
@@ -31,6 +35,7 @@ export default function TabGroup({
   size = "sm",
   fullWidth = false,
   className,
+  labelClassName,
   id,
 }) {
   const generatedId = useId();
@@ -137,6 +142,13 @@ export default function TabGroup({
               type="button"
               role="tab"
               aria-selected={isActive}
+              // Only when a caller hides the label: a display:none label leaves
+              // the accessibility tree, not just the screen, so the tab would
+              // lose its name. Left alone otherwise, because the computed name
+              // legitimately includes the badge count and tests read it there.
+              aria-label={
+                labelClassName && typeof label === "string" ? label : undefined
+              }
               tabIndex={isActive || (!hasActive && value === normalised[0]?.value) ? 0 : -1}
               onClick={(e) => {
                 e.preventDefault();
@@ -163,7 +175,7 @@ export default function TabGroup({
               )}
               <span className="relative z-10 flex items-center gap-1.5">
                 {Icon && <Icon size={14} />}
-                <span>{label}</span>
+                <span className={labelClassName}>{label}</span>
                 {badge != null && badge > 0 && (
                   <span
                     className={cn(

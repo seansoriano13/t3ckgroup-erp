@@ -27,6 +27,7 @@ import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModa
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import SorsViewTabs from "../../components/sor/SorsViewTabs";
 import SorsTotals from "../../components/sor/SorsTotals";
+import FloatingActionButton from "../../components/ui/FloatingActionButton";
 import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
@@ -597,6 +598,29 @@ export default function OpportunitiesPage() {
     mineOnly ||
     blockedOnly;
 
+  // The tab picks WHICH records; search and Filters narrow within them. Only
+  // List and Board read `filtered` — Overview draws straight from
+  // `opportunities` and Deleted runs its own query — so on those two tabs the
+  // control row would offer a search that does nothing and read out figures
+  // for a set the user is not looking at.
+  const supportsFiltering = view === "list" || view === "board";
+
+  // What the Filters badge counts. `search` is deliberately left out: it has
+  // its own box beside the button now, and counting it lit the button up
+  // merely because someone was typing.
+  const activeFilterCount = [
+    stageFilter !== "ALL",
+    leadSourceFilter !== "ALL",
+    projectTypeFilter !== "ALL",
+    saleTypeFilter !== "ALL",
+    departmentFilter !== "ALL",
+    subDeptFilter !== "ALL",
+    ownershipRole !== "ALL",
+    employeeFilter !== "ALL",
+    mineOnly,
+    blockedOnly,
+  ].filter(Boolean).length;
+
   const handleClearAll = () => {
     setSearch("");
     setStageFilter("ALL");
@@ -615,277 +639,326 @@ export default function OpportunitiesPage() {
     <ProtectedRoute>
       {/* Issue #206 — the register is something you pan or scan across, so it
           fills the app frame instead of sitting in the centred page column.
-          One compact toolbar row replaces the old page header + filter bar. */}
+          Its header is two rows, not the old page header + filter bar: the tabs
+          pick which records, the row beneath narrows within them. */}
       <div className="flex h-full min-h-0 flex-col">
-        <div className="shrink-0 border-b border-border bg-card px-4 py-3 md:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <SorsViewTabs view={view} onChange={changeView} />
+        {/* One row, in reading order: what you are looking for, what it came
+            to, which view of it, and how it is narrowed. The primary action
+            left this row for the floating button below — the top-right corner
+            belongs to the environment ribbon, which was cutting straight
+            through it. Left padding clears the SideNav's mobile trigger. */}
+        <div className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b border-border bg-card pl-14 pr-3 sm:gap-3 sm:pr-4 md:pl-6 md:pr-6">
+          {/* Search and the figures speak only for List and Board: Overview
+              draws straight from `opportunities` and Deleted runs its own
+              query. They sit on the left, where dropping them moves nothing
+              else along the row. */}
+          {supportsFiltering && (
+            <>
+              <div className="flex h-9 min-w-[7rem] max-w-[360px] flex-1 2xl:max-w-[520px] items-center gap-2 rounded-xl border border-border bg-muted/30 px-2.5 focus-within:border-mauve-7 sm:px-3">
+                <Search size={15} className="shrink-0 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search number, client, project, deal owner…"
+                  containerClassName="w-full"
+                  className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-sm font-medium text-foreground shadow-none outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+                />
+              </div>
 
-            <div className="flex min-w-[160px] flex-1 items-center gap-2 rounded-xl border border-border bg-muted/30 px-3 py-2 focus-within:border-mauve-7">
-              <Search size={15} className="shrink-0 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search number, client, project, deal owner…"
-                containerClassName="w-full" className="border-0 bg-transparent rounded-none px-0 py-0 shadow-none focus-visible:ring-0 h-auto bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground/50"
+              <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border lg:block" />
+
+              <SorsTotals
+                className="hidden lg:flex"
+                count={totals.count}
+                openValue={totals.openValue}
+                wonValue={totals.wonValue}
               />
-            </div>
 
-            {/* Filters popover — every filter the register offered lives here
-                now, so the row above stays one line regardless of how many
-                are active. */}
+              {/* The drill-down arriving from Overview or a notification. It
+                  is counted in the Filters badge like any other filter, but it
+                  is the one a visitor lands on without having set it, so it
+                  keeps a one-click way back out. */}
+              {employeeFilter && employeeFilter !== "ALL" && (
+                <Button
+                  variant="outline"
+                  onClick={() => setEmployeeFilter("ALL")}
+                  title={`Filtered to ${employeeFilterName || "employee"} — click to clear`}
+                  className="hidden h-9 max-w-[120px] shrink-0 gap-1.5 rounded-xl border-primary/30 bg-primary/10 px-3 text-xs font-bold text-primary hover:bg-primary/15 sm:inline-flex xl:max-w-[170px]"
+                >
+                  <span className="truncate">{employeeFilterName || "employee"}</span>
+                  <X size={12} className="shrink-0" />
+                </Button>
+              )}
+            </>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Tabs and Filters hold the right edge on every tab, so switching
+              view never slides them out from under the pointer. */}
+          <SorsViewTabs view={view} onChange={changeView} />
+
+          <span aria-hidden="true" className="hidden h-5 w-px shrink-0 bg-border sm:block" />
+
+          {/* Filters popover — every filter the register offered lives here, so
+              the row stays one line regardless of how many are active, and the
+              badge says how many that is. On the two tabs it cannot narrow it
+              stays in place, disabled, rather than vanishing and dragging the
+              tabs sideways. */}
+          {supportsFiltering ? (
             <Dropdown
               usePortal={true}
               placement="bottom-end"
               className="shrink-0"
               trigger={({ isOpen }) => (
                 <FilterTrigger
+                  className="h-9 w-auto gap-2 px-2.5 sm:px-3"
+                  labelClassName="hidden sm:block"
                   icon={SlidersHorizontal}
                   label="Filters"
-                  isActive={hasActiveFilters}
+                  count={activeFilterCount}
+                  isActive={activeFilterCount > 0}
                   isOpen={isOpen}
                 />
               )}
             >
-              {({ close }) => (
-                <div className="flex w-[min(90vw,560px)] flex-col gap-2.5 p-1">
-                  {/* Row 1: Departments */}
-                  <div className="flex gap-2.5">
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          icon={Building2}
-                          label={currentDepartmentLabel}
-                          isActive={departmentFilter !== "ALL"}
-                          isOpen={isOpen}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={departmentOptions}
-                          value={departmentFilter}
-                          onChange={setDepartmentFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
-
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          icon={Building2}
-                          label={currentSubDeptLabel}
-                          isActive={subDeptFilter !== "ALL"}
-                          isOpen={isOpen}
-                          disabled={departmentFilter === "ALL"}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={subDepartmentOptions}
-                          value={subDeptFilter}
-                          onChange={setSubDeptFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
-                  </div>
-
-                  {/* Row 2: Role / Employee & Project Type */}
-                  <div className="flex gap-2.5">
-                    <div className="flex min-w-0 flex-[2] rounded-lg border border-border bg-card">
-                      <Dropdown
-                        usePortal={true}
-                        className="w-1/2"
-                        trigger={({ isOpen }) => (
-                          <FilterTrigger
-                            className="rounded-none rounded-l-lg border-0 border-r border-border hover:border-border/80"
-                            icon={Users}
-                            label={currentRoleLabel}
-                            isActive={ownershipRole !== "ALL"}
-                            isOpen={isOpen}
-                          />
-                        )}
-                      >
-                        {({ close: closeInner }) => (
-                          <FilterOptionList
-                            options={ownershipRoleOptions}
-                            value={ownershipRole}
-                            onChange={setOwnershipRole}
-                            close={closeInner}
-                          />
-                        )}
-                      </Dropdown>
-                      <Dropdown
-                        usePortal={true}
-                        className="w-1/2"
-                        trigger={({ isOpen }) => (
-                          <FilterTrigger
-                            className="rounded-none rounded-r-lg border-0 hover:border-border/80"
-                            label={currentEmployeeLabel}
-                            isActive={employeeFilter !== "ALL"}
-                            isOpen={isOpen}
-                          />
-                        )}
-                      >
-                        {({ close: closeInner }) => (
-                          <FilterOptionList
-                            options={employeeOptions}
-                            value={employeeFilter}
-                            onChange={setEmployeeFilter}
-                            close={closeInner}
-                          />
-                        )}
-                      </Dropdown>
-                    </div>
-
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          icon={Layers}
-                          label={currentProjectTypeLabel}
-                          isActive={projectTypeFilter !== "ALL"}
-                          isOpen={isOpen}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={projectTypeOptions}
-                          value={projectTypeFilter}
-                          onChange={setProjectTypeFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
-                  </div>
-
-                  {/* Row 3: Sale Type (All SORs), Stages, Lead Sources */}
-                  <div className="flex gap-2.5">
-                    <SaleTypeFilter saleTypes={allSaleTypes} value={saleTypeFilter} onChange={setSaleTypeFilter} />
-
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          icon={Tag}
-                          label={currentStageLabel}
-                          isActive={stageFilter !== "ALL"}
-                          isOpen={isOpen}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={stageOptions}
-                          value={stageFilter}
-                          onChange={setStageFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
-
-                    <Dropdown
-                      usePortal={true}
-                      className="min-w-0 flex-1"
-                      trigger={({ isOpen }) => (
-                        <FilterTrigger
-                          label={currentLeadSourceLabel}
-                          isActive={leadSourceFilter !== "ALL"}
-                          isOpen={isOpen}
-                        />
-                      )}
-                    >
-                      {({ close: closeInner }) => (
-                        <FilterOptionList
-                          options={leadSourceOptions}
-                          value={leadSourceFilter}
-                          onChange={setLeadSourceFilter}
-                          close={closeInner}
-                        />
-                      )}
-                    </Dropdown>
-                  </div>
-
-                  {/* Row 4: Toggles and Clear All */}
-                  <div className="flex items-center justify-between pt-1">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="outline"
-                        onClick={() => setMineOnly((v) => !v)}
-                        className={`h-9 shrink-0 rounded-xl px-3.5 text-sm font-bold ${mineOnly
-                          ? "border-mauve-6 bg-muted font-bold text-foreground ring-1 ring-mauve-4"
-                          : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
-                          }`}
-                      >
-                        My Deals
-                      </Button>
-                      {/* Sales Director visibility (Stage Gate Engine ticket 6,
-                          story 25) — which deals are stuck on their own Stage,
-                          without hunting for it deal by deal. */}
-                      <Button
-                        variant="outline"
-                        onClick={() => setBlockedOnly((v) => !v)}
-                        className={`h-9 shrink-0 gap-1.5 rounded-xl px-3.5 text-sm font-bold ${blockedOnly
-                          ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
-                          : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
-                          }`}
-                      >
-                        <AlertTriangle size={13} />
-                        Blocked
-                      </Button>
-                    </div>
-
-                    {hasActiveFilters && (
-                      <Button
-                        variant="link"
-                        onClick={() => {
-                          handleClearAll();
-                          close();
-                        }}
-                        className="h-auto p-0 text-sm font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
-                      >
-                        Clear filters
-                      </Button>
+            {({ close }) => (
+              <div className="flex w-[min(90vw,560px)] flex-col gap-2.5 p-1">
+                {/* Row 1: Departments */}
+                <div className="flex gap-2.5">
+                  <Dropdown
+                    usePortal={true}
+                    className="min-w-0 flex-1"
+                    trigger={({ isOpen }) => (
+                      <FilterTrigger
+                        icon={Building2}
+                        label={currentDepartmentLabel}
+                        isActive={departmentFilter !== "ALL"}
+                        isOpen={isOpen}
+                      />
                     )}
-                  </div>
+                  >
+                    {({ close: closeInner }) => (
+                      <FilterOptionList
+                        options={departmentOptions}
+                        value={departmentFilter}
+                        onChange={setDepartmentFilter}
+                        close={closeInner}
+                      />
+                    )}
+                  </Dropdown>
+
+                  <Dropdown
+                    usePortal={true}
+                    className="min-w-0 flex-1"
+                    trigger={({ isOpen }) => (
+                      <FilterTrigger
+                        icon={Building2}
+                        label={currentSubDeptLabel}
+                        isActive={subDeptFilter !== "ALL"}
+                        isOpen={isOpen}
+                        disabled={departmentFilter === "ALL"}
+                      />
+                    )}
+                  >
+                    {({ close: closeInner }) => (
+                      <FilterOptionList
+                        options={subDepartmentOptions}
+                        value={subDeptFilter}
+                        onChange={setSubDeptFilter}
+                        close={closeInner}
+                      />
+                    )}
+                  </Dropdown>
                 </div>
-              )}
+
+                {/* Row 2: Role / Employee & Project Type */}
+                <div className="flex gap-2.5">
+                  <div className="flex min-w-0 flex-[2] rounded-lg border border-border bg-card">
+                    <Dropdown
+                      usePortal={true}
+                      className="w-1/2"
+                      trigger={({ isOpen }) => (
+                        <FilterTrigger
+                          className="rounded-none rounded-l-lg border-0 border-r border-border hover:border-border/80"
+                          icon={Users}
+                          label={currentRoleLabel}
+                          isActive={ownershipRole !== "ALL"}
+                          isOpen={isOpen}
+                        />
+                      )}
+                    >
+                      {({ close: closeInner }) => (
+                        <FilterOptionList
+                          options={ownershipRoleOptions}
+                          value={ownershipRole}
+                          onChange={setOwnershipRole}
+                          close={closeInner}
+                        />
+                      )}
+                    </Dropdown>
+                    <Dropdown
+                      usePortal={true}
+                      className="w-1/2"
+                      trigger={({ isOpen }) => (
+                        <FilterTrigger
+                          className="rounded-none rounded-r-lg border-0 hover:border-border/80"
+                          label={currentEmployeeLabel}
+                          isActive={employeeFilter !== "ALL"}
+                          isOpen={isOpen}
+                        />
+                      )}
+                    >
+                      {({ close: closeInner }) => (
+                        <FilterOptionList
+                          options={employeeOptions}
+                          value={employeeFilter}
+                          onChange={setEmployeeFilter}
+                          close={closeInner}
+                        />
+                      )}
+                    </Dropdown>
+                  </div>
+
+                  <Dropdown
+                    usePortal={true}
+                    className="min-w-0 flex-1"
+                    trigger={({ isOpen }) => (
+                      <FilterTrigger
+                        icon={Layers}
+                        label={currentProjectTypeLabel}
+                        isActive={projectTypeFilter !== "ALL"}
+                        isOpen={isOpen}
+                      />
+                    )}
+                  >
+                    {({ close: closeInner }) => (
+                      <FilterOptionList
+                        options={projectTypeOptions}
+                        value={projectTypeFilter}
+                        onChange={setProjectTypeFilter}
+                        close={closeInner}
+                      />
+                    )}
+                  </Dropdown>
+                </div>
+
+                {/* Row 3: Sale Type (All SORs), Stages, Lead Sources */}
+                <div className="flex gap-2.5">
+                  <SaleTypeFilter saleTypes={allSaleTypes} value={saleTypeFilter} onChange={setSaleTypeFilter} />
+
+                  <Dropdown
+                    usePortal={true}
+                    className="min-w-0 flex-1"
+                    trigger={({ isOpen }) => (
+                      <FilterTrigger
+                        icon={Tag}
+                        label={currentStageLabel}
+                        isActive={stageFilter !== "ALL"}
+                        isOpen={isOpen}
+                      />
+                    )}
+                  >
+                    {({ close: closeInner }) => (
+                      <FilterOptionList
+                        options={stageOptions}
+                        value={stageFilter}
+                        onChange={setStageFilter}
+                        close={closeInner}
+                      />
+                    )}
+                  </Dropdown>
+
+                  <Dropdown
+                    usePortal={true}
+                    className="min-w-0 flex-1"
+                    trigger={({ isOpen }) => (
+                      <FilterTrigger
+                        label={currentLeadSourceLabel}
+                        isActive={leadSourceFilter !== "ALL"}
+                        isOpen={isOpen}
+                      />
+                    )}
+                  >
+                    {({ close: closeInner }) => (
+                      <FilterOptionList
+                        options={leadSourceOptions}
+                        value={leadSourceFilter}
+                        onChange={setLeadSourceFilter}
+                        close={closeInner}
+                      />
+                    )}
+                  </Dropdown>
+                </div>
+
+                {/* Row 4: Toggles and Clear All */}
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setMineOnly((v) => !v)}
+                      className={`h-9 shrink-0 rounded-xl px-3.5 text-sm font-bold ${mineOnly
+                        ? "border-mauve-6 bg-muted font-bold text-foreground ring-1 ring-mauve-4"
+                        : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                      My Deals
+                    </Button>
+                    {/* Sales Director visibility (Stage Gate Engine ticket 6,
+                        story 25) — which deals are stuck on their own Stage,
+                        without hunting for it deal by deal. */}
+                    <Button
+                      variant="outline"
+                      onClick={() => setBlockedOnly((v) => !v)}
+                      className={`h-9 shrink-0 gap-1.5 rounded-xl px-3.5 text-sm font-bold ${blockedOnly
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/10 dark:text-amber-400"
+                        : "border-border bg-muted/30 text-muted-foreground hover:text-foreground"
+                        }`}
+                    >
+                      <AlertTriangle size={13} />
+                      Blocked
+                    </Button>
+                  </div>
+
+                  {hasActiveFilters && (
+                    <Button
+                      variant="link"
+                      onClick={() => {
+                        handleClearAll();
+                        close();
+                      }}
+                      className="h-auto p-0 text-sm font-semibold text-muted-foreground hover:text-foreground hover:no-underline"
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
             </Dropdown>
-
-            <SorsTotals openValue={totals.openValue} wonValue={totals.wonValue} />
-
-            <Button
-              onClick={() => setFormOpen(true)}
-              className="h-9 shrink-0 gap-1.5 rounded-xl px-4 text-[13px] font-bold shadow-lg shadow-primary/20"
-            >
-              <Plus size={15} /> Register SOR
-            </Button>
-          </div>
-
-          {employeeFilter && employeeFilter !== "ALL" && (
-            <Button
-              variant="outline"
-              onClick={() => setEmployeeFilter("ALL")}
-              className="mt-2 h-auto gap-1.5 rounded-lg border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary hover:bg-primary/15"
-            >
-              Filtered to {employeeFilterName || "employee"}
-              <X size={12} />
-            </Button>
+          ) : (
+            <FilterTrigger
+              className="h-9 w-auto shrink-0 gap-2 px-2.5 sm:px-3"
+              labelClassName="hidden sm:block"
+              icon={SlidersHorizontal}
+              label="Filters"
+              disabled
+            />
           )}
         </div>
 
+        <FloatingActionButton
+          icon={Plus}
+          label="Register SOR"
+          onClick={() => setFormOpen(true)}
+        />
+
         <div
-          className={`flex-1 min-h-0 px-4 py-4 md:px-6 ${view === "board" ? "flex flex-col overflow-hidden" : "overflow-y-auto custom-scrollbar"
+          // pb-24 on the scrolling views is the floating button's keep-out:
+          // without it the last row of the register sits under Register SOR with
+          // no way to scroll past it. The board manages its own scroll, so it
+          // keeps the plain padding.
+          className={`flex-1 min-h-0 px-4 pt-4 md:px-6 ${view === "board" ? "flex flex-col overflow-hidden pb-4" : "overflow-y-auto custom-scrollbar pb-24"
             }`}
         >
         {view === "deleted" ? (

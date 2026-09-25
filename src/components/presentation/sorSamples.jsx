@@ -131,6 +131,12 @@ export function SorsRenameSample() {
   const [view, setView] = useState("list")
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
+      {/* The register itself dropped this title when its header split into two
+          rows — the SideNav already says where you are. This slide keeps it,
+          because the rename to "SORS" is the whole point of the slide. */}
+      <h1 className="shrink-0 text-sm font-black uppercase tracking-widest text-foreground">
+        SORS
+      </h1>
       <SorsViewTabs view={view} onChange={setView} />
     </div>
   )

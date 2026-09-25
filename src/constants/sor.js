@@ -366,6 +366,23 @@ export const formatPHP = (amount) =>
     maximumFractionDigits: 2,
   })}`;
 
+/**
+ * A toolbar-width PHP figure: ₱353.7M rather than ₱353,727,836.94.
+ *
+ * Only the seven-figure-and-up amounts are shortened, because those are the
+ * only ones wide enough to crowd a toolbar — anything smaller keeps its
+ * centavos, and OpportunitiesPage.test.jsx holds that line. Use this only for
+ * a readout that is scanned rather than acted on, and only where the exact
+ * amount is still one hover away (see SorsTotals).
+ */
+export const formatPHPCompact = (amount) => {
+  const n = Number(amount || 0);
+  const abs = Math.abs(n);
+  if (abs >= 1e9) return `₱${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `₱${(n / 1e6).toFixed(1)}M`;
+  return formatPHP(n);
+};
+
 export const formatLeadSource = (source, detail, leadSources = []) => {
   const dynamicLabel = leadSources.find((s) => s.value === source)?.label;
   const label = dynamicLabel || source || "—";
