@@ -27,7 +27,6 @@ import OpportunityDetailsModal from "../../components/sor/OpportunityDetailsModa
 import OpportunityBoard from "../../components/sor/OpportunityBoard";
 import SorsViewTabs from "../../components/sor/SorsViewTabs";
 import SorsTotals from "../../components/sor/SorsTotals";
-import FloatingActionButton from "../../components/ui/FloatingActionButton";
 import SaleTypeFilter from "../../components/sor/SaleTypeFilter";
 import EmployeeOpportunityMatrix from "../../components/sor/EmployeeOpportunityMatrix";
 import PersonalOpportunityOverview from "../../components/sor/PersonalOpportunityOverview";
@@ -683,7 +682,7 @@ export default function OpportunitiesPage() {
                   variant="outline"
                   onClick={() => setEmployeeFilter("ALL")}
                   title={`Filtered to ${employeeFilterName || "employee"} — click to clear`}
-                  className="hidden h-9 max-w-[120px] shrink-0 gap-1.5 rounded-xl border-primary/30 bg-primary/10 px-3 text-xs font-bold text-primary hover:bg-primary/15 sm:inline-flex xl:max-w-[170px]"
+                  className="hidden h-9 max-w-[120px] shrink-0 gap-1.5 rounded-xl border-mauve-6 bg-muted px-3 text-xs font-bold text-foreground ring-1 ring-mauve-4 hover:bg-muted sm:inline-flex xl:max-w-[170px]"
                 >
                   <span className="truncate">{employeeFilterName || "employee"}</span>
                   <X size={12} className="shrink-0" />
@@ -947,11 +946,16 @@ export default function OpportunitiesPage() {
           )}
         </div>
 
-        <FloatingActionButton
-          icon={Plus}
-          label="Register SOR"
+        {/* Bottom-right is the one corner nothing else claims: the environment
+            ribbon owns top-right, the SideNav trigger top-left, the month
+            picker top-centre. z-30 sits under the SideNav, modals and ribbon. */}
+        <Button
           onClick={() => setFormOpen(true)}
-        />
+          className="fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] right-6 z-30 gap-2 rounded-full py-3.5 pl-4 pr-5 text-[13px] font-bold shadow-[0_10px_30px_-8px_rgb(0_0_0/0.45)] focus-visible:ring-mauve-8"
+        >
+          <Plus size={16} strokeWidth={2.5} className="shrink-0" />
+          Register SOR
+        </Button>
 
         <div
           // pb-24 on the scrolling views is the floating button's keep-out:

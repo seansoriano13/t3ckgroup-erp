@@ -299,13 +299,13 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 `ui/Dropdown.jsx`. Trigger-plus-children popover or menu, no options or value, not a select. Props: `trigger`, `children`, `isOpen`, `onToggle`, `onClose`, `placement`, `className`, `popoverClassName`, `usePortal`, `disabled`. Nested Dropdowns are DOM siblings, handled by its nesting context (`ui/dropdownNesting.js`: `DropdownNestingContext`, `useDropdownNestedPopoverRef`, the hook for any popover portalled out of a Dropdown).
 
 #### FilterDropdown
-`ui/FilterDropdown.jsx`. Filter parts for use inside Dropdown: `FilterTrigger` (`label`, `isActive`, `isOpen`, `icon`, `disabled`, `className`), `FilterOptionList` (`options`, `value`, `onChange`, `close`), `MultiFilterOptionList` (`options`, `values`, `onChange`).
+`ui/FilterDropdown.jsx`. Filter parts for use inside Dropdown: `FilterTrigger` (`label`, `isActive`, `isOpen`, `icon`, `disabled`, `count` (badge of active filters), `className`, `labelClassName` (e.g. `hidden sm:block` to collapse to icon; the trigger keeps its `aria-label`)), `FilterOptionList` (`options`, `value`, `onChange`, `close`), `MultiFilterOptionList` (`options`, `values`, `onChange`).
 
 #### PeoplePicker
 `ui/PeoplePicker.jsx`. Multi-select of groups, teams, employees. Props: `value`, `onChange`, `types`, `allowRoles`, `placeholder`, `disabled`, `className`.
 
 #### TabGroup
-`ui/TabGroup.jsx`. Tabs. Props: `tabs`, `activeTab`, `onChange`, `variant` (`pill` | `primary` | `success` | `violet` | `red` | `destructive` | `underline`), `size`, `fullWidth`, `className`, `id`.
+`ui/TabGroup.jsx`. Tabs. Props: `tabs`, `activeTab`, `onChange`, `variant` (`pill` | `primary` | `success` | `violet` | `red` | `destructive` | `underline`), `size`, `fullWidth`, `className`, `labelClassName` (e.g. `hidden sm:inline` to collapse to icons; tabs keep their `aria-label`), `id`.
 
 #### Card
 `ui/card.jsx`. Parts: `Card` (`size`), `CardHeader`, `CardTitle`, `CardDescription`, `CardAction`, `CardContent`, `CardFooter`.

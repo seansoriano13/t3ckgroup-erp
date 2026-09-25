@@ -24,8 +24,11 @@ export function FilterTrigger({
 }) {
   return (
     <div
-      // Survives labelClassName hiding the text on a narrow screen.
+      // Survive labelClassName hiding the text on a narrow screen: a
+      // display:none label leaves the accessibility tree, so name it here
+      // (same rule as TabGroup).
       title={typeof label === "string" ? label : undefined}
+      aria-label={labelClassName && typeof label === "string" ? label : undefined}
       className={cn(
         "flex h-[46px] w-full cursor-pointer items-center justify-between rounded-lg border px-3 transition-all",
         disabled && "pointer-events-none opacity-50",
