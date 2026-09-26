@@ -10,6 +10,7 @@ import { Button } from "../../ui/button";
 import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../constants/journey";
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
+import { TASK_STATUS } from "../../../constants/status";
 import { formatDueDate as formatWhen } from "../../../utils/formatDate";
 
 const notDeleted = (task) => !isTaskDeleted(task);
@@ -54,7 +55,11 @@ function TaskLine({ title, status, owner, date }) {
   return (
     <div className="flex items-center gap-2 text-[11px] leading-5">
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{title}</span>
-      <StatusBadge status={status} />
+      {status === TASK_STATUS.ON_HOLD ? (
+        <StatusBadge status={status}>Held</StatusBadge>
+      ) : (
+        <StatusBadge status={status} />
+      )}
       <span className="flex w-[130px] shrink-0 items-center justify-end gap-1 text-muted-foreground">
         <Person person={owner} />
       </span>

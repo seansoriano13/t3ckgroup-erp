@@ -86,7 +86,7 @@ export const taskQueryService = {
         categories(description)
       `,
       )
-      .neq("status", TASK_STATUS.DELETED)
+      .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`)
       .order("created_at", { ascending: false });
 
     if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {
@@ -154,7 +154,7 @@ export const taskQueryService = {
       `,
       )
       .eq("logged_by", userId)
-      .neq("status", TASK_STATUS.DELETED)
+      .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`)
       .order("created_at", { ascending: false });
 
     if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {

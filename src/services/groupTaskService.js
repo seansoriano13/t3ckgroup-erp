@@ -213,7 +213,7 @@ export const groupTaskService = {
     let query = supabase
       .from("committee_tasks")
       .select(GROUP_TASK_SELECT)
-      .neq("status", "CANCELLED")
+      .not("status", "in", "(CANCELLED,ON_HOLD)")
       .order("created_at", { ascending: false });
 
     const { data, error } = await query;

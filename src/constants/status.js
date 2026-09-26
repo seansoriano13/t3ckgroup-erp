@@ -15,6 +15,8 @@ export const TASK_STATUS = {
   COMPLETE: "COMPLETED", // Migrated: was "COMPLETE" → now "COMPLETED"
   NOT_APPROVED: "NOT APPROVED", // Standardized to match database string
   DELETED: "DELETED",
+  // Off everyone's list while the SOR is away from the Stage that made it.
+  ON_HOLD: "ON_HOLD",
 };
 
 // A Group Task's own lifecycle (`committee_tasks.status`) and each member's
@@ -41,6 +43,7 @@ export const TASK_STATUS_THEME = {
   [TASK_STATUS.AWAITING_APPROVAL]: STATUS_THEME.BLUE,
   [TASK_STATUS.NOT_APPROVED]: STATUS_THEME.RED,
   [TASK_STATUS.DELETED]: STATUS_THEME.MAUVE,
+  [TASK_STATUS.ON_HOLD]: STATUS_THEME.MAUVE,
 };
 
 // Sales Opportunity Registration pipeline (Annex C.3).

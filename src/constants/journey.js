@@ -16,7 +16,7 @@ const SETTLED_TASK_STATUSES = new Set([
 ])
 
 export function isTaskOpen(task) {
-  return !SETTLED_TASK_STATUSES.has(task?.status)
+  return !SETTLED_TASK_STATUSES.has(task?.status) && task?.status !== TASK_STATUS.ON_HOLD
 }
 
 /**

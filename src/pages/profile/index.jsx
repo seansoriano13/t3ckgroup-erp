@@ -192,7 +192,7 @@ export default function ProfilePage() {
           .from("tasks")
           .select("*", { count: "exact", head: true })
           .eq("logged_by", user.id)
-          .neq("status", TASK_STATUS.DELETED);
+          .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`);
 
         const { count: totalDone } = await supabase
           .from("tasks")
