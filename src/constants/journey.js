@@ -11,12 +11,13 @@ import { GROUP_TASK_STATUS, TASK_STATUS } from "./status"
 const SETTLED_TASK_STATUSES = new Set([
   TASK_STATUS.COMPLETE,
   TASK_STATUS.DELETED,
+  TASK_STATUS.ON_HOLD,
   GROUP_TASK_STATUS.HR_PENDING,
   GROUP_TASK_STATUS.HR_VERIFIED,
 ])
 
 export function isTaskOpen(task) {
-  return !SETTLED_TASK_STATUSES.has(task?.status) && task?.status !== TASK_STATUS.ON_HOLD
+  return !SETTLED_TASK_STATUSES.has(task?.status)
 }
 
 /**

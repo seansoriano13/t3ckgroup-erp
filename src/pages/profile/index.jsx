@@ -25,7 +25,7 @@ import { passwordService } from "../../services/passwordService";
 import { aiService } from "../../services/aiService";
 import ImageCropModal from "../../components/ImageCropModal";
 import SignatureCaptureModal from "../../components/profile/SignatureCaptureModal";
-import { TASK_STATUS } from "../../constants/status";
+import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
 import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { Input } from "@/components/ui/input";
@@ -192,7 +192,7 @@ export default function ProfilePage() {
           .from("tasks")
           .select("*", { count: "exact", head: true })
           .eq("logged_by", user.id)
-          .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`);
+          .not("status", "in", HIDDEN_TASK_STATUS_FILTER);
 
         const { count: totalDone } = await supabase
           .from("tasks")

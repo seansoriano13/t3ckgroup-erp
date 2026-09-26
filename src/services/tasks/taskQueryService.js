@@ -1,5 +1,5 @@
 import { supabase } from "../../lib/supabase";
-import { TASK_STATUS } from "../../constants/status";
+import { HIDDEN_TASK_STATUS_FILTER, TASK_STATUS } from "../../constants/status";
 import { countChecklist } from "../../utils/checklist";
 
 /**
@@ -86,7 +86,7 @@ export const taskQueryService = {
         categories(description)
       `,
       )
-      .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`)
+      .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
     if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {
@@ -154,7 +154,7 @@ export const taskQueryService = {
       `,
       )
       .eq("logged_by", userId)
-      .not("status", "in", `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`)
+      .not("status", "in", HIDDEN_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
     if (Number.isInteger(from) && Number.isInteger(to) && from >= 0 && to >= from) {

@@ -96,6 +96,8 @@ describe("tasks on hold", () => {
         const t = await task(s.open)
         expect(t.status).toBe("DELETED")
         expect(t.cancel_reason).toMatch(/Terminal Stage/)
+        expect(t.cancel_reason).toContain(`${MARKER} Terminal`)
+        expect(t.held_at).toBeNull()
     })
 
     it("a Revert brings back what the reverted move held", async () => {
@@ -106,5 +108,19 @@ describe("tasks on hold", () => {
         const t = await task(s.open)
         expect(t.status).toBe("INCOMPLETE")
         expect(t.held_at).toBeNull()
+    })
+})
+
+describe("held group tasks at a Terminal Stage", () => {
+    it("cancels them too", async () => {
+        const s = await sorWithTasks()
+        const ct = await svc().from("committee_tasks")
+            .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, opportunity_id: s.id, stage_visit_id: s.visit, stage_action_id: actionId })
+            .select("id").single()
+        await moveTo(s.id, stageB)
+        await moveTo(s.id, stageTerminal)
+        const row = (await svc().from("committee_tasks").select("status, cancel_reason").eq("id", ct.data.id).single()).data
+        expect(row.status).toBe("CANCELLED")
+        expect(row.cancel_reason).toContain(`${MARKER} Terminal`)
     })
 })

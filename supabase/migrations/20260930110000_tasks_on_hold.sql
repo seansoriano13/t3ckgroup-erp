@@ -18,6 +18,8 @@ declare
   v_actor uuid;
   v_left_visit uuid;
   v_terminal boolean;
+  v_cancel text;
+  v_stage_name text;
 begin
   if coalesce(current_setting('app.sor_revert', true), '') = 'on' then
     return NEW;
@@ -60,13 +62,14 @@ begin
   end if;
 
   -- Nothing can bring a held task back from a Terminal Stage.
-  select coalesce(is_terminal, false) into v_terminal from public.flow_stages where id = NEW.flow_stage_id;
+  select coalesce(is_terminal, false), name into v_terminal, v_stage_name from public.flow_stages where id = NEW.flow_stage_id;
   if coalesce(v_terminal, false) then
+    v_cancel := format('Cancelled: the SOR reached %s, a Terminal Stage.', coalesce(v_stage_name, 'a Terminal Stage'));
     update public.tasks
-      set status = 'DELETED', cancel_reason = 'Cancelled: the SOR reached a Terminal Stage.'
+      set status = 'DELETED', cancel_reason = v_cancel, held_at = null, held_from_visit_id = null, held_prev_status = null
       where opportunity_id = NEW.id and status = 'ON_HOLD';
     update public.committee_tasks
-      set status = 'CANCELLED', cancel_reason = 'Cancelled: the SOR reached a Terminal Stage.'
+      set status = 'CANCELLED', cancel_reason = v_cancel, held_at = null, held_from_visit_id = null, held_prev_status = null
       where opportunity_id = NEW.id and status = 'ON_HOLD';
   end if;
 

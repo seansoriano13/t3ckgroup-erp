@@ -18,6 +18,7 @@ import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import FlowVersionBadge from "../FlowVersionBadge";
+import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -65,7 +66,6 @@ export default function SorModalHeader({
   moveDisabled = false,
   moveDisabledReason,
 }) {
-  const scrollRef = useRef(null);
   const activeChevronRef = useRef(null);
 
   useEffect(() => {
@@ -94,8 +94,8 @@ export default function SorModalHeader({
 
   const legacyRibbon = (
     <div className="relative w-full">
-      <div ref={scrollRef} className="overflow-x-auto pb-2">
-        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px] mb-2">
+      <StageRibbonScroller>
+        <ol data-stage-ribbon aria-label="Pipeline stage" className="flex h-11 min-w-full w-max gap-[2px]">
           {pipelineStages.map((s, index) => {
             const isCompleted = index < currentIndex;
             const isCurrent = index === currentIndex;
@@ -153,9 +153,9 @@ export default function SorModalHeader({
             );
           })}
         </ol>
-      </div>
+      </StageRibbonScroller>
       {moveDisabled && moveDisabledReason && (
-        <p className="-mt-1 mb-1 text-[11px] font-medium text-muted-foreground">
+        <p className="mt-2 text-[11px] font-medium text-muted-foreground">
           {moveDisabledReason}
         </p>
       )}

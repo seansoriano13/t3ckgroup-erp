@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { notificationService } from "./notificationService";
 import { groupTaskActivityService } from "./groupTaskActivityService";
 import { formatTaskPreview } from "../utils/taskFormatters";
+import { HIDDEN_GROUP_TASK_STATUS_FILTER } from "../constants/status";
 
 const logGroupTaskActivity = async (groupTaskId, action, details = {}, actorId = null) => {
   try {
@@ -213,7 +214,7 @@ export const groupTaskService = {
     let query = supabase
       .from("committee_tasks")
       .select(GROUP_TASK_SELECT)
-      .not("status", "in", "(CANCELLED,ON_HOLD)")
+      .not("status", "in", HIDDEN_GROUP_TASK_STATUS_FILTER)
       .order("created_at", { ascending: false });
 
     const { data, error } = await query;

@@ -19,6 +19,10 @@ export const TASK_STATUS = {
   ON_HOLD: "ON_HOLD",
 };
 
+// What no task list, count or badge shows: cancelled, or held while the SOR is
+// away from the Stage that made it. PostgREST `in` list syntax.
+export const HIDDEN_TASK_STATUS_FILTER = `(${TASK_STATUS.DELETED},${TASK_STATUS.ON_HOLD})`;
+
 // A Group Task's own lifecycle (`committee_tasks.status`) and each member's
 // part of it (`committee_task_members.status`), as `groupTaskService` writes
 // them — kept apart from TASK_STATUS because an individual task never passes
@@ -27,7 +31,11 @@ export const GROUP_TASK_STATUS = {
   ACTIVE: "ACTIVE",
   HR_PENDING: "HR_PENDING",
   HR_VERIFIED: "HR_VERIFIED",
+  CANCELLED: "CANCELLED",
+  ON_HOLD: "ON_HOLD",
 };
+
+export const HIDDEN_GROUP_TASK_STATUS_FILTER = `(${GROUP_TASK_STATUS.CANCELLED},${GROUP_TASK_STATUS.ON_HOLD})`;
 
 export const GROUP_MEMBER_STATUS = {
   PENDING: "PENDING",
