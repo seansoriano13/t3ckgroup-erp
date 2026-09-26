@@ -3,6 +3,7 @@ import { cn } from "../../lib/utils";
 import { salesFlowService } from "../../services/salesFlowService";
 import { flowStageTone, outgoingStages } from "../../constants/salesFlow";
 import { bracketRuns } from "../flow-canvas/flowCanvasLayout";
+import RevertStageButton from "./RevertStageButton";
 
 /**
  * The stage control for a deal that runs a Sales Flow (issue #36, ADR 0006).
@@ -169,6 +170,8 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
           Can't move on yet — missing: {blockedBy.join(", ")}.
         </p>
       )}
+
+      <RevertStageButton opportunity={opportunity} />
 
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">

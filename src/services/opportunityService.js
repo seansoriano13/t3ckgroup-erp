@@ -3249,12 +3249,42 @@ export const opportunityService = {
       .select("id")
       .eq("opportunity_id", opportunityId)
       .eq("flow_stage_id", flowStageId)
+      .is("undone_at", null)
       .not("left_at", "is", null)
       .order("sequence", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw error;
     return data?.id ?? null;
+  },
+
+  /**
+   * Issue #386 — the SOR's Stage Visits as the Revert action needs them
+   * (see `canRevertStage`). Undone visits are included: "straight after a
+   * Revert" is read off them.
+   */
+  async getVisitsForRevert(opportunityId) {
+    if (!opportunityId) return [];
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("id, sequence, left_at, undone_at, entered_by")
+      .eq("opportunity_id", opportunityId)
+      .order("sequence", { ascending: false });
+    if (error) throw error;
+    return data || [];
+  },
+
+  /**
+   * Issue #386 — "Revert to last stage": takes the SOR back to the Stage its
+   * latest move came from. All rules live in `sor_revert_stage` (ADR 0013);
+   * this only names its refusals.
+   */
+  async revertStage(opportunityId) {
+    const { data, error } = await supabase.rpc("sor_revert_stage", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw new Error(error.message.replace(/^Revert: /, ""));
+    return Array.isArray(data) ? data[0] : data;
   },
 
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
@@ -3592,6 +3622,7 @@ export const opportunityService = {
             leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path)
           `)
           .eq("opportunity_id", opportunityId)
+          .is("undone_at", null)
           .order("sequence", { ascending: false }),
       ]);
     if (opportunityError) throw opportunityError;
