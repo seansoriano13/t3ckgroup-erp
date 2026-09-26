@@ -96,6 +96,8 @@ Read-only. Compares every public policy's name, command and definition between p
 
 **Check:** it prints nothing and exits 0. Each printed line is a policy that differs or exists on one side only. Stop and fix before going on.
 
+**Known prod-only leftovers (accepted, 2026-09-26):** `system_audit_logs` (`Allow all read`, `hr_read_system_audit_logs`), `system_updates` (`Enable read for authenticated users`, `Enable write operations for authenticated users`) and `task_activity` (`Authenticated users can insert task activity`, `Authenticated users can read task activity`) exist only on production. They don't block migration. Pass means these six `only on production` lines are the *only* output. Anything else is a stop. Flow-canvas write policies match staging after migration: anyone can edit the canvas, on purpose.
+
 ### 7. Old UI still works
 
 On production, with the old UI, as an **Operations** user and an **Admin** user: register an SOR, move a Stage, edit the Product List.
