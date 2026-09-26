@@ -733,7 +733,8 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // reads `flow_stage_id` against the loaded flow, not `status`.
   const patch = { flow_stage_id: to.id };
 
-  if (wonStageId === to.id && !existing.contract_date) {
+  const stampsContractDate = wonStageId === to.id && !existing.contract_date;
+  if (stampsContractDate) {
     patch.contract_date = getCurrentLocalDate();
   }
 
@@ -749,7 +750,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   await opportunityService.addSystemNote(
     existing.id,
     `Stage moved: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
+    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId, stampedContractDate: stampsContractDate },
     actorId,
   );
 
@@ -757,7 +758,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     "OPPORTUNITY",
     existing.id,
     `${auditLabel(existing)}: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId },
+    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId, stampedContractDate: stampsContractDate },
     actorId,
   ).catch(console.error);
 

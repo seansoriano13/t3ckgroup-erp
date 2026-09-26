@@ -104,21 +104,15 @@ export const defaultStage = (stages = PIPELINE_STAGE_SEED) =>
  * than the Projected one.
  *
  * A fact about the deal, not a position in a list (ADR 0006). The Contract
- * Date is stamped the first time the deal reaches the Stage that wins it and
- * is never un-stamped, so it answers "has this been booked" without asking
- * where the deal currently sits — which is the only thing that still works
- * once a Sales Flow is a graph and "at or past the anchor" has no meaning.
+ * Date is stamped the first time the deal reaches the Won Stage and only a
+ * Revert of that move clears it (ADR 0026), so it answers "has this been
+ * booked" without asking where the deal currently sits. For a flow-built deal
+ * the check below decides by current Stage, not by the Contract Date.
  *
- * Two consequences, both deliberate. A deal that has since moved backwards
- * stays Realized: its history already answered the question, and the
- * positional rule's special case for exactly this existed only because
- * position kept contradicting it. A lost deal never counts, whatever its
- * Contract Date says — the one guard the positional rule carried that is
- * about the deal rather than about the ordering.
- *
- * An opportunity with no Contract Date is not Realized. Under-reporting is
- * the safe direction to fail, because the alternative silently promotes
- * pipeline deals into booked money.
+ * A lost deal never counts. A flow deal is Realized while on the Won Stage or
+ * a non-terminal Stage downstream of it, and stops being Realized if it moves
+ * back before it. A legacy deal is Realized at or past the anchor Stage, and
+ * falls back to the Contract Date only when no anchor exists.
  */
 export const isRealizedOpportunity = (opportunity, stagesOrContext = PIPELINE_STAGE_SEED) => {
   if (!opportunity) return false;

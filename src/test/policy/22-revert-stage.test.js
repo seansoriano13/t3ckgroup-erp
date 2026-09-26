@@ -181,6 +181,47 @@ describe("Revert to last stage (no Stage Work)", () => {
         expect((await sorRow(preExisting)).contract_date).toBe("2026-08-01")
     })
 
+    it("says in the STAGE_REVERTED entry whether the Contract Date was cleared", async () => {
+        const stamped = await freshSor()
+        await moveAs("dealOwner", stamped, stageWon, { contract_date: "2026-09-01" })
+        await revertAs("dealOwner", stamped)
+        const plain = await freshSor()
+        await moveAs("dealOwner", plain, stageB)
+        await revertAs("dealOwner", plain)
+        const entry = async (id) =>
+            (await svc().from("sales_opportunity_logs").select("content, metadata").eq("opportunity_id", id).eq("metadata->>event", "STAGE_REVERTED").single()).data
+        const a = await entry(stamped)
+        expect(a.metadata.clearedContractDate).toBe(true)
+        expect(a.content).toMatch(/Contract Date cleared/)
+        expect((await entry(plain)).metadata.clearedContractDate).toBe(false)
+    })
+
+    it("stamps a fresh Contract Date when the SOR reaches the Won Stage again", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageWon, { contract_date: "2026-09-01" })
+        await revertAs("dealOwner", sor)
+        await moveAs("dealOwner", sor, stageWon, { contract_date: "2026-09-15" })
+        expect((await sorRow(sor)).contract_date).toBe("2026-09-15")
+        await revertAs("dealOwner", sor)
+        expect((await sorRow(sor)).contract_date).toBeNull()
+    })
+
+    it("sends a disregard notification to assignees and Deciders the reverted move notified", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        const [, visitB] = await visits(sor)
+        await svc().from("tasks").insert({ logged_by: ids.closingSales, opportunity_id: sor, stage_visit_id: visitB.id, task_description: `${MARKER} n` })
+        await svc().from("notifications").insert({
+            recipient_id: ids.superAdmin, sender_id: ids.dealOwner, type: "OPPORTUNITY_ACTION_DECISION_DUE",
+            title: `${MARKER} due`, message: "decide", reference_id: sor,
+        })
+        expect((await revertAs("dealOwner", sor)).error).toBeNull()
+        const { data } = await svc().from("notifications").select("recipient_id, message").eq("reference_id", sor).eq("type", "OPPORTUNITY_STAGE_REVERTED")
+        expect(data.map((n) => n.recipient_id).sort()).toEqual([ids.closingSales, ids.superAdmin].sort())
+        expect(data[0].message).toMatch(/reverted/)
+        await svc().from("notifications").delete().eq("reference_id", sor)
+    })
+
     it("lets whoever made the latest move revert it, even off the Deal Team's owner role", async () => {
         const sor = await freshSor()
         await moveAs("closingSales", sor, stageB)
