@@ -31,6 +31,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # REMOVE-BEFORE-PROD gate: staging may carry throwaway UI prototypes
+      # (the SOR modal layout switcher); production may not. Fails any push or
+      # PR to main while one is still in the tree.
+      - name: No prototypes on main
+        if: github.ref == 'refs/heads/main' || github.base_ref == 'main'
+        run: node scripts/check-no-prototypes.mjs
+
       - name: Lint tests
         run: pnpm lint:tests
 

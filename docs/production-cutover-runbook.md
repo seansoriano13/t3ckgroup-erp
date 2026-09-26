@@ -21,6 +21,7 @@ The cutover runs in **two windows**, so the database change and the UI change ne
 - [ ] #336 rehearsal passed twice in a row on fresh production clones.
 - [ ] `hyper-action` decided on (#334).
 - [ ] Vercel production's git integration is **disconnected** (Vercel → project → Settings → Git → Disconnect; the project owner does this). Vercel deploys every push to `main` live immediately, and the new UI must not go live before its window. **Check:** Settings → Git shows no connected repository.
+- [ ] **REMOVE-BEFORE-PROD:** the SOR modal layout prototype is gone — `src/components/sor/modal/prototype/` deleted, nothing left tagged `REMOVE-BEFORE-PROD`, and the "SOR Layout Preview (Staging)" entry gone from `src/data/changelog.json` (the chosen layout, if any, rebuilt properly first). **Check:** `node scripts/check-no-prototypes.mjs` passes; CI's "No prototypes on main" fails otherwise.
 - [ ] Staff heads-up sent Sep 30 (see [Staff heads-up](#staff-heads-up)).
 
 ## Database window — Sep 29–30 (old UI stays live)

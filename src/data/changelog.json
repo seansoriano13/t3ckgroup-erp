@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-09-26",
+        "title": "SOR Layout Preview (Staging)",
+        "version": "1.7.30",
+        "changes": [
+            "Staging only: open any SOR and use the Layout preview bar at the bottom of the window to try different layouts for the SOR window.",
+            "Pick one from the menu, use the arrows, or press Shift + Left/Right. Your pick is remembered for every SOR you open.",
+            "Nothing about how an SOR works changes; this is for comparing layouts before one is chosen."
+        ]
+    },
+    {
         "date": "2026-09-25",
         "title": "Settings in Tabs & Saved Task Filters",
         "version": "1.7.29",

@@ -38,6 +38,9 @@ import ItemsTab from "./ItemsTab";
 import DetailsTab from "./DetailsTab";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
+// REMOVE-BEFORE-PROD — SOR modal layout prototype, staging/local only. CI fails any push or PR to `main` while ./prototype exists.
+import SorModalPrototype from "./prototype/SorModalPrototype";
+import PrototypeSwitcher, { PROTOTYPE_ENABLED, usePrototypeVariant } from "./prototype/PrototypeSwitcher";
 
 function estimatedValueSizeClass(displayText) {
   const len = (displayText || "").length;
@@ -153,6 +156,7 @@ export default function SorModal({
 
   const [activeTab, setActiveTab] = useState("now");
   const { markOpened, hasOpened } = useOpenedTabs("now");
+  const [protoVariant, setProtoVariant] = usePrototypeVariant();
   const isWide = useMediaQuery("(min-width: 1100px)");
 
   const currentKey = `${id || "none"}:${isOpen}`;
@@ -842,6 +846,37 @@ export default function SorModal({
     onClose,
   };
 
+  const headerProps = {
+    opportunity,
+    isEditing,
+    editForm,
+    setEditForm,
+    handleEditToggle,
+    updateMutation,
+    deleteMutation,
+    isExpanded,
+    setIsExpanded,
+    onClose,
+    isFlowDeal,
+    flowCanvas,
+    currentFlowStage,
+    currentFlowStageTone,
+    pipelineStages,
+    stageMutation,
+    handleStageChange,
+    checklist,
+    isOpen,
+    hasPrev,
+    hasNext,
+    onPrev: goPrev,
+    onNext: goNext,
+    canEdit,
+    moveDisabled,
+    moveDisabledReason: isRestricted
+              ? "This stage is restricted, so the deal can't be moved from here."
+              : "You can view this deal's stages but not move it. Ask the deal owner or a manager to move it.",
+  };
+
   const chatColumn = (
     <SorChatColumn
       notes={notes}
@@ -859,6 +894,56 @@ export default function SorModal({
       handlePostNote={handlePostNote}
     />
   );
+
+  const windowsBanner = myWindows.length > 0 && (
+      <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
+        <ul className="space-y-0.5">
+          {myWindows.map((w) => (
+            <li key={w.id} className="text-xs leading-relaxed text-violet-11">
+              Called in at{" "}
+              <span className="font-bold">{w.calledInAtStageName || "this deal"}</span> — you see{" "}
+              {w.reachLabel}
+              {w.closedAt ? ". This window has closed." : "."}
+            </li>
+          ))}
+        </ul>
+      </div>
+  );
+
+  // REMOVE-BEFORE-PROD: everything a layout variant may render.
+  const protoProps = {
+    ...headerProps,
+    headerProps,
+    id,
+    ctx: tabCtx,
+    chatColumn,
+    windowsBanner,
+    notes,
+    canViewJourney,
+    isWide,
+    hasOpened,
+    markOpened,
+    isRestricted,
+    moveDisabledReason: headerProps.moveDisabledReason,
+    goPrev,
+    goNext,
+    // Composer pieces, for layouts that place the note box themselves ("Thread").
+    loadingNotes,
+    note,
+    setNote,
+    noteMentions,
+    setNoteMentions,
+    mentionableEmployees,
+    attachments,
+    fileInputRef,
+    isPosting,
+    handlePostNote,
+    handleMentionClick,
+    openFlowVersion: (snapshotId) => {
+      const stage = opportunity.flow_stage_id;
+      window.open(`/flow-versions/${snapshotId}${stage ? `?stage=${encodeURIComponent(stage)}` : ""}`, "_blank", "noopener");
+    },
+  };
 
   // ADR 0021 / #297: a Participant shut out of Journey by the flow's
   // journey_viewers setting gets no Journey tab at all — not one that opens
@@ -886,55 +971,19 @@ export default function SorModal({
         className={cn(
           "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)] outline-none transition-all duration-300",
           isExpanded ? "!max-w-none !max-h-none !rounded-none !border-0" : "w-full max-w-[95vw] md:max-w-[1200px] max-h-[90vh] rounded-2xl",
+          // REMOVE-BEFORE-PROD: a fixed height so switching layouts doesn't make the modal jump.
+          PROTOTYPE_ENABLED && !isExpanded && "h-[90vh]",
         )}
       >
-        <SorModalHeader
-          opportunity={opportunity}
-          isEditing={isEditing}
-          editForm={editForm}
-          setEditForm={setEditForm}
-          handleEditToggle={handleEditToggle}
-          updateMutation={updateMutation}
-          deleteMutation={deleteMutation}
-          isExpanded={isExpanded}
-          setIsExpanded={setIsExpanded}
-          onClose={onClose}
-          isFlowDeal={isFlowDeal}
-          flowCanvas={flowCanvas}
-          currentFlowStage={currentFlowStage}
-          currentFlowStageTone={currentFlowStageTone}
-          pipelineStages={pipelineStages}
-          stageMutation={stageMutation}
-          handleStageChange={handleStageChange}
-          checklist={checklist}
-          isOpen={isOpen}
-          hasPrev={hasPrev}
-          hasNext={hasNext}
-          onPrev={goPrev}
-          onNext={goNext}
-          canEdit={canEdit}
-          moveDisabled={moveDisabled}
-          moveDisabledReason={
-            isRestricted
-              ? "This stage is restricted, so the deal can't be moved from here."
-              : "You can view this deal's stages but not move it. Ask the deal owner or a manager to move it."
-          }
-        />
+        {/* REMOVE-BEFORE-PROD: keyed on the layout so a switch fades the new one in. */}
+        <div key={protoVariant} className="flex min-h-0 flex-1 flex-col animate-in fade-in-0 duration-200">
+        {protoVariant !== "A" ? (
+          <SorModalPrototype variant={protoVariant} p={protoProps} />
+        ) : (
+        <>
+        <SorModalHeader {...headerProps} />
 
-        {myWindows.length > 0 && (
-          <div className="shrink-0 border-b border-border/60 bg-violet-a2 px-6 py-2">
-            <ul className="space-y-0.5">
-              {myWindows.map((w) => (
-                <li key={w.id} className="text-xs leading-relaxed text-violet-11">
-                  Called in at{" "}
-                  <span className="font-bold">{w.calledInAtStageName || "this deal"}</span> — you see{" "}
-                  {w.reachLabel}
-                  {w.closedAt ? ". This window has closed." : "."}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {windowsBanner}
 
         <div className="flex min-h-0 flex-1">
           <div className="flex min-h-0 flex-1 flex-col">
@@ -973,6 +1022,10 @@ export default function SorModal({
 
           {isWide && <div className="w-[340px] shrink-0 border-l border-border/60">{chatColumn}</div>}
         </div>
+        </>
+        )}
+        </div>
+        {PROTOTYPE_ENABLED && <PrototypeSwitcher variant={protoVariant} setVariant={setProtoVariant} />}
       </DialogContent>
     </Dialog>
   );
