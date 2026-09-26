@@ -153,6 +153,7 @@ _Avoid_: Deal Type, Project Type, Type
 The whole process one Sale Type follows — its Stages and the moves permitted
 between them. A directed graph, not an ordered list: a flow may loop back, skip
 ahead, or branch, because deals are re-opened and fast-tracked in reality.
+A flow's Stages live only on the Flow Canvas; no document lists them.
 _Avoid_: Pipeline (when meaning a specific Sale Type's process), Workflow
 
 **Stage** (within a Sales Flow):
@@ -239,16 +240,36 @@ _Avoid_: Distribution List, Roster
 **Stage Action**:
 Something that happens when an SOR *enters* a Stage — create a Group Task,
 notify, stamp a date, start a countdown, raise a purchase request, or a note.
-Fires once per (SOR, Stage), permanently: re-entering a Stage creates nothing
-new. Distinct from a Stage Condition by what it does — an Action *happens*, a
-Condition *blocks*.
+Fires once per (SOR, Stage): a Return creates nothing new unless it is a
+Start fresh. A task it created goes **on hold** when the SOR leaves the
+Stage — off everyone's list until a Return decides it — unless the Sales Flow
+set that action to carry on past the Stage. Reaching a Terminal Stage cancels
+every held task; a Resume revives them with due dates pushed back by the time
+they spent on hold. Distinct from a Stage Condition by
+what it does — an Action *happens*, a Condition *blocks*.
 _Avoid_: Trigger, Automation, Hook
+
+**Stage Work**:
+Everything done on an SOR during one Stage Visit — the tasks its Stage Actions
+created, Optional Action decisions, ticked tickboxes, files given through
+conditions, custom Stage Field values, and the Follow-up count. Not the SOR's
+own fields, which belong to the SOR, and not notifications, which cannot be
+taken back. Handled as one set, never item by item.
+
+**Return**:
+An SOR entering a Stage it already has an earlier Stage Visit on. Whoever makes
+the move chooses **Resume** — the earlier Stage Work carries into the new
+visit, its tasks reopened — or **Start fresh** — the earlier Stage Work is
+closed off, never deleted: its tasks cancelled, the rest left on the earlier
+visit in the Journey, and the Stage's Actions fire again. Only a Return asks;
+no other move does.
+_Avoid_: Backward move, Re-entry, Revert (going back one step without an edge)
 
 **Optional Action**:
 A Stage Action that waits for its Decider — the Deal Owner unless the Sales
 Flow names someone else — to create it or skip it after the SOR enters the
 Stage. Never blocks leaving; leaving undecided counts as a skip, and a skip is
-final for that Stage.
+final for that Stage until a Start fresh.
 _Avoid_: Manual Action, Conditional Action
 
 **Stage Condition**:
@@ -259,7 +280,8 @@ cost, the evaluation approved, and the offer within ABC) — plus Note Condition
 deal must fill in is a Stage Field, never a condition. An attachment condition
 is met only by a file given through that condition, not by any matching file on
 the SOR. A deadline never blocks; it warns on approach and marks the deal
-overdue on breach.
+overdue on breach. Conditions guard moving on, never going back: a Revert or a
+Return is not blocked by them, nor by a required Stage Field.
 _Avoid_: Gate, Requirement, Rule
 
 **Note Condition**:
@@ -284,6 +306,25 @@ stamps the Contract Date, which fixes that SOR's commission pricing forever.
 Exactly one per flow; a Sales Flow cannot be published without one. Set by the
 developer, never presented to Operations in commission vocabulary.
 _Avoid_: Anchor, Anchor Stage, Award Stage
+
+**Revert**:
+Taking an SOR back to the Stage its latest move came from, whether that move
+was a mistake or the deal really went back. Not a move: it needs no drawn edge
+and can take an SOR off a Terminal Stage. If Stage Work was already done on the
+Stage being left, whoever reverts chooses to **keep progress** — held, so a
+later Return can Resume it — or **remove progress** — closed off, never
+deleted; with no Stage Work there, nothing is asked and the stay is undone
+outright, the earlier Stage Visit simply continuing. Otherwise the SOR starts a
+new visit on the earlier Stage with that Stage's old work resumed. One step
+only: a Revert cannot itself be reverted, and going further back takes a
+move. Anything the reverted move stamped (a Contract Date included) is
+cleared, and anyone it notified is told to disregard it. Reverting a Return
+also undoes its Resume or Start fresh. Made only by whoever made the move, the
+Deal Owner, or a Super Admin — a Restricted Stage does not stop them, but one
+shut out of it is not asked and keeps progress. On screen: **Revert to last
+stage**. Unrelated
+to reverting a Sales Flow to an earlier Flow Snapshot on the Flow Canvas.
+_Avoid_: Correction, Stage Correction, Rollback, Undo
 
 **Won** (or **Realized**):
 An SOR counts as booked money when its current Stage is its Sales Flow's designated Won Stage or any non-terminal post-won Stage downstream from it. For legacy SORs with no Sales Flow, it means occupying the Awarded stage or beyond. Labelled **Won** on screen.
