@@ -17,7 +17,8 @@ export function stubActionRunRpcs() {
       (r) =>
         r.opportunity_id === args.p_opportunity_id &&
         r.stage_id === args.p_stage_id &&
-        r.action_id === args.p_action_id,
+        r.action_id === args.p_action_id &&
+        !r.closed_off_at,
     )
     if (existing) return existing
     return insertRow("sor_action_runs", {
