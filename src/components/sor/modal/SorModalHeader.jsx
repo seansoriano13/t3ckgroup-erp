@@ -281,7 +281,7 @@ export default function SorModalHeader({
               <Dropdown
                 usePortal
                 placement="bottom-end"
-                popoverClassName="popover-enter z-[10001] w-44 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
+                popoverClassName="popover-enter z-[10001] w-max min-w-52 rounded-xl bg-popover p-1.5 shadow-2xl ring-1 ring-mauve-6"
                 trigger={
                   <Button
                     type="button"
