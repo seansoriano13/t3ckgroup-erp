@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 import StageActionDetail from "./StageActionDetail";
 
 describe("StageActionDetail", () => {
@@ -58,5 +58,28 @@ describe("StageActionDetail", () => {
     render(<StageActionDetail action={action} employees={[]} />);
 
     expect(screen.getByText("Do the thing")).toBeInTheDocument();
+  });
+
+  describe("carries on past the stage", () => {
+    const action = (config = {}) => ({ kind: "create_individual_task", config });
+
+    it("is off by default", () => {
+      render(<StageActionDetail action={action()} onCarriesOnChange={() => {}} />);
+      expect(screen.getByRole("switch", { name: /carries on past the stage/i })).not.toBeChecked();
+    });
+
+    it("reads on when the config says so, and reports a toggle", () => {
+      const onChange = vi.fn();
+      render(<StageActionDetail action={action({ carries_on: true })} onCarriesOnChange={onChange} />);
+      const box = screen.getByRole("switch", { name: /carries on past the stage/i });
+      expect(box).toBeChecked();
+      fireEvent.click(box);
+      expect(onChange).toHaveBeenCalledWith(false);
+    });
+
+    it("cannot be toggled when disabled", () => {
+      render(<StageActionDetail action={action()} disabled onCarriesOnChange={() => {}} />);
+      expect(screen.getByRole("switch", { name: /carries on past the stage/i })).toHaveAttribute("aria-disabled", "true");
+    });
   });
 });

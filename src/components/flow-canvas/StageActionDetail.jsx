@@ -6,6 +6,7 @@ import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
 import { taskTagService } from "../../services/taskTagService";
 import { TagPill } from "../ui/TagPill";
+import { Switch } from "../ui/switch";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -62,6 +63,7 @@ export default function StageActionDetail({
   stageId,
   disabled = false,
   onAccessChange,
+  onCarriesOnChange,
 }) {
   const config = action?.config ?? {};
   const nameOf = (id) =>
@@ -185,6 +187,28 @@ export default function StageActionDetail({
 
           <Checklist value={config.checklist} />
         </>
+      )}
+
+      {onCarriesOnChange && (
+        <div className="flex items-start gap-2.5 rounded-lg bg-mauve-a2 px-2.5 py-2">
+          <Switch
+            size="sm"
+            className="mt-0.5"
+            aria-label="Carries on past the stage"
+            checked={config.carries_on === true}
+            disabled={disabled}
+            onCheckedChange={(checked) => onCarriesOnChange(checked)}
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-bold text-foreground">
+              Carries on past the stage
+            </span>
+            <span className="block text-xs leading-snug text-muted-foreground">
+              Off: the task goes on hold when the SOR leaves this Stage. On: it stays live for work
+              that continues afterwards.
+            </span>
+          </span>
+        </div>
       )}
 
       {/* The access window lives here, after the automation it applies to,

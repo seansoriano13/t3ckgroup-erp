@@ -128,6 +128,9 @@ export default function StageActionManager({ stageId, disabled = false }) {
   const handleAccessChange = (action, access) =>
     updateMutation.mutate({ id: action.id, config: { ...action.config, access } });
 
+  const handleCarriesOnChange = (action, carriesOn) =>
+    updateMutation.mutate({ id: action.id, config: { ...action.config, carries_on: carriesOn } });
+
   if (isLoading) {
     return <div className="m-5 h-20 animate-pulse rounded-2xl bg-mauve-a2" />;
   }
@@ -238,6 +241,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                   stageId={stageId}
                   disabled={disabled}
                   onAccessChange={(access) => handleAccessChange(action, access)}
+                onCarriesOnChange={(on) => handleCarriesOnChange(action, on)}
                 />
               )}
             </div>

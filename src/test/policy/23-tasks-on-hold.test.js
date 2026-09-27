@@ -124,3 +124,47 @@ describe("held group tasks at a Terminal Stage", () => {
         expect(row.cancel_reason).toContain(`${MARKER} Terminal`)
     })
 })
+
+describe("actions that carry on past the stage (#389)", () => {
+    async function moveOnUnder(config) {
+        const carryId = (await svc().from("flow_stage_actions").insert({ stage_id: stageA, kind: "create_individual_task", config }).select("id").single()).data.id
+        const snap = await svc().from("flow_snapshots")
+            .insert({ flow_id: flowId, version: 9000 + Math.floor(Math.random() * 900), snapshot_data: { actions: [{ id: carryId, stage_id: stageA, config }] } })
+            .select("id").single()
+        if (snap.error) throw new Error(snap.error.message)
+        const s = await sorWithTasks()
+        await svc().from("sales_opportunities").update({ flow_snapshot_id: snap.data.id }).eq("id", s.id)
+        await svc().from("sor_stage_visits").update({ flow_snapshot_id: snap.data.id }).eq("id", s.visit)
+        const t = (await svc().from("tasks")
+            .insert({ logged_by: ids.closingSales, opportunity_id: s.id, stage_visit_id: s.visit, task_description: `${MARKER} c`, status: "INCOMPLETE", stage_action_id: carryId })
+            .select("id").single()).data.id
+        await moveTo(s.id, stageB)
+        return { s, t, carryId }
+    }
+    const cleanup = async ({ t, carryId }) => {
+        await svc().from("tasks").delete().eq("id", t)
+        await svc().from("flow_stage_actions").delete().eq("id", carryId)
+    }
+
+    it("never holds a carry-on task, and a Terminal Stage leaves it alone", async () => {
+        const r = await moveOnUnder({ carries_on: true })
+        expect((await task(r.t)).status).toBe("INCOMPLETE")
+        expect((await task(r.s.open)).status).toBe("ON_HOLD")
+        await moveTo(r.s.id, stageTerminal)
+        expect((await task(r.t)).status).toBe("INCOMPLETE")
+        await cleanup(r)
+    })
+
+    it("holds when the setting is off in the snapshot", async () => {
+        const r = await moveOnUnder({ carries_on: false })
+        expect((await task(r.t)).status).toBe("ON_HOLD")
+        await cleanup(r)
+    })
+
+    it("reads the SOR's own snapshot, not the live action", async () => {
+        const r = await moveOnUnder({ carries_on: true })
+        await svc().from("flow_stage_actions").update({ config: { carries_on: false } }).eq("id", r.carryId)
+        expect((await task(r.t)).status).toBe("INCOMPLETE")
+        await cleanup(r)
+    })
+})
