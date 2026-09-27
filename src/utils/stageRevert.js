@@ -3,9 +3,10 @@
  * rules `sor_revert_stage` enforces (the function stays the real gate).
  *
  * `visits` are the SOR's Stage Visits ({ sequence, left_at, undone_at,
- * entered_by }). Possible only when the SOR has moved (an earlier, not undone
- * visit exists) and its latest visit is not itself an undone one (one step
- * only). Allowed for whoever made the latest move, the Deal Owner, or a Super
+ * entered_by, opened_by_revert }). Possible only when the SOR has moved (an
+ * earlier, not undone visit exists) and the last move was not itself a Revert
+ * (one step only): the latest visit is neither an undone one nor the visit a
+ * Keep/Remove Revert opened. Allowed for whoever made the latest move, the Deal Owner, or a Super
  * Admin.
  */
 export function canRevertStage({ visits = [], opportunity, user }) {
@@ -16,7 +17,7 @@ export function canRevertStage({ visits = [], opportunity, user }) {
   if (!latest || latest.undone_at) return false;
 
   const current = bySequence.find((v) => !v.left_at && !v.undone_at);
-  if (!current) return false;
+  if (!current || current.opened_by_revert) return false;
   const hasEarlier = bySequence.some((v) => !v.undone_at && v.sequence < current.sequence);
   if (!hasEarlier) return false;
 

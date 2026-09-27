@@ -11,6 +11,7 @@ import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../con
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
 import { TASK_STATUS } from "../../../constants/status";
+import { REVERT_CHOICE } from "../../../constants/revertChoice";
 import { formatDueDate as formatWhen } from "../../../utils/formatDate";
 
 const notDeleted = (task) => !isTaskDeleted(task);
@@ -193,6 +194,11 @@ function PastVisit({ row, onToggle }) {
           {visit.resumedAt && (
             <p className="text-[11px] text-muted-foreground">
               Resumed {formatWhen(visit.resumedAt)} by <Person person={visit.resumedBy} />, its work carried forward.
+            </p>
+          )}
+          {visit.revertChoice && (
+            <p className="text-[11px] text-muted-foreground">
+              Left by a Revert, {visit.revertChoice === REVERT_CHOICE.REMOVE ? "its progress removed." : "its progress kept."}
             </p>
           )}
 

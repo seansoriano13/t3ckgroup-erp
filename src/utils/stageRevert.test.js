@@ -29,4 +29,13 @@ describe("canRevertStage", () => {
         ]
         expect(canRevertStage({ visits: reverted, opportunity, user: { id: "owner" } })).toBe(false)
     })
+
+    it("is hidden straight after a Keep/Remove progress Revert", () => {
+        const reverted = [
+            { sequence: 1, left_at: "t", undone_at: null, entered_by: "reg" },
+            { sequence: 2, left_at: "t", undone_at: null, entered_by: "mover" },
+            { sequence: 3, left_at: null, undone_at: null, entered_by: "owner", opened_by_revert: true },
+        ]
+        expect(canRevertStage({ visits: reverted, opportunity, user: { id: "owner" } })).toBe(false)
+    })
 })

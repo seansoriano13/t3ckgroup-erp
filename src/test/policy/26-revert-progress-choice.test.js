@@ -45,6 +45,8 @@ afterAll(async () => {
         await svc().from("employee_groups").delete().eq("id", groupId)
     }
     await svc().from("flow_stage_access").delete().in("stage_id", [stageA, stageB])
+    await svc().from("flow_stage_actions").delete().eq("stage_id", stageB).neq("id", actionId)
+    await svc().from("flow_snapshots").delete().eq("flow_id", flowId)
     await svc().from("flow_stage_actions").delete().eq("id", actionId)
     await svc().from("flow_stages").delete().eq("flow_id", flowId)
     await svc().from("sales_flows").delete().eq("id", flowId)
@@ -145,9 +147,11 @@ describe("Revert with a progress choice", () => {
         const { error } = await revertAs("dealOwner", id, "remove")
         expect(error).toBeNull()
 
+        // Left, not undone: the visit stays on the History with its closed-off work.
         const left = (await svc().from("sor_stage_visits").select("*").eq("id", visitB.id).single()).data
         expect(left.revert_choice).toBe("remove")
-        expect(left.undone_at).not.toBeNull()
+        expect(left.undone_at).toBeNull()
+        expect(left.left_at).not.toBeNull()
 
         const cancelled = (await svc().from("tasks").select("status, cancel_reason").eq("id", task).single()).data
         expect(cancelled.status).toBe("DELETED")
@@ -160,6 +164,46 @@ describe("Revert with a progress choice", () => {
         // Still visible on the Journey — the row stands, just cancelled.
         const stillThere = await svc().from("tasks").select("id").eq("id", task).maybeSingle()
         expect(stillThere.data).not.toBeNull()
+    })
+
+    it("Keep progress leaves a task whose action carries on past the Stage alone", async () => {
+        const { id, visitB, task } = await withProgressOnB()
+        const carryId = (await svc().from("flow_stage_actions")
+            .insert({ stage_id: stageB, kind: "create_individual_task", config: { carries_on: true } })
+            .select("id").single()).data.id
+        const snap = await svc().from("flow_snapshots")
+            .insert({ flow_id: flowId, version: 9100 + sorIds.length, snapshot_data: { actions: [{ id: carryId, stage_id: stageB, config: { carries_on: true } }] } })
+            .select("id").single()
+        if (snap.error) throw new Error(snap.error.message)
+        await svc().from("sor_stage_visits").update({ flow_snapshot_id: snap.data.id }).eq("id", visitB.id)
+        const carried = (await svc().from("tasks")
+            .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visitB.id, stage_action_id: carryId, task_description: `${MARKER} carries on`, status: "INCOMPLETE" })
+            .select("id").single()).data.id
+
+        const { error } = await revertAs("dealOwner", id, "keep")
+        expect(error).toBeNull()
+
+        expect((await svc().from("tasks").select("status").eq("id", task).single()).data.status).toBe("ON_HOLD")
+        expect((await svc().from("tasks").select("status").eq("id", carried).single()).data.status).toBe("INCOMPLETE")
+    })
+
+    it.each(["keep", "remove"])("refuses a second Revert straight after a %s-progress Revert (one step only)", async (choice) => {
+        const { id } = await withProgressOnB()
+        expect((await revertAs("dealOwner", id, choice)).error).toBeNull()
+
+        const { error } = await revertAs("dealOwner", id, choice)
+        expect(error?.message).toMatch(/already reverted/)
+        const sor = (await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data
+        expect(sor.flow_stage_id).toBe(stageA)
+    })
+
+    it("after Remove progress, moving back into that Stage is not a Return", async () => {
+        const { id } = await withProgressOnB()
+        expect((await revertAs("dealOwner", id, "remove")).error).toBeNull()
+
+        const client = await clientFor("dealOwner")
+        const { error } = await client.rpc("sor_move_and_resume", { p_opportunity_id: id, p_flow_stage_id: stageB })
+        expect(error?.message).toMatch(/not a Return/)
     })
 
     it("records the progress choice on STAGE_REVERTED", async () => {

@@ -1,5 +1,17 @@
 [
     {
+        "date": "2026-09-27",
+        "title": "Revert to Last Stage, Resume or Start Fresh",
+        "version": "1.7.31",
+        "changes": [
+            "New \"Revert to last stage\" on an SOR takes it back to the stage its last move came from, even with no path drawn back and even from Closed Lost. It's available to whoever made the move, the Deal Owner, or a Super Admin, and goes back one step only.",
+            "If no work was done on the stage being left, Revert simply undoes the move. If work was done, you choose Keep progress (it's saved for when the SOR comes back) or Remove progress (it's closed off but stays on the SOR's history).",
+            "Reverting out of the Won stage clears the Contract Date that move set, and anyone the move notified is told to disregard it.",
+            "Moving an SOR back to a stage it has been on before now asks: Resume previous work, or Start fresh.",
+            "Tasks from a stage the SOR has left go on hold and drop off everyone's list until the SOR returns. Operations can mark a Stage Action to carry on past its stage instead."
+        ]
+    },
+    {
         "date": "2026-09-26",
         "title": "SOR Layout Preview (Staging)",
         "version": "1.7.30",

@@ -42,6 +42,7 @@ import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import { visitOwnsTask } from "../constants/journey";
 import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
+import { REVERT_CHOICE } from "../constants/revertChoice";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -3322,7 +3323,7 @@ export const opportunityService = {
     if (!opportunityId) return [];
     const { data, error } = await supabase
       .from("sor_stage_visits")
-      .select("id, sequence, left_at, undone_at, entered_by")
+      .select("id, sequence, left_at, undone_at, entered_by, opened_by_revert")
       .eq("opportunity_id", opportunityId)
       .order("sequence", { ascending: false });
     if (error) throw error;
@@ -3358,15 +3359,21 @@ export const opportunityService = {
     return Array.isArray(data) ? data[0] : data;
   },
 
-  /** Stage ids a move to which is a Return (issue #390): every Stage the SOR has an earlier, not-undone visit on. */
+  /**
+   * Stage ids a move to which is a Return (issue #390): every Stage the SOR has
+   * an earlier visit on that was neither undone nor had its progress removed
+   * by a Revert (a removed visit holds nothing to resume).
+   */
   async getReturnStageIds(opportunityId) {
     const { data, error } = await supabase
       .from("sor_stage_visits")
-      .select("flow_stage_id")
+      .select("flow_stage_id, revert_choice")
       .eq("opportunity_id", opportunityId)
       .is("undone_at", null);
     if (error) throw error;
-    return [...new Set((data || []).map((v) => v.flow_stage_id))];
+    return [
+      ...new Set((data || []).filter((v) => v.revert_choice !== REVERT_CHOICE.REMOVE).map((v) => v.flow_stage_id)),
+    ];
   },
 
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
@@ -3785,6 +3792,8 @@ export const opportunityService = {
         // ADR 0027: a Resume moves the visit's work to the new visit and leaves this one line.
         resumedAt: visit.resumed_at || null,
         resumedBy: visit.resumedBy || null,
+        // #392: a visit left by a Keep/Remove Revert stands, saying which.
+        revertChoice: visit.revert_choice || null,
         // #296: a restricted visit's contents never populate these — RLS on
         // tasks/committee_tasks/sor_condition_status already excludes them —
         // but `isRestricted` is what tells the tab to render one line
