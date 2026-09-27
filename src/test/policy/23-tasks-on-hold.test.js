@@ -97,7 +97,46 @@ describe("tasks on hold", () => {
         expect(t.status).toBe("DELETED")
         expect(t.cancel_reason).toMatch(/Terminal Stage/)
         expect(t.cancel_reason).toContain(`${MARKER} Terminal`)
+        // The hold is kept on the cancelled row, so a Revert can put it back.
+        expect(t.held_from_visit_id).toBe(s.visit)
+    })
+
+    it("a Revert off a Terminal Stage puts a task held before it back on hold", async () => {
+        const s = await sorWithTasks()
+        await moveTo(s.id, stageB)
+        await moveTo(s.id, stageTerminal)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })).error).toBeNull()
+        const t = await task(s.open)
+        expect(t.status).toBe("ON_HOLD")
+        expect(t.cancel_reason).toBeNull()
+        expect(t.held_from_visit_id).toBe(s.visit)
+        expect(t.held_prev_status).toBe("INCOMPLETE")
+    })
+
+    it("a Revert off a Terminal Stage brings back live what the move into it held", async () => {
+        const s = await sorWithTasks()
+        await moveTo(s.id, stageTerminal)
+        expect((await task(s.open)).status).toBe("DELETED")
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })).error).toBeNull()
+        const t = await task(s.open)
+        expect(t.status).toBe("INCOMPLETE")
+        expect(t.cancel_reason).toBeNull()
         expect(t.held_at).toBeNull()
+    })
+
+    it("a Revert off a Terminal Stage puts held group tasks back on hold", async () => {
+        const s = await sorWithTasks()
+        const ct = await svc().from("committee_tasks")
+            .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, opportunity_id: s.id, stage_visit_id: s.visit, stage_action_id: actionId })
+            .select("id").single()
+        await moveTo(s.id, stageB)
+        await moveTo(s.id, stageTerminal)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })).error).toBeNull()
+        const row = (await svc().from("committee_tasks").select("status, cancel_reason").eq("id", ct.data.id).single()).data
+        expect(row).toEqual({ status: "ON_HOLD", cancel_reason: null })
     })
 
     it("a Revert brings back what the reverted move held", async () => {

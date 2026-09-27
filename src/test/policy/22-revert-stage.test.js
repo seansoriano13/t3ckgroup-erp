@@ -108,6 +108,24 @@ describe("Revert to last stage (no Stage Work)", () => {
         expect(first.undone_at).toBeNull()
     })
 
+    it("leaves the earlier visit as the only open one, so new work and logs land on it", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        expect((await revertAs("dealOwner", sor)).error).toBeNull()
+
+        const all = await visits(sor)
+        const open = all.filter((v) => v.left_at === null)
+        expect(open.map((v) => v.id)).toEqual([all[0].id])
+        expect(all[1].left_at).not.toBeNull()
+
+        const log = await svc()
+            .from("sales_opportunity_logs")
+            .insert({ opportunity_id: sor, author_id: ids.dealOwner, type: "SYSTEM", content: `${MARKER} after revert` })
+            .select("stage_visit_id")
+            .single()
+        expect(log.data.stage_visit_id).toBe(all[0].id)
+    })
+
     it("works from a Terminal Stage, with no edge back", async () => {
         const sor = await freshSor()
         await moveAs("dealOwner", sor, stageTerminal)
@@ -342,5 +360,82 @@ describe("Revert to last stage (no Stage Work)", () => {
         await moveAs("dealOwner", sor, stageB)
         expect((await revertAs("dealOwner", sor)).error).toBeNull()
         expect((await sorRow(sor)).flow_stage_id).toBe(stageA)
+    })
+})
+
+describe("Revert and Stage Participant access windows (story 46)", () => {
+    async function openWindow(sorId, visitId, untilRule) {
+        const { data, error } = await svc()
+            .from("sor_stage_participants")
+            .insert({ opportunity_id: sorId, employee_id: ids.stageParticipant, source: "action", opened_visit_id: visitId, until_rule: untilRule })
+            .select("id")
+            .single()
+        if (error) throw new Error(`Opening a participant window: ${error.message}`)
+        return data.id
+    }
+    const windowRow = async (id) =>
+        (await svc().from("sor_stage_participants").select("closed_at, closed_reason").eq("id", id).single()).data
+    async function participantSees(sorId) {
+        const client = await clientFor("stageParticipant")
+        const { data } = await client.rpc("sor_visible_visit_ids", { p_opportunity_id: sorId })
+        return (data || []).map((row) => (typeof row === "string" ? row : row.sor_visible_visit_ids))
+    }
+
+    it("a no-work Revert reopens the window the reverted move closed", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        const [, visitB] = await visits(sor)
+        const win = await openWindow(sor, visitB.id, "stage_left")
+        await moveAs("dealOwner", sor, stageWon)
+        expect((await windowRow(win)).closed_reason).toBe("rule_met")
+
+        expect((await revertAs("dealOwner", sor)).error).toBeNull()
+        expect(await windowRow(win)).toEqual({ closed_at: null, closed_reason: null })
+        expect(await participantSees(sor)).toContain(visitB.id)
+    })
+
+    it("a no-work Revert off a Terminal Stage reopens every window it closed", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        const [, visitB] = await visits(sor)
+        const stageLeft = await openWindow(sor, visitB.id, "stage_left")
+        const terminal = await openWindow(sor, visitB.id, "terminal")
+        await moveAs("dealOwner", sor, stageTerminal)
+        expect((await windowRow(terminal)).closed_reason).toBe("terminal")
+
+        expect((await revertAs("dealOwner", sor)).error).toBeNull()
+        expect((await windowRow(stageLeft)).closed_at).toBeNull()
+        expect((await windowRow(terminal)).closed_at).toBeNull()
+        expect(await participantSees(sor)).toContain(visitB.id)
+    })
+
+    it("a no-work Revert closes a window opened on the erased visit", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        const [, visitB] = await visits(sor)
+        const win = await openWindow(sor, visitB.id, "terminal")
+        expect((await revertAs("dealOwner", sor)).error).toBeNull()
+        const row = await windowRow(win)
+        expect(row.closed_at).not.toBeNull()
+        expect(row.closed_reason).toBe("reverted")
+    })
+
+    it("a Keep Revert off a Terminal Stage reopens a window only the Terminal Stage closed", async () => {
+        const sor = await freshSor()
+        await moveAs("dealOwner", sor, stageB)
+        const [, visitB] = await visits(sor)
+        const stageLeft = await openWindow(sor, visitB.id, "stage_left")
+        const terminal = await openWindow(sor, visitB.id, "terminal")
+        await moveAs("dealOwner", sor, stageTerminal)
+        const [, , visitT] = await visits(sor)
+        await svc().from("tasks").insert({
+            logged_by: ids.dealOwner, opportunity_id: sor, stage_visit_id: visitT.id, task_description: `${MARKER} work`, status: "COMPLETED",
+        })
+
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: sor, p_progress_choice: "keep" })).error).toBeNull()
+        expect((await windowRow(terminal)).closed_at).toBeNull()
+        // Stage B was really left: that window's own rule was met, and stays met.
+        expect((await windowRow(stageLeft)).closed_at).not.toBeNull()
     })
 })

@@ -73,6 +73,10 @@ async function returned() {
         .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, due_date: "2026-10-10T00:00:00Z" })
         .select("id").single()).data.id
     const done = await mk("COMPLETED")
+    // No Stage Action, so leaving A does not hold it: it is live when Start fresh cancels it.
+    const manual = (await svc().from("tasks")
+        .insert({ logged_by: ids.closingSales, opportunity_id: id, stage_visit_id: visit1, task_description: `${MARKER} manual`, status: "INCOMPLETE" })
+        .select("id").single()).data.id
     const run = (await svc().from("sor_action_runs")
         .insert({ opportunity_id: id, stage_id: stageA, action_id: actionId, stage_visit_id: visit1, outcome: "created", task_id: open })
         .select("id").single()).data.id
@@ -84,11 +88,11 @@ async function returned() {
     await svc().from("committee_tasks").update({ held_at: held }).eq("id", group)
     await moveTo(id, stageA)
     const visit3 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).eq("sequence", 3).single()).data.id
-    return { id, visit1, visit3, open, awaiting, done, group, run }
+    return { id, visit1, visit3, open, awaiting, done, manual, group, run }
 }
 
 describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
-    it("un-cancels the earlier visit's tasks back to their prior status and reopens its action runs", async () => {
+    it("un-cancels the earlier visit's tasks back to where they stood — held ones held — and reopens its action runs", async () => {
         const s = await returned()
         const client = await clientFor("dealOwner")
         expect((await client.rpc("sor_start_fresh_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
@@ -96,14 +100,19 @@ describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
         const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
         expect(error).toBeNull()
 
-        const open = (await svc().from("tasks").select("status, cancel_reason, held_prev_status, stage_visit_id").eq("id", s.open).single()).data
-        expect(open).toEqual({ status: "INCOMPLETE", cancel_reason: null, held_prev_status: null, stage_visit_id: s.visit1 })
+        // Held when the SOR left A, and the SOR is back on B: still held, off everyone's list.
+        const open = (await svc().from("tasks").select("status, cancel_reason, held_prev_status, held_from_visit_id, stage_visit_id").eq("id", s.open).single()).data
+        expect(open).toEqual({ status: "ON_HOLD", cancel_reason: null, held_prev_status: "INCOMPLETE", held_from_visit_id: s.visit1, stage_visit_id: s.visit1 })
 
         const awaiting = (await svc().from("tasks").select("status, cancel_reason, held_prev_status").eq("id", s.awaiting).single()).data
-        expect(awaiting).toEqual({ status: "AWAITING APPROVAL", cancel_reason: null, held_prev_status: null })
+        expect(awaiting).toEqual({ status: "ON_HOLD", cancel_reason: null, held_prev_status: "AWAITING APPROVAL" })
 
         const group = (await svc().from("committee_tasks").select("status, cancel_reason, held_prev_status").eq("id", s.group).single()).data
-        expect(group).toEqual({ status: "ACTIVE", cancel_reason: null, held_prev_status: null })
+        expect(group).toEqual({ status: "ON_HOLD", cancel_reason: null, held_prev_status: "ACTIVE" })
+
+        // Live when Start fresh cancelled it: live again.
+        const manual = (await svc().from("tasks").select("status, cancel_reason, held_prev_status").eq("id", s.manual).single()).data
+        expect(manual).toEqual({ status: "INCOMPLETE", cancel_reason: null, held_prev_status: null })
 
         const done = (await svc().from("tasks").select("status, stage_visit_id").eq("id", s.done).single()).data
         expect(done).toEqual({ status: "COMPLETED", stage_visit_id: s.visit1 })
@@ -133,9 +142,9 @@ describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
         expect(r.closed_off_at).not.toBeNull()
         expect(r.closed_off_reason).toBe("reverted")
 
-        // The earlier visit's own Start-fresh-cancelled work still un-cancels.
+        // The earlier visit's own Start-fresh-cancelled work still un-cancels, back on hold.
         const open = (await svc().from("tasks").select("status").eq("id", s.open).single()).data
-        expect(open.status).toBe("INCOMPLETE")
+        expect(open.status).toBe("ON_HOLD")
     })
 
     it("composes with the keep-progress Revert path: v_cur's re-fired run stays live and the earlier one stays closed off", async () => {
@@ -176,6 +185,6 @@ describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
         expect(cur.undone_at).not.toBeNull()
 
         const open = (await svc().from("tasks").select("status, stage_visit_id").eq("id", s.open).single()).data
-        expect(open).toEqual({ status: "INCOMPLETE", stage_visit_id: s.visit1 })
+        expect(open).toEqual({ status: "ON_HOLD", stage_visit_id: s.visit1 })
     })
 })
