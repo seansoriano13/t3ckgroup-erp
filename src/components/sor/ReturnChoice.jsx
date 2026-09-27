@@ -2,13 +2,14 @@ import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../../constants/returnChoice";
 
-/**
- * Issue #390 — what a Return does with the Stage's earlier work. Start fresh
- * shows but stays disabled until the "Return: Start fresh" ticket lands.
- */
+/** Issue #390/#391 — what a Return does with the Stage's earlier work. */
 const OPTIONS = [
   { value: RETURN_CHOICE.RESUME, label: "Resume previous work", help: "Carries the earlier visit's work into this one." },
-  { value: RETURN_CHOICE.START_FRESH, label: "Start fresh", help: "Not available yet." },
+  {
+    value: RETURN_CHOICE.START_FRESH,
+    label: "Start fresh",
+    help: "Cancels the earlier visit's tasks and re-runs the Stage's actions. Its ticks and files stay on record.",
+  },
 ].map((option) => ({ ...option, disabled: !AVAILABLE_RETURN_CHOICES.includes(option.value) }));
 
 export default function ReturnChoice({ stageName, value, onChange }) {

@@ -38,7 +38,7 @@ describe("MoveConfirmDialog — Return prompt (#390)", () => {
     it("asks Resume / Start fresh for a Stage already visited, and lists no blockers", async () => {
         renderDialog("a")
         expect(await screen.findByRole("radio", { name: /resume previous work/i })).toHaveAttribute("aria-checked", "true")
-        expect(screen.getByRole("radio", { name: /start fresh/i })).toBeDisabled()
+        expect(screen.getByRole("radio", { name: /start fresh/i })).toBeEnabled()
         expect(screen.queryByText("Sign-off")).not.toBeInTheDocument()
         await userEvent.click(screen.getByRole("button", { name: /confirm move/i }))
         expect(opportunityService.updateStatus).toHaveBeenCalledWith("opp-1", "a", "me", { lostReason: null, returnChoice: "resume" })

@@ -223,11 +223,3 @@ describe("reverting a Return undoes its Resume (ADR 0027)", () => {
     })
 })
 
-describe("Start fresh", () => {
-    it("is not accepted on a visit yet", async () => {
-        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
-        sorIds.push(id)
-        const { error } = await svc().from("sor_stage_visits").update({ return_choice: "start_fresh" }).eq("opportunity_id", id)
-        expect(error?.message).toMatch(/return_choice_check/)
-    })
-})

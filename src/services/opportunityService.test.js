@@ -721,14 +721,6 @@ describe("opportunityService", () => {
         await expect(attempt).rejects.toMatchObject({ needsReturnChoice: true })
       })
 
-      it("refuses Start fresh until it is built", async () => {
-        const deal = dealOnLead()
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        await expect(
-          opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" }),
-        ).rejects.toThrow(/Start fresh/)
-      })
-
       it("Resume moves the earlier visit's work to the new visit, and records the choice on the timeline", async () => {
         const deal = dealOnLead()
         const firstVisit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id)
@@ -752,6 +744,69 @@ describe("opportunityService", () => {
         makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
         const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(moved.flow_stage_id).toBe(lead.id)
+      })
+    })
+
+    describe("Return: Start fresh (#391)", () => {
+      // Registered → Lead (fires the Stage's action) → Qualified → Return to
+      // Lead, so the earlier Lead visit was entered through a real move (and
+      // has a real action run to close off), not the raw seed row.
+      const dealOnRegistered = () => {
+        const registered = makeFlowStage({ flow_id: flow.id, name: "Registered", sort_order: -1 })
+        makeFlowEdge(registered, lead)
+        makeFlowEdge(qualified, lead)
+        makeStageAction({ stage_id: lead.id, kind: "create_individual_task", config: { title: "Say hello" } })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        return makeOpportunity({
+          registered_by: registrar.id, sales_reference: "S00997", sale_type_id: saleType.id,
+          flow_stage_id: registered.id, flow_snapshot_id: snapshot.id,
+        })
+      }
+
+      it("cancels the earlier visit's live task, closes off its action run, and fires the Stage's action again for the new visit", async () => {
+        const deal = dealOnRegistered()
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+
+        const firstTask = db.internal.rowsOf("tasks").find((t) => t.opportunity_id === deal.id)
+        expect(firstTask).toBeTruthy()
+        const firstRun = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
+        expect(firstRun.outcome).toBe("created")
+
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" })
+        expect(moved.flow_stage_id).toBe(lead.id)
+
+        const visits = db.internal.rowsOf("sor_stage_visits").filter((v) => v.opportunity_id === deal.id)
+        const current = visits.find((v) => v.left_at == null)
+        expect(current.return_choice).toBe("start_fresh")
+
+        const cancelledTask = db.internal.rowsOf("tasks").find((t) => t.id === firstTask.id)
+        expect(cancelledTask.status).toBe("DELETED")
+        expect(cancelledTask.cancel_reason).toBe("Superseded by a fresh start.")
+
+        const closedRun = db.internal.rowsOf("sor_action_runs").find((r) => r.id === firstRun.id)
+        expect(closedRun.closed_off_at).toBeTruthy()
+
+        const newRun = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id && r.id !== firstRun.id)
+        expect(newRun).toBeTruthy()
+        expect(newRun.outcome).toBe("created")
+        expect(newRun.stage_visit_id).toBe(current.id)
+        expect(db.internal.rowsOf("tasks").find((t) => t.id === newRun.task_id)?.stage_visit_id).toBe(current.id)
+
+        const notes = db.internal.rowsOf("sales_opportunity_logs").filter((l) => l.opportunity_id === deal.id && l.metadata?.event === "STAGE_CHANGED")
+        expect(notes.at(-1).metadata.returnChoice).toBe("start_fresh")
+      })
+
+      it("leaves ticks, files and field values on the earlier visit — nothing moves", async () => {
+        const deal = dealOnRegistered()
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        const firstVisit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id && v.flow_stage_id === lead.id)
+        db.internal.rowsOf("sor_stage_field_values").push({ id: "fv-sf", opportunity_id: deal.id, stage_visit_id: firstVisit.id, field_id: "f", value: "kept" })
+
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" })
+
+        expect(db.internal.rowsOf("sor_stage_field_values").find((f) => f.id === "fv-sf").stage_visit_id).toBe(firstVisit.id)
       })
     })
 

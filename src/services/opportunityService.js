@@ -679,16 +679,18 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     patch.contract_date = getCurrentLocalDate();
   }
 
-  // A Return's move and Resume commit together (sor_move_and_resume): a
-  // refused Resume leaves the SOR where it was. The Resume lands before the
-  // entry Actions run, so their fire-once check sees the carried work.
+  // A Return's move and its choice commit together (sor_move_and_resume /
+  // sor_move_and_start_fresh): a refused choice leaves the SOR where it was.
+  // It lands before the entry Actions run, so a Start fresh's closed-off
+  // action runs let those Actions fire again for the new visit.
   if (isReturn) {
-    const { error: resumeError } = await supabase.rpc("sor_move_and_resume", {
+    const rpcName = returnChoice === RETURN_CHOICE.START_FRESH ? "sor_move_and_start_fresh" : "sor_move_and_resume";
+    const { error: returnChoiceError } = await supabase.rpc(rpcName, {
       p_opportunity_id: existing.id,
       p_flow_stage_id: to.id,
       p_contract_date: patch.contract_date ?? null,
     });
-    if (resumeError) throw new Error(resumeError.message.replace(/^Resume: /, ""));
+    if (returnChoiceError) throw new Error(returnChoiceError.message.replace(/^(Resume|Start fresh): /, ""));
   }
 
   const { data, error } = await (isReturn
@@ -706,9 +708,11 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     stampedContractDate: stampsContractDate,
     ...(isReturn ? { returnChoice } : {}),
   };
+  const returnChoiceLabel =
+    returnChoice === RETURN_CHOICE.START_FRESH ? " (started fresh)" : " (resumed previous work)";
   await opportunityService.addSystemNote(
     existing.id,
-    `Stage moved: ${fromName} → ${to.name}${isReturn ? " (resumed previous work)" : ""}`,
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? returnChoiceLabel : ""}`,
     stageChangeEvent,
     actorId,
   );
@@ -855,14 +859,12 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
 }
 
 /**
- * Issue #390 — refuses a Return made without an available choice, naming what
- * is needed. `needsReturnChoice` lets a caller that skipped the prompt open it.
+ * Issue #390/#391 — refuses a Return made without an available choice, naming
+ * what is needed. `needsReturnChoice` lets a caller that skipped the prompt
+ * open it.
  */
 function assertReturnChoice(to, returnChoice) {
   if (AVAILABLE_RETURN_CHOICES.includes(returnChoice)) return;
-  if (returnChoice === RETURN_CHOICE.START_FRESH) {
-    throw new Error("Start fresh is not available yet — choose Resume previous work.");
-  }
   const error = new Error(
     `${to.name} was visited before — choose Resume previous work or Start fresh to return to it.`,
   );

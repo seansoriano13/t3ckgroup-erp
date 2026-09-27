@@ -7,6 +7,7 @@ import { waitForNetworkIdle } from "./network"
 import { stubActionRunRpcs } from "./stubs/actionRunRpc"
 import { stubReplaceItemsRpc } from "./stubs/replaceItemsRpc"
 import { stubResumeStageWorkRpc } from "./stubs/resumeStageWorkRpc"
+import { stubStartFreshStageWorkRpc } from "./stubs/startFreshStageWorkRpc"
 
 /**
  * The fake Supabase: MSW answering PostgREST, Storage and Edge Functions from
@@ -76,6 +77,7 @@ beforeEach(() => {
   stubActionRunRpcs()
   stubReplaceItemsRpc()
   stubResumeStageWorkRpc()
+  stubStartFreshStageWorkRpc()
 })
 
 afterAll(() => {
