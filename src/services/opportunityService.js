@@ -3332,11 +3332,27 @@ export const opportunityService = {
   /**
    * Issue #386 — "Revert to last stage": takes the SOR back to the Stage its
    * latest move came from. All rules live in `sor_revert_stage` (ADR 0013);
-   * this only names its refusals.
+   * this only names its refusals. `progressChoice` (issue #392) is "keep" or
+   * "remove", needed only when Stage Work was done on the Stage being left.
    */
-  async revertStage(opportunityId) {
+  /**
+   * Issue #392 — whether Revert would open the Keep/Remove progress dialog:
+   * Stage Work was done on the Stage being left, and the caller is not shut
+   * out of it. Asked up front, the same way `getReturnStageIds` lets #390's
+   * Return prompt decide before calling `move`.
+   */
+  async revertNeedsProgressChoice(opportunityId) {
+    const { data, error } = await supabase.rpc("sor_revert_needs_progress_choice", {
+      p_opportunity_id: opportunityId,
+    });
+    if (error) throw error;
+    return Boolean(data);
+  },
+
+  async revertStage(opportunityId, progressChoice = null) {
     const { data, error } = await supabase.rpc("sor_revert_stage", {
       p_opportunity_id: opportunityId,
+      p_progress_choice: progressChoice,
     });
     if (error) throw new Error(error.message.replace(/^Revert: /, ""));
     return Array.isArray(data) ? data[0] : data;

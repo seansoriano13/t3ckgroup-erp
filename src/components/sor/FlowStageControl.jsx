@@ -186,7 +186,7 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
         </p>
       )}
 
-      <RevertStageButton opportunity={opportunity} />
+      <RevertStageButton opportunity={opportunity} stageName={current?.name} />
 
       {current?.is_terminal && (
         <div className="flex flex-wrap items-center gap-2">
