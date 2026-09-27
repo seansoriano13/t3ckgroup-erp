@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import ReturnChoice from "./ReturnChoice";
+import { RETURN_CHOICE } from "../../constants/returnChoice";
 
 /** Issue #390 — the prompt a stage control opens before a Return commits. */
 export default function ReturnMoveDialog({ isOpen, stageName, onCancel, onConfirm }) {
-  const [choice, setChoice] = useState("resume");
+  const [choice, setChoice] = useState(RETURN_CHOICE.RESUME);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onCancel()}>

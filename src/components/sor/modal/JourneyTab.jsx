@@ -235,7 +235,7 @@ function PastVisit({ row, onToggle }) {
             </VisitGroup>
           )}
 
-          {visit.conditions.length === 0 && taskCount === 0 && visit.requestedItems.length === 0 && (
+          {!visit.resumedAt && visit.conditions.length === 0 && taskCount === 0 && visit.requestedItems.length === 0 && (
             <p className="text-[11px] text-muted-foreground">Nothing was recorded on this visit.</p>
           )}
         </div>

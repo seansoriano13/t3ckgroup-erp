@@ -121,9 +121,9 @@ export default function FlowRail({ p }) {
                   state={state}
                   tone={p.currentFlowStageTone}
                   visits={visitsByStage[s.id]}
-                  canMove={m.canMove}
+                  canMove={m.canMove && !m.isBlocked(s.id)}
                   onMove={() => m.move(s.id)}
-                  blockedBy={m.blockedBy}
+                  blockedBy={m.isBlocked(s.id) ? m.blockedBy : []}
                   isLast={s.id === flat[flat.length - 1].id}
                 />
               );

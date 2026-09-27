@@ -276,13 +276,7 @@ describe("opportunityService", () => {
     it("advances when the sales reference is supplied with the move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.sales_reference).toBe("S01237")
@@ -336,7 +330,7 @@ describe("opportunityService", () => {
     it("lets a lead be closed as lost before it was ever put out to bid", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
 
-      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Cancelled")
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Cancelled" })
 
       expect(moved.status).toBe("CLOSED_LOST")
     })
@@ -344,12 +338,7 @@ describe("opportunityService", () => {
     it("lets a lead be closed as lost before it was ever quoted", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "CLOSED_LOST",
-        registrar.id,
-        "Client cancelled the procurement",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Client cancelled the procurement" })
 
       expect(moved.status).toBe("CLOSED_LOST")
       expect(moved.lost_reason).toBe("Client cancelled the procurement")
@@ -357,7 +346,7 @@ describe("opportunityService", () => {
 
     it("clears the lost reason when a closed-lost deal is revived", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999" })
-      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Budget cut")
+      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Budget cut" })
 
       const revived = await opportunityService.updateStatus(lead.id, "NEGOTIATION", registrar.id)
 
@@ -389,7 +378,7 @@ describe("opportunityService", () => {
     it("names the reason on the timeline when a deal is lost", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, "Lost on price")
+      await opportunityService.updateStatus(lead.id, "CLOSED_LOST", registrar.id, { lostReason: "Lost on price" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.at(-1).content).toBe("Stage moved: Lead → Closed Lost — Lost on price")
@@ -398,7 +387,7 @@ describe("opportunityService", () => {
     it("records the sales reference separately from the stage move", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.map((n) => n.content)).toEqual([
@@ -410,7 +399,7 @@ describe("opportunityService", () => {
     it("does not re-record a sales reference that is already the one on file", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id, sales_reference: "S01237" })
 
-      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       const notes = await opportunityService.getNotes(lead.id)
       expect(notes.map((n) => n.content)).toEqual(["Stage moved: Lead → Proposal Submitted"])
@@ -420,7 +409,7 @@ describe("opportunityService", () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
       await expect(
-        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, null, "12345"),
+        opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "12345" }),
       ).rejects.toThrow(/Odoo quotation number/i)
 
       expect(await opportunityService.getNotes(lead.id)).toEqual([])
@@ -438,13 +427,7 @@ describe("opportunityService", () => {
     it("does not set the Contract Date for a transition that isn't Awarded", async () => {
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.contract_date).toBeFalsy()
     })
@@ -597,13 +580,7 @@ describe("opportunityService", () => {
       // an incoming value as satisfying their own gate on the same call.
       const lead = makeOpportunity({ registered_by: registrar.id })
 
-      const moved = await opportunityService.updateStatus(
-        lead.id,
-        "PROPOSAL_SUBMITTED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(lead.id, "PROPOSAL_SUBMITTED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("PROPOSAL_SUBMITTED")
     })
@@ -748,7 +725,7 @@ describe("opportunityService", () => {
         const deal = dealOnLead()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         await expect(
-          opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, { returnChoice: "start_fresh" }),
+          opportunityService.updateStatus(deal.id, lead.id, registrar.id, { returnChoice: "start_fresh" }),
         ).rejects.toThrow(/Start fresh/)
       })
 
@@ -758,7 +735,7 @@ describe("opportunityService", () => {
         db.internal.rowsOf("sor_stage_field_values").push({ id: "fv1", opportunity_id: deal.id, stage_visit_id: firstVisit.id, field_id: "f", value: "kept" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(moved.flow_stage_id).toBe(lead.id)
 
         const visits = db.internal.rowsOf("sor_stage_visits").filter((v) => v.opportunity_id === deal.id)
@@ -773,7 +750,7 @@ describe("opportunityService", () => {
         const deal = dealOnLead()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
         makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
-        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(moved.flow_stage_id).toBe(lead.id)
       })
     })
@@ -1128,7 +1105,7 @@ describe("opportunityService", () => {
 
         await opportunityService.satisfyCondition(deal.id, condition.id, registrar.id)
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
+        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, RESUME)
         expect(backOnLead.flow_stage_id).toBe(lead.id)
 
         const visits = db
@@ -1608,7 +1585,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
+      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
       expect(looped.flow_stage_id).toBe(qualified.id)
     })
@@ -1629,7 +1606,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
+      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
       expect(reopened.contract_date).toBe(won.contract_date)
     })
@@ -1659,13 +1636,7 @@ describe("opportunityService", () => {
       // exactly as it was before any of this existed.
       const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
 
-      const moved = await opportunityService.updateStatus(
-        legacy.id,
-        "QUALIFIED",
-        registrar.id,
-        null,
-        "S01237",
-      )
+      const moved = await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       expect(moved.status).toBe("QUALIFIED")
       expect(moved.flow_stage_id).toBeNull()
@@ -1732,7 +1703,7 @@ describe("opportunityService", () => {
         expect(run.outcome).toBe("created")
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
 
         const tasksAfterLoopBack = db.internal
           .rowsOf("tasks")
@@ -1868,7 +1839,7 @@ describe("opportunityService", () => {
         expect(notes.some((n) => n.metadata?.event === "ACTION_RUN_SKIPPED" && n.content.includes("Qualified"))).toBe(true)
 
         // Re-entering Qualified must not re-offer the same action.
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
         const runsAfter = db.internal.rowsOf("sor_action_runs").filter((r) => r.opportunity_id === deal.id)
         expect(runsAfter).toHaveLength(1)
         expect(runsAfter[0].outcome).toBe("skipped")
@@ -2371,7 +2342,7 @@ describe("opportunityService", () => {
         await opportunityService.moveOpportunitySnapshot(deal.id, v2.id, registrar.id)
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, RESUME)
         await waitForNetworkIdle()
 
         const tasksAfterLoopBack = db.internal
@@ -2582,7 +2553,7 @@ describe("opportunityService", () => {
       // global pipeline and a history behind it. Adopting it onto a flow
       // would land it on that flow's first Stage and throw both away.
       const legacy = await opportunityService.createOpportunity(payload(), registrar.id)
-      await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, null, "S01237")
+      await opportunityService.updateStatus(legacy.id, "QUALIFIED", registrar.id, { salesReference: "S01237" })
 
       await expect(
         opportunityService.updateSaleType(legacy.id, bidding.id, registrar.id),
@@ -2607,7 +2578,7 @@ describe("opportunityService", () => {
       // for.
       const deal = await register()
       await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
-      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id, null, null, RESUME)
+      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id, RESUME)
 
       await expect(
         opportunityService.updateSaleType(deal.id, outright.id, registrar.id),

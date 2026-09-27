@@ -182,3 +182,52 @@ describe("sor_move_and_resume", () => {
         expect((await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data.flow_stage_id).toBe(stageA)
     })
 })
+
+describe("reverting a Return undoes its Resume (ADR 0027)", () => {
+    it("moves the carried work back to the earlier visit and puts its open tasks back on hold", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+
+        const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
+        expect(error).toBeNull()
+
+        const t = (await svc().from("tasks").select("*").eq("id", s.open).single()).data
+        expect(t.stage_visit_id).toBe(s.visit1)
+        expect(t.carried_from_visit_id).toBeNull()
+        expect(t.status).toBe("ON_HOLD")
+        expect(t.held_from_visit_id).toBe(s.visit1)
+        expect((await svc().from("tasks").select("status, stage_visit_id").eq("id", s.done).single()).data)
+            .toEqual({ status: "COMPLETED", stage_visit_id: s.visit1 })
+        expect((await svc().from("sor_condition_status").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(s.visit1)
+        expect((await svc().from("sor_stage_field_values").select("stage_visit_id").eq("opportunity_id", s.id).single()).data.stage_visit_id).toBe(s.visit1)
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata").eq("opportunity_id", s.id).eq("metadata->>event", "FOLLOW_UP_LOGGED").single()).data
+        expect(log.stage_visit_id).toBe(s.visit1)
+        expect(log.metadata.stageVisitId).toBe(s.visit1)
+        expect(log.metadata.carriedFromVisitId).toBeUndefined()
+
+        const earlier = (await svc().from("sor_stage_visits").select("resumed_at, resumed_into_visit_id").eq("id", s.visit1).single()).data
+        expect(earlier).toEqual({ resumed_at: null, resumed_into_visit_id: null })
+    })
+
+    it("still refuses when new Stage Work was done on the Return visit", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "SYSTEM", content: "Follow-up",
+            metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: s.visit3 }, stage_visit_id: s.visit3,
+        })
+        const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
+        expect(error?.message).toMatch(/follow-up was logged/)
+    })
+})
+
+describe("Start fresh", () => {
+    it("is not accepted on a visit yet", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const { error } = await svc().from("sor_stage_visits").update({ return_choice: "start_fresh" }).eq("opportunity_id", id)
+        expect(error?.message).toMatch(/return_choice_check/)
+    })
+})

@@ -10,7 +10,8 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import ReturnChoice from "./ReturnChoice";
-import { useVisitedStageIds } from "./useVisitedStageIds";
+import { RETURN_CHOICE } from "../../constants/returnChoice";
+import { useReturnStageIds } from "./useReturnStageIds";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -37,12 +38,12 @@ export default function MoveConfirmDialog({
   onMoved,
 }) {
   const [lostReason, setLostReason] = useState("");
-  const [returnChoice, setReturnChoice] = useState("resume");
+  const [returnChoice, setReturnChoice] = useState(RETURN_CHOICE.RESUME);
 
   // Issue #390 — entering a Stage the SOR already visited is a Return: it asks
   // Resume / Start fresh, and the Stage being left never blocks it.
-  const visitedStageIds = useVisitedStageIds(opportunity, isOpen);
-  const isReturn = Boolean(targetStage && visitedStageIds.includes(targetStage.id));
+  const returnStageIds = useReturnStageIds(opportunity, isOpen);
+  const isReturn = Boolean(targetStage && returnStageIds.includes(targetStage.id));
 
   const moveMutation = useMutation({
     mutationFn: () =>
@@ -50,9 +51,10 @@ export default function MoveConfirmDialog({
         opportunity.id,
         targetStage.id,
         actorId,
-        isLostTarget ? lostReason.trim() : null,
-        null,
-        { returnChoice: isReturn ? returnChoice : null },
+        {
+          lostReason: isLostTarget ? lostReason.trim() : null,
+          returnChoice: isReturn ? returnChoice : null,
+        },
       ),
     onSuccess: () => {
       setLostReason("");

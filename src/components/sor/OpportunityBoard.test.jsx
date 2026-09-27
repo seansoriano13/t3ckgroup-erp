@@ -8,7 +8,7 @@ import { opportunityService } from "../../services/opportunityService";
 vi.mock("../../services/opportunityService", () => ({
   opportunityService: {
     updateStatus: vi.fn(async (id, next) => ({ id, flow_stage_id: next })),
-    getVisitedStageIds: vi.fn(async () => []),
+    getReturnStageIds: vi.fn(async () => []),
   },
 }));
 
@@ -281,9 +281,7 @@ describe("OpportunityBoard", () => {
           "deal-1",
           "qualified",
           "actor-1",
-          null,
-          null,
-          { returnChoice: null },
+          { lostReason: null, returnChoice: null },
         ),
       );
       await waitFor(() => expect(onMoved).toHaveBeenCalled());

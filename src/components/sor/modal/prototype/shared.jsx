@@ -139,10 +139,12 @@ export function stageMoves(p) {
       isTerminal: !!p.currentFlowStage?.is_terminal,
       destinations: destinations.map((s) => ({ key: s.id, label: s.name })),
       blockedBy,
-      canMove: !p.moveDisabled && blockedBy.length === 0 && !isMoving,
+      // A Return is never blocked by the Stage being left (#390).
+      isBlocked: (key) => blockedBy.length > 0 && !(p.returnStageIds || []).includes(key),
+      canMove: !p.moveDisabled && !isMoving && (blockedBy.length === 0 || destinations.some((s) => (p.returnStageIds || []).includes(s.id))),
       isMoving,
       move: (key) => {
-        if (p.moveDisabled || blockedBy.length || isMoving) return;
+        if (p.moveDisabled || isMoving || (blockedBy.length && !(p.returnStageIds || []).includes(key))) return;
         p.stageMutation.mutate({ next: key, reason: null, salesReference: null });
       },
     };

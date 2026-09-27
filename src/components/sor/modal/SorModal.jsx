@@ -31,6 +31,8 @@ import {
 import { leadSourceService } from "../../../services/leadSourceService";
 import { useOpenedTabs } from "./useSorModalData";
 import SorModalHeader from "./SorModalHeader";
+import { useReturnPrompt } from "../useReturnPrompt";
+import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import NowTab from "./NowTab";
 import JourneyTab from "./JourneyTab";
@@ -383,7 +385,7 @@ export default function SorModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference, returnChoice }) => opportunityService.updateStatus(id, next, user?.id, reason, salesReference, { returnChoice }),
+    mutationFn: ({ next, reason, salesReference, returnChoice }) => opportunityService.updateStatus(id, next, user?.id, { lostReason: reason, salesReference, returnChoice }),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");
@@ -407,6 +409,19 @@ export default function SorModal({
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // Issue #390 — every stage control in the modal (the header, and the staging
+  // layouts) moves through this, so a Return always reaches the prompt.
+  const returnPrompt = useReturnPrompt({
+    opportunity: rawOpportunity,
+    stages: flowCanvas?.stages,
+    enabled: Boolean(rawOpportunity?.sale_type_id),
+    move: stageMutation.mutate,
+  });
+  const stageMover = { ...stageMutation, mutate: returnPrompt.request };
+  // A Return is never blocked by the Stage being left, so a stage control
+  // leaves these destinations open even while the current Stage is blocked.
+  const returnStageIds = useReturnStageIds(rawOpportunity, Boolean(rawOpportunity?.sale_type_id) && isOpen);
 
   const deleteMutation = useMutation({
     mutationFn: () => opportunityService.deleteOpportunity(id, user?.id),
@@ -862,7 +877,8 @@ export default function SorModal({
     currentFlowStage,
     currentFlowStageTone,
     pipelineStages,
-    stageMutation,
+    stageMutation: stageMover,
+    returnStageIds,
     handleStageChange,
     checklist,
     isOpen,
@@ -1026,6 +1042,7 @@ export default function SorModal({
         )}
         </div>
         {PROTOTYPE_ENABLED && <PrototypeSwitcher variant={protoVariant} setVariant={setProtoVariant} />}
+        {returnPrompt.dialog}
       </DialogContent>
     </Dialog>
   );

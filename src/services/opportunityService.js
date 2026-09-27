@@ -41,6 +41,7 @@ import { formatSnapshotVersion } from "../constants/flowVersion";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import { visitOwnsTask } from "../constants/journey";
+import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
 
 /**
  * Decides what `odoo_partner_id` should be after an update.
@@ -325,24 +326,6 @@ const SOR_GROUP_TASK_COLUMNS = `
     employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
   )
 `;
-
-const RETURN_CHOICES = ["resume", "start_fresh"];
-
-/** Every Stage the SOR already has an earlier, not-undone visit on — where a move is a Return. */
-async function visitedStageIds(opportunityId) {
-  const { data, error } = await supabase
-    .from("sor_stage_visits")
-    .select("flow_stage_id")
-    .eq("opportunity_id", opportunityId)
-    .is("undone_at", null);
-  if (error) throw error;
-  return [...new Set((data || []).map((v) => v.flow_stage_id))];
-}
-
-/** True when `stageId` is a Stage the SOR already has an earlier, not-undone visit on. */
-async function hasEarlierVisit(opportunityId, stageId) {
-  return (await visitedStageIds(opportunityId)).includes(stageId);
-}
 
 async function currentVisitFor(opportunityId) {
   const { data, error } = await supabase
@@ -669,92 +652,14 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
-  // Issue #390 — a Return (entering a Stage the SOR already has an earlier,
-  // not-undone visit on) must say what happens to that Stage's earlier work.
-  // Only a Return asks; a Stage never visited moves as ever.
-  const isReturn = await hasEarlierVisit(existing.id, to.id);
-  if (isReturn && !RETURN_CHOICES.includes(returnChoice)) {
-    const error = new Error(
-      `${to.name} was visited before — choose Resume previous work or Start fresh to return to it.`,
-    );
-    error.needsReturnChoice = true;
-    throw error;
-  }
-  if (isReturn && returnChoice === "start_fresh") {
-    throw new Error("Start fresh is not available yet — choose Resume previous work.");
-  }
+  // Issue #390 — a Return must say what happens to the Stage's earlier work,
+  // and is never blocked by the Stage being left. Only a Return asks.
+  const isReturn = (await opportunityService.getReturnStageIds(existing.id)).includes(to.id);
+  if (isReturn) assertReturnChoice(to, returnChoice);
 
-  // 1. Evaluate Stage Conditions for the stage being left — from the SOR's
-  // own snapshot; only the per-deal evidence (attachments, members, status
-  // rows) is read live, since that's evidence about the deal, not the flow.
-  const conditionsForFrom = conditionsForSnapshotStage(snapshotConditions, from.id);
   const currentVisit = await currentVisitFor(existing.id);
-  const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
-    existing.id,
-    conditionsForFrom,
-    { stageVisitId: currentVisit?.id },
-  );
-
-  // 0. Stage Fields (issue #203, story 21/24): a required field left blank
-  // refuses the move before conditions are even checked, naming what's
-  // empty — "Fill in: …". Custom fields are read from this visit's saved
-  // values; an `sor`-source field reads the SOR itself (it writes straight
-  // through the single-field save, never through a visit row).
-  // A Return is never blocked by the Stage being left (#390): its conditions
-  // and required fields are not asked for.
-  const fieldsForFrom = isReturn ? [] : (snapshotStageFields || []).filter((f) => f.stage_id === from.id);
-  let visitValues = {};
-  if (fieldsForFrom.some((f) => f.source === "custom") && currentVisit) {
-    const { data: valueRows, error: valuesError } = await supabase
-      .from("sor_stage_field_values")
-      .select("field_id, value")
-      .eq("stage_visit_id", currentVisit.id);
-    if (valuesError) throw valuesError;
-    for (const row of valueRows || []) visitValues[row.field_id] = row.value;
-  }
-  const missingFields = missingStageFields(fieldsForFrom, { opportunity: existing, visitValues });
-  if (missingFields.length > 0) {
-    const error = new Error(`Fill in: ${missingFields.map((f) => f.label).join(", ")}.`);
-    error.isGateBlock = true;
-    error.missingStageFields = missingFields;
-    throw error;
-  }
-
-  const missing = [];
-  const conditions = isReturn ? [] : blockingConditions(conditionsForFrom);
-  const hasInclusions = await resolveHasInclusions(conditions, existing.id);
-  const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
-
-  for (const condition of conditions) {
-    const result = evaluateCondition(condition, {
-      opportunity: existing,
-      attachments,
-      members,
-      statusRow: statusRowsByCondition[condition.id] ?? null,
-      hasInclusions,
-      hasPurchasing,
-    });
-    if (result.status === CONDITION_STATUS.UNSATISFIED) {
-      missing.push({ stage: from, condition });
-    }
-  }
-
-  if (missing.length > 0) {
-    // Named, not generic — a "required items missing" toast with nothing
-    // named in it sends whoever is blocked hunting for what changed. A
-    // condition's optional reference link (issue #50's own config) rides
-    // along here too, since a toast is the only surface a Flow deal's
-    // stage control has for a blocked move.
-    const details = missing
-      .map(({ condition }) => {
-        const link = condition.config?.referenceLink;
-        return link ? `${condition.label} (${link})` : condition.label;
-      })
-      .join(", ");
-    const error = new Error(`Cannot leave ${from.name} — missing: ${details}.`);
-    error.isGateBlock = true;
-    error.missingConditions = missing;
-    throw error;
+  if (!isReturn) {
+    await assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields });
   }
 
   // 2. Perform move
@@ -793,7 +698,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   if (error) throw error;
 
   const fromName = from?.name || "—";
-  const stageChange = {
+  const stageChangeEvent = {
     event: "STAGE_CHANGED",
     from: from?.id ?? null,
     to: to.id,
@@ -804,7 +709,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   await opportunityService.addSystemNote(
     existing.id,
     `Stage moved: ${fromName} → ${to.name}${isReturn ? " (resumed previous work)" : ""}`,
-    stageChange,
+    stageChangeEvent,
     actorId,
   );
 
@@ -812,7 +717,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     "OPPORTUNITY",
     existing.id,
     `${auditLabel(existing)}: ${fromName} → ${to.name}`,
-    stageChange,
+    stageChangeEvent,
     actorId,
   ).catch(console.error);
 
@@ -947,6 +852,99 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   }
 
   return { ...data, failedStageActions };
+}
+
+/**
+ * Issue #390 — refuses a Return made without an available choice, naming what
+ * is needed. `needsReturnChoice` lets a caller that skipped the prompt open it.
+ */
+function assertReturnChoice(to, returnChoice) {
+  if (AVAILABLE_RETURN_CHOICES.includes(returnChoice)) return;
+  if (returnChoice === RETURN_CHOICE.START_FRESH) {
+    throw new Error("Start fresh is not available yet — choose Resume previous work.");
+  }
+  const error = new Error(
+    `${to.name} was visited before — choose Resume previous work or Start fresh to return to it.`,
+  );
+  error.needsReturnChoice = true;
+  throw error;
+}
+
+/**
+ * The gate on the Stage being left: its required Stage Fields, then its
+ * blocking Stage Conditions, each refusal naming what is missing. A Return
+ * skips it (#390).
+ */
+async function assertCanLeaveStage({ existing, from, currentVisit, snapshotConditions, snapshotStageFields }) {
+  // 1. Evaluate Stage Conditions for the stage being left — from the SOR's
+  // own snapshot; only the per-deal evidence (attachments, members, status
+  // rows) is read live, since that's evidence about the deal, not the flow.
+  const conditionsForFrom = conditionsForSnapshotStage(snapshotConditions, from.id);
+  const { attachments, members, statusRowsByCondition } = await gateEvidenceFor(
+    existing.id,
+    conditionsForFrom,
+    { stageVisitId: currentVisit?.id },
+  );
+
+  // 0. Stage Fields (issue #203, story 21/24): a required field left blank
+  // refuses the move before conditions are even checked, naming what's
+  // empty — "Fill in: …". Custom fields are read from this visit's saved
+  // values; an `sor`-source field reads the SOR itself (it writes straight
+  // through the single-field save, never through a visit row).
+  const fieldsForFrom = (snapshotStageFields || []).filter((f) => f.stage_id === from.id);
+  let visitValues = {};
+  if (fieldsForFrom.some((f) => f.source === "custom") && currentVisit) {
+    const { data: valueRows, error: valuesError } = await supabase
+      .from("sor_stage_field_values")
+      .select("field_id, value")
+      .eq("stage_visit_id", currentVisit.id);
+    if (valuesError) throw valuesError;
+    for (const row of valueRows || []) visitValues[row.field_id] = row.value;
+  }
+  const missingFields = missingStageFields(fieldsForFrom, { opportunity: existing, visitValues });
+  if (missingFields.length > 0) {
+    const error = new Error(`Fill in: ${missingFields.map((f) => f.label).join(", ")}.`);
+    error.isGateBlock = true;
+    error.missingStageFields = missingFields;
+    throw error;
+  }
+
+  const missing = [];
+  const conditions = blockingConditions(conditionsForFrom);
+  const hasInclusions = await resolveHasInclusions(conditions, existing.id);
+  const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
+
+  for (const condition of conditions) {
+    const result = evaluateCondition(condition, {
+      opportunity: existing,
+      attachments,
+      members,
+      statusRow: statusRowsByCondition[condition.id] ?? null,
+      hasInclusions,
+      hasPurchasing,
+    });
+    if (result.status === CONDITION_STATUS.UNSATISFIED) {
+      missing.push({ stage: from, condition });
+    }
+  }
+
+  if (missing.length > 0) {
+    // Named, not generic — a "required items missing" toast with nothing
+    // named in it sends whoever is blocked hunting for what changed. A
+    // condition's optional reference link (issue #50's own config) rides
+    // along here too, since a toast is the only surface a Flow deal's
+    // stage control has for a blocked move.
+    const details = missing
+      .map(({ condition }) => {
+        const link = condition.config?.referenceLink;
+        return link ? `${condition.label} (${link})` : condition.label;
+      })
+      .join(", ");
+    const error = new Error(`Cannot leave ${from.name} — missing: ${details}.`);
+    error.isGateBlock = true;
+    error.missingConditions = missing;
+    throw error;
+  }
 }
 
 /**
@@ -1814,7 +1812,8 @@ export const opportunityService = {
    * Moves an opportunity to a new pipeline stage and records the move on its
    * timeline. `lostReason` is required when moving to CLOSED_LOST;
    * `salesReference` is required when leaving Lead and none is on record yet
-   * (mirrored by a trigger — see migration 0011).
+   * (mirrored by a trigger — see migration 0011). `returnChoice` is required
+   * when a flow deal's move is a Return (issue #390).
    *
    * The ITB gate that used to sit at For Bidding was removed (issue #206,
    * ADR 0004 D12) — Sales Flows replaced it. Existing `itb_number`/
@@ -1825,9 +1824,7 @@ export const opportunityService = {
     id,
     nextStatus,
     actorId,
-    lostReason = null,
-    salesReference = null,
-    { returnChoice = null } = {},
+    { lostReason = null, salesReference = null, returnChoice = null } = {},
   ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
@@ -3344,8 +3341,14 @@ export const opportunityService = {
   },
 
   /** Stage ids a move to which is a Return (issue #390): every Stage the SOR has an earlier, not-undone visit on. */
-  async getVisitedStageIds(opportunityId) {
-    return visitedStageIds(opportunityId);
+  async getReturnStageIds(opportunityId) {
+    const { data, error } = await supabase
+      .from("sor_stage_visits")
+      .select("flow_stage_id")
+      .eq("opportunity_id", opportunityId)
+      .is("undone_at", null);
+    if (error) throw error;
+    return [...new Set((data || []).map((v) => v.flow_stage_id))];
   },
 
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────

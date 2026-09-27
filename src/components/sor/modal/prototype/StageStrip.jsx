@@ -114,7 +114,7 @@ export function MoveButtons({ p, size = "sm", align = "start" }) {
         </span>
       )}
       {primary.map((d, i) => (
-        <Button key={d.key} type="button" size={size} variant={i === 0 ? "default" : "outline"} disabled={!m.canMove} onClick={() => m.move(d.key)} className="gap-1.5">
+        <Button key={d.key} type="button" size={size} variant={i === 0 ? "default" : "outline"} disabled={!m.canMove || m.isBlocked?.(d.key)} onClick={() => m.move(d.key)} className="gap-1.5">
           Move to {d.label}
           <ArrowRight size={13} />
         </Button>

@@ -1,5 +1,4 @@
-import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
@@ -18,8 +17,6 @@ import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
-import ReturnMoveDialog from "../ReturnMoveDialog";
-import { useVisitedStageIds, visitedStageIdsQuery } from "../useVisitedStageIds";
 import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
@@ -68,28 +65,9 @@ export default function SorModalHeader({
   canEdit = false,
   moveDisabled = false,
   moveDisabledReason,
+  returnStageIds = [],
 }) {
   const activeChevronRef = useRef(null);
-  // Issue #390 — a Return asks Resume / Start fresh; any other move goes straight through.
-  const [returnTarget, setReturnTarget] = useState(null);
-  const queryClient = useQueryClient();
-  const visitedStageIds = useVisitedStageIds(opportunity, isFlowDeal);
-  // Asked fresh at click time, so a click before the ribbon's own read landed
-  // still reaches the prompt instead of a refused move.
-  const moveToFlowStage = async (flowStageId) => {
-    let returnStages = visitedStageIds;
-    try {
-      returnStages = await queryClient.fetchQuery(visitedStageIdsQuery(opportunity));
-    } catch {
-      // Fall back to what the ribbon has; the move itself still refuses a Return without a choice.
-    }
-    if (returnStages.includes(flowStageId)) {
-      const stage = flowCanvas?.stages?.find((s) => s.id === flowStageId);
-      setReturnTarget({ id: flowStageId, name: stage?.name || "this Stage" });
-      return;
-    }
-    stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null });
-  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -416,23 +394,15 @@ export default function SorModalHeader({
             blockedBy={checklist
               .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
               .map(({ condition }) => condition.label)}
-            returnStageIds={visitedStageIds}
-            onMove={moveToFlowStage}
+            returnStageIds={returnStageIds}
+            onMove={(flowStageId) =>
+              stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })
+            }
           />
         ) : (
           legacyRibbon
         )}
       </div>
-      <ReturnMoveDialog
-        isOpen={Boolean(returnTarget)}
-        stageName={returnTarget?.name}
-        onCancel={() => setReturnTarget(null)}
-        onConfirm={(returnChoice) => {
-          const next = returnTarget.id;
-          setReturnTarget(null);
-          stageMutation.mutate({ next, reason: null, salesReference: null, returnChoice });
-        }}
-      />
     </div>
   );
 }
