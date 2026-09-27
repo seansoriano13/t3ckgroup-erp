@@ -210,12 +210,22 @@ out. The Stage's configuration stays readable on the Flow Canvas; only the
 SOR's data on it is withheld.
 _Avoid_: Hidden Stage, Private Stage
 
-**Journey**:
-One SOR's whole story as a single list — every Stage Visit, with the
-conditions, tasks, and Requested Items on each, their status and owner. A
-Restricted Stage appears as one line with no contents to anyone shut out of it.
-Who may open an SOR's Journey is set by its Sales Flow.
-_Avoid_: Overview, Iceberg, Timeline
+**History**:
+One SOR's whole story as a single list — every Stage Visit, each carrying its
+whole Stage Work: every condition and how it was met (the file given, who
+ticked, who was assigned, the note), its custom Stage Field values, what each
+of its Stage Actions did (the task it created, or that it was skipped, left
+undecided, or failed), its Logged Follow-ups, and its Requested Items, with
+their status and owner. The record of what happened, not a summary of it: a
+past visit is read-only, but any task on it still opens. Work a Start fresh or
+Revert closed off stays on its visit, marked closed off and saying why. Work a
+Resume carried forward shows on the new visit only, and the earlier visit says
+it was resumed. A
+Restricted Stage appears as one line with no contents to anyone shut out of
+it. Who may open an SOR's History is set by its Sales Flow. Named the Journey
+until September 2026.
+_Avoid_: Journey (its earlier name), Overview, Iceberg, Timeline, Version
+history (a Sales Flow's Flow Snapshots, not an SOR's story)
 
 **Stage Field**:
 An input a Sales Flow defines on a Stage, filled in on the SOR under that
@@ -242,10 +252,12 @@ Something that happens when an SOR *enters* a Stage — create a Group Task,
 notify, stamp a date, start a countdown, raise a purchase request, or a note.
 Fires once per (SOR, Stage): a Return creates nothing new unless it is a
 Start fresh. A task it created goes **on hold** when the SOR leaves the
-Stage — off everyone's list until a Return decides it — unless the Sales Flow
-set that action to carry on past the Stage. Reaching a Terminal Stage cancels
-every held task; a Resume revives them with due dates pushed back by the time
-they spent on hold. Distinct from a Stage Condition by
+Stage — off everyone's list, and not workable by anyone, until a Return
+decides it — unless the Sales Flow set that action to carry on past the Stage.
+Reaching a Terminal Stage cancels every held task; a Resume revives them with
+due dates pushed back by the time they spent on hold, and nothing else does. A
+held, cancelled or closed-off task can still be opened and read, never worked
+on. Distinct from a Stage Condition by
 what it does — an Action *happens*, a Condition *blocks*.
 _Avoid_: Trigger, Automation, Hook
 
@@ -258,10 +270,10 @@ taken back. Handled as one set, never item by item.
 
 **Return**:
 An SOR entering a Stage it already has an earlier Stage Visit on. Whoever makes
-the move chooses **Resume** — the earlier Stage Work carries into the new
-visit, its tasks reopened — or **Start fresh** — the earlier Stage Work is
+the move chooses **Resume** — the earlier Stage Work moves into the new visit,
+its tasks reopened, and the earlier visit records that it was resumed — or **Start fresh** — the earlier Stage Work is
 closed off, never deleted: its tasks cancelled, the rest left on the earlier
-visit in the Journey, and the Stage's Actions fire again. Only a Return asks;
+visit in the History, and the Stage's Actions fire again. Only a Return asks;
 no other move does.
 _Avoid_: Backward move, Re-entry, Revert (going back one step without an edge)
 
