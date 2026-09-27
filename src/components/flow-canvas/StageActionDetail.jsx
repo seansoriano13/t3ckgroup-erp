@@ -7,6 +7,7 @@ import { parseChecklist } from "../../utils/checklist";
 import { taskTagService } from "../../services/taskTagService";
 import { TagPill } from "../ui/TagPill";
 import { Switch } from "../ui/switch";
+import { FieldBox } from "../ui/FieldBox";
 
 /**
  * What an action will actually create, read back from the config it was saved
@@ -190,11 +191,10 @@ export default function StageActionDetail({
       )}
 
       {onCarriesOnChange && (
-        <div className="flex items-start gap-2.5 rounded-lg bg-mauve-a2 px-2.5 py-2">
+        <FieldBox inline className="items-start gap-2.5 rounded-lg bg-mauve-a2 px-2.5 py-2">
           <Switch
             size="sm"
             className="mt-0.5"
-            aria-label="Carries on past the stage"
             checked={config.carries_on === true}
             disabled={disabled}
             onCheckedChange={(checked) => onCarriesOnChange(checked)}
@@ -208,7 +208,7 @@ export default function StageActionDetail({
               that continues afterwards.
             </span>
           </span>
-        </div>
+        </FieldBox>
       )}
 
       {/* The access window lives here, after the automation it applies to,

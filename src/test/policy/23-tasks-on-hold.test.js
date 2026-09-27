@@ -126,45 +126,74 @@ describe("held group tasks at a Terminal Stage", () => {
 })
 
 describe("actions that carry on past the stage (#389)", () => {
-    async function moveOnUnder(config) {
+    let versionSeq = 9000
+    /**
+     * Seeds an action + a snapshot freezing `config` for it, an SOR on that
+     * snapshot with one open task (and a group task) from the action, runs
+     * `beforeMove`, then moves the SOR off Stage A. `snapshotConfig` undefined
+     * means no snapshot at all.
+     */
+    async function moveOnUnder(config, { beforeMove, noSnapshot = false } = {}) {
         const carryId = (await svc().from("flow_stage_actions").insert({ stage_id: stageA, kind: "create_individual_task", config }).select("id").single()).data.id
-        const snap = await svc().from("flow_snapshots")
-            .insert({ flow_id: flowId, version: 9000 + Math.floor(Math.random() * 900), snapshot_data: { actions: [{ id: carryId, stage_id: stageA, config }] } })
-            .select("id").single()
-        if (snap.error) throw new Error(snap.error.message)
         const s = await sorWithTasks()
-        await svc().from("sales_opportunities").update({ flow_snapshot_id: snap.data.id }).eq("id", s.id)
-        await svc().from("sor_stage_visits").update({ flow_snapshot_id: snap.data.id }).eq("id", s.visit)
+        if (!noSnapshot) {
+            const snap = await svc().from("flow_snapshots")
+                .insert({ flow_id: flowId, version: ++versionSeq, snapshot_data: { actions: [{ id: carryId, stage_id: stageA, config }] } })
+                .select("id").single()
+            if (snap.error) throw new Error(snap.error.message)
+            await svc().from("sales_opportunities").update({ flow_snapshot_id: snap.data.id }).eq("id", s.id)
+            await svc().from("sor_stage_visits").update({ flow_snapshot_id: snap.data.id }).eq("id", s.visit)
+        }
         const t = (await svc().from("tasks")
             .insert({ logged_by: ids.closingSales, opportunity_id: s.id, stage_visit_id: s.visit, task_description: `${MARKER} c`, status: "INCOMPLETE", stage_action_id: carryId })
             .select("id").single()).data.id
+        const g = (await svc().from("committee_tasks")
+            .insert({ title: `${MARKER} cg`, created_by: ids.dealOwner, opportunity_id: s.id, stage_visit_id: s.visit, stage_action_id: carryId })
+            .select("id").single()).data.id
+        if (beforeMove) await beforeMove(carryId)
         await moveTo(s.id, stageB)
-        return { s, t, carryId }
+        return { s, t, g, carryId }
     }
-    const cleanup = async ({ t, carryId }) => {
+    const groupStatus = async (id) => (await svc().from("committee_tasks").select("status").eq("id", id).single()).data.status
+    const cleanup = async ({ t, g, carryId }) => {
         await svc().from("tasks").delete().eq("id", t)
+        await svc().from("committee_tasks").delete().eq("id", g)
         await svc().from("flow_stage_actions").delete().eq("id", carryId)
     }
+    const withRun = (config, opts, fn) => async () => {
+        const r = await moveOnUnder(config, opts)
+        try { await fn(r) } finally { await cleanup(r) }
+    }
 
-    it("never holds a carry-on task, and a Terminal Stage leaves it alone", async () => {
-        const r = await moveOnUnder({ carries_on: true })
+    it("never holds a carry-on task, and a Terminal Stage leaves it alone", withRun({ carries_on: true }, {}, async (r) => {
         expect((await task(r.t)).status).toBe("INCOMPLETE")
+        expect(await groupStatus(r.g)).toBe("ACTIVE")
         expect((await task(r.s.open)).status).toBe("ON_HOLD")
         await moveTo(r.s.id, stageTerminal)
+        // the held sibling was cancelled by that move; the carry-on tasks were not
+        expect((await task(r.s.open)).status).toBe("DELETED")
         expect((await task(r.t)).status).toBe("INCOMPLETE")
-        await cleanup(r)
-    })
+        expect(await groupStatus(r.g)).toBe("ACTIVE")
+    }))
 
-    it("holds when the setting is off in the snapshot", async () => {
-        const r = await moveOnUnder({ carries_on: false })
+    it("holds when the setting is off in the snapshot", withRun({ carries_on: false }, {}, async (r) => {
         expect((await task(r.t)).status).toBe("ON_HOLD")
-        await cleanup(r)
-    })
+        expect(await groupStatus(r.g)).toBe("ON_HOLD")
+    }))
 
-    it("reads the SOR's own snapshot, not the live action", async () => {
-        const r = await moveOnUnder({ carries_on: true })
-        await svc().from("flow_stage_actions").update({ config: { carries_on: false } }).eq("id", r.carryId)
-        expect((await task(r.t)).status).toBe("INCOMPLETE")
-        await cleanup(r)
-    })
+    it("holds when the snapshot's action has no setting", withRun({}, {}, async (r) => {
+        expect((await task(r.t)).status).toBe("ON_HOLD")
+    }))
+
+    it("holds when the visit has no snapshot", withRun({ carries_on: true }, { noSnapshot: true }, async (r) => {
+        expect((await task(r.t)).status).toBe("ON_HOLD")
+    }))
+
+    it("reads the SOR's own snapshot, not the live action", withRun(
+        { carries_on: true },
+        { beforeMove: (id) => svc().from("flow_stage_actions").update({ config: { carries_on: false } }).eq("id", id) },
+        async (r) => {
+            expect((await task(r.t)).status).toBe("INCOMPLETE")
+        },
+    ))
 })

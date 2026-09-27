@@ -241,7 +241,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                   stageId={stageId}
                   disabled={disabled}
                   onAccessChange={(access) => handleAccessChange(action, access)}
-                onCarriesOnChange={(on) => handleCarriesOnChange(action, on)}
+                  onCarriesOnChange={(on) => handleCarriesOnChange(action, on)}
                 />
               )}
             </div>

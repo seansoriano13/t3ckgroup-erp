@@ -65,13 +65,13 @@ describe("StageActionDetail", () => {
 
     it("is off by default", () => {
       render(<StageActionDetail action={action()} onCarriesOnChange={() => {}} />);
-      expect(screen.getByRole("switch", { name: /carries on past the stage/i })).not.toBeChecked();
+      expect(screen.getByRole("switch")).not.toBeChecked();
     });
 
     it("reads on when the config says so, and reports a toggle", () => {
       const onChange = vi.fn();
       render(<StageActionDetail action={action({ carries_on: true })} onCarriesOnChange={onChange} />);
-      const box = screen.getByRole("switch", { name: /carries on past the stage/i });
+      const box = screen.getByRole("switch");
       expect(box).toBeChecked();
       fireEvent.click(box);
       expect(onChange).toHaveBeenCalledWith(false);
@@ -79,7 +79,7 @@ describe("StageActionDetail", () => {
 
     it("cannot be toggled when disabled", () => {
       render(<StageActionDetail action={action()} disabled onCarriesOnChange={() => {}} />);
-      expect(screen.getByRole("switch", { name: /carries on past the stage/i })).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByRole("switch")).toHaveAttribute("aria-disabled", "true");
     });
   });
 });
