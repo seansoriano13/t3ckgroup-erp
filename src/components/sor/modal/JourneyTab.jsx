@@ -37,6 +37,7 @@ function ConditionLine({ row }) {
         <CircleDashed size={12} className="mt-1 shrink-0 text-amber-11" />
       )}
       <span className="min-w-0 flex-1 font-medium text-foreground">{row.condition.label}</span>
+      {row.carried && <span className="shrink-0 text-[10px] text-muted-foreground">from an earlier visit</span>}
       {met ? (
         <span className="shrink-0 text-muted-foreground">
           Met by <Person person={row.satisfiedBy} />

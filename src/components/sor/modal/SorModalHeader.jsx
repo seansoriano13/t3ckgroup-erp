@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
@@ -19,7 +19,7 @@ import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
 import ReturnMoveDialog from "../ReturnMoveDialog";
-import { opportunityService } from "../../../services/opportunityService";
+import { useVisitedStageIds, visitedStageIdsQuery } from "../useVisitedStageIds";
 import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
@@ -72,13 +72,18 @@ export default function SorModalHeader({
   const activeChevronRef = useRef(null);
   // Issue #390 — a Return asks Resume / Start fresh; any other move goes straight through.
   const [returnTarget, setReturnTarget] = useState(null);
-  const { data: visitedStageIds = [] } = useQuery({
-    queryKey: ["visitedStageIds", opportunity.id, opportunity.flow_stage_id],
-    queryFn: () => opportunityService.getVisitedStageIds(opportunity.id),
-    enabled: Boolean(isFlowDeal),
-  });
-  const moveToFlowStage = (flowStageId) => {
-    if (visitedStageIds.includes(flowStageId)) {
+  const queryClient = useQueryClient();
+  const visitedStageIds = useVisitedStageIds(opportunity, isFlowDeal);
+  // Asked fresh at click time, so a click before the ribbon's own read landed
+  // still reaches the prompt instead of a refused move.
+  const moveToFlowStage = async (flowStageId) => {
+    let returnStages = visitedStageIds;
+    try {
+      returnStages = await queryClient.fetchQuery(visitedStageIdsQuery(opportunity));
+    } catch {
+      // Fall back to what the ribbon has; the move itself still refuses a Return without a choice.
+    }
+    if (returnStages.includes(flowStageId)) {
       const stage = flowCanvas?.stages?.find((s) => s.id === flowStageId);
       setReturnTarget({ id: flowStageId, name: stage?.name || "this Stage" });
       return;

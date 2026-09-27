@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import {
@@ -10,6 +10,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/button";
 import ReturnChoice from "./ReturnChoice";
+import { useVisitedStageIds } from "./useVisitedStageIds";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -40,11 +41,7 @@ export default function MoveConfirmDialog({
 
   // Issue #390 — entering a Stage the SOR already visited is a Return: it asks
   // Resume / Start fresh, and the Stage being left never blocks it.
-  const { data: visitedStageIds = [] } = useQuery({
-    queryKey: ["visitedStageIds", opportunity?.id, opportunity?.flow_stage_id],
-    queryFn: () => opportunityService.getVisitedStageIds(opportunity.id),
-    enabled: Boolean(isOpen && opportunity?.id && opportunity?.flow_stage_id),
-  });
+  const visitedStageIds = useVisitedStageIds(opportunity, isOpen);
   const isReturn = Boolean(targetStage && visitedStageIds.includes(targetStage.id));
 
   const moveMutation = useMutation({

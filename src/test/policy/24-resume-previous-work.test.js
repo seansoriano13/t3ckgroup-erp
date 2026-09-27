@@ -66,6 +66,10 @@ async function returned() {
             .insert({ logged_by: ids.closingSales, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, task_description: `${MARKER} t`, status, ...extra })
             .select("id").single().then((r) => r.data.id)
     const open = await mk("INCOMPLETE", { end_at: "2026-10-10T00:00:00Z" })
+    const undated = await mk("INCOMPLETE")
+    const group = (await svc().from("committee_tasks")
+        .insert({ title: `${MARKER} g`, created_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, due_date: "2026-10-10T00:00:00Z" })
+        .select("id").single()).data.id
     const done = await mk("COMPLETED")
     await svc().from("sor_condition_status").insert({ opportunity_id: id, condition_id: conditionId, stage_visit_id: visit1, satisfied_by: ids.dealOwner })
     await svc().from("sor_stage_field_values").insert({ opportunity_id: id, stage_visit_id: visit1, field_id: fieldId, value: "kept" })
@@ -76,10 +80,11 @@ async function returned() {
     await moveTo(id, stageB)
     // Held for two days.
     const held = new Date(Date.now() - 2 * 86400000).toISOString()
-    await svc().from("tasks").update({ held_at: held }).eq("id", open)
+    await svc().from("tasks").update({ held_at: held }).in("id", [open, undated])
+    await svc().from("committee_tasks").update({ held_at: held }).eq("id", group)
     await moveTo(id, stageA)
     const visit3 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).eq("sequence", 3).single()).data.id
-    return { id, visit1, visit3, open, done }
+    return { id, visit1, visit3, open, done, undated, group }
 }
 
 describe("sor_resume_stage_work", () => {
@@ -98,6 +103,13 @@ describe("sor_resume_stage_work", () => {
         const shiftDays = (new Date(t.end_at) - new Date("2026-10-10T00:00:00Z")) / 86400000
         expect(shiftDays).toBeGreaterThan(1.99)
         expect(shiftDays).toBeLessThan(2.1)
+        const undatedRow = (await svc().from("tasks").select("status, end_at").eq("id", s.undated).single()).data
+        expect(undatedRow).toEqual({ status: "INCOMPLETE", end_at: null })
+        const g = (await svc().from("committee_tasks").select("status, due_date").eq("id", s.group).single()).data
+        expect(g.status).toBe("ACTIVE")
+        const groupShift = (new Date(g.due_date) - new Date("2026-10-10T00:00:00Z")) / 86400000
+        expect(groupShift).toBeGreaterThan(1.99)
+        expect(groupShift).toBeLessThan(2.1)
         expect((await svc().from("tasks").select("stage_visit_id").eq("id", s.done).single()).data.stage_visit_id).toBe(s.visit3)
 
         const cond = await svc().from("sor_condition_status").select("stage_visit_id, satisfied_by").eq("opportunity_id", s.id)
@@ -134,5 +146,39 @@ describe("sor_resume_stage_work", () => {
         const client = await clientFor("dealOwner")
         expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
         expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error?.message).toMatch(/already recorded/)
+    })
+
+    it("only retags condition files and Follow-up logs, not other notes", async () => {
+        const s = await returned()
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: s.id, author_id: ids.dealOwner, type: "SYSTEM", content: "a comment",
+            metadata: { stageVisitId: s.visit1 },
+        })
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+        const note = (await svc().from("sales_opportunity_logs").select("metadata").eq("opportunity_id", s.id).eq("content", "a comment").single()).data
+        expect(note.metadata.stageVisitId).toBe(s.visit1)
+    })
+})
+
+describe("sor_move_and_resume", () => {
+    it("moves and resumes in one call", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        await moveTo(id, stageB)
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("sor_move_and_resume", { p_opportunity_id: id, p_flow_stage_id: stageA })
+        expect(error).toBeNull()
+        expect(data.return_choice).toBe("resume")
+        expect((await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data.flow_stage_id).toBe(stageA)
+    })
+
+    it("leaves the SOR where it was when the Resume is refused (not a Return)", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const client = await clientFor("dealOwner")
+        const { error } = await client.rpc("sor_move_and_resume", { p_opportunity_id: id, p_flow_stage_id: stageB })
+        expect(error?.message).toMatch(/not a Return/)
+        expect((await svc().from("sales_opportunities").select("flow_stage_id").eq("id", id).single()).data.flow_stage_id).toBe(stageA)
     })
 })

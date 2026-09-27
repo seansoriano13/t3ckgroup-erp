@@ -261,6 +261,7 @@ function attachmentsFromLog(log) {
     ...a,
     uploadedBy: log.author_id,
     uploadedAt: log.created_at,
+    carriedFromVisitId: log.metadata?.carriedFromVisitId || null,
   }));
 }
 
@@ -340,15 +341,7 @@ async function visitedStageIds(opportunityId) {
 
 /** True when `stageId` is a Stage the SOR already has an earlier, not-undone visit on. */
 async function hasEarlierVisit(opportunityId, stageId) {
-  const { data, error } = await supabase
-    .from("sor_stage_visits")
-    .select("id")
-    .eq("opportunity_id", opportunityId)
-    .eq("flow_stage_id", stageId)
-    .is("undone_at", null)
-    .limit(1);
-  if (error) throw error;
-  return (data || []).length > 0;
+  return (await visitedStageIds(opportunityId)).includes(stageId);
 }
 
 async function currentVisitFor(opportunityId) {
@@ -781,24 +774,23 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
     patch.contract_date = getCurrentLocalDate();
   }
 
-  const { data, error } = await supabase
-    .from("sales_opportunities")
-    .update(patch)
-    .eq("id", existing.id)
-    .select(PARTICIPANT_SELECT)
-    .single();
-  if (error) throw error;
-
-  // Resume moves the earlier visit's Stage Work onto the visit this move just
-  // opened, before the entry Actions run, so their fire-once check sees it.
+  // A Return's move and Resume commit together (sor_move_and_resume): a
+  // refused Resume leaves the SOR where it was. The Resume lands before the
+  // entry Actions run, so their fire-once check sees the carried work.
   if (isReturn) {
-    const { error: resumeError } = await supabase.rpc("sor_resume_stage_work", {
+    const { error: resumeError } = await supabase.rpc("sor_move_and_resume", {
       p_opportunity_id: existing.id,
+      p_flow_stage_id: to.id,
+      p_contract_date: patch.contract_date ?? null,
     });
-    if (resumeError) {
-      throw new Error(`Moved to ${to.name}, but resuming the earlier work failed: ${resumeError.message}`);
-    }
+    if (resumeError) throw new Error(resumeError.message.replace(/^Resume: /, ""));
   }
+
+  const { data, error } = await (isReturn
+    ? supabase.from("sales_opportunities").select(PARTICIPANT_SELECT).eq("id", existing.id)
+    : supabase.from("sales_opportunities").update(patch).eq("id", existing.id).select(PARTICIPANT_SELECT)
+  ).single();
+  if (error) throw error;
 
   const fromName = from?.name || "—";
   const stageChange = {
@@ -3818,6 +3810,10 @@ export const opportunityService = {
                 hasInclusions,
                 hasPurchasing,
               }),
+              // ADR 0027: evidence a Resume carried here keeps its mark.
+              carried:
+                Boolean(statusRowsByCondition[condition.id]?.carried_from_visit_id) ||
+                attachments.some((a) => a.carriedFromVisitId),
             }))
             // Same rule as `getStageChecklist`: a removed kind can never be
             // satisfied, so it is not a row anyone can act on or read.
