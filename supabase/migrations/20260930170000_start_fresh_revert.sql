@@ -327,10 +327,21 @@ begin
       where stage_visit_id = v_cur.id and closed_off_at is null;
   end if;
 
+  -- A "keep" choice leaves whatever the Start fresh re-fired on v_cur live
+  -- (kept work, not closed off, exactly like any other kept Optional Action —
+  -- resumable later). Reopening the earlier run too would then double up a
+  -- live run for the same Stage Action, against sor_action_runs_live_unique
+  -- (#385); the earlier run stays closed off in that one case, since v_cur's
+  -- still-live run already occupies its slot.
   if v_old_fresh_id is not null then
-    update public.sor_action_runs
+    update public.sor_action_runs r
       set closed_off_at = null, closed_off_reason = null
-      where stage_visit_id = v_old_fresh_id and closed_off_reason = 'start_fresh';
+      where r.stage_visit_id = v_old_fresh_id and r.closed_off_reason = 'start_fresh'
+        and not exists (
+          select 1 from public.sor_action_runs live
+          where live.opportunity_id = r.opportunity_id and live.stage_id = r.stage_id
+            and live.action_id = r.action_id and live.closed_off_at is null
+        );
   end if;
 
   perform set_config('app.sor_revert', 'off', true);

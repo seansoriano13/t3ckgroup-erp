@@ -121,7 +121,7 @@ describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
             .insert({ logged_by: ids.closingSales, opportunity_id: s.id, stage_visit_id: s.visit3, stage_action_id: actionId, task_description: `${MARKER} new`, status: "INCOMPLETE" })
             .select("id").single()).data.id
         const newRun = (await svc().from("sor_action_runs")
-            .insert({ opportunity_id: s.id, stage_id: stageA, action_id: actionId, stage_visit_id: s.visit3, outcome: "created", task_id: newTask })
+            .insert({ opportunity_id: s.id, stage_id: stageA, action_id: actionId, stage_visit_id: s.visit3, outcome: "created", task_id: newTask, decided_by: ids.dealOwner })
             .select("id").single()).data.id
 
         const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "remove" })
@@ -136,6 +136,32 @@ describe("reverting a Return undoes its Start fresh (ADR 0027)", () => {
         // The earlier visit's own Start-fresh-cancelled work still un-cancels.
         const open = (await svc().from("tasks").select("status").eq("id", s.open).single()).data
         expect(open.status).toBe("INCOMPLETE")
+    })
+
+    it("composes with the keep-progress Revert path: v_cur's re-fired run stays live and the earlier one stays closed off", async () => {
+        const s = await returned()
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_start_fresh_stage_work", { p_opportunity_id: s.id })).error).toBeNull()
+
+        const newTask = (await svc().from("tasks")
+            .insert({ logged_by: ids.closingSales, opportunity_id: s.id, stage_visit_id: s.visit3, stage_action_id: actionId, task_description: `${MARKER} new`, status: "INCOMPLETE" })
+            .select("id").single()).data.id
+        const newRun = (await svc().from("sor_action_runs")
+            .insert({ opportunity_id: s.id, stage_id: stageA, action_id: actionId, stage_visit_id: s.visit3, outcome: "created", task_id: newTask, decided_by: ids.dealOwner })
+            .select("id").single()).data.id
+
+        const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id, p_progress_choice: "keep" })
+        expect(error).toBeNull()
+
+        const t = (await svc().from("tasks").select("status").eq("id", newTask).single()).data
+        expect(t.status).toBe("ON_HOLD")
+        const r = (await svc().from("sor_action_runs").select("closed_off_at, closed_off_reason").eq("id", newRun).single()).data
+        expect(r.closed_off_at).toBeNull()
+
+        // The earlier visit's run stays closed off — its slot is occupied by the kept, still-live run.
+        const oldRun = (await svc().from("sor_action_runs").select("closed_off_at, closed_off_reason").eq("id", s.run).single()).data
+        expect(oldRun.closed_off_at).not.toBeNull()
+        expect(oldRun.closed_off_reason).toBe("start_fresh")
     })
 
     it("composes with the no-Stage-Work Revert path (full undo)", async () => {
