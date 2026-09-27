@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import { opportunityService } from "../../services/opportunityService";
 import {
@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/button";
+import ReturnChoice from "./ReturnChoice";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -35,6 +36,16 @@ export default function MoveConfirmDialog({
   onMoved,
 }) {
   const [lostReason, setLostReason] = useState("");
+  const [returnChoice, setReturnChoice] = useState("resume");
+
+  // Issue #390 — entering a Stage the SOR already visited is a Return: it asks
+  // Resume / Start fresh, and the Stage being left never blocks it.
+  const { data: visitedStageIds = [] } = useQuery({
+    queryKey: ["visitedStageIds", opportunity?.id, opportunity?.flow_stage_id],
+    queryFn: () => opportunityService.getVisitedStageIds(opportunity.id),
+    enabled: Boolean(isOpen && opportunity?.id && opportunity?.flow_stage_id),
+  });
+  const isReturn = Boolean(targetStage && visitedStageIds.includes(targetStage.id));
 
   const moveMutation = useMutation({
     mutationFn: () =>
@@ -43,6 +54,8 @@ export default function MoveConfirmDialog({
         targetStage.id,
         actorId,
         isLostTarget ? lostReason.trim() : null,
+        null,
+        { returnChoice: isReturn ? returnChoice : null },
       ),
     onSuccess: () => {
       setLostReason("");
@@ -78,7 +91,7 @@ export default function MoveConfirmDialog({
             — {opportunity.project_title}
           </p>
 
-          {knownBlockers.length > 0 && (
+          {!isReturn && knownBlockers.length > 0 && (
             <div className="rounded-xl border border-amber-400/30 bg-amber-500/5 p-3">
               <p className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-amber-11">
                 <AlertTriangle size={12} /> Still outstanding
@@ -92,6 +105,10 @@ export default function MoveConfirmDialog({
                 The move is refused until these are met.
               </p>
             </div>
+          )}
+
+          {isReturn && (
+            <ReturnChoice stageName={targetStage.name} value={returnChoice} onChange={setReturnChoice} />
           )}
 
           {isLostTarget && (

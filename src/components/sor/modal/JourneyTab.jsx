@@ -49,12 +49,13 @@ function ConditionLine({ row }) {
   );
 }
 
-function TaskLine({ title, status, owner, date }) {
+function TaskLine({ title, status, owner, date, carried = false }) {
   const when = formatWhen(date);
 
   return (
     <div className="flex items-center gap-2 text-[11px] leading-5">
       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{title}</span>
+      {carried && <span className="shrink-0 text-[10px] text-muted-foreground">from an earlier visit</span>}
       {status === TASK_STATUS.ON_HOLD ? (
         <StatusBadge status={status}>Held</StatusBadge>
       ) : (
@@ -188,6 +189,11 @@ function PastVisit({ row, onToggle }) {
               </>
             )}
           </p>
+          {visit.resumedAt && (
+            <p className="text-[11px] text-muted-foreground">
+              Resumed {formatWhen(visit.resumedAt)} by <Person person={visit.resumedBy} />, its work carried forward.
+            </p>
+          )}
 
           <VisitGroup label="Conditions" count={visit.conditions.length}>
             {visit.conditions.map((c) => (
@@ -205,6 +211,7 @@ function PastVisit({ row, onToggle }) {
                 // member happens to be listed first.
                 owner={t.creator || null}
                 date={t.due_date || t.created_at}
+                carried={Boolean(t.carried_from_visit_id)}
               />
             ))}
             {tasks.map((t) => (
@@ -214,6 +221,7 @@ function PastVisit({ row, onToggle }) {
                 status={t.status}
                 owner={t.assignee || null}
                 date={t.end_at || t.created_at}
+                carried={Boolean(t.carried_from_visit_id)}
               />
             ))}
           </VisitGroup>

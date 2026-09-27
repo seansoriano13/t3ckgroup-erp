@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
@@ -17,6 +18,8 @@ import StatusBadge from "../../StatusBadge";
 import { confirmDeleteToast } from "../../ui/CustomToast";
 import { getStatusTheme } from "../../../constants/status";
 import FlowStageControl from "../FlowStageControl";
+import ReturnMoveDialog from "../ReturnMoveDialog";
+import { opportunityService } from "../../../services/opportunityService";
 import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
@@ -67,6 +70,21 @@ export default function SorModalHeader({
   moveDisabledReason,
 }) {
   const activeChevronRef = useRef(null);
+  // Issue #390 — a Return asks Resume / Start fresh; any other move goes straight through.
+  const [returnTarget, setReturnTarget] = useState(null);
+  const { data: visitedStageIds = [] } = useQuery({
+    queryKey: ["visitedStageIds", opportunity.id, opportunity.flow_stage_id],
+    queryFn: () => opportunityService.getVisitedStageIds(opportunity.id),
+    enabled: Boolean(isFlowDeal),
+  });
+  const moveToFlowStage = (flowStageId) => {
+    if (visitedStageIds.includes(flowStageId)) {
+      const stage = flowCanvas?.stages?.find((s) => s.id === flowStageId);
+      setReturnTarget({ id: flowStageId, name: stage?.name || "this Stage" });
+      return;
+    }
+    stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null });
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -393,14 +411,23 @@ export default function SorModalHeader({
             blockedBy={checklist
               .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
               .map(({ condition }) => condition.label)}
-            onMove={(flowStageId) =>
-              stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })
-            }
+            returnStageIds={visitedStageIds}
+            onMove={moveToFlowStage}
           />
         ) : (
           legacyRibbon
         )}
       </div>
+      <ReturnMoveDialog
+        isOpen={Boolean(returnTarget)}
+        stageName={returnTarget?.name}
+        onCancel={() => setReturnTarget(null)}
+        onConfirm={(returnChoice) => {
+          const next = returnTarget.id;
+          setReturnTarget(null);
+          stageMutation.mutate({ next, reason: null, salesReference: null, returnChoice });
+        }}
+      />
     </div>
   );
 }

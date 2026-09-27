@@ -315,15 +315,41 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
 // Journey visit's list — in one place, so the two can't drift apart on which
 // columns decide a row's due date, parts done, owner, or Stage Visit.
 const SOR_TASK_COLUMNS =
-  "id, project_title, task_description, status, created_at, end_at, stage_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
+  "id, project_title, task_description, status, created_at, end_at, stage_visit_id, carried_from_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
 const SOR_GROUP_TASK_COLUMNS = `
-  id, title, description, status, created_at, due_date, stage_visit_id,
+  id, title, description, status, created_at, due_date, stage_visit_id, carried_from_visit_id,
   creator:employees!committee_tasks_created_by_fkey(id, name, avatar_path),
   members:committee_task_members(
     id, role, custom_role, task_description, status,
     employee:employees!committee_task_members_employee_id_fkey(id, name, avatar_path)
   )
 `;
+
+const RETURN_CHOICES = ["resume", "start_fresh"];
+
+/** Every Stage the SOR already has an earlier, not-undone visit on — where a move is a Return. */
+async function visitedStageIds(opportunityId) {
+  const { data, error } = await supabase
+    .from("sor_stage_visits")
+    .select("flow_stage_id")
+    .eq("opportunity_id", opportunityId)
+    .is("undone_at", null);
+  if (error) throw error;
+  return [...new Set((data || []).map((v) => v.flow_stage_id))];
+}
+
+/** True when `stageId` is a Stage the SOR already has an earlier, not-undone visit on. */
+async function hasEarlierVisit(opportunityId, stageId) {
+  const { data, error } = await supabase
+    .from("sor_stage_visits")
+    .select("id")
+    .eq("opportunity_id", opportunityId)
+    .eq("flow_stage_id", stageId)
+    .is("undone_at", null)
+    .limit(1);
+  if (error) throw error;
+  return (data || []).length > 0;
+}
 
 async function currentVisitFor(opportunityId) {
   const { data, error } = await supabase
@@ -614,7 +640,7 @@ async function hasEverMoved(opportunityId) {
  * applied to flow-built deals. `stage_conditions` DO apply to flow-built
  * deals, because they are keyed to `flow_stages(id)`.
  */
-async function moveAlongFlow(existing, nextStageId, actorId) {
+async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = null } = {}) {
   // Issue #83 — every rule this move is judged by (which Stages exist, which
   // edges are legal, what conditions gate the stage being left, where the
   // deal is won) is resolved from the SOR's OWN Flow Snapshot, not the live
@@ -650,6 +676,21 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     throw new Error(`${from?.name || "This stage"} cannot move straight to ${to.name}.`);
   }
 
+  // Issue #390 — a Return (entering a Stage the SOR already has an earlier,
+  // not-undone visit on) must say what happens to that Stage's earlier work.
+  // Only a Return asks; a Stage never visited moves as ever.
+  const isReturn = await hasEarlierVisit(existing.id, to.id);
+  if (isReturn && !RETURN_CHOICES.includes(returnChoice)) {
+    const error = new Error(
+      `${to.name} was visited before — choose Resume previous work or Start fresh to return to it.`,
+    );
+    error.needsReturnChoice = true;
+    throw error;
+  }
+  if (isReturn && returnChoice === "start_fresh") {
+    throw new Error("Start fresh is not available yet — choose Resume previous work.");
+  }
+
   // 1. Evaluate Stage Conditions for the stage being left — from the SOR's
   // own snapshot; only the per-deal evidence (attachments, members, status
   // rows) is read live, since that's evidence about the deal, not the flow.
@@ -666,7 +707,9 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   // empty — "Fill in: …". Custom fields are read from this visit's saved
   // values; an `sor`-source field reads the SOR itself (it writes straight
   // through the single-field save, never through a visit row).
-  const fieldsForFrom = (snapshotStageFields || []).filter((f) => f.stage_id === from.id);
+  // A Return is never blocked by the Stage being left (#390): its conditions
+  // and required fields are not asked for.
+  const fieldsForFrom = isReturn ? [] : (snapshotStageFields || []).filter((f) => f.stage_id === from.id);
   let visitValues = {};
   if (fieldsForFrom.some((f) => f.source === "custom") && currentVisit) {
     const { data: valueRows, error: valuesError } = await supabase
@@ -685,7 +728,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
   }
 
   const missing = [];
-  const conditions = blockingConditions(conditionsForFrom);
+  const conditions = isReturn ? [] : blockingConditions(conditionsForFrom);
   const hasInclusions = await resolveHasInclusions(conditions, existing.id);
   const hasPurchasing = await resolveHasPurchasing(conditions, existing.id);
 
@@ -746,11 +789,30 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     .single();
   if (error) throw error;
 
+  // Resume moves the earlier visit's Stage Work onto the visit this move just
+  // opened, before the entry Actions run, so their fire-once check sees it.
+  if (isReturn) {
+    const { error: resumeError } = await supabase.rpc("sor_resume_stage_work", {
+      p_opportunity_id: existing.id,
+    });
+    if (resumeError) {
+      throw new Error(`Moved to ${to.name}, but resuming the earlier work failed: ${resumeError.message}`);
+    }
+  }
+
   const fromName = from?.name || "—";
+  const stageChange = {
+    event: "STAGE_CHANGED",
+    from: from?.id ?? null,
+    to: to.id,
+    employeeId: actorId,
+    stampedContractDate: stampsContractDate,
+    ...(isReturn ? { returnChoice } : {}),
+  };
   await opportunityService.addSystemNote(
     existing.id,
-    `Stage moved: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId, stampedContractDate: stampsContractDate },
+    `Stage moved: ${fromName} → ${to.name}${isReturn ? " (resumed previous work)" : ""}`,
+    stageChange,
     actorId,
   );
 
@@ -758,7 +820,7 @@ async function moveAlongFlow(existing, nextStageId, actorId) {
     "OPPORTUNITY",
     existing.id,
     `${auditLabel(existing)}: ${fromName} → ${to.name}`,
-    { event: "STAGE_CHANGED", from: from?.id ?? null, to: to.id, employeeId: actorId, stampedContractDate: stampsContractDate },
+    stageChange,
     actorId,
   ).catch(console.error);
 
@@ -1773,6 +1835,7 @@ export const opportunityService = {
     actorId,
     lostReason = null,
     salesReference = null,
+    { returnChoice = null } = {},
   ) {
     const { data: existing, error: readError } = await supabase
       .from("sales_opportunities")
@@ -1794,7 +1857,7 @@ export const opportunityService = {
     // Branching here rather than adding a second public method is deliberate:
     // two ways to move an SOR is the defect that reusing this funnel prevents.
     if (existing.sale_type_id) {
-      return moveAlongFlow(existing, nextStatus, actorId);
+      return moveAlongFlow(existing, nextStatus, actorId, { returnChoice });
     }
 
     if (existing.status === nextStatus) return existing;
@@ -3288,6 +3351,11 @@ export const opportunityService = {
     return Array.isArray(data) ? data[0] : data;
   },
 
+  /** Stage ids a move to which is a Return (issue #390): every Stage the SOR has an earlier, not-undone visit on. */
+  async getVisitedStageIds(opportunityId) {
+    return visitedStageIds(opportunityId);
+  },
+
   // ── Deal Owner visibility (ticket 6) ────────────────────────────────────────
 
   /**
@@ -3620,7 +3688,8 @@ export const opportunityService = {
           .select(`
             *,
             enteredBy:employees!sor_stage_visits_entered_by_fkey(id, name, avatar_path),
-            leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path)
+            leftBy:employees!sor_stage_visits_left_by_fkey(id, name, avatar_path),
+            resumedBy:employees!sor_stage_visits_resumed_by_fkey(id, name, avatar_path)
           `)
           .eq("opportunity_id", opportunityId)
           .is("undone_at", null)
@@ -3700,6 +3769,9 @@ export const opportunityService = {
         flowSnapshotId: snapshotIdFor(visit),
         enteredBy: visit.enteredBy || null,
         leftBy: visit.leftBy || null,
+        // ADR 0027: a Resume moves the visit's work to the new visit and leaves this one line.
+        resumedAt: visit.resumed_at || null,
+        resumedBy: visit.resumedBy || null,
         // #296: a restricted visit's contents never populate these — RLS on
         // tasks/committee_tasks/sor_condition_status already excludes them —
         // but `isRestricted` is what tells the tab to render one line

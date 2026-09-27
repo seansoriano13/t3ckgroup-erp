@@ -23,7 +23,7 @@ import StageRibbonScroller from "./StageRibbonScroller";
  * it may move to next. Those are the outgoing edges she drew, and nothing
  * else is offered, because a path that was never drawn never happens.
  */
-export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [], disabled = false }) {
+export default function FlowStageControl({ opportunity, onMove, isMoving, blockedBy = [], returnStageIds = [], disabled = false }) {
   const { data: canvas } = useQuery({
     queryKey: ["salesFlow", opportunity.sale_type_id],
     queryFn: () => salesFlowService.getFlow(opportunity.sale_type_id),
@@ -123,8 +123,9 @@ export default function FlowStageControl({ opportunity, onMove, isMoving, blocke
                     const classes = TONE_CLASSES[tone] || TONE_CLASSES.mauve;
 
                     const isDestination = destinations.some((d) => d.id === s.id);
-                    const isBlockedDestination = isDestination && isBlocked;
-                    const isClickable = isDestination && !isBlocked && !disabled;
+                    // A Return is never blocked by the Stage being left (#390).
+                    const isBlockedDestination = isDestination && isBlocked && !returnStageIds.includes(s.id);
+                    const isClickable = isDestination && !isBlockedDestination && !disabled;
 
                     return (
                       <li

@@ -383,7 +383,7 @@ export default function SorModal({
   });
 
   const stageMutation = useMutation({
-    mutationFn: ({ next, reason, salesReference }) => opportunityService.updateStatus(id, next, user?.id, reason, salesReference),
+    mutationFn: ({ next, reason, salesReference, returnChoice }) => opportunityService.updateStatus(id, next, user?.id, reason, salesReference, { returnChoice }),
     onSuccess: (data, variables) => {
       setPendingStage("");
       setLostReason("");

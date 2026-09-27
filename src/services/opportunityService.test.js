@@ -37,6 +37,9 @@ import { stubActionRunRpcs } from "@/test/stubs/actionRunRpc"
  * here is what the next person reads out of the system, not how the service
  * got there.
  */
+// A loop back is a Return (#390): those tests take the Resume path.
+const RESUME = { returnChoice: "resume" }
+
 describe("opportunityService", () => {
   let registrar
   let owner
@@ -720,6 +723,61 @@ describe("opportunityService", () => {
       expect(notes.some((n) => n.content.includes("Condition satisfied"))).toBe(false)
     })
 
+    describe("Return: Resume previous work (#390)", () => {
+      const dealOnLead = () => {
+        makeFlowEdge(qualified, lead)
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        return makeOpportunity({ registered_by: registrar.id, sales_reference: "S00999", sale_type_id: saleType.id, flow_stage_id: lead.id, flow_snapshot_id: snapshot.id })
+      }
+
+      it("asks nothing for a Stage the SOR has never visited", async () => {
+        const deal = dealOnLead()
+        const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        expect(moved.flow_stage_id).toBe(qualified.id)
+      })
+
+      it("refuses a Return made without a choice, naming what is needed", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        const attempt = opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        await expect(attempt).rejects.toThrow(/Resume previous work or Start fresh/)
+        await expect(attempt).rejects.toMatchObject({ needsReturnChoice: true })
+      })
+
+      it("refuses Start fresh until it is built", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await expect(
+          opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, { returnChoice: "start_fresh" }),
+        ).rejects.toThrow(/Start fresh/)
+      })
+
+      it("Resume moves the earlier visit's work to the new visit, and records the choice on the timeline", async () => {
+        const deal = dealOnLead()
+        const firstVisit = db.internal.rowsOf("sor_stage_visits").find((v) => v.opportunity_id === deal.id)
+        db.internal.rowsOf("sor_stage_field_values").push({ id: "fv1", opportunity_id: deal.id, stage_visit_id: firstVisit.id, field_id: "f", value: "kept" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
+        expect(moved.flow_stage_id).toBe(lead.id)
+
+        const visits = db.internal.rowsOf("sor_stage_visits").filter((v) => v.opportunity_id === deal.id)
+        const current = visits.find((v) => v.left_at == null)
+        expect(current.return_choice).toBe("resume")
+        expect(db.internal.rowsOf("sor_stage_field_values").find((f) => f.id === "fv1").stage_visit_id).toBe(current.id)
+        const notes = db.internal.rowsOf("sales_opportunity_logs").filter((l) => l.opportunity_id === deal.id && l.metadata?.event === "STAGE_CHANGED")
+        expect(notes.at(-1).metadata.returnChoice).toBe("resume")
+      })
+
+      it("does not block a Return on the conditions of the Stage being left", async () => {
+        const deal = dealOnLead()
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        makeStageCondition({ stage_id: qualified.id, kind: "tickbox", label: "Sign-off", config: {} })
+        const moved = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
+        expect(moved.flow_stage_id).toBe(lead.id)
+      })
+    })
+
     describe("assignment / SOR Members", () => {
       it("blocks a move until someone from the named department is a member, then unblocks", async () => {
         makeStageCondition({
@@ -1052,7 +1110,7 @@ describe("opportunityService", () => {
     // visit, and evidence given on a visit that has since closed no longer
     // satisfies a return trip to the same Stage.
     describe("Stage Visits", () => {
-      it("records two visits for a loop out and back, and does not carry a tickbox certification across them", async () => {
+      it("records two visits for a loop out and back; a Resume carries the tickbox certification to the new visit", async () => {
         makeFlowEdge(qualified, lead)
         const condition = makeStageCondition({
           stage_id: lead.id,
@@ -1070,7 +1128,7 @@ describe("opportunityService", () => {
 
         await opportunityService.satisfyCondition(deal.id, condition.id, registrar.id)
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id)
+        const backOnLead = await opportunityService.updateStatus(deal.id, lead.id, registrar.id, null, null, RESUME)
         expect(backOnLead.flow_stage_id).toBe(lead.id)
 
         const visits = db
@@ -1080,7 +1138,7 @@ describe("opportunityService", () => {
 
         const checklist = await opportunityService.getStageChecklist(deal.id, backOnLead)
         const row = checklist.find((c) => c.condition.id === condition.id)
-        expect(row.status).toBe("unsatisfied")
+        expect(row.status).toBe("satisfied")
       })
     })
   })
@@ -1550,7 +1608,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      const looped = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
 
       expect(looped.flow_stage_id).toBe(qualified.id)
     })
@@ -1571,7 +1629,7 @@ describe("opportunityService", () => {
       await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
       const won = await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
 
-      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+      const reopened = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
 
       expect(reopened.contract_date).toBe(won.contract_date)
     })
@@ -1674,7 +1732,7 @@ describe("opportunityService", () => {
         expect(run.outcome).toBe("created")
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
 
         const tasksAfterLoopBack = db.internal
           .rowsOf("tasks")
@@ -1810,7 +1868,7 @@ describe("opportunityService", () => {
         expect(notes.some((n) => n.metadata?.event === "ACTION_RUN_SKIPPED" && n.content.includes("Qualified"))).toBe(true)
 
         // Re-entering Qualified must not re-offer the same action.
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
         const runsAfter = db.internal.rowsOf("sor_action_runs").filter((r) => r.opportunity_id === deal.id)
         expect(runsAfter).toHaveLength(1)
         expect(runsAfter[0].outcome).toBe("skipped")
@@ -2313,7 +2371,7 @@ describe("opportunityService", () => {
         await opportunityService.moveOpportunitySnapshot(deal.id, v2.id, registrar.id)
 
         await opportunityService.updateStatus(deal.id, awarded.id, registrar.id)
-        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id, null, null, RESUME)
         await waitForNetworkIdle()
 
         const tasksAfterLoopBack = db.internal
@@ -2549,7 +2607,7 @@ describe("opportunityService", () => {
       // for.
       const deal = await register()
       await opportunityService.updateStatus(deal.id, biddingQualified.id, registrar.id)
-      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id)
+      await opportunityService.updateStatus(deal.id, biddingLead.id, registrar.id, null, null, RESUME)
 
       await expect(
         opportunityService.updateSaleType(deal.id, outright.id, registrar.id),
