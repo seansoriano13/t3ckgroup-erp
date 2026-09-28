@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ExternalLink } from "@/components/ui/external-link";
 import { navigate, sectionSizes, positionLabel, SECTIONS } from "../../utils/presentationDeck"
-import { SAMPLES, LIVE_SAMPLES } from "./sampleRegistry"
+import { SAMPLES, LIVE_SAMPLES, BEFORE_AFTER_SAMPLES } from "./sampleRegistry"
 import { Button } from "../ui/button"
 
 /**
@@ -30,6 +30,12 @@ function IssueRefs({ issues }) {
   )
 }
 
+function sampleCaption(key) {
+  if (LIVE_SAMPLES.has(key)) return "The real screen, on the live demo SOR in this environment"
+  if (BEFORE_AFTER_SAMPLES.has(key)) return "Before and after"
+  return "The real component, with sample data"
+}
+
 /* ── Section 1 — what shipped ───────────────────────────────────────────── */
 
 function HeadlineSlide({ row }) {
@@ -53,9 +59,7 @@ function HeadlineSlide({ row }) {
       {Sample && (
         <div className="space-y-2">
           <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {LIVE_SAMPLES.has(row.sample)
-              ? "The real component, with real data from this environment"
-              : "The real component, with sample data"}
+            {sampleCaption(row.sample)}
           </p>
           <div className="rounded-2xl border border-border bg-muted/30 p-5">
             <Sample />
@@ -95,43 +99,32 @@ function HeadlineSlide({ row }) {
 
 /* ── Section 2 — under the hood ─────────────────────────────────────────── */
 
-function UnderTheHoodSlide({ data }) {
-  const [open, setOpen] = useState(false)
+function UnderTheHoodSlide({ item, index, total, summary }) {
+  const Sample = item.sample ? SAMPLES[item.sample] : null
   return (
     <div className="flex flex-col gap-6">
       <div className="space-y-3">
-        <h2 className="text-4xl font-bold leading-tight text-foreground lg:text-5xl">
-          {data.items.length} fixes and safety changes
+        <span className="inline-block rounded-full bg-muted px-3 py-1 text-[13px] font-bold uppercase tracking-wide text-muted-foreground">
+          Fix {index + 1} of {total}
+        </span>
+        <h2 className="text-balance text-4xl font-bold leading-tight text-foreground lg:text-5xl">
+          {item.title}
         </h2>
         <p className="max-w-4xl text-pretty text-lg leading-relaxed text-muted-foreground lg:text-xl">
-          {data.summary}
+          {summary}
         </p>
       </div>
-      <div>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setOpen((v) => !v)}
-          className="h-auto rounded-xl bg-card px-4 py-2 text-[14px] font-semibold text-foreground transition-colors hover:bg-muted"
-        >
-          {open ? "Hide the list" : "Show the list"}
-        </Button>
-        {open && (
-          <ul className="mt-4 grid max-w-6xl gap-2.5 lg:grid-cols-2">
-            {data.items.map((item) => (
-              <li
-                key={item.title}
-                className="rounded-xl border border-border bg-card px-4 py-3 text-[15px] leading-relaxed text-foreground"
-              >
-                {item.title}
-                <span className="mt-1 block">
-                  <IssueRefs issues={item.issues} />
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {Sample && (
+        <div className="space-y-2">
+          <p className="text-[13px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {sampleCaption(item.sample)}
+          </p>
+          <div className="rounded-2xl border border-border bg-muted/30 p-5">
+            <Sample />
+          </div>
+        </div>
+      )}
+      <IssueRefs issues={item.issues} />
     </div>
   )
 }
@@ -298,7 +291,7 @@ function Overview({ data, sizes, onPick }) {
                 si === 0
                   ? data.headline[ii].title
                   : si === 1
-                    ? `${data.underTheHood.items.length} fixes and safety changes`
+                    ? data.underTheHood.items[ii].title
                     : si === 2
                       ? data.roadmap.phases[ii].name
                       : data.prototypes[ii].title
@@ -360,6 +353,11 @@ export default function PresentationDeck({ data }) {
     (event) => {
       const tag = event.target?.tagName
       if (tag === "INPUT" || tag === "TEXTAREA" || event.target?.isContentEditable) return
+      // A slide can open a real window (the demo SOR), which owns its own
+      // keys: ← / → step SORs, Shift + ← / → switch layout, Escape closes it.
+      // The deck moving underneath would close it mid-demo.
+      if (event.defaultPrevented || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return
+      if (document.querySelector('[role="dialog"]')) return
 
       if (event.key === "o" || event.key === "O") {
         event.preventDefault()
@@ -401,7 +399,16 @@ export default function PresentationDeck({ data }) {
 
   let slide = null
   if (pos.section === 0) slide = <HeadlineSlide key={data.headline[pos.item].id} row={data.headline[pos.item]} />
-  else if (pos.section === 1) slide = <UnderTheHoodSlide data={data.underTheHood} />
+  else if (pos.section === 1)
+    slide = (
+      <UnderTheHoodSlide
+        key={data.underTheHood.items[pos.item].sample}
+        item={data.underTheHood.items[pos.item]}
+        index={pos.item}
+        total={data.underTheHood.items.length}
+        summary={data.underTheHood.summary}
+      />
+    )
   else if (pos.section === 2)
     slide = (
       <RoadmapSlide

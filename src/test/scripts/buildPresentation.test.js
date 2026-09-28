@@ -263,7 +263,7 @@ describe("buildPresentation", () => {
     ],
     underTheHood: {
       summary: "Fixes and safety changes.",
-      items: [{ title: "Migrations are append-only", issues: [184] }],
+      items: [{ title: "Migrations are append-only", issues: [184], sample: "migrations" }],
     },
     epics: [
       {
@@ -345,6 +345,22 @@ describe("buildPresentation", () => {
         generatedAt: "2026-09-16T10:00:00.000Z",
       }),
     ).toThrow(/x/)
+  })
+
+  it("carries each fix's before-and-after sample through", () => {
+    expect(built.underTheHood.items[0].sample).toBe("migrations")
+  })
+
+  // A fix is a slide of its own; a slide with nothing to show is a claim.
+  it("refuses a fix that names no sample", () => {
+    expect(() =>
+      buildPresentation({
+        changelog,
+        supplement: { ...supplement, underTheHood: { summary: "s", items: [{ title: "Toasts stay clickable" }] } },
+        issues,
+        generatedAt: "2026-09-16T10:00:00.000Z",
+      }),
+    ).toThrow(/Toasts stay clickable/)
   })
 
   it("carries prototypes and the roadmap through", () => {
