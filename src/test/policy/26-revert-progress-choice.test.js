@@ -245,6 +245,30 @@ describe("Revert with a progress choice", () => {
         expect((await client.rpc("sor_revert_needs_progress_choice", { p_opportunity_id: id })).data).toBe(true)
     })
 
+    it("issue #402: a condition file given on the current visit is Stage Work, same as a tick", async () => {
+        const id = await freshSor()
+        await moveAs("dealOwner", id, stageB)
+        const [, visitB] = await visits(id)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_needs_progress_choice", { p_opportunity_id: id })).data).toBe(false)
+
+        // Mimics StageChecklist.jsx's stampAndAttach: a condition file is
+        // recorded only as an attachment note, tagged with the condition and
+        // the current Stage Visit (the trigger-set stage_visit_id column).
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: id,
+            author_id: ids.dealOwner,
+            type: "COMMENT",
+            content: `${MARKER} Attached document: a condition`,
+            metadata: { attachments: [{ url: "https://example.com/f.pdf", name: "f.pdf", conditionId: crypto.randomUUID(), stageVisitId: visitB.id }] },
+        })
+
+        expect((await client.rpc("sor_revert_needs_progress_choice", { p_opportunity_id: id })).data).toBe(true)
+
+        const { error } = await revertAs("dealOwner", id)
+        expect(error?.message).toMatch(/Stage Work was done/)
+    })
+
     it("a reverter shut out of the Stage being left is never asked, and Revert keeps progress", async () => {
         const group = (await svc().from("employee_groups").insert({ name: `${MARKER} Shut Out Of B` }).select("id").single()).data.id
         groupIds.push(group)
