@@ -57,6 +57,7 @@ export default function SorModalHeader({
   stageMutation,
   handleStageChange,
   checklist,
+  missingRequiredStageFields = [],
   isOpen,
   hasPrev,
   hasNext,
@@ -89,9 +90,15 @@ export default function SorModalHeader({
 
   const currentIndex = pipelineStages.findIndex((s) => s.code === opportunity.status);
   const lastIndex = pipelineStages.length - 1;
-  const blockedCount = checklist.filter(
-    ({ condition, status }) => condition?.is_required && status === "unsatisfied",
-  ).length;
+  // Issue #407 — a required, empty Stage Field blocks the move exactly like
+  // an unsatisfied required Condition (`assertStageGateSatisfied` refuses
+  // either), so both count toward "Blocked: N" and both name themselves in
+  // the ribbon's blockedBy list. Before this, the badge only ever looked at
+  // `checklist` and could read "Clear to move" while a Stage Field still
+  // blocked the server-side move.
+  const blockedCount =
+    checklist.filter(({ condition, status }) => condition?.is_required && status === "unsatisfied").length +
+    missingRequiredStageFields.length;
 
   const legacyRibbon = (
     <div className="relative w-full">
@@ -391,9 +398,12 @@ export default function SorModalHeader({
             opportunity={opportunity}
             isMoving={stageMutation.isPending}
             disabled={moveDisabled}
-            blockedBy={checklist
-              .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
-              .map(({ condition }) => condition.label)}
+            blockedBy={[
+              ...checklist
+                .filter(({ condition, status }) => condition?.is_required && status === "unsatisfied")
+                .map(({ condition }) => condition.label),
+              ...missingRequiredStageFields.map((field) => field.label),
+            ]}
             returnStageIds={returnStageIds}
             onMove={(flowStageId) =>
               stageMutation.mutate({ next: flowStageId, reason: null, salesReference: null })

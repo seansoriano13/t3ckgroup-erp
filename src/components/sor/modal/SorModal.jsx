@@ -17,6 +17,8 @@ import { odooService } from "../../../services/odooService";
 import { quotationService } from "../../../services/quotationService";
 import { purchasingService } from "../../../services/purchasingService";
 import { salesFlowService } from "../../../services/salesFlowService";
+import { stageFieldService } from "../../../services/stageFieldService";
+import { missingStageFields } from "../../../constants/stageGate";
 import { flowStageTone } from "../../../constants/salesFlow";
 import { openRequests } from "../../../constants/procurement";
 import { usePipelineStages } from "../../../hooks/usePipelineStages";
@@ -293,6 +295,34 @@ export default function SorModal({
     const allowed = new Set(visitAudienceIds);
     return employees.filter((e) => allowed.has(e.id));
   }, [employees, currentVisitId, visitAudienceIds]);
+
+  // Issue #407 — the header's "Clear to move"/"Blocked" badge (and the
+  // "Can't move on yet" message under the ribbon) used to be judged on
+  // `checklist` alone, i.e. Stage Conditions. A Stage Field is also part of
+  // the same Stage Gate (`assertStageGateSatisfied` refuses the move for
+  // either), so a required, empty Stage Field read as "clear" right up until
+  // the move itself came back refused. Fetched here, not just inside Now's
+  // Stage Fields form, so the header can name it before the click.
+  const { data: stageFields = [] } = useQuery({
+    queryKey: ["stageFields", rawOpportunity?.flow_stage_id],
+    queryFn: () => stageFieldService.getForStage(rawOpportunity.flow_stage_id),
+    enabled: !!rawOpportunity?.flow_stage_id && isOpen,
+  });
+
+  const { data: currentVisitFieldValues = {} } = useQuery({
+    queryKey: ["stageFieldValues", currentVisitId],
+    queryFn: () => stageFieldService.getValuesForVisit(currentVisitId),
+    enabled: !!currentVisitId && isOpen,
+  });
+
+  const missingRequiredStageFields = useMemo(
+    () =>
+      missingStageFields(stageFields, {
+        opportunity: rawOpportunity || {},
+        visitValues: currentVisitFieldValues,
+      }),
+    [stageFields, rawOpportunity, currentVisitFieldValues],
+  );
 
   // Only Details shows or edits a Lead Source (#302), so it waits for Details.
   const { data: activeLeadSources = [] } = useQuery({
@@ -888,6 +918,7 @@ export default function SorModal({
     returnStageIds,
     handleStageChange,
     checklist,
+    missingRequiredStageFields,
     isOpen,
     hasPrev,
     hasNext,
