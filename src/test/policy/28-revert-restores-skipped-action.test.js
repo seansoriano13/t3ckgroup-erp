@@ -145,7 +145,7 @@ describe("Revert restores an Optional Action the reverted move skipped", () => {
     it("S94005: a Keep-progress Revert holds a still-pending run — not decidable until Resume", async () => {
         const id = await freshSor()
         await moveAs("dealOwner", id, stageB)
-        const [visitA, visitB] = await visits(id)
+        const [, visitB] = await visits(id)
 
         // Real Stage Work on B (an AWAITING APPROVAL task) forces the choice.
         expect((await svc()
