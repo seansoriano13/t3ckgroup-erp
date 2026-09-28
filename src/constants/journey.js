@@ -141,6 +141,76 @@ export function stageFollowUpReminderCount(logs = [], visitId) {
   ).length
 }
 
+/**
+ * A "skipped" run that was never actually decided (#398) — `sor_finish_action_run`
+ * auto-skips any still-`pending` run when the SOR leaves its Stage (see
+ * `moveOpportunityStage`), and that write never sets `decided_by`. A real
+ * Decider's skip always goes through `sor_decide_action_run`, which stamps
+ * `decided_by`/`decided_at` — so its absence on a `skipped` run is exactly
+ * "left undecided, counted as skipped", never ambiguous with a real decision.
+ */
+export function isLeftUndecided(run) {
+  return run?.outcome === "skipped" && !run?.decided_by
+}
+
+/**
+ * One row per Stage Action run on a visit (#398), in the Stage's flow order —
+ * not the order runs happened to be decided in, so the list reads the same
+ * shape as the Stage itself. An action with no run at all (nothing ever
+ * fired for it, e.g. the visit is still current) is left out rather than
+ * guessed at; `sor_begin_action_run` stamps one for every action the moment
+ * a visit opens, so a closed visit's actions all have one.
+ *
+ * `tasksById`/`groupTasksById` resolve a `created` run's `task_id`/
+ * `group_task_id` back to the full task row so the caller can render it with
+ * `TaskRow`, the same component (and open mechanism) the Now tab uses.
+ * `labelFor` names the action from its own config — passed in rather than
+ * imported, so this module stays free of `opportunityService`'s private
+ * `stageActionName` and the two files never form a cycle.
+ */
+export function stageActionRuns(actions = [], runs = [], { tasksById = {}, groupTasksById = {}, labelFor } = {}) {
+  const ordered = [...actions].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+  const runsByActionId = Object.fromEntries((runs || []).map((r) => [r.action_id, r]))
+
+  return ordered
+    .map((action) => {
+      const run = runsByActionId[action.id]
+      if (!run) return null
+      return {
+        id: run.id,
+        actionId: action.id,
+        label: labelFor ? labelFor(action) : action.id,
+        outcome: run.outcome,
+        leftUndecided: isLeftUndecided(run),
+        decidedBy: run.decided_by ?? null,
+        decidedAt: run.decided_at ?? null,
+        task: run.task_id ? (tasksById[run.task_id] ?? null) : null,
+        groupTask: run.group_task_id ? (groupTasksById[run.group_task_id] ?? null) : null,
+      }
+    })
+    .filter(Boolean)
+}
+
+/**
+ * Tasks/Group Tasks on a visit that no Stage Action run claims (#398) — legacy
+ * ones predating #204's per-action ledger. Anything a run's `task`/`groupTask`
+ * already names is that action's, not "Other tasks"'s, so a #204-created task
+ * is never listed twice.
+ */
+export function otherTaskRows(tasks = [], groupTasks = [], actionRuns = []) {
+  const claimedTaskIds = new Set(actionRuns.map((r) => r.task?.id).filter(Boolean))
+  const claimedGroupTaskIds = new Set(actionRuns.map((r) => r.groupTask?.id).filter(Boolean))
+  return {
+    tasks: (tasks || []).filter((t) => !claimedTaskIds.has(t.id)),
+    groupTasks: (groupTasks || []).filter((t) => !claimedGroupTaskIds.has(t.id)),
+  }
+}
+
+/** How many of a visit's action runs were skipped (decided or left undecided) — the header's "N skipped" chip (#398). */
+export function skippedRunCount(actionRuns = []) {
+  return (actionRuns || []).filter((r) => r.outcome === "skipped").length
+}
+
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`
 
 /**

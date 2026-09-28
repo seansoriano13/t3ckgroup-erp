@@ -3049,7 +3049,7 @@ describe("opportunityService", () => {
   describe("the Journey (#300)", () => {
     // Three visits with fixed windows: Lead, then Qualified, then back to
     // Lead — the loop is what makes per-visit evidence observable.
-    let deal, lead, qualified, v1, v2, v3, estimator, creator, siteField
+    let deal, lead, qualified, v1, v2, v3, estimator, creator, siteField, kickoffAction, surveyAction
 
     beforeEach(() => {
       const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
@@ -3075,6 +3075,20 @@ describe("opportunityService", () => {
       // label from, for tests that fill one and leave the other blank.
       siteField = makeStageField({ stage_id: lead.id, label: "Site survey date", sort_order: 0 })
       makeStageField({ stage_id: lead.id, label: "Access notes", sort_order: 1 })
+      // #398: two Stage Actions on Lead, in flow order, so History has
+      // something to attribute a run to.
+      kickoffAction = makeStageAction({
+        stage_id: lead.id,
+        sort_order: 0,
+        kind: "create_individual_task",
+        config: { title: "Kickoff task" },
+      })
+      surveyAction = makeStageAction({
+        stage_id: lead.id,
+        sort_order: 1,
+        kind: "create_group_task",
+        config: { title: "Site survey" },
+      })
       const snapshot = makeFlowSnapshot({ flow_id: flow.id })
       // No flow_stage_id: the visit trigger would open a sequence-1 visit of
       // its own on insert, and these windows need to be stated exactly.
@@ -3309,6 +3323,144 @@ describe("opportunityService", () => {
         expect(first.stageFields).toEqual({ filled: [], notFilled: [] })
         expect(first.followUps).toEqual([])
         expect(first.followUpReminderCount).toBe(0)
+      })
+    })
+
+    describe("History: Stage Action outcomes (#398)", () => {
+      it("attaches a created individual task to its action's run", async () => {
+        const task = makeTask({ opportunity_id: deal.id, stage_visit_id: v1.id, project_title: "Kickoff" })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          task_id: task.id,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toHaveLength(1)
+        expect(first.actionRuns[0]).toMatchObject({ label: "Kickoff task", outcome: "created" })
+        expect(first.actionRuns[0].task.id).toBe(task.id)
+        expect(first.actionRuns[0].groupTask).toBeNull()
+      })
+
+      it("attaches a created Group Task to its action's run", async () => {
+        const group = makeGroupTask({ opportunity_id: deal.id, stage_visit_id: v1.id, created_by: creator.id })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: surveyAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          group_task_id: group.id,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        const run = first.actionRuns.find((r) => r.actionId === surveyAction.id)
+        expect(run.groupTask.id).toBe(group.id)
+        expect(run.task).toBeNull()
+      })
+
+      it("orders runs in the Stage's flow order, not the order they were decided", async () => {
+        // Seeded survey (sort_order 1) before kickoff (sort_order 0) — the
+        // output must still read kickoff first.
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: surveyAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns.map((r) => r.actionId)).toEqual([kickoffAction.id, surveyAction.id])
+      })
+
+      it("names who skipped it and when, for an explicit decision", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "skipped",
+          decided_by: estimator.id,
+          decided_at: "2026-01-08T00:00:00.000Z",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        const run = first.actionRuns[0]
+        expect(run.leftUndecided).toBe(false)
+        expect(run.decidedBy).toMatchObject({ id: estimator.id, name: "Estimator" })
+        expect(run.decidedAt).toBe("2026-01-08T00:00:00.000Z")
+      })
+
+      // Leaving a Stage auto-skips any still-`pending` run via
+      // sor_finish_action_run (see moveOpportunityStage) — that write never
+      // sets decided_by, which is exactly what "left undecided" means.
+      it("marks a run left undecided, counted as skipped, when no one decided it", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "skipped",
+          decided_by: null,
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns[0]).toMatchObject({ outcome: "skipped", leftUndecided: true, decidedBy: null })
+      })
+
+      it("carries a failed run with no task attached", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "failed",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns[0]).toMatchObject({ outcome: "failed", task: null, groupTask: null })
+      })
+
+      it("leaves a legacy task with no action run out of actionRuns entirely", async () => {
+        makeTask({ opportunity_id: deal.id, stage_visit_id: v1.id })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toEqual([])
+        expect(first.tasks).toHaveLength(1)
+      })
+
+      it("never fetches action runs for a restricted visit (#296 unaffected)", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+        })
+        stubRpc("sor_visible_visit_ids", () => [v2.id, v3.id])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.isRestricted).toBe(true)
+        expect(first.actionRuns).toEqual([])
       })
     })
   })

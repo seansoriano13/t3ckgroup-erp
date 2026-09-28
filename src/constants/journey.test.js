@@ -10,6 +10,10 @@ import {
   stageFieldRows,
   stageFollowUpLogs,
   stageFollowUpReminderCount,
+  isLeftUndecided,
+  stageActionRuns,
+  otherTaskRows,
+  skippedRunCount,
 } from "./journey"
 import { CONDITION_KINDS, CONDITION_STATUS } from "./stageGate"
 import { TASK_STATUS } from "./status"
@@ -270,6 +274,98 @@ describe("stageFollowUpLogs / stageFollowUpReminderCount (#397)", () => {
     expect(stageFollowUpReminderCount(logs, "visit-1")).toBe(2)
     expect(stageFollowUpReminderCount(logs, "visit-2")).toBe(1)
     expect(stageFollowUpReminderCount(logs, "visit-3")).toBe(0)
+  })
+})
+
+describe("isLeftUndecided (#398)", () => {
+  it("is true only for a skipped run with no decider", () => {
+    expect(isLeftUndecided({ outcome: "skipped", decided_by: null })).toBe(true)
+    expect(isLeftUndecided({ outcome: "skipped", decided_by: "emp-1" })).toBe(false)
+    expect(isLeftUndecided({ outcome: "created", decided_by: null })).toBe(false)
+    expect(isLeftUndecided({ outcome: "failed", decided_by: null })).toBe(false)
+  })
+})
+
+describe("stageActionRuns (#398)", () => {
+  const actions = [
+    { id: "action-2", sort_order: 1, kind: "create_individual_task", config: { title: "Second" } },
+    { id: "action-1", sort_order: 0, kind: "create_group_task", config: { title: "First" } },
+  ]
+  const labelFor = (action) => action.config.title
+
+  it("orders runs by the Stage's flow order, not run order", () => {
+    const runs = [
+      { action_id: "action-2", id: "run-2", outcome: "created", task_id: "task-1" },
+      { action_id: "action-1", id: "run-1", outcome: "created", group_task_id: "group-1" },
+    ]
+
+    const rows = stageActionRuns(actions, runs, {
+      tasksById: { "task-1": { id: "task-1" } },
+      groupTasksById: { "group-1": { id: "group-1" } },
+      labelFor,
+    })
+
+    expect(rows.map((r) => r.id)).toEqual(["run-1", "run-2"])
+    expect(rows[0]).toMatchObject({ label: "First", outcome: "created", groupTask: { id: "group-1" } })
+    expect(rows[1]).toMatchObject({ label: "Second", outcome: "created", task: { id: "task-1" } })
+  })
+
+  it("leaves out an action with no run at all", () => {
+    const rows = stageActionRuns(actions, [{ action_id: "action-1", id: "run-1", outcome: "skipped" }], { labelFor })
+    expect(rows.map((r) => r.actionId)).toEqual(["action-1"])
+  })
+
+  it("marks a skipped run left undecided when it carries no decider", () => {
+    const rows = stageActionRuns(
+      actions,
+      [{ action_id: "action-1", id: "run-1", outcome: "skipped", decided_by: null }],
+      { labelFor },
+    )
+    expect(rows[0].leftUndecided).toBe(true)
+  })
+
+  it("carries the decider and when for an explicitly skipped run", () => {
+    const rows = stageActionRuns(
+      actions,
+      [{ action_id: "action-1", id: "run-1", outcome: "skipped", decided_by: "emp-1", decided_at: "2026-09-03T00:00:00Z" }],
+      { labelFor },
+    )
+    expect(rows[0]).toMatchObject({ leftUndecided: false, decidedBy: "emp-1", decidedAt: "2026-09-03T00:00:00Z" })
+  })
+
+  it("carries a failed run with no task attached", () => {
+    const rows = stageActionRuns(actions, [{ action_id: "action-1", id: "run-1", outcome: "failed" }], { labelFor })
+    expect(rows[0]).toMatchObject({ outcome: "failed", task: null, groupTask: null })
+  })
+})
+
+describe("otherTaskRows (#398)", () => {
+  it("excludes tasks/group tasks a Stage Action run already claims", () => {
+    const tasks = [{ id: "t1" }, { id: "t2" }]
+    const groupTasks = [{ id: "g1" }]
+    const actionRuns = [{ task: { id: "t1" } }]
+
+    expect(otherTaskRows(tasks, groupTasks, actionRuns)).toEqual({
+      tasks: [{ id: "t2" }],
+      groupTasks: [{ id: "g1" }],
+    })
+  })
+
+  it("returns everything when no run claims anything (legacy, pre-#204)", () => {
+    const tasks = [{ id: "t1" }]
+    expect(otherTaskRows(tasks, [], [])).toEqual({ tasks: [{ id: "t1" }], groupTasks: [] })
+  })
+})
+
+describe("skippedRunCount (#398)", () => {
+  it("counts skipped runs, decided or left undecided, never created/failed ones", () => {
+    const runs = [
+      { outcome: "skipped", leftUndecided: false },
+      { outcome: "skipped", leftUndecided: true },
+      { outcome: "created" },
+      { outcome: "failed" },
+    ]
+    expect(skippedRunCount(runs)).toBe(2)
   })
 })
 

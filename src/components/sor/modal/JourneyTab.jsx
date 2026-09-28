@@ -25,7 +25,13 @@ import { useSorModalData } from "./useSorModalData";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
 import { ExternalLink as ExternalAnchor } from "../../ui/external-link";
-import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../constants/journey";
+import {
+  isConditionOutstanding,
+  isTaskDeleted,
+  journeyRows,
+  otherTaskRows,
+  skippedRunCount,
+} from "../../../constants/journey";
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
 import { REVERT_CHOICE } from "../../../constants/revertChoice";
@@ -227,6 +233,46 @@ function FollowUpsSection({ followUps = [], reminderCount = 0 }) {
   );
 }
 
+/** One Stage Action's run on a past visit (#398): what it did, in the Stage's own flow order. */
+function ActionRunLine({ run }) {
+  if (run.outcome === "created") {
+    const entity = run.groupTask || run.task;
+    const rowData = run.groupTask ? groupTaskRow(run.groupTask) : run.task ? individualTaskRow(run.task) : null;
+    if (!rowData) return null;
+    return <TaskRow row={{ ...rowData, status: entity?.status, carried: Boolean(entity?.carried_from_visit_id) }} />;
+  }
+
+  if (run.outcome === "failed") {
+    return (
+      <div className="flex items-center gap-2 text-[11px] leading-5">
+        <span className="min-w-0 flex-1 font-medium text-foreground">{run.label}</span>
+        <span className="shrink-0 font-bold text-red-11">Failed to create</span>
+      </div>
+    );
+  }
+
+  // outcome === "skipped"
+  if (run.leftUndecided) {
+    return (
+      <div className="flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+        <span className="min-w-0 flex-1 font-medium text-foreground">{run.label}</span>
+        <span className="shrink-0">Not decided, counted as skipped</span>
+      </div>
+    );
+  }
+
+  const when = formatWhen(run.decidedAt);
+  return (
+    <div className="flex items-center gap-2 text-[11px] leading-5 text-muted-foreground">
+      <span className="min-w-0 flex-1 font-medium text-foreground">{run.label}</span>
+      <span className="shrink-0">
+        Skipped by <Person person={run.decidedBy} />
+        {when && `, ${when}`}
+      </span>
+    </div>
+  );
+}
+
 function VisitGroup({ label, children, count }) {
   if (count === 0) return null;
   return (
@@ -283,14 +329,19 @@ function PastVisit({ row, onToggle }) {
   const tasks = visit.tasks.filter(notDeleted);
   const groupTasks = visit.groupTasks.filter(notDeleted);
   const taskCount = tasks.length + groupTasks.length;
+  const actionRuns = visit.actionRuns || [];
+  const skipped = skippedRunCount(actionRuns);
+  // #398: a task a Stage Action created is shown on its run's line; only the
+  // rest (hand-logged, or pre-#204 with no run) stay under "Other tasks".
+  const { tasks: otherTasks, groupTasks: otherGroupTasks } = otherTaskRows(tasks, groupTasks, actionRuns);
 
   const taskRowsList = [
-    ...groupTasks.map((t) => ({
+    ...otherGroupTasks.map((t) => ({
       ...groupTaskRow(t),
       status: t.status,
       carried: Boolean(t.carried_from_visit_id),
     })),
-    ...tasks.map((t) => ({
+    ...otherTasks.map((t) => ({
       ...individualTaskRow(t),
       status: t.status,
       carried: Boolean(t.carried_from_visit_id),
@@ -338,6 +389,11 @@ function PastVisit({ row, onToggle }) {
         >
           {unmet > 0 ? `${unmet} unmet` : "All met"}
         </span>
+        {skipped > 0 && (
+          <span className="shrink-0 rounded-md bg-mauve-a4 px-1.5 py-0.5 text-[10px] font-black uppercase text-muted-foreground">
+            {skipped} skipped
+          </span>
+        )}
         <span className="shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
           {allDeliverables.length > 0 ? `${allDeliverables.length} file${allDeliverables.length === 1 ? "" : "s"} · ` : ""}
           {taskCount} task{taskCount === 1 ? "" : "s"}
@@ -360,8 +416,16 @@ function PastVisit({ row, onToggle }) {
             </VisitGroup>
           )}
 
+          <VisitGroup label="Stage actions" count={actionRuns.length}>
+            <div className="space-y-1.5">
+              {actionRuns.map((run) => (
+                <ActionRunLine key={run.id} run={run} />
+              ))}
+            </div>
+          </VisitGroup>
+
           {taskRowsList.length > 0 && (
-            <VisitGroup label="Tasks" count={taskRowsList.length}>
+            <VisitGroup label="Other tasks" count={taskRowsList.length}>
               <div className="space-y-1.5">
                 {taskRowsList.map((r) => (
                   <TaskRow key={`${r.kind}-${r.id}`} row={r} />
@@ -395,7 +459,7 @@ function PastVisit({ row, onToggle }) {
             </VisitGroup>
           )}
 
-          {!visit.resumedAt && visit.conditions.length === 0 && taskCount === 0 && allDeliverables.length === 0 &&
+          {!visit.resumedAt && visit.conditions.length === 0 && taskCount === 0 && actionRuns.length === 0 && allDeliverables.length === 0 &&
             !(visit.stageFields?.filled?.length || visit.stageFields?.notFilled?.length) &&
             !(visit.followUps?.length || visit.followUpReminderCount) && (
             <p className="text-[11px] text-muted-foreground">Nothing was recorded on this visit.</p>

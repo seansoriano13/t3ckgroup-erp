@@ -46,6 +46,7 @@ import {
   stageFieldRows,
   stageFollowUpLogs,
   stageFollowUpReminderCount,
+  stageActionRuns,
 } from "../constants/journey";
 import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
 import { REVERT_CHOICE } from "../constants/revertChoice";
@@ -3901,7 +3902,7 @@ export const opportunityService = {
 
     const visitIds = visits.map((v) => v.id);
 
-    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes, stageFieldValuesRes, opportunityLogsRes] =
+    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes, stageFieldValuesRes, opportunityLogsRes, actionRunsRes] =
       await Promise.all([
         snapshotIds.length > 0
           ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
@@ -3922,6 +3923,14 @@ export const opportunityService = {
         // for the whole SOR since every visit needs it, not just ones with
         // conditions.
         supabase.from("sales_opportunity_logs").select("author_id, created_at, content, metadata").eq("opportunity_id", opportunityId),
+        // #398: every Stage Action run for this SOR, scoped per visit below by
+        // `stage_visit_id` — the fire-once ledger from #204, so a visit's
+        // "what did each action do" is provable from its own runs, not a
+        // rebuild from task timestamps.
+        supabase
+          .from("sor_action_runs")
+          .select("id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, task_id, group_task_id")
+          .eq("opportunity_id", opportunityId),
       ]);
     if (snapshotsRes.error) throw snapshotsRes.error;
     if (stagesRes.error) throw stagesRes.error;
@@ -3929,6 +3938,7 @@ export const opportunityService = {
     if (groupTasksRes.error) throw groupTasksRes.error;
     if (stageFieldValuesRes.error) throw stageFieldValuesRes.error;
     if (opportunityLogsRes.error) throw opportunityLogsRes.error;
+    if (actionRunsRes.error) throw actionRunsRes.error;
 
     const snapshotsById = Object.fromEntries((snapshotsRes.data || []).map((s) => [s.id, s]));
     const liveStagesById = Object.fromEntries((stagesRes.data || []).map((s) => [s.id, s]));
@@ -3957,6 +3967,9 @@ export const opportunityService = {
 
     const tasks = tasksRes.data || [];
     const groupTasks = groupTasksRes.data || [];
+    const actionRuns = actionRunsRes.data || [];
+    const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
+    const groupTasksById = Object.fromEntries(groupTasks.map((t) => [t.id, t]));
 
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
@@ -3996,6 +4009,17 @@ export const opportunityService = {
             ),
         followUps: isRestricted ? [] : stageFollowUpLogs(opportunityLogs, visit.id),
         followUpReminderCount: isRestricted ? 0 : stageFollowUpReminderCount(opportunityLogs, visit.id),
+        // #398: what each Stage Action run did on this visit, in the Stage's
+        // own flow order — scoped to runs stamped with THIS visit's id, since
+        // #204's fire-once ledger means a looped-back visit's already-decided
+        // actions belong to the visit that first fired them, not this one.
+        actionRuns: isRestricted
+          ? []
+          : stageActionRuns(
+              actionsForSnapshotStage(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.actions || [], visit.flow_stage_id),
+              actionRuns.filter((r) => r.stage_visit_id === visit.id),
+              { tasksById, groupTasksById, labelFor: stageActionName },
+            ),
       };
     });
 
@@ -4080,6 +4104,7 @@ export const opportunityService = {
         ...withConditions.flatMap((v) => (v.attachments || []).map((a) => a.uploadedBy)),
         ...withConditions.flatMap((v) => (v.conditions || []).flatMap((c) => (c.files || []).map((f) => f.uploadedBy))),
         ...withConditions.flatMap((v) => (v.followUps || []).map((f) => f.loggedBy)),
+        ...withConditions.flatMap((v) => (v.actionRuns || []).map((r) => r.decidedBy)),
       ].filter(Boolean)),
     ];
     let peopleById = {};
@@ -4109,6 +4134,10 @@ export const opportunityService = {
       followUps: visit.followUps.map((row) => ({
         ...row,
         loggedBy: row.loggedBy ? (peopleById[row.loggedBy] ?? null) : null,
+      })),
+      actionRuns: visit.actionRuns.map((row) => ({
+        ...row,
+        decidedBy: row.decidedBy ? (peopleById[row.decidedBy] ?? null) : null,
       })),
     }));
   },

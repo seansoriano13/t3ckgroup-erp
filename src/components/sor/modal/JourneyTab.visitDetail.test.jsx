@@ -23,6 +23,7 @@ function baseVisit(overrides = {}) {
     stageFields: { filled: [], notFilled: [] },
     followUps: [],
     followUpReminderCount: 0,
+    actionRuns: [],
     ...overrides,
   }
 }
@@ -191,6 +192,160 @@ describe("JourneyTab — past visit detail (#397)", () => {
     await renderJourney([currentVisit(), baseVisit()])
 
     expect(await screen.findByText("Nothing was recorded on this visit.")).toBeInTheDocument()
+  })
+
+  it("renders a created task's action run so the title opens it via OPEN_ENTITY_DETAILS (#398)", async () => {
+    const handler = vi.fn()
+    window.addEventListener("OPEN_ENTITY_DETAILS", handler)
+
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "action-1",
+            label: "Kickoff task",
+            outcome: "created",
+            leftUndecided: false,
+            decidedBy: null,
+            decidedAt: null,
+            task: { id: "task-1", project_title: "Kickoff", status: "INCOMPLETE", end_at: null },
+            groupTask: null,
+          },
+        ],
+      }),
+    ])
+
+    const title = await screen.findByTitle("Kickoff")
+    fireEvent.click(title)
+
+    expect(handler).toHaveBeenCalledTimes(1)
+    expect(handler.mock.calls[0][0].detail).toEqual({ id: "task-1", type: "TASK" })
+    window.removeEventListener("OPEN_ENTITY_DETAILS", handler)
+  })
+
+  it("shows who skipped an action run and when (#398)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "action-1",
+            label: "Kickoff task",
+            outcome: "skipped",
+            leftUndecided: false,
+            decidedBy: { id: "emp-1", name: "Alice", avatar_path: null },
+            decidedAt: "2026-09-03T00:00:00Z",
+            task: null,
+            groupTask: null,
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText(/Skipped by/)).toBeInTheDocument()
+    expect(screen.getAllByText("Alice").length).toBeGreaterThan(0)
+  })
+
+  it("shows 'Not decided, counted as skipped' for a run no one decided (#398)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "action-1",
+            label: "Kickoff task",
+            outcome: "skipped",
+            leftUndecided: true,
+            decidedBy: null,
+            decidedAt: null,
+            task: null,
+            groupTask: null,
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText("Not decided, counted as skipped")).toBeInTheDocument()
+  })
+
+  it("shows 'Failed to create' for a failed action run (#398)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "action-1",
+            label: "Kickoff task",
+            outcome: "failed",
+            leftUndecided: false,
+            decidedBy: null,
+            decidedAt: null,
+            task: null,
+            groupTask: null,
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText("Failed to create")).toBeInTheDocument()
+  })
+
+  it("groups a legacy task with no action run under 'Other tasks' (#398)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        tasks: [
+          {
+            id: "legacy-1",
+            status: "INCOMPLETE",
+            project_title: "Legacy task",
+            assignee: null,
+            end_at: null,
+            created_at: "2026-01-02T00:00:00Z",
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText("Other tasks (1)")).toBeInTheDocument()
+    expect(screen.getByTitle("Legacy task")).toBeInTheDocument()
+  })
+
+  it("shows an 'N skipped' chip on the collapsed header only when a run was skipped (#398)", async () => {
+    vi.spyOn(opportunityService, "getJourney").mockResolvedValue([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "action-1",
+            label: "Kickoff task",
+            outcome: "skipped",
+            leftUndecided: true,
+            decidedBy: null,
+            decidedAt: null,
+            task: null,
+            groupTask: null,
+          },
+        ],
+      }),
+    ])
+    renderWithProviders(<JourneyTab opportunityId="opp-1" hasOpened={() => true} onGoToNow={() => {}} />)
+
+    expect(await screen.findByText("1 skipped")).toBeInTheDocument()
+  })
+
+  it("shows no 'skipped' chip when nothing was skipped (#398)", async () => {
+    vi.spyOn(opportunityService, "getJourney").mockResolvedValue([currentVisit(), baseVisit()])
+    renderWithProviders(<JourneyTab opportunityId="opp-1" hasOpened={() => true} onGoToNow={() => {}} />)
+
+    await screen.findByRole("button", { expanded: false })
+    expect(screen.queryByText(/skipped/)).not.toBeInTheDocument()
   })
 
   it("renders a restricted visit as one line, fetching and expanding nothing (#296 unaffected)", async () => {
