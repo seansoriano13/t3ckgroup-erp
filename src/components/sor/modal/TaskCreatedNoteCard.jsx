@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarClock } from "lucide-react";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
+import { Button } from "../../ui/button";
 import { NoteText } from "../../ui/MentionTextarea";
 import { taskService } from "../../../services/taskService";
 import { groupTaskService } from "../../../services/groupTaskService";
@@ -64,14 +65,16 @@ function TaskCard({ entity }) {
   return (
     <div className="mt-1.5 rounded-xl border border-border/80 bg-card p-3 shadow-xs">
       <div className="flex items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="link"
+          size="xs"
           onClick={() => openTask(entity)}
           title={entity.title}
-          className="min-w-0 flex-1 truncate text-left text-xs font-bold text-foreground hover:text-primary hover:underline"
+          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-bold text-foreground hover:text-primary"
         >
           {entity.title}
-        </button>
+        </Button>
 
         <div className="flex shrink-0 -space-x-1.5">
           {entity.avatars.slice(0, MAX_AVATARS).map((m) => (

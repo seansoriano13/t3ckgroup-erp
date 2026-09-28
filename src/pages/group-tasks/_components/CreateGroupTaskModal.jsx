@@ -572,12 +572,12 @@ export default function CreateGroupTaskModal({
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
                         Lead Time
                       </span>
-                      <input
+                      <Input
                         type="text"
                         value={leadTime}
                         onChange={(e) => setLeadTime(e.target.value)}
                         placeholder="e.g. 120 calendar days"
-                        className="bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                        className="h-auto w-48 bg-muted px-3 py-2 text-xs md:text-xs"
                       />
                     </div>
                   </>
