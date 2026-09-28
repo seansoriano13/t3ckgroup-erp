@@ -1813,6 +1813,32 @@ describe("opportunityService", () => {
         spy.mockRestore()
       })
 
+      it("renders the title template's tokens in the decision-due notification", async () => {
+        const decider = makeEmployee({ name: "Decider Dana" })
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: {
+            titleTemplate: "QA401 S2 optional (D decides) — {{so_number}}",
+            confirmMode: "confirm",
+            decider: [{ type: "employee", id: decider.id }],
+          },
+        })
+        const spy = vi.spyOn(notificationService, "createNotification")
+
+        const deal = await register({ sales_reference: "S94001" })
+        await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
+
+        expect(spy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            recipient_id: decider.id,
+            type: "OPPORTUNITY_ACTION_DECISION_DUE",
+            title: "QA401 S2 optional (D decides) — S94001",
+          }),
+        )
+        spy.mockRestore()
+      })
+
       it("Create produces the same task an automatic run would", async () => {
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({

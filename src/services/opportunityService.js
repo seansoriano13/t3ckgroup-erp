@@ -835,8 +835,8 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
           // Issue #204 Part 2 — "When confirmed": no task yet. Notify the
           // Deciders and leave the run pending; PendingActionDecisions.jsx
           // (or decideAction) resolves it later.
-          await notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors).catch((err) =>
-            console.error("notifyDeciders failed:", err),
+          await notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors, templateContext).catch(
+            (err) => console.error("notifyDeciders failed:", err),
           );
           continue;
         }
@@ -1016,7 +1016,7 @@ function dealTeamIds(opportunity) {
  * confirmed" action, once, when `sor_begin_action_run` first creates the
  * run (never on a subsequent gate-hit, since the run is no longer pending).
  */
-async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors) {
+async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors, templateContext) {
   const deciderIds = await resolveDeciderIds(deciderSelectors, existing);
   for (const recipientId of deciderIds) {
     await notificationService
@@ -1024,7 +1024,7 @@ async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderS
         recipient_id: recipientId,
         sender_id: actorId,
         type: "OPPORTUNITY_ACTION_DECISION_DUE",
-        title: stageActionName(action) || dealTitle,
+        title: renderActionTitle(action, templateContext) || dealTitle,
         message: `A Stage Action on "${existing.project_title || dealTitle}" (${to.name}) needs your decision: Create or Skip.`,
         reference_id: existing.id,
       })
@@ -1150,6 +1150,10 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       opportunityId: existing.id,
       stageActionId: action.id,
       stageVisitId: runRow?.stage_visit_id ?? null,
+      // Issue #404 — routes the insert through sor_create_stage_action_task
+      // instead of the mover's own tasks-insert permissions, so the run's id
+      // must be known before the task exists.
+      stageActionRunId: runRow.id,
     };
     if (config.dueOffsetDays) {
       const due = new Date();
@@ -1157,6 +1161,8 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
       payload.endAt = due.toISOString();
     }
 
+    // sor_create_stage_action_task marks the run `created` itself, atomically
+    // with the insert; only a failure still needs sor_finish_action_run here.
     const task = await taskService.createTask(payload).catch((err) => {
       console.error("Stage Action failed:", err);
       failedStageActions?.push(stageActionName(action));
@@ -1164,12 +1170,13 @@ async function buildAndCreateActionTask(action, existing, to, actorId, runRow, t
     });
 
     const taskId = task ? (task.id ?? task.data?.id ?? null) : null;
-    const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
-      p_run_id: runRow.id,
-      p_outcome: task ? "created" : "failed",
-      p_task_id: taskId,
-    });
-    if (finishError) console.error("sor_finish_action_run failed:", finishError);
+    if (!task) {
+      const { error: finishError } = await supabase.rpc("sor_finish_action_run", {
+        p_run_id: runRow.id,
+        p_outcome: "failed",
+      });
+      if (finishError) console.error("sor_finish_action_run failed:", finishError);
+    }
 
     if (task) {
       await opportunityService.addSystemNote(
