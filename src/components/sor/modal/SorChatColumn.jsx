@@ -7,6 +7,7 @@ import { AttachmentPreviews, AttachmentList } from "../../ui/Attachments";
 import { MAX_ATTACHMENT_BYTES, formatBytes, ALLOWED_EXTENSIONS_STRING } from "../../../utils/attachments";
 import MentionTextarea, { NoteText } from "../../ui/MentionTextarea";
 import { Button } from "../../ui/button";
+import TaskCreatedNoteCard from "./TaskCreatedNoteCard";
 
 function ProcurementLogNoteCard({ metadata }) {
   if (!metadata) return null;
@@ -106,6 +107,8 @@ export default function SorChatColumn({
                   </p>
                   {n.metadata?.event === "PROCUREMENT_UPDATE" ? (
                     <ProcurementLogNoteCard metadata={n.metadata} />
+                  ) : n.metadata?.event === "STAGE_ACTION_TASK_CREATED" ? (
+                    <TaskCreatedNoteCard note={n} />
                   ) : n.type === "SYSTEM" && n.metadata?.changes?.length > 0 ? (
                     <ul className="mt-0.5 space-y-0.5">
                       {n.metadata.changes.map((change, idx) => (
