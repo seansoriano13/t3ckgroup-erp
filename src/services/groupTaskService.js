@@ -68,10 +68,32 @@ const flattenTags = (row) => ({
   tags: (row.tags || []).map((t) => t.tag).filter(Boolean),
 });
 
+// Blank typed text means unset, stored as null rather than "".
+const blankToNull = (value) => (typeof value === "string" ? value.trim() : value) || null;
+
+// The task-level fields a caller edits, by payload key: its column, and how a
+// typed value becomes a stored one.
+const DETAIL_FIELDS = {
+  title: { column: "title", toColumn: (v) => v },
+  description: { column: "description", toColumn: (v) => v },
+  dueDate: { column: "due_date", toColumn: (v) => (v ? new Date(v).toISOString() : null) },
+  startDate: { column: "start_date", toColumn: blankToNull },
+  leadTime: { column: "lead_time", toColumn: blankToNull },
+};
+
+// Maps whichever detail fields `payload` carries to their columns; a key the
+// payload doesn't have is left out, not nulled.
+const toDetailColumns = (payload) =>
+  Object.fromEntries(
+    Object.entries(DETAIL_FIELDS)
+      .filter(([key]) => key in payload)
+      .map(([key, { column, toColumn }]) => [column, toColumn(payload[key])]),
+  );
+
 export const groupTaskService = {
   // CREATE
   async createGroupTask(payload) {
-    const { title, description, dueDate, createdBy, members, templateId, opportunityId, stageActionId, stageVisitId, tagIds } = payload;
+    const { title, description, dueDate, startDate, leadTime, createdBy, members, templateId, opportunityId, stageActionId, stageVisitId, tagIds } = payload;
 
     if (!members || members.length === 0) {
       throw new Error("Add at least one member to the group task");
@@ -83,7 +105,7 @@ export const groupTaskService = {
         {
           title,
           description,
-          due_date: dueDate ? new Date(dueDate).toISOString() : null,
+          ...toDetailColumns({ dueDate, startDate, leadTime }),
           created_by: createdBy,
           status: "ACTIVE",
           template_id: templateId ?? null,
@@ -167,22 +189,20 @@ export const groupTaskService = {
 
   // UPDATE - Global Group Task fields
   async updateGroupTask(id, payload, actorId) {
-    const { title, description, dueDate } = payload;
-    
+    // Only the fields the caller sent are written, so a caller that knows
+    // nothing of, say, Lead Time can't blank it by leaving it out.
+    const changes = toDetailColumns(payload);
+
     const { data: oldTask, error: fetchError } = await supabase
       .from("committee_tasks")
-      .select("title, description, due_date")
+      .select(Object.keys(changes).join(", "))
       .eq("id", id)
       .single();
     if (fetchError) throw fetchError;
 
     const { data: groupTask, error } = await supabase
       .from("committee_tasks")
-      .update({
-        title,
-        description,
-        due_date: dueDate ? new Date(dueDate).toISOString() : null,
-      })
+      .update(changes)
       .eq("id", id)
       .select()
       .single();
@@ -192,10 +212,7 @@ export const groupTaskService = {
     await logGroupTaskActivity(
       id,
       "TASK_UPDATED",
-      {
-        old: oldTask,
-        new: { title, description, due_date: dueDate },
-      },
+      { old: oldTask, new: changes },
       actorId
     );
     
@@ -578,12 +595,20 @@ export const groupTaskService = {
   },
 
   async removeMemberFromTask(memberId, groupTaskId, actorId) {
-    const { error } = await supabase
+    // RLS refuses a delete by matching zero rows, not by erroring — so the
+    // row count, not the error, is what says the member is really gone.
+    const { data, error } = await supabase
       .from("committee_task_members")
       .delete()
-      .eq("id", memberId);
+      .eq("id", memberId)
+      .select("id");
 
     if (error) throw error;
+    if (!data?.length) {
+      throw new Error(
+        "This member wasn't removed. They may already be off the task, or you don't have permission to remove them.",
+      );
+    }
 
     await logGroupTaskActivity(
       groupTaskId,

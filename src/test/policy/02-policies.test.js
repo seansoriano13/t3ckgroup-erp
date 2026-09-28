@@ -658,11 +658,17 @@ describe("Group Task members", () => {
         },
     )
 
-    it.each(EVERYONE)("%s cannot remove a member, because no policy permits deletion", async (key) => {
-        const client = await clientFor(key)
-        const result = await tryDelete(client, "committee_task_members", group.memberRowId)
-        expect(result.affected, `${key} removed a member`).toBe(0)
-    })
+    // Removing mirrors adding: only the creator (`ordinary` here) or a Super
+    // Admin may, and 19-group-task-member-removal proves they can. Everyone
+    // else — the member themselves included — removes nothing.
+    it.each(EVERYONE.filter((key) => key !== "ordinary" && key !== "superAdmin"))(
+        "%s cannot remove a member from a Group Task they did not create",
+        async (key) => {
+            const client = await clientFor(key)
+            const result = await tryDelete(client, "committee_task_members", group.memberRowId)
+            expect(result.affected, `${key} removed a member`).toBe(0)
+        },
+    )
 })
 
 // ===========================================================================
