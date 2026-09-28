@@ -289,7 +289,7 @@ export default function CreateGroupTaskModal({
       dueDate: mode === "automation" ? null : dueDate,
       dueDateOffsetDays: mode === "automation" ? dueOffsetDays : undefined,
       startDate: mode === "automation" || !startDate ? null : formatDateToYMD(startDate),
-      leadTime: mode === "automation" ? null : leadTime.trim() || null,
+      leadTime: mode === "automation" ? null : leadTime,
       confirmMode: mode === "automation" ? confirmMode : undefined,
       decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
       createdBy: user.id,

@@ -33,7 +33,7 @@ import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { activeChatService } from "../../../services/tasks/activeChatService";
-import { formatDueDate } from "@/utils/formatDate";
+import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
 import { groupTaskService } from "@/services/groupTaskService";
@@ -264,11 +264,7 @@ export default function GroupTaskDetailModal({
       toast.error("Title is required");
       return;
     }
-    await onUpdateTask({
-      ...taskEditDraft,
-      startDate: taskEditDraft.startDate || null,
-      leadTime: taskEditDraft.leadTime.trim() || null,
-    });
+    await onUpdateTask(taskEditDraft);
     setIsEditingTask(false);
   };
 
@@ -706,33 +702,22 @@ export default function GroupTaskDetailModal({
                   />
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <div className="w-48">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Start Date</label>
-                    <Input
-                      type="date"
-                      value={taskEditDraft.startDate}
-                      onChange={(e) => setTaskEditDraft(p => ({ ...p, startDate: e.target.value }))}
-                      className="h-9 bg-background/50 border-border/50 text-sm"
-                    />
-                  </div>
-                  <div className="w-48">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
-                    <Input 
-                      type="date"
-                      value={taskEditDraft.dueDate}
-                      onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
-                      className="h-9 bg-background/50 border-border/50 text-sm"
-                    />
-                  </div>
-                  <div className="w-48">
-                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Lead Time</label>
-                    <Input
-                      value={taskEditDraft.leadTime}
-                      onChange={(e) => setTaskEditDraft(p => ({ ...p, leadTime: e.target.value }))}
-                      className="h-9 bg-background/50 border-border/50 text-sm"
-                      placeholder="e.g. 120 calendar days"
-                    />
-                  </div>
+                  {[
+                    { key: "startDate", label: "Start Date", type: "date" },
+                    { key: "dueDate", label: "Due Date", type: "date" },
+                    { key: "leadTime", label: "Lead Time", type: "text", placeholder: "e.g. 120 calendar days" },
+                  ].map(({ key, label, type, placeholder }) => (
+                    <div key={key} className="w-48">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">{label}</label>
+                      <Input
+                        type={type}
+                        value={taskEditDraft[key]}
+                        onChange={(e) => setTaskEditDraft(p => ({ ...p, [key]: e.target.value }))}
+                        className="h-9 bg-background/50 border-border/50 text-sm"
+                        placeholder={placeholder}
+                      />
+                    </div>
+                  ))}
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
@@ -756,8 +741,7 @@ export default function GroupTaskDetailModal({
                   {task.start_date && (
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-primary/70" /> Starts{" "}
-                      {/* A bare date parses as UTC midnight; pin it to local. */}
-                      {formatDueDate(`${task.start_date}T00:00`)}
+                      {formatDateOnly(task.start_date)}
                     </div>
                   )}
                   {task.due_date && (

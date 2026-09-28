@@ -116,6 +116,24 @@ describe("groupTaskService", () => {
       expect(found.lead_time).toBe("Extended")
       expect(found.start_date).toBe("2026-10-01")
     })
+
+    it("keeps them when an edit doesn't mention them", async () => {
+      const task = await createTask({ startDate: "2026-10-01", leadTime: "120 calendar days" })
+
+      await groupTaskService.updateGroupTask(task.id, { title: "Renamed" }, creator.id)
+
+      const found = await groupTaskService.getGroupTaskById(task.id)
+      expect(found.title).toBe("Renamed")
+      expect(found.start_date).toBe("2026-10-01")
+      expect(found.lead_time).toBe("120 calendar days")
+    })
+
+    it("stores a blank lead time as unset", async () => {
+      const found = await groupTaskService.getGroupTaskById(
+        (await createTask({ leadTime: "   " })).id,
+      )
+      expect(found.lead_time).toBeNull()
+    })
   })
 
   describe("who can see it", () => {
@@ -530,7 +548,7 @@ describe("groupTaskService", () => {
 
       await expect(
         groupTaskService.removeMemberFromTask(assignment.id, task.id, creator.id),
-      ).rejects.toThrow("permission to remove this member")
+      ).rejects.toThrow("This member wasn't removed")
       await waitForNetworkIdle()
 
       expect(removalsLogged()).toBe(1)

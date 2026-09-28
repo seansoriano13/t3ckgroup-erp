@@ -19,6 +19,25 @@ alter table public.committee_tasks
 alter table public.committee_tasks
   add column if not exists lead_time text;
 
+-- Permissive policies OR together, so a DELETE policy this repo doesn't know
+-- about (prod's ledger has drifted before) would quietly widen the rule below.
+-- Stop rather than guess: the whole migration rolls back and names it.
+do $$
+declare
+  stray text;
+begin
+  select string_agg(policyname, ', ') into stray
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'committee_task_members'
+    and cmd in ('DELETE', 'ALL')
+    and policyname <> 'committee_task_members_delete';
+  if stray is not null then
+    raise exception 'committee_task_members already has DELETE policies: %', stray;
+  end if;
+end
+$$;
+
 drop policy if exists "committee_task_members_delete" on public."committee_task_members";
 create policy "committee_task_members_delete" on public."committee_task_members"
   as permissive

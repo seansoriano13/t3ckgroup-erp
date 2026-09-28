@@ -52,6 +52,18 @@ _Avoid_: Leave credit, OT slip
 A collaborative project or shared task assignment involving multiple team members with defined roles and templates.
 _Avoid_: Project, Shared Task
 
+**Start Date** (of a Group Task):
+The day a Group Task's work begins. Independent of when the task was created
+and of its Due Date — neither is derived from the other.
+_Avoid_: Start Time
+
+**Lead Time** (of a Group Task):
+A free-text note on how long a Group Task's work is given — "120 calendar
+days", or "Extended" once the client grants more. Never computed: an extension
+is recorded by moving the Due Date by hand. Not an Offer's lead time, which is
+how fast a supplier delivers to us.
+_Avoid_: Duration, Contract Duration
+
 **Individual Task**:
 A task with one owner, tracked on that person's own list rather than as
 shared work. The other kind of task a Stage Action can create, alongside a
