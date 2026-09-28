@@ -1,5 +1,15 @@
 [
     {
+        "date": "2026-09-28",
+        "title": "Rich Deliverables and Group Tasks in SOR History",
+        "version": "1.7.32",
+        "changes": [
+            "The SOR History tab now shows actual files and deliverables uploaded during each stage, including document type icons, file sizes, and quick Open buttons.",
+            "Group Tasks in stage history are now interactive Task cards: click to open the full Group Task modal, and expand in-place to view members, subtask assignments, and completion status.",
+            "Files attached to satisfied conditions are shown directly alongside the checklist items."
+        ]
+    },
+    {
         "date": "2026-09-27",
         "title": "Revert to Last Stage, Resume or Start Fresh",
         "version": "1.7.31",

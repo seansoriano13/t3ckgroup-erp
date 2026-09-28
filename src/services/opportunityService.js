@@ -360,25 +360,30 @@ async function currentVisitFor(opportunityId) {
  * checklist.
  */
 async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf } = {}) {
-  if (conditions.length === 0) {
+  if (conditions.length === 0 && !stageVisitId) {
     return { attachments: [], members: [], statusRowsByCondition: {} };
   }
 
   const conditionIds = conditions.map((r) => r.id);
-  let statusQuery = supabase
-    .from("sor_condition_status")
-    .select("*")
-    .eq("opportunity_id", opportunityId)
-    .in("condition_id", conditionIds);
-  // Issue #203, story 28: a tickbox certified on a visit that has since
-  // closed must ask again. Scoped only when a visit is known — a legacy
-  // pipeline deal (no flow Stage, so no visit ever opens for it) keeps the
-  // pre-#203 opportunity-wide read.
-  if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
+  let statusRows = [];
+  if (conditionIds.length > 0) {
+    let statusQuery = supabase
+      .from("sor_condition_status")
+      .select("*")
+      .eq("opportunity_id", opportunityId)
+      .in("condition_id", conditionIds);
+    // Issue #203, story 28: a tickbox certified on a visit that has since
+    // closed must ask again. Scoped only when a visit is known — a legacy
+    // pipeline deal (no flow Stage, so no visit ever opens for it) keeps the
+    // pre-#203 opportunity-wide read.
+    if (stageVisitId) statusQuery = statusQuery.eq("stage_visit_id", stageVisitId);
+    const { data, error } = await statusQuery;
+    if (error) throw error;
+    statusRows = data || [];
+  }
 
-  const [{ data: statusRows, error: statusError }, { data: logs, error: logsError }, memberRows, groups] =
+  const [{ data: logs, error: logsError }, memberRows, groups] =
     await Promise.all([
-      statusQuery,
       supabase
         .from("sales_opportunity_logs")
         .select("author_id, created_at, metadata")
@@ -386,7 +391,6 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf }
       opportunityService.getMembers(opportunityId),
       employeeGroupService.list(),
     ]);
-  if (statusError) throw statusError;
   if (logsError) throw logsError;
 
   let attachments = (logs || []).flatMap(attachmentsFromLog);
@@ -765,19 +769,20 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
   // fires the automations agreed at registration time and not ones added
   // since.
   //
-  // Issue #199 — awaited, not detached: the move resolves once its actions
-  // have run, so the caller's refresh already sees the tasks. The move is
-  // committed above and a failing action never undoes it; each action is
-  // tried on its own and failures come back named on the result.
+  // Issue #409 — the actual run (begin, notify-or-create, finish) happens in
+  // ONE server-side call, `sor_run_stage_actions`, inside its own Postgres
+  // transaction. Before this, each action's begin/create/finish was its own
+  // awaited round-trip from the browser; a mover closing the tab mid-loop
+  // left the rest of the Stage's actions with no run row at all — not
+  // created, not failed — and the fire-once gate then refused to ever offer
+  // them again. Now the RPC either returns (everything on this Stage is
+  // created-or-failed) or the whole call never happened (nothing began, so
+  // the fire-once gate still lets a retry pick it all up).
   const failedStageActions = [];
   let actionsAttempted = false;
   try {
     const actions = actionsForSnapshotStage(snapshotActions, to.id);
     if (actions.length > 0) {
-      // Issue #204 Part 2 — fire-once per (deal, stage, action) now lives in
-      // sor_action_runs, gated by sor_begin_action_run's upsert-if-absent.
-      // This replaces both the old STAGE_ACTIONS_FIRED log marker and the
-      // ILIKE-on-description fallback.
       const newVisit = await currentVisitFor(existing.id).catch(() => null);
 
       actionsAttempted = true;
@@ -793,55 +798,194 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
         saleType: existing.sale_type || null,
       };
 
-      for (const action of actions) {
+      // Every action's payload is assembled client-side (title/description
+      // rendering — issue #204/#408's token vocabulary stays in JS — plus
+      // Decider resolution and Group Task member lists), then sent as one
+      // batch. sor_run_stage_actions applies sor_begin_action_run's
+      // fire-once gate per action itself, so an action already begun by an
+      // earlier partial run is skipped there, not here.
+      const actionsPayload = actions.map((action) => {
         const config = action.config || {};
-        // Issue #178 — both automation kinds name their task after the
-        // deal, not the Stage, via this one shared builder.
         const dealTitle = stageActionTaskTitle({
           salesReference: existing.sales_reference,
           projectTitle: existing.project_title,
         });
-
-        // Issue #204 Part 2 — fire-once gate. sor_begin_action_run upserts
-        // if absent and always returns the row for (opportunity, stage,
-        // action); if it already existed (any outcome), this action has
-        // already been handled for this deal+stage and is skipped. A
-        // "When confirmed" action's decider selectors are stored on the run
-        // right away so sor_decide_action_run can validate against them.
+        const isConfirm = config.confirmMode === "confirm";
         // Spec: "the Deal Owner by default" — an unset decider is not "no
         // one may decide", it's the default selector.
         const deciderSelectors = config.decider?.length
           ? config.decider
           : [{ type: "role", role: "deal_owner" }];
-        const { data: run, error: runError } = await supabase.rpc("sor_begin_action_run", {
-          p_opportunity_id: existing.id,
-          p_stage_id: to.id,
-          p_action_id: action.id,
-          p_stage_visit_id: newVisit?.id ?? null,
-          p_decider: config.confirmMode === "confirm" ? deciderSelectors : null,
+
+        const payload = {
+          action_id: action.id,
+          kind: action.kind,
+          name: stageActionName(action),
+          confirm: isConfirm,
+        };
+
+        if (isConfirm) {
+          payload.decider = deciderSelectors;
+          payload.stage_name = to.name;
+          return payload;
+        }
+
+        if (action.kind === "create_group_task") {
+          const members = config.members?.length > 0
+            ? config.members
+            : [{ employeeId: actorId, role: "Assignee", taskDescription: "Complete action" }];
+          payload.group_title = renderActionTitle(action, templateContext);
+          payload.group_description = config.descriptionTemplate || config.description
+            ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+            : "";
+          payload.members = members.map((m) => ({
+            employee_id: m.employeeId,
+            task_description: m.taskDescription || "",
+            checklist: m.checklist || null,
+            role: m.role || null,
+            custom_role: m.customRole || null,
+          }));
+          payload.tag_ids = config.tagIds?.length > 0 ? config.tagIds : null;
+          payload.template_id = config.templateId || null;
+          if (config.dueDateOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueDateOffsetDays));
+            payload.due_date = due.toISOString();
+          }
+        } else if (action.kind === "create_individual_task") {
+          const title = renderActionTitle(action, templateContext);
+          // Back-compat: see buildAndCreateActionTask's own comment on this.
+          const description = config.descriptionTemplate || config.description
+            ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
+            : config.title
+              ? renderTemplate(config.title, templateContext)
+              : "";
+          payload.task_description = description || title || dealTitle;
+          payload.project_title = title || dealTitle;
+          payload.category_id = config.categoryId || null;
+          payload.logged_by = config.loggedById || actorId;
+          payload.priority = config.priority || "MEDIUM";
+          payload.checklist = config.checklist || null;
+          if (config.dueOffsetDays) {
+            const due = new Date();
+            due.setDate(due.getDate() + parseInt(config.dueOffsetDays));
+            payload.end_at = due.toISOString();
+          }
+        }
+
+        return payload;
+      });
+
+      // "When confirmed" Deciders are resolved here (needs the employees/
+      // groups tables) and their ids sent along so the RPC can write the
+      // decision-due notification directly, in the same transaction as the
+      // run it belongs to.
+      for (const payload of actionsPayload) {
+        if (!payload.confirm) continue;
+        payload.decider_ids = await resolveDeciderIds(payload.decider, existing);
+        const action = actions.find((a) => a.id === payload.action_id);
+        payload.notification_title = renderActionTitle(action, templateContext) || stageActionTaskTitle({
+          salesReference: existing.sales_reference,
+          projectTitle: existing.project_title,
         });
-        if (runError) {
-          console.error("sor_begin_action_run failed:", runError);
-          failedStageActions.push(stageActionName(action));
-          continue;
-        }
-        const runRow = Array.isArray(run) ? run[0] : run;
-        if (!runRow || runRow.outcome !== "pending") {
-          // Already begun previously (created/skipped/failed) — fire-once.
-          continue;
-        }
+      }
 
-        if (config.confirmMode === "confirm") {
-          // Issue #204 Part 2 — "When confirmed": no task yet. Notify the
-          // Deciders and leave the run pending; PendingActionDecisions.jsx
-          // (or decideAction) resolves it later.
-          await notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors, templateContext).catch(
-            (err) => console.error("notifyDeciders failed:", err),
-          );
-          continue;
-        }
+      const { data: runResult, error: runError } = await supabase.rpc("sor_run_stage_actions", {
+        p_opportunity_id: existing.id,
+        p_stage_id: to.id,
+        p_stage_visit_id: newVisit?.id ?? null,
+        p_actions: actionsPayload,
+      });
 
-        await buildAndCreateActionTask(action, existing, to, actorId, runRow, templateContext, failedStageActions);
+      if (runError) {
+        // The whole batch never ran (e.g. the caller lost full access
+        // mid-move) — nothing began, so every action is unaccounted for,
+        // same as the pre-#409 "reading the guard failed" case below.
+        console.error("sor_run_stage_actions failed:", runError);
+        for (const action of actions) {
+          const name = stageActionName(action);
+          if (!failedStageActions.includes(name)) failedStageActions.push(name);
+        }
+      } else {
+        for (const name of runResult?.failed || []) failedStageActions.push(name);
+
+        // The RPC already created the task/group task and marked the run —
+        // that part survives the mover leaving. What's left is best-effort
+        // narration (system note, Stage Participant window): its own
+        // failure mode stays "note/window maybe missing", never "task never
+        // created".
+        for (const created of runResult?.created || []) {
+          const action = actions.find((a) => a.id === created.action_id);
+          const payload = actionsPayload.find((p) => p.action_id === created.action_id);
+          if (!action || !payload) continue;
+          const config = action.config || {};
+          try {
+            if (created.kind === "create_individual_task" && created.task_id) {
+              await opportunityService.addSystemNote(
+                existing.id,
+                `Task "${payload.project_title}" created on entering Stage: ${to.name}.`,
+                { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, taskId: created.task_id },
+                actorId,
+              );
+              const loggedById = payload.logged_by;
+              // Issue #204 Part 2's own createTask flow sends TASK_ASSIGNED
+              // when the mover assigns someone else; sor_run_stage_actions
+              // inserts the task directly, so that notification is sent
+              // here instead, best-effort, same as everything else in this
+              // follow-up loop.
+              if (loggedById && loggedById !== actorId) {
+                await notificationService.createNotification({
+                  recipient_id: loggedById,
+                  sender_id: actorId,
+                  type: "TASK_ASSIGNED",
+                  title: "New Task Assigned",
+                  message: `A Stage Action assigned you a new task: "${payload.task_description}".`,
+                  reference_id: created.task_id,
+                });
+              }
+              if (newVisit?.id && loggedById) {
+                await sorStageParticipantService.openWindow(
+                  {
+                    opportunityId: existing.id,
+                    employeeId: loggedById,
+                    source: "action",
+                    sourceId: action.id,
+                    openedVisitId: newVisit.id,
+                    access: config.access,
+                    notify: loggedById === actorId,
+                  },
+                  actorId,
+                );
+              }
+            } else if (created.kind === "create_group_task" && created.group_task_id) {
+              await opportunityService.addSystemNote(
+                existing.id,
+                `Group Task "${payload.group_title}" created on entering Stage: ${to.name}.`,
+                { event: "STAGE_ACTION_TASK_CREATED", stageId: to.id, actionId: action.id, groupTaskId: created.group_task_id },
+                actorId,
+              );
+              if (newVisit?.id) {
+                for (const member of payload.members || []) {
+                  if (!member?.employee_id) continue;
+                  await sorStageParticipantService.openWindow(
+                    {
+                      opportunityId: existing.id,
+                      employeeId: member.employee_id,
+                      source: "action",
+                      sourceId: action.id,
+                      openedVisitId: newVisit.id,
+                      access: config.access,
+                      notify: false,
+                    },
+                    actorId,
+                  );
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Stage Action follow-up (note/window/notify) failed:", err);
+          }
+        }
       }
     }
   } catch (err) {
@@ -1009,27 +1153,6 @@ function dealTeamIds(opportunity) {
     }
   }
   return [...ids];
-}
-
-/**
- * Issue #204 Part 2 — notifies every Decider of a newly-pending "When
- * confirmed" action, once, when `sor_begin_action_run` first creates the
- * run (never on a subsequent gate-hit, since the run is no longer pending).
- */
-async function notifyDeciders(action, existing, to, actorId, dealTitle, deciderSelectors, templateContext) {
-  const deciderIds = await resolveDeciderIds(deciderSelectors, existing);
-  for (const recipientId of deciderIds) {
-    await notificationService
-      .createNotification({
-        recipient_id: recipientId,
-        sender_id: actorId,
-        type: "OPPORTUNITY_ACTION_DECISION_DUE",
-        title: renderActionTitle(action, templateContext) || dealTitle,
-        message: `A Stage Action on "${existing.project_title || dealTitle}" (${to.name}) needs your decision: Create or Skip.`,
-        reference_id: existing.id,
-      })
-      .catch((err) => console.error("notifyDeciders failed:", err));
-  }
 }
 
 /**
@@ -3826,7 +3949,10 @@ export const opportunityService = {
           // it is not a visit's condition list either.
           .filter((c) => c.kind !== CONDITION_KINDS.DEADLINE)
           .sort((a, b) => a.sort_order - b.sort_order);
-        if (conditions.length === 0) return { ...visit, conditions: [] };
+        if (conditions.length === 0) {
+          const { attachments } = await gateEvidenceFor(opportunityId, [], { stageVisitId: visit.id, asOf: visit.leftAt });
+          return { ...visit, conditions: [], attachments: attachments || [] };
+        }
 
         const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
           gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt }),
@@ -3836,22 +3962,40 @@ export const opportunityService = {
 
         return {
           ...visit,
+          attachments: attachments || [],
           conditions: conditions
-            .map((condition) => ({
-              condition,
-              ...evaluateCondition(condition, {
+            .map((condition) => {
+              const evaluation = evaluateCondition(condition, {
                 opportunity,
                 attachments,
                 members,
                 statusRow: statusRowsByCondition[condition.id] ?? null,
                 hasInclusions,
                 hasPurchasing,
-              }),
-              // ADR 0027: evidence a Resume carried here keeps its mark.
-              carried:
-                Boolean(statusRowsByCondition[condition.id]?.carried_from_visit_id) ||
-                attachments.some((a) => a.carriedFromVisitId),
-            }))
+              });
+
+              let matchedFiles = [];
+              if (condition.kind === CONDITION_KINDS.ATTACHMENT) {
+                if (condition.config?.documentType) {
+                  matchedFiles = (attachments || []).filter((a) => a.documentType === condition.config.documentType);
+                } else {
+                  const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : [];
+                  matchedFiles = (attachments || []).filter(
+                    (a) => a.conditionId === condition.id && (accepts.length === 0 || accepts.includes(a.type)),
+                  );
+                }
+              }
+
+              return {
+                condition,
+                ...evaluation,
+                files: matchedFiles,
+                // ADR 0027: evidence a Resume carried here keeps its mark.
+                carried:
+                  Boolean(statusRowsByCondition[condition.id]?.carried_from_visit_id) ||
+                  (attachments || []).some((a) => a.carriedFromVisitId),
+              };
+            })
             // Same rule as `getStageChecklist`: a removed kind can never be
             // satisfied, so it is not a row anyone can act on or read.
             .filter((row) => row.status !== CONDITION_STATUS.NOT_APPLICABLE),
@@ -3862,7 +4006,11 @@ export const opportunityService = {
     // Evidence names its actor by id; the tab shows a face beside "met by",
     // so they are resolved once here rather than a lookup per rendered row.
     const satisfierIds = [
-      ...new Set(withConditions.flatMap((v) => v.conditions.map((c) => c.satisfiedBy)).filter(Boolean)),
+      ...new Set([
+        ...withConditions.flatMap((v) => (v.conditions || []).map((c) => c.satisfiedBy)),
+        ...withConditions.flatMap((v) => (v.attachments || []).map((a) => a.uploadedBy)),
+        ...withConditions.flatMap((v) => (v.conditions || []).flatMap((c) => (c.files || []).map((f) => f.uploadedBy))),
+      ].filter(Boolean)),
     ];
     let peopleById = {};
     if (satisfierIds.length > 0) {
@@ -3876,9 +4024,17 @@ export const opportunityService = {
 
     return withConditions.map((visit) => ({
       ...visit,
-      conditions: visit.conditions.map((row) => ({
+      attachments: (visit.attachments || []).map((a) => ({
+        ...a,
+        uploader: a.uploadedBy ? (peopleById[a.uploadedBy] ?? null) : null,
+      })),
+      conditions: (visit.conditions || []).map((row) => ({
         ...row,
         satisfiedBy: row.satisfiedBy ? (peopleById[row.satisfiedBy] ?? null) : null,
+        files: (row.files || []).map((f) => ({
+          ...f,
+          uploader: f.uploadedBy ? (peopleById[f.uploadedBy] ?? null) : null,
+        })),
       })),
     }));
   },

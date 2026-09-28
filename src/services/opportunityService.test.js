@@ -3063,6 +3063,25 @@ describe("opportunityService", () => {
       expect(first.tasks).toEqual([])
       expect(current.groupTasks[0].creator).toMatchObject({ id: creator.id, name: "Group Creator" })
     })
+
+    it("returns attachments with resolved uploader", async () => {
+      const file = {
+        url: "https://res.cloudinary.test/bidding.pdf",
+        name: "bidding.pdf",
+        type: "pdf",
+        bytes: 2048,
+        stageVisitId: v2.id,
+      }
+      await opportunityService.addNote(deal.id, creator.id, "Bidding docs uploaded", [file])
+
+      const [, qualifiedVisit] = await opportunityService.getJourney(deal.id)
+      expect(qualifiedVisit.attachments).toHaveLength(1)
+      expect(qualifiedVisit.attachments[0]).toMatchObject({
+        name: "bidding.pdf",
+        url: "https://res.cloudinary.test/bidding.pdf",
+        uploader: expect.objectContaining({ id: creator.id, name: "Group Creator" }),
+      })
+    })
   })
 
   describe("notes", () => {

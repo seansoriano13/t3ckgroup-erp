@@ -4,6 +4,8 @@ import { cn } from "@/lib/utils";
 import Avatar from "../../Avatar";
 import { MAX_AVATARS } from "../../../constants/sorTasks";
 import { Button } from "../../ui/button";
+import StatusBadge from "../../StatusBadge";
+import { TASK_STATUS } from "../../../constants/status";
 
 function formatDue(iso) {
   if (!iso) return null;
@@ -53,10 +55,18 @@ export default function TaskRow({ row }) {
           variant="ghost"
           onClick={() => openTask(row)}
           title={row.title}
-          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-semibold text-foreground hover:bg-transparent hover:text-primary hover:underline"
+          className="h-auto min-w-0 flex-1 justify-start truncate p-0 text-left text-xs font-semibold text-foreground hover:bg-transparent hover:text-foreground hover:underline"
         >
           {row.title}
         </Button>
+
+        {row.carried && <span className="shrink-0 text-[10px] text-muted-foreground">from an earlier visit</span>}
+
+        {row.status === TASK_STATUS.ON_HOLD ? (
+          <StatusBadge status={row.status}>Held</StatusBadge>
+        ) : row.status && row.status !== TASK_STATUS.COMPLETE ? (
+          <StatusBadge status={row.status} />
+        ) : null}
 
         <div className="flex shrink-0 -space-x-1.5">
           {row.members.slice(0, MAX_AVATARS).map((m) => (
