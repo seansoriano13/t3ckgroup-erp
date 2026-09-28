@@ -97,6 +97,28 @@ describe("Revert with a progress choice", () => {
         expect(error?.message).toMatch(/Stage Work was done/)
     })
 
+    it("a Stage Action's own task is Stage Work the moment it's created, even untouched", async () => {
+        const id = await freshSor()
+        await moveAs("dealOwner", id, stageB)
+        const [, visitB] = await visits(id)
+        // Untouched: default status, nobody has acted on it — only the Stage
+        // Action having created it. Before this fix, Revert treated this as
+        // no Stage Work: it silently cancelled the task and closed off its
+        // action run, then erased the visit (undone_at), leaving no trace.
+        await svc()
+            .from("tasks")
+            .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visitB.id, stage_action_id: actionId, task_description: `${MARKER} untouched`, status: "INCOMPLETE" })
+
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_revert_needs_progress_choice", { p_opportunity_id: id })).data).toBe(true)
+
+        const { error } = await revertAs("dealOwner", id)
+        expect(error?.message).toMatch(/Stage Work was done/)
+
+        const left = (await svc().from("sor_stage_visits").select("undone_at").eq("id", visitB.id).single()).data
+        expect(left.undone_at).toBeNull()
+    })
+
     it("refuses an invalid choice", async () => {
         const { id } = await withProgressOnB()
         const { error } = await revertAs("dealOwner", id, "delete-everything")
