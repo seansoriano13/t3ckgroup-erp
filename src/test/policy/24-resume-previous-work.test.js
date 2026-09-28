@@ -223,3 +223,56 @@ describe("reverting a Return undoes its Resume (ADR 0027)", () => {
     })
 })
 
+describe("issue #403: Resume reopens the Stage Participant windows the departure closed", () => {
+    it("reopens a window on the new visit, and reverting the Resume closes it again", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+
+        const win = (await svc().from("sor_stage_participants")
+            .insert({ opportunity_id: id, employee_id: ids.stageParticipant, source: "action", opened_visit_id: visit1, until_rule: "stage_left" })
+            .select("id").single()).data.id
+        await svc().from("tasks")
+            .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visit1, stage_action_id: actionId, task_description: `${MARKER} t`, status: "INCOMPLETE" })
+
+        await moveTo(id, stageB) // leaves A: window closes (rule_met)
+        expect((await svc().from("sor_stage_participants").select("closed_reason").eq("id", win).single()).data.closed_reason).toBe("rule_met")
+
+        await moveTo(id, stageA) // Return to A
+        const visit3 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).order("sequence", { ascending: false }).limit(1).single()).data.id
+
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        const reopened = (await svc().from("sor_stage_participants").select("closed_at, opened_visit_id").eq("id", win).single()).data
+        expect(reopened.closed_at).toBeNull()
+        expect(reopened.opened_visit_id).toBe(visit3)
+
+        // Reverting the Resume undoes it: the window moves back and closes.
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: id })).error).toBeNull()
+        const closedAgain = (await svc().from("sor_stage_participants").select("closed_at, closed_reason, opened_visit_id").eq("id", win).single()).data
+        expect(closedAgain.opened_visit_id).toBe(visit1)
+        expect(closedAgain.closed_at).not.toBeNull()
+        expect(closedAgain.closed_reason).toBe("rule_met")
+    })
+
+    it("a window a Terminal Stage closed does not reopen just because Resume ran", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        const win = (await svc().from("sor_stage_participants")
+            .insert({ opportunity_id: id, employee_id: ids.stageParticipant, source: "action", opened_visit_id: visit1, until_rule: "terminal" })
+            .select("id").single()).data.id
+        await svc().from("sor_stage_participants").update({ closed_at: new Date().toISOString(), closed_reason: "terminal" }).eq("id", win)
+
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        const row = (await svc().from("sor_stage_participants").select("closed_at, closed_reason").eq("id", win).single()).data
+        expect(row.closed_reason).toBe("terminal")
+        expect(row.closed_at).not.toBeNull()
+    })
+})
+
