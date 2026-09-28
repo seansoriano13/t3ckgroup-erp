@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T04:19:45.990Z",
+  "generatedAt": "2026-09-28T05:10:56.817Z",
   "since": "2026-09-14",
   "title": "What shipped since 14 September",
   "headline": [
@@ -33,20 +33,6 @@
       "issues": [],
       "sample": "quick-view",
       "source": "supplement"
-    },
-    {
-      "id": "sors-rename",
-      "block": "SORS",
-      "title": "CRM renamed to SORS",
-      "impact": "The CRM module is now called SORS, at /sors. Old /crm and /opportunities links still work.",
-      "changes": [
-        "The CRM module is now called SORS — the Sales Opportunity Registration System, the name it has in company policy (CCPR-2026-001, Annex C). One SOR is one Sales Opportunity Registration.",
-        "Its address changed from /crm to /sors, and the Commission Dashboard and Commission Formula moved with it. Old links still work: anything pointing at /crm or /opportunities, including links inside notifications you have not opened yet, lands in the right place.",
-        "The filter on Tasks and Group Tasks that shows only work linked to an SOR is now labelled SORS."
-      ],
-      "issues": [],
-      "sample": "sors-rename",
-      "source": "changelog"
     },
     {
       "id": "retail-screen",
@@ -768,51 +754,44 @@
             "title": "SOR History shows each visit's whole Stage Work",
             "unlocks": "Every pass through a Stage keeps its evidence, fields, follow-ups, actions and tasks, readable after the SOR moves on.",
             "total": 6,
-            "done": 0,
-            "open": [
-              395,
-              396,
-              397,
-              398,
-              399,
-              400
-            ],
+            "done": 6,
+            "open": [],
             "tickets": [
               {
                 "number": 395,
                 "title": "History: rename the Journey tab",
                 "open": true,
-                "shipped": false
+                "shipped": true
               },
               {
                 "number": 396,
                 "title": "Held and cancelled tasks open read-only",
                 "open": true,
-                "shipped": false
+                "shipped": true
               },
               {
                 "number": 397,
                 "title": "History: past visit shows condition evidence, Stage fields and follow-ups",
                 "open": true,
-                "shipped": false
+                "shipped": true
               },
               {
                 "number": 398,
                 "title": "History: past visit shows what each Stage Action did, and its tasks open",
                 "open": true,
-                "shipped": false
+                "shipped": true
               },
               {
                 "number": 399,
                 "title": "Activity: a created task shows as a task card",
                 "open": true,
-                "shipped": false
+                "shipped": true
               },
               {
                 "number": 400,
                 "title": "History: closed-off work is marked and says why",
                 "open": true,
-                "shipped": false
+                "shipped": true
               }
             ]
           }
@@ -1246,7 +1225,7 @@
     "epicCount": 11,
     "ticketCount": 81,
     "openCount": 64,
-    "openTicketCount": 55,
+    "openTicketCount": 49,
     "unassigned": [
       413,
       412,

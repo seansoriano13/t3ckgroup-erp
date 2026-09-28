@@ -28,15 +28,6 @@
       "sample": "quick-view"
     },
     {
-      "id": "sors-rename",
-      "block": "SORS",
-      "title": "CRM renamed to SORS",
-      "impact": "The CRM module is now called SORS, at /sors. Old /crm and /opportunities links still work.",
-      "version": "1.7.20",
-      "issues": [],
-      "sample": "sors-rename"
-    },
-    {
       "id": "retail-screen",
       "block": "SORS",
       "title": "Retail has its own screen",
@@ -548,6 +539,14 @@
       "title": "SOR History shows each visit's whole Stage Work",
       "unlocks": "Every pass through a Stage keeps its evidence, fields, follow-ups, actions and tasks, readable after the SOR moves on.",
       "tickets": [
+        395,
+        396,
+        397,
+        398,
+        399,
+        400
+      ],
+      "shipped": [
         395,
         396,
         397,
