@@ -148,11 +148,11 @@ describe("Revert restores an Optional Action the reverted move skipped", () => {
         const [visitA, visitB] = await visits(id)
 
         // Real Stage Work on B (an AWAITING APPROVAL task) forces the choice.
-        const task = (await svc()
+        expect((await svc()
             .from("tasks")
             .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visitB.id, stage_action_id: actionId, task_description: `${MARKER} work`, status: "AWAITING APPROVAL" })
             .select("id")
-            .single()).data.id
+            .single()).error).toBeNull()
         const run = (await svc()
             .from("sor_action_runs")
             .insert({ opportunity_id: id, stage_id: stageB, action_id: actionId, stage_visit_id: visitB.id, decider: [{ type: "role", role: "deal_owner" }] })
@@ -189,11 +189,11 @@ describe("Revert restores an Optional Action the reverted move skipped", () => {
         await moveAs("dealOwner", id, stageB)
         const [, visitB] = await visits(id)
 
-        const task = (await svc()
+        expect((await svc()
             .from("tasks")
             .insert({ logged_by: ids.dealOwner, opportunity_id: id, stage_visit_id: visitB.id, stage_action_id: actionId, task_description: `${MARKER} work`, status: "AWAITING APPROVAL" })
             .select("id")
-            .single()).data.id
+            .single()).error).toBeNull()
         const run = (await svc()
             .from("sor_action_runs")
             .insert({ opportunity_id: id, stage_id: stageB, action_id: actionId, stage_visit_id: visitB.id, decider: [{ type: "role", role: "deal_owner" }] })
