@@ -360,4 +360,65 @@ describe("JourneyTab — past visit detail (#397)", () => {
     // A restricted row is not a toggle button at all — nothing behind it to open.
     expect(document.querySelectorAll("button[aria-expanded]")).toHaveLength(0)
   })
+
+  describe("Closed-off work (#400)", () => {
+    it("shows a 'Closed off' badge saying Start fresh, who, and when", async () => {
+      await renderJourney([
+        currentVisit(),
+        baseVisit({
+          closedOff: { reason: "start_fresh", at: "2026-09-03T00:00:00Z", by: { id: "emp-2", name: "Bob" } },
+        }),
+      ])
+
+      expect(await screen.findAllByText("Closed off")).not.toHaveLength(0)
+      expect(screen.getByText(/Start fresh on/)).toBeInTheDocument()
+      expect(screen.getByText("Bob")).toBeInTheDocument()
+    })
+
+    it("shows a 'Closed off' badge saying Removed by a Revert, who, and when", async () => {
+      await renderJourney([
+        currentVisit(),
+        baseVisit({
+          closedOff: { reason: "reverted", at: "2026-09-03T00:00:00Z", by: { id: "emp-2", name: "Cara" } },
+        }),
+      ])
+
+      expect(screen.getByText(/Removed by a Revert on/)).toBeInTheDocument()
+      expect(screen.getByText("Cara")).toBeInTheDocument()
+    })
+
+    it("shows a 'Closed off' chip on the collapsed header, alongside an 'N skipped' chip when both apply", async () => {
+      vi.spyOn(opportunityService, "getJourney").mockResolvedValue([
+        currentVisit(),
+        baseVisit({
+          closedOff: { reason: "start_fresh", at: "2026-09-03T00:00:00Z", by: { id: "emp-2", name: "Bob" } },
+          actionRuns: [
+            {
+              id: "run-1",
+              actionId: "action-1",
+              label: "Kickoff task",
+              outcome: "skipped",
+              leftUndecided: true,
+              decidedBy: null,
+              decidedAt: null,
+              task: null,
+              groupTask: null,
+            },
+          ],
+        }),
+      ])
+      renderWithProviders(<JourneyTab opportunityId="opp-1" hasOpened={() => true} onGoToNow={() => {}} />)
+
+      expect(await screen.findByText("1 skipped")).toBeInTheDocument()
+      expect(screen.getByText("Closed off")).toBeInTheDocument()
+    })
+
+    it("shows no 'Closed off' marker on an ordinary visit whose work was never closed off", async () => {
+      await renderJourney([currentVisit(), baseVisit()])
+
+      expect(screen.queryByText("Closed off")).not.toBeInTheDocument()
+      expect(screen.queryByText(/Start fresh on/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Removed by a Revert on/)).not.toBeInTheDocument()
+    })
+  })
 })

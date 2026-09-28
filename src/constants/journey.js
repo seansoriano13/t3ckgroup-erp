@@ -168,7 +168,11 @@ export function isLeftUndecided(run) {
  * imported, so this module stays free of `opportunityService`'s private
  * `stageActionName` and the two files never form a cycle.
  */
-export function stageActionRuns(actions = [], runs = [], { tasksById = {}, groupTasksById = {}, labelFor } = {}) {
+export function stageActionRuns(
+  actions = [],
+  runs = [],
+  { tasksById = {}, groupTasksById = {}, labelFor, closedOffActors = {} } = {},
+) {
   const ordered = [...actions].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   const runsByActionId = Object.fromEntries((runs || []).map((r) => [r.action_id, r]))
 
@@ -176,6 +180,8 @@ export function stageActionRuns(actions = [], runs = [], { tasksById = {}, group
     .map((action) => {
       const run = runsByActionId[action.id]
       if (!run) return null
+      const closedOffAt = run.closed_off_at ?? null
+      const closedOffReason = run.closed_off_reason ?? null
       return {
         id: run.id,
         actionId: action.id,
@@ -186,9 +192,36 @@ export function stageActionRuns(actions = [], runs = [], { tasksById = {}, group
         decidedAt: run.decided_at ?? null,
         task: run.task_id ? (tasksById[run.task_id] ?? null) : null,
         groupTask: run.group_task_id ? (groupTasksById[run.group_task_id] ?? null) : null,
+        // #400: a Start fresh or a Revert's Remove progress closes a run off
+        // rather than deleting it — `closedOffAt`/`closedOffReason` come
+        // straight off the row, stamped by `sor_start_fresh_stage_work` or
+        // the Revert RPC's remove-progress branch. Reverting a Start fresh
+        // nulls both again (see `sor_revert_stage`), so an un-closed-off run
+        // reads exactly like one that was never touched.
+        closedOffAt,
+        closedOffReason,
+        closedOffBy: !closedOffAt
+          ? null
+          : closedOffReason === "start_fresh"
+            ? (closedOffActors.startFresh ?? null)
+            : (closedOffActors.reverted ?? null),
       }
     })
     .filter(Boolean)
+}
+
+/**
+ * Whether a visit's whole Stage Work was closed off (#400) — by a Start fresh
+ * (the Return that superseded it) or a Revert's Remove progress (this visit's
+ * own leaving). One closure event stamps every one of a visit's live runs at
+ * once (see the migrations under #391/#392), so the first closed-off run
+ * found describes the whole visit; a visit with none is untouched and shows
+ * no marker at all.
+ */
+export function visitClosedOff(actionRuns = []) {
+  const closed = (actionRuns || []).find((r) => r.closedOffAt)
+  if (!closed) return null
+  return { reason: closed.closedOffReason, at: closed.closedOffAt, by: closed.closedOffBy }
 }
 
 /**

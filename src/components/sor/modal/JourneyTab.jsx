@@ -317,6 +317,28 @@ function RestrictedVisit({ visit }) {
   );
 }
 
+/**
+ * #400: a Start fresh or a Revert's Remove progress closed a visit's Stage
+ * Work off — never deleted, but marked why so History reads as "this work
+ * stopped counting" rather than "this work vanished". Text mirrors the
+ * ticket's own wording: "Start fresh on <date> by <X>" or "Removed by a
+ * Revert on <date> by <X>".
+ */
+function ClosedOffBadge({ closedOff }) {
+  const when = formatWhen(closedOff.at);
+  return (
+    <p className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+      <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-11">
+        Closed off
+      </span>
+      <span>
+        {closedOff.reason === "start_fresh" ? "Start fresh" : "Removed by a Revert"}
+        {when && ` on ${when}`} by <Person person={closedOff.by} />
+      </span>
+    </p>
+  );
+}
+
 function PastVisit({ row, onToggle }) {
   const { visit, isExpanded } = row;
   if (visit.isRestricted) return <RestrictedVisit visit={visit} />;
@@ -394,6 +416,11 @@ function PastVisit({ row, onToggle }) {
             {skipped} skipped
           </span>
         )}
+        {visit.closedOff && (
+          <span className="shrink-0 rounded-md bg-red-9/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-11">
+            Closed off
+          </span>
+        )}
         <span className="shrink-0 text-right text-[11px] tabular-nums text-muted-foreground">
           {allDeliverables.length > 0 ? `${allDeliverables.length} file${allDeliverables.length === 1 ? "" : "s"} · ` : ""}
           {taskCount} task{taskCount === 1 ? "" : "s"}
@@ -415,6 +442,7 @@ function PastVisit({ row, onToggle }) {
               </div>
             </VisitGroup>
           )}
+          {visit.closedOff && <ClosedOffBadge closedOff={visit.closedOff} />}
 
           <VisitGroup label="Stage actions" count={actionRuns.length}>
             <div className="space-y-1.5">

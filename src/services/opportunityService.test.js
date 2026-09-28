@@ -3463,6 +3463,95 @@ describe("opportunityService", () => {
         expect(first.actionRuns).toEqual([])
       })
     })
+
+    describe("History: closed-off work (#400)", () => {
+      it("marks a visit a Start fresh closed off, naming who returned and when", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).return_choice = "start_fresh"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).entered_by = returner.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "start_fresh",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({
+          reason: "start_fresh",
+          at: "2026-01-20T00:00:00.000Z",
+        })
+        expect(first.closedOff.by).toMatchObject({ id: returner.id, name: "Returner" })
+        expect(first.actionRuns[0].closedOffReason).toBe("start_fresh")
+      })
+
+      it("marks a visit a Revert's Remove progress closed off, naming who reverted and when", async () => {
+        const reverter = makeEmployee({ name: "Reverter" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id).revert_choice = "remove"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id).left_by = reverter.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "reverted",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({
+          reason: "reverted",
+          at: "2026-01-20T00:00:00.000Z",
+        })
+        expect(first.closedOff.by).toMatchObject({ id: reverter.id, name: "Reverter" })
+      })
+
+      it("shows no marker on an ordinary visit whose work was never closed off", async () => {
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toBeNull()
+      })
+
+      it("stops marking a visit once the Start fresh that closed it off is itself reverted", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).return_choice = "start_fresh"
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).entered_by = returner.id
+        db.seed("sor_action_runs", {
+          opportunity_id: deal.id,
+          stage_id: lead.id,
+          action_id: kickoffAction.id,
+          stage_visit_id: v1.id,
+          outcome: "created",
+          closed_off_at: "2026-01-20T00:00:00.000Z",
+          closed_off_reason: "start_fresh",
+        })
+
+        // Reverting the Start fresh (per #391/#392's own migrations) nulls the
+        // run's closed_off columns back out — simulated directly here since
+        // this is a unit test of the read side, not the RPC.
+        const run = db.internal.rowsOf("sor_action_runs").find((r) => r.stage_visit_id === v1.id)
+        run.closed_off_at = null
+        run.closed_off_reason = null
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toBeNull()
+      })
+    })
   })
 
   describe("notes", () => {

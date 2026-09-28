@@ -47,6 +47,7 @@ import {
   stageFollowUpLogs,
   stageFollowUpReminderCount,
   stageActionRuns,
+  visitClosedOff,
 } from "../constants/journey";
 import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
 import { REVERT_CHOICE } from "../constants/revertChoice";
@@ -3929,7 +3930,9 @@ export const opportunityService = {
         // rebuild from task timestamps.
         supabase
           .from("sor_action_runs")
-          .select("id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, task_id, group_task_id")
+          .select(
+            "id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, task_id, group_task_id, closed_off_at, closed_off_reason",
+          )
           .eq("opportunity_id", opportunityId),
       ]);
     if (snapshotsRes.error) throw snapshotsRes.error;
@@ -3970,6 +3973,22 @@ export const opportunityService = {
     const actionRuns = actionRunsRes.data || [];
     const tasksById = Object.fromEntries(tasks.map((t) => [t.id, t]));
     const groupTasksById = Object.fromEntries(groupTasks.map((t) => [t.id, t]));
+
+    // #400: a Start fresh closes off the EARLIER visit to this Stage, but the
+    // acting employee is stamped on the NEW visit's `entered_by` (whoever made
+    // the Return), never on the old visit or its action runs — mirroring
+    // `sor_start_fresh_stage_work`'s own lookup of "the latest visit to this
+    // Stage before the one that started fresh". A Revert's Remove progress
+    // needs no such lookup: it closes off the visit it leaves, whose own
+    // `left_by`/`left_at` already name who and when.
+    const startFreshClosureByVisitId = {};
+    for (const v of visits) {
+      if (v.return_choice !== "start_fresh") continue;
+      const prior = visits
+        .filter((o) => o.flow_stage_id === v.flow_stage_id && o.sequence < v.sequence)
+        .sort((a, b) => b.sequence - a.sequence)[0];
+      if (prior) startFreshClosureByVisitId[prior.id] = v.enteredBy || null;
+    }
 
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
@@ -4018,10 +4037,24 @@ export const opportunityService = {
           : stageActionRuns(
               actionsForSnapshotStage(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.actions || [], visit.flow_stage_id),
               actionRuns.filter((r) => r.stage_visit_id === visit.id),
-              { tasksById, groupTasksById, labelFor: stageActionName },
+              {
+                tasksById,
+                groupTasksById,
+                labelFor: stageActionName,
+                closedOffActors: {
+                  startFresh: startFreshClosureByVisitId[visit.id] || null,
+                  reverted: visit.leftBy || null,
+                },
+              },
             ),
       };
     });
+
+    // #400: derived from the very actionRuns just shaped, so a visit's
+    // closed-off marker can never disagree with what its runs say.
+    for (const visit of shaped) {
+      visit.closedOff = visit.isRestricted ? null : visitClosedOff(visit.actionRuns);
+    }
 
     const withConditions = await Promise.all(
       shaped.map(async (visit) => {
