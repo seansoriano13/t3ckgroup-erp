@@ -21,6 +21,7 @@ import FlowVersionBadge from "../FlowVersionBadge";
 import StageRibbonScroller from "../StageRibbonScroller";
 import { Button } from "../../ui/button";
 import { Input } from "@/components/ui/input";
+import { sorCodeOf } from "../../../utils/sorCode";
 
 const TONE_CLASSES = {
   green: { current: "bg-green-9 text-white hover:bg-green-9 hover:text-white", completed: "bg-green-9/20 text-green-11 hover:bg-green-9/30" },
@@ -183,8 +184,11 @@ export default function SorModalHeader({
             <div className="flex size-[18px] shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
               <Target size={11} strokeWidth={2.5} />
             </div>
+            {sorCodeOf(opportunity) && (
+              <span className="font-mono text-xs font-bold text-primary">{sorCodeOf(opportunity)}</span>
+            )}
             {opportunity.sales_reference ? (
-              <span className="font-mono text-xs font-bold text-primary">
+              <span className="font-mono text-xs font-bold text-muted-foreground">
                 {opportunity.sales_reference}
               </span>
             ) : (

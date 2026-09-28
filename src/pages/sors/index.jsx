@@ -51,6 +51,7 @@ import { flowStageTone } from "../../constants/salesFlow";
 import { usePipelineStages } from "../../hooks/usePipelineStages";
 import { useTableRealtime } from "../../hooks/useTableRealtime";
 import HighlightText from "../../components/HighlightText";
+import { sorCodeOf, matchesSorCode } from "../../utils/sorCode";
 import { Building2, Users, Layers, Tag } from "lucide-react";
 import {
   Table,
@@ -393,6 +394,7 @@ export default function OpportunitiesPage() {
       }
       if (blockedOnly && !blockedDeals[o.id]?.length) return false;
       if (!q) return true;
+      if (matchesSorCode(o, q)) return true;
       return [
         o.opportunity_no,
         o.sales_reference,
@@ -431,7 +433,7 @@ export default function OpportunitiesPage() {
   const [sortOrder, setSortOrder] = useState("desc"); // 'asc' | 'desc'
   // Issue #206: distinguishes the untouched default order (which sinks
   // Terminal Stage SORs to the bottom) from a column sort the user actually
-  // chose (which overrides that, even a click back onto "No.").
+  // chose (which overrides that, even a click back onto "SOR").
   const [hasExplicitSort, setHasExplicitSort] = useState(false);
 
   const handleSort = (field) => {
@@ -1046,7 +1048,7 @@ export default function OpportunitiesPage() {
                       the fixed layout, and px-4 gutters would push Status out
                       of view. */}
                   <TableRow>
-                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[46px]">No.</SortableTh>
+                    <SortableTh field="serial_no" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[80px]">SOR</SortableTh>
                     <SortableTh field="sales_reference" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[76px]">Sales Ref.</SortableTh>
                     <SortableTh field="registration_date" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[84px]">Date</SortableTh>
                     <SortableTh field="lead_source" sortField={sortField} sortOrder={sortOrder} onSort={handleSort} className="w-[13%]">Lead Source</SortableTh>
@@ -1083,7 +1085,7 @@ export default function OpportunitiesPage() {
                         className="cursor-pointer"
                       >
                         <TableCell className="px-2.5 py-2.5 font-mono text-xs font-bold text-primary whitespace-nowrap">
-                          <HighlightText text={o.serial_no} search={search} />
+                          <HighlightText text={sorCodeOf(o)} search={search} />
                         </TableCell>
                         <TableCell
                           className="px-2.5 py-2.5 font-mono text-xs whitespace-nowrap truncate"

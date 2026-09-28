@@ -328,7 +328,7 @@ describe("default sort sinks Terminal Stage SORs", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // Terminal (CLOSED_WON) has the higher serial_no — under the untouched
-    // "No." sort it would render first, but it must sink below the
+    // "SOR" sort it would render first, but it must sink below the
     // still-moving one instead.
     notTerminal = row("o-open", 1, { status: "NEGOTIATION" })
     terminal = row("o-terminal", 2, { status: "CLOSED_WON" })
@@ -364,8 +364,8 @@ describe("default sort sinks Terminal Stage SORs", () => {
     // flips hasExplicitSort. Ascending first (ties the sink's own order),
     // then descending — which the sink would never produce, since it always
     // sinks the terminal SOR regardless of column direction.
-    await user.click(screen.getByText("No."))
-    await user.click(screen.getByText("No."))
+    await user.click(screen.getByText("SOR"))
+    await user.click(screen.getByText("SOR"))
 
     expect(rowOrder()).toEqual(["Company 2", "Company 1"])
   })
