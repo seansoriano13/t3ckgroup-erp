@@ -82,4 +82,40 @@ export function stubActionRunRpcs() {
       outcome: args.p_decision === "create" ? "created" : "skipped",
     })
   })
+
+  // Issue #404 — sor_create_stage_action_task
+  // (supabase/migrations/20260930230000_stage_action_task_via_rpc.sql)
+  // inserts the task and marks the run created atomically. The fake
+  // database has no RLS layer to exercise here (that's the policy tier's
+  // job — src/test/policy); this stub only needs to reproduce the write
+  // shape so unit/component tests exercising buildAndCreateActionTask keep
+  // working now that the individual-task path goes through this RPC.
+  stubRpc("sor_create_stage_action_task", (args) => {
+    const run = findRow("sor_action_runs", args.p_run_id)
+    if (!run) throw new Error("sor_create_stage_action_task: run not found")
+    if (run.task_id) throw new Error("sor_create_stage_action_task: run already has a task")
+    if (!["pending", "created"].includes(run.outcome)) {
+      throw new Error("sor_create_stage_action_task: run is not pending")
+    }
+
+    const task = insertRow("tasks", {
+      task_description: args.p_task_description,
+      project_title: args.p_project_title ?? null,
+      category_id: args.p_category_id ?? null,
+      logged_by: args.p_logged_by ?? null,
+      priority: args.p_priority ?? "MEDIUM",
+      checklist: args.p_checklist ?? null,
+      status: "INCOMPLETE",
+      remarks: "",
+      end_at: args.p_end_at ?? null,
+      reported_to: args.p_reported_to ?? null,
+      opportunity_id: run.opportunity_id,
+      stage_action_id: run.action_id,
+      stage_visit_id: run.stage_visit_id,
+    })
+
+    updateRow("sor_action_runs", run, { outcome: "created", task_id: task.id })
+
+    return task
+  })
 }

@@ -22,6 +22,15 @@ function formatTaskDescription(desc, maxLen = 30) {
 
 export const taskMutationService = {
   // 3. CREATE
+  //
+  // Issue #404 — a Stage Action's Individual Task is created by the mover on
+  // someone else's behalf, and the `tasks` insert policy only admits an
+  // insert whose `logged_by` is the caller themself, a head, HR, or a Super
+  // Admin. A `payload.stageActionRunId` routes the write through
+  // `sor_create_stage_action_task` instead: a security-definer RPC that
+  // checks the caller has full access to the SOR and the run is still
+  // pending, then inserts the task and marks the run created atomically —
+  // the `tasks` insert policy itself is unchanged for every other caller.
   async createTask(payload) {
     let initialStatus = TASK_STATUS.INCOMPLETE;
     let hrVerified = false;
@@ -37,48 +46,70 @@ export const taskMutationService = {
       evaluatedAt = new Date().toISOString();
     }
 
-    const dbPayload = {
-      task_description: payload.taskDescription,
-      checklist: payload.checklist || null,
-      project_title: payload.projectTitle || null,
-      category_id: payload.categoryId,
-      logged_by: payload.loggedById,
-      start_at: payload.startAt
-        ? new Date(payload.startAt).toISOString()
-        : new Date().toISOString(),
-      end_at: payload.endAt ? new Date(payload.endAt).toISOString() : null,
-      status: initialStatus,
-      priority: payload.priority || "LOW",
-      remarks: payload.remarks || "",
-      hr_verified: hrVerified,
-      hr_verified_at: hrVerifiedAt,
-      evaluated_by: evaluatedBy,
-      evaluated_at: evaluatedAt,
-      payment_voucher: payload.paymentVoucher || null,
-      attachment_urls: payload.attachments || [],
-      reported_to: payload.reportedTo || null,
-      opportunity_id: payload.opportunityId || null,
-      // Issue #204 Part 2 — direct linkage to the Stage Action/Stage Visit
-      // that created this task, replacing the old description-marker guard.
-      stage_action_id: payload.stageActionId || null,
-      stage_visit_id: payload.stageVisitId || null,
-    };
+    let data;
 
-    let { data, error } = await supabase.from("tasks").insert([dbPayload]).select();
+    if (payload.stageActionRunId) {
+      const { data: rpcTask, error: rpcError } = await supabase.rpc(
+        "sor_create_stage_action_task",
+        {
+          p_run_id: payload.stageActionRunId,
+          p_task_description: payload.taskDescription,
+          p_project_title: payload.projectTitle || null,
+          p_category_id: payload.categoryId,
+          p_logged_by: payload.loggedById,
+          p_priority: payload.priority || "LOW",
+          p_checklist: payload.checklist || null,
+          p_end_at: payload.endAt ? new Date(payload.endAt).toISOString() : null,
+          p_reported_to: payload.reportedTo || null,
+        },
+      );
+      if (rpcError) throw rpcError;
+      data = [rpcTask];
+    } else {
+      const dbPayload = {
+        task_description: payload.taskDescription,
+        checklist: payload.checklist || null,
+        project_title: payload.projectTitle || null,
+        category_id: payload.categoryId,
+        logged_by: payload.loggedById,
+        start_at: payload.startAt
+          ? new Date(payload.startAt).toISOString()
+          : new Date().toISOString(),
+        end_at: payload.endAt ? new Date(payload.endAt).toISOString() : null,
+        status: initialStatus,
+        priority: payload.priority || "LOW",
+        remarks: payload.remarks || "",
+        hr_verified: hrVerified,
+        hr_verified_at: hrVerifiedAt,
+        evaluated_by: evaluatedBy,
+        evaluated_at: evaluatedAt,
+        payment_voucher: payload.paymentVoucher || null,
+        attachment_urls: payload.attachments || [],
+        reported_to: payload.reportedTo || null,
+        opportunity_id: payload.opportunityId || null,
+        // Issue #204 Part 2 — direct linkage to the Stage Action/Stage Visit
+        // that created this task, replacing the old description-marker guard.
+        stage_action_id: payload.stageActionId || null,
+        stage_visit_id: payload.stageVisitId || null,
+      };
 
-    if (error && error.message?.includes("checklist")) {
-      delete dbPayload.checklist;
-      if (payload.checklist) {
-        dbPayload.task_description =
-          typeof payload.checklist === "string"
-            ? payload.checklist
-            : JSON.stringify(payload.checklist);
+      let { data: inserted, error } = await supabase.from("tasks").insert([dbPayload]).select();
+
+      if (error && error.message?.includes("checklist")) {
+        delete dbPayload.checklist;
+        if (payload.checklist) {
+          dbPayload.task_description =
+            typeof payload.checklist === "string"
+              ? payload.checklist
+              : JSON.stringify(payload.checklist);
+        }
+        const retry = await supabase.from("tasks").insert([dbPayload]).select();
+        if (retry.error) throw retry.error;
+        inserted = retry.data;
+      } else if (error) {
+        throw error;
       }
-      const retry = await supabase.from("tasks").insert([dbPayload]).select();
-      if (retry.error) throw retry.error;
-      data = retry.data;
-    } else if (error) {
-      throw error;
+      data = inserted;
     }
 
     const taskId = data[0].id;
