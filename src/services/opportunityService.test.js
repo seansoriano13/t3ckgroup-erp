@@ -1808,13 +1808,17 @@ describe("opportunityService", () => {
 
     describe("Optional Actions — When confirmed (issue #204 Part 2)", () => {
       it("creates nothing until decided, and notifies the Decider", async () => {
+        // Issue #409 — the decision-due notification is now written directly
+        // inside sor_run_stage_actions (so it survives a closed tab), not via
+        // a client-side notificationService.createNotification call. Assert
+        // on the notifications table it lands in instead of spying on that
+        // service.
         const decider = makeEmployee({ name: "Decider Dana" })
         makeStageAction({
           stage_id: qualified.id,
           kind: "create_individual_task",
           config: { title: "Approve pricing", confirmMode: "confirm", decider: [{ type: "employee", id: decider.id }] },
         })
-        const spy = vi.spyOn(notificationService, "createNotification")
 
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
@@ -1825,10 +1829,11 @@ describe("opportunityService", () => {
           .find((r) => r.opportunity_id === deal.id)
         expect(run).toBeTruthy()
         expect(run.outcome).toBe("pending")
-        expect(spy).toHaveBeenCalledWith(
-          expect.objectContaining({ recipient_id: decider.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
-        )
-        spy.mockRestore()
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(decider.id)
       })
 
       it("renders the title template's tokens in the decision-due notification", async () => {
@@ -1842,19 +1847,16 @@ describe("opportunityService", () => {
             decider: [{ type: "employee", id: decider.id }],
           },
         })
-        const spy = vi.spyOn(notificationService, "createNotification")
 
         const deal = await register({ sales_reference: "S94001" })
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        expect(spy).toHaveBeenCalledWith(
-          expect.objectContaining({
-            recipient_id: decider.id,
-            type: "OPPORTUNITY_ACTION_DECISION_DUE",
-            title: "QA401 S2 optional (D decides) — S94001",
-          }),
-        )
-        spy.mockRestore()
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(decider.id)
+        expect(notification.title).toBe("QA401 S2 optional (D decides) — S94001")
       })
 
       it("Create produces the same task an automatic run would", async () => {
@@ -1968,15 +1970,15 @@ describe("opportunityService", () => {
           kind: "create_individual_task",
           config: { title: "Approve pricing", confirmMode: "confirm" },
         })
-        const spy = vi.spyOn(notificationService, "createNotification")
 
         const deal = await register()
         await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
 
-        expect(spy).toHaveBeenCalledWith(
-          expect.objectContaining({ recipient_id: owner.id, type: "OPPORTUNITY_ACTION_DECISION_DUE", reference_id: deal.id }),
-        )
-        spy.mockRestore()
+        const notification = db.internal
+          .rowsOf("notifications")
+          .find((n) => n.reference_id === deal.id && n.type === "OPPORTUNITY_ACTION_DECISION_DUE")
+        expect(notification).toBeTruthy()
+        expect(notification.recipient_id).toBe(owner.id)
 
         const run = db.internal.rowsOf("sor_action_runs").find((r) => r.opportunity_id === deal.id)
         const result = await opportunityService.decideAction(run.id, "create", owner.id)
@@ -2086,14 +2088,22 @@ describe("opportunityService", () => {
 
     describe("a Stage Action that fails", () => {
       it("keeps the move, still runs the other actions, and names the failed one", async () => {
-        const { taskService } = await import("./taskService")
-        makeStageAction({ stage_id: qualified.id, kind: "create_individual_task", config: { projectTitle: "Broken action" }, sort_order: 1 })
+        // Issue #409 — task creation now happens inside sor_run_stage_actions,
+        // one server-side call for the whole Stage's actions; there's no
+        // client-side createTask call left to mock a rejection onto. Forcing
+        // a real constraint violation (an assignee that doesn't exist) drives
+        // the same "one action fails, the rest still run" path through the
+        // actual RPC instead.
+        makeStageAction({
+          stage_id: qualified.id,
+          kind: "create_individual_task",
+          config: { projectTitle: "Broken action", loggedById: "00000000-0000-4000-8000-00000000dead" },
+          sort_order: 1,
+        })
         makeStageAction({ stage_id: qualified.id, kind: "create_group_task", config: { title: "Working action" }, sort_order: 2 })
-        const spy = vi.spyOn(taskService, "createTask").mockRejectedValueOnce(new Error("category missing"))
 
         const deal = await register()
         const moved = await opportunityService.updateStatus(deal.id, qualified.id, registrar.id)
-        spy.mockRestore()
 
         expect(moved.flow_stage_id).toBe(qualified.id)
         expect(moved.failedStageActions).toEqual(["Broken action"])

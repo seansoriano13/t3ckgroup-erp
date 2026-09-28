@@ -838,6 +838,7 @@ async function moveAlongFlow(existing, nextStageId, actorId, { returnChoice = nu
           payload.group_description = config.descriptionTemplate || config.description
             ? renderTemplate(config.descriptionTemplate || config.description, templateContext)
             : "";
+          payload.created_by = actorId;
           payload.members = members.map((m) => ({
             employee_id: m.employeeId,
             task_description: m.taskDescription || "",
