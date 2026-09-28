@@ -310,6 +310,13 @@ export default function SorModal({
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["opportunities"] });
     queryClient.invalidateQueries({ queryKey: ["globalOpportunity", id] });
+    // #406 — the register page (src/pages/sors/index.jsx) falls back to a
+    // query keyed `["opportunity", id]` for a selected SOR its list query
+    // doesn't carry (a Scratch SOR, or any other id outside the loaded
+    // register page). Without this, a ribbon move refetched everything
+    // above but left that fallback's cached row stale, so the modal kept
+    // showing the old stage until a reload.
+    queryClient.invalidateQueries({ queryKey: ["opportunity", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityNotes", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityItems", id] });
     // Every opened tab's own query lives under this prefix (useSorModalData).
