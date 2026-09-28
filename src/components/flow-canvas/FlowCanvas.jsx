@@ -772,6 +772,9 @@ function FlowCanvasInner() {
           addSatellite(stage, column, i, `sat:${stage.id}:${column}:${item.id}`, {
             variant,
             [variant]: item,
+            // Issue #411 — actionSummary names a single-employee Decider by
+            // looking them up here, rather than always saying "the assignee".
+            ...(variant === "action" ? { employees: allEmployees } : {}),
           });
         });
 
@@ -839,6 +842,7 @@ function FlowCanvasInner() {
     handleRemoveEdge,
     setRfNodes,
     setRfEdges,
+    allEmployees,
   ]);
 
   const onNodeDrag = useCallback(

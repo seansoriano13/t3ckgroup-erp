@@ -3091,36 +3091,26 @@ export const opportunityService = {
       throw new Error("Only a tickbox condition can be satisfied this way.");
     }
 
-    // Issue #203, story 28: certification is scoped to the currently-open
-    // visit, so a tick from a visit that has since closed (a loop back) no
-    // longer counts and this insert is not blocked by it either.
-    const currentVisit = await currentVisitFor(opportunityId);
-
-    let satisfiedQuery = supabase
-      .from("sor_condition_status")
-      .select("*")
-      .eq("opportunity_id", opportunityId)
-      .eq("condition_id", conditionId);
-    if (currentVisit?.id) satisfiedQuery = satisfiedQuery.eq("stage_visit_id", currentVisit.id);
-    const { data: satisfied, error: satisfiedError } = await satisfiedQuery.maybeSingle();
-    if (satisfiedError) throw satisfiedError;
-    if (satisfied) return satisfied;
-
-    const { data, error } = await supabase
-      .from("sor_condition_status")
-      .insert({
-        opportunity_id: opportunityId,
-        condition_id: conditionId,
-        satisfied_by: actorId,
-        stage_visit_id: currentVisit?.id ?? null,
-      })
-      .select()
-      .single();
+    // Issue #413 — resolving "the current visit" and writing the tick used to
+    // be two separate requests, so a Revert landing between them could steal
+    // the write onto whatever visit opened next. sor_certify_condition does
+    // both in one transaction: either this Stage is still open when the row
+    // goes in, or the certify is refused outright (issue #203, story 28's
+    // same visit-scoping, now race-proof).
+    const { data, error } = await supabase.rpc("sor_certify_condition", {
+      p_opportunity_id: opportunityId,
+      p_condition_id: conditionId,
+      p_stage_id: condition.stage_id,
+      p_actor_id: actorId,
+    });
     if (error) throw error;
+    const result = data?.[0];
 
-    await noteConditionSatisfied(opportunityId, condition, actorId);
+    if (result.was_new) {
+      await noteConditionSatisfied(opportunityId, condition, actorId);
+    }
 
-    return data;
+    return result;
   },
 
   /**
@@ -4010,10 +4000,14 @@ export const opportunityService = {
                 condition,
                 ...evaluation,
                 files: matchedFiles,
-                // ADR 0027: evidence a Resume carried here keeps its mark.
+                // ADR 0027 / issue #412 — evidence a Resume carried here keeps
+                // its mark. Reads matchedFiles, not the visit's whole
+                // attachments list: a Stage with more than one Attachment
+                // condition must mark only the one whose own file carried,
+                // not every Attachment condition on the Stage.
                 carried:
                   Boolean(statusRowsByCondition[condition.id]?.carried_from_visit_id) ||
-                  (attachments || []).some((a) => a.carriedFromVisitId),
+                  matchedFiles.some((a) => a.carriedFromVisitId),
               };
             })
             // Same rule as `getStageChecklist`: a removed kind can never be

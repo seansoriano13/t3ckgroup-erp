@@ -1,6 +1,16 @@
 [
     {
         "date": "2026-09-28",
+        "title": "Flow Canvas and Stage History Fixes",
+        "version": "1.7.33",
+        "changes": [
+            "Flow Canvas now names the actual person on a Decider card instead of always saying \"the assignee\" when someone else decides.",
+            "Resuming previous work on a returned SOR now correctly carries an already-uploaded condition file forward, so it still counts.",
+            "Fixed a rare timing issue where checking off a condition right as a stage move was reverted could get recorded against the wrong stage visit."
+        ]
+    },
+    {
+        "date": "2026-09-28",
         "title": "Rich Deliverables and Group Tasks in SOR History",
         "version": "1.7.32",
         "changes": [

@@ -123,9 +123,30 @@ export function actionTitle(action) {
   return (typeof named === "string" && named.trim()) || "Untitled action"
 }
 
-/** The one line worth reading under an action's title. */
-/** Issue #204 Part 2 — how a "When confirmed" action's Decider reads on the canvas card. */
-function deciderSummary(decider) {
+/**
+ * The action's own single assignee, if it has exactly one — a group task
+ * with more than one member has no single assignee to compare a Decider
+ * against, so `deciderSummary` never shortens to "the assignee" for it.
+ */
+function actionAssigneeId(action) {
+  const config = action?.config ?? {}
+  if (action?.kind === "create_group_task") {
+    const members = config.members || []
+    return members.length === 1 ? (members[0]?.employeeId ?? null) : null
+  }
+  return config.loggedById ?? null
+}
+
+/**
+ * The one line worth reading under an action's title.
+ *
+ * Issue #204 Part 2 — how a "When confirmed" action's Decider reads on the
+ * canvas card. Issue #411 — a single named employee was always shortened to
+ * "the assignee", even when that employee wasn't who the action assigns the
+ * work to; now that shorthand is reserved for when it's actually true, and
+ * any other employee is named instead.
+ */
+function deciderSummary(decider, { employees = [], assigneeId = null } = {}) {
   const selectors = decider || []
   if (selectors.length === 0) return "someone"
   if (selectors.length === 1) {
@@ -133,12 +154,16 @@ function deciderSummary(decider) {
     if (s.type === "role") return String(s.role || "").replace(/_/g, " ") || "someone"
     if (s.type === "team") return `${s.team} Team`
     if (s.type === "group") return "the group"
+    if (s.type === "employee") {
+      if (assigneeId && s.id === assigneeId) return "the assignee"
+      return employees.find((e) => e.id === s.id)?.name || "the assignee"
+    }
     return "the assignee"
   }
   return `${selectors.length} people`
 }
 
-export function actionSummary(action) {
+export function actionSummary(action, { employees = [] } = {}) {
   const config = action?.config ?? {}
   const label = ACTION_KIND_META[action?.kind]?.label ?? action?.kind ?? ""
 
@@ -151,7 +176,8 @@ export function actionSummary(action) {
   }
 
   if (config.confirmMode === "confirm") {
-    summary = `${summary} · When confirmed · ${deciderSummary(config.decider)} decides`
+    const decides = deciderSummary(config.decider, { employees, assigneeId: actionAssigneeId(action) })
+    summary = `${summary} · When confirmed · ${decides} decides`
   }
 
   return summary

@@ -196,7 +196,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                       <TemplateTokenText text={title} />
                     </span>
                     <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                      {actionSummary(action)}
+                      {actionSummary(action, { employees })}
                     </span>
                   </span>
 

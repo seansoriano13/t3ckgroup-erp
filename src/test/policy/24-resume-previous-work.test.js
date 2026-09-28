@@ -159,6 +159,39 @@ describe("sor_resume_stage_work", () => {
         const note = (await svc().from("sales_opportunity_logs").select("metadata").eq("opportunity_id", s.id).eq("content", "a comment").single()).data
         expect(note.metadata.stageVisitId).toBe(s.visit1)
     })
+
+    it("issue #412: carries an Attachment condition's file to the new visit", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        const attachmentConditionId = crypto.randomUUID()
+
+        // Mimics StageChecklist.jsx's stampAndAttach: the file is recorded only
+        // as an attachment note, tagged with the condition and the Stage Visit
+        // active when it was given — both the trigger-set stage_visit_id
+        // column (#295) and the file's own metadata.attachments[].stageVisitId
+        // land on visit1, since the SOR is still there at insert time.
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} Attached document`,
+            metadata: { attachments: [{ url: "https://example.com/f.pdf", name: "f.pdf", conditionId: attachmentConditionId, stageVisitId: visit1 }] },
+        })
+
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        const { data, error } = await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })
+        expect(error).toBeNull()
+
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata")
+            .eq("opportunity_id", id).eq("content", `${MARKER} Attached document`).single()).data
+        expect(log.stage_visit_id).toBe(data.id)
+        expect(log.metadata.stageVisitId).toBe(data.id)
+        expect(log.metadata.carriedFromVisitId).toBe(visit1)
+        // The evidence opportunityService.js's gateEvidenceFor actually reads:
+        // the file's own stageVisitId, not just the log's.
+        expect(log.metadata.attachments[0].stageVisitId).toBe(data.id)
+        expect(log.metadata.attachments[0].conditionId).toBe(attachmentConditionId)
+    })
 })
 
 describe("sor_move_and_resume", () => {
@@ -220,6 +253,29 @@ describe("reverting a Return undoes its Resume (ADR 0027)", () => {
         })
         const { error } = await client.rpc("sor_revert_stage", { p_opportunity_id: s.id })
         expect(error?.message).toMatch(/follow-up was logged/)
+    })
+
+    it("issue #412: moves a carried Attachment condition's file back too", async () => {
+        const id = await makeSor({ registeredBy: ids.dealOwner, dealOwnerId: ids.dealOwner, saleTypeId, flowStageId: stageA })
+        sorIds.push(id)
+        const visit1 = (await svc().from("sor_stage_visits").select("id").eq("opportunity_id", id).single()).data.id
+        await svc().from("sales_opportunity_logs").insert({
+            opportunity_id: id, author_id: ids.dealOwner, type: "COMMENT", content: `${MARKER} Attached document`,
+            metadata: { attachments: [{ url: "https://example.com/f.pdf", name: "f.pdf", conditionId: crypto.randomUUID(), stageVisitId: visit1 }] },
+        })
+        await moveTo(id, stageB)
+        await moveTo(id, stageA)
+        const client = await clientFor("dealOwner")
+        expect((await client.rpc("sor_resume_stage_work", { p_opportunity_id: id })).error).toBeNull()
+
+        expect((await client.rpc("sor_revert_stage", { p_opportunity_id: id })).error).toBeNull()
+
+        const log = (await svc().from("sales_opportunity_logs").select("stage_visit_id, metadata")
+            .eq("opportunity_id", id).eq("content", `${MARKER} Attached document`).single()).data
+        expect(log.stage_visit_id).toBe(visit1)
+        expect(log.metadata.stageVisitId).toBe(visit1)
+        expect(log.metadata.carriedFromVisitId).toBeUndefined()
+        expect(log.metadata.attachments[0].stageVisitId).toBe(visit1)
     })
 })
 

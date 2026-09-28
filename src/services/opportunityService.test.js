@@ -1068,6 +1068,28 @@ describe("opportunityService", () => {
           opportunityService.satisfyCondition(created.id, condition.id, registrar.id),
         ).rejects.toThrow(/archived/)
       })
+
+      // Issue #413 — the certify used to resolve "the current visit" and
+      // write the tick as two separate requests, so a Revert landing between
+      // them could land the tick on a visit the SOR had already left. Moved
+      // into one atomic RPC (sor_certify_condition) that refuses outright
+      // once the SOR is off the condition's own Stage, instead of silently
+      // writing it elsewhere.
+      it("refuses to certify a condition whose Stage the SOR isn't currently on", async () => {
+        const condition = makeStageCondition({ stage_id: qualified.id, kind: "tickbox" })
+        const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+        const deal = makeOpportunity({
+          registered_by: registrar.id,
+          sales_reference: "S00999",
+          sale_type_id: saleType.id,
+          flow_stage_id: lead.id,
+          flow_snapshot_id: snapshot.id,
+        })
+
+        await expect(
+          opportunityService.satisfyCondition(deal.id, condition.id, registrar.id),
+        ).rejects.toThrow(/left this condition's Stage/)
+      })
     })
 
     // Issue #203 — Stage Fields: a required field with no value blocks
@@ -3109,6 +3131,48 @@ describe("opportunityService", () => {
         url: "https://res.cloudinary.test/bidding.pdf",
         uploader: expect.objectContaining({ id: creator.id, name: "Group Creator" }),
       })
+    })
+
+    // Issue #412 AC — "Only the carried condition is marked 'from an earlier
+    // visit'": a Stage with more than one Attachment condition must not let
+    // one condition's carried file mark every Attachment condition on that
+    // Stage as carried. Its own flow/stage/snapshot, not the describe's
+    // shared ones above — those are snapshotted before this test could add
+    // conditions to them, so a second Attachment condition added afterward
+    // would never appear in getJourney's per-visit (snapshot-scoped) reads.
+    it("marks only the Attachment condition whose own file was carried, not every Attachment condition on the Stage", async () => {
+      const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
+      const stage = makeFlowStage({ flow_id: flow.id, name: "Lead", sort_order: 0 })
+      const uploader = makeEmployee({ name: "Uploader" })
+      const conditionA = makeStageCondition({ stage_id: stage.id, kind: "attachment", label: "NOA" })
+      const conditionB = makeStageCondition({ stage_id: stage.id, kind: "attachment", label: "Bid Bond" })
+      const snapshot = makeFlowSnapshot({ flow_id: flow.id })
+      const deal2 = makeOpportunity({ flow_snapshot_id: snapshot.id })
+      const visit1 = makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: stage.id, flow_snapshot_id: snapshot.id, sequence: 1, entered_at: "2026-01-01T00:00:00.000Z", left_at: "2026-01-10T00:00:00.000Z" })
+      const other = makeFlowStage({ flow_id: flow.id, name: "Elsewhere", sort_order: 1 })
+      makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: other.id, flow_snapshot_id: snapshot.id, sequence: 2, entered_at: "2026-01-10T00:00:00.000Z", left_at: "2026-01-20T00:00:00.000Z" })
+      const visit3 = makeStageVisit({ opportunity_id: deal2.id, flow_stage_id: stage.id, flow_snapshot_id: snapshot.id, sequence: 3, entered_at: "2026-01-20T00:00:00.000Z" })
+      stubRpc("sor_visible_visit_ids", () => [visit1.id, visit3.id])
+
+      await opportunityService.addNote(deal2.id, uploader.id, "NOA carried in", [
+        { url: "https://res.cloudinary.test/noa.pdf", name: "noa.pdf", type: "pdf", conditionId: conditionA.id, stageVisitId: visit3.id },
+      ])
+      await opportunityService.addNote(deal2.id, uploader.id, "Bid bond given fresh", [
+        { url: "https://res.cloudinary.test/bond.pdf", name: "bond.pdf", type: "pdf", conditionId: conditionB.id, stageVisitId: visit3.id },
+      ])
+      // sor_resume_stage_work (20260930250000) stamps carriedFromVisitId on
+      // the LOG's own top-level metadata, not inside the attachment item —
+      // attachmentsFromLog reads it from there (opportunityService.js:266).
+      // The fake database has no Postgres function to run that migration, so
+      // this mimics its result directly on the NOA note only.
+      const noaLog = db.internal.rowsOf("sales_opportunity_logs").find((l) => l.content === "NOA carried in")
+      noaLog.metadata = { ...noaLog.metadata, carriedFromVisitId: visit1.id }
+
+      const current = (await opportunityService.getJourney(deal2.id))[0]
+      const byId = Object.fromEntries(current.conditions.map((c) => [c.condition.id, c]))
+
+      expect(byId[conditionA.id].carried).toBe(true)
+      expect(byId[conditionB.id].carried).toBe(false)
     })
   })
 

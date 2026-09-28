@@ -78,6 +78,59 @@ describe("flowStageKinds", () => {
         actionSummary({ kind: "create_individual_task", config: { priority: "HIGH" } }),
       ).toBe("Individual Task · high priority")
     })
+
+    // Issue #411 — a single-employee Decider was always rendered as "the
+    // assignee", even for an employee who wasn't the action's own assignee.
+    describe("a single-employee Decider", () => {
+      const employees = [
+        { id: "decider-1", name: "Ana Reyes" },
+        { id: "assignee-1", name: "Ben Cruz" },
+      ]
+
+      it("names the employee when they aren't the action's assignee", () => {
+        expect(
+          actionSummary(
+            {
+              kind: "create_individual_task",
+              config: {
+                confirmMode: "confirm",
+                loggedById: "assignee-1",
+                decider: [{ type: "employee", id: "decider-1" }],
+              },
+            },
+            { employees },
+          ),
+        ).toBe("Individual Task · When confirmed · Ana Reyes decides")
+      })
+
+      it("says \"the assignee\" only when the Decider really is the assignee", () => {
+        expect(
+          actionSummary(
+            {
+              kind: "create_individual_task",
+              config: {
+                confirmMode: "confirm",
+                loggedById: "assignee-1",
+                decider: [{ type: "employee", id: "assignee-1" }],
+              },
+            },
+            { employees },
+          ),
+        ).toBe("Individual Task · When confirmed · the assignee decides")
+      })
+
+      it("falls back to \"the assignee\" for an employee no longer listed", () => {
+        expect(
+          actionSummary(
+            {
+              kind: "create_individual_task",
+              config: { confirmMode: "confirm", decider: [{ type: "employee", id: "gone" }] },
+            },
+            { employees },
+          ),
+        ).toBe("Individual Task · When confirmed · the assignee decides")
+      })
+    })
   })
 
   describe("conditionDetail", () => {

@@ -122,7 +122,7 @@ function FlowSatelliteNode({ data, selected }) {
           selected={selected}
           icon={meta?.icon ?? MoreHorizontal}
           title={actionTitle(data.action)}
-          detail={actionSummary(data.action)}
+          detail={actionSummary(data.action, { employees: data.employees })}
           badge={
             data.action.config?.confirmMode === "confirm" && (
               <span className="shrink-0 rounded bg-violet-a4 px-1 py-px text-[9px] font-black uppercase tracking-[0.1em] text-violet-11">

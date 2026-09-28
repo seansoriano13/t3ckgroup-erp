@@ -204,7 +204,7 @@ export default function FlowVersionStagePanel({
                         {actionTitle(row)}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {actionSummary(row)}
+                        {actionSummary(row, { employees })}
                       </span>
                     </span>
                     <ChevronRight
