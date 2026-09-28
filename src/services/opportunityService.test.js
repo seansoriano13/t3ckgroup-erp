@@ -2734,6 +2734,16 @@ describe("opportunityService", () => {
       })
     })
 
+    it("names a missing opportunity rather than surfacing a coercion error", async () => {
+      await expect(
+        opportunityService.updateOpportunity(
+          "00000000-0000-0000-0000-000000000000",
+          payload(),
+          registrar.id,
+        ),
+      ).rejects.toThrow(/could not be found/i)
+    })
+
     it("describes what changed on the timeline", async () => {
       const created = await opportunityService.createOpportunity(payload(), registrar.id)
 

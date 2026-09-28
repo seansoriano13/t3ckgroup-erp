@@ -166,7 +166,9 @@ create table if not exists public."committee_tasks" (
   "template_id" uuid,
   "opportunity_id" uuid,
   "stage_action_id" uuid,
-  "stage_visit_id" uuid
+  "stage_visit_id" uuid,
+  "start_date" date,
+  "lead_time" text
 );
 
 create table if not exists public."companies" (
@@ -1592,6 +1594,13 @@ create policy "Allow update for authenticated users" on public."committee_task_m
   for update
   to authenticated
   using (true);
+create policy "committee_task_members_delete" on public."committee_task_members"
+  as permissive
+  for delete
+  to authenticated
+  using ((is_super_admin() OR (EXISTS ( SELECT 1
+   FROM committee_tasks ct
+  WHERE ((ct.id = committee_task_members.committee_task_id) AND (ct.created_by = get_employee_id()))))));
 create policy "committee_task_members_insert" on public."committee_task_members"
   as permissive
   for insert

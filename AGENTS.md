@@ -87,6 +87,7 @@ rename:
 | The set builds the wrong schema from empty (`migration-gate.yml` fails) | Add a **new** forward migration that corrects the end state. Never reorder. |
 | A change reached a database outside a migration (hand-applied, or MCP `apply_migration`) | Write a **new** guarded migration (`if not exists`) that reconciles it — see `20260909140000_reconcile_sor_register_serial_no.sql`. |
 | A shipped migration's SQL is wrong | Write a **new** migration that alters the result. The shipped file is history. |
+| Two different files share one version, each recorded by a different database (a `main` hotfix and a staging migration) | The one exception to "never rename". Keep the file prod's ledger holds. Renumber the other to a version that still sorts **before** any later migration redefining the same objects (e.g. `…200000` → `…200001`, not past the tip), give both the `allow-out-of-order` marker, and `renumber` its row in the other database's ledger via the *Repair migration history* workflow, run from a branch that has the new filename. See #415. |
 
 Write migrations so a re-run cannot fail, and check that the guard guards the
 thing you are about to create. `drop policy if exists "<old name>"` followed by

@@ -1,6 +1,15 @@
 [
     {
         "date": "2026-09-28",
+        "title": "Group Tasks: Start Date, Lead Time, and Removing Members",
+        "version": "1.7.34",
+        "changes": [
+            "Group tasks now have a Start Date and a Lead Time. Lead Time is a free note, like \"120 calendar days\" or \"Extended\". Set them when you create the task, or edit them later from the task's details.",
+            "Fixed a bug where removing a member from a group task said it worked, and showed it in the history, but the member stayed on the task. Removing a member now really removes them. If you're not allowed to remove them, it tells you instead."
+        ]
+    },
+    {
+        "date": "2026-09-28",
         "title": "Flow Canvas and Stage History Fixes",
         "version": "1.7.33",
         "changes": [
