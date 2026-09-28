@@ -134,7 +134,7 @@ export default function GroupTaskDetailModal({
 
 
   const [isEditingTask, setIsEditingTask] = useState(false);
-  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
+  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "", startDate: "", leadTime: "" });
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   // Covers the whole pick → Cloudinary upload → persist round trip for the
@@ -253,6 +253,8 @@ export default function GroupTaskDetailModal({
       title: task.title || "",
       description: task.description || "",
       dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+      startDate: task.start_date || "",
+      leadTime: task.lead_time || "",
     });
     setIsEditingTask(true);
   };
@@ -262,7 +264,11 @@ export default function GroupTaskDetailModal({
       toast.error("Title is required");
       return;
     }
-    await onUpdateTask(taskEditDraft);
+    await onUpdateTask({
+      ...taskEditDraft,
+      startDate: taskEditDraft.startDate || null,
+      leadTime: taskEditDraft.leadTime.trim() || null,
+    });
     setIsEditingTask(false);
   };
 
@@ -699,14 +705,34 @@ export default function GroupTaskDetailModal({
                     placeholder="Task Description..."
                   />
                 </div>
-                <div className="w-48">
-                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
-                  <Input 
-                    type="date"
-                    value={taskEditDraft.dueDate}
-                    onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
-                    className="h-9 bg-background/50 border-border/50 text-sm"
-                  />
+                <div className="flex flex-wrap gap-3">
+                  <div className="w-48">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Start Date</label>
+                    <Input
+                      type="date"
+                      value={taskEditDraft.startDate}
+                      onChange={(e) => setTaskEditDraft(p => ({ ...p, startDate: e.target.value }))}
+                      className="h-9 bg-background/50 border-border/50 text-sm"
+                    />
+                  </div>
+                  <div className="w-48">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Due Date</label>
+                    <Input 
+                      type="date"
+                      value={taskEditDraft.dueDate}
+                      onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
+                      className="h-9 bg-background/50 border-border/50 text-sm"
+                    />
+                  </div>
+                  <div className="w-48">
+                    <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1 block">Lead Time</label>
+                    <Input
+                      value={taskEditDraft.leadTime}
+                      onChange={(e) => setTaskEditDraft(p => ({ ...p, leadTime: e.target.value }))}
+                      className="h-9 bg-background/50 border-border/50 text-sm"
+                      placeholder="e.g. 120 calendar days"
+                    />
+                  </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
@@ -727,10 +753,23 @@ export default function GroupTaskDetailModal({
                     <Users size={14} className="text-primary/70" /> Created by{" "}
                     {task.creator?.name || "Unknown"}
                   </div>
+                  {task.start_date && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={14} className="text-primary/70" /> Starts{" "}
+                      {/* A bare date parses as UTC midnight; pin it to local. */}
+                      {formatDueDate(`${task.start_date}T00:00`)}
+                    </div>
+                  )}
                   {task.due_date && (
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-primary/70" /> Due{" "}
                       {formatDueDate(task.due_date)}
+                    </div>
+                  )}
+                  {task.lead_time && (
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-primary/70" /> Lead time{" "}
+                      {task.lead_time}
                     </div>
                   )}
                   <SorLink opportunityId={task.opportunity_id} onClose={onClose} variant="inline" />
