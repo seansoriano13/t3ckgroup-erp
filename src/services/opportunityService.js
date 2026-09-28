@@ -40,7 +40,13 @@ import {
 import { formatSnapshotVersion } from "../constants/flowVersion";
 import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
-import { visitOwnsTask } from "../constants/journey";
+import {
+  visitOwnsTask,
+  matchedAttachmentFor,
+  stageFieldRows,
+  stageFollowUpLogs,
+  stageFollowUpReminderCount,
+} from "../constants/journey";
 import { AVAILABLE_RETURN_CHOICES, RETURN_CHOICE } from "../constants/returnChoice";
 import { REVERT_CHOICE } from "../constants/revertChoice";
 
@@ -3893,23 +3899,45 @@ export const opportunityService = {
     const snapshotIds = [...new Set(visits.map(snapshotIdFor).filter(Boolean))];
     const stageIds = [...new Set(visits.map((v) => v.flow_stage_id).filter(Boolean))];
 
-    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes] = await Promise.all([
-      snapshotIds.length > 0
-        ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
-        : Promise.resolve({ data: [] }),
-      stageIds.length > 0
-        ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
-        : Promise.resolve({ data: [] }),
-      supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
-      supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
-    ]);
+    const visitIds = visits.map((v) => v.id);
+
+    const [snapshotsRes, stagesRes, tasksRes, groupTasksRes, stageFieldValuesRes, opportunityLogsRes] =
+      await Promise.all([
+        snapshotIds.length > 0
+          ? supabase.from("flow_snapshots").select("id, snapshot_data").in("id", snapshotIds)
+          : Promise.resolve({ data: [] }),
+        stageIds.length > 0
+          ? supabase.from("flow_stages").select("id, name, bracket_label").in("id", stageIds)
+          : Promise.resolve({ data: [] }),
+        supabase.from("tasks").select(SOR_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+        supabase.from("committee_tasks").select(SOR_GROUP_TASK_COLUMNS).eq("opportunity_id", opportunityId),
+        // #397: a visit's custom Stage Field values — fetched for the whole
+        // SOR, same as tasks/groupTasks above, and filtered per visit below.
+        // RLS on `sor_stage_field_values` is what actually keeps a Restricted
+        // Stage's values out for anyone shut out of it; `isRestricted` is
+        // only what tells this shaper not to bother looking.
+        supabase.from("sor_stage_field_values").select("field_id, value, stage_visit_id").in("stage_visit_id", visitIds),
+        // #397: Logged Follow-ups and reminder counts read the same timeline
+        // `gateEvidenceFor` already reads per-condition, but scoped once here
+        // for the whole SOR since every visit needs it, not just ones with
+        // conditions.
+        supabase.from("sales_opportunity_logs").select("author_id, created_at, content, metadata").eq("opportunity_id", opportunityId),
+      ]);
     if (snapshotsRes.error) throw snapshotsRes.error;
     if (stagesRes.error) throw stagesRes.error;
     if (tasksRes.error) throw tasksRes.error;
     if (groupTasksRes.error) throw groupTasksRes.error;
+    if (stageFieldValuesRes.error) throw stageFieldValuesRes.error;
+    if (opportunityLogsRes.error) throw opportunityLogsRes.error;
 
     const snapshotsById = Object.fromEntries((snapshotsRes.data || []).map((s) => [s.id, s]));
     const liveStagesById = Object.fromEntries((stagesRes.data || []).map((s) => [s.id, s]));
+
+    const fieldValuesByVisit = {};
+    for (const row of stageFieldValuesRes.data || []) {
+      (fieldValuesByVisit[row.stage_visit_id] ??= {})[row.field_id] = row.value;
+    }
+    const opportunityLogs = opportunityLogsRes.data || [];
 
     // The SOR's own Snapshot names the Stage, never the live row (issue #83):
     // a Stage renamed or moved to another bracket since must not rewrite what
@@ -3955,6 +3983,19 @@ export const opportunityService = {
         // #209 fills this in with the visit's Purchase Requests; until it does,
         // the slot exists so the tab renders the same shape either way.
         requestedItems: [],
+        // #397: labelled from the visit's own Flow Snapshot, never the live
+        // flow_stage_fields — same "frozen with everything else" rule the
+        // Stage itself is named from (see `stageFor`, above).
+        stageFields: isRestricted
+          ? { filled: [], notFilled: [] }
+          : stageFieldRows(
+              snapshotRows(snapshotsById[snapshotIdFor(visit)]?.snapshot_data?.stageFields).filter(
+                (f) => f.stage_id === visit.flow_stage_id,
+              ),
+              fieldValuesByVisit[visit.id] || {},
+            ),
+        followUps: isRestricted ? [] : stageFollowUpLogs(opportunityLogs, visit.id),
+        followUpReminderCount: isRestricted ? 0 : stageFollowUpReminderCount(opportunityLogs, visit.id),
       };
     });
 
@@ -4011,6 +4052,8 @@ export const opportunityService = {
                 condition,
                 ...evaluation,
                 files: matchedFiles,
+                // #397: History shows the file that met the condition.
+                file: matchedAttachmentFor(condition, attachments),
                 // ADR 0027 / issue #412 — evidence a Resume carried here keeps
                 // its mark. Reads matchedFiles, not the visit's whole
                 // attachments list: a Stage with more than one Attachment
@@ -4028,13 +4071,15 @@ export const opportunityService = {
       }),
     );
 
-    // Evidence names its actor by id; the tab shows a face beside "met by",
-    // so they are resolved once here rather than a lookup per rendered row.
+    // Evidence names its actor by id; the tab shows a face beside "met by"
+    // and beside a Logged Follow-up, so every actor id across both is
+    // resolved once here rather than a lookup per rendered row.
     const satisfierIds = [
       ...new Set([
         ...withConditions.flatMap((v) => (v.conditions || []).map((c) => c.satisfiedBy)),
         ...withConditions.flatMap((v) => (v.attachments || []).map((a) => a.uploadedBy)),
         ...withConditions.flatMap((v) => (v.conditions || []).flatMap((c) => (c.files || []).map((f) => f.uploadedBy))),
+        ...withConditions.flatMap((v) => (v.followUps || []).map((f) => f.loggedBy)),
       ].filter(Boolean)),
     ];
     let peopleById = {};
@@ -4060,6 +4105,10 @@ export const opportunityService = {
           ...f,
           uploader: f.uploadedBy ? (peopleById[f.uploadedBy] ?? null) : null,
         })),
+      })),
+      followUps: visit.followUps.map((row) => ({
+        ...row,
+        loggedBy: row.loggedBy ? (peopleById[row.loggedBy] ?? null) : null,
       })),
     }));
   },

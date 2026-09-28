@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
+  Bell,
   ArrowRight,
   Check,
   ChevronDown,
@@ -23,6 +24,7 @@ import TaskRow from "./TaskRow";
 import { useSorModalData } from "./useSorModalData";
 import { opportunityService } from "../../../services/opportunityService";
 import { Button } from "../../ui/button";
+import { ExternalLink as ExternalAnchor } from "../../ui/external-link";
 import { isConditionOutstanding, isTaskDeleted, journeyRows } from "../../../constants/journey";
 import { groupTaskRow, individualTaskRow } from "../../../constants/sorTasks";
 import { CONDITION_STATUS } from "../../../constants/stageGate";
@@ -153,6 +155,75 @@ function ConditionLine({ row }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** A Follow-up's proof file, openable in a new tab. */
+function FileLink({ file }) {
+  if (!file?.url) return null;
+  return (
+    <ExternalAnchor
+      href={file.url}
+      className="inline-flex items-center gap-1 font-semibold text-foreground underline-offset-2 hover:underline"
+    >
+      <Paperclip size={11} className="shrink-0" />
+      {file.name || "Attached file"}
+    </ExternalAnchor>
+  );
+}
+
+/** A past visit's Stage Fields (#397): filled ones with their value, unfilled ones named on one muted line. */
+function StageFieldsSection({ stageFields }) {
+  const { filled = [], notFilled = [] } = stageFields || {};
+  if (filled.length === 0 && notFilled.length === 0) return null;
+
+  return (
+    <VisitGroup label="Stage fields" count={filled.length + (notFilled.length > 0 ? 1 : 0)}>
+      {filled.map((field) => (
+        <div key={field.id} className="flex items-start gap-2 text-[11px] leading-5">
+          <span className="min-w-0 flex-1 font-medium text-foreground">{field.label}</span>
+          <span className="shrink-0 text-muted-foreground">{String(field.value)}</span>
+        </div>
+      ))}
+      {notFilled.length > 0 && (
+        <p className="text-[11px] text-muted-foreground/70">Not filled: {notFilled.join(", ")}</p>
+      )}
+    </VisitGroup>
+  );
+}
+
+/** A past visit's Logged Follow-ups (#397), plus a count of reminders sent — the note text verbatim, proof openable. */
+function FollowUpsSection({ followUps = [], reminderCount = 0 }) {
+  if (followUps.length === 0 && reminderCount === 0) return null;
+
+  return (
+    <VisitGroup label="Follow-ups" count={followUps.length + (reminderCount > 0 ? 1 : 0)}>
+      {followUps.map((entry, i) => {
+        const when = formatWhen(entry.loggedAt);
+        return (
+          <div key={i} className="space-y-1 text-[11px] leading-5">
+            <div className="flex items-start gap-2">
+              <Person person={entry.loggedBy} />
+              {when && <span className="text-muted-foreground">on {when}</span>}
+            </div>
+            {entry.note && <p className="text-foreground">{entry.note}</p>}
+            {entry.files?.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {entry.files.map((file, fi) => (
+                  <FileLink key={fi} file={file} />
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {reminderCount > 0 && (
+        <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground/70">
+          <Bell size={11} className="shrink-0" />
+          {reminderCount} reminder{reminderCount === 1 ? "" : "s"} sent
+        </p>
+      )}
+    </VisitGroup>
   );
 }
 
@@ -309,6 +380,10 @@ function PastVisit({ row, onToggle }) {
             </VisitGroup>
           )}
 
+          <StageFieldsSection stageFields={visit.stageFields} />
+
+          <FollowUpsSection followUps={visit.followUps} reminderCount={visit.followUpReminderCount} />
+
           {visit.requestedItems?.length > 0 && (
             <VisitGroup label="Requested items" count={visit.requestedItems.length}>
               {visit.requestedItems.map((item) => (
@@ -320,7 +395,9 @@ function PastVisit({ row, onToggle }) {
             </VisitGroup>
           )}
 
-          {!visit.resumedAt && visit.conditions.length === 0 && taskCount === 0 && allDeliverables.length === 0 && (
+          {!visit.resumedAt && visit.conditions.length === 0 && taskCount === 0 && allDeliverables.length === 0 &&
+            !(visit.stageFields?.filled?.length || visit.stageFields?.notFilled?.length) &&
+            !(visit.followUps?.length || visit.followUpReminderCount) && (
             <p className="text-[11px] text-muted-foreground">Nothing was recorded on this visit.</p>
           )}
 

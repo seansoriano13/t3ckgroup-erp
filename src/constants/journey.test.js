@@ -1,6 +1,17 @@
 import { describe, it, expect } from "vitest"
-import { journeyRows, visitSummary, visitOwnsTask, isTaskOpen, isTaskDeleted, isConditionOutstanding } from "./journey"
-import { CONDITION_STATUS } from "./stageGate"
+import {
+  journeyRows,
+  visitSummary,
+  visitOwnsTask,
+  isTaskOpen,
+  isTaskDeleted,
+  isConditionOutstanding,
+  matchedAttachmentFor,
+  stageFieldRows,
+  stageFollowUpLogs,
+  stageFollowUpReminderCount,
+} from "./journey"
+import { CONDITION_KINDS, CONDITION_STATUS } from "./stageGate"
 import { TASK_STATUS } from "./status"
 
 function makeVisit(overrides = {}) {
@@ -166,6 +177,99 @@ describe("isTaskOpen", () => {
     expect(isTaskOpen({ status: "HR_PENDING" })).toBe(false)
     expect(isTaskOpen({ status: "HR_VERIFIED" })).toBe(false)
     expect(isTaskOpen({ status: TASK_STATUS.INCOMPLETE })).toBe(true)
+  })
+})
+
+describe("matchedAttachmentFor (#397)", () => {
+  it("returns the attachment tagged with the condition's own id, filtered by accepted type", () => {
+    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: { accepts: ["pdf"] } }
+    const attachments = [
+      { conditionId: "cond-1", type: "image", name: "wrong-type.png" },
+      { conditionId: "cond-1", type: "pdf", name: "quote.pdf" },
+      { conditionId: "cond-2", type: "pdf", name: "not-mine.pdf" },
+    ]
+
+    expect(matchedAttachmentFor(condition, attachments)).toMatchObject({ name: "quote.pdf" })
+  })
+
+  it("falls back to the legacy documentType match for a pre-#203 condition", () => {
+    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: { documentType: "NDA" } }
+    const attachments = [{ documentType: "NDA", name: "nda.pdf" }]
+
+    expect(matchedAttachmentFor(condition, attachments)).toMatchObject({ name: "nda.pdf" })
+  })
+
+  it("returns null when nothing matches, or the condition isn't an attachment kind", () => {
+    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: {} }
+    expect(matchedAttachmentFor(condition, [])).toBeNull()
+    expect(matchedAttachmentFor({ id: "cond-2", kind: CONDITION_KINDS.TICKBOX }, [{ conditionId: "cond-2" }])).toBeNull()
+  })
+})
+
+describe("stageFieldRows (#397)", () => {
+  it("splits custom fields into filled (with value) and not-filled (label only)", () => {
+    const fields = [
+      { id: "f1", label: "Site survey date", source: "custom" },
+      { id: "f2", label: "Access notes", source: "custom" },
+      { id: "f3", label: "Ignored SOR field", source: "sor", sor_field: "po_date" },
+    ]
+    const values = { f1: "2026-02-01" }
+
+    expect(stageFieldRows(fields, values)).toEqual({
+      filled: [{ id: "f1", label: "Site survey date", value: "2026-02-01" }],
+      notFilled: ["Access notes"],
+    })
+  })
+
+  it("treats blank/whitespace values as not filled", () => {
+    const fields = [{ id: "f1", label: "Notes", source: "custom" }]
+    expect(stageFieldRows(fields, { f1: "   " }).notFilled).toEqual(["Notes"])
+  })
+})
+
+describe("stageFollowUpLogs / stageFollowUpReminderCount (#397)", () => {
+  const logs = [
+    {
+      author_id: "emp-1",
+      created_at: "2026-01-05T00:00:00Z",
+      content: "Follow-up logged: Called the client, awaiting reply",
+      metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: "visit-1", attachments: [{ name: "call-notes.pdf" }] },
+    },
+    {
+      author_id: "emp-2",
+      created_at: "2026-01-01T00:00:00Z",
+      content: "Follow-up logged",
+      metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: "visit-1" },
+    },
+    {
+      author_id: "emp-3",
+      created_at: "2026-01-03T00:00:00Z",
+      content: "Follow-up logged: not this visit",
+      metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: "visit-2" },
+    },
+    { author_id: null, created_at: "2026-01-06T00:00:00Z", content: null, metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: "visit-1" } },
+    { author_id: null, created_at: "2026-01-08T00:00:00Z", content: null, metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: "visit-1" } },
+    { author_id: null, created_at: "2026-01-09T00:00:00Z", content: null, metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: "visit-2" } },
+  ]
+
+  it("lists a visit's logged follow-ups oldest first, with note text stripped of the system prefix", () => {
+    const rows = stageFollowUpLogs(logs, "visit-1")
+
+    expect(rows).toEqual([
+      { loggedBy: "emp-2", loggedAt: "2026-01-01T00:00:00Z", note: "", files: [] },
+      {
+        loggedBy: "emp-1",
+        loggedAt: "2026-01-05T00:00:00Z",
+        note: "Called the client, awaiting reply",
+        files: [{ name: "call-notes.pdf" }],
+      },
+    ])
+  })
+
+  it("counts only this visit's reminders", () => {
+    expect(stageFollowUpReminderCount(logs, "visit-1")).toBe(2)
+    expect(stageFollowUpReminderCount(logs, "visit-2")).toBe(1)
+    expect(stageFollowUpReminderCount(logs, "visit-3")).toBe(0)
   })
 })
 

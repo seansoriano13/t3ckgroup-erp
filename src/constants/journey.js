@@ -1,4 +1,4 @@
-import { CONDITION_STATUS } from "./stageGate"
+import { CONDITION_KINDS, CONDITION_STATUS } from "./stageGate"
 import { GROUP_TASK_STATUS, TASK_STATUS } from "./status"
 
 /**
@@ -59,6 +59,86 @@ export function visitOwnsTask(task, visit) {
 
   const leftAt = visit.leftAt ? Date.parse(visit.leftAt) : null
   return leftAt === null || createdAt < leftAt
+}
+
+/**
+ * The attachment that actually met an attachment condition (#397) — the same
+ * matching rule `evaluateCondition` applies internally but never hands back,
+ * since the live gate only needs who/when. History needs the file itself, so
+ * this re-runs that one rule read-only rather than widening the pure engine's
+ * return shape for every caller.
+ */
+export function matchedAttachmentFor(condition, attachments = []) {
+  if (condition?.kind !== CONDITION_KINDS.ATTACHMENT) return null
+
+  const documentType = condition.config?.documentType ?? null
+  if (documentType) {
+    return attachments.find((a) => a.documentType === documentType) ?? null
+  }
+  const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : []
+  return (
+    attachments.find(
+      (a) => a.conditionId === condition.id && (accepts.length === 0 || accepts.includes(a.type)),
+    ) ?? null
+  )
+}
+
+function isNonEmptyFieldValue(value) {
+  return value !== null && value !== undefined && String(value).trim() !== ""
+}
+
+/**
+ * A visit's custom Stage Field values (#397), labelled from the Flow
+ * Snapshot's frozen field definitions — filled ones with their value, unfilled
+ * ones named once so the tab can print "Not filled: A, B" on a single muted
+ * line instead of a row per empty field. `sor`-source fields are excluded:
+ * they write straight through to the SOR record (#199), never to
+ * `sor_stage_field_values`, so there is no per-visit value to show here.
+ */
+export function stageFieldRows(fields = [], values = {}) {
+  const filled = []
+  const notFilled = []
+  for (const field of fields) {
+    if (field.source !== "custom") continue
+    const value = values[field.id]
+    if (isNonEmptyFieldValue(value)) {
+      filled.push({ id: field.id, label: field.label, value })
+    } else {
+      notFilled.push(field.label)
+    }
+  }
+  return { filled, notFilled }
+}
+
+const FOLLOW_UP_LOGGED_EVENT = "FOLLOW_UP_LOGGED"
+const FOLLOW_UP_REMINDER_EVENT = "FOLLOW_UP_REMINDER"
+
+/** Strips the "Follow-up logged: " prefix `logFollowUp` writes, so history shows the note verbatim. */
+function followUpNoteText(content) {
+  if (!content) return ""
+  const prefix = "Follow-up logged: "
+  if (content.startsWith(prefix)) return content.slice(prefix.length)
+  return content === "Follow-up logged" ? "" : content
+}
+
+/** A visit's Logged Follow-ups (#397), oldest first, from the SOR's whole timeline scoped by `metadata.stageVisitId`. */
+export function stageFollowUpLogs(logs = [], visitId) {
+  return (logs || [])
+    .filter((l) => l.metadata?.event === FOLLOW_UP_LOGGED_EVENT && l.metadata?.stageVisitId === visitId)
+    .sort((a, b) => (Date.parse(a.created_at) || 0) - (Date.parse(b.created_at) || 0))
+    .map((l) => ({
+      loggedBy: l.author_id,
+      loggedAt: l.created_at,
+      note: followUpNoteText(l.content),
+      files: l.metadata?.attachments || [],
+    }))
+}
+
+/** How many reminders fired on this visit (#397) — a count, not a list, per the ticket's "N reminders sent". */
+export function stageFollowUpReminderCount(logs = [], visitId) {
+  return (logs || []).filter(
+    (l) => l.metadata?.event === FOLLOW_UP_REMINDER_EVENT && l.metadata?.stageVisitId === visitId,
+  ).length
 }
 
 const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`

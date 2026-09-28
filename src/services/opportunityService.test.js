@@ -3049,7 +3049,7 @@ describe("opportunityService", () => {
   describe("the Journey (#300)", () => {
     // Three visits with fixed windows: Lead, then Qualified, then back to
     // Lead — the loop is what makes per-visit evidence observable.
-    let deal, lead, qualified, v1, v2, v3, estimator, creator
+    let deal, lead, qualified, v1, v2, v3, estimator, creator, siteField
 
     beforeEach(() => {
       const flow = makeSalesFlow({ sale_type_id: makeSaleType().id })
@@ -3059,11 +3059,22 @@ describe("opportunityService", () => {
       creator = makeEmployee({ name: "Group Creator" })
       makeStageCondition({ stage_id: lead.id, kind: "tickbox", label: "Signed NDA" })
       makeStageCondition({
+        stage_id: lead.id,
+        kind: "attachment",
+        label: "Notice of Award",
+        config: { documentType: "NOA" },
+      })
+      makeStageCondition({
         stage_id: qualified.id,
         kind: "assignment",
         label: "Estimator assigned",
         config: { who: [{ type: "employee", id: estimator.id }] },
       })
+      // #397: two custom Stage Fields on Lead — captured into the snapshot
+      // below so getJourney's Stage Fields section has something frozen to
+      // label from, for tests that fill one and leave the other blank.
+      siteField = makeStageField({ stage_id: lead.id, label: "Site survey date", sort_order: 0 })
+      makeStageField({ stage_id: lead.id, label: "Access notes", sort_order: 1 })
       const snapshot = makeFlowSnapshot({ flow_id: flow.id })
       // No flow_stage_id: the visit trigger would open a sequence-1 visit of
       // its own on insert, and these windows need to be stated exactly.
@@ -3183,6 +3194,122 @@ describe("opportunityService", () => {
 
       expect(byId[conditionA.id].carried).toBe(true)
       expect(byId[conditionB.id].carried).toBe(false)
+    })
+    describe("History: condition evidence, Stage Fields and Follow-ups (#397)", () => {
+      it("shows the file, who gave it, and when for a met attachment condition", async () => {
+        await opportunityService.addNote(deal.id, estimator.id, "", [
+          { url: "https://cdn.test/noa.pdf", name: "noa.pdf", documentType: "NOA" },
+        ])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+        const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
+
+        expect(noa.status).toBe("satisfied")
+        expect(noa.file).toMatchObject({ name: "noa.pdf", url: "https://cdn.test/noa.pdf" })
+        expect(noa.satisfiedBy).toMatchObject({ id: estimator.id })
+      })
+
+      it("leaves an unmet condition's file empty and its status 'unsatisfied'", async () => {
+        const [, , first] = await opportunityService.getJourney(deal.id)
+        const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
+
+        expect(noa.status).toBe("unsatisfied")
+        expect(noa.file).toBeNull()
+      })
+
+      it("lists filled Stage Field values with their label, and names unfilled ones on one line", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.stageFields.filled).toEqual([
+          { id: siteField.id, label: "Site survey date", value: "2026-02-01" },
+        ])
+        expect(first.stageFields.notFilled).toEqual(["Access notes"])
+      })
+
+      it("scopes Stage Field values to their own visit, so a loop back doesn't see the earlier visit's answers", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+
+        const [current] = await opportunityService.getJourney(deal.id)
+
+        expect(current.stageFields.filled).toEqual([])
+        expect(current.stageFields.notFilled).toEqual(["Site survey date", "Access notes"])
+      })
+
+      it("lists a visit's Logged Follow-ups with who/when/note/proof, and counts its reminders separately", async () => {
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: estimator.id,
+          type: "SYSTEM",
+          content: "Follow-up logged: Called the client, no answer yet",
+          metadata: {
+            event: "FOLLOW_UP_LOGGED",
+            stageVisitId: v1.id,
+            attachments: [{ url: "https://cdn.test/call-log.pdf", name: "call-log.pdf" }],
+          },
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: null,
+          type: "SYSTEM",
+          content: "Follow-up reminder sent",
+          metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: v1.id },
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: null,
+          type: "SYSTEM",
+          content: "Follow-up reminder sent",
+          metadata: { event: "FOLLOW_UP_REMINDER", stageVisitId: v1.id },
+        })
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.followUps).toHaveLength(1)
+        expect(first.followUps[0]).toMatchObject({
+          note: "Called the client, no answer yet",
+          files: [{ name: "call-log.pdf" }],
+        })
+        expect(first.followUps[0].loggedBy).toMatchObject({ id: estimator.id, name: "Estimator" })
+        expect(first.followUpReminderCount).toBe(2)
+      })
+
+      it("never fetches conditions, Stage Fields, or Follow-ups for a restricted visit (#296 unaffected)", async () => {
+        db.seed("sor_stage_field_values", {
+          opportunity_id: deal.id,
+          stage_visit_id: v1.id,
+          field_id: siteField.id,
+          value: "2026-02-01",
+        })
+        db.seed("sales_opportunity_logs", {
+          opportunity_id: deal.id,
+          author_id: estimator.id,
+          type: "SYSTEM",
+          content: "Follow-up logged: proof attached",
+          metadata: { event: "FOLLOW_UP_LOGGED", stageVisitId: v1.id },
+        })
+        // Override this describe's own visibility stub: v1 is restricted.
+        stubRpc("sor_visible_visit_ids", () => [v2.id, v3.id])
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.isRestricted).toBe(true)
+        expect(first.conditions).toEqual([])
+        expect(first.stageFields).toEqual({ filled: [], notFilled: [] })
+        expect(first.followUps).toEqual([])
+        expect(first.followUpReminderCount).toBe(0)
+      })
     })
   })
 
