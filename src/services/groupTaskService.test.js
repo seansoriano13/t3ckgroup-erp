@@ -76,6 +76,56 @@ describe("groupTaskService", () => {
     })
   })
 
+  describe("start date and lead time", () => {
+    it("keeps the start date and the lead time exactly as typed", async () => {
+      const task = await createTask({ startDate: "2026-10-01", leadTime: "120 calendar days" })
+
+      const found = await groupTaskService.getGroupTaskById(task.id)
+      expect(found.start_date).toBe("2026-10-01")
+      expect(found.lead_time).toBe("120 calendar days")
+    })
+
+    it("leaves both blank when they are not given", async () => {
+      const found = await groupTaskService.getGroupTaskById((await createTask()).id)
+      expect(found.start_date).toBeNull()
+      expect(found.lead_time).toBeNull()
+    })
+
+    it("takes a lead time that is not a number of days", async () => {
+      // An extension is recorded as a note — "Extended" — and the Due Date is
+      // moved by hand; nothing computes a date from the lead time.
+      const task = await createTask({ startDate: "2026-10-01", leadTime: "120 calendar days" })
+
+      await groupTaskService.updateGroupTask(
+        task.id,
+        { title: "Year-end inventory", description: "", dueDate: "2026-12-31", startDate: "2026-10-01", leadTime: "Extended" },
+        creator.id,
+      )
+
+      const found = await groupTaskService.getGroupTaskById(task.id)
+      expect(found.lead_time).toBe("Extended")
+      expect(found.start_date).toBe("2026-10-01")
+    })
+
+    it("keeps them when an edit doesn't mention them", async () => {
+      const task = await createTask({ startDate: "2026-10-01", leadTime: "120 calendar days" })
+
+      await groupTaskService.updateGroupTask(task.id, { title: "Renamed" }, creator.id)
+
+      const found = await groupTaskService.getGroupTaskById(task.id)
+      expect(found.title).toBe("Renamed")
+      expect(found.start_date).toBe("2026-10-01")
+      expect(found.lead_time).toBe("120 calendar days")
+    })
+
+    it("stores a blank lead time as unset", async () => {
+      const found = await groupTaskService.getGroupTaskById(
+        (await createTask({ leadTime: "   " })).id,
+      )
+      expect(found.lead_time).toBeNull()
+    })
+  })
+
   describe("who can see it", () => {
     it("shows a super admin every group task", async () => {
       const otherHead = makeHead({ name: "Other Head" })
@@ -473,6 +523,25 @@ describe("groupTaskService", () => {
       await groupTaskService.removeMemberFromTask(assignment.id, task.id, creator.id)
 
       expect(await membersOf(task.id)).toHaveLength(1)
+    })
+
+    it("refuses, and logs nothing, when no member was actually removed", async () => {
+      // RLS refuses a delete by matching zero rows rather than erroring; a
+      // member someone already removed matches zero rows the same way. Either
+      // way the member is not gone because of this call, so it must not say so.
+      const task = await createTask()
+      const [assignment] = await membersOf(task.id)
+      await groupTaskService.removeMemberFromTask(assignment.id, task.id, creator.id)
+      await waitForNetworkIdle()
+      const removalsLogged = () =>
+        db.rows("committee_task_logs").filter((l) => l.action === "MEMBER_REMOVED").length
+
+      await expect(
+        groupTaskService.removeMemberFromTask(assignment.id, task.id, creator.id),
+      ).rejects.toThrow("This member wasn't removed")
+      await waitForNetworkIdle()
+
+      expect(removalsLogged()).toBe(1)
     })
   })
 })
