@@ -351,16 +351,16 @@ describe("buildPresentation", () => {
     expect(built.underTheHood.items[0].sample).toBe("migrations")
   })
 
-  // A fix is a slide of its own; a slide with nothing to show is a claim.
-  it("refuses a fix that names no sample", () => {
-    expect(() =>
-      buildPresentation({
-        changelog,
-        supplement: { ...supplement, underTheHood: { summary: "s", items: [{ title: "Toasts stay clickable" }] } },
-        issues,
-        generatedAt: "2026-09-16T10:00:00.000Z",
-      }),
-    ).toThrow(/Toasts stay clickable/)
+  // A fix from before every one got a before/after (an older entry) still
+  // gets its slide — just without a sample block on it.
+  it("carries a fix with no sample through as sample: null, rather than refusing it", () => {
+    const built2 = buildPresentation({
+      changelog,
+      supplement: { ...supplement, underTheHood: { summary: "s", items: [{ title: "Toasts stay clickable" }] } },
+      issues,
+      generatedAt: "2026-09-16T10:00:00.000Z",
+    })
+    expect(built2.underTheHood.items[0]).toEqual({ title: "Toasts stay clickable", issues: [], sample: null })
   })
 
   it("carries prototypes and the roadmap through", () => {

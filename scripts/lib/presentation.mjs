@@ -164,15 +164,13 @@ export function buildPresentation({ changelog, supplement, issues, generatedAt }
 
   const underTheHood = {
     summary: enforceSorVocabulary(supplement.underTheHood.summary),
-    items: supplement.underTheHood.items.map((item) => {
-      // A fix gets a slide of its own, and a slide shows what changed.
-      if (!item.sample) throw new Error(`Under-the-hood fix "${item.title}" names no sample component`)
-      return {
-        title: enforceSorVocabulary(item.title),
-        issues: item.issues ?? [],
-        sample: item.sample,
-      }
-    }),
+    items: supplement.underTheHood.items.map((item) => ({
+      // A fix gets a slide of its own. `sample` is optional: an entry from
+      // before every fix got a before/after just shows its title.
+      title: enforceSorVocabulary(item.title),
+      issues: item.issues ?? [],
+      sample: item.sample ?? null,
+    })),
   }
 
   return {

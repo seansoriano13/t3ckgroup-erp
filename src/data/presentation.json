@@ -1,8 +1,297 @@
 {
-  "generatedAt": "2026-09-28T04:13:13.733Z",
-  "since": "2026-09-21",
-  "title": "What shipped since 21 September",
+  "generatedAt": "2026-09-28T04:19:45.990Z",
+  "since": "2026-09-14",
+  "title": "What shipped since 14 September",
   "headline": [
+    {
+      "id": "my-sors",
+      "block": "SORS",
+      "title": "My SORs: new screen",
+      "impact": "New screen: Sales > My SORs. Lists every SOR you were called into by a task, an assignment or a purchase request, with the Stage that called you in and how far your access reaches.",
+      "changes": [
+        "Sales > My SORs is a new screen listing every SOR you were called into by a task, an assignment, or a purchase request. Until now those SORs appeared nowhere: the SORS register only lists SORs you own or are named on, so being called in gave you access with no way to find the record again except the notification.",
+        "Each row says which Stage called you in and how far your access reaches, in the same words the Flow Canvas uses for that setting. Opening one shows the same view the notification opens.",
+        "SORs whose access has since closed stay on the screen under Closed, so work you did last month is still findable.",
+        "The sidebar entry carries a count of the SORs you currently have open access to, and is visible to everyone — anyone can be called into an SOR, including people with no Sales access."
+      ],
+      "issues": [],
+      "sample": "my-sors",
+      "source": "changelog"
+    },
+    {
+      "id": "quick-view",
+      "block": "SORS",
+      "title": "Quick View",
+      "impact": "Opening an SOR from a task or from My SORs now shows Quick View first: your open tasks on it and what the current Stage still needs. View Full Details opens the whole SOR.",
+      "changes": [
+        "Every entry into an SOR from a task - My SORs, the SOR link on a task card, a task's own SOR field - lands on Quick View first instead of the full SOR window.",
+        "Quick View lists your own open tasks on the SOR and what is still open on its current Stage. \"View Full Details\" opens the whole SOR.",
+        "Clicking a task opens it on top of Quick View rather than replacing it, and Group Tasks open from it too.",
+        "The SOR link on a task card moved to the card footer as an icon.",
+        "Fixed: a task's link back to its SOR never appeared for someone called in for just that Stage. The database refused the read and the link silently rendered nothing."
+      ],
+      "issues": [],
+      "sample": "quick-view",
+      "source": "supplement"
+    },
+    {
+      "id": "sors-rename",
+      "block": "SORS",
+      "title": "CRM renamed to SORS",
+      "impact": "The CRM module is now called SORS, at /sors. Old /crm and /opportunities links still work.",
+      "changes": [
+        "The CRM module is now called SORS — the Sales Opportunity Registration System, the name it has in company policy (CCPR-2026-001, Annex C). One SOR is one Sales Opportunity Registration.",
+        "Its address changed from /crm to /sors, and the Commission Dashboard and Commission Formula moved with it. Old links still work: anything pointing at /crm or /opportunities, including links inside notifications you have not opened yet, lands in the right place.",
+        "The filter on Tasks and Group Tasks that shows only work linked to an SOR is now labelled SORS."
+      ],
+      "issues": [],
+      "sample": "sors-rename",
+      "source": "changelog"
+    },
+    {
+      "id": "retail-screen",
+      "block": "SORS",
+      "title": "Retail has its own screen",
+      "impact": "Retail is its own screen under Sales instead of a tab in the SOR register. Same people can open it: Super Admins and Sales Directors.",
+      "changes": [
+        "Retail has moved out of the SOR register and into its own entry in the sidebar, under Sales. The register's tabs are now just List, Board, Overview and Deleted.",
+        "The new screen shows marketplace orders waiting for review at the top, and what has already been counted — totals by month and storefront — below. Orders only appear at the top when there is something to review.",
+        "Who can open it has not changed: Super Admins and Sales Directors, the same as before the move."
+      ],
+      "issues": [],
+      "sample": "retail-screen",
+      "source": "changelog"
+    },
+    {
+      "id": "sor-window",
+      "block": "SORS",
+      "title": "SOR window has tabs",
+      "impact": "The SOR window has tabs: Now (what blocks the Stage, its fields, decisions, tasks, next follow-up), Journey, Items, Details and Chat.",
+      "changes": [
+        "The SOR window now has tabs. It opens on Now, which shows what the current Stage needs today: what's blocking it first, then the Stage's fields, any decisions waiting on you, the tasks, and the next follow-up.",
+        "Each task is now one line with its people, how many parts are done and its due date. Click the arrow on a group task to see each person's part, or click the title to open the task.",
+        "Journey lists every Stage the SOR has been through, newest first, with what was done on each.",
+        "Items holds the Product List with search and stock levels. Its header stays in place as you scroll long lists. If the list is empty, it tells you to fetch from Odoo or to add a Sales Reference first.",
+        "Details holds the SOR's fields, the Deal Team, Estimated Value, the quotation buttons, commission, and Inclusions and Purchasing."
+      ],
+      "issues": [
+        207,
+        298,
+        299,
+        300,
+        301,
+        302
+      ],
+      "sample": "sor-window",
+      "source": "changelog"
+    },
+    {
+      "id": "crm-board",
+      "block": "SORS",
+      "title": "SORS Board: drag SORs between Stages",
+      "impact": "SORS has a Board tab: one Sale Type at a time, one column per Stage, drag an SOR to move it. A Deleted tab lists removed SORs.",
+      "changes": [
+        "The register runs the full width of the screen instead of sitting in a narrow column.",
+        "The board shows one Sale Type at a time, with one column per Stage of that flow in the same bracket order the Flow Canvas already uses.",
+        "An SOR moves between Stages by dragging it.",
+        "A drag runs the same guarded move as the Stage control, so a move that needs a reason still asks for one, and a blocked move is still blocked.",
+        "A Deleted tab lists removed SORs, with restore and a guarded permanent delete."
+      ],
+      "issues": [
+        206,
+        286,
+        288
+      ],
+      "sample": "crm-board",
+      "source": "supplement"
+    },
+    {
+      "id": "sors-filters",
+      "block": "SORS",
+      "title": "All SORs filter, Filters menu, live register",
+      "impact": "SORS filters by Sale Type, including All SORs and legacy SORs with no Sale Type. The Filters menu is four tidy rows. The register and Board update when someone else moves or edits an SOR.",
+      "changes": [
+        "An All SORs option on the SORS filters and on the Board's flow switcher.",
+        "The Filters popover is laid out in four rows with aligned dropdowns and quick toggles.",
+        "On the Board, All SORs shows a guide with a button per Sales Flow, or a one-click switch to the List.",
+        "The register and Board redraw when another person moves or edits an SOR, without a refresh."
+      ],
+      "issues": [],
+      "sample": "sors-filters",
+      "source": "supplement"
+    },
+    {
+      "id": "open-pipeline",
+      "block": "SORS",
+      "title": "Open pipeline and Won follow the Sales Flow",
+      "impact": "The Open pipeline and Won totals at the top of SORS now follow each Sales Flow's own Stages instead of fixed Stage codes.",
+      "changes": [
+        "The Open pipeline and Won totals in SORS now follow each Sales Flow's actual stages dynamically from the Flow Canvas.",
+        "An SOR is counted under Open pipeline while it is moving through stages before the Won stage. Once it reaches the Won stage or continues to post-award fulfillment stages (like Delivery or Invoicing), it counts toward Won.",
+        "SORs that are closed lost or cancelled are excluded from both totals, ensuring the pipeline accurately reflects active work."
+      ],
+      "issues": [],
+      "sample": "open-pipeline",
+      "source": "changelog"
+    },
+    {
+      "id": "stage-access",
+      "block": "SORS",
+      "title": "Who can open an SOR: Deal Team and Stage access",
+      "impact": "Who can open an SOR now follows the Deal Team, the flow's Always sees list, and people called in to a Stage. Set on the Flow Canvas. Each Stage box shows its audience.",
+      "changes": [
+        "An SOR is readable by its Deal Team (the Closing Salesperson can now open their own SOR) and by whoever the flow names under Always sees. Heads and HR no longer see every SOR automatically unless a flow names them. Super Admins are unaffected.",
+        "A Stage can call people in. An action task, an Assignment condition or day-one registration opens an access window on that Stage for that person, and the window closes by its own rule: the calling Stage is left, a chosen Stage is entered or left, or any Terminal Stage is reached. The Deal Owner or a Super Admin can remove someone early.",
+        "A called-in person sees only what their window covers, with no money on the SOR or its items. Their Journey follows the flow's Journey viewers setting, and a window that has closed stays readable but read-only.",
+        "A Stage can be Restricted: chosen Deal Team roles or Employee Groups are shut out of it, stay shut out after the SOR moves on, and cannot move it. Journey shows a Restricted Stage as one line with no contents.",
+        "The Flow Canvas shows every Stage's audience on the Stage itself - who is called in, who is shut out, or Deal Team only - with an Access tab per Stage, flow-level Access settings, and a View as preview.",
+        "Only a Super Admin can grant the right to edit Sales Flows, since editing a flow now decides who can see an SOR.",
+        "A called-in person's notification opens the SOR, and a Stage Action that calls someone in now sends one notification, not two."
+      ],
+      "issues": [
+        208,
+        291,
+        292,
+        293,
+        294,
+        295,
+        296,
+        297
+      ],
+      "sample": "stage-access",
+      "source": "supplement"
+    },
+    {
+      "id": "stage-fields",
+      "block": "SORS",
+      "title": "Stage Fields",
+      "impact": "Each Stage can ask for its own fields, required or optional, set on the Flow Canvas Fields tab. The field is filled in on the SOR while it is on that Stage.",
+      "changes": [
+        "A Stage Fields tab on the canvas defines what that Stage asks for, who it asks, and when it is required.",
+        "Conditions were reworked: a who-picker that resolves to real people, a live preview of what the Stage will look like, and editing a condition without rebuilding it.",
+        "Stage Fields appear in the publish diff, so a change to what a Stage requires is visible before it goes out.",
+        "What a Stage asks is recorded against the Stage Visit, so the answers belong to that pass through the Stage rather than to the SOR as a whole."
+      ],
+      "issues": [
+        203
+      ],
+      "sample": "stage-fields",
+      "source": "supplement"
+    },
+    {
+      "id": "flow-canvas-editing",
+      "block": "Flow Canvas",
+      "title": "Flow Canvas: edit a Stage inline",
+      "impact": "On the Flow Canvas, conditions and fields open for editing under the item, with a preview. Each Stage shows how many fields it has. Choice options are one row each.",
+      "changes": [
+        "Editing a condition or a field opens the editor directly below that item instead of jumping to the top of the panel.",
+        "The Fields tab shows a live preview of the field as the SOR will render it: required badge, help text and options.",
+        "Each Stage on the Flow Canvas shows its fields as a column hanging beneath it, with a Required badge, beside its conditions and actions. A Stage with no fields says so.",
+        "Choice field options are built one row at a time - Add option, Enter adds a row, remove per row - instead of typed as a comma-separated line. Duplicates are flagged as you type.",
+        "The registration form builder, and Edit draft without a reason, ship on the same canvas.",
+        "The SOR window and the Flow Canvas work from the keyboard: the Stage ribbon and tabs take arrow keys, Esc cancels an edit, a blocked move states why, and the publish window says how many SORs will be offered a move before you publish."
+      ],
+      "issues": [
+        203
+      ],
+      "sample": "flow-canvas-editing",
+      "source": "supplement"
+    },
+    {
+      "id": "blocked-move",
+      "block": "SORS",
+      "title": "Move button says why it is blocked",
+      "impact": "Stages you cannot move to yet are greyed out, and a line under the stage ribbon lists what is missing: each required field and open condition on the current Stage.",
+      "changes": [
+        "Destination Stages that are blocked cannot be clicked and are greyed out; hovering one shows why.",
+        "A line under the stage ribbon reads \"Can't move on yet - missing:\" followed by each required field or condition still open.",
+        "The header shows Blocked: N until everything required is answered, then Clear to move.",
+        "A checklist with everything answered reads as complete instead of looking half-done.",
+        "After a move, the tasks it created and the new Stage's checklist appear without reopening the SOR."
+      ],
+      "issues": [
+        203,
+        199
+      ],
+      "sample": "blocked-move",
+      "source": "supplement"
+    },
+    {
+      "id": "crm-itb-won",
+      "block": "SORS",
+      "title": "ITB Number no longer required by the system; Won total",
+      "impact": "The system no longer requires an ITB Number on every SOR. A flow asks for it as a Stage Field only if it wants it. SORS shows a Won total next to Open pipeline.",
+      "changes": [
+        "The ITB Number requirement is no longer hardwired. A flow that wants it asks for it as a Stage Field; a flow that does not, does not.",
+        "The register shows a Won total beside open pipeline.",
+        "SORs in a Terminal Stage sort to the bottom rather than sitting among live work."
+      ],
+      "issues": [
+        287,
+        290
+      ],
+      "sample": "crm-itb-won",
+      "source": "supplement"
+    },
+    {
+      "id": "stage-automation",
+      "block": "SOR work",
+      "title": "Stage automation: task titles, Optional Actions, follow-ups",
+      "impact": "Automated task titles are templates that name the SOR. Optional Actions are taken or skipped on the SOR. A Stage can have a Follow-up Cadence.",
+      "changes": [
+        "Task titles are templates with tokens, shown as chips while you write them, so an automated task names the SOR it belongs to.",
+        "Optional Actions are offered on the SOR and taken or skipped there, rather than being fixed when the flow was built.",
+        "A Stage can carry a Follow-up Cadence, so chasing is part of the process rather than something somebody remembers."
+      ],
+      "issues": [
+        204
+      ],
+      "sample": "stage-automation",
+      "source": "supplement"
+    },
+    {
+      "id": "stock-badges",
+      "block": "SOR work",
+      "title": "Odoo stock on Product List lines",
+      "impact": "Each Product List line on an SOR shows Odoo free stock: Available, Partial, Out of stock, Not tracked or Not linked to Odoo. The tab shows when the stock was last checked.",
+      "changes": [
+        "Each SOR line item shows Odoo free stock as a badge on the line.",
+        "The figure is pulled and stamped, so what you are reading has a known age rather than being assumed current."
+      ],
+      "issues": [
+        202
+      ],
+      "sample": "stock-badges",
+      "source": "supplement"
+    },
+    {
+      "id": "offset-approved-hours",
+      "block": "People",
+      "title": "Offset leave: approve fewer hours",
+      "impact": "HR can lower the hours before approving offset leave; it cannot go above the hours requested. The leave lists show requested and approved hours when they differ.",
+      "changes": [
+        "When HR approves offset leave, they can now change the number of hours before approving. It starts at the hours requested and can't go higher.",
+        "Where the approved hours differ from the hours requested, the leave lists show both: the requested hours crossed out, next to the hours approved."
+      ],
+      "issues": [],
+      "sample": "offset-approved-hours",
+      "source": "changelog"
+    },
+    {
+      "id": "employee-groups",
+      "block": "People",
+      "title": "Employee Groups",
+      "impact": "Settings > Employee Groups: named sets of employees and whole teams, reused by Sales Flow settings. A group always means its current members.",
+      "changes": [
+        "Super Admins can now set up Employee Groups in Settings: named sets of people made of hand-picked employees and whole teams, so later Sales Flow settings can say who they are about once and reuse it.",
+        "A group always means its current members. When someone joins or leaves a team, every group that includes that team follows automatically."
+      ],
+      "issues": [
+        201
+      ],
+      "sample": "employee-groups",
+      "source": "changelog"
+    },
     {
       "id": "layout-preview",
       "block": "SORS",
@@ -147,6 +436,105 @@
   "underTheHood": {
     "summary": "Fixes you would only notice by their absence. Each one shows the same screen before and after.",
     "items": [
+      {
+        "title": "Saving one field from a Stage Checklist changes only that field - it used to overwrite the rest of the SOR, including the Deal Team, dates and Product List",
+        "issues": [
+          199
+        ],
+        "sample": null
+      },
+      {
+        "title": "Tasks created for an SOR link back to it from both the task and Group Task windows",
+        "issues": [
+          199
+        ],
+        "sample": null
+      },
+      {
+        "title": "Three bugs blocking Individual Task Stage Actions fixed, and Assign To now shows when adding an Individual Task automation",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "Group Task Tags, and a SORS filter on both Tasks and Group Tasks",
+        "issues": [
+          205
+        ],
+        "sample": null
+      },
+      {
+        "title": "Stage Visit and Stage Participant reads are narrowed to people who can open the SOR, and a called-in person can read the SOR's member list",
+        "issues": [
+          327
+        ],
+        "sample": null
+      },
+      {
+        "title": "A notification is written in the app even when the push send fails",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "Nested pickers close correctly: nothing could be selected inside the Flow Canvas View as and Access settings popovers",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "Approved offset hours are part of the atomic group decision: capped at the hours requested, spread across the days in proportion, and refunded on undo or withdraw",
+        "issues": [
+          328
+        ],
+        "sample": null
+      },
+      {
+        "title": "The six Quota tables are archived before they are dropped",
+        "issues": [
+          329
+        ],
+        "sample": null
+      },
+      {
+        "title": "Historical SORs get a Legacy Pipeline backfill that also sets each SOR's current Stage, and Sales Flows transfer between environments by script",
+        "issues": [
+          330,
+          331
+        ],
+        "sample": null
+      },
+      {
+        "title": "Production's migration ledger is checked as a hard gate before any push, prod is caught up to the baseline it claims, and the whole cutover is rehearsed twice against a throwaway copy of prod",
+        "issues": [
+          332,
+          335,
+          336
+        ],
+        "sample": null
+      },
+      {
+        "title": "Edge functions deploy from a manually triggered workflow, and the cutover has a written runbook",
+        "issues": [
+          333,
+          335
+        ],
+        "sample": null
+      },
+      {
+        "title": "The test suite runs faster: scoped preflight, per-environment projects, no delay in simulated typing",
+        "issues": [
+          315
+        ],
+        "sample": null
+      },
+      {
+        "title": "The seed resyncs its identity sequences after a restore and covers every migrated table or names why not",
+        "issues": [],
+        "sample": null
+      },
+      {
+        "title": "The local dev login keeps its magic user and fills itself in",
+        "issues": [],
+        "sample": null
+      },
       {
         "title": "An SOR's Product List, and its Estimated Value, could double",
         "issues": [],

@@ -301,7 +301,7 @@ function Overview({ data, sizes, onPick }) {
                     type="button"
                     variant="ghost"
                     onClick={() => onPick({ section: si, item: ii })}
-                    className="h-auto w-full rounded-lg px-2.5 py-1.5 text-left text-[15px] font-medium text-foreground hover:bg-muted"
+                    className="h-auto w-full items-start justify-start whitespace-normal rounded-lg px-2.5 py-1.5 text-left text-[15px] leading-snug font-medium break-words text-foreground hover:bg-muted"
                   >
                     {label}
                   </Button>
