@@ -36,7 +36,9 @@ anything that touches data — testing a fix, checking a query, exploring the
 schema, reproducing a bug. `STAGING_DB_URL` and `PROD_DB_URL` in `.env.local`
 exist only for the specific scripts that already use them
 (`scripts/db-snapshot.mjs`'s drift checks, `scripts/seed-dump.mjs`'s
-read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff) — reaching
+read-only pull, `scripts/db-ledger-check.mjs`'s ledger diff,
+`scripts/seed-release-demo.mjs`'s add-only Release Notes demo SOR on
+staging) — reaching
 either database any other way, including an ad hoc query to "just check
 something," is not part of the local workflow.
 

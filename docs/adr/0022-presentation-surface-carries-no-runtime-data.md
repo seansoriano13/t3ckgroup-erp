@@ -81,3 +81,22 @@ reasonably ask why it is not fetched. This is the answer.
 Making the surface live later means reversing all of it — a client token,
 query budget, and loading and failure states the deck does not currently
 need. That is the cost being accepted.
+
+## Amendment — 2026-09-28: one live record, the demo SOR
+
+The "What shipped since 21 September" deck needed the room to click through
+the SOR window itself — pick a layout, Revert, Resume or Start fresh — and a
+cache fed made-up rows cannot move a Stage. So two slides open one real
+record: the newest demo SOR `scripts/seed-release-demo.mjs` made.
+
+It is a Scratch SOR on "ZZ Demo — Government", an add-only copy of the
+Government flow, with every person on the copy and the SOR swapped for a demo
+account. Whatever is clicked live happens for real, and reaches nobody real.
+The script only adds: each run is a fresh SOR, and a consumed one stays.
+
+Everything else still holds. The rest of the deck reads the baked file, the
+slide says it is live, and when no demo SOR exists the slide says how to make
+one instead of failing. Fixes get a slide each, the same screen before and
+after: the app's own component fed the data the bug produced, or, where the
+old screen is gone from the code, screenshots taken from the commits either
+side of the fix against the same local data.

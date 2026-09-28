@@ -1,6 +1,12 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { render, screen, fireEvent, within } from "@testing-library/react"
 import PresentationDeck from "./PresentationDeck"
+
+// The deck renders inside the app's AuthProvider; the Access settings sample
+// reads the signed-in user from it.
+vi.mock("../../context/AuthContext", () => ({
+  useAuth: () => ({ user: { id: "presenter" }, isSuperAdmin: true }),
+}))
 
 // The deck is driven from a keyboard in front of an audience, so what is
 // tested here is what would be embarrassing live: the wrong slide, a dead
@@ -19,7 +25,7 @@ const data = {
       impact: "There used to be two places to edit a flow.",
       changes: ["The Sandbox is gone.", "One editing surface."],
       issues: [186],
-      sample: "stock-badges",
+      sample: "sors-header",
     },
     {
       id: "crm-board",
@@ -28,14 +34,14 @@ const data = {
       impact: "Dragging was impossible before.",
       changes: ["One column per Sale Type."],
       issues: [206],
-      sample: "sors-rename",
+      sample: "settings-tabs",
     },
   ],
   underTheHood: {
     summary: "Correctness, safety and housekeeping.",
     items: [
-      { title: "Migrations are append-only", issues: [184] },
-      { title: "Toasts stay clickable", issues: [175] },
+      { title: "Migrations are append-only", issues: [184], sample: "lost-commission-pool" },
+      { title: "Toasts stay clickable", issues: [175], sample: "product-list-doubling" },
     ],
   },
   roadmap: {
@@ -134,7 +140,7 @@ describe("PresentationDeck", () => {
     press("ArrowRight")
     press("ArrowRight")
     expect(
-      screen.getByRole("heading", { name: /2 fixes and safety changes/i }),
+      screen.getByRole("heading", { name: "Migrations are append-only" }),
     ).toBeInTheDocument()
   })
 
@@ -144,6 +150,28 @@ describe("PresentationDeck", () => {
     press("ArrowDown")
     expect(screen.getByRole("heading", { name: "Finish CRM" })).toBeInTheDocument()
     expect(screen.getByText("1 / 2 · What's left")).toBeInTheDocument()
+  })
+
+  // The demo SOR opens on a slide, and its window owns ← / → (next SOR) and
+  // Shift + ← / → (layout). The deck moving underneath would close it.
+  it("leaves the arrow keys to a window open on the slide", () => {
+    render(<PresentationDeck data={data} />)
+    const dialog = document.createElement("div")
+    dialog.setAttribute("role", "dialog")
+    document.body.appendChild(dialog)
+    press("ArrowRight")
+    expect(screen.getByText("1 / 2 · What shipped")).toBeInTheDocument()
+    dialog.remove()
+  })
+
+  it("ignores a modified or already-handled arrow key", () => {
+    render(<PresentationDeck data={data} />)
+    fireEvent.keyDown(window, { key: "ArrowRight", shiftKey: true })
+    expect(screen.getByText("1 / 2 · What shipped")).toBeInTheDocument()
+    const handled = new KeyboardEvent("keydown", { key: "ArrowRight", cancelable: true })
+    handled.preventDefault()
+    window.dispatchEvent(handled)
+    expect(screen.getByText("1 / 2 · What shipped")).toBeInTheDocument()
   })
 
   it("does not fall off the start of the deck", () => {
@@ -164,30 +192,48 @@ describe("PresentationDeck", () => {
 
   it("mounts the sample a row names, and only that row", () => {
     render(<PresentationDeck data={data} />)
-    // The real Product List stock badges, fed made-up lines.
+    // The register's real header parts, fed made-up figures.
     expect(screen.getByText(/The real component, with sample data/i)).toBeInTheDocument()
-    expect(screen.getByText("Out of stock")).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Register SOR/ })).toBeInTheDocument()
     press("ArrowRight")
-    // The real SORS tab strip, and not the stock badges.
-    expect(screen.getByRole("tablist")).toBeInTheDocument()
-    expect(screen.queryByText("Out of stock")).not.toBeInTheDocument()
+    // The real saved-filters control, and not the register header.
+    expect(screen.getByRole("button", { name: /Save filters as default/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /Register SOR/ })).not.toBeInTheDocument()
   })
 
-  it("gives every row of the generated deck a component to show", async () => {
+  it("gives every row and every fix of the generated deck a component to show", async () => {
     const { default: presentation } = await import("../../data/presentation.json")
     const { SAMPLES } = await import("./sampleRegistry")
-    for (const row of presentation.headline) {
-      expect(SAMPLES[row.sample], row.id).toBeTypeOf("function")
+    for (const row of [...presentation.headline, ...presentation.underTheHood.items]) {
+      expect(SAMPLES[row.sample], row.id ?? row.title).toBeTypeOf("function")
     }
   })
 
-  it("counts the under-the-hood work without spending a slide on each item", () => {
+  // A sample that throws blanks its slide in front of the room.
+  it("mounts every registered sample without throwing", async () => {
+    const { SAMPLES } = await import("./sampleRegistry")
+    const { QueryClient, QueryClientProvider } = await import("@tanstack/react-query")
+    for (const [key, Sample] of Object.entries(SAMPLES)) {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const { unmount } = render(
+        <QueryClientProvider client={client}>
+          <Sample />
+        </QueryClientProvider>,
+      )
+      expect(document.body.textContent.length, key).toBeGreaterThan(0)
+      unmount()
+    }
+  })
+
+  it("gives every fix a slide of its own, before and after", () => {
     render(<PresentationDeck data={data} />)
     press("ArrowDown")
-    expect(screen.getByText("1 / 1 · Under the hood")).toBeInTheDocument()
-    expect(screen.queryByText(/Migrations are append-only/)).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: "Show the list" }))
-    expect(screen.getByText(/Migrations are append-only/)).toBeInTheDocument()
+    expect(screen.getByText("1 / 2 · Under the hood")).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Migrations are append-only" })).toBeInTheDocument()
+    expect(screen.getByText("Before")).toBeInTheDocument()
+    expect(screen.getByText("After")).toBeInTheDocument()
+    press("ArrowRight")
+    expect(screen.getByRole("heading", { name: "Toasts stay clickable" })).toBeInTheDocument()
   })
 
   describe("the roadmap", () => {
