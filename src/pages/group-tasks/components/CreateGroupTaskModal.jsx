@@ -26,6 +26,7 @@ import GroupTaskMemberRail from "./GroupTaskMemberRail";
 import GroupTaskMemberPanel from "./GroupTaskMemberPanel";
 import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import { parseChecklist, hasChecklistContent } from "@/utils/checklist";
+import { formatDateToYMD } from "@/utils/dateUtils";
 import {
   applyTemplateToMembers,
   applyTemplateDefaults,
@@ -57,6 +58,8 @@ export default function CreateGroupTaskModal({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState(null);
+  const [startDate, setStartDate] = useState(null);
+  const [leadTime, setLeadTime] = useState("");
   const [members, setMembers] = useState(() => [makeMember()]);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [appliedTemplateId, setAppliedTemplateId] = useState(null);
@@ -76,6 +79,8 @@ export default function CreateGroupTaskModal({
       setTitle("");
       setDescription("");
       setDueDate(null);
+      setStartDate(null);
+      setLeadTime("");
       setMembers([first]);
       setSelectedMemberId(first.id);
       setAppliedTemplateId(null);
@@ -222,6 +227,8 @@ export default function CreateGroupTaskModal({
       title,
       description,
       dueDate,
+      startDate: startDate ? formatDateToYMD(startDate) : null,
+      leadTime,
       createdBy: user.id,
       templateId: appliedTemplateId ?? null,
       members: validMembers.map((m) => {
@@ -373,6 +380,38 @@ export default function CreateGroupTaskModal({
                       className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
                     />
                   </div>
+                </div>
+
+                <div className="flex flex-col shrink-0">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Start Date
+                  </span>
+                  <div className="relative">
+                    <DatePicker
+                      selected={startDate}
+                      onChange={(date) => setStartDate(date)}
+                      dateFormat="MMMM d, yyyy"
+                      placeholderText="Optional start date"
+                      className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                    />
+                    <Calendar
+                      size={13}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col shrink-0">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                    Lead Time
+                  </span>
+                  <input
+                    type="text"
+                    value={leadTime}
+                    onChange={(e) => setLeadTime(e.target.value)}
+                    placeholder="e.g. 120 calendar days"
+                    className="bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                  />
                 </div>
               </div>
             </div>

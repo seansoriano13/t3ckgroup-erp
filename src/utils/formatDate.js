@@ -68,3 +68,18 @@ export const formatDueDate = (val) => {
     return val;
   }
 };
+
+/**
+ * Formats a date-only value ("2026-10-01") as "Oct 1, 2026". A bare date
+ * parses as UTC midnight, which is the day before west of Greenwich; this
+ * reads it as the local calendar day instead.
+ */
+export const formatDateOnly = (ymd) => {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};

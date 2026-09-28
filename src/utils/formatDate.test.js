@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   formatDate,
+  formatDateOnly,
   formatDueDate,
   formatTaskDateTime,
   getCurrentLocalDate,
@@ -116,5 +117,15 @@ describe("formatDueDate", () => {
 
   it("returns null when there is no due date", () => {
     expect(formatDueDate(null)).toBeNull()
+  })
+})
+
+describe("formatDateOnly", () => {
+  it("shows the calendar day as written, not the day before", () => {
+    expect(formatDateOnly("2026-10-01")).toBe("Oct 1, 2026")
+  })
+
+  it("returns null when there is no date", () => {
+    expect(formatDateOnly(null)).toBeNull()
   })
 })
