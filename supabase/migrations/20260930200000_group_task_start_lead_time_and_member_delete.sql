@@ -1,3 +1,4 @@
+-- allow-out-of-order: prod hotfix #410 (2026-09-28), already recorded under this name in prod ledger; renaming would orphan it there (#415).
 -- Group Task Start Date and Lead Time, and removing a member that actually
 -- removes them.
 --

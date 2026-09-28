@@ -1,3 +1,4 @@
+-- allow-out-of-order: renumbered from 20260930200000, which prod ledger holds for main hotfix #410 (group_task_start_lead_time_and_member_delete); stays before 20260930210000, which redefines sor_revert_stage after it (#415).
 -- Issue #402 (parent #384): a condition file given on the current Stage
 -- Visit is Stage Work, same as a tick, but the check that decides whether
 -- Revert asks Keep/Remove never looked at it. A tickbox writes a
