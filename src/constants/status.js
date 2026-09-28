@@ -17,6 +17,7 @@ export const TASK_STATUS = {
   DELETED: "DELETED",
   // Off everyone's list while the SOR is away from the Stage that made it.
   ON_HOLD: "ON_HOLD",
+  CANCELLED: "CANCELLED",
 };
 
 // What no task list, count or badge shows: cancelled, or held while the SOR is
@@ -52,6 +53,7 @@ export const TASK_STATUS_THEME = {
   [TASK_STATUS.NOT_APPROVED]: STATUS_THEME.RED,
   [TASK_STATUS.DELETED]: STATUS_THEME.MAUVE,
   [TASK_STATUS.ON_HOLD]: STATUS_THEME.MAUVE,
+  [TASK_STATUS.CANCELLED]: STATUS_THEME.RED,
 };
 
 // Sales Opportunity Registration pipeline (Annex C.3).

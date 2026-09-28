@@ -74,6 +74,7 @@ import {
   isAllowedAttachment,
   formatBytes,
 } from "@/utils/attachments";
+import { TASK_STATUS } from "@/constants/status";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -189,6 +190,7 @@ export default function GroupTaskDetailModal({
   });
 
   const handleEditClick = (member) => {
+    if (isReadOnly) return;
     // Resolved rather than read raw, so editing a row that predates the 0016
     // backfill does not drop its serialised checklist into the description box
     // and then save it back as prose.
@@ -206,6 +208,7 @@ export default function GroupTaskDetailModal({
   };
 
   const handleStartAddMember = () => {
+    if (isReadOnly) return;
     setSelectedMemberId(null);
     setDraft({
       id: null,
@@ -228,7 +231,7 @@ export default function GroupTaskDetailModal({
   };
 
   const handleSaveDraft = async () => {
-    if (!draft) return;
+    if (!draft || isReadOnly) return;
     // An assignment is valid with description text OR checklist items — the
     // old code required description text, which would now reject a
     // checklist-only assignment.
@@ -252,6 +255,7 @@ export default function GroupTaskDetailModal({
   };
 
   const handleStartTaskEdit = () => {
+    if (isReadOnly) return;
     setTaskEditDraft({
       title: task.title || "",
       description: task.description || "",
@@ -263,6 +267,7 @@ export default function GroupTaskDetailModal({
   };
 
   const handleSaveTaskEdit = async () => {
+    if (isReadOnly) return;
     if (!taskEditDraft.title.trim()) {
       toast.error("Title is required");
       return;
@@ -272,6 +277,7 @@ export default function GroupTaskDetailModal({
   };
 
   const handleRemoveMember = (memberId) => {
+    if (isReadOnly) return;
     confirmDeleteToast(
       "Remove Member",
       "Are you sure you want to remove this member from the task?",
@@ -617,6 +623,15 @@ export default function GroupTaskDetailModal({
 
   if (!task) return null;
 
+  // A cancelled (or, if ever written, held) group task is a frozen record:
+  // it opens for reading — including chat — but no member can be ticked, no
+  // member added/edited/removed, and no task-level edit or delete may
+  // happen. See issue #396. `status` here is the raw committee_tasks value,
+  // not modeled by GROUP_TASK_STATUS, so the individual-task constants are
+  // reused rather than duplicating the magic strings.
+  const isReadOnly =
+    task.status === TASK_STATUS.CANCELLED || task.status === TASK_STATUS.ON_HOLD;
+
   const isCreator = task.created_by === currentUserId;
   const isHrPending = task.status === "HR_PENDING";
   const isHrVerified = task.status === "HR_VERIFIED";
@@ -630,6 +645,7 @@ export default function GroupTaskDetailModal({
     orderedMembers.find((m) => m.id === effectiveMemberId) || null;
 
   const handleDelete = () => {
+    if (isReadOnly) return;
     confirmDeleteToast(
       "Delete Group Task",
       "Are you sure you want to delete this group task? This action cannot be undone.",
@@ -857,6 +873,26 @@ export default function GroupTaskDetailModal({
         <div className="overflow-y-auto custom-scrollbar bg-card/50 p-6 space-y-8 flex-1">
           {activeTab === "overview" ? (
             <>
+              {isReadOnly && (
+                <div className="bg-muted/40 border border-border rounded-xl p-4 flex items-center gap-3 text-muted-foreground shadow-sm animate-content-in stagger-1">
+                  <div className="bg-mauve-4 p-2 rounded-lg">
+                    <AlertTriangle size={20} className="text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-tight text-foreground">
+                      {task.status === TASK_STATUS.ON_HOLD
+                        ? "Group Task On Hold"
+                        : "Group Task Cancelled"}
+                    </p>
+                    <p className="text-xs font-bold opacity-80">
+                      {task.status === TASK_STATUS.ON_HOLD
+                        ? "Held. This task is read-only."
+                        : "Cancelled. This task is read-only."}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Description */}
               {!isEditingTask && task.description && (
                 <div className="animate-content-in stagger-1 mb-2">
@@ -967,7 +1003,7 @@ export default function GroupTaskDetailModal({
                               </span>
                             </div>
 
-                            {(isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
+                            {!isReadOnly && (isCreator || isSuperAdmin || (isMe && task.status === "ACTIVE" && member.status === "PENDING")) && (
                               <div className="flex items-center gap-1 shrink-0">
                                 <Button
                                   type="button"
@@ -1029,9 +1065,10 @@ export default function GroupTaskDetailModal({
                                 <ChecklistTaskRenderer
                                   description={member.checklist || checklistItems}
                                   isOwner={isMe}
-                                  disabled={!isMe || isDone}
+                                  disabled={!isMe || isDone || isReadOnly}
                                   searchTerm={searchTerm}
                                   onInlineCheck={(next) => {
+                                    if (isReadOnly) return;
                                     if (onInlineCheck) {
                                       onInlineCheck(member.id, next);
                                     } else {
@@ -1184,7 +1221,7 @@ export default function GroupTaskDetailModal({
                       setSelectedMemberId(id);
                     }}
                     onAdd={
-                      (isCreator || isSuperAdmin) ? handleStartAddMember : undefined
+                      (isCreator || isSuperAdmin) && !isReadOnly ? handleStartAddMember : undefined
                     }
                     currentUserId={currentUserId}
                     avatarMap={avatarMap}
@@ -1498,7 +1535,7 @@ export default function GroupTaskDetailModal({
 
           <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 sm:gap-3 w-full sm:w-auto ml-auto">
             {/* Delete Task Button */}
-            {(isCreator || isSuperAdmin) && (
+            {(isCreator || isSuperAdmin) && !isReadOnly && (
               <Button
                 type="button"
                 variant="ghost"
@@ -1523,7 +1560,7 @@ export default function GroupTaskDetailModal({
             </Button>
 
             {/* Edit Task Button */}
-            {(isCreator || isSuperAdmin) && !isEditingTask && (
+            {(isCreator || isSuperAdmin) && !isEditingTask && !isReadOnly && (
               <Button
                 type="button"
                 variant="outline"

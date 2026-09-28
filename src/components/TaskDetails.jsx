@@ -165,7 +165,14 @@ export default function TaskDetails({
   const isManagement = isHr || isHead
   const isSuperAdmin =
     user?.is_super_admin === true || user?.isSuperAdmin === true
-  const canEvaluate = isHead || isSuperAdmin
+
+  // A task on hold or cancelled is a frozen record: it opens for reading
+  // (including its chat) but nothing on it can move — no edits, no
+  // approve/reject/verify, no delete. See issue #396.
+  const isReadOnly =
+    task?.status === TASK_STATUS.ON_HOLD ||
+    task?.status === TASK_STATUS.CANCELLED
+  const canEvaluate = !isReadOnly && (isHead || isSuperAdmin)
 
   // Re-evaluation: head is editing a task already approved but not yet HR-verified.
   const canReEvalGrade =
@@ -207,11 +214,12 @@ export default function TaskDetails({
   const isHrRejected =
     task.status === TASK_STATUS.NOT_APPROVED && (task.grade ?? 0) > 0
   const canEdit =
-    isHr ||
-    isHead ||
-    (isOwner &&
-      task.status !== TASK_STATUS.COMPLETE &&
-      task.status !== TASK_STATUS.AWAITING_APPROVAL)
+    !isReadOnly &&
+    (isHr ||
+      isHead ||
+      (isOwner &&
+        task.status !== TASK_STATUS.COMPLETE &&
+        task.status !== TASK_STATUS.AWAITING_APPROVAL))
 
   // Checklist detection — now uses the dedicated checklist field
   let hasChecklist = false
@@ -281,6 +289,7 @@ export default function TaskDetails({
     : task?.remarks
 
   const handleToggleEdit = () => {
+    if (isReadOnly) return
     setIsEditing(true)
   }
 
@@ -305,6 +314,9 @@ export default function TaskDetails({
     setFormData({ ...formData, loggedById: e.target.value, categoryId: "" })
 
   const executeUpdate = async (payload, silent = false) => {
+    // Belt-and-braces: every mutation flows through here, so a held/cancelled
+    // task cannot change even if some control slipped past its own gating.
+    if (isReadOnly) return
     if (!silent) setIsSubmitting(true)
     const toastId = !silent ? toast.loading("Processing...") : undefined
     try {
@@ -405,7 +417,7 @@ export default function TaskDetails({
   }
 
   const handleKeyDown = (e) => {
-    if (!isOpen || isSubmitting || isEditing) return
+    if (!isOpen || isSubmitting || isEditing || isReadOnly) return
 
     if (
       e.target.tagName === "INPUT" ||
@@ -463,6 +475,7 @@ export default function TaskDetails({
   }
 
   const handleDelete = () => {
+    if (isReadOnly) return
     confirmDeleteToast(
       "Delete Task?",
       "This will permanently remove the task from all active queues and history.",
@@ -573,6 +586,30 @@ export default function TaskDetails({
                     <p className="text-xs font-bold opacity-80">
                       This task has been soft-deleted and is hidden from regular
                       views.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {isReadOnly && (
+                <div className="bg-muted/40 border border-border rounded-xl p-4 flex items-center gap-3 text-muted-foreground shadow-sm mt-0 -mb-4">
+                  <div className="bg-mauve-4 p-2 rounded-lg">
+                    <AlertTriangle size={20} className="text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black uppercase tracking-tight text-foreground">
+                      {task.status === TASK_STATUS.ON_HOLD
+                        ? "Task On Hold"
+                        : "Task Cancelled"}
+                    </p>
+                    <p className="text-xs font-bold opacity-80">
+                      {task.status === TASK_STATUS.ON_HOLD
+                        ? task.editedAt
+                          ? `Held since ${formatDate(task.editedAt)}. This task is read-only.`
+                          : "Held. This task is read-only."
+                        : task.editedAt
+                          ? `Cancelled on ${formatDate(task.editedAt)}. This task is read-only.`
+                          : "Cancelled. This task is read-only."}
                     </p>
                   </div>
                 </div>
@@ -815,8 +852,8 @@ export default function TaskDetails({
               permissions={{
                 canEdit,
                 canEvaluate,
-                isHr,
-                isManagement,
+                isHr: isHr && !isReadOnly,
+                isManagement: isManagement && !isReadOnly,
                 isOwner,
               }}
               state={{
