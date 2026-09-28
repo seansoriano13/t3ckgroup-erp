@@ -114,10 +114,10 @@ export default function FlowAccessSettings({ flowId, disabled = false }) {
 
           <section className="space-y-1.5">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-muted-foreground">
-              Journey viewers
+              History viewers
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Who may open the Journey. Leave empty for the default: Deal Team plus Always sees.
+              Who may open the History. Leave empty for the default: Deal Team plus Always sees.
             </p>
             <PeoplePicker
               value={journeyIsDefault ? [] : journeyViewers}

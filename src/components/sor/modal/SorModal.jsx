@@ -55,7 +55,7 @@ function estimatedValueSizeClass(displayText) {
 
 const TABS = [
   { value: "now", label: "Now" },
-  { value: "journey", label: "Journey" },
+  { value: "journey", label: "History" },
   { value: "items", label: "Items" },
   { value: "details", label: "Details" },
 ];

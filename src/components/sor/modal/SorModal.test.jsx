@@ -67,7 +67,7 @@ describe("SorModal — each tab fetches once, when first opened", () => {
   }
 
   it("Journey", async () => {
-    await expectFetchedOnlyOnOpen("Journey", vi.spyOn(opportunityService, "getJourney"), "No Stage Visits yet")
+    await expectFetchedOnlyOnOpen("History", vi.spyOn(opportunityService, "getJourney"), "No Stage Visits yet")
   })
 
   it("Items", async () => {
