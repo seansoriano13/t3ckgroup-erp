@@ -34,7 +34,7 @@ import ChecklistTaskRenderer from "../../../components/ChecklistTaskRenderer";
 import GradeSelector from "../../../components/GradeSelector";
 import { confirmDeleteToast } from "../../../components/ui/CustomToast";
 import { activeChatService } from "../../../services/tasks/activeChatService";
-import { formatDueDate } from "@/utils/formatDate";
+import { formatDateOnly, formatDueDate } from "@/utils/formatDate";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { groupTaskActivityService } from "@/services/groupTaskActivityService";
 import { groupTaskService } from "@/services/groupTaskService";
@@ -137,7 +137,7 @@ export default function GroupTaskDetailModal({
 
 
   const [isEditingTask, setIsEditingTask] = useState(false);
-  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "" });
+  const [taskEditDraft, setTaskEditDraft] = useState({ title: "", description: "", dueDate: "", startDate: "", leadTime: "" });
 
   const [isRoleManagerOpen, setIsRoleManagerOpen] = useState(false);
   // Covers the whole pick → Cloudinary upload → persist round trip for the
@@ -256,6 +256,8 @@ export default function GroupTaskDetailModal({
       title: task.title || "",
       description: task.description || "",
       dueDate: task.due_date ? task.due_date.split("T")[0] : "",
+      startDate: task.start_date || "",
+      leadTime: task.lead_time || "",
     });
     setIsEditingTask(true);
   };
@@ -702,14 +704,23 @@ export default function GroupTaskDetailModal({
                     placeholder="Task Description..."
                   />
                 </div>
-                <div className="w-48">
-                  <FieldBox label="Due Date" className="mb-1 block" />
-                  <Input 
-                    type="date"
-                    value={taskEditDraft.dueDate}
-                    onChange={(e) => setTaskEditDraft(p => ({ ...p, dueDate: e.target.value }))}
-                    className="h-9 bg-background/50 border-border/50 text-sm"
-                  />
+                <div className="flex flex-wrap gap-3">
+                  {[
+                    { key: "startDate", label: "Start Date", type: "date" },
+                    { key: "dueDate", label: "Due Date", type: "date" },
+                    { key: "leadTime", label: "Lead Time", type: "text", placeholder: "e.g. 120 calendar days" },
+                  ].map(({ key, label, type, placeholder }) => (
+                    <div key={key} className="w-48">
+                      <FieldBox label={label} className="mb-1 block" />
+                      <Input
+                        type={type}
+                        value={taskEditDraft[key]}
+                        onChange={(e) => setTaskEditDraft(p => ({ ...p, [key]: e.target.value }))}
+                        className="h-9 bg-background/50 border-border/50 text-sm"
+                        placeholder={placeholder}
+                      />
+                    </div>
+                  ))}
                 </div>
                 <div className="flex justify-end gap-2 pt-1">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setIsEditingTask(false)} className="h-8 px-3 text-xs">
@@ -726,10 +737,22 @@ export default function GroupTaskDetailModal({
                   {task.title}
                 </h2>
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-semibold text-muted-foreground mt-2">
+                  {task.start_date && (
+                    <div className="flex items-center gap-1.5">
+                      <Calendar size={14} className="text-mauve-9" /> Starts{" "}
+                      {formatDateOnly(task.start_date)}
+                    </div>
+                  )}
                   {task.due_date && (
                     <div className="flex items-center gap-1.5">
                       <Calendar size={14} className="text-mauve-9" /> Due{" "}
                       {formatDueDate(task.due_date)}
+                    </div>
+                  )}
+                  {task.lead_time && (
+                    <div className="flex items-center gap-1.5">
+                      <Clock size={14} className="text-mauve-9" /> Lead time{" "}
+                      {task.lead_time}
                     </div>
                   )}
                   <SorLink opportunityId={task.opportunity_id} onClose={onClose} variant="inline" />

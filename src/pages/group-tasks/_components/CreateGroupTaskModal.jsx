@@ -30,6 +30,7 @@ import SaveGroupTaskTemplateModal from "./SaveGroupTaskTemplateModal";
 import TemplateVariableChips from "@/components/ui/TemplateVariableChips";
 import HighlightedTemplateField from "@/components/ui/HighlightedTemplateField";
 import { cn } from "@/lib/utils";
+import { formatDateToYMD } from "@/utils/dateUtils";
 import PeoplePicker from "@/components/ui/PeoplePicker";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -87,6 +88,8 @@ export default function CreateGroupTaskModal({
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState(null);
   const [dueOffsetDays, setDueOffsetDays] = useState("");
+  const [startDate, setStartDate] = useState(null);
+  const [leadTime, setLeadTime] = useState("");
   const [members, setMembers] = useState(() => [makeMember()]);
   const [selectedMemberId, setSelectedMemberId] = useState(null);
   const [appliedTemplateId, setAppliedTemplateId] = useState(null);
@@ -113,6 +116,8 @@ export default function CreateGroupTaskModal({
         setTitle(initialData.title || "");
         setDescription(initialData.description || "");
         setDueOffsetDays(initialData.dueOffsetDays || "");
+        setStartDate(null);
+        setLeadTime("");
         const hydrated = withMemberIds(initialData.members);
         const nextMembers = hydrated.length > 0 ? hydrated : [makeMember()];
         setMembers(nextMembers);
@@ -131,6 +136,8 @@ export default function CreateGroupTaskModal({
         setDescription("");
         setDueDate(null);
         setDueOffsetDays("");
+        setStartDate(null);
+        setLeadTime("");
         setMembers([first]);
         setSelectedMemberId(first.id);
         setAppliedTemplateId(null);
@@ -283,6 +290,8 @@ export default function CreateGroupTaskModal({
       description,
       dueDate: mode === "automation" ? null : dueDate,
       dueDateOffsetDays: mode === "automation" ? dueOffsetDays : undefined,
+      startDate: mode === "automation" || !startDate ? null : formatDateToYMD(startDate),
+      leadTime: mode === "automation" ? null : leadTime,
       confirmMode: mode === "automation" ? confirmMode : undefined,
       decider: mode === "automation" && confirmMode === "confirm" ? decider : undefined,
       createdBy: user.id,
@@ -535,6 +544,44 @@ export default function CreateGroupTaskModal({
                     )}
                   </div>
                 </div>
+
+                {/* A task a Stage Action creates starts with both blank —
+                    they are per-task facts, not something a flow can know. */}
+                {mode !== "automation" && (
+                  <>
+                    <div className="flex flex-col shrink-0">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                        Start Date
+                      </span>
+                      <div className="relative">
+                        <DatePicker
+                          selected={startDate}
+                          onChange={(date) => setStartDate(date)}
+                          dateFormat="MMMM d, yyyy"
+                          placeholderText="Optional start date"
+                          className="bg-muted border border-border rounded-lg pl-8 pr-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                        />
+                        <Calendar
+                          size={13}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col shrink-0">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                        Lead Time
+                      </span>
+                      <input
+                        type="text"
+                        value={leadTime}
+                        onChange={(e) => setLeadTime(e.target.value)}
+                        placeholder="e.g. 120 calendar days"
+                        className="bg-muted border border-border rounded-lg px-3 py-2 text-xs text-foreground outline-none focus:border-primary/50 transition-colors w-48"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {mode === "automation" && (
