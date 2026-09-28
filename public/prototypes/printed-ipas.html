@@ -105,7 +105,8 @@
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  .sheet.land { width: 297mm; min-height: 210mm; }
+  .sheet.land { width: 297mm; min-height: 210mm; display: block; padding: 8mm 10mm; }
+  .land-inner { display: flex; flex-direction: column; gap: 4mm; zoom: 0.75; }
 
   /* Table text color isolation */
   .sheet table, .sheet tr, .sheet th, .sheet td {
@@ -368,10 +369,13 @@
 
   @media print {
     @page { size: A4 portrait; margin: 0; }
+    @page land { size: A4 landscape; margin: 0; }
     body { background: #fff; }
     .desk { padding: 0; gap: 0; }
     .desk-head, .switcher { display: none !important; }
-    .sheet { box-shadow: none; page-break-after: always; min-height: 297mm; }
+    .sheet { box-shadow: none; min-height: 297mm; }
+    .sheet + .sheet { page-break-before: always; }
+    .sheet.land { page: land; }
   }
   @media (max-width: 860px) {
     .sheet, .sheet.land { width: 100%; min-height: 0; padding: 14px; font-size: 11px; }
@@ -623,7 +627,7 @@ function variantA() {
 
 // B — one landscape sheet, three columns
 function variantB() {
-  return `<div class="sheet land">
+  return `<div class="sheet land"><div class="land-inner">
     ${rail('one sheet')}${header()}
     <div class="cols3">
       <div style="display:flex;flex-direction:column;gap:3.5mm">${sec1()}${sec2()}</div>
@@ -631,7 +635,7 @@ function variantB() {
       <div style="display:flex;flex-direction:column;gap:3.5mm">${sec6()}${sec7()}</div>
     </div>
     ${foot(D.no + ' · ' + D.sors, 'one sheet · A4 landscape')}
-  </div>`;
+  </div></div>`;
 }
 
 // C — money first for Finance, the rest as a back sheet
