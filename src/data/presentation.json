@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-28T01:00:49.971Z",
+  "generatedAt": "2026-09-28T04:13:13.733Z",
   "since": "2026-09-21",
   "title": "What shipped since 21 September",
   "headline": [
@@ -860,6 +860,15 @@
     "openCount": 64,
     "openTicketCount": 55,
     "unassigned": [
+      413,
+      412,
+      411,
+      409,
+      408,
+      407,
+      406,
+      405,
+      404,
       324,
       323,
       322,
