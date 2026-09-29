@@ -358,6 +358,10 @@ export default function SorModal({
     queryClient.invalidateQueries({ queryKey: ["commissionBreakdown", id] });
     queryClient.invalidateQueries({ queryKey: ["opportunityAutomations", id] });
     queryClient.invalidateQueries({ queryKey: ["stageChecklist", id] });
+    // A move can hold, resume or cancel the Stage's tasks; the Activity task
+    // cards (#399) read each task's live status under these keys.
+    queryClient.invalidateQueries({ queryKey: ["globalTask"] });
+    queryClient.invalidateQueries({ queryKey: ["globalGroupTask"] });
   }, [queryClient, id]);
 
   const handleMentionClick = (person) => {
