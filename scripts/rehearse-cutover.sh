@@ -119,29 +119,38 @@ echo "re-run (idempotent):"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X < supabase/scripts/cutover/legacy_pipeline_backfill.sql
 
 step "spot-check SOR visibility as real employees (RLS)"
-# visible_as <email>: how many non-deleted SORs this employee can read.
+# visible_as <email> [where]: how many non-deleted SORs this employee can read.
+# Legacy Pipeline is open to Everyone by design (ADR 0021, 2026-09-25
+# amendment), so the Deal Team checks only count SORs outside it.
+LEGACY="(select st.id from public.sale_types st where st.name = 'Legacy Pipeline')"
+NONLEGACY="coalesce(is_deleted,false)=false and sale_type_id is distinct from $LEGACY"
 visible_as() {
   # One -c string = one session; psql also echoes SET, so keep the last line.
   scalar "set role authenticated;
     select set_config('request.jwt.claims', json_build_object('email', '$1', 'role', 'authenticated')::text, false);
-    select count(*) from public.sales_opportunities where coalesce(is_deleted,false)=false;" | tail -1
+    select count(*) from public.sales_opportunities where $2;" | tail -1
 }
-TOTAL=$(scalar "select count(*) from public.sales_opportunities where coalesce(is_deleted,false)=false")
+ALL="coalesce(is_deleted,false)=false"
+TOTAL=$(scalar "select count(*) from public.sales_opportunities where $ALL")
+LEG_TOTAL=$(scalar "select count(*) from public.sales_opportunities where $ALL and sale_type_id = $LEGACY")
+NL_TOTAL=$(scalar "select count(*) from public.sales_opportunities where $NONLEGACY")
 ADMIN=$(scalar "select email from public.employees where is_super_admin and email is not null limit 1")
-OWNER=$(scalar "select e.email from public.sales_opportunities o join public.employees e on e.id = o.deal_owner_id
-                where coalesce(o.is_deleted,false)=false and not coalesce(e.is_super_admin,false) limit 1")
 OUTSIDER=$(scalar "select e.email from public.employees e
   where e.email is not null and not coalesce(e.is_super_admin,false) and not coalesce(e.is_hr,false)
     and not exists (select 1 from public.sales_opportunities o where e.id in
       (o.registered_by, o.deal_owner_id, o.support_sales_1_id, o.sales_director_id, o.closing_sales_id))
   limit 1")
-A=$(visible_as "$ADMIN"); O=$(visible_as "$OWNER"); X=$(visible_as "$OUTSIDER")
-echo "sales_opportunities policies:"; scalar "select policyname||' '||cmd||' roles='||roles::text||' qual='||coalesce(qual,'-') from pg_policies where tablename='sales_opportunities' order by 1"
-echo "rls on: $(scalar "select relrowsecurity||'/'||relforcerowsecurity from pg_class where oid='public.sales_opportunities'::regclass") | authenticated bypassrls: $(scalar "select rolbypassrls from pg_roles where rolname='authenticated'")"
-echo "non-deleted SORs: $TOTAL | Super Admin sees $A | a Deal Owner sees $O | an employee on no Deal Team sees $X"
+A=$(visible_as "$ADMIN" "$ALL"); XL=$(visible_as "$OUTSIDER" "$ALL and sale_type_id = $LEGACY"); XN=$(visible_as "$OUTSIDER" "$NONLEGACY")
+echo "non-deleted SORs: $TOTAL (Legacy $LEG_TOTAL, other flows $NL_TOTAL) | Super Admin sees $A | outsider sees Legacy $XL, other flows $XN"
 [ "$A" = "$TOTAL" ] || fail "Super Admin sees $A of $TOTAL"
-[ "$O" -gt 0 ] || fail "Deal Owner sees none of their SORs"
-[ "$O" -lt "$TOTAL" ] || fail "Deal Owner sees every SOR"
-[ "$X" = "0" ] || fail "an employee on no Deal Team sees $X SORs"
+[ "$XL" = "$LEG_TOTAL" ] || fail "Legacy Pipeline not open to Everyone: outsider sees $XL of $LEG_TOTAL"
+[ "$XN" = "0" ] || fail "an employee on no Deal Team sees $XN non-Legacy SORs"
+if [ "$NL_TOTAL" != "0" ]; then
+  OWNER=$(scalar "select e.email from public.sales_opportunities o join public.employees e on e.id = o.deal_owner_id
+                  where $NONLEGACY and not coalesce(e.is_super_admin,false) limit 1")
+  O=$(visible_as "$OWNER" "$NONLEGACY")
+  echo "a non-Legacy Deal Owner sees $O of $NL_TOTAL"
+  [ "$O" -gt 0 ] || fail "Deal Owner sees none of their SORs"
+fi
 
 echo; echo "✔ REHEARSAL PASSED"
