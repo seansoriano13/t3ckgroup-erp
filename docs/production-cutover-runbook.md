@@ -23,7 +23,7 @@ Order: set `VITE_MAINTENANCE` → merge release → `main` (Vercel stays connect
 All must be true, or the window moves to the next evening:
 
 - [ ] **Freeze:** release branch cut from staging at the freeze commit; SHA noted in the ticket.
-- [ ] **Rehearsal green** on a fresh prod clone, at the freeze commit, with **all 103 migrations applied** (see [Rehearsal](#rehearsal)).
+- [ ] **Rehearsal green** on a fresh prod clone, at the freeze commit, with **all migrations applied** (`ls supabase/migrations/*.sql | wc -l` matches the ledger's applied count) (see [Rehearsal](#rehearsal)).
 - [ ] #337 sign-offs done: department heads and HR told about SOR visibility, PITR status confirmed, and Operations has published fresh Government and Outright snapshots on staging and confirmed those are the versions to ship.
 - [ ] `hyper-action` decided on (#334).
 - [ ] **Prototype bundle check:** the SOR modal layout prototype is build-gated, not deleted ([ADR 0028](adr/0028-layout-prototypes-live-on-main-build-gated.md)). Vercel prod must NOT set `VITE_APP_ENV` to `staging`/`local`. **Check:** `node scripts/check-no-prototypes.mjs` passes on the freeze commit; CI's "No prototypes in the prod bundle" runs it. Sunset: delete `src/components/sor/modal/prototype/` by 2026-12-31 or bump the date on purpose.
@@ -36,13 +36,13 @@ All must be true, or the window moves to the next evening:
 
 Vercel prod env: `VITE_MAINTENANCE=on`, `VITE_MAINTENANCE_ALLOW=<operator emails, comma-separated>`. Vercel stays connected to git.
 
-**Check:** the setting is saved. The lock is a build-time flag, so it only takes effect on the next build (step 2). Confirm in step 2 that the build is locked.
+**Check:** the setting is saved *before* step 2 starts. It is build-time: a build begun earlier is unlocked. Real check is step 2.
 
 ### 2. Merge the release to `main`
 
 PR the release branch → `main` and merge. Vercel builds `main` **locked**.
 
-**Check:** `main` is at the freeze commit (plus any window fixes). The deployment is Ready, and as a non-allowlisted user you see the maintenance screen; as an allowlisted operator you get in.
+**Check:** `main` is at the freeze commit. The deployment is Ready, and as a non-allowlisted user you see the maintenance screen; as an allowlisted operator you get in.
 
 ### 3. Pre-cutover backup
 
@@ -71,7 +71,7 @@ Every transfer is: dry run → read the output → apply → check.
 
 #### 6a. Government and Outright flows
 
-Prod already holds an earlier copy of both (same ids, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in one transaction. It refuses if the Sale Type has any SORs. Back up prod's Government first (`scripts/backup-flows.mjs`).
+Prod already holds an earlier copy of both (same ids, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in one transaction. It refuses if the Sale Type has any SORs. The step 3 dump is the backup.
 
 ```bash
 node scripts/transfer-sales-flows.mjs --from staging --to prod --replace Government          # dry run (rolled back)
@@ -144,7 +144,7 @@ On prod, in the new UI:
 4. **Check none are left:**
 
 ```sql
-select count(*) from sales_opportunities where name ilike 'ZZTEST%' and coalesce(is_deleted,false) = false;  -- 0
+select count(*) from sales_opportunities where project_title ilike 'ZZTEST%' and coalesce(is_deleted,false) = false;  -- 0
 ```
 
 Also open a legacy SOR and confirm a Government SOR stays private to its Deal Team.
@@ -170,14 +170,15 @@ Restore point is the step 3 dump. Restoring puts back schema, data and ledger ex
 
 | Failed at | State | Do |
 |---|---|---|
-| 1–2 (lock, merge) | No DB change | Fix and retry. Keep staff locked. |
+| 1–2 (lock, merge) | No DB change | Fix and retry. If the build is **not locked**, roll Vercel back to the previous deploy and rebuild locked. |
 | 3 (dump) | Nothing changed | Fix and retry. Don't migrate without a dump. |
 | 4 (repair) | Ledger rows only | Undo with the same workflow (`applied` ↔ `reverted`), or restore the dump. |
 | 5 (migrate) | Possibly partial: each file is its own transaction | Restore the dump. Don't push forward from a partial state. |
 | 6 (transfer) | Its own transaction rolled back | Fix and re-run, or restore the dump. |
 | 7 (backfill) | One `do` block, atomic | Fix and re-run (idempotent), or restore the dump. |
 | 8 (edge functions) | Functions only | Re-run the workflow. |
-| 9–10 (checks, smoke) | Migrated but wrong | Fix with a migration (applied to both) if small; else restore the dump. |
+| 9–10 (checks, smoke) | Migrated but wrong | Fix with a migration (applied to both) only if it fits before 10pm; else no-go: restore the dump. |
+| 12 (post-unlock checks red) | Staff already in | Re-lock (`VITE_MAINTENANCE=on`, rebuild), then restore the dump and promote the previous deploy. |
 | 11 (10pm red) | — | Restore the dump, promote the previous Vercel deploy, unlock. |
 
 ```bash
@@ -195,6 +196,6 @@ Send by chat, before the window.
 
 ## Rehearsal
 
-`Cutover rehearsal` workflow (#336): push any `rehearsal/**` branch cut from the freeze commit. It runs the DB steps (dump, repairs, migrate with `--include-all`, transfers incl. `--include-all` and GTT transfer per #423, backfill twice) against fresh read-only dumps of prod on a CI runner (`scripts/rehearse-cutover.sh`), plus a `baseline-gap` job.
+`Cutover rehearsal` workflow (#336): push any `rehearsal/**` branch cut from the freeze commit. It runs the DB steps (dump, repairs, migrate with `--include-all`, Group Task Template transfer, backfill twice; the migrate and ledger check pass `--include-all` per #423) against fresh read-only dumps of prod on a CI runner (`scripts/rehearse-cutover.sh`), plus a `baseline-gap` job.
 
-**Pre-window gate:** green on a fresh prod clone with all 103 migrations applied. Passed twice on 2026-09-18 (run 35315484079) against the earlier plan; re-run at the freeze commit.
+**Pre-window gate:** green on a fresh prod clone with all migrations applied. Passed twice on 2026-09-18 (run 35315484079) against the earlier plan; re-run at the freeze commit.
