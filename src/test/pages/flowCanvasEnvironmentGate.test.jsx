@@ -54,12 +54,12 @@ describe("FlowCanvasAdminPage", () => {
     expect(screen.queryByText("The Flow Canvas is not available here")).not.toBeInTheDocument();
   });
 
-  it("refuses to draw against production", async () => {
+  it("draws against production too (open on prod since the 2026-09-29 cutover)", async () => {
     mockIsProduction = true;
-    
+
     renderWithProviders(<FlowCanvasAdminPage />);
 
-    expect(await screen.findByText("The Flow Canvas is not available here")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "New Sale Type" })).not.toBeInTheDocument();
+    expect(await screen.findByText("No Sale Types yet")).toBeInTheDocument();
+    expect(screen.queryByText("The Flow Canvas is not available here")).not.toBeInTheDocument();
   });
 });

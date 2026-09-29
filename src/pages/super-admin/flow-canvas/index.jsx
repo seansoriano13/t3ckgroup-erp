@@ -1,7 +1,6 @@
 import ProtectedRoute from "@/components/ProtectedRoute.jsx";
 import FlowCanvas from "@/components/flow-canvas/FlowCanvas.jsx";
 import { FlowDataProvider } from "@/components/flow-canvas/FlowDataContext.jsx";
-import { isProductionSupabase } from "@/lib/supabase.js";
 
 /**
  * The Flow Canvas (issue #36) — one screen, one nav entry, for what was always
@@ -18,30 +17,13 @@ import { isProductionSupabase } from "@/lib/supabase.js";
  * wrapper for this route; every control floats over the canvas rather than
  * sitting in a page header.
  *
- * Staging only. "The canvas and its Scratch SORs live on staging. Production is
- * never the drafting surface" is a spec condition, not a nicety — Scratch SORs
- * are real rows on whatever database they are created against.
+ * Staging and production both. Until the 2026-09-29 cutover this was
+ * staging-only ("production is never the drafting surface"); the operator
+ * opened it on production from then on (ADR 0019 amendment). Every edit here
+ * is a real row on whatever database the build points at, so on production
+ * it is live for staff the moment it is saved.
  */
 export default function FlowCanvasAdminPage() {
-  if (isProductionSupabase) {
-    return (
-      <ProtectedRoute>
-        <div className="flex h-full items-center justify-center p-8">
-          <div className="max-w-md rounded-2xl bg-amber-a2 px-8 py-7 text-center outline outline-1 -outline-offset-1 outline-amber-a6">
-            <p className="text-base font-bold tracking-[-0.01em] text-foreground">
-              The Flow Canvas is not available here
-            </p>
-            <p className="mx-auto mt-2 text-sm leading-relaxed text-muted-foreground">
-              It draws against staging only — every Sale Type, Stage and Scratch SOR it creates
-              is a real row, and production is never the drafting surface. Open this screen on
-              staging instead.
-            </p>
-          </div>
-        </div>
-      </ProtectedRoute>
-    );
-  }
-
   return (
     <ProtectedRoute>
       <div className="relative flex h-full flex-col">

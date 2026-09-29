@@ -14,9 +14,8 @@ import FlowVersionViewer from "@/components/sor/FlowVersionViewer"
  * so "what does my flow actually look like" has to be answerable per deal
  * rather than by looking at whatever the canvas currently holds.
  *
- * **Deliberately not under `/super-admin/flow-canvas`.** That page is blocked
- * outright in production (`isProductionSupabase`) and its Snapshot history is
- * Super-Admin only, so a salesperson could never reach either. Reading a
+ * **Deliberately not under `/super-admin/flow-canvas`.** That page's Snapshot
+ * history is Super-Admin only, so a salesperson could never reach it. Reading a
  * snapshot needs neither: `flow_snapshots_read` is `using (true)` for every
  * authenticated employee, which is asserted in the policy tier.
  *
