@@ -79,7 +79,9 @@ describe("SOR modal refresh after a ribbon move (#406)", () => {
 
     renderWithProviders(<RegisterLikeHarness dealId={deal.id} />)
 
-    // Old stage, gate rendered against LEAD.
+    // Old stage, gate rendered against LEAD. The modal opens on the Summary
+    // (#416), so open the This stage view first.
+    fireEvent.click(await screen.findByRole("button", { name: /^This stage/ }))
     expect(await screen.findByText("What blocks this stage")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Lead (current stage)" })).toBeInTheDocument()
 
