@@ -79,10 +79,17 @@ export default function SorModalHeader({
     // silently stayed scrolled off-screen on deals past the first couple stages.
     let raf = requestAnimationFrame(() => {
       raf = requestAnimationFrame(() => {
-        activeChevronRef.current?.scrollIntoView({
+        // Scroll the ribbon strip only. scrollIntoView also scrolls every
+        // ancestor, and DialogContent's overflow-hidden still allows that, so
+        // the whole modal body slid left on later stages.
+        const chevron = activeChevronRef.current;
+        const scroller = chevron?.closest(".scrollbar-hide");
+        if (!chevron || !scroller) return;
+        const c = chevron.getBoundingClientRect();
+        const s = scroller.getBoundingClientRect();
+        scroller.scrollTo({
+          left: scroller.scrollLeft + (c.left - s.left) - (s.width - c.width) / 2,
           behavior: "smooth",
-          inline: "center",
-          block: "nearest",
         });
       });
     });

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, ListTodo, ArrowUp, ArrowDown, Archive, ChevronDown, Pencil, X } from "lucide-react";
+import { Plus, ListTodo, Archive, ChevronDown, Pencil, X } from "lucide-react";
+import { SortableStageList, SortableStageRow, DragGrip } from "./SortableStageList";
 import toast from "react-hot-toast";
 
 import { cn } from "@/lib/utils";
@@ -193,17 +194,16 @@ export default function StageConditionManager({ stageId, disabled = false }) {
     setIsAdding(false);
   };
 
-  const moveCondition = (index, direction) => {
-    if (!conditions) return;
-    const newIndex = direction === "up" ? index - 1 : index + 1;
-    if (newIndex < 0 || newIndex >= conditions.length) return;
-
-    const a = conditions[index];
-    const b = conditions[newIndex];
-    reorderMutation.mutate([
-      { id: a.id, sortOrder: b.sort_order },
-      { id: b.id, sortOrder: a.sort_order },
-    ]);
+  const reorderConditions = (next) => {
+    // Hand the existing sort_order values back out in the new order, so the
+    // set of values (and any uniqueness rule on them) never changes.
+    const orders = conditions.map((c) => c.sort_order).sort((x, y) => x - y);
+    const updates = next
+      .map((c, i) => ({ id: c.id, sortOrder: orders[i] }))
+      .filter((u, i) => u.sortOrder !== next[i].sort_order);
+    if (updates.length === 0) return;
+    queryClient.setQueryData(["stageConditions", stageId], next.map((c, i) => ({ ...c, sort_order: orders[i] })));
+    reorderMutation.mutate(updates);
   };
 
   const activeKind = CONDITION_KIND_META[kind];
@@ -449,44 +449,22 @@ export default function StageConditionManager({ stageId, disabled = false }) {
             </p>
           </div>
         ) : (
-          conditions?.map((condition, index) => {
+          <SortableStageList items={conditions ?? []} onReorder={reorderConditions} disabled={disabled || reorderMutation.isPending}>
+          {conditions?.map((condition) => {
             const meta = CONDITION_KIND_META[condition.kind];
             const detail = conditionDetail(condition);
             const Icon = meta?.icon ?? ListTodo;
             const isEditing = editingId === condition.id;
 
             return (
-              <div key={condition.id} className="space-y-2">
+              <SortableStageRow key={condition.id} id={condition.id} className="space-y-2">
                 <div
                   className={cn(
                     "group flex items-center gap-3 rounded-xl bg-card px-3 py-2.5 outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8",
                     isEditing && "outline-mauve-8 bg-mauve-a2",
                   )}
                 >
-                  {!disabled && (
-                    <div className="flex shrink-0 flex-col">
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => moveCondition(index, "up")}
-                        disabled={index === 0 || reorderMutation.isPending}
-                        aria-label={`Move ${condition.label} earlier`}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <ArrowUp size={13} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => moveCondition(index, "down")}
-                        disabled={index === conditions.length - 1 || reorderMutation.isPending}
-                        aria-label={`Move ${condition.label} later`}
-                        className="text-muted-foreground hover:text-foreground"
-                      >
-                        <ArrowDown size={13} />
-                      </Button>
-                    </div>
-                  )}
+                  {!disabled && <DragGrip label={`Reorder ${condition.label}`} />}
 
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-amber-a3 text-amber-11">
                     <Icon size={15} strokeWidth={2.5} />
@@ -547,9 +525,10 @@ export default function StageConditionManager({ stageId, disabled = false }) {
                     {renderForm()}
                   </div>
                 )}
-              </div>
+              </SortableStageRow>
             );
-          })
+          })}
+          </SortableStageList>
         )}
       </div>
 

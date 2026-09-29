@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Plus, Wand2, ArrowUp, ArrowDown, Archive, ChevronRight } from "lucide-react";
+import { Plus, Wand2, Archive, ChevronRight } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { SortableStageList, SortableStageRow, DragGrip } from "./SortableStageList";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import Dropdown from "@/components/ui/Dropdown";
@@ -94,18 +95,9 @@ export default function StageActionManager({ stageId, disabled = false }) {
     onError: (err) => toast.error(err.message),
   });
 
-  const moveAction = (index, direction) => {
-    if (!actions) return;
-    const newIndex = index + direction;
-    if (newIndex < 0 || newIndex >= actions.length) return;
-
-    const updated = [...actions];
-    const [moved] = updated.splice(index, 1);
-    updated.splice(newIndex, 0, moved);
-
-    const updates = updated.map((r, i) => ({ id: r.id, sortOrder: i }));
-    queryClient.setQueryData(["stageActions", stageId], updated);
-    reorderMutation.mutate(updates);
+  const reorderActions = (next) => {
+    queryClient.setQueryData(["stageActions", stageId], next);
+    reorderMutation.mutate(next.map((r, i) => ({ id: r.id, sortOrder: i })));
   };
 
   // Issue #294's access window no longer gates the modal. It defaults to the
@@ -142,7 +134,8 @@ export default function StageActionManager({ stageId, disabled = false }) {
       </p>
 
       <div className="space-y-2 p-5">
-        {actions?.map((action, i) => {
+        <SortableStageList items={actions ?? []} onReorder={reorderActions} disabled={disabled || reorderMutation.isPending}>
+        {actions?.map((action) => {
           const meta = ACTION_KIND_META[action.kind];
           const Icon = meta?.icon ?? Wand2;
 
@@ -150,8 +143,9 @@ export default function StageActionManager({ stageId, disabled = false }) {
           const isExpanded = expandedId === action.id;
 
           return (
-            <div
+            <SortableStageRow
               key={action.id}
+              id={action.id}
               className="group rounded-xl bg-card outline outline-1 -outline-offset-1 outline-mauve-6 transition-colors hover:outline-mauve-8"
             >
               <div
@@ -160,30 +154,7 @@ export default function StageActionManager({ stageId, disabled = false }) {
                   isExpanded ? "rounded-b-none bg-mauve-a3" : "hover:bg-mauve-a2",
                 )}
               >
-                {!disabled && (
-                  <div className="flex shrink-0 flex-col">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => moveAction(i, -1)}
-                      disabled={i === 0 || reorderMutation.isPending}
-                      aria-label={`Move ${title} earlier`}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ArrowUp size={13} />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => moveAction(i, 1)}
-                      disabled={i === actions.length - 1 || reorderMutation.isPending}
-                      aria-label={`Move ${title} later`}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <ArrowDown size={13} />
-                    </Button>
-                  </div>
-                )}
+                {!disabled && <DragGrip label={`Reorder ${title}`} />}
 
                 <Button
                   type="button"
@@ -249,9 +220,10 @@ export default function StageActionManager({ stageId, disabled = false }) {
                   onCarriesOnChange={(on) => handleCarriesOnChange(action, on)}
                 />
               )}
-            </div>
+            </SortableStageRow>
           );
         })}
+        </SortableStageList>
 
         {actions?.length === 0 && (
           <div className="rounded-2xl border border-dashed border-mauve-7 px-5 py-8 text-center">
