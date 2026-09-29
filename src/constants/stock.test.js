@@ -9,6 +9,11 @@ describe("stockBadge", () => {
       .toMatchObject({ kind: STOCK_BADGE.NOT_LINKED, label: "Not linked to Odoo" });
   });
 
+  it("reads a line with an Odoo product id but no reading as Not checked, not Not linked", () => {
+    expect(stockBadge({ quantity: 5, product: null, odooProductId: 42 }))
+      .toMatchObject({ kind: STOCK_BADGE.NOT_CHECKED, label: "Not checked" });
+  });
+
   it("reads a service/consumable as Not tracked regardless of quantity", () => {
     expect(
       stockBadge({ quantity: 5, product: { type: "service", free: 0 } }),

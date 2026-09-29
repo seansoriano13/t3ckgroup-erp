@@ -4,9 +4,11 @@
  *
  * `product` is the entry stored per-product in a sor_stock_snapshots row
  * (see that migration): `{ type, free, onHand, forecast, byWarehouse }`, or
- * `null`/`undefined` for a line with no Odoo product — typed by hand, so it
- * never had one to look up — which gets its own kind rather than reading as
- * a failure.
+ * `null`/`undefined` for a line with no reading. Two causes, kept apart: a line
+ * with no Odoo product id — typed by hand, so it never had one to look up —
+ * is NOT_LINKED; a line that has an id but no reading yet (the last stock
+ * read failed, or the line arrived after it) is NOT_CHECKED, never "not
+ * linked", since the fix for it is a Refresh, not a link.
  */
 
 import { STATUS_THEME } from "./statusTheme";
@@ -17,6 +19,7 @@ export const STOCK_BADGE = {
   OUT_OF_STOCK: "OUT_OF_STOCK",
   NOT_TRACKED: "NOT_TRACKED",
   NOT_LINKED: "NOT_LINKED",
+  NOT_CHECKED: "NOT_CHECKED",
 };
 
 export const STOCK_BADGE_THEME = {
@@ -25,6 +28,7 @@ export const STOCK_BADGE_THEME = {
   [STOCK_BADGE.OUT_OF_STOCK]: STATUS_THEME.RED,
   [STOCK_BADGE.NOT_TRACKED]: STATUS_THEME.MAUVE,
   [STOCK_BADGE.NOT_LINKED]: STATUS_THEME.MAUVE,
+  [STOCK_BADGE.NOT_CHECKED]: STATUS_THEME.MAUVE,
 };
 
 /**
@@ -33,7 +37,10 @@ export const STOCK_BADGE_THEME = {
  * Judged on free stock (on hand minus reserved), not on-hand — units already
  * promised to another order must not read as available (Q38).
  */
-export function stockBadge({ quantity, product } = {}) {
+export function stockBadge({ quantity, product, odooProductId } = {}) {
+  if (!product && odooProductId) {
+    return { kind: STOCK_BADGE.NOT_CHECKED, label: "Not checked", free: null };
+  }
   if (!product) {
     return { kind: STOCK_BADGE.NOT_LINKED, label: "Not linked to Odoo", free: null };
   }

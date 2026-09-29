@@ -74,6 +74,26 @@ describe("OpportunityDetailsModal — Odoo stock on fetch (#202)", () => {
     expect(snapshot.fetched_at).toBeTruthy()
   })
 
+  it("keeps the previous snapshot when the lookup's stock read failed (stock: null)", async () => {
+    const owner = makeEmployee()
+    const opportunity = makeOpportunity({ registered_by: owner.id, sales_reference: "S06070" })
+    await opportunityService.saveStockSnapshot(opportunity.id, STOCK, owner.id)
+    stubEdgeFunction(
+      "odoo-sor-lookup",
+      found([{ odoo_product_id: 42, product_name: "Fresh Ambulance", quantity: 10, unit: "unit", unit_price: 1500 }], null),
+    )
+
+    renderModal(opportunity)
+
+    await waitFor(async () => {
+      const items = await opportunityService.getItems(opportunity.id)
+      expect(items.map((i) => i.odoo_product_id)).toEqual([42])
+    })
+
+    const snapshot = await opportunityService.getStockSnapshot(opportunity.id)
+    expect(snapshot.data).toEqual(STOCK)
+  })
+
   it("keeps each line's odoo_product_id through a manual Fetch + Save (updateOpportunity)", async () => {
     stubRpc("sor_can_edit_opportunity", () => true)
     const owner = makeEmployee()
@@ -158,6 +178,7 @@ describe("OpportunityDetailsModal — Product List stock badges (#202)", () => {
     makeOpportunityItem(opportunity.id, { product_name: "Gone Item", quantity: 1, odoo_product_id: 3 })
     makeOpportunityItem(opportunity.id, { product_name: "Service Item", quantity: 1, odoo_product_id: 4 })
     makeOpportunityItem(opportunity.id, { product_name: "Typed Item", quantity: 1, odoo_product_id: null })
+    makeOpportunityItem(opportunity.id, { product_name: "Unread Item", quantity: 1, odoo_product_id: 5 })
 
     const snapshot = {
       warehouses: [{ id: 1, name: "Main Warehouse" }],
@@ -179,6 +200,7 @@ describe("OpportunityDetailsModal — Product List stock badges (#202)", () => {
     expect(screen.getByText("Out of stock")).toBeInTheDocument()
     expect(screen.getByText("Not tracked")).toBeInTheDocument()
     expect(screen.getByText("Not linked to Odoo")).toBeInTheDocument()
+    expect(screen.getByText("Not checked")).toBeInTheDocument()
     expect(screen.getByText(/Stock as of/)).toBeInTheDocument()
 
     fireEvent.click(screen.getByText("Available"))
