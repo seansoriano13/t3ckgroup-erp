@@ -6,7 +6,7 @@ import PageHeader from "../../components/ui/PageHeader";
 import PageContainer from "../../components/ui/PageContainer";
 import { employeeService } from "../../services/employeeService";
 import toast from "react-hot-toast";
-import { Users, Plus, Search, LayoutGrid, Table as TableIcon, Tags } from "lucide-react";
+import { Users, Plus, Search, LayoutGrid, Table as TableIcon } from "lucide-react";
 import TabGroup from "../../components/ui/TabGroup";
 import { Button } from "@/components/ui/button";
 import Spinner from "@/components/ui/Spinner";
@@ -17,7 +17,6 @@ import CreateGroupTaskModal from "./_components/CreateGroupTaskModal";
 import GroupTaskDetailModal from "./_components/GroupTaskDetailModal";
 import RateEmployeesModal from "./_components/RateEmployeesModal";
 import GroupTaskFilters from "../../components/GroupTaskFilters";
-import ManageTagsModal from "../../components/settings/ManageTagsModal";
 import { useGroupTaskFilters } from "../../hooks/useGroupTaskFilters";
 import { useSavedFilters } from "../../hooks/useSavedFilters";
 import SaveDefaultButton from "../../components/ui/SaveDefaultButton";
@@ -31,7 +30,6 @@ const GROUP_TASK_FILTER_DEFAULTS = {
   subDeptFilter: "ALL",
   timeframe: "DAILY",
   selectedDateFilter: "",
-  tagFilter: [],
   crmOnly: false,
 };
 
@@ -124,11 +122,9 @@ export default function GroupTasksPage() {
   const [timeframe, setTimeframe] = useState(savedFilters.timeframe);
   const [selectedDateFilter, setSelectedDateFilter] = useState(savedFilters.selectedDateFilter);
   const [dueDate, setDueDate] = useState(null);
-  const [tagFilter, setTagFilter] = useState(savedFilters.tagFilter);
   const [crmOnly, setCrmOnly] = useState(savedFilters.crmOnly);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isManageTagsOpen, setIsManageTagsOpen] = useState(false);
 
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const selectedTask = useMemo(() => {
@@ -138,7 +134,7 @@ export default function GroupTasksPage() {
   const [isRateOpen, setIsRateOpen] = useState(false);
 
   // --- Filtering ---
-  const { filteredTasks, uniqueCreators, uniqueMembers, uniqueTags } = useGroupTaskFilters(
+  const { filteredTasks, uniqueCreators, uniqueMembers } = useGroupTaskFilters(
     groupTasks,
     {
       searchTerm,
@@ -150,7 +146,6 @@ export default function GroupTasksPage() {
       timeframe,
       selectedDateFilter,
       dueDate,
-      tagFilter,
       crmOnly,
     },
   );
@@ -163,7 +158,6 @@ export default function GroupTasksPage() {
     subDeptFilter,
     timeframe,
     selectedDateFilter,
-    tagFilter,
     crmOnly,
   };
 
@@ -365,12 +359,6 @@ export default function GroupTasksPage() {
             : "View your group task assignments and update progress."
         }
       >
-        {canManage && (
-          <Button variant="outline" onClick={() => setIsManageTagsOpen(true)}>
-            <Tags size={16} className="mr-1.5" />
-            Manage Tags
-          </Button>
-        )}
         <Button onClick={() => setIsCreateOpen(true)}>
           <Plus size={16} className="mr-1.5" />
           Create Group Task
@@ -398,15 +386,12 @@ export default function GroupTasksPage() {
           setSelectedDateFilter={setSelectedDateFilter}
           dueDate={dueDate}
           setDueDate={setDueDate}
-          tagFilter={tagFilter}
-          setTagFilter={setTagFilter}
           crmOnly={crmOnly}
           setCrmOnly={setCrmOnly}
           uniqueCreators={uniqueCreators}
           uniqueMembers={uniqueMembers}
           uniqueDepts={uniqueDepts}
           uniqueSubDepts={uniqueSubDepts}
-          uniqueTags={uniqueTags}
           isManagement={canManage}
           actions={
             <TabGroup
@@ -529,12 +514,6 @@ export default function GroupTasksPage() {
         searchTerm={searchTerm}
       />
 
-
-      <ManageTagsModal
-        isOpen={isManageTagsOpen}
-        onClose={() => setIsManageTagsOpen(false)}
-        userId={user?.id}
-      />
 
       {selectedTaskId && canManage && (
         <RateEmployeesModal

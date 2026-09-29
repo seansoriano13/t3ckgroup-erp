@@ -7,7 +7,6 @@ import AvatarGroup from "../../../components/AvatarGroup";
 import { formatDueDate } from "../../../utils/formatDate";
 import { useEmployeeAvatarMap } from "../../../hooks/useEmployeeAvatarMap";
 import HighlightText from "../../../components/HighlightText";
-import { TagPill } from "../../../components/ui/TagPill";
 import { SorLinkChip } from "../../../components/ui/SorLinkChip";
 
 
@@ -76,14 +75,9 @@ export default function GroupTaskCard({
         <HighlightText text={task.description || "No description provided."} search={searchTerm} />
       </p>
 
-      {(task.opportunity || (task.tags && task.tags.length > 0)) && (
+      {task.opportunity && (
         <div className="flex flex-wrap items-center gap-1.5 mb-4">
           <SorLinkChip opportunityId={task.opportunity_id} opportunity={task.opportunity} />
-          {(task.tags || [])
-            .filter((t) => !t.archived_at)
-            .map((tag) => (
-              <TagPill key={tag.id} tag={tag} />
-            ))}
         </div>
       )}
 

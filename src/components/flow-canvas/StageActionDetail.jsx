@@ -1,11 +1,8 @@
 import { CalendarClock, ListChecks, User } from "lucide-react";
-import { useEffect, useState } from "react";
 
 import AccessWindowConfig from "./AccessWindowConfig";
 import { DEFAULT_ACCESS } from "../../utils/stageAudience";
 import { parseChecklist } from "../../utils/checklist";
-import { taskTagService } from "../../services/taskTagService";
-import { TagPill } from "../ui/TagPill";
 import { Switch } from "../ui/switch";
 import { FieldBox } from "../ui/FieldBox";
 
@@ -70,17 +67,6 @@ export default function StageActionDetail({
   const nameOf = (id) =>
     employees.find((e) => e.id === id)?.name ?? "Someone no longer listed";
 
-  const [allTags, setAllTags] = useState([]);
-  const hasTagIds = action?.kind === "create_group_task" && (config.tagIds?.length ?? 0) > 0;
-  useEffect(() => {
-    if (!hasTagIds) return;
-    taskTagService.list({ includeArchived: true }).then(setAllTags).catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasTagIds, action?.id]);
-  const configuredTags = (config.tagIds || [])
-    .map((id) => allTags.find((t) => t.id === id))
-    .filter(Boolean);
-
   const assigneeNames = (config.members || [])
     .map((member) => member?.employeeId)
     .filter(Boolean)
@@ -115,16 +101,6 @@ export default function StageActionDetail({
         <>
           {config.description?.trim() && (
             <Field label="Objective">{config.description}</Field>
-          )}
-
-          {configuredTags.length > 0 && (
-            <Field label="Tags applied">
-              <div className="flex flex-wrap gap-1">
-                {configuredTags.map((tag) => (
-                  <TagPill key={tag.id} tag={tag} />
-                ))}
-              </div>
-            </Field>
           )}
 
           {config.dueDateOffsetDays ? (

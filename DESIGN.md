@@ -316,9 +316,6 @@ Headings are stable anchors; a lint message links to the heading of the Primitiv
 #### StatusBadge
 `StatusBadge.jsx` (root). Status pill. Props: `status`, `label`, `theme`, `children`.
 
-#### TagPill
-`ui/TagPill.jsx`. Tag chip. Props: `tag` (`name`, `color`, `archived_at`).
-
 #### Dot
 `ui/Dot.jsx`. Small status dot. Props: `size`, `color` (Tailwind classes), `className`, plus native span props.
 

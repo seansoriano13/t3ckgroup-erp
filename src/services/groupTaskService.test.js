@@ -3,7 +3,6 @@ import { groupTaskService } from "./groupTaskService"
 import { db } from "@/test/db/store"
 import { waitForNetworkIdle } from "@/test/network"
 import { makeEmployee, makeHead, makeHrEmployee, makeSuperAdmin } from "@/test/factories"
-import { taskTagService } from "./taskTagService"
 import { stubEdgeFunction } from "@/test/msw/server"
 
 /**
@@ -552,49 +551,6 @@ describe("groupTaskService", () => {
       await waitForNetworkIdle()
 
       expect(removalsLogged()).toBe(1)
-    })
-  })
-
-  describe("tags (issue #205)", () => {
-    it("tags a group task at creation", async () => {
-      const bidding = await taskTagService.create({ name: "Bidding", color: "blue", createdBy: creator.id })
-
-      const task = await createTask({ tagIds: [bidding.id] })
-      const found = await groupTaskService.getGroupTaskById(task.id)
-
-      expect(found.tags.map((t) => t.id)).toEqual([bidding.id])
-    })
-
-    it("sets and reads back a group task's tags", async () => {
-      const bidding = await taskTagService.create({ name: "Bidding", color: "blue", createdBy: creator.id })
-      const committee = await taskTagService.create({ name: "Committee", color: "green", createdBy: creator.id })
-      const task = await createTask()
-
-      await groupTaskService.setTags(task.id, [bidding.id, committee.id], creator.id)
-      let found = await groupTaskService.getGroupTaskById(task.id)
-      expect(found.tags.map((t) => t.id).sort()).toEqual([bidding.id, committee.id].sort())
-
-      await groupTaskService.setTags(task.id, [bidding.id], creator.id)
-      found = await groupTaskService.getGroupTaskById(task.id)
-      expect(found.tags.map((t) => t.id)).toEqual([bidding.id])
-    })
-
-    it("clears every tag when set to an empty list", async () => {
-      const bidding = await taskTagService.create({ name: "Bidding", color: "blue", createdBy: creator.id })
-      const task = await createTask({ tagIds: [bidding.id] })
-
-      await groupTaskService.setTags(task.id, [], creator.id)
-
-      const found = await groupTaskService.getGroupTaskById(task.id)
-      expect(found.tags).toEqual([])
-    })
-
-    it("lists tags on getGroupTasks too", async () => {
-      const bidding = await taskTagService.create({ name: "Bidding", color: "blue", createdBy: creator.id })
-      await createTask({ tagIds: [bidding.id] })
-
-      const all = await groupTaskService.getGroupTasks(creator.id, true, false)
-      expect(all[0].tags.map((t) => t.id)).toEqual([bidding.id])
     })
   })
 })

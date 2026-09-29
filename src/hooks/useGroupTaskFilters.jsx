@@ -12,7 +12,6 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
     timeframe = "DAILY",
     selectedDateFilter = "",
     dueDate = null,
-    tagFilter = [],
     crmOnly = false,
   } = filters;
 
@@ -101,12 +100,6 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
         if (!matchesDate) return false;
       }
 
-      // 9. Tag Filter (match any of the selected tags)
-      if (tagFilter.length > 0) {
-        const taskTagIds = (task.tags || []).map((t) => t.id);
-        if (!tagFilter.some((id) => taskTagIds.includes(id))) return false;
-      }
-
       // 10. SORS Filter — only tasks linked to an SOR
       if (crmOnly && !task.opportunity_id) return false;
 
@@ -123,7 +116,6 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
     timeframe,
     selectedDateFilter,
     dueDate,
-    tagFilter,
     crmOnly,
   ]);
 
@@ -155,15 +147,5 @@ export function useGroupTaskFilters(rawTasks = [], filters = {}) {
     return Array.from(membersMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [rawTasks]);
 
-  const uniqueTags = useMemo(() => {
-    const tagsMap = new Map();
-    rawTasks.forEach((task) => {
-      (task.tags || []).forEach((tag) => {
-        if (tag && !tag.archived_at) tagsMap.set(tag.id, tag);
-      });
-    });
-    return Array.from(tagsMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [rawTasks]);
-
-  return { filteredTasks, uniqueCreators, uniqueMembers, uniqueTags };
+  return { filteredTasks, uniqueCreators, uniqueMembers };
 }
