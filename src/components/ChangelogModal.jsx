@@ -63,11 +63,11 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleDismiss()}>
-      <DialogContent showCloseButton={false} className="sm:max-w-md gap-0 p-0 border-border/60 shadow-xl overflow-hidden bg-background">
-        <div className="flex flex-col p-6 sm:p-8">
-          
+      <DialogContent showCloseButton={false} className="sm:max-w-md gap-0 p-0 border-border/60 shadow-xl overflow-hidden bg-background max-h-[calc(100dvh-2rem)] flex flex-col">
+        <div className="flex flex-col flex-1 min-h-0 p-6 sm:p-8">
+
           {/* Header */}
-          <div className="flex items-center gap-4 mb-8">
+          <div className="flex items-center gap-4 mb-6 shrink-0">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted border border-border/50 text-foreground shadow-sm shrink-0">
               <Sparkles className="h-6 w-6" />
             </div>
@@ -82,7 +82,7 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
           </div>
 
           {/* Body */}
-          <div className="mb-8">
+          <div className="mb-6 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
             <h3 className="text-base font-medium text-foreground mb-4">
               {latestRelease.title}
             </h3>
@@ -98,7 +98,7 @@ export default function ChangelogModal({ manualOpen = false, onManualClose = nul
 
           {/* Footer */}
           <Button 
-            className="w-full bg-foreground text-background hover:bg-foreground/90 font-medium h-11 shadow-sm transition-all rounded-lg" 
+            className="w-full shrink-0 bg-foreground text-background hover:bg-foreground/90 font-medium h-11 shadow-sm transition-all rounded-lg" 
             onClick={handleDismiss} 
             disabled={isUpdating}
           >
