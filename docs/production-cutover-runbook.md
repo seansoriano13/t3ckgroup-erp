@@ -71,6 +71,8 @@ Actions → **Apply migrations — production** → confirm `apply`, tick **incl
 
 Every transfer is: dry run → read the output → apply → check.
 
+> **Status 2026-09-29: 6a–6c are already applied on prod** (Government 18 Stages; 17 templates, the 11 staging ones tagged "(staging)"; Delivery already points at DELIVERY). Run only the dry runs as checks: 6b would fail on duplicate ids, so skip its `--apply`.
+
 #### 6a. Government and Outright flows
 
 Prod already holds an earlier copy of both (same ids, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in one transaction. It refuses if the Sale Type has any SORs. The step 3 dump is the backup.

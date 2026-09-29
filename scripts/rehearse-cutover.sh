@@ -99,7 +99,12 @@ step "7. replace Government from staging"
 node scripts/transfer-sales-flows.mjs --from staging --to-url "$LOCAL" --replace --apply Government
 
 step "7b. transfer Group Task Templates from staging, tagged (staging)"
-node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --tag-all --apply
+# Prod already got them (same ids, tagged) before 2026-09-29; transfer only if not.
+if [ "$(scalar "select count(*) from public.group_task_templates where name like '% (staging%'")" = "0" ]; then
+  node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --tag-all --apply
+else
+  echo "already on prod: $(scalar "select count(*) from public.group_task_templates") templates"
+fi
 
 step "7c. repoint Government's Project Delivery template to prod's DELIVERY"
 node scripts/repoint-government-delivery-template.mjs --to prod --to-url "$LOCAL" --apply
