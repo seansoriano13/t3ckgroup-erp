@@ -21,7 +21,7 @@ The cutover runs in **two windows**, so the database change and the UI change ne
 - [ ] #336 rehearsal passed twice in a row on fresh production clones.
 - [ ] `hyper-action` decided on (#334).
 - [ ] Vercel production's git integration is **disconnected** (Vercel → project → Settings → Git → Disconnect; the project owner does this). Vercel deploys every push to `main` live immediately, and the new UI must not go live before its window. **Check:** Settings → Git shows no connected repository.
-- [ ] **REMOVE-BEFORE-PROD:** the SOR modal layout prototype is gone — `src/components/sor/modal/prototype/` deleted, nothing left tagged `REMOVE-BEFORE-PROD`, and the "SOR Layout Preview (Staging)" entry gone from `src/data/changelog.json` (the chosen layout, if any, rebuilt properly first). **Check:** `node scripts/check-no-prototypes.mjs` passes; CI's "No prototypes on main" fails otherwise.
+- [ ] **REMOVE-BEFORE-PROD:** the SOR modal layout prototype is build-gated, not deleted ([ADR 0028](adr/0028-layout-prototypes-live-on-main-build-gated.md)). Vercel prod must NOT set `VITE_APP_ENV` to `staging`/`local`; staging must set `VITE_APP_ENV=staging`. The "SOR Layout Preview (Staging)" entry stays staging-only in `src/data/changelog.json`. **Check:** `node scripts/check-no-prototypes.mjs` passes (prod build has no prototype code); CI's "No prototypes in the prod bundle" runs it. Sunset: delete `src/components/sor/modal/prototype/` by 2026-12-31 or bump the date on purpose.
 - [ ] Curated prod release entry added on top of `src/data/changelog.json`, written per [release-notes-template.md](release-notes-template.md). What's New shows only the top entry.
 - [ ] Staff heads-up sent Sep 30 (see [Staff heads-up](#staff-heads-up)).
 

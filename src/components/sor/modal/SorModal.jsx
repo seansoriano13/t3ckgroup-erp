@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { X } from "lucide-react";
@@ -38,6 +38,14 @@ import { useCanEditSor } from "../../../hooks/useCanEditSor";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
 import SummaryLayout from "./summary/SummaryLayout";
+
+// REMOVE-BEFORE-PROD (ADR 0028): the layout prototype is build-gated. The env
+// check sits in the same expression as the import() so Vite folds it to
+// `null` and drops the whole ./prototype folder from a production bundle.
+const PrototypeShell =
+  import.meta.env.VITE_APP_ENV === "staging" || import.meta.env.VITE_APP_ENV === "local"
+    ? lazy(() => import("./prototype/PrototypeShell"))
+    : null;
 
 function estimatedValueSizeClass(displayText) {
   const len = (displayText || "").length;
@@ -1016,9 +1024,15 @@ export default function SorModal({
           !isExpanded && "h-[90vh]",
         )}
       >
-        <div className="flex min-h-0 flex-1 flex-col">
-          <SummaryLayout p={layoutProps} />
-        </div>
+        {PrototypeShell ? (
+          <Suspense fallback={null}>
+            <PrototypeShell p={layoutProps} />
+          </Suspense>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SummaryLayout p={layoutProps} />
+          </div>
+        )}
         {returnPrompt.dialog}
       </DialogContent>
     </Dialog>
