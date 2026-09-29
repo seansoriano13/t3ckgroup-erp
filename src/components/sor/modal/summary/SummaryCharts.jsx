@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. The two charts picked in
+ * SOR modal layout. The two charts picked in
  * round 3: where the money is (each product's share of the value) and time in
  * each stage (one bar per Stage visit, first entry → today).
  */

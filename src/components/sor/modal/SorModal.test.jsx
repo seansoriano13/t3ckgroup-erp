@@ -1,16 +1,14 @@
 /**
- * #298 — the modal shell: default tab, per-tab lazy fetch that doesn't
- * refetch on revisit, previous/next navigation, and the narrow-window
- * chat-as-tab switch.
+ * #298 — the modal shell: opens on the Summary, no refetch on revisiting a
+ * view, previous/next navigation, and the notes drawer.
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest"
+import { describe, it, expect, vi, afterEach } from "vitest"
 import { fireEvent, screen, waitFor } from "@testing-library/react"
 
 import { renderWithProviders } from "../../../test/support"
 import { makeEmployee, makeOpportunity, makeOpportunityItem } from "../../../test/factories"
 import OpportunityDetailsModal from "../OpportunityDetailsModal"
 import { opportunityService } from "../../../services/opportunityService"
-import { leadSourceService } from "../../../services/leadSourceService"
 import { waitForNetworkIdle } from "../../../test/network"
 import { stubRpc } from "../../../test/msw/server"
 
@@ -25,68 +23,61 @@ function renderModal(opportunity, extraProps = {}) {
   )
 }
 
-describe("SorModal — tabs", () => {
-  it("opens on Now, with the other tabs' content not rendered yet", async () => {
+const view = (name) => screen.findByRole("button", { name: new RegExp(`^${name}`) })
+const ready = () => view("This stage")
+
+describe("SorModal — summary shell", () => {
+  it("opens on the Summary, with the This stage view not rendered yet", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
 
-    expect(await screen.findByText("What blocks this stage")).toBeInTheDocument()
-    // "Deal Details" is Details' own heading (#302) — absent until opened.
-    expect(screen.queryByText("Deal Details")).not.toBeInTheDocument()
-  })
+    await ready()
+    expect(screen.queryByText("What blocks this stage")).not.toBeInTheDocument()
 
+    fireEvent.click(await ready())
+    expect(await screen.findByText("What blocks this stage")).toBeInTheDocument()
+  })
 })
 
-// Each lazy tab's own read, spied rather than mocked so the real service still
-// answers: not called while the modal sits on Now, called once when the tab
-// first opens, and not again when the reader leaves and comes back.
-describe("SorModal — each tab fetches once, when first opened", () => {
+// Each view's own read, spied rather than mocked so the real service still
+// answers: once the view has opened, leaving for the Summary and coming back
+// makes no further read.
+describe("SorModal — each view reads once", () => {
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  async function expectFetchedOnlyOnOpen(tab, spy, shown) {
+  async function expectNoRefetchOnRevisit(name, spy, shown) {
     const deal = makeOpportunity({ status: "LEAD", sales_reference: null })
     makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
-    await waitForNetworkIdle()
-    expect(spy).not.toHaveBeenCalled()
+    await ready()
 
-    fireEvent.click(screen.getByRole("tab", { name: tab }))
+    fireEvent.click(await view(name))
     expect(await screen.findByText(shown)).toBeInTheDocument()
     await waitForNetworkIdle()
-    expect(spy).toHaveBeenCalledTimes(1)
+    const reads = spy.mock.calls.length
+    expect(reads).toBeGreaterThan(0)
 
-    fireEvent.click(screen.getByRole("tab", { name: "Now" }))
-    fireEvent.click(screen.getByRole("tab", { name: tab }))
-    // Still there synchronously, with no skeleton flash and no second read.
-    expect(screen.getByText(shown)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Summary" }))
+    fireEvent.click(await view(name))
+    expect(await screen.findByText(shown)).toBeInTheDocument()
     await waitForNetworkIdle()
-    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledTimes(reads)
   }
 
-  it("Journey", async () => {
-    await expectFetchedOnlyOnOpen("History", vi.spyOn(opportunityService, "getJourney"), "No Stage Visits yet")
+  it("Products", async () => {
+    await expectNoRefetchOnRevisit("Products", vi.spyOn(opportunityService, "getItems"), "Rack Unit")
   })
 
-  it("Items", async () => {
-    await expectFetchedOnlyOnOpen("Items", vi.spyOn(opportunityService, "getItems"), "Rack Unit")
-  })
-
-  it("Details", async () => {
-    await expectFetchedOnlyOnOpen("Details", vi.spyOn(leadSourceService, "getActiveLeadSources"), "Deal Details")
-  })
-
-  // Items loads only once its tab opens, but Edit can be pressed from Now.
   // The edit form carries the whole Product List into Save, so a list that
   // was never fetched must not be saved over the stored one as empty.
-  it("keeps the stored Product List through an Edit and Save made before Items was ever opened", async () => {
+  it("keeps the stored Product List through an Edit and Save made before Products was ever opened", async () => {
     stubRpc("sor_can_edit_opportunity", () => true)
     const deal = makeOpportunity({ status: "LEAD", sales_reference: null })
     makeOpportunityItem(deal.id, { product_name: "Rack Unit" })
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
+    await ready()
 
     fireEvent.click(await screen.findByTitle("Edit"))
     fireEvent.click(await screen.findByRole("button", { name: "Save" }))
@@ -102,7 +93,7 @@ describe("SorModal — previous/next", () => {
   it("renders no arrows without siblingIds", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
+    await ready()
     expect(screen.queryByTitle("Previous")).not.toBeInTheDocument()
     expect(screen.queryByTitle("Next")).not.toBeInTheDocument()
   })
@@ -111,7 +102,7 @@ describe("SorModal — previous/next", () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     const onNavigate = vi.fn()
     renderModal(deal, { siblingIds: [deal.id, "next-id"], onNavigate })
-    await screen.findByText("What blocks this stage")
+    await ready()
 
     fireEvent.click(screen.getByTitle("Next"))
     expect(onNavigate).toHaveBeenCalledWith("next-id")
@@ -120,40 +111,19 @@ describe("SorModal — previous/next", () => {
   it("disables Previous at the start of the list", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal, { siblingIds: [deal.id, "next-id"], onNavigate: vi.fn() })
-    await screen.findByText("What blocks this stage")
+    await ready()
     expect(screen.getByTitle("Previous")).toBeDisabled()
   })
 })
 
-describe("SorModal — narrow layout", () => {
-  let originalMatchMedia
-
-  beforeEach(() => {
-    originalMatchMedia = window.matchMedia
-  })
-
-  afterEach(() => {
-    window.matchMedia = originalMatchMedia
-  })
-
-  it("shows the chat column beside the tabs when wide", async () => {
-    window.matchMedia = (query) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} })
+describe("SorModal — notes", () => {
+  it("opens the notes drawer from the crumb bar", async () => {
     const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
-
-    expect(screen.queryByRole("tab", { name: "Chat" })).not.toBeInTheDocument()
-    expect(screen.getByText("Activity & Log Notes")).toBeInTheDocument()
-  })
-
-  it("moves chat into a fifth tab below 1100px", async () => {
-    window.matchMedia = (query) => ({ matches: false, media: query, addEventListener: () => {}, removeEventListener: () => {} })
-    const deal = makeOpportunity({ status: "QUALIFIED", sales_reference: "S01234" })
-    renderModal(deal)
-    await screen.findByText("What blocks this stage")
+    await ready()
 
     expect(screen.queryByText("Activity & Log Notes")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("tab", { name: "Chat" }))
+    fireEvent.click(screen.getByRole("button", { name: /^Notes/ }))
     expect(await screen.findByText("Activity & Log Notes")).toBeInTheDocument()
   })
 })

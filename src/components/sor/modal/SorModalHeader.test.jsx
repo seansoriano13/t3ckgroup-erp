@@ -83,7 +83,7 @@ describe("SorModalHeader — Clear to move accounts for Stage Fields (#407)", ()
   it("keeps the badge on Blocked, and names the field, while a required Stage Field is empty", async () => {
     renderWithProviders(<LiveModal id={deal.id} />)
 
-    await screen.findByText("What blocks this stage")
+    fireEvent.click(await screen.findByRole("button", { name: /^This stage/ }))
     await waitFor(() => expect(screen.getByText("2 of 2")).toBeInTheDocument())
 
     // The bug: this used to read "Clear to move" here.
@@ -94,10 +94,10 @@ describe("SorModalHeader — Clear to move accounts for Stage Fields (#407)", ()
 
   it("clears both the badge and the message, with no reload, once the field is saved", async () => {
     renderWithProviders(<LiveModal id={deal.id} />)
-    await screen.findByText("What blocks this stage")
+    await screen.findByRole("button", { name: /^This stage/ })
     await waitFor(() => expect(screen.getByText(/Blocked/)).toBeInTheDocument())
 
-    fireEvent.click(screen.getByRole("tab", { name: "Now" }))
+    fireEvent.click(screen.getByRole("button", { name: /^This stage/ }))
     fireEvent.change(await screen.findByLabelText("Expected Award Date"), { target: { value: "2026-04-01" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
 

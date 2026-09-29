@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. The notes pop-out (liked
+ * SOR modal layout. The notes pop-out (liked
  * in round 1, since dropped with its layout): a drawer that
  * slides over the right of the modal body, opened from a header button, so
  * the notes don't cost a permanent column. Parent must be `relative`.

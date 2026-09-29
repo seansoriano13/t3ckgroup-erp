@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. A stage strip that never
+ * SOR modal layout. A stage strip that never
  * scrolls sideways ("Thread"'s status panel): every Stage is one segment sharing the
  * width, so an 18-Stage flow still fits, with the current Stage named and the
  * moves open from it as buttons. Plus the visits hook the strip and the

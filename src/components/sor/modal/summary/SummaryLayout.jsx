@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — layout "Summary · two columns". The same picks as
+ * The SOR modal layout: summary, two columns. The same picks as
  * "Summary · stacked", arranged to fit one screen: the numbers across the top, what to do and
  * where the money is on the left, time per stage, team and facts on the right.
  * The crumb also lists the sibling views, so any section is one click from

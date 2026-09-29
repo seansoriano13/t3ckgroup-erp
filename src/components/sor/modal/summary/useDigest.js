@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. The one-glance summary of
+ * SOR modal layout. The one-glance summary of
  * an SOR ("Rail + summary" and the three "Summary" layouts):
  * how long it has sat in this Stage, what is still open, and what needs
  * someone's attention. Reads the same queries NowTab does (same keys), so

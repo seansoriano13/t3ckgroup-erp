@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. The one-glance summary
+ * SOR modal layout. The one-glance summary
  * (from "Rail + summary", picked in round 3): where the deal stands in one
  * sentence, five numbers, what needs attention (each with a way to go fix
  * it), key facts, team, and the latest note. Exported as parts so the three

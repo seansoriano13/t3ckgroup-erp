@@ -5,7 +5,6 @@ import { X } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import TabGroup from "../../ui/TabGroup";
 import { opportunityService } from "../../../services/opportunityService";
 import { supabase } from "../../../lib/supabase";
 import { useAuth } from "../../../context/AuthContext";
@@ -36,15 +35,9 @@ import SorModalHeader from "./SorModalHeader";
 import { useReturnPrompt } from "../useReturnPrompt";
 import { useReturnStageIds } from "../useReturnStageIds";
 import { useCanEditSor } from "../../../hooks/useCanEditSor";
-import NowTab from "./NowTab";
-import JourneyTab from "./JourneyTab";
-import ItemsTab from "./ItemsTab";
-import DetailsTab from "./DetailsTab";
 import SorChatColumn from "./SorChatColumn";
 import { pullOdooLines, saveOdooLines, toRow } from "./odooLines";
-// REMOVE-BEFORE-PROD — SOR modal layout prototype, staging/local only. CI fails any push or PR to `main` while ./prototype exists.
-import SorModalPrototype from "./prototype/SorModalPrototype";
-import PrototypeSwitcher, { PROTOTYPE_ENABLED, usePrototypeVariant } from "./prototype/PrototypeSwitcher";
+import SummaryLayout from "./summary/SummaryLayout";
 
 function estimatedValueSizeClass(displayText) {
   const len = (displayText || "").length;
@@ -53,18 +46,9 @@ function estimatedValueSizeClass(displayText) {
   return "text-3xl lg:text-4xl";
 }
 
-const TABS = [
-  { value: "now", label: "Now" },
-  { value: "journey", label: "History" },
-  { value: "items", label: "Items" },
-  { value: "details", label: "Details" },
-];
-
 /**
- * The SOR modal shell (#298): header, the four-tab scaffold, the chat
- * column, and previous/next navigation. Now holds the old flat modal's
- * content lifted unchanged (#299 redesigns it); Journey/Items/Details are
- * stubs (#300-#302).
+ * The SOR modal shell (#298): every query, mutation and handler, handed to
+ * the Summary layout (./summary) that renders it.
  */
 export default function SorModal({
   isOpen,
@@ -158,9 +142,8 @@ export default function SorModal({
   const { files, isUploading } = attachments;
   const fileInputRef = useRef(null);
 
-  const [activeTab, setActiveTab] = useState("now");
+  const [, setActiveTab] = useState("now");
   const { markOpened, hasOpened } = useOpenedTabs("now");
-  const [protoVariant, setProtoVariant] = usePrototypeVariant();
   const isWide = useMediaQuery("(min-width: 1100px)");
 
   const currentKey = `${id || "none"}:${isOpen}`;
@@ -975,8 +958,8 @@ export default function SorModal({
       </div>
   );
 
-  // REMOVE-BEFORE-PROD: everything a layout variant may render.
-  const protoProps = {
+  // Everything the layout renders.
+  const layoutProps = {
     ...headerProps,
     headerProps,
     id,
@@ -1010,12 +993,6 @@ export default function SorModal({
     },
   };
 
-  // ADR 0021 / #297: a Participant shut out of Journey by the flow's
-  // journey_viewers setting gets no Journey tab at all — not one that opens
-  // to nothing.
-  const visibleTabs = canViewJourney ? TABS : TABS.filter((t) => t.value !== "journey");
-  const tabsWithChat = isWide ? visibleTabs : [...visibleTabs, { value: "chat", label: "Chat" }];
-
   return (
     <Dialog
       open={isOpen}
@@ -1036,61 +1013,12 @@ export default function SorModal({
         className={cn(
           "flex flex-col gap-0 overflow-hidden p-0 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.22)] outline-none transition-all duration-300",
           isExpanded ? "!max-w-none !max-h-none !rounded-none !border-0" : "w-full max-w-[95vw] md:max-w-[1200px] max-h-[90vh] rounded-2xl",
-          // REMOVE-BEFORE-PROD: a fixed height so switching layouts doesn't make the modal jump.
-          PROTOTYPE_ENABLED && !isExpanded && "h-[90vh]",
+          !isExpanded && "h-[90vh]",
         )}
       >
-        {/* REMOVE-BEFORE-PROD: keyed on the layout so a switch fades the new one in. */}
-        <div key={protoVariant} className="flex min-h-0 flex-1 flex-col animate-in fade-in-0 duration-200">
-        {protoVariant !== "A" ? (
-          <SorModalPrototype variant={protoVariant} p={protoProps} />
-        ) : (
-        <>
-        <SorModalHeader {...headerProps} />
-
-        {windowsBanner}
-
-        <div className="flex min-h-0 flex-1">
-          <div className="flex min-h-0 flex-1 flex-col">
-            <div className="shrink-0 border-b border-border/60 px-6 pt-3">
-              <TabGroup tabs={tabsWithChat} activeTab={activeTab} onChange={handleTabChange} variant="underline" />
-            </div>
-            {/*
-              Each opened tab stays mounted and is hidden rather than
-              unmounted, so a half-typed Stage Field survives a look at the
-              Journey (#207's default decision). Items scrolls inside itself
-              — its sticky header has to outlive a 157-line list — so the
-              panel area clips and each tab owns its own scroll.
-            */}
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <div className={activeTab === "now" ? "h-full overflow-y-auto" : "hidden"}>
-                <NowTab ctx={tabCtx} />
-              </div>
-              {canViewJourney && hasOpened("journey") && (
-                <div className={activeTab === "journey" ? "h-full overflow-y-auto" : "hidden"}>
-                  <JourneyTab opportunityId={id} hasOpened={hasOpened} onGoToNow={() => handleTabChange("now")} />
-                </div>
-              )}
-              {hasOpened("items") && (
-                <div className={activeTab === "items" ? "h-full" : "hidden"}>
-                  <ItemsTab ctx={tabCtx} hasOpened={hasOpened} />
-                </div>
-              )}
-              {hasOpened("details") && (
-                <div className={activeTab === "details" ? "h-full overflow-y-auto" : "hidden"}>
-                  <DetailsTab ctx={tabCtx} />
-                </div>
-              )}
-              {!isWide && activeTab === "chat" && <div className="h-full">{chatColumn}</div>}
-            </div>
-          </div>
-
-          {isWide && <div className="w-[340px] shrink-0 border-l border-border/60">{chatColumn}</div>}
+        <div className="flex min-h-0 flex-1 flex-col">
+          <SummaryLayout p={layoutProps} />
         </div>
-        </>
-        )}
-        </div>
-        {PROTOTYPE_ENABLED && <PrototypeSwitcher variant={protoVariant} setVariant={setProtoVariant} />}
         {returnPrompt.dialog}
       </DialogContent>
     </Dialog>

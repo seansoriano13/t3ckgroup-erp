@@ -41,8 +41,8 @@ describe("SorModal — Journey tab gated by journey_viewers (participant access)
     await screen.findByText(deal.project_title)
     await waitForNetworkIdle()
 
-    expect(screen.getByRole("tab", { name: "Now" })).toBeInTheDocument()
-    expect(screen.queryByRole("tab", { name: "History" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /^This stage/ })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /^History/ })).not.toBeInTheDocument()
   })
 
   it("shows the Journey tab when sor_can_view_journey returns true", async () => {
@@ -56,6 +56,6 @@ describe("SorModal — Journey tab gated by journey_viewers (participant access)
     await screen.findByText(deal.project_title)
     await waitForNetworkIdle()
 
-    await waitFor(() => expect(screen.getByRole("tab", { name: "History" })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole("button", { name: /^History/ })).toBeInTheDocument())
   })
 })

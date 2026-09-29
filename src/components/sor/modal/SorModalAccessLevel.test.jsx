@@ -84,10 +84,10 @@ describe("SorModal — access level", () => {
 
     renderWithProviders(<OpportunityDetailsModal isOpen onClose={() => {}} opportunity={deal} />)
 
-    await screen.findByText("What blocks this stage")
+    await screen.findByRole("button", { name: /^This stage/ })
     await waitForNetworkIdle()
 
-    await waitFor(() => expect(screen.getByText(/This stage is restricted/)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getAllByText(/This stage is restricted/).length).toBeGreaterThan(0))
   })
 
   it.each([

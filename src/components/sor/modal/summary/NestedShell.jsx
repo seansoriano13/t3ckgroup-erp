@@ -1,5 +1,5 @@
 /**
- * REMOVE-BEFORE-PROD — SOR modal layout prototype. The shell round 3's picks
+ * SOR modal layout. The shell round 3's picks
  * add up to (the three "Summary" layouts):
  * - the original header and stage ribbon (the chevron boxes),
  * - notes as the pop-out,

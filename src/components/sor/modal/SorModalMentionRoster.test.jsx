@@ -29,8 +29,8 @@ function renderModal(opportunity) {
 }
 
 async function openChatAndType(text) {
-  // Chat sits beside the tabs at the default (wide) layout, so it is already
-  // on screen once the shell renders.
+  // Notes live in a pop-out drawer, opened from the crumb bar.
+  fireEvent.click(await screen.findByRole("button", { name: /^Notes/ }))
   const textarea = await screen.findByPlaceholderText("Add a note — type @ to mention someone")
   fireEvent.change(textarea, { target: { value: text } })
   fireEvent.select(textarea, { target: { selectionStart: text.length } })
@@ -52,7 +52,7 @@ describe("SorModal — mention roster is visit-scoped", () => {
     })
 
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
+    await screen.findByRole("button", { name: /^Notes/ })
     await waitForNetworkIdle()
 
     await openChatAndType("@")
@@ -67,7 +67,7 @@ describe("SorModal — mention roster is visit-scoped", () => {
     const someone = makeEmployee({ name: "Ben Cruz" })
 
     renderModal(deal)
-    await screen.findByText("What blocks this stage")
+    await screen.findByRole("button", { name: /^Notes/ })
     await waitForNetworkIdle()
 
     await openChatAndType("@")

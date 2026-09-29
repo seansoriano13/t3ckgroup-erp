@@ -39,6 +39,12 @@ function LiveModal({ id }) {
   return <OpportunityDetailsModal isOpen onClose={() => {}} opportunity={data} />
 }
 
+// The modal opens on the Summary; the Now view is one click away on the crumb.
+async function renderNow(id) {
+  renderWithProviders(<LiveModal id={id} />)
+  fireEvent.click(await screen.findByRole("button", { name: /^This stage/ }))
+}
+
 const isBefore = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
 
 describe("NowTab (#299)", () => {
@@ -89,7 +95,7 @@ describe("NowTab (#299)", () => {
     const deal = await register()
     groupTaskWithMembers(deal.id, "Prepare bid documents", 2)
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     const condition = await screen.findByText("Signed proposal")
     const field = await screen.findByText("Site visit notes")
@@ -104,7 +110,7 @@ describe("NowTab (#299)", () => {
     const deal = await register()
     const { members } = groupTaskWithMembers(deal.id, "Site survey crew", 10)
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     expect(await screen.findAllByRole("button", { name: "Site survey crew" })).toHaveLength(1)
     for (const member of members) {
@@ -133,7 +139,7 @@ describe("NowTab (#299)", () => {
     makeGroupTask({ opportunity_id: deal.id, title: "Current survey", stage_visit_id: currentVisitId })
     makeTask({ opportunity_id: deal.id, project_title: "Scrapped quote", status: "DELETED", stage_visit_id: currentVisitId })
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     expect(await screen.findByRole("button", { name: "Current survey" })).toBeInTheDocument()
     expect(screen.queryByRole("button", { name: "Earlier survey" })).not.toBeInTheDocument()
@@ -145,7 +151,7 @@ describe("NowTab (#299)", () => {
     makeFlowSnapshot({ flow_id: lead.flow_id })
     const deal = await register()
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     expect(await screen.findByLabelText("Award amount")).toBeInTheDocument()
     expect(screen.getByText("The amount awarded.")).toBeInTheDocument()
@@ -158,7 +164,7 @@ describe("NowTab (#299)", () => {
     const deal = await register()
     const currentVisitId = await opportunityService.getCurrentStageVisitId(deal.id)
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     fireEvent.change(await screen.findByLabelText("Award amount"), { target: { value: "5000" } })
     fireEvent.click(screen.getByRole("button", { name: "Save" }))
@@ -175,7 +181,7 @@ describe("NowTab (#299)", () => {
     makeFlowSnapshot({ flow_id: lead.flow_id })
     const deal = await register()
 
-    renderWithProviders(<LiveModal id={deal.id} />)
+    await renderNow(deal.id)
 
     expect(await screen.findByText("Nothing blocks this stage.")).toBeInTheDocument()
   })

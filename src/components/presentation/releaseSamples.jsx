@@ -6,7 +6,6 @@ import SorsViewTabs from "../sor/SorsViewTabs"
 import SorsTotals from "../sor/SorsTotals"
 import FlowAccessSettings from "../flow-canvas/FlowAccessSettings"
 import { FlowDataContext } from "../flow-canvas/FlowDataContext"
-import { PROTOTYPE_ENABLED } from "../sor/modal/prototype/PrototypeSwitcher"
 import TabGroup from "../ui/TabGroup"
 import SaveDefaultButton from "../ui/SaveDefaultButton"
 import { SelectField } from "../ui/SelectField"
@@ -78,15 +77,11 @@ function DemoSor({ steps }) {
 }
 
 export function LayoutPreviewSample() {
-  if (!PROTOTYPE_ENABLED) {
-    return <p className="text-[14px] text-muted-foreground">The Layout preview bar exists on staging only.</p>
-  }
   return (
     <DemoSor
       steps={[
         "Open the demo SOR.",
-        "Use the Layout preview bar at the bottom of the window: the menu, the arrows, or Shift + ← / →.",
-        "Ask the room to pick one. The pick is remembered for every SOR opened afterwards.",
+        "The window opens on a one-glance summary; the crumb at the top jumps to any section.",
       ]}
     />
   )
