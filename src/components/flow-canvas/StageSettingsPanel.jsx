@@ -26,13 +26,26 @@ const ROLE_BUTTON =
 
 const COLOR_SWATCHES = [
   { value: null, dot: "bg-mauve-8", label: "Default (by role)" },
-  { value: "mauve", dot: "bg-mauve-9", label: "Mauve" },
-  { value: "amber", dot: "bg-amber-9", label: "Amber" },
-  { value: "blue", dot: "bg-blue-9", label: "Blue" },
+  { value: "tomato", dot: "bg-tomato-9", label: "Tomato" },
   { value: "red", dot: "bg-red-9", label: "Red" },
+  { value: "crimson", dot: "bg-crimson-9", label: "Crimson" },
+  { value: "pink", dot: "bg-pink-9", label: "Pink" },
+  { value: "plum", dot: "bg-plum-9", label: "Plum" },
   { value: "violet", dot: "bg-violet-9", label: "Violet" },
-  { value: "orange", dot: "bg-orange-9", label: "Orange" },
+  { value: "indigo", dot: "bg-indigo-9", label: "Indigo" },
+  { value: "blue", dot: "bg-blue-9", label: "Blue" },
+  { value: "sky", dot: "bg-sky-9", label: "Sky" },
+  { value: "cyan", dot: "bg-cyan-9", label: "Cyan" },
+  { value: "teal", dot: "bg-teal-9", label: "Teal" },
+  { value: "jade", dot: "bg-jade-9", label: "Jade" },
   { value: "green", dot: "bg-green-9", label: "Green" },
+  { value: "lime", dot: "bg-lime-9", label: "Lime" },
+  { value: "yellow", dot: "bg-yellow-9", label: "Yellow" },
+  { value: "amber", dot: "bg-amber-9", label: "Amber" },
+  { value: "orange", dot: "bg-orange-9", label: "Orange" },
+  { value: "gold", dot: "bg-gold-9", label: "Gold" },
+  { value: "brown", dot: "bg-brown-9", label: "Brown" },
+  { value: "mauve", dot: "bg-mauve-9", label: "Mauve" },
 ];
 
 export default function StageSettingsPanel({
