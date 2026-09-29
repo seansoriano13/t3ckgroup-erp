@@ -130,7 +130,7 @@ function ContentDisplay({ content, search }) {
   }
 
   return (
-    <span className="line-clamp-2 leading-relaxed">
+    <span className="line-clamp-2 break-words leading-relaxed">
       <HighlightText text={content} search={search} />
     </span>
   );
@@ -600,12 +600,12 @@ export default function SuperAdminActivityLogPage() {
                   variant="ghost"
                   onClick={() => handleEntryClick(e)}
                   disabled={!isClickable}
-                  className={`h-auto w-full items-start justify-start rounded-xl border border-border bg-card p-4 text-left font-normal animate-content-in group hover:bg-card ${isClickable
+                  className={`h-auto w-full min-w-0 items-start justify-start whitespace-normal rounded-xl border border-border bg-card p-4 text-left font-normal animate-content-in group hover:bg-card ${isClickable
                       ? "hover:border-mauve-6 hover:bg-muted/40 cursor-pointer"
                       : "cursor-default"
                     }`}
                 >
-                  <div className="flex items-start gap-3">
+                  <div className="flex w-full min-w-0 items-start gap-3">
                     <div className="w-8 h-8 rounded-lg bg-muted border border-border flex items-center justify-center shrink-0">
                       <Icon size={14} className="text-muted-foreground" />
                     </div>
@@ -683,7 +683,7 @@ export default function SuperAdminActivityLogPage() {
                           );
                         }
                         return (
-                          <p className="text-sm font-bold text-foreground line-clamp-1">
+                          <p className="text-sm font-bold text-foreground line-clamp-1 break-words">
                             <HighlightText
                               text={displayTitle}
                               search={filters.search}
