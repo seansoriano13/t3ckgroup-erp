@@ -1,206 +1,200 @@
-# Production cutover runbook — release/2026-09
+# Production cutover runbook — one big merge
 
-Parent: #325, #377. This replaces `docs/production-deployment-gap.md` (deleted). The rehearsal (#336) and the real cutover (#338) follow this same document, step by step. If the rehearsal changes a step, change it here before the next run.
+Parent: #414 (was #325, #377). Replaces `docs/production-deployment-gap.md` (deleted). The rehearsal (#336) and the real cutover (#338) follow this document, step by step. If the rehearsal changes a step, change it here before the next run.
 
-Everything runs from `release/2026-09` (frozen; see [release-2026-09.md](release-2026-09.md)).
+Flow and freeze rule: [release-2026-09.md](release-2026-09.md). Source of the release is the **freeze commit** cut from staging, on a release branch that is PR'd to `main`. No step treats a long-lived `release/2026-09` as the source.
 
-The cutover runs in **two windows**, so the database change and the UI change never land together: a **database window** (Sep 29–30) with the old UI live throughout, and a **UI window** (Oct 1).
+The cutover is **one maintenance window**. DB and UI go together. Staff are locked out by the build-time flag (#422) for the whole window.
+
+Order: set `VITE_MAINTENANCE` → merge release → `main` (Vercel stays connected and builds locked) → dump → migrate (`include_all`, #423) → transfers → backfill → edge functions → smoke test → unlock.
 
 ## Ground rules
 
-- **Never rename a migration file to match a ledger row.** A file's timestamp is its identity. Renaming one a ledger has already recorded is exactly what creates the next orphan. Fix the ledger with the repair workflow instead.
-- **Never execute the baseline** (`20260904000000_baseline_schema.sql`). It is only ever *marked* applied. Prod has everything it creates except `sales_opportunities.is_scratch`, which the rehearsal found missing. `20260904180000_prod_baseline_catchup.sql` adds it idempotently as the first migration `migrate-prod` applies.
-- **Prod's migration ledger isn't proof that a migration is applied.** Rows have been marked applied without running, and rows exist that match no file. The policy diff (`pnpm db:policy-diff`) is the pass/fail gate, not the ledger.
-- Every step has a check. Don't start the next step until the check passes. If a check fails, follow that window's stop-and-rollback note.
+- **Never rename a migration file to match a ledger row.** A file's timestamp is its identity. Fix the ledger with the repair workflow instead.
+- **Never execute the baseline** (`20260904000000_baseline_schema.sql`). It is only ever *marked* applied. `20260904180000_prod_baseline_catchup.sql` adds the one thing prod lacks (`sales_opportunities.is_scratch`) idempotently.
+- **Prod's migration ledger isn't proof a migration is applied.** The policy diff (`pnpm db:policy-diff`) is the pass/fail gate, not the ledger.
+- Every step has a check. Don't start the next step until it passes. On failure, see [Stop and roll back](#stop-and-roll-back).
 - No step deletes production data.
 - Production project ref: `epqmberwewztzbrkhhss`. Staging: `fpjxdyowngpnovotbzqi`. Verify against `.env.local`, not `list_projects`.
+- **Fixes in the window:** code goes release branch → prod → merge back to staging. DB changes go in as a migration file applied to both, never raw SQL.
 
-## Before the windows
+## Gates (before 7pm)
 
-- [ ] #337 sign-offs done: department heads and HR told about SOR visibility, PITR status confirmed, Vercel owner agrees to the disconnect, and Operations has published fresh Government and Outright snapshots on staging and confirmed those are the versions to ship.
-- [ ] #336 rehearsal passed twice in a row on fresh production clones.
+All must be true, or the window moves to the next evening:
+
+- [ ] **Freeze:** release branch cut from staging at the freeze commit; SHA noted in the ticket.
+- [ ] **Rehearsal green** on a fresh prod clone, at the freeze commit, with **all 103 migrations applied** (see [Rehearsal](#rehearsal)).
+- [ ] #337 sign-offs done: department heads and HR told about SOR visibility, PITR status confirmed, and Operations has published fresh Government and Outright snapshots on staging and confirmed those are the versions to ship.
 - [ ] `hyper-action` decided on (#334).
-- [ ] Vercel production's git integration is **disconnected** (Vercel → project → Settings → Git → Disconnect; the project owner does this). Vercel deploys every push to `main` live immediately, and the new UI must not go live before its window. **Check:** Settings → Git shows no connected repository.
-- [ ] **REMOVE-BEFORE-PROD:** the SOR modal layout prototype is build-gated, not deleted ([ADR 0028](adr/0028-layout-prototypes-live-on-main-build-gated.md)). Vercel prod must NOT set `VITE_APP_ENV` to `staging`/`local`; staging must set `VITE_APP_ENV=staging`. The "SOR Layout Preview (Staging)" entry stays staging-only in `src/data/changelog.json`. **Check:** `node scripts/check-no-prototypes.mjs` passes (prod build has no prototype code); CI's "No prototypes in the prod bundle" runs it. Sunset: delete `src/components/sor/modal/prototype/` by 2026-12-31 or bump the date on purpose.
-- [ ] Curated prod release entry added on top of `src/data/changelog.json`, written per [release-notes-template.md](release-notes-template.md). What's New shows only the top entry.
-- [ ] Staff heads-up sent Sep 30 (see [Staff heads-up](#staff-heads-up)).
+- [ ] **Prototype bundle check:** the SOR modal layout prototype is build-gated, not deleted ([ADR 0028](adr/0028-layout-prototypes-live-on-main-build-gated.md)). Vercel prod must NOT set `VITE_APP_ENV` to `staging`/`local`. **Check:** `node scripts/check-no-prototypes.mjs` passes on the freeze commit; CI's "No prototypes in the prod bundle" runs it. Sunset: delete `src/components/sor/modal/prototype/` by 2026-12-31 or bump the date on purpose.
+- [ ] **Release-notes entry:** curated prod entry added on top of `src/data/changelog.json`, written per [release-notes-template.md](release-notes-template.md). What's New shows only the top entry. **Check:** it is the top entry and is not staging-only.
+- [ ] **Staff notice sent by chat** (see [Staff notice](#staff-notice)).
 
-## Database window — Sep 29–30 (old UI stays live)
+## The window (7pm)
 
-### 1. Pre-cutover backup
+### 1. Lock staff out
+
+Vercel prod env: `VITE_MAINTENANCE=on`, `VITE_MAINTENANCE_ALLOW=<operator emails, comma-separated>`. Vercel stays connected to git.
+
+**Check:** the setting is saved. The lock is a build-time flag, so it only takes effect on the next build (step 2). Confirm in step 2 that the build is locked.
+
+### 2. Merge the release to `main`
+
+PR the release branch → `main` and merge. Vercel builds `main` **locked**.
+
+**Check:** `main` is at the freeze commit (plus any window fixes). The deployment is Ready, and as a non-allowlisted user you see the maintenance screen; as an allowlisted operator you get in.
+
+### 3. Pre-cutover backup
 
 ```bash
 pg_dump "$PROD_DB_URL" --format=custom --no-owner --file=prod-pre-cutover-$(date -u +%Y%m%dT%H%M%SZ).dump
 ```
 
-**Check:** `pg_restore --list <file> | head` shows a clean table of contents, and the dump restores into a scratch database or branch. Keep the file off the repo. It is the restore point, whether or not PITR is on.
+**Check:** `pg_restore --list <file> | head` shows a clean table of contents, and the dump restores into a scratch database or branch. Keep the file off the repo. It is the restore point. Note the time (for PITR).
 
-### 2. Repair the ledger
+### 4. Repair the ledger
 
-1. Actions → **Repair migration history** → project `prod`, version `20260914013100`, status `reverted`. That version is an orphan (`offset_leaves.approved_hours`, #198) and also the tip. While it stands, `db push` refuses everything, and every pending file sorting before it would be skipped. #328 forward-ports the column as `20260929010000_offset_leave_approved_hours.sql` (`add column if not exists`), so the re-apply is a no-op.
-2. Actions → **Repair migration history** → project `prod`, version `20260904000000`, status `applied`. This is the baseline. It is marked applied, never run. Do it second: doing it first would leave the orphan tip in place.
+1. Actions → **Repair migration history** → project `prod`, version `20260914013100`, status `reverted`. That version is an orphan (`offset_leaves.approved_hours`, #198) and the tip. While it stands, `db push` refuses everything. #328 forward-ports the column as `20260929010000_offset_leave_approved_hours.sql` (`add column if not exists`).
+2. Actions → **Repair migration history** → project `prod`, version `20260904000000`, status `applied` (the baseline; marked, never run). Do it second.
 
-**Check (hard gate):**
+**Check (hard gate):** `pnpm db:ledger:check prod` → zero orphans, zero out-of-order, exit 0.
 
-```bash
-pnpm db:ledger:check prod
-```
+### 5. Migrate
 
-Zero orphans, zero out-of-order, exit 0.
+Actions → **Apply migrations — production** → confirm `apply`, tick **include_all** (#423: pushes with `--include-all` so out-of-order files apply). Runs the ledger check as its first step.
 
-### 3. Dispatch the production migration
+**Check:** the workflow is green and `pnpm db:ledger:check prod` prints **Clean**. Then `pnpm db:check-drift:prod`. Spot-check `offset_leaves.approved_hours` (`select count(*) from offset_leaves where approved_hours is distinct from hours and approved_hours is not null` returns 7), the six `archive_quota` tables, and that `flow_access_settings.always_edits` exists.
 
-Actions → **Apply migrations — production** → confirm `apply`, tick **include_all** (#423: pushes with `--include-all` so the out-of-order files apply). It brings in the pending migrations plus #380, #378 (`selector_everyone`) and #381 (`flow_always_edits`), and runs the ledger check as its first step.
+### 6. Transfers
 
-**Check:** the workflow is green and `pnpm db:ledger:check prod` prints **Clean**. Then:
+Every transfer is: dry run → read the output → apply → check.
 
-```bash
-pnpm db:check-drift:prod
-```
+#### 6a. Government and Outright flows
 
-Spot-check `offset_leaves.approved_hours` (`select count(*) from offset_leaves where approved_hours is distinct from hours and approved_hours is not null` returns 7), the six `archive_quota` tables, and that `flow_access_settings.always_edits` exists.
-
-### 4. Transfer Government and Outright
-
-Prod already holds an earlier copy of both (same ids, from a mistaken run, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in the same transaction. It refuses if the Sale Type has any SORs.
-
-Back up prod's Government first (`scripts/backup-flows.mjs`), dry run (rolled back), then apply:
+Prod already holds an earlier copy of both (same ids, no SORs). Outright is identical to staging: leave it. Government is stale (prod v4.1, 17 Stages; staging v4.12, 18 Stages): `--replace` deletes prod's copy and re-transfers staging's in one transaction. It refuses if the Sale Type has any SORs. Back up prod's Government first (`scripts/backup-flows.mjs`).
 
 ```bash
-node scripts/transfer-sales-flows.mjs --from staging --to prod --replace Government
+node scripts/transfer-sales-flows.mjs --from staging --to prod --replace Government          # dry run (rolled back)
 node scripts/transfer-sales-flows.mjs --from staging --to prod --replace --apply Government
 ```
 
-**Check:** Government 18 Stages, 17 edges (staging's latest). Outright stays 5 Stages, 4 edges. Zero `flow_access_settings` rows on Government, so it stays private to its Deal Team. The script refuses otherwise.
+**Check:** Government 18 Stages, 17 edges. Outright stays 5 Stages, 4 edges. Zero `flow_access_settings` rows on Government (private to its Deal Team); the script refuses otherwise.
 
-### 4b. Transfer Group Task Templates (#419)
+#### 6b. Group Task Templates (#419)
 
-All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run unless a naming option is passed. `--tag-all` copies every template as "<name> (staging)" ("(staging 2)" for repeats, staging has two "PMS") so staff can tell them from prod's own and realign them. Alternatives: `--rename-clashes` (tag only clashes), `--skip-existing` (leave prod's copy alone). Nothing is ever overwritten.
+All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run unless a naming option is passed. `--tag-all` copies every template as "<name> (staging)" ("(staging 2)" for repeats). Alternatives: `--rename-clashes`, `--skip-existing`. Nothing is overwritten.
 
 ```bash
-node scripts/transfer-group-task-templates.mjs --from staging --to prod
+node scripts/transfer-group-task-templates.mjs --from staging --to prod            # dry run
 node scripts/transfer-group-task-templates.mjs --from staging --to prod --apply
 ```
 
-**Check:** dry-run counts: 11 templates (2 archived, as on staging; neither is used in a flow), 64 members, all named "... (staging)" (as of Sep 29); prod ends with 17 templates.
+**Check:** dry-run counts: 11 templates (2 archived), 64 members, all "... (staging)" (as of Sep 29); prod ends with 17 templates.
 
-### 4c. Repoint Government's Project Delivery template (#419)
+#### 6c. Repoint Government's Project Delivery template (#419)
 
-Government's Project Delivery action arrives pointing at "Delivery (staging)" (thin: 2 members). Point it (and the flow snapshot) at prod's real "DELIVERY". NTP keeps "PMS (staging)". Run after 4b; it refuses if the templates aren't there yet.
+Government's Project Delivery action arrives pointing at "Delivery (staging)". Point it (and the flow snapshot) at prod's "DELIVERY". Run after 6b; refuses if the templates aren't there.
 
 ```bash
-node scripts/repoint-government-delivery-template.mjs --to prod
+node scripts/repoint-government-delivery-template.mjs --to prod            # dry run
 node scripts/repoint-government-delivery-template.mjs --to prod --apply
 ```
 
 **Check:** "Project Delivery: Delivery (staging) → DELIVERY (action + 1 snapshot(s))". Re-running says "already points at DELIVERY".
 
-### 5. Legacy Pipeline backfill (#382)
+### 7. Legacy Pipeline backfill (#382)
 
 ```bash
 psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/scripts/cutover/legacy_pipeline_backfill.sql
 ```
 
-Attaches every SOR with no Sale Type to Legacy Pipeline and sets Legacy Pipeline's Always sees and Always edits to Everyone. Idempotent; it only attaches and upserts.
+Attaches every SOR with no Sale Type to Legacy Pipeline and sets its Always sees / Always edits to Everyone. Idempotent.
 
 **Check:** it prints `attached N SORs`, then:
 
 ```sql
-select name from sale_types where id = 'f1d4e085-9a13-4c30-a2b7-b9f97f009608';  -- Legacy Pipeline
 select count(*) from sales_opportunities where sale_type_id is null and coalesce(is_deleted,false) = false;  -- 0
 select always_sees, always_edits from flow_access_settings fas join sales_flows f on f.id = fas.flow_id
  where f.sale_type_id = 'f1d4e085-9a13-4c30-a2b7-b9f97f009608';  -- both [{"type": "everyone"}]
 ```
 
-### 6. Policy diff — the gate
+### 8. Redeploy edge functions
+
+Actions → **Deploy edge functions** (#333).
+
+**Check:** the workflow is green.
+
+### 9. Policy diff — the gate
 
 ```bash
 pnpm db:policy-diff
 ```
 
-Read-only. Compares every public policy's name, command and definition between production and staging.
+**Check:** prints nothing and exits 0. Each line is a policy that differs or exists on one side only. Stop and fix before going on.
 
-**Check:** it prints nothing and exits 0. Each printed line is a policy that differs or exists on one side only. Stop and fix before going on.
+**Known prod-only leftover (accepted, 2026-09-26):** `system_updates` (`Enable read for authenticated users`, `Enable write operations for authenticated users`) exists only on production. Pass means those two `only on production` lines are the *only* output. Any other line is a stop. Flow-canvas write policies match staging: anyone can edit the canvas, on purpose.
 
-**Known prod-only leftover (accepted, 2026-09-26):** `system_updates` (`Enable read for authenticated users`, `Enable write operations for authenticated users`) exists only on production and nothing drops it. Pass means those two `only on production` lines are the *only* output. #380 drops the audit-log and task-activity policies, so any other line, including those, is a stop. Flow-canvas write policies match staging after migration: anyone can edit the canvas, on purpose.
+### 10. Smoke test (as the operator, allowlisted)
 
-### 7. Old UI still works
+On prod, in the new UI:
 
-On production, with the old UI, as an **Operations** user and an **Admin** user: register an SOR, move a Stage, edit the Product List.
+1. Create a `ZZTEST` SOR.
+2. Move one Stage.
+3. Soft-delete it.
+4. **Check none are left:**
 
-**Check:** all three succeed for both users.
+```sql
+select count(*) from sales_opportunities where name ilike 'ZZTEST%' and coalesce(is_deleted,false) = false;  -- 0
+```
 
-### 8. New UI on the prod copy (mirror)
+Also open a legacy SOR and confirm a Government SOR stays private to its Deal Team.
 
-On the prod copy (mirror), as an **Operations** user and a **Sales** user: open, edit and move a Legacy Pipeline SOR, and confirm a Government SOR stays private to its Deal Team.
+### 11. 10pm go/no-go
 
-**Check:** Legacy Pipeline SORs open, edit and move for both. The Government SOR is invisible to someone off its Deal Team.
+Go = steps 1–10 green. **Red = no-go:** restore the dump, promote the previous Vercel deploy, unlock (see below).
 
-### Stop and roll back — database window
+### 12. Unlock
 
-The restore point is the step 1 dump. Restoring puts back schema, data and ledger exactly as they were. The old UI kept serving throughout, so staff see no change.
+Set `VITE_MAINTENANCE=off` (or remove it) in Vercel prod and redeploy `main`.
+
+**Check:** a non-allowlisted staff user gets in. **Note the time: staff see the new UI from here.** Then the post-cutover checks:
+
+```bash
+pnpm db:ledger:check prod    # Clean
+pnpm db:policy-diff          # clean (only the accepted system_updates lines)
+```
+
+## Stop and roll back
+
+Restore point is the step 3 dump. Restoring puts back schema, data and ledger exactly as they were.
 
 | Failed at | State | Do |
 |---|---|---|
-| 1 | Nothing changed | Fix and retry. |
-| 2 (repair) | Ledger rows only | Undo with the same workflow (`applied` ↔ `reverted`), or restore the dump. |
-| 3 (migrate) | Possibly partial: each file is its own transaction | Restore the dump. Don't push forward from a partial state. |
-| 4 (transfer) | Its own transaction rolled back | Fix and re-run, or restore the dump. |
-| 5 (backfill) | One `do` block, atomic | Fix and re-run (idempotent), or restore the dump. |
-| 6–8 (checks) | Migrated but wrong | Restore the dump. |
+| 1–2 (lock, merge) | No DB change | Fix and retry. Keep staff locked. |
+| 3 (dump) | Nothing changed | Fix and retry. Don't migrate without a dump. |
+| 4 (repair) | Ledger rows only | Undo with the same workflow (`applied` ↔ `reverted`), or restore the dump. |
+| 5 (migrate) | Possibly partial: each file is its own transaction | Restore the dump. Don't push forward from a partial state. |
+| 6 (transfer) | Its own transaction rolled back | Fix and re-run, or restore the dump. |
+| 7 (backfill) | One `do` block, atomic | Fix and re-run (idempotent), or restore the dump. |
+| 8 (edge functions) | Functions only | Re-run the workflow. |
+| 9–10 (checks, smoke) | Migrated but wrong | Fix with a migration (applied to both) if small; else restore the dump. |
+| 11 (10pm red) | — | Restore the dump, promote the previous Vercel deploy, unlock. |
 
 ```bash
 pg_restore --clean --if-exists --no-owner --dbname "$PROD_DB_URL" prod-pre-cutover-<stamp>.dump
 pnpm db:ledger:check prod   # should show the pre-cutover ledger again, orphan and all
 ```
 
-If `pg_restore` itself fails and PITR is on (#337), restore to the timestamp noted before step 1 from the Supabase dashboard. Otherwise restore the dump into a fresh project and repoint. Stop and escalate before improvising.
+Then Vercel → Deployments → previous production deploy → **Promote**, and unlock (step 12). If `pg_restore` itself fails and PITR is on (#337), restore to the timestamp noted before step 3 from the Supabase dashboard. Otherwise restore the dump into a fresh project and repoint. Stop and escalate before improvising.
 
-## UI window — Oct 1
+## Staff notice
 
-### 1. Re-run the backfill
+Send by chat, before the window.
 
-Picks up SORs registered on the old UI since the database window.
-
-```bash
-psql "$PROD_DB_URL" -v ON_ERROR_STOP=1 -f supabase/scripts/cutover/legacy_pipeline_backfill.sql
-pnpm db:policy-diff
-```
-
-**Check:** `select count(*) from sales_opportunities where sale_type_id is null and coalesce(is_deleted,false) = false` returns 0, and the policy diff prints nothing.
-
-### 2. Redeploy the release's edge functions
-
-Actions → **Deploy edge functions** (#333).
-
-**Check:** the workflow is green.
-
-### 3. Switch production to the new UI
-
-1. Merge `release/2026-09` to `main` through a PR. Vercel is disconnected, so nothing deploys yet. **Check:** `main` is at the release commit.
-2. Vercel → Settings → Git → reconnect the repository, production branch `main`.
-3. Trigger a production deployment of `main` (Deployments → latest `main` build → Redeploy).
-
-**Note the time: staff will see the new UI from this point.**
-
-**Check:** the deployment is Ready, then the #338 smoke test: a Deal Owner opens a legacy SOR, registers a new SOR on Government, and HR approves an offset with edited hours.
-
-### Stop and roll back — UI window
-
-The database is already migrated and is not restored here.
-
-| Failed at | Do |
-|---|---|
-| 1 (backfill) | Fix and re-run (idempotent). Don't switch. |
-| 2 (edge functions) | Re-run the workflow. Don't switch. |
-| 3 (switch) | Roll Vercel back to the previous production deployment (Deployments → Promote), or disconnect Vercel again. The old UI works on the migrated database (database window step 7). |
-
-## Staff heads-up
-
-Send Sep 30.
-
-> Heads-up: the new SOR screen arrives Oct 1. Legacy projects look and work as before. New Government and Outright SORs are visible to their Deal Team.
+> Heads-up: the system is down tonight from 7pm for an upgrade. The new SOR screen is live when it comes back. Legacy projects look and work as before. New Government and Outright SORs are visible to their Deal Team.
 
 ## Rehearsal
 
-`Cutover rehearsal` workflow (#336): push any `rehearsal/**` branch. It runs the database-window steps (dump, repairs, migrate, transfer, backfill twice) against fresh read-only dumps of prod on a CI runner (`scripts/rehearse-cutover.sh`), plus a `baseline-gap` job that diffs the baseline prod is marked as having against its live schema. Passed twice on 2026-09-18 (run 35315484079).
+`Cutover rehearsal` workflow (#336): push any `rehearsal/**` branch cut from the freeze commit. It runs the DB steps (dump, repairs, migrate with `--include-all`, transfers incl. `--include-all` and GTT transfer per #423, backfill twice) against fresh read-only dumps of prod on a CI runner (`scripts/rehearse-cutover.sh`), plus a `baseline-gap` job.
+
+**Pre-window gate:** green on a fresh prod clone with all 103 migrations applied. Passed twice on 2026-09-18 (run 35315484079) against the earlier plan; re-run at the freeze commit.

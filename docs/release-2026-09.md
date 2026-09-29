@@ -1,13 +1,23 @@
-# release/2026-09 — frozen release branch
+# 2026-09 release — one big merge
 
-Parent: #325 (first staging→production release). Cut from staging at `0dea7ed` (#326).
+Parent: #414 (supersedes the frozen-branch plan of #325).
 
-## Freeze rule
+## Flow
 
-- `release/2026-09` does not follow staging. Staging keeps moving; this branch does not.
-- The only changes allowed here are the preparatory tickets of #325 (#327–#333, #335), each through a reviewed PR. No direct pushes.
-- Every change lands on `release/2026-09` **first**, then is cherry-picked back to `staging` (`git cherry-pick -x <sha>`). That way the rehearsal (#336) and the cutover (#338) run the same bytes, and staging doesn't drift from what ships.
-- Cutover-only steps (Legacy Pipeline backfill #330, flow transfer #331) are scripts, not migrations. They are cherry-picked too, but they are never run against staging.
-- Nothing else merges here. Anything that isn't a #325 preparatory ticket waits for the next release.
+- Staging is the source. It keeps moving until the **freeze point**.
+- **Freeze point:** cut `release/2026-09` from staging at the freeze commit. Note the SHA in the cutover ticket. From here the branch is only a carrier: PR `release/2026-09` → `main` in the window.
+- Nothing is cherry-picked *onto* the release branch as routine work. Staging feeds it once, at the freeze.
+- Rehearsal (#336) runs against the freeze commit, so the rehearsal and the cutover run the same bytes.
+- Anything not in the freeze waits for the next release.
 
-The cutover order, gates and rollback are in [production-cutover-runbook.md](production-cutover-runbook.md) (#335).
+## Fixes during the window
+
+- **Code:** release branch → prod (merge to `main`) → merge back to staging.
+- **DB:** a migration file, applied to both staging and prod. Never raw SQL.
+
+## Gates
+
+- Freeze + rehearsal green **before 7pm**, or the window moves to the next evening.
+- **10pm go/no-go.** Red = restore the dump, promote the previous Vercel deploy, unlock.
+
+The step order, checks and rollback are in [production-cutover-runbook.md](production-cutover-runbook.md).
