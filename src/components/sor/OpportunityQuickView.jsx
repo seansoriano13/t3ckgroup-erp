@@ -38,7 +38,7 @@ function TaskRow({ task, onOpen }) {
       type="button"
       variant="ghost"
       onClick={onOpen}
-      className="h-auto w-full items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 text-left transition-colors hover:border-border hover:bg-muted/50"
+      className="h-auto w-full items-start gap-3 rounded-xl border border-border/70 bg-card px-4 py-3 text-left whitespace-normal transition-colors hover:border-border hover:bg-muted/50"
     >
       <Icon size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
       <div className="min-w-0 flex-1 space-y-1">
@@ -104,10 +104,10 @@ export default function OpportunityQuickView({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="grid-cols-[minmax(0,1fr)] gap-6 p-6 sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base">
-            <Briefcase size={16} className="text-muted-foreground" />
-            {label}
+        <DialogHeader className="pr-8">
+          <DialogTitle className="flex items-start gap-2 text-base">
+            <Briefcase size={16} className="mt-0.5 shrink-0 text-muted-foreground" />
+            <span className="min-w-0 flex-1 break-words">{label}</span>
           </DialogTitle>
           {opportunity?.project_title && (
             <p className="text-sm text-muted-foreground">{opportunity.project_title}</p>
