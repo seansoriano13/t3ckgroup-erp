@@ -55,7 +55,9 @@ const Input = React.forwardRef(function Input(
 
   // Standalone input (when used without a label, e.g. search bars, filters, compact forms)
   return (
-    <div className={cn("relative flex items-center w-full", containerClassName)}>
+    // Only positioned when it hosts its own icon. A positioned wrapper paints over
+    // sibling absolute icons that callers place before <Input> (search bars).
+    <div className={cn("flex items-center w-full", Icon && "relative", containerClassName)}>
       {Icon && (
         <Icon size={16} className="absolute left-3 text-muted-foreground pointer-events-none" />
       )}
