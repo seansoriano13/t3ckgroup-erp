@@ -10,7 +10,7 @@ const norm = (s) => String(s ?? "").trim().toLowerCase()
  * (with its members, and without checking its employees) and listed in `skipped`
  * instead of being an error. A null member employee_id stays null (the source row already had none).
  */
-export function planTemplateTransfer({ templates, members, sourceEmployees, targetEmployees, targetTemplateNames, skipExisting = false }) {
+export function planTemplateTransfer({ templates, members, sourceEmployees, targetEmployees, targetTemplateNames, skipExisting = false, renameClashes = null, unarchive = false }) {
     const sourceName = new Map(sourceEmployees.map((e) => [e.id, e.name]))
     const targetByName = new Map()
     for (const e of targetEmployees) {
@@ -33,12 +33,20 @@ export function planTemplateTransfer({ templates, members, sourceEmployees, targ
     const errors = []
     const taken = new Set(targetTemplateNames.map(norm))
     const clashes = templates.filter((t) => taken.has(norm(t.name)))
-    if (!skipExisting) {
+    if (!skipExisting && renameClashes == null) {
         for (const t of clashes) errors.push(`Target already has a template named "${t.name}".`)
     }
     const skippedIds = new Set(skipExisting ? clashes.map((t) => t.id) : [])
 
-    const outTemplates = templates.filter((t) => !skippedIds.has(t.id)).map((t) => ({ ...t, created_by: remap(t.created_by) }))
+    const used = new Set(taken)
+    const rename = (t) => {
+        if (renameClashes == null) return t.name
+        let name = t.name
+        for (let n = 1; used.has(norm(name)); n++) name = `${t.name}${n === 1 ? renameClashes : renameClashes.replace(")", ` ${n})`)}`
+        used.add(norm(name))
+        return name
+    }
+    const outTemplates = templates.filter((t) => !skippedIds.has(t.id)).map((t) => ({ ...t, name: rename(t), created_by: remap(t.created_by), ...(unarchive ? { archived_at: null } : {}) }))
     const outMembers = members.filter((m) => !skippedIds.has(m.template_id)).map((m) => ({ ...m, employee_id: remap(m.employee_id) }))
 
     if (missing.size) errors.push(`Employees missing on the target (by name): ${[...missing].join(", ")}`)

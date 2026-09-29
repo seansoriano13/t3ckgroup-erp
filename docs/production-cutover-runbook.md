@@ -74,14 +74,14 @@ node scripts/transfer-sales-flows.mjs --from staging --to prod --replace --apply
 
 ### 4b. Transfer Group Task Templates (#419)
 
-All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run unless `--skip-existing` is passed, which leaves prod's copy alone and lists it (prod already has "Delivery"). Nothing is ever overwritten.
+All templates (archived too) and members. Employees remapped by **name**; a missing/ambiguous name or a same-named template on prod stops the run unless `--rename-clashes` is passed: those copy as "<name> (staging)" (prod already has "Delivery"; staging has two "PMS"). `--unarchive` lands every copy active so staff can decide which to keep. `--skip-existing` is the alternative that leaves prod's copy alone. Nothing is ever overwritten.
 
 ```bash
 node scripts/transfer-group-task-templates.mjs --from staging --to prod
 node scripts/transfer-group-task-templates.mjs --from staging --to prod --apply
 ```
 
-**Check:** dry-run counts are staging's templates and members minus the skipped ones (10 templates, 62 members, 1 skipped as of Sep 29).
+**Check:** dry-run counts: 11 templates, 64 members, 0 archived, renamed "Delivery (staging)" and "PMS (staging)" (as of Sep 29); prod ends with 17 templates.
 
 ### 5. Legacy Pipeline backfill (#382)
 

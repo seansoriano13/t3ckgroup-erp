@@ -61,4 +61,19 @@ describe("planTemplateTransfer", () => {
         // Ann only created Onboarding (skipped) and is a member of Closeout: still needed.
         expect(errors).toEqual([expect.stringContaining("Ann Cruz")])
     })
+
+    it("with renameClashes, renames templates the target has, and repeats within the batch, instead of erroring", () => {
+        const dup = [...templates, { id: "tpl3", name: "closeout", created_by: S.ann, archived_at: null }]
+        const { errors, templates: t, skipped } = planTemplateTransfer({
+            ...base, templates: dup, targetTemplateNames: ["Closeout"], renameClashes: " (staging)",
+        })
+        expect(errors).toEqual([])
+        expect(skipped).toEqual([])
+        expect(t.map((x) => x.name)).toEqual(["Onboarding", "Closeout (staging)", "closeout (staging 2)"])
+    })
+
+    it("with unarchive, every copied template is active", () => {
+        const { templates: t } = planTemplateTransfer({ ...base, unarchive: true })
+        expect(t.map((x) => x.archived_at)).toEqual([null, null])
+    })
 })
