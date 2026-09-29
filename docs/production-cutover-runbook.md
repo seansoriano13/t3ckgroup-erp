@@ -50,7 +50,7 @@ Zero orphans, zero out-of-order, exit 0.
 
 ### 3. Dispatch the production migration
 
-Actions → **Apply migrations — production** → confirm `apply`. It brings in the pending migrations plus #380, #378 (`selector_everyone`) and #381 (`flow_always_edits`), and runs the ledger check as its first step.
+Actions → **Apply migrations — production** → confirm `apply`, tick **include_all** (#423: pushes with `--include-all` so the out-of-order files apply). It brings in the pending migrations plus #380, #378 (`selector_everyone`) and #381 (`flow_always_edits`), and runs the ledger check as its first step.
 
 **Check:** the workflow is green and `pnpm db:ledger:check prod` prints **Clean**. Then:
 

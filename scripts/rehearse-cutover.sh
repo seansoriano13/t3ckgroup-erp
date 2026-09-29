@@ -57,10 +57,10 @@ step "4. repair: mark the baseline 20260904000000 applied"
 supabase migration repair --status applied 20260904000000 --db-url "$LOCAL"
 
 step "4. gate: ledger check must be clean"
-PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod || fail "ledger check blocked"
+PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod --include-all || fail "ledger check blocked"
 
-step "5. migrate: supabase db push (no --include-all, as migrate-prod)"
-supabase db push --db-url "$LOCAL" --yes
+step "5. migrate: supabase db push --include-all (as migrate-prod include_all)"
+supabase db push --include-all --db-url "$LOCAL" --yes
 
 step "5. check: ledger clean after push"
 PROD_DB_URL="$LOCAL" node scripts/db-ledger-check.mjs prod || fail "ledger not clean after push"
@@ -88,6 +88,9 @@ POLICIES=$(scalar "select count(*) from pg_policies where tablename in ('sor_sta
 
 step "7. transfer Government and Outright from staging"
 node scripts/transfer-sales-flows.mjs --from staging --to-url "$LOCAL" --apply Government Outright
+
+step "7b. transfer Group Task Templates from staging"
+node scripts/transfer-group-task-templates.mjs --from staging --to-url "$LOCAL" --apply
 
 step "8. Legacy Pipeline rename and backfill"
 docker exec -i "$DB_CONTAINER" psql -U postgres -d postgres -v ON_ERROR_STOP=1 -X < supabase/scripts/cutover/legacy_pipeline_backfill.sql

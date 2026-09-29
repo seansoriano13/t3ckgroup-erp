@@ -12,6 +12,10 @@ on:
       confirm:
         description: 'Type "apply" to confirm — this runs pending migrations against production'
         required: true
+      include_all:
+        description: 'Apply pending migrations that sort before prod''s tip (--include-all). Off by default.'
+        type: boolean
+        default: false
 
 concurrency:
   group: migrate-prod
@@ -47,7 +51,7 @@ jobs:
       - name: Ledger check (must pass before push)
         env:
           PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
-        run: pnpm db:ledger:check prod
+        run: pnpm db:ledger:check prod ${{ inputs.include_all && '--include-all' || '' }}
 
       - uses: supabase/setup-cli@v1
         with:
@@ -63,4 +67,4 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
-        run: supabase db push --project-ref epqmberwewztzbrkhhss
+        run: supabase db push ${{ inputs.include_all && '--include-all' || '' }} --project-ref epqmberwewztzbrkhhss

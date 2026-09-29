@@ -62,4 +62,23 @@ describe("analyzeLedger", () => {
         expect(result.ok).toBe(true)
         expect(result.pending).toEqual([])
     })
+
+    it("includeAll tolerates out-of-order pending files", () => {
+        const result = analyzeLedger({
+            ledger: [row("20260904000000"), row("20260910000000")],
+            files: ["20260904000000_baseline.sql", "20260909000000_late.sql", "20260910000000_b.sql"],
+            includeAll: true,
+        })
+        expect(result.outOfOrder).toEqual(["20260909000000_late.sql"])
+        expect(result.ok).toBe(true)
+    })
+
+    it("includeAll still fails on orphans", () => {
+        const result = analyzeLedger({
+            ledger: [row("20260904000000"), row("20260914013100")],
+            files: ["20260904000000_baseline.sql"],
+            includeAll: true,
+        })
+        expect(result.ok).toBe(false)
+    })
 })
