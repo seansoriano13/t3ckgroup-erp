@@ -18,7 +18,6 @@ import {
   Edit3,
   ShieldCheck,
   XCircle,
-  AlertTriangle,
   Columns2,
   Send,
   Paperclip,
@@ -75,6 +74,7 @@ import {
   formatBytes,
 } from "@/utils/attachments";
 import { TASK_STATUS } from "@/constants/status";
+import ReadOnlyTaskBanner from "@/components/ReadOnlyTaskBanner";
 
 import { Textarea } from "@/components/ui/textarea";
 import { FieldBox } from "@/components/ui/FieldBox";
@@ -874,23 +874,13 @@ export default function GroupTaskDetailModal({
           {activeTab === "overview" ? (
             <>
               {isReadOnly && (
-                <div className="bg-muted/40 border border-border rounded-xl p-4 flex items-center gap-3 text-muted-foreground shadow-sm animate-content-in stagger-1">
-                  <div className="bg-mauve-4 p-2 rounded-lg">
-                    <AlertTriangle size={20} className="text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black uppercase tracking-tight text-foreground">
-                      {task.status === TASK_STATUS.ON_HOLD
-                        ? "Group Task On Hold"
-                        : "Group Task Cancelled"}
-                    </p>
-                    <p className="text-xs font-bold opacity-80">
-                      {task.status === TASK_STATUS.ON_HOLD
-                        ? "Held. This task is read-only."
-                        : "Cancelled. This task is read-only."}
-                    </p>
-                  </div>
-                </div>
+                <ReadOnlyTaskBanner
+                  noun="Group Task"
+                  held={task.status === TASK_STATUS.ON_HOLD}
+                  heldAt={task.held_at}
+                  cancelReason={task.cancel_reason}
+                  className="animate-content-in stagger-1"
+                />
               )}
 
               {/* Description */}

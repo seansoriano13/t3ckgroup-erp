@@ -170,6 +170,26 @@ describe("TaskDetails read-only gating", () => {
     expect(onUpdateTask).not.toHaveBeenCalled()
   })
 
+  it("dates a held task from when it was held, not when it was last edited", () => {
+    renderModal({
+      task: task({ status: TASK_STATUS.ON_HOLD, heldAt: "2026-09-03T02:00:00Z", editedAt: "2026-01-15T02:00:00Z" }),
+    })
+
+    expect(screen.getByText(/Held since Sep 3/)).toBeInTheDocument()
+  })
+
+  it("opens a closed-off task read-only, saying why — stored DELETED with a cancel reason", () => {
+    renderModal({
+      as: head,
+      task: task({ status: TASK_STATUS.DELETED, cancelReason: "Cancelled: the Revert out of Proposal removed its progress." }),
+    })
+
+    expect(screen.getByText("canEdit:false")).toBeInTheDocument()
+    expect(screen.getByText("canEvaluate:false")).toBeInTheDocument()
+    expect(screen.getByText(/the Revert out of Proposal removed its progress/)).toBeInTheDocument()
+    expect(screen.queryByText("Task Deleted")).not.toBeInTheDocument()
+  })
+
   it("leaves an ordinary INCOMPLETE task fully editable (regression guard)", () => {
     renderModal({ as: head, task: task({ status: TASK_STATUS.INCOMPLETE }) })
 

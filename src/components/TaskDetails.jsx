@@ -16,6 +16,8 @@ import {
 } from "../utils/taskFormatters"
 import { PencilLine, AlertTriangle, Columns2, Maximize2 } from "lucide-react"
 import TaskFooter from "./TaskFooter.jsx"
+import ReadOnlyTaskBanner from "./ReadOnlyTaskBanner"
+import { isTaskClosedOff } from "../constants/journey"
 import { TASK_STATUS } from "../constants/status.js"
 import { useQuery } from "@tanstack/react-query"
 import { toast } from "react-hot-toast"
@@ -169,9 +171,13 @@ export default function TaskDetails({
   // A task on hold or cancelled is a frozen record: it opens for reading
   // (including its chat) but nothing on it can move — no edits, no
   // approve/reject/verify, no delete. See issue #396.
+  // Closed-off individual tasks are stored DELETED with a cancel_reason
+  // (tasks.status has no CANCELLED), so the reason is what marks them.
+  const isClosedOff = isTaskClosedOff(task)
   const isReadOnly =
     task?.status === TASK_STATUS.ON_HOLD ||
-    task?.status === TASK_STATUS.CANCELLED
+    task?.status === TASK_STATUS.CANCELLED ||
+    isClosedOff
   const canEvaluate = !isReadOnly && (isHead || isSuperAdmin)
 
   // Re-evaluation: head is editing a task already approved but not yet HR-verified.
@@ -521,7 +527,7 @@ export default function TaskDetails({
               isEditing={isEditing}
               isHrVerified={task.hrVerified}
               title={taskTitle}
-              status={task.status}
+              status={isClosedOff ? TASK_STATUS.CANCELLED : task.status}
               onClose={onClose}
               onOpenChat={
                 !isSplitScreen
@@ -574,7 +580,7 @@ export default function TaskDetails({
             />
 
             <div className="p-6 flex-1 overflow-y-auto space-y-6 custom-scrollbar bg-card">
-              {task.status === "DELETED" && (
+              {task.status === "DELETED" && !isClosedOff && (
                 <div className="bg-destructive/5 border border-destructive/30 rounded-xl p-4 flex items-center gap-3 text-destructive shadow-sm mt-0 -mb-4">
                   <div className="bg-red-100 p-2 rounded-lg">
                     <AlertTriangle size={20} className="text-destructive" />
@@ -592,27 +598,11 @@ export default function TaskDetails({
               )}
 
               {isReadOnly && (
-                <div className="bg-muted/40 border border-border rounded-xl p-4 flex items-center gap-3 text-muted-foreground shadow-sm mt-0 -mb-4">
-                  <div className="bg-mauve-4 p-2 rounded-lg">
-                    <AlertTriangle size={20} className="text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-black uppercase tracking-tight text-foreground">
-                      {task.status === TASK_STATUS.ON_HOLD
-                        ? "Task On Hold"
-                        : "Task Cancelled"}
-                    </p>
-                    <p className="text-xs font-bold opacity-80">
-                      {task.status === TASK_STATUS.ON_HOLD
-                        ? task.editedAt
-                          ? `Held since ${formatDate(task.editedAt)}. This task is read-only.`
-                          : "Held. This task is read-only."
-                        : task.editedAt
-                          ? `Cancelled on ${formatDate(task.editedAt)}. This task is read-only.`
-                          : "Cancelled. This task is read-only."}
-                    </p>
-                  </div>
-                </div>
+                <ReadOnlyTaskBanner
+                  held={task.status === TASK_STATUS.ON_HOLD}
+                  heldAt={task.heldAt}
+                  cancelReason={task.cancelReason}
+                />
               )}
 
               <div className="space-y-4">

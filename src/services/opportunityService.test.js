@@ -3219,16 +3219,16 @@ describe("opportunityService", () => {
         const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
 
         expect(noa.status).toBe("satisfied")
-        expect(noa.file).toMatchObject({ name: "noa.pdf", url: "https://cdn.test/noa.pdf" })
+        expect(noa.files).toEqual([expect.objectContaining({ name: "noa.pdf", url: "https://cdn.test/noa.pdf" })])
         expect(noa.satisfiedBy).toMatchObject({ id: estimator.id })
       })
 
-      it("leaves an unmet condition's file empty and its status 'unsatisfied'", async () => {
+      it("leaves an unmet condition's files empty and its status 'unsatisfied'", async () => {
         const [, , first] = await opportunityService.getJourney(deal.id)
         const noa = first.conditions.find((c) => c.condition.label === "Notice of Award")
 
         expect(noa.status).toBe("unsatisfied")
-        expect(noa.file).toBeNull()
+        expect(noa.files).toEqual([])
       })
 
       it("lists filled Stage Field values with their label, and names unfilled ones on one line", async () => {
@@ -3242,7 +3242,7 @@ describe("opportunityService", () => {
         const [, , first] = await opportunityService.getJourney(deal.id)
 
         expect(first.stageFields.filled).toEqual([
-          { id: siteField.id, label: "Site survey date", value: "2026-02-01" },
+          expect.objectContaining({ id: siteField.id, label: "Site survey date", value: "2026-02-01" }),
         ])
         expect(first.stageFields.notFilled).toEqual(["Access notes"])
       })
@@ -3512,6 +3512,31 @@ describe("opportunityService", () => {
         expect(first.closedOff.by).toMatchObject({ id: reverter.id, name: "Reverter" })
       })
 
+      it("marks a Start-fresh-closed visit on a Stage with no actions, from the visits alone", async () => {
+        const returner = makeEmployee({ name: "Returner" })
+        const fresh = db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id)
+        fresh.return_choice = "start_fresh"
+        fresh.entered_by = returner.id
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.actionRuns).toEqual([])
+        expect(first.closedOff).toMatchObject({ reason: "start_fresh", at: fresh.entered_at })
+        expect(first.closedOff.by).toMatchObject({ id: returner.id })
+      })
+
+      it("marks a Remove-progress visit on a Stage with no actions, from the visit alone", async () => {
+        const reverter = makeEmployee({ name: "Reverter" })
+        const left = db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v1.id)
+        left.revert_choice = "remove"
+        left.left_by = reverter.id
+
+        const [, , first] = await opportunityService.getJourney(deal.id)
+
+        expect(first.closedOff).toMatchObject({ reason: "reverted", at: left.left_at })
+        expect(first.closedOff.by).toMatchObject({ id: reverter.id })
+      })
+
       it("shows no marker on an ordinary visit whose work was never closed off", async () => {
         db.seed("sor_action_runs", {
           opportunity_id: deal.id,
@@ -3546,6 +3571,8 @@ describe("opportunityService", () => {
         const run = db.internal.rowsOf("sor_action_runs").find((r) => r.stage_visit_id === v1.id)
         run.closed_off_at = null
         run.closed_off_reason = null
+        // With Remove progress the Start fresh visit stands, marked removed.
+        db.internal.rowsOf("sor_stage_visits").find((v) => v.id === v3.id).revert_choice = "remove"
 
         const [, , first] = await opportunityService.getJourney(deal.id)
 

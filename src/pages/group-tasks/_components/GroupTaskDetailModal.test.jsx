@@ -137,6 +137,18 @@ describe("GroupTaskDetailModal read-only gating", () => {
     expect(screen.getAllByText(/cancelled/i).length).toBeGreaterThan(0)
   })
 
+  it("says why a cancelled group task was cancelled", () => {
+    renderModal({ task: task({ status: "CANCELLED", cancel_reason: "Cancelled: superseded by a fresh start." }) })
+
+    expect(screen.getByText(/superseded by a fresh start/)).toBeInTheDocument()
+  })
+
+  it("dates a held group task from when it was held", () => {
+    renderModal({ task: task({ status: "ON_HOLD", held_at: "2026-09-03T02:00:00Z" }) })
+
+    expect(screen.getByText(/Held since Sep 3/)).toBeInTheDocument()
+  })
+
   it("disables ticking a member's checklist on a cancelled task", () => {
     renderModal({ task: task({ status: "CANCELLED" }) })
 

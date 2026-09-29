@@ -327,6 +327,8 @@ export const taskQueryService = {
       editedByName: data.editor?.name,
       editedByAvatar: data.editor?.avatar_path,
       editedAt: data.edited_at,
+      heldAt: data.held_at || null,
+      cancelReason: data.cancel_reason || null,
       evaluatedById: data.evaluated_by,
       evaluatedByName: data.evaluator?.name,
       evaluatedByAvatar: data.evaluator?.avatar_path,

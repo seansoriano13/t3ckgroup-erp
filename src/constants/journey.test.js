@@ -1,12 +1,13 @@
 import { describe, it, expect } from "vitest"
 import {
+  displayTaskStatus,
+  isTaskClosedOff,
   journeyRows,
   visitSummary,
   visitOwnsTask,
   isTaskOpen,
   isTaskDeleted,
   isConditionOutstanding,
-  matchedAttachmentFor,
   stageFieldRows,
   stageFollowUpLogs,
   stageFollowUpReminderCount,
@@ -15,7 +16,7 @@ import {
   otherTaskRows,
   skippedRunCount,
 } from "./journey"
-import { CONDITION_KINDS, CONDITION_STATUS } from "./stageGate"
+import { CONDITION_STATUS } from "./stageGate"
 import { TASK_STATUS } from "./status"
 
 function makeVisit(overrides = {}) {
@@ -184,43 +185,17 @@ describe("isTaskOpen", () => {
   })
 })
 
-describe("matchedAttachmentFor (#397)", () => {
-  it("returns the attachment tagged with the condition's own id, filtered by accepted type", () => {
-    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: { accepts: ["pdf"] } }
-    const attachments = [
-      { conditionId: "cond-1", type: "image", name: "wrong-type.png" },
-      { conditionId: "cond-1", type: "pdf", name: "quote.pdf" },
-      { conditionId: "cond-2", type: "pdf", name: "not-mine.pdf" },
-    ]
-
-    expect(matchedAttachmentFor(condition, attachments)).toMatchObject({ name: "quote.pdf" })
-  })
-
-  it("falls back to the legacy documentType match for a pre-#203 condition", () => {
-    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: { documentType: "NDA" } }
-    const attachments = [{ documentType: "NDA", name: "nda.pdf" }]
-
-    expect(matchedAttachmentFor(condition, attachments)).toMatchObject({ name: "nda.pdf" })
-  })
-
-  it("returns null when nothing matches, or the condition isn't an attachment kind", () => {
-    const condition = { id: "cond-1", kind: CONDITION_KINDS.ATTACHMENT, config: {} }
-    expect(matchedAttachmentFor(condition, [])).toBeNull()
-    expect(matchedAttachmentFor({ id: "cond-2", kind: CONDITION_KINDS.TICKBOX }, [{ conditionId: "cond-2" }])).toBeNull()
-  })
-})
-
 describe("stageFieldRows (#397)", () => {
   it("splits custom fields into filled (with value) and not-filled (label only)", () => {
     const fields = [
-      { id: "f1", label: "Site survey date", source: "custom" },
+      { id: "f1", label: "Site survey date", source: "custom", field_type: "date" },
       { id: "f2", label: "Access notes", source: "custom" },
       { id: "f3", label: "Ignored SOR field", source: "sor", sor_field: "po_date" },
     ]
     const values = { f1: "2026-02-01" }
 
     expect(stageFieldRows(fields, values)).toEqual({
-      filled: [{ id: "f1", label: "Site survey date", value: "2026-02-01" }],
+      filled: [{ id: "f1", label: "Site survey date", type: "date", value: "2026-02-01" }],
       notFilled: ["Access notes"],
     })
   })
@@ -336,6 +311,28 @@ describe("stageActionRuns (#398)", () => {
   it("carries a failed run with no task attached", () => {
     const rows = stageActionRuns(actions, [{ action_id: "action-1", id: "run-1", outcome: "failed" }], { labelFor })
     expect(rows[0]).toMatchObject({ outcome: "failed", task: null, groupTask: null })
+  })
+
+  it("carries when a still-pending run was held, so a past visit can say it waits for a Resume", () => {
+    const rows = stageActionRuns(
+      actions,
+      [{ action_id: "action-1", id: "run-1", outcome: "pending", held_at: "2026-01-10T00:00:00Z" }],
+      { labelFor },
+    )
+    expect(rows[0]).toMatchObject({ outcome: "pending", heldAt: "2026-01-10T00:00:00Z", leftUndecided: false })
+  })
+})
+
+describe("isTaskClosedOff / displayTaskStatus", () => {
+  it("tells a closed-off individual task (DELETED with a reason) from one deleted by hand", () => {
+    const closedOff = { status: "DELETED", cancel_reason: "Cancelled: superseded by a fresh start." }
+    const deleted = { status: "DELETED", cancel_reason: null }
+
+    expect(isTaskClosedOff(closedOff)).toBe(true)
+    expect(isTaskClosedOff(deleted)).toBe(false)
+    expect(displayTaskStatus(closedOff)).toBe("CANCELLED")
+    expect(displayTaskStatus(deleted)).toBe("DELETED")
+    expect(displayTaskStatus({ status: "ON_HOLD" })).toBe("ON_HOLD")
   })
 })
 

@@ -97,6 +97,7 @@ describe("JourneyTab — past visit detail (#397)", () => {
 
     expect(await screen.findByText("Signed NDA")).toBeInTheDocument()
     expect(screen.getByText("Cass Cruz")).toBeInTheDocument()
+    expect(screen.getByText(/Ticked by/)).toBeInTheDocument()
     expect(screen.queryByRole("link")).not.toBeInTheDocument()
   })
 
@@ -346,6 +347,101 @@ describe("JourneyTab — past visit detail (#397)", () => {
 
     await screen.findByRole("button", { expanded: false })
     expect(screen.queryByText(/skipped/)).not.toBeInTheDocument()
+  })
+
+  it("reads 'Met' with no person for a condition the system settled itself (#397)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        conditions: [
+          {
+            condition: { id: "cond-3", label: "Purchasing settled", kind: "purchasing" },
+            status: CONDITION_STATUS.SATISFIED,
+            satisfiedBy: null,
+            satisfiedAt: null,
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText("Purchasing settled")).toBeInTheDocument()
+    expect(screen.getByText("Met")).toBeInTheDocument()
+    expect(screen.queryByText("someone")).not.toBeInTheDocument()
+  })
+
+  it("lists sections in the Now tab's order: conditions, Stage fields, actions, follow-ups (#397)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        conditions: [
+          { condition: { id: "c1", label: "Signed NDA", kind: "tickbox" }, status: CONDITION_STATUS.UNSATISFIED },
+        ],
+        stageFields: { filled: [{ id: "f1", label: "Site survey date", type: "date", value: "2026-02-01" }], notFilled: [] },
+        actionRuns: [
+          { id: "run-1", actionId: "a1", label: "Kickoff task", outcome: "failed", leftUndecided: false },
+        ],
+        followUpReminderCount: 2,
+      }),
+    ])
+
+    const text = (await screen.findByText("Signed NDA")).closest(".space-y-4").textContent
+    const order = ["Signed NDA", "Site survey date", "Kickoff task", "2 reminders sent"].map((t) => text.indexOf(t))
+    expect(order.every((i) => i >= 0)).toBe(true)
+    expect([...order].sort((a, b) => a - b)).toEqual(order)
+    // A date field reads as a date, not a raw ISO string.
+    expect(screen.queryByText("2026-02-01")).not.toBeInTheDocument()
+  })
+
+  it("says an Optional Action held by Keep progress is not decided, never 'skipped' (#398)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "a1",
+            label: "Site survey",
+            outcome: "pending",
+            leftUndecided: false,
+            decidedBy: null,
+            decidedAt: null,
+            heldAt: "2026-01-10T00:00:00Z",
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByText("Not decided, held for a Resume")).toBeInTheDocument()
+    expect(screen.queryByText(/Skipped by/)).not.toBeInTheDocument()
+  })
+
+  it("shows a closed-off individual task on its action line as Cancelled, but a hand-deleted one as 'Task deleted' (#400)", async () => {
+    await renderJourney([
+      currentVisit(),
+      baseVisit({
+        actionRuns: [
+          {
+            id: "run-1",
+            actionId: "a1",
+            label: "Kickoff task",
+            outcome: "created",
+            task: { id: "t1", project_title: "Kickoff", status: "DELETED", cancel_reason: "Cancelled: superseded by a fresh start." },
+          },
+          {
+            id: "run-2",
+            actionId: "a2",
+            label: "Survey task",
+            outcome: "created",
+            task: { id: "t2", project_title: "Survey", status: "DELETED", cancel_reason: null },
+          },
+        ],
+      }),
+    ])
+
+    expect(await screen.findByTitle("Kickoff")).toBeInTheDocument()
+    expect(screen.getByText("CANCELLED")).toBeInTheDocument()
+    expect(screen.queryByTitle("Survey")).not.toBeInTheDocument()
+    expect(screen.getByText("Task deleted")).toBeInTheDocument()
   })
 
   it("renders a restricted visit as one line, fetching and expanding nothing (#296 unaffected)", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { CalendarClock } from "lucide-react";
 import Avatar from "../../Avatar";
 import StatusBadge from "../../StatusBadge";
@@ -7,6 +7,7 @@ import { NoteText } from "../../ui/MentionTextarea";
 import { taskService } from "../../../services/taskService";
 import { groupTaskService } from "../../../services/groupTaskService";
 import { MAX_AVATARS } from "../../../constants/sorTasks";
+import { displayTaskStatus } from "../../../constants/journey";
 
 function formatDue(iso) {
   if (!iso) return null;
@@ -32,7 +33,7 @@ function normalizeIndividualTask(task) {
     id: task.id,
     entityType: "TASK",
     title: task.projectTitle || task.taskDescription?.split("\n")[0] || "Individual Task",
-    status: task.status,
+    status: displayTaskStatus(task),
     dueDate: task.endAt || null,
     avatars: [{ id: task.id, name: task.loggedByName || "Unassigned", avatarPath: task.loggedByAvatar || null }],
   };
@@ -111,52 +112,24 @@ function TaskCard({ entity }) {
  */
 export default function TaskCreatedNoteCard({ note }) {
   const { taskId, groupTaskId } = note.metadata || {};
-  const [state, setState] = useState(taskId || groupTaskId ? "loading" : "fallback");
-  const [entity, setEntity] = useState(null);
+  // Shares GlobalDetailManager's cache keys, so an edit made in the task's
+  // own modal (which invalidates them) refreshes this card's live status.
+  const { data: entity, isPending, isError } = useQuery({
+    queryKey: groupTaskId ? ["globalGroupTask", groupTaskId] : ["globalTask", taskId],
+    queryFn: () =>
+      groupTaskId ? groupTaskService.getGroupTaskById(groupTaskId) : taskService.getTaskById(taskId),
+    select: groupTaskId ? normalizeGroupTask : normalizeIndividualTask,
+    enabled: Boolean(taskId || groupTaskId),
+    retry: false,
+  });
 
-  useEffect(() => {
-    if (!taskId && !groupTaskId) {
-      setState("fallback");
-      return;
-    }
-
-    let cancelled = false;
-    setState("loading");
-
-    const fetcher = groupTaskId
-      ? groupTaskService.getGroupTaskById(groupTaskId).then(normalizeGroupTask)
-      : taskService.getTaskById(taskId).then(normalizeIndividualTask);
-
-    fetcher
-      .then((normalized) => {
-        if (cancelled) return;
-        if (!normalized) {
-          setState("fallback");
-          return;
-        }
-        setEntity(normalized);
-        setState("ready");
-      })
-      .catch(() => {
-        if (!cancelled) setState("fallback");
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [taskId, groupTaskId]);
-
-  if (state === "ready" && entity) {
-    return <TaskCard entity={entity} />;
-  }
-
-  if (state === "fallback") {
-    return note.content ? (
-      <NoteText content={note.content} className="text-sm text-muted-foreground italic break-words" />
-    ) : null;
-  }
+  if (entity) return <TaskCard entity={entity} />;
 
   // Loading — render nothing rather than a placeholder card that would just
   // flash and be replaced.
-  return null;
+  if ((taskId || groupTaskId) && isPending && !isError) return null;
+
+  return note.content ? (
+    <NoteText content={note.content} className="text-sm text-muted-foreground italic break-words" />
+  ) : null;
 }

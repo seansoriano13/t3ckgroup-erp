@@ -42,7 +42,6 @@ import { renderTemplate } from "../constants/taskTemplates";
 import { nextFollowUpDue } from "../constants/followUp";
 import {
   visitOwnsTask,
-  matchedAttachmentFor,
   stageFieldRows,
   stageFollowUpLogs,
   stageFollowUpReminderCount,
@@ -326,7 +325,7 @@ async function conditionsByStageFor(stageIds, narrow = (query) => query) {
 // Journey visit's list — in one place, so the two can't drift apart on which
 // columns decide a row's due date, parts done, owner, or Stage Visit.
 const SOR_TASK_COLUMNS =
-  "id, project_title, task_description, status, created_at, end_at, stage_visit_id, carried_from_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
+  "id, project_title, task_description, status, cancel_reason, created_at, end_at, stage_visit_id, carried_from_visit_id, logged_by, assignee:employees!tasks_logged_by_fk(id, name, avatar_path)";
 const SOR_GROUP_TASK_COLUMNS = `
   id, title, description, status, created_at, due_date, stage_visit_id, carried_from_visit_id,
   creator:employees!committee_tasks_created_by_fkey(id, name, avatar_path),
@@ -367,7 +366,7 @@ async function currentVisitFor(opportunityId) {
  * this one evidence read with the legacy pipeline's gate and the read-only
  * checklist.
  */
-async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf } = {}) {
+async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf, preloaded } = {}) {
   if (conditions.length === 0 && !stageVisitId) {
     return { attachments: [], members: [], statusRowsByCondition: {} };
   }
@@ -390,15 +389,19 @@ async function gateEvidenceFor(opportunityId, conditions, { stageVisitId, asOf }
     statusRows = data || [];
   }
 
-  const [{ data: logs, error: logsError }, memberRows, groups] =
-    await Promise.all([
-      supabase
-        .from("sales_opportunity_logs")
-        .select("author_id, created_at, metadata")
-        .eq("opportunity_id", opportunityId),
-      opportunityService.getMembers(opportunityId),
-      employeeGroupService.list(),
-    ]);
+  // `preloaded` lets a caller judging many visits of one SOR (the History
+  // tab) read the logs, members and groups once instead of once per visit —
+  // a per-visit log read is what made the History take seconds to load.
+  const [{ data: logs, error: logsError }, memberRows, groups] = preloaded
+    ? [{ data: preloaded.logs, error: null }, preloaded.memberRows, preloaded.groups]
+    : await Promise.all([
+        supabase
+          .from("sales_opportunity_logs")
+          .select("author_id, created_at, metadata")
+          .eq("opportunity_id", opportunityId),
+        opportunityService.getMembers(opportunityId),
+        employeeGroupService.list(),
+      ]);
   if (logsError) throw logsError;
 
   let attachments = (logs || []).flatMap(attachmentsFromLog);
@@ -3931,7 +3934,7 @@ export const opportunityService = {
         supabase
           .from("sor_action_runs")
           .select(
-            "id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, task_id, group_task_id, closed_off_at, closed_off_reason",
+            "id, stage_id, action_id, stage_visit_id, outcome, decided_by, decided_at, held_at, task_id, group_task_id, closed_off_at, closed_off_reason",
           )
           .eq("opportunity_id", opportunityId),
       ]);
@@ -3982,13 +3985,20 @@ export const opportunityService = {
     // needs no such lookup: it closes off the visit it leaves, whose own
     // `left_by`/`left_at` already name who and when.
     const startFreshClosureByVisitId = {};
+    const startFreshAtByVisitId = {};
     for (const v of visits) {
       if (v.return_choice !== "start_fresh") continue;
       const prior = visits
         .filter((o) => o.flow_stage_id === v.flow_stage_id && o.sequence < v.sequence)
         .sort((a, b) => b.sequence - a.sequence)[0];
-      if (prior) startFreshClosureByVisitId[prior.id] = v.enteredBy || null;
+      if (prior) {
+        startFreshClosureByVisitId[prior.id] = v.enteredBy || null;
+        // A Start fresh later reverted with Remove progress reopens the
+        // earlier work, so only an unreverted one closes it off.
+        if (!v.revert_choice) startFreshAtByVisitId[prior.id] = v.entered_at;
+      }
     }
+    const rawVisitById = Object.fromEntries(visits.map((v) => [v.id, v]));
 
     const shaped = visits.map((visit) => {
       const visitWindow = { id: visit.id, enteredAt: visit.entered_at, leftAt: visit.left_at };
@@ -4052,9 +4062,30 @@ export const opportunityService = {
 
     // #400: derived from the very actionRuns just shaped, so a visit's
     // closed-off marker can never disagree with what its runs say.
+    // A Stage with no actions has no runs to stamp, so its closure is read
+    // off the visits themselves: a later Start fresh to the same Stage, or
+    // this visit's own Remove progress. A reverted Start fresh undoes its
+    // visit, which drops out of `visits` and takes the marker with it.
     for (const visit of shaped) {
-      visit.closedOff = visit.isRestricted ? null : visitClosedOff(visit.actionRuns);
+      if (visit.isRestricted) {
+        visit.closedOff = null;
+        continue;
+      }
+      const raw = rawVisitById[visit.id];
+      visit.closedOff =
+        visitClosedOff(visit.actionRuns) ??
+        (startFreshAtByVisitId[visit.id]
+          ? { reason: "start_fresh", at: startFreshAtByVisitId[visit.id], by: startFreshClosureByVisitId[visit.id] }
+          : raw?.revert_choice === "remove"
+            ? { reason: "reverted", at: raw.left_at, by: raw.leftBy || null }
+            : null);
     }
+
+    const [memberRows, groups] = await Promise.all([
+      opportunityService.getMembers(opportunityId),
+      employeeGroupService.list(),
+    ]);
+    const preloaded = { logs: opportunityLogs, memberRows, groups };
 
     const withConditions = await Promise.all(
       shaped.map(async (visit) => {
@@ -4069,12 +4100,12 @@ export const opportunityService = {
           .filter((c) => c.kind !== CONDITION_KINDS.DEADLINE)
           .sort((a, b) => a.sort_order - b.sort_order);
         if (conditions.length === 0) {
-          const { attachments } = await gateEvidenceFor(opportunityId, [], { stageVisitId: visit.id, asOf: visit.leftAt });
+          const { attachments } = await gateEvidenceFor(opportunityId, [], { stageVisitId: visit.id, asOf: visit.leftAt, preloaded });
           return { ...visit, conditions: [], attachments: attachments || [] };
         }
 
         const [{ attachments, members, statusRowsByCondition }, hasInclusions, hasPurchasing] = await Promise.all([
-          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt }),
+          gateEvidenceFor(opportunityId, conditions, { stageVisitId: visit.id, asOf: visit.leftAt, preloaded }),
           resolveHasInclusions(conditions, opportunityId, { asOf: visit.leftAt }),
           resolveHasPurchasing(conditions, opportunityId, { asOf: visit.leftAt }),
         ]);
@@ -4109,8 +4140,6 @@ export const opportunityService = {
                 condition,
                 ...evaluation,
                 files: matchedFiles,
-                // #397: History shows the file that met the condition.
-                file: matchedAttachmentFor(condition, attachments),
                 // ADR 0027 / issue #412 — evidence a Resume carried here keeps
                 // its mark. Reads matchedFiles, not the visit's whole
                 // attachments list: a Stage with more than one Attachment

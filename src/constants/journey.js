@@ -1,4 +1,4 @@
-import { CONDITION_KINDS, CONDITION_STATUS } from "./stageGate"
+import { CONDITION_STATUS } from "./stageGate"
 import { GROUP_TASK_STATUS, TASK_STATUS } from "./status"
 
 /**
@@ -27,6 +27,22 @@ export function isTaskOpen(task) {
  */
 export function isTaskDeleted(task) {
   return task?.status === TASK_STATUS.DELETED
+}
+
+/**
+ * An individual task a Start fresh, a Revert or a Remove progress cancelled.
+ * `tasks.status` has no CANCELLED — those writes set DELETED plus a
+ * `cancel_reason`, and the reason is what tells closed-off work (history,
+ * shown) from a task someone deleted by hand (noise, hidden). Group Tasks
+ * are cancelled as CANCELLED and never need this.
+ */
+export function isTaskClosedOff(task) {
+  return task?.status === TASK_STATUS.DELETED && Boolean(task?.cancel_reason ?? task?.cancelReason)
+}
+
+/** The status a reader sees: a closed-off individual task reads as Cancelled, not Deleted. */
+export function displayTaskStatus(task) {
+  return isTaskClosedOff(task) ? TASK_STATUS.CANCELLED : task?.status
 }
 
 /**
@@ -61,28 +77,6 @@ export function visitOwnsTask(task, visit) {
   return leftAt === null || createdAt < leftAt
 }
 
-/**
- * The attachment that actually met an attachment condition (#397) — the same
- * matching rule `evaluateCondition` applies internally but never hands back,
- * since the live gate only needs who/when. History needs the file itself, so
- * this re-runs that one rule read-only rather than widening the pure engine's
- * return shape for every caller.
- */
-export function matchedAttachmentFor(condition, attachments = []) {
-  if (condition?.kind !== CONDITION_KINDS.ATTACHMENT) return null
-
-  const documentType = condition.config?.documentType ?? null
-  if (documentType) {
-    return attachments.find((a) => a.documentType === documentType) ?? null
-  }
-  const accepts = Array.isArray(condition.config?.accepts) ? condition.config.accepts : []
-  return (
-    attachments.find(
-      (a) => a.conditionId === condition.id && (accepts.length === 0 || accepts.includes(a.type)),
-    ) ?? null
-  )
-}
-
 function isNonEmptyFieldValue(value) {
   return value !== null && value !== undefined && String(value).trim() !== ""
 }
@@ -102,7 +96,7 @@ export function stageFieldRows(fields = [], values = {}) {
     if (field.source !== "custom") continue
     const value = values[field.id]
     if (isNonEmptyFieldValue(value)) {
-      filled.push({ id: field.id, label: field.label, value })
+      filled.push({ id: field.id, label: field.label, type: field.field_type ?? null, value })
     } else {
       notFilled.push(field.label)
     }
@@ -188,6 +182,9 @@ export function stageActionRuns(
         label: labelFor ? labelFor(action) : action.id,
         outcome: run.outcome,
         leftUndecided: isLeftUndecided(run),
+        // A pending run on a past visit was held by a Revert's Keep progress:
+        // still undecided, waiting for a Resume — neither skipped nor live.
+        heldAt: run.held_at ?? null,
         decidedBy: run.decided_by ?? null,
         decidedAt: run.decided_at ?? null,
         task: run.task_id ? (tasksById[run.task_id] ?? null) : null,

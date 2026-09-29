@@ -12,7 +12,7 @@ const OPTIONS = [
   {
     value: REVERT_CHOICE.REMOVE,
     label: "Remove progress",
-    help: "Closes off its tasks and action runs. Never deleted — it stays visible on the Journey.",
+    help: "Closes off its tasks and action runs. Never deleted — it stays visible in the History.",
   },
 ];
 
